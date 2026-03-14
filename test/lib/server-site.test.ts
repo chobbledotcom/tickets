@@ -17,7 +17,8 @@ import {
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
-  loginAsAdmin,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -41,8 +42,7 @@ describe("server (admin site)", () => {
     });
 
     test("shows homepage editor when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/site", { cookie });
+      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
       await expectHtmlResponse(
         response,
         200,
@@ -56,18 +56,16 @@ describe("server (admin site)", () => {
     test("displays existing values", async () => {
       await updateWebsiteTitle("My Events");
       await updateHomepageText("Welcome!");
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/site", { cookie });
+      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("My Events");
       expect(html).toContain("Welcome!");
     });
 
     test("displays success message from query param", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(
         "/admin/site?success=Homepage+updated",
-        { cookie },
+        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain("Homepage updated");
@@ -86,28 +84,26 @@ describe("server (admin site)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
           { website_title: "Test", csrf_token: "invalid" },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(403);
     });
 
     test("saves website title and homepage text", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
           {
             website_title: "My Site",
             homepage_text: "Welcome!",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -124,12 +120,11 @@ describe("server (admin site)", () => {
     test("clears values when empty", async () => {
       await updateWebsiteTitle("Old Title");
       await updateHomepageText("Old Text");
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
-          { website_title: "", homepage_text: "", csrf_token: csrfToken },
-          cookie,
+          { website_title: "", homepage_text: "", csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -138,16 +133,15 @@ describe("server (admin site)", () => {
     });
 
     test("rejects title exceeding max length", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
           {
             website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
             homepage_text: "",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(
@@ -158,16 +152,15 @@ describe("server (admin site)", () => {
     });
 
     test("rejects homepage text exceeding max length", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
           {
             website_title: "",
             homepage_text: "x".repeat(MAX_PAGE_TEXT_LENGTH + 1),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(
@@ -178,9 +171,8 @@ describe("server (admin site)", () => {
     });
 
     test("handles missing fields gracefully", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
-        mockFormRequest("/admin/site", { csrf_token: csrfToken }, cookie),
+        mockFormRequest("/admin/site", { csrf_token: await testCsrfToken() }, await testCookie()),
       );
       expect(response.status).toBe(302);
     });
@@ -193,9 +185,8 @@ describe("server (admin site)", () => {
     });
 
     test("shows contact editor when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/site/contact", {
-        cookie,
+        cookie: await testCookie(),
       });
       await expectHtmlResponse(
         response,
@@ -208,19 +199,17 @@ describe("server (admin site)", () => {
 
     test("displays existing contact text", async () => {
       await updateContactPageText("Call us!");
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/site/contact", {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain("Call us!");
     });
 
     test("displays success message from query param", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(
         "/admin/site/contact?success=Contact+page+updated",
-        { cookie },
+        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain("Contact page updated");
@@ -238,24 +227,22 @@ describe("server (admin site)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
           { contact_page_text: "Hello", csrf_token: "invalid" },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(403);
     });
 
     test("saves contact page text", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
-          { contact_page_text: "Email us!", csrf_token: csrfToken },
-          cookie,
+          { contact_page_text: "Email us!", csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -269,12 +256,11 @@ describe("server (admin site)", () => {
 
     test("clears contact text when empty", async () => {
       await updateContactPageText("Old text");
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
-          { contact_page_text: "", csrf_token: csrfToken },
-          cookie,
+          { contact_page_text: "", csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -282,15 +268,14 @@ describe("server (admin site)", () => {
     });
 
     test("rejects text exceeding max length", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
           {
             contact_page_text: "x".repeat(MAX_PAGE_TEXT_LENGTH + 1),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(
@@ -301,12 +286,11 @@ describe("server (admin site)", () => {
     });
 
     test("handles missing field gracefully", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -315,8 +299,7 @@ describe("server (admin site)", () => {
 
   describe("site subnav", () => {
     test("homepage shows subnav with Homepage and Contact links", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/site", { cookie });
+      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
       expect(html).toContain('href="/admin/site/contact"');
@@ -325,9 +308,8 @@ describe("server (admin site)", () => {
     });
 
     test("contact page shows subnav with Homepage and Contact links", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/site/contact", {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
@@ -340,15 +322,13 @@ describe("server (admin site)", () => {
   describe("admin nav", () => {
     test("shows Site link when public site is enabled", async () => {
       await updateShowPublicSite(true);
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/site", { cookie });
+      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
     });
 
     test("hides Site link when public site is disabled", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).not.toContain('href="/admin/site"');
     });

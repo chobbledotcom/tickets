@@ -117,6 +117,7 @@ const main = async (): Promise<void> => {
     "--allow-run",
     "--allow-sys",
     "--allow-ffi",
+    "--parallel",
   ];
 
   if (useCoverage) {
@@ -137,6 +138,8 @@ const main = async (): Promise<void> => {
       STRIPE_MOCK_HOST: "localhost",
       STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
       ALLOWED_DOMAIN: "localhost",
+      // Limit parallel workers to avoid env var races between test files
+      DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "3",
     },
   });
 

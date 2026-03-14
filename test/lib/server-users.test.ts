@@ -1,7 +1,6 @@
-import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
-import { encrypt, hashPassword } from "#lib/crypto.ts";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
@@ -17,6 +16,7 @@ import {
   isInviteValid,
   verifyUserPassword,
 } from "#lib/db/users.ts";
+import { encrypt, hashPassword } from "#lib/crypto.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -26,7 +26,8 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
-  loginAsAdmin,
+  testCookie,
+  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -144,24 +145,14 @@ describe("server (multi-user admin)", () => {
   describe("isInviteExpired", () => {
     test("returns true for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
-      const user = await createInvitedUser(
-        "expired-check",
-        "manager",
-        "somehash",
-        expiry,
-      );
+      const user = await createInvitedUser("expired-check", "manager", "somehash", expiry);
 
       expect(await isInviteExpired(user)).toBe(true);
     });
 
     test("returns false for valid invite", async () => {
       const expiry = new Date(Date.now() + 86400000).toISOString();
-      const user = await createInvitedUser(
-        "valid-check",
-        "manager",
-        "somehash",
-        expiry,
-      );
+      const user = await createInvitedUser("valid-check", "manager", "somehash", expiry);
 
       expect(await isInviteExpired(user)).toBe(false);
     });
@@ -178,7 +169,8 @@ describe("server (multi-user admin)", () => {
       const hash = await hashPassword("managerpass");
       const encHash = await encrypt(hash);
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+        sql:
+          `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
               VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("manager"),
@@ -219,20 +211,17 @@ describe("server (multi-user admin)", () => {
     });
 
     test("owner user can access settings page", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       expect(response.status).toBe(200);
     });
 
     test("owner user can access sessions page", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/sessions", { cookie });
+      const response = await awaitTestRequest("/admin/sessions", { cookie: await testCookie() });
       expect(response.status).toBe(200);
     });
 
     test("owner user can access users page", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/users", { cookie });
+      const response = await awaitTestRequest("/admin/users", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, "Users", TEST_ADMIN_USERNAME);
     });
 
@@ -253,19 +242,17 @@ describe("server (multi-user admin)", () => {
     });
 
     test("shows users list when authenticated as owner", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/users", { cookie });
+      const response = await awaitTestRequest("/admin/users", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, TEST_ADMIN_USERNAME, "owner");
     });
   });
 
   describe("GET /admin/users (with query params)", () => {
     test("displays invite link from query param", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(
         "/admin/users?invite=" +
           encodeURIComponent("https://localhost/join/abc123"),
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -276,10 +263,9 @@ describe("server (multi-user admin)", () => {
     });
 
     test("displays success message from query param", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(
         "/admin/users?success=User+deleted+successfully",
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -297,8 +283,7 @@ describe("server (multi-user admin)", () => {
     });
 
     test("renders invite user form when authenticated as owner", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/user/new", { cookie });
+      const response = await awaitTestRequest("/admin/user/new", { cookie: await testCookie() });
       await expectHtmlResponse(
         response,
         200,
@@ -320,16 +305,15 @@ describe("server (multi-user admin)", () => {
     });
 
     test("creates invited user and shows invite link", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users",
           {
             username: "newmanager",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -343,16 +327,15 @@ describe("server (multi-user admin)", () => {
     });
 
     test("rejects duplicate username", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users",
           {
             username: TEST_ADMIN_USERNAME,
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -360,16 +343,15 @@ describe("server (multi-user admin)", () => {
     });
 
     test("rejects invalid role", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users",
           {
             username: "newuser",
             admin_level: "superadmin",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -379,8 +361,6 @@ describe("server (multi-user admin)", () => {
 
   describe("GET /admin/users/:id/delete", () => {
     test("shows delete confirmation page", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Create a user to delete
       await handleRequest(
         mockFormRequest(
@@ -388,45 +368,29 @@ describe("server (multi-user admin)", () => {
           {
             username: "todelete",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
-      const response = await awaitTestRequest("/admin/users/2/delete", {
-        cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
-        "Delete User",
-        "todelete",
-        "confirm_identifier",
-      );
+      const response = await awaitTestRequest("/admin/users/2/delete", { cookie: await testCookie() });
+      await expectHtmlResponse(response, 200, "Delete User", "todelete", "confirm_identifier");
     });
 
     test("returns 404 for nonexistent user", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/users/999/delete", {
-        cookie,
-      });
+      const response = await awaitTestRequest("/admin/users/999/delete", { cookie: await testCookie() });
       expect(response.status).toBe(404);
     });
 
     test("rejects deleting self", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/users/1/delete", {
-        cookie,
-      });
+      const response = await awaitTestRequest("/admin/users/1/delete", { cookie: await testCookie() });
       await expectHtmlResponse(response, 400, "Cannot delete your own account");
     });
   });
 
   describe("POST /admin/users/:id/delete", () => {
     test("deletes a user with correct confirmation", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Create an invited user first
       await handleRequest(
         mockFormRequest(
@@ -434,9 +398,9 @@ describe("server (multi-user admin)", () => {
           {
             username: "deleteme",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -447,8 +411,8 @@ describe("server (multi-user admin)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          { csrf_token: csrfToken, confirm_identifier: "deleteme" },
-          cookie,
+          { csrf_token: await testCsrfToken(), confirm_identifier: "deleteme" },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -460,25 +424,23 @@ describe("server (multi-user admin)", () => {
     });
 
     test("rejects deletion with wrong confirmation", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       await handleRequest(
         mockFormRequest(
           "/admin/users",
           {
             username: "keepme",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          { csrf_token: csrfToken, confirm_identifier: "wrongname" },
-          cookie,
+          { csrf_token: await testCsrfToken(), confirm_identifier: "wrongname" },
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Username does not match");
@@ -488,45 +450,40 @@ describe("server (multi-user admin)", () => {
     });
 
     test("rejects deletion without confirmation", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       await handleRequest(
         mockFormRequest(
           "/admin/users",
           {
             username: "keepme2",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Username does not match");
     });
 
     test("prevents deleting self", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/1/delete",
-          { csrf_token: csrfToken, confirm_identifier: TEST_ADMIN_USERNAME },
-          cookie,
+          { csrf_token: await testCsrfToken(), confirm_identifier: TEST_ADMIN_USERNAME },
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Cannot delete your own account");
     });
 
     test("deletes another owner with correct confirmation", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Create another owner user
       await handleRequest(
         mockFormRequest(
@@ -534,9 +491,9 @@ describe("server (multi-user admin)", () => {
           {
             username: "otheradmin",
             admin_level: "owner",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -547,8 +504,8 @@ describe("server (multi-user admin)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          { csrf_token: csrfToken, confirm_identifier: "otheradmin" },
-          cookie,
+          { csrf_token: await testCsrfToken(), confirm_identifier: "otheradmin" },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -632,9 +589,7 @@ describe("server (multi-user admin)", () => {
         password_confirm: "newpassword123",
       });
 
-      expectRedirect("/join/complete?success=Password+set+successfully")(
-        joinPostResponse,
-      );
+      expectRedirect("/join/complete?success=Password+set+successfully")(joinPostResponse);
 
       // Verify user now has a password
       const user = await getUserByUsername("joiner2");
@@ -672,8 +627,7 @@ describe("server (multi-user admin)", () => {
 
   describe("navigation", () => {
     test("owner sees all nav links", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/", { cookie });
+      const response = await awaitTestRequest("/admin/", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("Settings");
       expect(html).toContain("Sessions");
@@ -714,8 +668,9 @@ describe("server (multi-user admin)", () => {
 
   describe("POST /admin/users/:id/activate", () => {
     test("activates user who has set password", async () => {
-      const { inviteCode, cookie, csrfToken } =
-        await createTestInvite("activateme");
+      const { inviteCode, cookie, csrfToken } = await createTestInvite(
+        "activateme",
+      );
 
       await submitJoinForm(inviteCode, {
         password: "newpassword123",
@@ -732,27 +687,21 @@ describe("server (multi-user admin)", () => {
       );
       expect(activateResponse.status).toBe(302);
       const location = activateResponse.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "activated successfully",
-      );
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("activated successfully");
     });
 
     test("returns 404 for nonexistent user", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/999/activate",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 404, "User not found");
     });
 
     test("rejects user who has not set password", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Create invite but don't complete join flow
       await handleRequest(
         mockFormRequest(
@@ -760,31 +709,29 @@ describe("server (multi-user admin)", () => {
           {
             username: "nopassword",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/activate",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "not set their password");
     });
 
     test("rejects already activated user", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // User 1 (the owner) is already activated
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/1/activate",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "already activated");
@@ -823,12 +770,11 @@ describe("server (multi-user admin)", () => {
 
   describe("POST /admin/users/:id/delete (not found)", () => {
     test("returns 404 for nonexistent user", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/999/delete",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 404, "User not found");
@@ -837,12 +783,11 @@ describe("server (multi-user admin)", () => {
 
   describe("POST /admin/users (form validation)", () => {
     test("rejects missing username", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users",
-          { username: "", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
+          { username: "", admin_level: "manager", csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(400);
@@ -869,11 +814,14 @@ describe("server (multi-user admin)", () => {
       await createInvitedUser("expired-post-user", "manager", codeHash, expiry);
 
       const response = await handleRequest(
-        mockFormRequest("/join/expired-post-123", {
-          password: "pass12345678",
-          password_confirm: "pass12345678",
-          csrf_token: "fake",
-        }),
+        mockFormRequest(
+          "/join/expired-post-123",
+          {
+            password: "pass12345678",
+            password_confirm: "pass12345678",
+            csrf_token: "fake",
+          },
+        ),
       );
       expect(response.status).toBe(410);
     });
@@ -885,11 +833,14 @@ describe("server (multi-user admin)", () => {
 
       // POST with invalid (unsigned) CSRF token
       const response = await handleRequest(
-        mockFormRequest(`/join/${inviteCode}`, {
-          password: "newpassword123",
-          password_confirm: "newpassword123",
-          csrf_token: "wrong",
-        }),
+        mockFormRequest(
+          `/join/${inviteCode}`,
+          {
+            password: "newpassword123",
+            password_confirm: "newpassword123",
+            csrf_token: "wrong",
+          },
+        ),
       );
       await expectHtmlResponse(response, 403, "try again");
     });
@@ -899,11 +850,14 @@ describe("server (multi-user admin)", () => {
 
       // POST with fake CSRF token (not properly signed)
       const response = await handleRequest(
-        mockFormRequest(`/join/${inviteCode}`, {
-          password: "newpassword123",
-          password_confirm: "newpassword123",
-          csrf_token: "token",
-        }),
+        mockFormRequest(
+          `/join/${inviteCode}`,
+          {
+            password: "newpassword123",
+            password_confirm: "newpassword123",
+            csrf_token: "token",
+          },
+        ),
       );
       expect(response.status).toBe(403);
     });
@@ -939,7 +893,6 @@ describe("server (multi-user admin)", () => {
 
   describe("users template rendering", () => {
     test("shows Invited status for user without password", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       // Create invited user (no password yet)
       await handleRequest(
         mockFormRequest(
@@ -947,19 +900,18 @@ describe("server (multi-user admin)", () => {
           {
             username: "invited-only",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
-      const response = await awaitTestRequest("/admin/users", { cookie });
+      const response = await awaitTestRequest("/admin/users", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("Invited");
     });
 
     test("shows Invite Expired status for expired invite", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       // Create an invited user then manually set expiry to the past
       await handleRequest(
         mockFormRequest(
@@ -967,22 +919,20 @@ describe("server (multi-user admin)", () => {
           {
             username: "expired-display",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
-      const expiredExpiry = await encrypt(
-        new Date(Date.now() - 1000).toISOString(),
-      );
+      const expiredExpiry = await encrypt(new Date(Date.now() - 1000).toISOString());
       await getDb().execute({
         sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",
         args: [expiredExpiry],
       });
       invalidateUsersCache();
 
-      const response = await awaitTestRequest("/admin/users", { cookie });
+      const response = await awaitTestRequest("/admin/users", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("Invite Expired");
     });
@@ -1058,7 +1008,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("no-expiry-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+        sql:
+          `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("no-expiry-user"),
@@ -1081,7 +1032,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("badlevel-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+        sql:
+          `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("badlevel-user"),
@@ -1105,7 +1057,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("empty-expiry-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+        sql:
+          `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("empty-expiry-user"),
@@ -1131,7 +1084,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+        sql:
+          `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
               VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("formmanager"),
@@ -1219,8 +1173,6 @@ describe("server (multi-user admin)", () => {
 
   describe("settings updateUserPassword failure", () => {
     test("password change returns 500 when wrapped_data_key is corrupted", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Corrupt the owner's wrapped_data_key (password verification will still pass, but unwrap will fail)
       await getDb().execute({
         sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
@@ -1235,9 +1187,9 @@ describe("server (multi-user admin)", () => {
             current_password: TEST_ADMIN_PASSWORD,
             new_password: "newpassword123",
             new_password_confirm: "newpassword123",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 500, "Failed to update password");
@@ -1246,8 +1198,6 @@ describe("server (multi-user admin)", () => {
 
   describe("settings user not found", () => {
     test("password change returns 500 when user is deleted mid-request", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Delete the user while session still exists
       await getDb().execute({
         sql: "DELETE FROM users WHERE id = 1",
@@ -1262,9 +1212,9 @@ describe("server (multi-user admin)", () => {
             current_password: TEST_ADMIN_PASSWORD,
             new_password: "newpassword123",
             new_password_confirm: "newpassword123",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       // Session auth check should redirect since user was deleted
@@ -1274,31 +1224,30 @@ describe("server (multi-user admin)", () => {
 
   describe("audit logging", () => {
     test("logs activity when user is invited", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       await handleRequest(
         mockFormRequest(
           "/admin/users",
           {
             username: "auditinvite",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) =>
-          l.message.includes("User 'auditinvite' invited as manager"),
+          l.message.includes("User 'auditinvite' invited as manager")
         ),
       ).toBe(true);
     });
 
     test("logs activity when user is activated", async () => {
-      const { inviteCode, cookie, csrfToken } =
-        await createTestInvite("auditactivate");
+      const { inviteCode, cookie, csrfToken } = await createTestInvite(
+        "auditactivate",
+      );
 
       await submitJoinForm(inviteCode, {
         password: "newpassword123",
@@ -1321,32 +1270,29 @@ describe("server (multi-user admin)", () => {
     });
 
     test("logs activity when user is deleted", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       await handleRequest(
         mockFormRequest(
           "/admin/users",
           {
             username: "auditdelete",
             admin_level: "manager",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
       await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          { csrf_token: csrfToken, confirm_identifier: "auditdelete" },
-          cookie,
+          { csrf_token: await testCsrfToken(), confirm_identifier: "auditdelete" },
+          await testCookie(),
         ),
       );
 
       const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) => l.message.includes("User 'auditdelete' deleted")),
-      ).toBe(true);
+      expect(logs.some((l) => l.message.includes("User 'auditdelete' deleted")))
+        .toBe(true);
     });
   });
 
@@ -1354,11 +1300,14 @@ describe("server (multi-user admin)", () => {
     test("POST /join/:code withValidInvite extracts code from params", async () => {
       // POST to nonexistent invite code
       const response = await handleRequest(
-        mockFormRequest("/join/nonexistent-code", {
-          password: "testpass123",
-          password_confirm: "testpass123",
-          csrf_token: "csrf",
-        }),
+        mockFormRequest(
+          "/join/nonexistent-code",
+          {
+            password: "testpass123",
+            password_confirm: "testpass123",
+            csrf_token: "csrf",
+          },
+        ),
       );
       expect(response.status).toBe(404);
     });

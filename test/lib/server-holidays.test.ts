@@ -1,5 +1,5 @@
-import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 
 import { handleRequest } from "#routes";
 import {
@@ -12,7 +12,8 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectStatus,
-  loginAsAdmin,
+  testCookie,
+  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -41,19 +42,13 @@ describe("server (admin holidays)", () => {
 
     test("returns 403 for non-owner", async () => {
       // Create a manager user and login
-      const { cookie: ownerCookie, csrfToken: ownerCsrf } =
-        await loginAsAdmin();
       // Create a manager invite
       const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "manager1",
-            admin_level: "manager",
-            csrf_token: ownerCsrf,
-          },
-          ownerCookie,
-        ),
+        mockFormRequest("/admin/users", {
+          username: "manager1",
+          admin_level: "manager",
+          csrf_token: await testCsrfToken(),
+        }, await testCookie()),
       );
       expect(inviteResponse.status).toBe(302);
       const inviteUrl = inviteResponse.headers.get("location") ?? "";
@@ -83,13 +78,9 @@ describe("server (admin holidays)", () => {
 
       // Owner activates the manager
       const activateResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/activate",
-          {
-            csrf_token: ownerCsrf,
-          },
-          ownerCookie,
-        ),
+        mockFormRequest("/admin/users/2/activate", {
+          csrf_token: await testCsrfToken(),
+        }, await testCookie()),
       );
       expect(activateResponse.status).toBe(302);
 
@@ -410,9 +401,7 @@ describe("server (admin holidays)", () => {
         },
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/holidays?success=Holiday+deleted",
-      );
+      expect(response.headers.get("location")).toBe("/admin/holidays?success=Holiday+deleted");
     });
 
     test("returns 404 for non-existent holiday", async () => {
