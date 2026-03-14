@@ -27,8 +27,8 @@ const withEnvVar = (name: string) => {
 };
 
 /** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
-const withMockValidate = async <T>(
-  mockResult: T,
+const withMockValidate = async (
+  mockResult: { ok: true } | { ok: false; error: string; errorKey?: string },
   fn: () => Promise<void>,
 ): Promise<void> => {
   const original = bunnyCdnApi.validateCustomDomain;

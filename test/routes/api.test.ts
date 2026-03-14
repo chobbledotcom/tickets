@@ -118,7 +118,7 @@ describe("Public API", () => {
 
   /** Stub a stripe checkout method and run a test, restoring after */
   const withCheckoutStub = async (
-    stubResult: unknown,
+    stubResult: import("#lib/payments.ts").CheckoutSessionResult,
     fn: () => Promise<void>,
   ) => {
     const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");

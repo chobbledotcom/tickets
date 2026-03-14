@@ -2032,12 +2032,8 @@ export const createDailyTestAttendee = async (
     email,
     date,
   });
-  if (!result.success) throw new Error("Failed to create daily attendee");
-  return {
-    event,
-    attendee: result.attendee,
-    token: result.attendee.ticket_token,
-  };
+  const { attendee } = result as Extract<typeof result, { success: true }>;
+  return { event, attendee, token: attendee.ticket_token };
 };
 
 /** Build an EmailEvent with sensible defaults */
