@@ -10,7 +10,8 @@ import {
   createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
@@ -19,8 +20,7 @@ import {
 /** Create attendee + login, returning token + session for check-in tests */
 const setupCheckinTest = async (name: string, email: string, eventOverrides = {}, quantity = 1, phone = "") => {
   const { event, token } = await createTestAttendeeWithToken(name, email, eventOverrides, quantity, phone);
-  const session = await getTestSession();
-  return { event, token, session };
+  return { event, token, session: { cookie: await testCookie(), csrfToken: await testCsrfToken() } };
 };
 
 describe("check-in (/checkin/:tokens)", () => {
@@ -80,9 +80,8 @@ describe("check-in (/checkin/:tokens)", () => {
       const { event: eventA, token: tokenA } = await createTestAttendeeWithToken("Carol", "carol@test.com");
       const { event: eventB, token: tokenB } = await createTestAttendeeWithToken("Carol", "carol@test.com");
 
-      const session = await getTestSession();
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
-        cookie: session.cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(200);
 
@@ -137,9 +136,8 @@ describe("check-in (/checkin/:tokens)", () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
-      const session = await getTestSession();
       const response = await awaitTestRequest(`/checkin/${result.attendee.ticket_token}`, {
-        cookie: session.cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(200);
 
@@ -167,9 +165,8 @@ describe("check-in (/checkin/:tokens)", () => {
       if (!dailyResult.success) throw new Error("Failed to create attendee");
       const tokenA = dailyResult.attendee.ticket_token;
 
-      const session = await getTestSession();
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
-        cookie: session.cookie,
+        cookie: await testCookie(),
       });
       const body = await response.text();
       expect(body).toContain("<th>Date</th>");
@@ -371,12 +368,11 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("returns 404 for invalid tokens on POST", async () => {
-      const session = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/checkin/bad-token",
-          { csrf_token: session.csrfToken },
-          session.cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);

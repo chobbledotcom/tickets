@@ -18,7 +18,8 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectStatus,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -307,7 +308,8 @@ describe("server (admin groups)", () => {
         name: "Race Group",
         slug: "race-group",
       });
-      const { cookie, csrfToken } = await getTestSession();
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
 
       const { groupsTable } = await import("#lib/db/groups.ts");
       const original = groupsTable.findById.bind(groupsTable);
@@ -558,7 +560,8 @@ describe("server (admin groups)", () => {
       expect(event1.group_id).toBe(0);
       expect(event2.group_id).toBe(0);
 
-      const { cookie, csrfToken } = await getTestSession();
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(`/admin/group/${group.id}/add-events`, {
           event_ids: String(event1.id),
@@ -580,7 +583,8 @@ describe("server (admin groups)", () => {
         name: "Empty Select",
         slug: "empty-select",
       });
-      const { cookie, csrfToken } = await getTestSession();
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(`/admin/group/${group.id}/add-events`, {
           csrf_token: csrfToken,
@@ -593,7 +597,8 @@ describe("server (admin groups)", () => {
 
   describe("redirect after create/edit", () => {
     test("create redirects to group detail page", async () => {
-      const { cookie, csrfToken } = await getTestSession();
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest("/admin/group", {
           name: "Redirect Test",
@@ -611,7 +616,8 @@ describe("server (admin groups)", () => {
         name: "Edit Redir",
         slug: "edit-redir",
       });
-      const { cookie, csrfToken } = await getTestSession();
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(`/admin/group/${group.id}/edit`, {
           name: "Edited Redir",

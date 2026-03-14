@@ -6,7 +6,8 @@ import {
   createTestEvent,
   expectHtmlResponse,
   installUrlHandler,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -327,7 +328,8 @@ describe("server (event images)", () => {
 
   describe("POST /admin/event (image upload via create form)", () => {
     test("uploads image when creating a new event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
 
       await withStorageMock(async () => {
         const response = await submitCreateImage(
@@ -345,7 +347,8 @@ describe("server (event images)", () => {
     });
 
     test("redirects with image error when creating event with invalid image", async () => {
-      const { cookie, csrfToken } = await getTestSession();
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
 
       await withStorageMock(async () => {
         const response = await submitCreateImage(
@@ -370,11 +373,9 @@ describe("server (event images)", () => {
 
   describe("image error messages in rendered pages", () => {
     test("displays image error on admin dashboard", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await handleRequest(
         mockRequest("/admin?error=Image+exceeds+the+256KB+size+limit", {
-          headers: { cookie },
+          headers: { cookie: await testCookie() },
         }),
       );
       await expectHtmlResponse(
@@ -437,7 +438,8 @@ describe("server (event images)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
 
       const response = await submitImageDelete(9999, cookie, csrfToken);
       expect(response.status).toBe(404);

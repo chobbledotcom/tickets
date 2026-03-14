@@ -13,7 +13,8 @@ import {
   expectRedirect,
   extractCsrfToken,
   invalidateTestDbCache,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -39,8 +40,7 @@ describe("server (demo reset)", () => {
     });
 
     test("returns 404 when demo mode is off even for authenticated admin", async () => {
-      const { cookie } = await getTestSession();
-      const response = await awaitTestRequest("/demo/reset", { cookie });
+      const response = await awaitTestRequest("/demo/reset", { cookie: await testCookie() });
       expect(response.status).toBe(404);
     });
 
@@ -73,12 +73,11 @@ describe("server (demo reset)", () => {
     });
 
     test("returns 404 when demo mode is off even for authenticated admin", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/demo/reset",
-          { confirm_phrase: RESET_DATABASE_PHRASE, csrf_token: csrfToken },
-          cookie,
+          { confirm_phrase: RESET_DATABASE_PHRASE, csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -183,8 +182,7 @@ describe("server (demo reset)", () => {
 
   describe("shared form component", () => {
     test("admin settings page uses shared reset form", async () => {
-      const { cookie } = await getTestSession();
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie: await testCookie() });
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(RESET_DATABASE_PHRASE);
       expect(html).toContain("confirm_phrase");

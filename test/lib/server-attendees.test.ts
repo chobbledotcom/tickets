@@ -15,7 +15,8 @@ import {
   expectHtmlResponse,
   expectRedirect,
   getAttendeesRaw,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   mockProviderType,
   mockRequest,
@@ -59,8 +60,6 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         "/admin/event/999/attendee/1/delete",
         { cookie: cookie },
@@ -73,8 +72,6 @@ describe("server (admin attendees)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-
-      const { cookie } = await getTestSession();
 
       const response = await awaitTestRequest(
         "/admin/event/1/attendee/999/delete",
@@ -100,8 +97,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-
-      const { cookie } = await getTestSession();
 
       // Try to delete attendee from event 2 via event 1 URL
       const response = await awaitTestRequest(
@@ -166,16 +161,14 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/attendee/1/delete",
           {
             confirm_name: "John Doe",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -187,16 +180,14 @@ describe("server (admin attendees)", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/attendee/999/delete",
           {
             confirm_name: "John Doe",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -258,11 +249,9 @@ describe("server (admin attendees)", () => {
         "john@example.com",
       );
 
-      const { cookie, csrfToken } = await getTestSession();
-
       const formBody = new URLSearchParams({
         confirm_name: "John Doe",
-        csrf_token: csrfToken,
+        csrf_token: await testCsrfToken(),
       }).toString();
 
       const response = await handleRequest(
@@ -272,7 +261,7 @@ describe("server (admin attendees)", () => {
             method: "DELETE",
             headers: {
               host: "localhost",
-              cookie,
+              cookie: await testCookie(),
               "content-type": "application/x-www-form-urlencoded",
             },
             body: formBody,
@@ -484,26 +473,22 @@ describe("server (admin attendees)", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/attendee/999/checkin",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/attendee/1/checkin",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -674,8 +659,6 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/attendee",
@@ -683,9 +666,9 @@ describe("server (admin attendees)", () => {
             name: "Jane Doe",
             email: "jane@example.com",
             quantity: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -799,8 +782,6 @@ describe("server (admin attendees)", () => {
         "first@example.com",
       );
 
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee`,
@@ -808,9 +789,9 @@ describe("server (admin attendees)", () => {
             name: "Second",
             email: "second@example.com",
             quantity: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -946,11 +927,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         "/admin/attendees/999",
-        { cookie },
+        { cookie: await testCookie() },
       );
       expect(response.status).toBe(404);
     });
@@ -970,11 +949,9 @@ describe("server (admin attendees)", () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendee;
 
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -996,13 +973,11 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}?return_url=${
           encodeURIComponent("/admin/calendar#attendees")
         }`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -1023,11 +998,9 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -1053,11 +1026,9 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Event 1", "Event 2");
     });
@@ -1087,8 +1058,6 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/999",
@@ -1099,9 +1068,9 @@ describe("server (admin attendees)", () => {
             address: "",
             special_instructions: "",
             event_id: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -1115,8 +1084,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1129,7 +1096,7 @@ describe("server (admin attendees)", () => {
             event_id: String(event.id),
             csrf_token: "invalid-token",
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
@@ -1143,8 +1110,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1155,9 +1120,9 @@ describe("server (admin attendees)", () => {
             address: "",
             special_instructions: "",
             event_id: String(event.id),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Name is required");
@@ -1171,7 +1136,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
       const returnUrl = "/admin/calendar#attendees";
 
       const response = await handleRequest(
@@ -1184,10 +1148,10 @@ describe("server (admin attendees)", () => {
             address: "",
             special_instructions: "",
             event_id: String(event.id),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
             return_url: returnUrl,
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, 'name="return_url"', returnUrl);
@@ -1201,8 +1165,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1213,9 +1175,9 @@ describe("server (admin attendees)", () => {
             address: "",
             special_instructions: "",
             event_id: String(event.id),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Name is required");
@@ -1229,8 +1191,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1241,9 +1201,9 @@ describe("server (admin attendees)", () => {
             address: "",
             special_instructions: "",
             event_id: "0",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Event is required");
@@ -1257,8 +1217,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1270,9 +1228,9 @@ describe("server (admin attendees)", () => {
             special_instructions: "Wheelchair access",
             event_id: String(event.id),
             quantity: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1283,7 +1241,7 @@ describe("server (admin attendees)", () => {
       // Verify the edit form shows the updated data
       const editResponse = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       expect(editResponse.status).toBe(200);
       const html = await editResponse.text();
@@ -1302,7 +1260,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
       const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
 
       const response = await handleRequest(
@@ -1316,10 +1273,10 @@ describe("server (admin attendees)", () => {
             special_instructions: "",
             event_id: String(event.id),
             quantity: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
             return_url: returnUrl,
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1345,8 +1302,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1357,9 +1312,9 @@ describe("server (admin attendees)", () => {
             address: "",
             special_instructions: "",
             event_id: String(event2.id),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1392,11 +1347,9 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/event/${event.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -1427,11 +1380,9 @@ describe("server (admin attendees)", () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendee;
 
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -1454,11 +1405,9 @@ describe("server (admin attendees)", () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendee;
 
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, 'type="email"', 'name="email"');
     });
@@ -1486,11 +1435,9 @@ describe("server (admin attendees)", () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendee;
 
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Inactive Event", "(inactive)");
     });
@@ -1507,8 +1454,6 @@ describe("server (admin attendees)", () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendee;
 
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1519,9 +1464,9 @@ describe("server (admin attendees)", () => {
             address: "",
             special_instructions: "",
             event_id: String(event.id),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1542,8 +1487,6 @@ describe("server (admin attendees)", () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendee;
 
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1554,9 +1497,9 @@ describe("server (admin attendees)", () => {
             address: "456 Oak Ave",
             special_instructions: "Special access needed",
             event_id: String(event.id),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1573,8 +1516,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1586,9 +1527,9 @@ describe("server (admin attendees)", () => {
             special_instructions: "",
             event_id: String(event.id),
             quantity: "3",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1606,11 +1547,9 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, 'name="quantity"', 'max="5"');
     });
@@ -1623,8 +1562,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1636,9 +1573,9 @@ describe("server (admin attendees)", () => {
             special_instructions: "",
             event_id: String(event.id),
             quantity: "10",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1656,8 +1593,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1669,9 +1604,9 @@ describe("server (admin attendees)", () => {
             special_instructions: "",
             event_id: String(event.id),
             quantity: "3",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Not enough spots available");
@@ -1686,8 +1621,6 @@ describe("server (admin attendees)", () => {
         "john@example.com",
         3,
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1699,9 +1632,9 @@ describe("server (admin attendees)", () => {
             special_instructions: "",
             event_id: String(event.id),
             quantity: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1719,8 +1652,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1732,9 +1663,9 @@ describe("server (admin attendees)", () => {
             special_instructions: "",
             event_id: "9999",
             quantity: "2",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Event not found");
@@ -1748,8 +1679,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1761,9 +1690,9 @@ describe("server (admin attendees)", () => {
             special_instructions: "",
             event_id: String(event.id),
             quantity: "abc",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1781,8 +1710,6 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1793,9 +1720,9 @@ describe("server (admin attendees)", () => {
             address: "",
             special_instructions: "",
             event_id: String(event.id),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1825,8 +1752,6 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest(
         "/admin/event/999/attendee/1/resend-notification",
         { cookie: cookie },
@@ -1836,8 +1761,6 @@ describe("server (admin attendees)", () => {
 
     test("returns 404 for non-existent attendee", async () => {
       await createTestEvent({ maxAttendees: 100 });
-
-      const { cookie } = await getTestSession();
 
       const response = await awaitTestRequest(
         "/admin/event/1/attendee/999/resend-notification",
@@ -1896,10 +1819,9 @@ describe("server (admin attendees)", () => {
         throw new Error("Failed to create attendee");
       }
 
-      const { cookie } = await getTestSession();
       const response = await awaitTestRequest(
         `/admin/event/${event.id}/attendee/${result.attendee.id}/resend-notification`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -1935,16 +1857,14 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/attendee/1/resend-notification",
           {
             confirm_name: "John Doe",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -1953,16 +1873,14 @@ describe("server (admin attendees)", () => {
     test("returns 404 for non-existent attendee", async () => {
       await createTestEvent({ maxAttendees: 100 });
 
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/attendee/999/resend-notification",
           {
             confirm_name: "John Doe",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -2051,10 +1969,9 @@ describe("server (admin attendees)", () => {
         paymentId: "pi_test_123",
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const { cookie } = await getTestSession();
       const response = await awaitTestRequest(
         `/admin/attendees/${result.attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(
         response,
@@ -2084,10 +2001,9 @@ describe("server (admin attendees)", () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
       await markRefunded(result.attendee.id);
-      const { cookie } = await getTestSession();
       const response = await awaitTestRequest(
         `/admin/attendees/${result.attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Refunded");
     });
@@ -2100,12 +2016,11 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie } = await getTestSession();
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}?success=${
           encodeURIComponent("Payment status is up to date")
         }`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Payment status is up to date");
     });
@@ -2118,10 +2033,9 @@ describe("server (admin attendees)", () => {
         "Free User",
         "free@example.com",
       );
-      const { cookie } = await getTestSession();
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -2152,12 +2066,11 @@ describe("server (admin attendees)", () => {
         "John Doe",
         "john@example.com",
       );
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}/refresh-payment`,
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -2167,12 +2080,11 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/999/refresh-payment",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -2189,8 +2101,6 @@ describe("server (admin attendees)", () => {
         "john@example.com",
         "pi_no_provider",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       await withMocks(
         () =>
           stub(paymentsApi, "getConfiguredProvider", () =>
@@ -2200,8 +2110,8 @@ describe("server (admin attendees)", () => {
           const response = await handleRequest(
             mockFormRequest(
               `/admin/attendees/${attendee.id}/refresh-payment`,
-              { csrf_token: csrfToken },
-              cookie,
+              { csrf_token: await testCsrfToken() },
+              await testCookie(),
             ),
           );
           await expectHtmlResponse(response, 400, "payment provider");
@@ -2220,8 +2130,6 @@ describe("server (admin attendees)", () => {
         "john@example.com",
         "pi_refresh_refund",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       await withMocks(
         () =>
           stub(paymentsApi, "getConfiguredProvider", () =>
@@ -2240,8 +2148,8 @@ describe("server (admin attendees)", () => {
             const response = await handleRequest(
               mockFormRequest(
                 `/admin/attendees/${attendee.id}/refresh-payment`,
-                { csrf_token: csrfToken },
-                cookie,
+                { csrf_token: await testCsrfToken() },
+                await testCookie(),
               ),
             );
             expect(response.status).toBe(302);
@@ -2269,8 +2177,6 @@ describe("server (admin attendees)", () => {
         "john@example.com",
         "pi_refresh_ok",
       );
-      const { cookie, csrfToken } = await getTestSession();
-
       await withMocks(
         () =>
           stub(paymentsApi, "getConfiguredProvider", () =>
@@ -2289,8 +2195,8 @@ describe("server (admin attendees)", () => {
             const response = await handleRequest(
               mockFormRequest(
                 `/admin/attendees/${attendee.id}/refresh-payment`,
-                { csrf_token: csrfToken },
-                cookie,
+                { csrf_token: await testCsrfToken() },
+                await testCookie(),
               ),
             );
             expect(response.status).toBe(302);
