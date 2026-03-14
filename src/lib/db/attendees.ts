@@ -15,27 +15,48 @@ import {
   encryptAttendeePII,
   generateTicketToken,
 } from "#lib/crypto.ts";
-import { executeBatch, getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
+import {
+  executeBatch,
+  getDb,
+  inPlaceholders,
+  queryAll,
+  queryOne,
+} from "#lib/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
 import { parseEventFields } from "#lib/event-fields.ts";
-import type { Attendee, ContactField, ContactFields, ContactInfo } from "#lib/types.ts";
+import type {
+  Attendee,
+  ContactField,
+  ContactFields,
+  ContactInfo,
+} from "#lib/types.ts";
 
 /** Encrypt all contact fields in parallel, returning a keyed record */
 const encryptContactFields = async (
   info: ContactInfo,
   publicKeyJwk: string,
 ): Promise<ContactInfo> => {
-  const encrypt = (field: keyof ContactInfo) => encryptAttendeePII(info[field], publicKeyJwk);
+  const encrypt = (field: keyof ContactInfo) =>
+    encryptAttendeePII(info[field], publicKeyJwk);
   const [name, email, phone, address, special_instructions] = await Promise.all(
-    [encrypt("name"), encrypt("email"), encrypt("phone"), encrypt("address"), encrypt("special_instructions")],
+    [
+      encrypt("name"),
+      encrypt("email"),
+      encrypt("phone"),
+      encrypt("address"),
+      encrypt("special_instructions"),
+    ],
   );
   return { name, email, phone, address, special_instructions };
 };
 
 /** Decrypt a boolean-like field, returning "false" for empty/null values */
-const decryptBoolField = (value: string, privateKey: CryptoKey): Promise<string> =>
+const decryptBoolField = (
+  value: string,
+  privateKey: CryptoKey,
+): Promise<string> =>
   value ? decryptAttendeePII(value, privateKey) : Promise.resolve("false");
 
 /** Conditionally decrypt a contact field, returning "" if not in the active set */
@@ -45,7 +66,9 @@ const decryptField = (
   field: ContactField,
   activeFields: ReadonlySet<ContactField> | null,
 ): Promise<string> =>
-  !activeFields || activeFields.has(field) ? decryptAttendeePII(value, privateKey) : Promise.resolve("");
+  !activeFields || activeFields.has(field)
+    ? decryptAttendeePII(value, privateKey)
+    : Promise.resolve("");
 
 /**
  * Decrypt attendee fields using the private key.
@@ -76,12 +99,21 @@ const decryptAttendeeFields = async (
     decryptField(row.email, privateKey, "email", activeFields),
     decryptField(row.phone, privateKey, "phone", activeFields),
     decryptField(row.address, privateKey, "address", activeFields),
-    decryptField(row.special_instructions, privateKey, "special_instructions", activeFields),
-    paidEvent ? decryptAttendeePII(row.payment_id, privateKey) : Promise.resolve(""),
+    decryptField(
+      row.special_instructions,
+      privateKey,
+      "special_instructions",
+      activeFields,
+    ),
+    paidEvent
+      ? decryptAttendeePII(row.payment_id, privateKey)
+      : Promise.resolve(""),
     paidEvent ? decrypt(row.price_paid) : Promise.resolve("0"),
     // Raw DB values are encrypted strings; cast needed since Attendee type declares boolean
     decryptBoolField(row.checked_in as unknown as string, privateKey),
-    paidEvent ? decryptBoolField(row.refunded as unknown as string, privateKey) : Promise.resolve("false"),
+    paidEvent
+      ? decryptBoolField(row.refunded as unknown as string, privateKey)
+      : Promise.resolve("false"),
     decryptAttendeePII(row.ticket_token, privateKey),
   ]);
   return {
@@ -127,7 +159,9 @@ export const decryptAttendees = (
   rows: Attendee[],
   privateKey: CryptoKey,
 ): Promise<Attendee[]> =>
-  Promise.all(map((row: Attendee) => decryptAttendeeFields(row, privateKey, null))(rows));
+  Promise.all(
+    map((row: Attendee) => decryptAttendeeFields(row, privateKey, null))(rows),
+  );
 
 /**
  * Decrypt a single raw attendee, handling null input.
@@ -154,7 +188,9 @@ export const decryptAttendeesForTable = (
 ): Promise<Attendee[]> => {
   const activeFields = new Set(parseEventFields(eventFields));
   return Promise.all(
-    map((row: Attendee) => decryptAttendeeFields(row, privateKey, activeFields, paidEvent))(rows),
+    map((row: Attendee) =>
+      decryptAttendeeFields(row, privateKey, activeFields, paidEvent)
+    )(rows),
   );
 };
 
@@ -191,15 +227,21 @@ const encryptAttendeeFields = async (
   const ticketToken = generateTicketToken();
   const contact = await encryptContactFields(input, publicKeyJwk);
 
-  const [encryptedPaymentId, encryptedPricePaid, encryptedCheckedIn, encryptedRefunded, encryptedTicketToken, ticketTokenIndex] =
-    await Promise.all([
-      encryptAttendeePII(input.paymentId, publicKeyJwk),
-      encrypt(String(input.pricePaid)),
-      encryptAttendeePII("false", publicKeyJwk),
-      encryptAttendeePII("false", publicKeyJwk),
-      encryptAttendeePII(ticketToken, publicKeyJwk),
-      computeTicketTokenIndex(ticketToken),
-    ]);
+  const [
+    encryptedPaymentId,
+    encryptedPricePaid,
+    encryptedCheckedIn,
+    encryptedRefunded,
+    encryptedTicketToken,
+    ticketTokenIndex,
+  ] = await Promise.all([
+    encryptAttendeePII(input.paymentId, publicKeyJwk),
+    encrypt(String(input.pricePaid)),
+    encryptAttendeePII("false", publicKeyJwk),
+    encryptAttendeePII("false", publicKeyJwk),
+    encryptAttendeePII(ticketToken, publicKeyJwk),
+    computeTicketTokenIndex(ticketToken),
+  ]);
 
   return {
     created: nowIso(),
@@ -279,7 +321,10 @@ export const getAttendee = async (
  */
 export const deleteAttendee = async (attendeeId: number): Promise<void> => {
   await executeBatch([
-    { sql: "DELETE FROM processed_payments WHERE attendee_id = ?", args: [attendeeId] },
+    {
+      sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
+      args: [attendeeId],
+    },
     { sql: "DELETE FROM attendees WHERE id = ?", args: [attendeeId] },
   ]);
   invalidateEventsCache();
@@ -401,7 +446,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
+      sql:
+        `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
@@ -486,7 +532,9 @@ export const getAttendeesByTokens = async (
   );
 
   const rows = await queryAll<Attendee>(
-    `SELECT * FROM attendees WHERE ticket_token_index IN (${inPlaceholders(tokenIndexes)})`,
+    `SELECT * FROM attendees WHERE ticket_token_index IN (${
+      inPlaceholders(tokenIndexes)
+    })`,
     tokenIndexes,
   );
 
@@ -500,7 +548,8 @@ export const getAttendeesByTokens = async (
 };
 
 /** Update a single encrypted PII field on an attendee */
-const updateEncryptedField = (field: string) => async (
+const updateEncryptedField = (field: string) =>
+async (
   attendeeId: number,
   value: string,
 ): Promise<void> => {
@@ -553,7 +602,8 @@ export const updateAttendee = async (
   const publicKeyJwk = (await getPublicKey())!;
   const enc = await encryptContactFields(input, publicKeyJwk);
   await getDb().execute({
-    sql: "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ?, quantity = ? WHERE id = ?",
+    sql:
+      "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ?, quantity = ? WHERE id = ?",
     args: [
       enc.name,
       enc.email,

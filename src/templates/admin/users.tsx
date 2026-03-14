@@ -56,11 +56,15 @@ export const adminUsersPage = (
         <div class="success">
           <p>Invite link (share this with the new user):</p>
           <code>{opts.inviteLink}</code>
-          <p><small>This link expires in 7 days.</small></p>
+          <p>
+            <small>This link expires in 7 days.</small>
+          </p>
         </div>
       )}
 
-      <p><a href="/admin/user/new">Invite User</a></p>
+      <p>
+        <a href="/admin/user/new">Invite User</a>
+      </p>
 
       <div class="table-scroll">
         <table>
@@ -81,7 +85,10 @@ export const adminUsersPage = (
                 <td>{userStatus(user)}</td>
                 <td>
                   {user.hasPassword && !user.hasDataKey && (
-                    <CsrfForm class="inline" action={`/admin/users/${user.id}/activate`}>
+                    <CsrfForm
+                      class="inline"
+                      action={`/admin/users/${user.id}/activate`}
+                    >
                       <button type="submit">Activate</button>
                     </CsrfForm>
                   )}
@@ -96,7 +103,7 @@ export const adminUsersPage = (
           </tbody>
         </table>
       </div>
-    </Layout>
+    </Layout>,
   );
 
 /**
@@ -116,11 +123,18 @@ export const adminUserDeletePage = (
 
       <article>
         <aside>
-          <p><strong>Warning:</strong> This will permanently delete the user <strong>{user.username}</strong> ({user.adminLevel}) and all their sessions.</p>
+          <p>
+            <strong>Warning:</strong> This will permanently delete the user{" "}
+            <strong>{user.username}</strong>{" "}
+            ({user.adminLevel}) and all their sessions.
+          </p>
         </aside>
       </article>
 
-      <p>To delete this user, type their username &quot;{user.username}&quot; into the box below:</p>
+      <p>
+        To delete this user, type their username &quot;{user.username}&quot;
+        into the box below:
+      </p>
 
       <CsrfForm action={`/admin/users/${user.id}/delete`}>
         <label for="confirm_identifier">Username</label>

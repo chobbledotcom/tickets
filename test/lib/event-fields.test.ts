@@ -40,11 +40,15 @@ describe("event-fields", () => {
     });
 
     test("deduplicates across settings", () => {
-      expect(mergeEventFields(["email,phone", "email,phone"])).toBe("email,phone");
+      expect(mergeEventFields(["email,phone", "email,phone"])).toBe(
+        "email,phone",
+      );
     });
 
     test("merges disjoint field sets", () => {
-      expect(mergeEventFields(["email", "phone,address"])).toBe("email,phone,address");
+      expect(mergeEventFields(["email", "phone,address"])).toBe(
+        "email,phone,address",
+      );
     });
 
     test("returns single field from single setting", () => {

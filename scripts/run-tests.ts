@@ -37,7 +37,8 @@ const downloadStripeMock = async (): Promise<void> => {
 
   const platform = Deno.build.os === "darwin" ? "darwin" : "linux";
   const arch = Deno.build.arch === "aarch64" ? "arm64" : "amd64";
-  const url = `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
+  const url =
+    `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
 
   const curlCmd = new Deno.Command("curl", {
     args: ["-sL", url, "-o", "-"],
@@ -180,7 +181,9 @@ const main = async (): Promise<void> => {
     const lcov = new TextDecoder().decode(lcovResult.stdout);
 
     // Parse lcov records: enforce 100% line coverage, report branch coverage
-    const records = lcov.split("end_of_record").filter((r) => r.includes("SF:"));
+    const records = lcov.split("end_of_record").filter((r) =>
+      r.includes("SF:")
+    );
     if (records.length === 0) {
       console.error("No coverage data found");
       Deno.exit(1);
@@ -200,7 +203,7 @@ const main = async (): Promise<void> => {
       const file = sfMatch[1].replace(projectRoot + "/", "");
 
       // Skip excluded files
-      if (coverageExclusions.some(exclusion => file.includes(exclusion))) {
+      if (coverageExclusions.some((exclusion) => file.includes(exclusion))) {
         continue;
       }
 

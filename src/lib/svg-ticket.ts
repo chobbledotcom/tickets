@@ -35,7 +35,9 @@ export const extractSvgContent = (svg: string): string => {
 };
 
 /** Extract the viewBox from an SVG element to compute its coordinate space */
-export const extractViewBox = (svg: string): { width: number; height: number } => {
+export const extractViewBox = (
+  svg: string,
+): { width: number; height: number } => {
   const match = svg.match(/viewBox="([^"]+)"/);
   if (!match) return { width: QR_SIZE, height: QR_SIZE };
   const parts = match[1]!.split(/\s+/).map(Number);
@@ -72,7 +74,9 @@ export const buildInfoLines = (data: SvgTicketData): string[] => {
  * Generate a standalone SVG ticket with QR code and event/booking details.
  * Returns a complete SVG document string.
  */
-export const generateSvgTicket = async (data: SvgTicketData): Promise<string> => {
+export const generateSvgTicket = async (
+  data: SvgTicketData,
+): Promise<string> => {
   const qrSvg = await generateQrSvg(data.checkinUrl);
   const qrViewBox = extractViewBox(qrSvg);
   const qrContent = extractSvgContent(qrSvg);
@@ -87,7 +91,11 @@ export const generateSvgTicket = async (data: SvgTicketData): Promise<string> =>
 
   const escapedName = escapeHtml(data.eventName);
   const linesSvg = infoLines.map((line, i) =>
-    `<text x="${MARGIN}" y="${HEADER_Y + (i + 1) * LINE_HEIGHT}" font-family="sans-serif" font-size="13" fill="#555">${escapeHtml(line)}</text>`
+    `<text x="${MARGIN}" y="${
+      HEADER_Y + (i + 1) * LINE_HEIGHT
+    }" font-family="sans-serif" font-size="13" fill="#555">${
+      escapeHtml(line)
+    }</text>`
   ).join("\n    ");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}" viewBox="0 0 ${WIDTH} ${totalHeight}">

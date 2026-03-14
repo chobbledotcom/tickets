@@ -195,21 +195,22 @@ export interface PaymentProvider {
  * Lazy-loads the provider module to avoid importing unused SDKs.
  * Returns null if no provider is configured.
  */
-export const getActivePaymentProvider =
-  async (): Promise<PaymentProvider | null> => {
-    const providerType = await paymentsApi.getConfiguredProvider();
-    if (!providerType) {
-      logDebug("Payment", "No payment provider configured in settings");
-      return null;
-    }
+export const getActivePaymentProvider = async (): Promise<
+  PaymentProvider | null
+> => {
+  const providerType = await paymentsApi.getConfiguredProvider();
+  if (!providerType) {
+    logDebug("Payment", "No payment provider configured in settings");
+    return null;
+  }
 
-    logDebug("Payment", `Resolving payment provider: ${providerType}`);
+  logDebug("Payment", `Resolving payment provider: ${providerType}`);
 
-    if (providerType === "stripe") {
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      return stripePaymentProvider;
-    }
+  if (providerType === "stripe") {
+    const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+    return stripePaymentProvider;
+  }
 
-    const { squarePaymentProvider } = await import("#lib/square-provider.ts");
-    return squarePaymentProvider;
-  };
+  const { squarePaymentProvider } = await import("#lib/square-provider.ts");
+  return squarePaymentProvider;
+};

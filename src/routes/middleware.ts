@@ -195,8 +195,7 @@ const TRACKING_PARAMS = [
 ];
 
 /** Check if a query parameter key is a tracking parameter */
-const isTrackingParam = (key: string): boolean =>
-  TRACKING_PARAMS.includes(key);
+const isTrackingParam = (key: string): boolean => TRACKING_PARAMS.includes(key);
 
 /**
  * Get clean URL path with tracking parameters stripped.
@@ -259,7 +258,10 @@ export const applySecurityHeaders = async (
     const frameAncestors = buildFrameAncestors(await getEmbedHosts());
     if (frameAncestors) {
       const csp = response.headers.get("content-security-policy");
-      response.headers.set("content-security-policy", `${frameAncestors}; ${csp}`);
+      response.headers.set(
+        "content-security-policy",
+        `${frameAncestors}; ${csp}`,
+      );
     }
   }
 

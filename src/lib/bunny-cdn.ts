@@ -75,7 +75,11 @@ const parseBunnyError = async (
     if (json.Message) message = json.Message;
     if (json.ErrorKey) errorKey = json.ErrorKey;
   } catch { /* use raw text */ }
-  return { ok: false, error: `${label} failed (${response.status}): ${message}`, errorKey };
+  return {
+    ok: false,
+    error: `${label} failed (${response.status}): ${message}`,
+    errorKey,
+  };
 };
 
 /** POST to a Bunny CDN pull zone endpoint with JSON body. */
@@ -89,7 +93,10 @@ const pullZonePost = async (
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { AccessKey: getBunnyApiKey(), "Content-Type": "application/json" },
+    headers: {
+      AccessKey: getBunnyApiKey(),
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
 
@@ -101,8 +108,9 @@ const pullZonePost = async (
 const loadFreeCertificate = async (
   hostname: string,
 ): Promise<BunnyApiResult> => {
-  const url =
-    `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
+  const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${
+    encodeURIComponent(hostname)
+  }`;
 
   const response = await fetch(url, {
     method: "GET",

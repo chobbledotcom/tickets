@@ -26,8 +26,7 @@ const utcToZoned = (utcIso: string, tz: string) =>
 /**
  * Get today's date as YYYY-MM-DD in the given timezone.
  */
-export const todayInTz = (tz: string): string =>
-  libToday(tz).toString();
+export const todayInTz = (tz: string): string => libToday(tz).toString();
 
 /**
  * Convert a naive datetime-local value (YYYY-MM-DDTHH:MM) to a UTC ISO string,
@@ -64,7 +63,9 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
   const get = (type: string): string =>
     parts.find((p) => p.type === type)!.value;
 
-  return `${get("weekday")} ${day} ${get("month")} ${year} at ${pad2(hour)}:${pad2(minute)} ${get("timeZoneName")}`;
+  return `${get("weekday")} ${day} ${get("month")} ${year} at ${pad2(hour)}:${
+    pad2(minute)
+  } ${get("timeZoneName")}`;
 };
 
 /**
@@ -74,7 +75,9 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
  */
 export const utcToLocalInput = (utcIso: string, tz: string): string => {
   const z = utcToZoned(utcIso, tz);
-  return `${z.year}-${pad2(z.month)}-${pad2(z.day)}T${pad2(z.hour)}:${pad2(z.minute)}`;
+  return `${z.year}-${pad2(z.month)}-${pad2(z.day)}T${pad2(z.hour)}:${
+    pad2(z.minute)
+  }`;
 };
 
 /**

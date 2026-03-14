@@ -56,8 +56,10 @@ const handleDemoResetPost = (request: Request): Response | Promise<Response> =>
       if (phraseError) return resetPageError(phraseError, 400);
 
       await resetDatabase();
-      return redirect("/setup/", "Database reset", true, { cookie: clearSessionCookie() });
-    }),
+      return redirect("/setup/", "Database reset", true, {
+        cookie: clearSessionCookie(),
+      });
+    })
   );
 
 /** Demo reset routes */

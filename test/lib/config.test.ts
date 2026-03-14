@@ -200,7 +200,6 @@ describe("config", () => {
       expect(getStripePublishableKey()).toBeNull();
     });
   });
-
 });
 
 describe("env", () => {
@@ -209,7 +208,9 @@ describe("env", () => {
     // Ensure it's not in process.env
     delete process.env[uniqueKey];
     // Ensure it's not in Deno.env
-    try { Deno.env.delete(uniqueKey); } catch { /* may not exist */ }
+    try {
+      Deno.env.delete(uniqueKey);
+    } catch { /* may not exist */ }
 
     const result = getEnv(uniqueKey);
     expect(result).toBeUndefined();
@@ -270,6 +271,4 @@ describe("payments", () => {
   test("getTz returns default timezone when cache is empty", () => {
     expect(getTz()).toBe("Europe/London");
   });
-
-
 });

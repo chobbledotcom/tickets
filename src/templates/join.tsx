@@ -24,7 +24,7 @@ export const joinPage = (
         <Raw html={renderFields(joinFields)} />
         <button type="submit">Set Password</button>
       </CsrfForm>
-    </Layout>
+    </Layout>,
   );
 
 /**
@@ -36,9 +36,12 @@ export const joinCompletePage = (): string =>
       <h1>Password Set</h1>
       <div class="success">
         <p>Your password has been set successfully.</p>
-        <p>Please wait for the site owner to activate your account before logging in.</p>
+        <p>
+          Please wait for the site owner to activate your account before logging
+          in.
+        </p>
       </div>
-    </Layout>
+    </Layout>,
   );
 
 /**
@@ -49,5 +52,5 @@ export const joinErrorPage = (message: string): string =>
     <Layout title="Invalid Invite">
       <h1>Invalid Invite</h1>
       <div class="error">{message}</div>
-    </Layout>
+    </Layout>,
   );

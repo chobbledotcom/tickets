@@ -16,7 +16,10 @@ import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 
 /** Login page response helper */
-export const loginResponse = async (error?: string, status = 200): Promise<Response> => {
+export const loginResponse = async (
+  error?: string,
+  status = 200,
+): Promise<Response> => {
   await signCsrfToken();
   return htmlResponse(adminLoginPage(error), status);
 };
@@ -42,7 +45,15 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       ]);
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedEvents = sortEvents(events, holidays);
-      return htmlResponse(adminDashboardPage(sortedEvents, session, imageError, newestAttendees, successMessage));
+      return htmlResponse(
+        adminDashboardPage(
+          sortedEvents,
+          session,
+          imageError,
+          newestAttendees,
+          successMessage,
+        ),
+      );
     },
     () => loginResponse(),
   );
@@ -57,8 +68,12 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = (request) =>
   requireSessionOr(request, async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
     const truncated = entries.length > LOG_DISPLAY_LIMIT;
-    const displayEntries = truncated ? entries.slice(0, LOG_DISPLAY_LIMIT) : entries;
-    return htmlResponse(adminGlobalActivityLogPage(displayEntries, truncated, session));
+    const displayEntries = truncated
+      ? entries.slice(0, LOG_DISPLAY_LIMIT)
+      : entries;
+    return htmlResponse(
+      adminGlobalActivityLogPage(displayEntries, truncated, session),
+    );
   });
 
 /** Dashboard routes */

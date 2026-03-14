@@ -3,13 +3,16 @@
  * Shared by client bundle (admin.ts) and server code.
  */
 
-import { CONTACT_FIELDS, isContactField, type ContactField, type EventFields } from "#lib/types.ts";
+import {
+  CONTACT_FIELDS,
+  type ContactField,
+  type EventFields,
+  isContactField,
+} from "#lib/types.ts";
 
 /** Parse a comma-separated fields string into individual ContactField names */
 export const parseEventFields = (fields: EventFields): ContactField[] =>
-  fields
-    ? fields.split(",").map((f) => f.trim()).filter(isContactField)
-    : [];
+  fields ? fields.split(",").map((f) => f.trim()).filter(isContactField) : [];
 
 /**
  * Determine which contact fields to collect for multiple events.

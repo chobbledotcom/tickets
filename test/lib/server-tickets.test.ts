@@ -291,7 +291,10 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("displays ticket token on ticket page", async () => {
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();

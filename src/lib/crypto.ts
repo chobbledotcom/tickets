@@ -178,7 +178,10 @@ const importCachedKey = async (
 };
 
 const importEncryptionKey = (): Promise<CryptoKey> =>
-  importCachedKey(getKeyCache, setKeyCache, { name: "AES-GCM" }, ["encrypt", "decrypt"]);
+  importCachedKey(getKeyCache, setKeyCache, { name: "AES-GCM" }, [
+    "encrypt",
+    "decrypt",
+  ]);
 
 /**
  * Validate encryption key is present and valid
@@ -225,7 +228,10 @@ const symmetricEncrypt = async (
   plaintext: string,
   key: CryptoKey,
 ): Promise<string> => {
-  const { iv, ciphertext } = await aesGcmEncryptRaw(new TextEncoder().encode(plaintext), key);
+  const { iv, ciphertext } = await aesGcmEncryptRaw(
+    new TextEncoder().encode(plaintext),
+    key,
+  );
   return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext);
 };
 
@@ -300,7 +306,9 @@ export const encryptBytes = async (data: Uint8Array): Promise<Uint8Array> => {
 /**
  * Decrypt binary data encrypted with encryptBytes().
  */
-export const decryptBytes = async (encrypted: Uint8Array): Promise<Uint8Array> => {
+export const decryptBytes = async (
+  encrypted: Uint8Array,
+): Promise<Uint8Array> => {
   const decrypted = await decrypt(new TextDecoder().decode(encrypted));
   return fromBase64(decrypted);
 };
@@ -427,7 +435,10 @@ export const hashSessionToken = async (token: string): Promise<string> => {
 };
 
 const importHmacKey = (): Promise<CryptoKey> =>
-  importCachedKey(getHmacKeyCache, setHmacKeyCache, { name: "HMAC", hash: "SHA-256" }, ["sign"]);
+  importCachedKey(getHmacKeyCache, setHmacKeyCache, {
+    name: "HMAC",
+    hash: "SHA-256",
+  }, ["sign"]);
 
 /**
  * HMAC-SHA256 hash using DB_ENCRYPTION_KEY
@@ -641,7 +652,9 @@ export const generateKeyPair = async (): Promise<{
   const keyPair = await crypto.subtle.generateKey(
     {
       name: "RSA-OAEP",
-      modulusLength: getEnv("TEST_RSA_KEY_SIZE") ? Number(getEnv("TEST_RSA_KEY_SIZE")) : 2048,
+      modulusLength: getEnv("TEST_RSA_KEY_SIZE")
+        ? Number(getEnv("TEST_RSA_KEY_SIZE"))
+        : 2048,
       publicExponent: new Uint8Array([1, 0, 1]),
       hash: "SHA-256",
     },
@@ -703,11 +716,16 @@ export const hybridEncrypt = async (
 ): Promise<string> => {
   // Generate random AES key and encrypt the data
   const aesKey = await generateDataKey();
-  const { iv, ciphertext } = await aesGcmEncryptRaw(new TextEncoder().encode(plaintext), aesKey);
+  const { iv, ciphertext } = await aesGcmEncryptRaw(
+    new TextEncoder().encode(plaintext),
+    aesKey,
+  );
 
   // Export and encrypt the AES key with RSA
   const rawAesKey = await crypto.subtle.exportKey("raw", aesKey);
-  const wrappedKey = new Uint8Array(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, rawAesKey));
+  const wrappedKey = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, rawAesKey),
+  );
 
   return formatPrefixed(HYBRID_PREFIX, wrappedKey, iv, ciphertext);
 };
@@ -764,7 +782,11 @@ export const hybridDecrypt = async (
     false,
     ["decrypt"],
   );
-  const plaintext = await aesGcmDecryptRaw(fromBase64(parts[1]!), fromBase64(parts[2]!), aesKey);
+  const plaintext = await aesGcmDecryptRaw(
+    fromBase64(parts[1]!),
+    fromBase64(parts[2]!),
+    aesKey,
+  );
 
   const result = new TextDecoder().decode(plaintext);
   hybridDecryptCache.set(encrypted, result);

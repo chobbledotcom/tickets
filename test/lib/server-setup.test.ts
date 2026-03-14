@@ -242,12 +242,12 @@ describe("server (setup)", () => {
 
         await withMocks(
           () => ({
-            mockCompleteSetup: stub(settingsApi, "completeSetup",
+            mockCompleteSetup: stub(
+              settingsApi,
+              "completeSetup",
               () => Promise.reject(new Error("Database error")),
             ),
-            mockConsoleError: stub(console, "error",
-              () => {},
-            ),
+            mockConsoleError: stub(console, "error", () => {}),
           }),
           async () => {
             const response = await handleRequest(

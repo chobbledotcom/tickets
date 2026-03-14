@@ -3,10 +3,19 @@
  */
 
 /** Individual contact field name */
-export type ContactField = "email" | "phone" | "address" | "special_instructions";
+export type ContactField =
+  | "email"
+  | "phone"
+  | "address"
+  | "special_instructions";
 
 /** All valid contact field names (runtime array matching the ContactField union) */
-export const CONTACT_FIELDS: readonly ContactField[] = ["email", "phone", "address", "special_instructions"];
+export const CONTACT_FIELDS: readonly ContactField[] = [
+  "email",
+  "phone",
+  "address",
+  "special_instructions",
+];
 
 /** Type guard: check if an arbitrary string is a valid ContactField */
 export const isContactField = (s: string): s is ContactField =>
@@ -25,8 +34,9 @@ export type ContactInfo = {
 };
 
 /** Required name+email with optional phone/address/special_instructions from ContactInfo */
-export type ContactFields = Pick<ContactInfo, "name" | "email"> &
-  Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">>;
+export type ContactFields =
+  & Pick<ContactInfo, "name" | "email">
+  & Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">>;
 
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
@@ -39,8 +49,9 @@ export const isEventType = (s: string): s is EventType =>
   (EVENT_TYPES as readonly string[]).includes(s);
 
 /** Whether an event can accept payments (has a price or allows pay-what-you-want) */
-export const isPaidEvent = (event: Pick<Event, "unit_price" | "can_pay_more">): boolean =>
-  event.unit_price > 0 || event.can_pay_more;
+export const isPaidEvent = (
+  event: Pick<Event, "unit_price" | "can_pay_more">,
+): boolean => event.unit_price > 0 || event.can_pay_more;
 
 export interface Event {
   id: number;

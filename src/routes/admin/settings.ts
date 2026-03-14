@@ -10,8 +10,18 @@ import {
 } from "#lib/business-email.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
 import { DOMAIN_PATTERN } from "#lib/embed-hosts.ts";
-import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, isEmailProvider, sendTestEmail } from "#lib/email.ts";
-import { buildTemplateData, renderTemplate, validateTemplate } from "#lib/email-renderer.ts";
+import {
+  EMAIL_PROVIDER_LABELS,
+  getEmailConfig,
+  getHostEmailConfig,
+  isEmailProvider,
+  sendTestEmail,
+} from "#lib/email.ts";
+import {
+  buildTemplateData,
+  renderTemplate,
+  validateTemplate,
+} from "#lib/email-renderer.ts";
 import {
   getAllowedDomain,
   getCdnHostname,
@@ -23,12 +33,17 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   clearPaymentProvider,
+  type EmailTemplateType,
+  getAppleWalletPassTypeIdFromDb,
+  getAppleWalletTeamIdFromDb,
   getCustomDomainFromDb,
   getCustomDomainLastValidatedFromDb,
-  getEmbedHostsFromDb,
   getEmailFromAddressFromDb,
   getEmailProviderFromDb,
+  getEmailTemplateSet,
+  getEmbedHostsFromDb,
   getHeaderImageUrlFromDb,
+  getHostAppleWalletConfig,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
   getShowPublicApiFromDb,
@@ -38,28 +53,27 @@ import {
   getTermsAndConditionsFromDb,
   getThemeFromDb,
   getTimezoneFromDb,
+  hasAppleWalletDbConfig,
   hasEmailApiKey,
   hasSquareToken,
   hasStripeKey,
   isMaskSentinel,
+  MAX_EMAIL_TEMPLATE_LENGTH,
   MAX_TERMS_LENGTH,
   setPaymentProvider,
   setStripeWebhookConfig,
-  updateCustomDomain,
-  updateCustomDomainLastValidated,
-  hasAppleWalletDbConfig,
-  getHostAppleWalletConfig,
-  getAppleWalletPassTypeIdFromDb,
-  getAppleWalletTeamIdFromDb,
   updateAppleWalletPassTypeId,
-  updateAppleWalletTeamId,
   updateAppleWalletSigningCert,
   updateAppleWalletSigningKey,
+  updateAppleWalletTeamId,
   updateAppleWalletWwdrCert,
-  updateEmbedHosts,
+  updateCustomDomain,
+  updateCustomDomainLastValidated,
   updateEmailApiKey,
   updateEmailFromAddress,
   updateEmailProvider,
+  updateEmailTemplate,
+  updateEmbedHosts,
   updateHeaderImageUrl,
   updatePhonePrefix,
   updateShowPublicApi,
@@ -73,10 +87,6 @@ import {
   updateTheme,
   updateTimezone,
   updateUserPassword,
-  type EmailTemplateType,
-  getEmailTemplateSet,
-  updateEmailTemplate,
-  MAX_EMAIL_TEMPLATE_LENGTH,
 } from "#lib/db/settings.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import {
@@ -85,11 +95,7 @@ import {
   TERMS_DEMO_FIELDS,
 } from "#lib/demo.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#lib/embed-hosts.ts";
-import {
-  setFormError,
-  setFormSuccess,
-  validateForm,
-} from "#lib/forms.tsx";
+import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
   IMAGE_ERROR_MESSAGES,
@@ -98,7 +104,10 @@ import {
   uploadImage,
   validateImage,
 } from "#lib/storage.ts";
-import { isValidPemCertificate, isValidPemPrivateKey } from "#lib/apple-wallet.ts";
+import {
+  isValidPemCertificate,
+  isValidPemPrivateKey,
+} from "#lib/apple-wallet.ts";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import { isValidTimezone } from "#lib/timezone.ts";
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
@@ -116,8 +125,8 @@ import {
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import {
-  type ChangePasswordFormValues,
   changePasswordFields,
+  type ChangePasswordFormValues,
 } from "#templates/fields.ts";
 
 /** Build the webhook URL from the configured domain */
@@ -204,7 +213,9 @@ const getAdvancedSettingsPageState = async () => {
     getEmailTemplateSet("confirmation"),
     getEmailTemplateSet("admin"),
     bunnyCdnConfigured ? getCustomDomainFromDb() : Promise.resolve(null),
-    bunnyCdnConfigured ? getCustomDomainLastValidatedFromDb() : Promise.resolve(null),
+    bunnyCdnConfigured
+      ? getCustomDomainLastValidatedFromDb()
+      : Promise.resolve(null),
     hasAppleWalletDbConfig(),
     getAppleWalletPassTypeIdFromDb(),
     getAppleWalletTeamIdFromDb(),
@@ -304,7 +315,10 @@ export type SecretFieldResult =
 /** Extract and classify a secret field from a form submission.
  * Consistently handles: trim → sentinel detection → empty vs provided.
  */
-export const processSecretField = (form: URLSearchParams, fieldName: string): SecretFieldResult => {
+export const processSecretField = (
+  form: URLSearchParams,
+  fieldName: string,
+): SecretFieldResult => {
   const raw = (form.get(fieldName) ?? "").trim();
   if (isMaskSentinel(raw)) return { action: "unchanged" };
   if (!raw) return { action: "cleared" };
@@ -313,18 +327,19 @@ export const processSecretField = (form: URLSearchParams, fieldName: string): Se
 
 /** Owner auth form route that provides the errorPage helper and session */
 const settingsRoute =
-  (handler: SettingsFormHandler) =>
-  (request: Request): Promise<Response> =>
-    withOwnerAuthForm(request, (session, form) =>
-      handler(form, settingsPageWithError(session), session),
+  (handler: SettingsFormHandler) => (request: Request): Promise<Response> =>
+    withOwnerAuthForm(
+      request,
+      (session, form) => handler(form, settingsPageWithError(session), session),
     );
 
 /** Owner auth form route for advanced settings - errors render the advanced page */
 const advancedSettingsRoute =
-  (handler: SettingsFormHandler) =>
-  (request: Request): Promise<Response> =>
-    withOwnerAuthForm(request, (session, form) =>
-      handler(form, advancedSettingsPageWithError(session), session),
+  (handler: SettingsFormHandler) => (request: Request): Promise<Response> =>
+    withOwnerAuthForm(
+      request,
+      (session, form) =>
+        handler(form, advancedSettingsPageWithError(session), session),
     );
 
 /**
@@ -344,7 +359,9 @@ const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (
 /**
  * Handle GET /admin/settings-advanced - owner only
  */
-const handleAdminSettingsAdvancedGet: TypedRouteHandler<"GET /admin/settings-advanced"> = (
+const handleAdminSettingsAdvancedGet: TypedRouteHandler<
+  "GET /admin/settings-advanced"
+> = (
   request,
 ) =>
   requireOwnerOr(request, async (session) => {
@@ -429,7 +446,9 @@ const handleAdminSettingsPost = settingsRoute(
     }
 
     await logActivity("Password changed");
-    return redirect("/admin", "Password changed — please log in again", true, { cookie: clearSessionCookie() });
+    return redirect("/admin", "Password changed — please log in again", true, {
+      cookie: clearSessionCookie(),
+    });
   },
 );
 
@@ -449,7 +468,9 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
     await clearPaymentProvider();
     await logActivity("Payment provider disabled");
     return redirect(
-      "/admin/settings", "Payment provider disabled", true,
+      "/admin/settings",
+      "Payment provider disabled",
+      true,
       { formId: "settings-payment-provider" },
     );
   }
@@ -466,7 +487,9 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   await logActivity(`Payment provider set to ${provider}`);
 
   return redirect(
-    "/admin/settings", `Payment provider set to ${provider}`, true,
+    "/admin/settings",
+    `Payment provider set to ${provider}`,
+    true,
     { formId: "settings-payment-provider" },
   );
 });
@@ -487,7 +510,9 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
 
   if (field.action === "unchanged") {
     return redirect(
-      "/admin/settings", "Stripe settings unchanged", true,
+      "/admin/settings",
+      "Stripe settings unchanged",
+      true,
       { formId: "settings-stripe" },
     );
   }
@@ -503,7 +528,9 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     }
     // Empty with existing key = no change
     return redirect(
-      "/admin/settings", "Stripe settings unchanged", true,
+      "/admin/settings",
+      "Stripe settings unchanged",
+      true,
       { formId: "settings-stripe" },
     );
   }
@@ -535,7 +562,9 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
 
   await logActivity("Stripe key configured");
   return redirect(
-    "/admin/settings", "Stripe key updated and webhook configured successfully", true,
+    "/admin/settings",
+    "Stripe key updated and webhook configured successfully",
+    true,
     { formId: "settings-stripe" },
   );
 });
@@ -583,7 +612,9 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
 
   await logActivity("Square credentials configured");
   return redirect(
-    "/admin/settings", "Square credentials updated successfully", true,
+    "/admin/settings",
+    "Square credentials updated successfully",
+    true,
     { formId: "settings-square" },
   );
 });
@@ -596,7 +627,9 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
 
   if (field.action === "unchanged") {
     return redirect(
-      "/admin/settings", "Square webhook settings unchanged", true,
+      "/admin/settings",
+      "Square webhook settings unchanged",
+      true,
       { formId: "settings-square-webhook" },
     );
   }
@@ -613,7 +646,9 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
 
   await logActivity("Square webhook signature key configured");
   return redirect(
-    "/admin/settings", "Square webhook signature key updated successfully", true,
+    "/admin/settings",
+    "Square webhook signature key updated successfully",
+    true,
     { formId: "settings-square-webhook" },
   );
 });
@@ -638,7 +673,9 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
   if (trimmed === "") {
     await updateEmbedHosts("");
     return redirect(
-      "/admin/settings", "Embed host restrictions removed", true,
+      "/admin/settings",
+      "Embed host restrictions removed",
+      true,
       { formId: "settings-embed-hosts" },
     );
   }
@@ -652,7 +689,9 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
   const normalized = parseEmbedHosts(trimmed).join(", ");
   await updateEmbedHosts(normalized);
   return redirect(
-    "/admin/settings", "Allowed embed hosts updated", true,
+    "/admin/settings",
+    "Allowed embed hosts updated",
+    true,
     { formId: "settings-embed-hosts" },
   );
 });
@@ -678,13 +717,17 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
   if (trimmed === "") {
     await logActivity("Terms and conditions removed");
     return redirect(
-      "/admin/settings", "Terms and conditions removed", true,
+      "/admin/settings",
+      "Terms and conditions removed",
+      true,
       { formId: "settings-terms" },
     );
   }
   await logActivity("Terms and conditions updated");
   return redirect(
-    "/admin/settings", "Terms and conditions updated", true,
+    "/admin/settings",
+    "Terms and conditions updated",
+    true,
     { formId: "settings-terms" },
   );
 });
@@ -704,7 +747,9 @@ const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
   await updateTimezone(trimmed);
   await logActivity(`Timezone set to ${trimmed}`);
   return redirect(
-    "/admin/settings-advanced", "Timezone updated", true,
+    "/admin/settings-advanced",
+    "Timezone updated",
+    true,
     { formId: "settings-timezone" },
   );
 };
@@ -725,7 +770,9 @@ const processBusinessEmailForm: SettingsFormHandler = async (
     await updateBusinessEmail("");
     await logActivity("Business email cleared");
     return redirect(
-      "/admin/settings", "Business email cleared", true,
+      "/admin/settings",
+      "Business email cleared",
+      true,
       { formId: "settings-business-email" },
     );
   }
@@ -741,7 +788,9 @@ const processBusinessEmailForm: SettingsFormHandler = async (
   await updateBusinessEmail(trimmed);
   await logActivity("Business email updated");
   return redirect(
-    "/admin/settings", "Business email updated", true,
+    "/admin/settings",
+    "Business email updated",
+    true,
     { formId: "settings-business-email" },
   );
 };
@@ -760,7 +809,9 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
   await updateTheme(theme);
   await logActivity(`Theme set to ${theme}`);
   return redirect(
-    "/admin/settings", `Theme updated to ${theme}`, true,
+    "/admin/settings",
+    `Theme updated to ${theme}`,
+    true,
     { formId: "settings-theme" },
   );
 };
@@ -774,7 +825,9 @@ const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
   await updateShowPublicSite(value);
   await logActivity(`Public site ${value ? "enabled" : "disabled"}`);
   return redirect(
-    "/admin/settings", value ? "Public site enabled" : "Public site disabled", true,
+    "/admin/settings",
+    value ? "Public site enabled" : "Public site disabled",
+    true,
     { formId: "settings-show-public-site" },
   );
 };
@@ -813,7 +866,9 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
   await updatePhonePrefix(raw);
   await logActivity(`Phone prefix set to ${raw}`);
   return redirect(
-    "/admin/settings", `Phone prefix updated to ${raw}`, true,
+    "/admin/settings",
+    `Phone prefix updated to ${raw}`,
+    true,
     { formId: "settings-phone-prefix" },
   );
 };
@@ -858,7 +913,9 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
     await updateHeaderImageUrl(filename);
     await logActivity("Header image uploaded");
     return redirect(
-      "/admin/settings", "Header image uploaded", true,
+      "/admin/settings",
+      "Header image uploaded",
+      true,
       { formId: "settings-header-image" },
     );
   });
@@ -874,11 +931,12 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   await updateHeaderImageUrl("");
   await logActivity("Header image removed");
   return redirect(
-    "/admin/settings", "Header image removed", true,
+    "/admin/settings",
+    "Header image removed",
+    true,
     { formId: "settings-header-image-delete" },
   );
 });
-
 
 /** Handle POST /admin/settings/email - owner only */
 const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
@@ -891,7 +949,12 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
     await updateEmailApiKey("");
     await updateEmailFromAddress("");
     await logActivity("Email provider disabled");
-    return redirect("/admin/settings-advanced", "Email provider disabled", true, { formId: "settings-email" });
+    return redirect(
+      "/admin/settings-advanced",
+      "Email provider disabled",
+      true,
+      { formId: "settings-email" },
+    );
   }
 
   if (!isEmailProvider(provider)) {
@@ -907,10 +970,14 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
   }
 
   await updateEmailProvider(provider);
-  if (apiKeyField.action === "provided") await updateEmailApiKey(apiKeyField.value);
+  if (apiKeyField.action === "provided") {
+    await updateEmailApiKey(apiKeyField.value);
+  }
   if (fromAddress) await updateEmailFromAddress(fromAddress);
   await logActivity(`Email provider set to ${provider}`);
-  return redirect("/admin/settings-advanced", "Email settings updated", true, { formId: "settings-email" });
+  return redirect("/admin/settings-advanced", "Email settings updated", true, {
+    formId: "settings-email",
+  });
 });
 
 /** Handle POST /admin/settings/email/test - send test email to business email */
@@ -918,22 +985,40 @@ const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
   const businessEmail = await getBusinessEmailFromDb();
-  if (!businessEmail) return errorPage("No business email set", 400, "settings-email-test");
+  if (!businessEmail) {
+    return errorPage("No business email set", 400, "settings-email-test");
+  }
   const status = await sendTestEmail(config, businessEmail);
   if (!status) {
-    return errorPage("Test email failed (no response)", 502, "settings-email-test");
+    return errorPage(
+      "Test email failed (no response)",
+      502,
+      "settings-email-test",
+    );
   }
   if (status >= 300) {
-    return errorPage(`Test email failed (status ${status})`, 502, "settings-email-test");
+    return errorPage(
+      `Test email failed (status ${status})`,
+      502,
+      "settings-email-test",
+    );
   }
-  return redirect("/admin/settings-advanced", `Test email sent (status ${status})`, true, { formId: "settings-email-test" });
+  return redirect(
+    "/admin/settings-advanced",
+    `Test email sent (status ${status})`,
+    true,
+    { formId: "settings-email-test" },
+  );
 });
 
 /** Valid template types for form submissions — derived from the EmailTemplateType union */
-const VALID_TEMPLATE_TYPES: ReadonlySet<EmailTemplateType> = new Set<EmailTemplateType>(["confirmation", "admin"]);
+const VALID_TEMPLATE_TYPES: ReadonlySet<EmailTemplateType> = new Set<
+  EmailTemplateType
+>(["confirmation", "admin"]);
 
 /** Type guard: narrows a string to EmailTemplateType after Set membership check */
-const isEmailTemplateType = (v: string): v is EmailTemplateType => VALID_TEMPLATE_TYPES.has(v as EmailTemplateType);
+const isEmailTemplateType = (v: string): v is EmailTemplateType =>
+  VALID_TEMPLATE_TYPES.has(v as EmailTemplateType);
 
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
 const handleEmailTemplatePost = (type: EmailTemplateType) =>
@@ -944,7 +1029,12 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
     const text = form.get("text") ?? "";
 
     // Validate lengths
-    for (const [name, value] of [["subject", subject], ["html", html], ["text", text]] as const) {
+    for (
+      const [name, value] of [["subject", subject], ["html", html], [
+        "text",
+        text,
+      ]] as const
+    ) {
       if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
         return errorPage(
           `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`,
@@ -955,11 +1045,20 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
     }
 
     // Validate Liquid syntax
-    for (const [name, value] of [["subject", subject], ["html", html], ["text", text]] as const) {
+    for (
+      const [name, value] of [["subject", subject], ["html", html], [
+        "text",
+        text,
+      ]] as const
+    ) {
       if (value) {
         const error = validateTemplate(value);
         if (error) {
-          return errorPage(`Invalid template syntax in ${name}: ${error}`, 400, formId);
+          return errorPage(
+            `Invalid template syntax in ${name}: ${error}`,
+            400,
+            formId,
+          );
         }
       }
     }
@@ -970,39 +1069,70 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
       updateEmailTemplate(type, "text", text.trim()),
     ]);
 
-    const label = type === "confirmation" ? "Confirmation" : "Admin notification";
+    const label = type === "confirmation"
+      ? "Confirmation"
+      : "Admin notification";
     await logActivity(`${label} email template updated`);
-    return redirect("/admin/settings-advanced", `${label} email template updated`, true, { formId });
+    return redirect(
+      "/admin/settings-advanced",
+      `${label} email template updated`,
+      true,
+      { formId },
+    );
   });
 
 /** Sample booking data used for email template previews */
 const PREVIEW_BOOKINGS = [{
   event: {
-    id: 1, name: "Summer Concert", slug: "summer-concert",
-    webhook_url: "", max_attendees: 100, attendee_count: 42,
-    unit_price: 2500, can_pay_more: false,
-    date: "2026-07-15T19:00:00Z", location: "Town Hall",
+    id: 1,
+    name: "Summer Concert",
+    slug: "summer-concert",
+    webhook_url: "",
+    max_attendees: 100,
+    attendee_count: 42,
+    unit_price: 2500,
+    can_pay_more: false,
+    date: "2026-07-15T19:00:00Z",
+    location: "Town Hall",
   },
   attendee: {
-    id: 1, name: "Jane Smith", email: "jane@example.com",
-    phone: "+44 7700 900000", address: "123 High Street, London",
+    id: 1,
+    name: "Jane Smith",
+    email: "jane@example.com",
+    phone: "+44 7700 900000",
+    address: "123 High Street, London",
     special_instructions: "Wheelchair access please",
-    quantity: 2, payment_id: "pi_sample", price_paid: "5000",
-    ticket_token: "SAMPLE123", date: null,
+    quantity: 2,
+    payment_id: "pi_sample",
+    price_paid: "5000",
+    ticket_token: "SAMPLE123",
+    date: null,
   },
 }, {
   event: {
-    id: 2, name: "Workshop", slug: "workshop",
-    webhook_url: "", max_attendees: 20, attendee_count: 8,
-    unit_price: 0, can_pay_more: false,
-    date: "", location: "",
+    id: 2,
+    name: "Workshop",
+    slug: "workshop",
+    webhook_url: "",
+    max_attendees: 20,
+    attendee_count: 8,
+    unit_price: 0,
+    can_pay_more: false,
+    date: "",
+    location: "",
   },
   attendee: {
-    id: 2, name: "Jane Smith", email: "jane@example.com",
-    phone: "+44 7700 900000", address: "123 High Street, London",
+    id: 2,
+    name: "Jane Smith",
+    email: "jane@example.com",
+    phone: "+44 7700 900000",
+    address: "123 High Street, London",
     special_instructions: "Wheelchair access please",
-    quantity: 1, payment_id: "", price_paid: "0",
-    ticket_token: "SAMPLE456", date: "2026-04-15",
+    quantity: 1,
+    payment_id: "",
+    price_paid: "0",
+    ticket_token: "SAMPLE456",
+    date: "2026-04-15",
   },
 }];
 
@@ -1040,78 +1170,94 @@ const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
   });
 
 /** Handle POST /admin/settings/custom-domain - save custom domain */
-const handleCustomDomainPost = advancedSettingsRoute(async (form, errorPage) => {
-  if (!isBunnyCdnEnabled()) {
-    return errorPage("Bunny CDN is not configured", 400, "settings-custom-domain");
-  }
+const handleCustomDomainPost = advancedSettingsRoute(
+  async (form, errorPage) => {
+    if (!isBunnyCdnEnabled()) {
+      return errorPage(
+        "Bunny CDN is not configured",
+        400,
+        "settings-custom-domain",
+      );
+    }
 
-  const raw = (form.get("custom_domain") ?? "").trim().toLowerCase();
+    const raw = (form.get("custom_domain") ?? "").trim().toLowerCase();
 
-  if (raw === "") {
-    await updateCustomDomain("");
-    await logActivity("Custom domain cleared");
+    if (raw === "") {
+      await updateCustomDomain("");
+      await logActivity("Custom domain cleared");
+      return redirect(
+        "/admin/settings-advanced",
+        "Custom domain cleared",
+        true,
+        { formId: "settings-custom-domain" },
+      );
+    }
+
+    // Basic domain validation: must look like a hostname
+    if (!DOMAIN_PATTERN.test(raw)) {
+      return errorPage("Invalid domain format", 400, "settings-custom-domain");
+    }
+
+    await updateCustomDomain(raw);
+    await logActivity(`Custom domain set to ${raw}`);
+
+    // Attempt validation immediately after saving
+    const result = await validateCustomDomain(raw);
+    if (result.ok) {
+      await updateCustomDomainLastValidated();
+      await logActivity(`Custom domain validated: ${raw}`);
+      return redirect(
+        "/admin/settings-advanced",
+        "Custom domain saved and validated",
+        true,
+        { formId: "settings-custom-domain" },
+      );
+    }
+
     return redirect(
       "/admin/settings-advanced",
-      "Custom domain cleared",
-      true,
+      `Custom domain saved but validation failed: ${result.error}`,
+      false,
       { formId: "settings-custom-domain" },
     );
-  }
-
-  // Basic domain validation: must look like a hostname
-  if (!DOMAIN_PATTERN.test(raw)) {
-    return errorPage("Invalid domain format", 400, "settings-custom-domain");
-  }
-
-  await updateCustomDomain(raw);
-  await logActivity(`Custom domain set to ${raw}`);
-
-  // Attempt validation immediately after saving
-  const result = await validateCustomDomain(raw);
-  if (result.ok) {
-    await updateCustomDomainLastValidated();
-    await logActivity(`Custom domain validated: ${raw}`);
-    return redirect(
-      "/admin/settings-advanced",
-      "Custom domain saved and validated",
-      true,
-      { formId: "settings-custom-domain" },
-    );
-  }
-
-  return redirect(
-    "/admin/settings-advanced",
-    `Custom domain saved but validation failed: ${result.error}`,
-    false,
-    { formId: "settings-custom-domain" },
-  );
-});
+  },
+);
 
 /** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
-const handleCustomDomainValidatePost = advancedSettingsRoute(async (_form, errorPage) => {
-  if (!isBunnyCdnEnabled()) {
-    return errorPage("Bunny CDN is not configured", 400, "settings-custom-domain-validate");
-  }
+const handleCustomDomainValidatePost = advancedSettingsRoute(
+  async (_form, errorPage) => {
+    if (!isBunnyCdnEnabled()) {
+      return errorPage(
+        "Bunny CDN is not configured",
+        400,
+        "settings-custom-domain-validate",
+      );
+    }
 
-  const customDomain = await getCustomDomainFromDb();
-  if (!customDomain) {
-    return errorPage("No custom domain is configured", 400, "settings-custom-domain-validate");
-  }
+    const customDomain = await getCustomDomainFromDb();
+    if (!customDomain) {
+      return errorPage(
+        "No custom domain is configured",
+        400,
+        "settings-custom-domain-validate",
+      );
+    }
 
-  const result = await validateCustomDomain(customDomain);
-  if (!result.ok) {
-    return errorPage(result.error, 502, "settings-custom-domain-validate");
-  }
+    const result = await validateCustomDomain(customDomain);
+    if (!result.ok) {
+      return errorPage(result.error, 502, "settings-custom-domain-validate");
+    }
 
-  await updateCustomDomainLastValidated();
-  await logActivity(`Custom domain validated: ${customDomain}`);
-  return redirect(
-    "/admin/settings-advanced",
-    "Custom domain validated successfully",
-    true,
-    { formId: "settings-custom-domain-validate" },
-  );
-});
+    await updateCustomDomainLastValidated();
+    await logActivity(`Custom domain validated: ${customDomain}`);
+    return redirect(
+      "/admin/settings-advanced",
+      "Custom domain validated successfully",
+      true,
+      { formId: "settings-custom-domain-validate" },
+    );
+  },
+);
 
 /**
  * Handle POST /admin/settings/apple-wallet - owner only
@@ -1124,7 +1270,10 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   const wwdrField = processSecretField(form, "apple_wallet_wwdr_cert");
 
   // If everything is cleared, remove all settings
-  if (!passTypeId && !teamId && certField.action === "cleared" && keyField.action === "cleared" && wwdrField.action === "cleared") {
+  if (
+    !passTypeId && !teamId && certField.action === "cleared" &&
+    keyField.action === "cleared" && wwdrField.action === "cleared"
+  ) {
     await Promise.all([
       updateAppleWalletPassTypeId(""),
       updateAppleWalletTeamId(""),
@@ -1133,7 +1282,12 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
       updateAppleWalletWwdrCert(""),
     ]);
     await logActivity("Apple Wallet configuration cleared");
-    return redirect("/admin/settings-advanced", "Apple Wallet configuration cleared", true, { formId: "settings-apple-wallet" });
+    return redirect(
+      "/admin/settings-advanced",
+      "Apple Wallet configuration cleared",
+      true,
+      { formId: "settings-apple-wallet" },
+    );
   }
 
   if (!passTypeId) {
@@ -1148,51 +1302,95 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   const isConfigured = await hasAppleWalletDbConfig();
   if (!isConfigured) {
     if (certField.action !== "provided") {
-      return errorPage("Signing certificate is required", 400, "settings-apple-wallet");
+      return errorPage(
+        "Signing certificate is required",
+        400,
+        "settings-apple-wallet",
+      );
     }
     if (keyField.action !== "provided") {
-      return errorPage("Signing private key is required", 400, "settings-apple-wallet");
+      return errorPage(
+        "Signing private key is required",
+        400,
+        "settings-apple-wallet",
+      );
     }
     if (wwdrField.action !== "provided") {
-      return errorPage("WWDR certificate is required", 400, "settings-apple-wallet");
+      return errorPage(
+        "WWDR certificate is required",
+        400,
+        "settings-apple-wallet",
+      );
     }
   }
 
   // Validate PEM format for any newly provided fields
-  if (certField.action === "provided" && !isValidPemCertificate(certField.value)) {
-    return errorPage("Signing certificate is not a valid PEM certificate", 400, "settings-apple-wallet");
+  if (
+    certField.action === "provided" && !isValidPemCertificate(certField.value)
+  ) {
+    return errorPage(
+      "Signing certificate is not a valid PEM certificate",
+      400,
+      "settings-apple-wallet",
+    );
   }
   if (keyField.action === "provided" && !isValidPemPrivateKey(keyField.value)) {
-    return errorPage("Signing private key is not a valid PEM private key", 400, "settings-apple-wallet");
+    return errorPage(
+      "Signing private key is not a valid PEM private key",
+      400,
+      "settings-apple-wallet",
+    );
   }
-  if (wwdrField.action === "provided" && !isValidPemCertificate(wwdrField.value)) {
-    return errorPage("WWDR certificate is not a valid PEM certificate", 400, "settings-apple-wallet");
+  if (
+    wwdrField.action === "provided" && !isValidPemCertificate(wwdrField.value)
+  ) {
+    return errorPage(
+      "WWDR certificate is not a valid PEM certificate",
+      400,
+      "settings-apple-wallet",
+    );
   }
 
   await updateAppleWalletPassTypeId(passTypeId);
   await updateAppleWalletTeamId(teamId);
-  if (certField.action === "provided") await updateAppleWalletSigningCert(certField.value);
-  if (keyField.action === "provided") await updateAppleWalletSigningKey(keyField.value);
-  if (wwdrField.action === "provided") await updateAppleWalletWwdrCert(wwdrField.value);
+  if (certField.action === "provided") {
+    await updateAppleWalletSigningCert(certField.value);
+  }
+  if (keyField.action === "provided") {
+    await updateAppleWalletSigningKey(keyField.value);
+  }
+  if (wwdrField.action === "provided") {
+    await updateAppleWalletWwdrCert(wwdrField.value);
+  }
 
   await logActivity("Apple Wallet configuration updated");
-  return redirect("/admin/settings-advanced", "Apple Wallet settings updated", true, { formId: "settings-apple-wallet" });
+  return redirect(
+    "/admin/settings-advanced",
+    "Apple Wallet settings updated",
+    true,
+    { formId: "settings-apple-wallet" },
+  );
 });
 
 /**
  * Handle POST /admin/settings/reset-database - owner only
  */
-const handleResetDatabasePost = advancedSettingsRoute(async (form, errorPage) => {
-  const phraseError = validateResetPhrase(form);
-  if (phraseError)
-    return errorPage(phraseError, 400, "settings-reset-database");
+const handleResetDatabasePost = advancedSettingsRoute(
+  async (form, errorPage) => {
+    const phraseError = validateResetPhrase(form);
+    if (phraseError) {
+      return errorPage(phraseError, 400, "settings-reset-database");
+    }
 
-  await logActivity("Database reset initiated");
-  await resetDatabase();
+    await logActivity("Database reset initiated");
+    await resetDatabase();
 
-  // Redirect to setup page since the database is now empty
-  return redirect("/setup/", "Database reset", true, { cookie: clearSessionCookie() });
-});
+    // Redirect to setup page since the database is now empty
+    return redirect("/setup/", "Database reset", true, {
+      cookie: clearSessionCookie(),
+    });
+  },
+);
 
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
@@ -1216,9 +1414,14 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/email": handleEmailPost,
   "POST /admin/settings/email/test": handleEmailTestPost,
-  "POST /admin/settings/email-templates/confirmation": handleEmailTemplatePost("confirmation"),
-  "POST /admin/settings/email-templates/admin": handleEmailTemplatePost("admin"),
-  "POST /admin/settings/email-templates/preview": handleEmailTemplatePreviewPost,
+  "POST /admin/settings/email-templates/confirmation": handleEmailTemplatePost(
+    "confirmation",
+  ),
+  "POST /admin/settings/email-templates/admin": handleEmailTemplatePost(
+    "admin",
+  ),
+  "POST /admin/settings/email-templates/preview":
+    handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,

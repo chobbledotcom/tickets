@@ -8,24 +8,24 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   generateTestCerts,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 import { handleRequest } from "#routes";
 import {
-  hasAppleWalletConfig,
-  hasAppleWalletDbConfig,
-  getHostAppleWalletConfig,
   getAppleWalletConfig,
   getAppleWalletPassTypeIdFromDb,
   getAppleWalletTeamIdFromDb,
+  getHostAppleWalletConfig,
+  hasAppleWalletConfig,
+  hasAppleWalletDbConfig,
   updateAppleWalletPassTypeId,
-  updateAppleWalletTeamId,
   updateAppleWalletSigningCert,
   updateAppleWalletSigningKey,
+  updateAppleWalletTeamId,
   updateAppleWalletWwdrCert,
 } from "#lib/db/settings.ts";
 
@@ -54,7 +54,10 @@ describe("wallet route (/wallet/:token)", () => {
   });
 
   test("returns 404 when Apple Wallet is not configured", async () => {
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     expect(response.status).toBe(404);
   });
@@ -75,23 +78,34 @@ describe("wallet route (/wallet/:token)", () => {
 
   test("returns 404 without .pkpass extension", async () => {
     await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
     const response = await awaitTestRequest(`/wallet/${token}`);
     expect(response.status).toBe(404);
   });
 
   test("returns pkpass with correct content type", async () => {
     await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
 
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toBe("application/vnd.apple.pkpass");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/vnd.apple.pkpass",
+    );
   });
 
   test("returns pkpass with cache-control headers", async () => {
     await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
 
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     const cacheControl = response.headers.get("Cache-Control");
@@ -101,7 +115,10 @@ describe("wallet route (/wallet/:token)", () => {
 
   test("returns pkpass with inline content-disposition for iOS compatibility", async () => {
     await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
 
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     const disposition = response.headers.get("Content-Disposition")!;
@@ -111,7 +128,10 @@ describe("wallet route (/wallet/:token)", () => {
 
   test("returns pkpass with Content-Length header for iOS compatibility", async () => {
     await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
 
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     const contentLength = response.headers.get("Content-Length");
@@ -122,7 +142,10 @@ describe("wallet route (/wallet/:token)", () => {
 
   test("pkpass is a valid ZIP containing pass.json, manifest.json, and signature", async () => {
     await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
 
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     const body = new Uint8Array(await response.arrayBuffer());
@@ -135,10 +158,14 @@ describe("wallet route (/wallet/:token)", () => {
 
   test("pass.json contains correct event data", async () => {
     await configureAppleWallet();
-    const { event, token } = await createTestAttendeeWithToken("Alice", "alice@test.com", {
-      date: "2026-06-15T19:00",
-      location: "Town Hall",
-    });
+    const { event, token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+      {
+        date: "2026-06-15T19:00",
+        location: "Town Hall",
+      },
+    );
 
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     const body = new Uint8Array(await response.arrayBuffer());
@@ -172,7 +199,10 @@ describe("ticket view wallet link", () => {
   });
 
   test("does not show wallet link when Apple Wallet is not configured", async () => {
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
     expect(body).not.toContain("wallet-link");
@@ -181,7 +211,10 @@ describe("ticket view wallet link", () => {
 
   test("shows wallet link when Apple Wallet is configured", async () => {
     await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
     expect(body).toContain("wallet-link");
@@ -210,7 +243,6 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires Pass Type ID", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "",
@@ -219,13 +251,12 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Pass Type ID is required");
   });
 
   test("requires Team ID", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
@@ -234,13 +265,12 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Team ID is required");
   });
 
   test("requires signing certificate on initial setup", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
@@ -249,13 +279,12 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Signing certificate is required");
   });
 
   test("requires signing key on initial setup", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
@@ -264,13 +293,12 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: "",
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Signing private key is required");
   });
 
   test("requires WWDR certificate on initial setup", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
@@ -279,13 +307,12 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: "",
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "WWDR certificate is required");
   });
 
   test("rejects invalid PEM signing certificate", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
@@ -294,13 +321,16 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
-    await expectHtmlResponse(response, 400, "Signing certificate is not a valid PEM certificate");
+    await expectHtmlResponse(
+      response,
+      400,
+      "Signing certificate is not a valid PEM certificate",
+    );
   });
 
   test("rejects invalid PEM signing key", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
@@ -309,13 +339,16 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: "not a valid key",
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
-    await expectHtmlResponse(response, 400, "Signing private key is not a valid PEM private key");
+    await expectHtmlResponse(
+      response,
+      400,
+      "Signing private key is not a valid PEM private key",
+    );
   });
 
   test("rejects invalid PEM WWDR certificate", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
@@ -324,13 +357,16 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: "not a valid cert",
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
-    await expectHtmlResponse(response, 400, "WWDR certificate is not a valid PEM certificate");
+    await expectHtmlResponse(
+      response,
+      400,
+      "WWDR certificate is not a valid PEM certificate",
+    );
   });
 
   test("saves all settings successfully", async () => {
-
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test.tickets",
@@ -339,15 +375,19 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
 
     expect(response.status).toBe(302);
     const location = response.headers.get("location")!;
-    expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Apple Wallet settings updated");
+    expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+      "Apple Wallet settings updated",
+    );
 
     expect(await hasAppleWalletConfig()).toBe(true);
-    expect(await getAppleWalletPassTypeIdFromDb()).toBe("pass.com.test.tickets");
+    expect(await getAppleWalletPassTypeIdFromDb()).toBe(
+      "pass.com.test.tickets",
+    );
     expect(await getAppleWalletTeamIdFromDb()).toBe("TESTTEAM01");
   });
 
@@ -363,18 +403,22 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: "",
         apple_wallet_wwdr_cert: "",
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
 
     expect(response.status).toBe(302);
     const location = response.headers.get("location")!;
-    expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Apple Wallet configuration cleared");
+    expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+      "Apple Wallet configuration cleared",
+    );
     expect(await hasAppleWalletConfig()).toBe(false);
   });
 
   test("shows Apple Wallet section with masked values when configured", async () => {
     await configureAppleWallet();
-    const response = await awaitTestRequest("/admin/settings-advanced", { cookie: await testCookie() });
+    const response = await awaitTestRequest("/admin/settings-advanced", {
+      cookie: await testCookie(),
+    });
     const body = await response.text();
     // Section exists
     expect(body).toContain("Apple Wallet");
@@ -473,10 +517,15 @@ describe("Apple Wallet env var fallback", () => {
 
   test("wallet route works with env var config", async () => {
     setWalletEnvVars();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toBe("application/vnd.apple.pkpass");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/vnd.apple.pkpass",
+    );
 
     const body = new Uint8Array(await response.arrayBuffer());
     const files = unzipSync(body);
@@ -487,7 +536,10 @@ describe("Apple Wallet env var fallback", () => {
 
   test("ticket view shows wallet link with env var config", async () => {
     setWalletEnvVars();
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
     expect(body).toContain("wallet-link");
@@ -496,7 +548,9 @@ describe("Apple Wallet env var fallback", () => {
 
   test("settings page shows host Apple Wallet label when env vars configured", async () => {
     setWalletEnvVars();
-    const response = await awaitTestRequest("/admin/settings-advanced", { cookie: await testCookie() });
+    const response = await awaitTestRequest("/admin/settings-advanced", {
+      cookie: await testCookie(),
+    });
     const body = await response.text();
     expect(body).toContain("Host env (pass.com.env.tickets)");
     expect(body).toContain("Currently using");
@@ -505,7 +559,9 @@ describe("Apple Wallet env var fallback", () => {
   test("settings page shows overriding label when both DB and env configured", async () => {
     setWalletEnvVars();
     await configureAppleWallet();
-    const response = await awaitTestRequest("/admin/settings-advanced", { cookie: await testCookie() });
+    const response = await awaitTestRequest("/admin/settings-advanced", {
+      cookie: await testCookie(),
+    });
     const body = await response.text();
     expect(body).toContain("Host env (pass.com.env.tickets)");
     expect(body).toContain("Overriding");

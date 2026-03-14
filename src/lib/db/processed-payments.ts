@@ -57,7 +57,8 @@ export const deleteStaleReservation = async (
   sessionId: string,
 ): Promise<void> => {
   await getDb().execute({
-    sql: "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
+    sql:
+      "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
     args: [sessionId],
   });
 };
@@ -69,7 +70,8 @@ export const deleteStaleReservation = async (
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
   const result = await getDb().execute({
-    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
+    sql:
+      "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
     args: [cutoff],
   });
   return result.rowsAffected;
@@ -89,7 +91,8 @@ export const reserveSession = async (
 ): Promise<ReserveSessionResult> => {
   try {
     await getDb().execute({
-      sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+      sql:
+        "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
       args: [sessionId, nowIso()],
     });
     return { reserved: true };
@@ -108,7 +111,10 @@ export const reserveSession = async (
       }
 
       // Check if reservation is stale (abandoned by crashed process)
-      if (existing.attendee_id === null && isReservationStale(existing.processed_at)) {
+      if (
+        existing.attendee_id === null &&
+        isReservationStale(existing.processed_at)
+      ) {
         await deleteStaleReservation(sessionId);
         return reserveSession(sessionId);
       }
@@ -127,7 +133,8 @@ export const finalizeSession = async (
   attendeeId: number,
 ): Promise<void> => {
   await getDb().execute({
-    sql: "UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ?",
+    sql:
+      "UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ?",
     args: [attendeeId, sessionId],
   });
 };

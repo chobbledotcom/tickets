@@ -65,10 +65,15 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: false,
-        error: "Invalid signature",
-      }));
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: false,
+            error: "Invalid signature",
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -87,14 +92,19 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_test",
-          type: "payment_intent.created",
-          data: { object: {} },
-        },
-      }));
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_test",
+              type: "payment_intent.created",
+              data: { object: {} },
+            },
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -115,21 +125,26 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_test",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_test",
-              payment_status: "paid",
-              amount_total: 0,
-              metadata: {}, // Missing required fields
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_test",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_test",
+                  payment_status: "paid",
+                  amount_total: 0,
+                  metadata: {}, // Missing required fields
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -153,27 +168,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_test",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_test",
-              payment_status: "unpaid",
-              payment_intent: "pi_test",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "John",
-                email: "john@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_test",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_test",
+                  payment_status: "unpaid",
+                  payment_intent: "pi_test",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "John",
+                    email: "john@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -200,27 +220,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_test",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_webhook_test",
-              payment_status: "paid",
-              payment_intent: "pi_webhook_test",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Webhook User",
-                email: "webhook@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_test",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_webhook_test",
+                  payment_status: "paid",
+                  payment_intent: "pi_webhook_test",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Webhook User",
+                    email: "webhook@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -259,31 +284,36 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_webhook",
-              payment_status: "paid",
-              payment_intent: "pi_multi_webhook",
-              amount_total: 2000,
-              metadata: webhookMeta({
-                name: "Multi User",
-                email: "multi@example.com",
-                phone: "123456",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 2, p: 1000 },
-                  { e: event2.id, q: 1, p: 1000 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_webhook",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_webhook",
+                  amount_total: 2000,
+                  metadata: webhookMeta({
+                    name: "Multi User",
+                    email: "multi@example.com",
+                    phone: "123456",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 2, p: 1000 },
+                      { e: event2.id, q: 1, p: 1000 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -480,27 +510,32 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_bad_multi",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_bad_multi",
-              payment_status: "paid",
-              payment_intent: "pi_bad",
-              amount_total: 0,
-              metadata: webhookMeta({
-                name: "Bad Multi",
-                email: "bad@example.com",
-                multi: "1",
-                items: "not-valid-json{",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_bad_multi",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_bad_multi",
+                  payment_status: "paid",
+                  payment_intent: "pi_bad",
+                  amount_total: 0,
+                  metadata: webhookMeta({
+                    name: "Bad Multi",
+                    email: "bad@example.com",
+                    multi: "1",
+                    items: "not-valid-json{",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -536,31 +571,41 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_soldout",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_soldout",
-              payment_status: "paid",
-              payment_intent: "pi_soldout",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Late Buyer",
-                email: "late@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_soldout",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_soldout",
+                  payment_status: "paid",
+                  payment_intent: "pi_soldout",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Late Buyer",
+                    email: "late@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_test" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -610,20 +655,25 @@ describe("server (webhooks)", () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_no_qty",
-        payment_status: "paid",
-        payment_intent: "pi_no_qty",
-        amount_total: 1000,
-        metadata: {
-          event_id: String(event.id),
-          name: "John",
-          email: "john@example.com",
-          // quantity intentionally omitted
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_no_qty",
+            payment_status: "paid",
+            payment_intent: "pi_no_qty",
+            amount_total: 1000,
+            metadata: {
+              event_id: String(event.id),
+              name: "John",
+              email: "john@example.com",
+              // quantity intentionally omitted
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -651,20 +701,25 @@ describe("server (webhooks)", () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_square_order",
-        payment_status: "paid",
-        payment_intent: "pi_square_order",
-        amount_total: 1000,
-        metadata: {
-          event_id: String(event.id),
-          name: "Square User",
-          email: "square@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_square_order",
+            payment_status: "paid",
+            payment_intent: "pi_square_order",
+            amount_total: 1000,
+            metadata: {
+              event_id: String(event.id),
+              name: "Square User",
+              email: "square@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         // Square appends orderId as a query parameter (not session_id)
@@ -688,19 +743,24 @@ describe("server (webhooks)", () => {
       });
       await deactivateTestEvent(event.id);
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_null_ref",
-        payment_status: "paid",
-        payment_intent: null, // No payment reference
-        metadata: {
-          event_id: String(event.id),
-          name: "John",
-          email: "john@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_null_ref",
+            payment_status: "paid",
+            payment_intent: null, // No payment reference
+            metadata: {
+              event_id: String(event.id),
+              name: "John",
+              email: "john@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -727,27 +787,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_pi_extract",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_pi_extract",
-              payment_status: "paid",
-              payment_intent: "pi_extracted_ref",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "PI User",
-                email: "pi@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_pi_extract",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_pi_extract",
+                  payment_status: "paid",
+                  payment_intent: "pi_extracted_ref",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "PI User",
+                    email: "pi@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -774,27 +839,32 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_non_array",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_non_array",
-              payment_status: "paid",
-              payment_intent: "pi_non_array",
-              amount_total: 0,
-              metadata: webhookMeta({
-                name: "Test",
-                email: "test@example.com",
-                multi: "1",
-                items: '{"not":"an-array"}', // Valid JSON but not an array
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_non_array",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_non_array",
+                  payment_status: "paid",
+                  payment_intent: "pi_non_array",
+                  amount_total: 0,
+                  metadata: webhookMeta({
+                    name: "Test",
+                    email: "test@example.com",
+                    multi: "1",
+                    items: '{"not":"an-array"}', // Valid JSON but not an array
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -817,27 +887,32 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_no_items",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_no_items",
-              payment_status: "paid",
-              payment_intent: "pi_no_items",
-              amount_total: 0,
-              metadata: webhookMeta({
-                name: "Test",
-                email: "test@example.com",
-                multi: "1",
-                items: "", // empty items with multi=1: hasRequiredSessionMetadata rejects (no event_id, no items)
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_no_items",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_no_items",
+                  payment_status: "paid",
+                  payment_intent: "pi_no_items",
+                  amount_total: 0,
+                  metadata: webhookMeta({
+                    name: "Test",
+                    email: "test@example.com",
+                    multi: "1",
+                    items: "", // empty items with multi=1: hasRequiredSessionMetadata rejects (no event_id, no items)
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -871,19 +946,24 @@ describe("server (webhooks)", () => {
       );
       await reserveSessionFn("cs_multi_concurrent");
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_multi_concurrent",
-        payment_status: "paid",
-        payment_intent: "pi_multi_concurrent",
-        metadata: {
-          name: "Concurrent",
-          email: "concurrent@example.com",
-          multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_concurrent",
+            payment_status: "paid",
+            payment_intent: "pi_multi_concurrent",
+            metadata: {
+              name: "Concurrent",
+              email: "concurrent@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -909,19 +989,24 @@ describe("server (webhooks)", () => {
       );
       await reserveSessionFn("cs_single_concurrent");
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_single_concurrent",
-        payment_status: "paid",
-        payment_intent: "pi_single_concurrent",
-        metadata: {
-          event_id: String(event.id),
-          name: "Concurrent",
-          email: "concurrent@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_single_concurrent",
+            payment_status: "paid",
+            payment_intent: "pi_single_concurrent",
+            metadata: {
+              event_id: String(event.id),
+              name: "Concurrent",
+              email: "concurrent@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -942,20 +1027,25 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_multi_price",
-        payment_status: "paid",
-        payment_intent: "pi_multi_price",
-        amount_total: 1500,
-        metadata: {
-          name: "Price Test",
-          email: "price@example.com",
-          multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 3, p: 1500 }]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_price",
+            payment_status: "paid",
+            payment_intent: "pi_multi_price",
+            amount_total: 1500,
+            metadata: {
+              name: "Price Test",
+              email: "price@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: event.id, q: 3, p: 1500 }]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -984,20 +1074,25 @@ describe("server (webhooks)", () => {
         maxQuantity: 5,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_single_price",
-        payment_status: "paid",
-        payment_intent: "pi_single_price",
-        amount_total: 2000,
-        metadata: {
-          event_id: String(event.id),
-          name: "Price Single",
-          email: "price@example.com",
-          quantity: "2",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_single_price",
+            payment_status: "paid",
+            payment_intent: "pi_single_price",
+            amount_total: 2000,
+            metadata: {
+              event_id: String(event.id),
+              name: "Price Single",
+              email: "price@example.com",
+              quantity: "2",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -1021,19 +1116,24 @@ describe("server (webhooks)", () => {
 
       // This tests the case where result.refunded is undefined
       // This happens when validatePaidSession fails (no refund attempt)
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_plain_error",
-        payment_status: "unpaid",
-        payment_intent: "pi_test",
-        metadata: {
-          event_id: "1",
-          name: "John",
-          email: "john@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_plain_error",
+            payment_status: "unpaid",
+            payment_intent: "pi_test",
+            metadata: {
+              event_id: "1",
+              name: "John",
+              email: "john@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -1073,31 +1173,46 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_multi_enc_err",
-        payment_status: "paid",
-        payment_intent: "pi_multi_enc_err",
-        amount_total: 500,
-        metadata: {
-          name: "Enc Error",
-          email: "enc@example.com",
-          multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_enc_err",
+            payment_status: "paid",
+            payment_intent: "pi_multi_enc_err",
+            amount_total: 500,
+            metadata: {
+              name: "Enc Error",
+              email: "enc@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_test" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       // Mock atomic create to return encryption error
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () => Promise.resolve({
-        success: false,
-        reason: "encryption_error",
-      }));
+      const mockAtomic = stub(
+        attendeesApi,
+        "createAttendeeAtomic",
+        () =>
+          Promise.resolve({
+            success: false,
+            reason: "encryption_error",
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -1120,23 +1235,33 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       // Mock empty items list (edge case where items parsed but empty after filtering)
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_multi_empty_items",
-        payment_status: "paid",
-        payment_intent: "pi_multi_empty",
-        metadata: {
-          name: "Empty Items",
-          email: "empty@example.com",
-          multi: "1",
-          items: "[]", // Empty array
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_empty_items",
+            payment_status: "paid",
+            payment_intent: "pi_multi_empty",
+            metadata: {
+              name: "Empty Items",
+              email: "empty@example.com",
+              multi: "1",
+              items: "[]", // Empty array
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_test" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -1183,27 +1308,32 @@ describe("server (webhooks)", () => {
       await finalizeSessionFn("cs_multi_already_done", attendee.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_already_done",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_already_done",
-              payment_status: "paid",
-              payment_intent: "pi_already_done",
-              amount_total: 500,
-              metadata: webhookMeta({
-                name: "Already Done",
-                email: "already@example.com",
-                multi: "1",
-                items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_already_done",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_already_done",
+                  payment_status: "paid",
+                  payment_intent: "pi_already_done",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    name: "Already Done",
+                    email: "already@example.com",
+                    multi: "1",
+                    items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -1236,34 +1366,44 @@ describe("server (webhooks)", () => {
       await deactivateTestEvent(event2.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_inactive_wh",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_inactive_wh",
-              payment_status: "paid",
-              payment_intent: "pi_multi_inactive_wh",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                name: "Multi Inactive",
-                email: "inactive@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 500 },
-                  { e: event2.id, q: 1, p: 500 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_inactive_wh",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_inactive_wh",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_inactive_wh",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    name: "Multi Inactive",
+                    email: "inactive@example.com",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 500 },
+                      { e: event2.id, q: 1, p: 500 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_test" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -1308,34 +1448,44 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_soldout_wh",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_soldout_wh",
-              payment_status: "paid",
-              payment_intent: "pi_multi_soldout_wh",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                name: "Sold Out Multi",
-                email: "soldout@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 500 },
-                  { e: event2.id, q: 1, p: 500 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_soldout_wh",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_soldout_wh",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_soldout_wh",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    name: "Sold Out Multi",
+                    email: "soldout@example.com",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 500 },
+                      { e: event2.id, q: 1, p: 500 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_test" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -1362,18 +1512,23 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_other_type",
-          type: "payment_intent.succeeded",
-          data: {
-            object: {
-              id: "pi_test",
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_other_type",
+              type: "payment_intent.succeeded",
+              data: {
+                object: {
+                  id: "pi_test",
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -1412,30 +1567,35 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_ok",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_ok",
-              payment_status: "paid",
-              payment_intent: "pi_multi_ok",
-              amount_total: 1100,
-              metadata: webhookMeta({
-                name: "Multi Buyer",
-                email: "multi@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 500 },
-                  { e: event2.id, q: 2, p: 600 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_ok",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_ok",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_ok",
+                  amount_total: 1100,
+                  metadata: webhookMeta({
+                    name: "Multi Buyer",
+                    email: "multi@example.com",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 500 },
+                      { e: event2.id, q: 2, p: 600 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -1456,29 +1616,34 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_notfound",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_notfound",
-              payment_status: "paid",
-              payment_intent: "pi_multi_notfound",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                name: "Multi NotFound",
-                email: "notfound@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: 99999, q: 1, p: 1000 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_notfound",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_notfound",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_notfound",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    name: "Multi NotFound",
+                    email: "notfound@example.com",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: 99999, q: 1, p: 1000 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       const mockRefund = spy(stripeApi, "refundPayment");
 
@@ -1523,34 +1688,46 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_cap",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_cap",
-              payment_status: "paid",
-              payment_intent: "pi_multi_cap",
-              amount_total: 800,
-              metadata: webhookMeta({
-                name: "Multi Cap",
-                email: "cap@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 500 },
-                  { e: event2.id, q: 1, p: 300 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_cap",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_cap",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_cap",
+                  amount_total: 800,
+                  metadata: webhookMeta({
+                    name: "Multi Cap",
+                    email: "cap@example.com",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 500 },
+                      { e: event2.id, q: 1, p: 300 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve(true as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve(
+            true as unknown as Awaited<
+              ReturnType<typeof stripeApi.refundPayment>
+            >,
+          ),
+      );
 
       try {
         const response = await handleRequest(
@@ -1596,27 +1773,32 @@ describe("server (webhooks)", () => {
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       // Use a non-existent event_id in metadata to trigger "Event not found" in alreadyProcessedResult
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_del_event_wh",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_del_event_wh",
-              payment_status: "paid",
-              payment_intent: "pi_del_event_wh",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                name: "Deleted Event",
-                email: "deleted@example.com",
-                event_id: "99999",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_del_event_wh",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_del_event_wh",
+                  payment_status: "paid",
+                  payment_intent: "pi_del_event_wh",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    name: "Deleted Event",
+                    email: "deleted@example.com",
+                    event_id: "99999",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -1644,26 +1826,31 @@ describe("server (webhooks)", () => {
       await deactivateTestEvent(event.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_noref",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_noref",
-              payment_status: "paid",
-              amount_total: 500,
-              metadata: webhookMeta({
-                name: "No Ref",
-                email: "noref@example.com",
-                event_id: String(event.id),
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_noref",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_noref",
+                  payment_status: "paid",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    name: "No Ref",
+                    email: "noref@example.com",
+                    event_id: String(event.id),
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -1694,36 +1881,42 @@ describe("server (webhooks)", () => {
       // via provider.retrieveSession which we mock to return event_id undefined.
       // This triggers the ?? "0" fallback in extractIntent (line 52).
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_no_eid",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_no_event_id",
-              status: "COMPLETED",
-              // No proper metadata -> extractSessionFromEvent returns null
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_no_eid",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_no_event_id",
+                  status: "COMPLETED",
+                  // No proper metadata -> extractSessionFromEvent returns null
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       const mockRetrieveSession = stub(
         stripePaymentProvider,
         "retrieveSession",
-        () => Promise.resolve({
-          id: "cs_no_event_id",
-          paymentStatus: "paid" as const,
-          paymentReference: "pi_no_event_id",
-          amountTotal: 0,
-          metadata: webhookMeta({
-            name: "No EventId",
-            email: "noeventid@example.com",
-            quantity: "1",
-            // event_id intentionally undefined -> triggers ?? "0"
+        () =>
+          Promise.resolve({
+            id: "cs_no_event_id",
+            paymentStatus: "paid" as const,
+            paymentReference: "pi_no_event_id",
+            amountTotal: 0,
+            metadata: webhookMeta({
+              name: "No EventId",
+              email: "noeventid@example.com",
+              quantity: "1",
+              // event_id intentionally undefined -> triggers ?? "0"
+            }),
           }),
-        }),
       );
 
       const mockRefund = spy(stripeApi, "refundPayment");
@@ -1764,34 +1957,43 @@ describe("server (webhooks)", () => {
       const { paymentsApi } = await import("#lib/payments.ts");
       const origGetConfigured = paymentsApi.getConfiguredProvider;
       let callCount = 0;
-      const mockGetConfigured = stub(paymentsApi, "getConfiguredProvider", () => {
-        callCount++;
-        // First call: webhook handler needs provider; second call: tryRefund should get null
-        return callCount <= 1 ? origGetConfigured() : Promise.resolve(null);
-      });
+      const mockGetConfigured = stub(
+        paymentsApi,
+        "getConfiguredProvider",
+        () => {
+          callCount++;
+          // First call: webhook handler needs provider; second call: tryRefund should get null
+          return callCount <= 1 ? origGetConfigured() : Promise.resolve(null);
+        },
+      );
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_tryrefund_noprov",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_tryrefund_noprov",
-              payment_status: "paid",
-              payment_intent: "pi_tryrefund_noprov",
-              amount_total: 500,
-              metadata: webhookMeta({
-                name: "No Provider",
-                email: "noprov@example.com",
-                event_id: String(event.id),
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_tryrefund_noprov",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_tryrefund_noprov",
+                  payment_status: "paid",
+                  payment_intent: "pi_tryrefund_noprov",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    name: "No Provider",
+                    email: "noprov@example.com",
+                    event_id: String(event.id),
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -1820,30 +2022,35 @@ describe("server (webhooks)", () => {
       // event2 does not exist (id 99999) — validation fails before any attendees are created
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_rollback",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_rollback_cleanup",
-              payment_status: "paid",
-              payment_intent: "pi_multi_rollback",
-              amount_total: 500,
-              metadata: webhookMeta({
-                name: "Rollback Test",
-                email: "rollback@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 500 },
-                  { e: 99999, q: 1, p: 0 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_rollback",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_rollback_cleanup",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_rollback",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    name: "Rollback Test",
+                    email: "rollback@example.com",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 500 },
+                      { e: 99999, q: 1, p: 0 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       const mockRefund = spy(stripeApi, "refundPayment");
 
@@ -1879,20 +2086,25 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_multi_free",
-        payment_status: "paid",
-        payment_intent: "pi_multi_free",
-        amount_total: 0,
-        metadata: {
-          name: "Free Multi",
-          email: "freemulti@example.com",
-          multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 2, p: 0 }]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_free",
+            payment_status: "paid",
+            payment_intent: "pi_multi_free",
+            amount_total: 0,
+            metadata: {
+              name: "Free Multi",
+              email: "freemulti@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: event.id, q: 2, p: 0 }]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -1920,20 +2132,25 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_single_free",
-        payment_status: "paid",
-        payment_intent: "pi_single_free",
-        amount_total: 0,
-        metadata: {
-          event_id: String(event.id),
-          name: "Free Single",
-          email: "freesingle@example.com",
-          quantity: "2",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_single_free",
+            payment_status: "paid",
+            payment_intent: "pi_single_free",
+            amount_total: 0,
+            metadata: {
+              event_id: String(event.id),
+              name: "Free Single",
+              email: "freesingle@example.com",
+              quantity: "2",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -1960,19 +2177,24 @@ describe("server (webhooks)", () => {
       // so extractSessionFromEvent returns null (covers lines 498-500)
       // and data object has no id/order_id so sessionId is null (covers lines 597-602)
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_no_extract",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              // No id, no order_id, no proper metadata
-              some_field: "value",
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_no_extract",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  // No id, no order_id, no proper metadata
+                  some_field: "value",
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -1995,20 +2217,25 @@ describe("server (webhooks)", () => {
       // Event type matches but metadata is invalid so extractSessionFromEvent returns null
       // data object has id (for sessionId) and status "PENDING" (covers lines 605-607)
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_pending_square",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "pay_pending_123",
-              status: "PENDING",
-              // No payment_status or metadata -> extractSessionFromEvent returns null
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_pending_square",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "pay_pending_123",
+                  status: "PENDING",
+                  // No payment_status or metadata -> extractSessionFromEvent returns null
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -2032,20 +2259,25 @@ describe("server (webhooks)", () => {
       // Event with order_id instead of id triggers the order_id branch
       // in extractSessionIdFromObject
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_order_id_test",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              order_id: "order_abc123",
-              status: "COMPLETED",
-              // No metadata -> extractSessionFromEvent returns null
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_order_id_test",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  order_id: "order_abc123",
+                  status: "COMPLETED",
+                  // No metadata -> extractSessionFromEvent returns null
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       const mockRetrieveSession = stub(
         stripePaymentProvider,
@@ -2082,29 +2314,44 @@ describe("server (webhooks)", () => {
       // Mock createAttendeeAtomic to always fail with capacity_exceeded on first try
       // so createdAttendees stays empty and we hit lines 309-310
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () => Promise.resolve({
-        success: false,
-        reason: "capacity_exceeded",
-      }));
+      const mockAtomic = stub(
+        attendeesApi,
+        "createAttendeeAtomic",
+        () =>
+          Promise.resolve({
+            success: false,
+            reason: "capacity_exceeded",
+          }),
+      );
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_multi_no_att",
-        payment_status: "paid",
-        payment_intent: "pi_multi_no_att",
-        amount_total: 500,
-        metadata: {
-          name: "No Att",
-          email: "noatt@example.com",
-          multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_no_att",
+            payment_status: "paid",
+            payment_intent: "pi_multi_no_att",
+            amount_total: 500,
+            metadata: {
+              name: "No Att",
+              email: "noatt@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_no_att" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_no_att" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -2127,27 +2374,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_bad_status",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_bad_status",
-              payment_status: "completed", // invalid status, should fall back to "unpaid"
-              payment_intent: "pi_bad_status",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Bad Status",
-                email: "badstatus@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_bad_status",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_bad_status",
+                  payment_status: "completed", // invalid status, should fall back to "unpaid"
+                  payment_intent: "pi_bad_status",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Bad Status",
+                    email: "badstatus@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -2176,27 +2428,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_amount_total",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_amount_total",
-              payment_status: "paid",
-              payment_intent: "pi_amount_total",
-              amount_total: 2500,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Amount User",
-                email: "amount@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_amount_total",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_amount_total",
+                  payment_status: "paid",
+                  payment_intent: "pi_amount_total",
+                  amount_total: 2500,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Amount User",
+                    email: "amount@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -2229,31 +2486,41 @@ describe("server (webhooks)", () => {
       // amountTotal (1200) differs from expectedPrice (1000 * 1 = 1000)
       // Price changed after checkout was created — should refund
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_mismatch",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_mismatch",
-              payment_status: "paid",
-              payment_intent: "pi_mismatch",
-              amount_total: 1200,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Mismatch User",
-                email: "mismatch@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_mismatch",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_mismatch",
+                  payment_status: "paid",
+                  payment_intent: "pi_mismatch",
+                  amount_total: 1200,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Mismatch User",
+                    email: "mismatch@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_mismatch" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_mismatch" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -2298,36 +2565,42 @@ describe("server (webhooks)", () => {
       // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000
       // Price changed after checkout was created — should refund
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_mismatch",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_mismatch",
-              payment_status: "paid",
-              payment_intent: "pi_multi_mismatch",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                name: "Multi Mismatch",
-                email: "multimismatch@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 400 },
-                  { e: event2.id, q: 2, p: 600 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_mismatch",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_mismatch",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_mismatch",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    name: "Multi Mismatch",
+                    email: "multimismatch@example.com",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 400 },
+                      { e: event2.id, q: 2, p: 600 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve(
-        { id: "re_multi_mismatch" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >,
-      ));
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve(
+          { id: "re_multi_mismatch" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >,
+        ));
 
       try {
         const response = await handleRequest(
@@ -2367,24 +2640,34 @@ describe("server (webhooks)", () => {
 
       // amountTotal (800) differs from expectedPrice (1000 * 1 = 1000)
       // Price decreased after checkout was created — should refund
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_redirect_mismatch",
-        payment_status: "paid",
-        payment_intent: "pi_redirect_mismatch",
-        amount_total: 800,
-        metadata: {
-          event_id: String(event.id),
-          name: "Redirect Mismatch",
-          email: "redirect@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_redirect_mismatch",
+            payment_status: "paid",
+            payment_intent: "pi_redirect_mismatch",
+            amount_total: 800,
+            metadata: {
+              event_id: String(event.id),
+              name: "Redirect Mismatch",
+              email: "redirect@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_redirect" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_redirect" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -2414,27 +2697,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_no_email_single",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_wh_no_email_single",
-              payment_status: "paid",
-              payment_intent: "pi_wh_no_email_single",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "No Email Single",
-                email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_no_email_single",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_wh_no_email_single",
+                  payment_status: "paid",
+                  payment_intent: "pi_wh_no_email_single",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "No Email Single",
+                    email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -2464,27 +2752,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_no_email_multi",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_wh_no_email_multi",
-              payment_status: "paid",
-              payment_intent: "pi_wh_no_email_multi",
-              amount_total: 500,
-              metadata: webhookMeta({
-                name: "No Email Multi",
-                email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                multi: "1",
-                items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_no_email_multi",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_wh_no_email_multi",
+                  payment_status: "paid",
+                  payment_intent: "pi_wh_no_email_multi",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    name: "No Email Multi",
+                    email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
+                    multi: "1",
+                    items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -2521,23 +2814,33 @@ describe("server (webhooks)", () => {
         closesAt: pastDate,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
-        id: "cs_closed",
-        payment_status: "paid",
-        payment_intent: "pi_closed",
-        metadata: {
-          event_id: String(event.id),
-          name: "John",
-          email: "john@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_closed",
+            payment_status: "paid",
+            payment_intent: "pi_closed",
+            metadata: {
+              event_id: String(event.id),
+              name: "John",
+              email: "john@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_test" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -2566,31 +2869,41 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_closed",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_closed_wh",
-              payment_status: "paid",
-              payment_intent: "pi_closed_wh",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Jane",
-                email: "jane@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_closed",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_closed_wh",
+                  payment_status: "paid",
+                  payment_intent: "pi_closed_wh",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Jane",
+                    email: "jane@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_closed" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_closed" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -2621,36 +2934,42 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_closed",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_closed",
-              payment_status: "paid",
-              payment_intent: "pi_multi_closed",
-              amount_total: 1500,
-              metadata: webhookMeta({
-                name: "Jane",
-                email: "jane@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 1000 },
-                  { e: event2.id, q: 1, p: 500 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_closed",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_closed",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_closed",
+                  amount_total: 1500,
+                  metadata: webhookMeta({
+                    name: "Jane",
+                    email: "jane@example.com",
+                    multi: "1",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 1000 },
+                      { e: event2.id, q: 1, p: 500 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve(
-        { id: "re_multi_closed" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >,
-      ));
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve(
+          { id: "re_multi_closed" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >,
+        ));
 
       try {
         const response = await handleRequest(
@@ -2698,31 +3017,36 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_daily",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_daily",
-              payment_status: "paid",
-              payment_intent: "pi_multi_daily",
-              amount_total: 800,
-              metadata: webhookMeta({
-                name: "Multi Daily Buyer",
-                email: "multidaily@example.com",
-                multi: "1",
-                date: "2026-02-10",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 500 },
-                  { e: event2.id, q: 1, p: 300 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_daily",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_daily",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_daily",
+                  amount_total: 800,
+                  metadata: webhookMeta({
+                    name: "Multi Daily Buyer",
+                    email: "multidaily@example.com",
+                    multi: "1",
+                    date: "2026-02-10",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 500 },
+                      { e: event2.id, q: 1, p: 300 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -2760,27 +3084,32 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_foreign",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_foreign",
-              payment_status: "paid",
-              payment_intent: "pi_foreign",
-              amount_total: 30,
-              metadata: {
-                event_id: "1",
-                name: "Foreign Buyer",
-                email: "foreign@example.com",
-                quantity: "1",
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_foreign",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_foreign",
+                  payment_status: "paid",
+                  payment_intent: "pi_foreign",
+                  amount_total: 30,
+                  metadata: {
+                    event_id: "1",
+                    name: "Foreign Buyer",
+                    email: "foreign@example.com",
+                    quantity: "1",
+                  },
+                },
               },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       const mockRefund = spy(stripeApi, "refundPayment");
 
@@ -2808,28 +3137,33 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_other_instance",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_other_instance",
-              payment_status: "paid",
-              payment_intent: "pi_other_instance",
-              amount_total: 500,
-              metadata: {
-                _origin: "other-domain.com",
-                event_id: "1",
-                name: "Other Instance",
-                email: "other@example.com",
-                quantity: "1",
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_other_instance",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_other_instance",
+                  payment_status: "paid",
+                  payment_intent: "pi_other_instance",
+                  amount_total: 500,
+                  metadata: {
+                    _origin: "other-domain.com",
+                    event_id: "1",
+                    name: "Other Instance",
+                    email: "other@example.com",
+                    quantity: "1",
+                  },
+                },
               },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       const mockRefund = spy(stripeApi, "refundPayment");
 
@@ -2855,36 +3189,42 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_fallback_foreign",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_fallback_foreign",
-              status: "COMPLETED",
-              // No proper metadata -> extractSessionFromEvent returns null
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_fallback_foreign",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_fallback_foreign",
+                  status: "COMPLETED",
+                  // No proper metadata -> extractSessionFromEvent returns null
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       const mockRetrieveSession = stub(
         stripePaymentProvider,
         "retrieveSession",
-        () => Promise.resolve({
-          id: "cs_fallback_foreign",
-          paymentStatus: "paid" as const,
-          paymentReference: "pi_fallback_foreign",
-          amountTotal: 100,
-          metadata: webhookMeta({
-            name: "Fallback Foreign",
-            email: "fallback@example.com",
-            quantity: "1",
-            _origin: "", // Empty _origin -> should be rejected as unrecognized
+        () =>
+          Promise.resolve({
+            id: "cs_fallback_foreign",
+            paymentStatus: "paid" as const,
+            paymentReference: "pi_fallback_foreign",
+            amountTotal: 100,
+            metadata: webhookMeta({
+              name: "Fallback Foreign",
+              email: "fallback@example.com",
+              quantity: "1",
+              _origin: "", // Empty _origin -> should be rejected as unrecognized
+            }),
           }),
-        }),
       );
 
       const mockRefund = spy(stripeApi, "refundPayment");
@@ -2924,31 +3264,41 @@ describe("server (webhooks)", () => {
       await deactivateTestEvent(event.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_refund_log",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_refund_log",
-              payment_status: "paid",
-              payment_intent: "pi_refund_log",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Refund Log",
-                email: "refundlog@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_refund_log",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_refund_log",
+                  payment_status: "paid",
+                  payment_intent: "pi_refund_log",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Refund Log",
+                    email: "refundlog@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_log" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_log" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       const debugLogs: string[] = [];
       const origDebug = console.debug;
@@ -2999,31 +3349,41 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_refund_activity",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_refund_activity",
-              payment_status: "paid",
-              payment_intent: "pi_refund_activity",
-              amount_total: 500,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Activity Log User",
-                email: "activity@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_refund_activity",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_refund_activity",
+                  payment_status: "paid",
+                  payment_intent: "pi_refund_activity",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Activity Log User",
+                    email: "activity@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_activity" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_activity" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -3058,27 +3418,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_pay_more",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_pay_more",
-              payment_status: "paid",
-              payment_intent: "pi_pay_more",
-              amount_total: 2500,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Generous User",
-                email: "generous@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_pay_more",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_pay_more",
+                  payment_status: "paid",
+                  payment_intent: "pi_pay_more",
+                  amount_total: 2500,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Generous User",
+                    email: "generous@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -3119,30 +3484,35 @@ describe("server (webhooks)", () => {
       // Event1 base 500, user entered 2000; Event2 base 1000, stays 1000
       // Total: 2000 + 1000 = 3000
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_multi_pay_more",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_pay_more",
-              payment_status: "paid",
-              payment_intent: "pi_multi_pay_more",
-              amount_total: 3000,
-              metadata: webhookMeta({
-                multi: "1",
-                name: "Multi Generous",
-                email: "generous@example.com",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 2000 },
-                  { e: event2.id, q: 1, p: 1000 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_multi_pay_more",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_multi_pay_more",
+                  payment_status: "paid",
+                  payment_intent: "pi_multi_pay_more",
+                  amount_total: 3000,
+                  metadata: webhookMeta({
+                    multi: "1",
+                    name: "Multi Generous",
+                    email: "generous@example.com",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 2000 },
+                      { e: event2.id, q: 1, p: 1000 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -3184,35 +3554,44 @@ describe("server (webhooks)", () => {
 
       // Same metadata shape as the pay-more test, but event1 has can_pay_more=false
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_no_pay_more",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_no_pay_more",
-              payment_status: "paid",
-              payment_intent: "pi_no_pay_more",
-              amount_total: 3000,
-              metadata: webhookMeta({
-                multi: "1",
-                name: "Over Payer",
-                email: "over@example.com",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1, p: 2000 },
-                  { e: event2.id, q: 1, p: 1000 },
-                ]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_no_pay_more",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_no_pay_more",
+                  payment_status: "paid",
+                  payment_intent: "pi_no_pay_more",
+                  amount_total: 3000,
+                  metadata: webhookMeta({
+                    multi: "1",
+                    name: "Over Payer",
+                    email: "over@example.com",
+                    items: JSON.stringify([
+                      { e: event1.id, q: 1, p: 2000 },
+                      { e: event2.id, q: 1, p: 1000 },
+                    ]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_no_pay_more" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_no_pay_more" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -3241,32 +3620,41 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_pay_less",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_pay_less",
-              payment_status: "paid",
-              payment_intent: "pi_pay_less",
-              amount_total: 500,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Cheap User",
-                email: "cheap@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_pay_less",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_pay_less",
+                  payment_status: "paid",
+                  payment_intent: "pi_pay_less",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Cheap User",
+                    email: "cheap@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_pay_less" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_pay_less" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -3295,32 +3683,41 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_pay_too_much",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_pay_too_much",
-              payment_status: "paid",
-              payment_intent: "pi_pay_too_much",
-              amount_total: 20000,
-              metadata: webhookMeta({
-                event_id: String(event.id),
-                name: "Overpay User",
-                email: "overpay@example.com",
-                quantity: "1",
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_pay_too_much",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_pay_too_much",
+                  payment_status: "paid",
+                  payment_intent: "pi_pay_too_much",
+                  amount_total: 20000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Overpay User",
+                    email: "overpay@example.com",
+                    quantity: "1",
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_pay_too_much" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_pay_too_much" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -3348,27 +3745,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_bad_p",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_bad_p",
-              payment_status: "paid",
-              payment_intent: "pi_bad_p",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                multi: "1",
-                name: "Bad Metadata",
-                email: "bad@example.com",
-                items: JSON.stringify([{ e: event.id, q: 1, p: 10.5 }]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_bad_p",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_bad_p",
+                  payment_status: "paid",
+                  payment_intent: "pi_bad_p",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    multi: "1",
+                    name: "Bad Metadata",
+                    email: "bad@example.com",
+                    items: JSON.stringify([{ e: event.id, q: 1, p: 10.5 }]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -3389,27 +3791,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_bad_item",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_bad_item",
-              payment_status: "paid",
-              payment_intent: "pi_bad_item",
-              amount_total: 1000,
-              metadata: webhookMeta({
-                multi: "1",
-                name: "Bad Item",
-                email: "bad@example.com",
-                items: JSON.stringify([42, { e: event.id, q: 1, p: 1000 }]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_bad_item",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_bad_item",
+                  payment_status: "paid",
+                  payment_intent: "pi_bad_item",
+                  amount_total: 1000,
+                  metadata: webhookMeta({
+                    multi: "1",
+                    name: "Bad Item",
+                    email: "bad@example.com",
+                    items: JSON.stringify([42, { e: event.id, q: 1, p: 1000 }]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -3430,27 +3837,32 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_bad_q",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_bad_q",
-              payment_status: "paid",
-              payment_intent: "pi_bad_q",
-              amount_total: 0,
-              metadata: webhookMeta({
-                multi: "1",
-                name: "Bad Q",
-                email: "badq@example.com",
-                items: JSON.stringify([{ e: event.id, q: 0, p: 0 }]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_bad_q",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_bad_q",
+                  payment_status: "paid",
+                  payment_intent: "pi_bad_q",
+                  amount_total: 0,
+                  metadata: webhookMeta({
+                    multi: "1",
+                    name: "Bad Q",
+                    email: "badq@example.com",
+                    items: JSON.stringify([{ e: event.id, q: 0, p: 0 }]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -3472,32 +3884,41 @@ describe("server (webhooks)", () => {
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       // p=500 but event costs 1000*1=1000, and event is not can_pay_more
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_item_mismatch",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_item_mismatch",
-              payment_status: "paid",
-              payment_intent: "pi_item_mismatch",
-              amount_total: 500,
-              metadata: webhookMeta({
-                multi: "1",
-                name: "Mismatch User",
-                email: "mismatch@example.com",
-                items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_item_mismatch",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_item_mismatch",
+                  payment_status: "paid",
+                  payment_intent: "pi_item_mismatch",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    multi: "1",
+                    name: "Mismatch User",
+                    email: "mismatch@example.com",
+                    items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_mismatch" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_mismatch" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -3524,32 +3945,41 @@ describe("server (webhooks)", () => {
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       // p=2000 is valid for can_pay_more (>= 1000), but amountTotal=1500 != sum(p)=2000
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_total_mismatch",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_total_mismatch",
-              payment_status: "paid",
-              payment_intent: "pi_total_mismatch",
-              amount_total: 1500,
-              metadata: webhookMeta({
-                multi: "1",
-                name: "Total Mismatch",
-                email: "total@example.com",
-                items: JSON.stringify([{ e: event.id, q: 1, p: 2000 }]),
-              }),
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_total_mismatch",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_total_mismatch",
+                  payment_status: "paid",
+                  payment_intent: "pi_total_mismatch",
+                  amount_total: 1500,
+                  metadata: webhookMeta({
+                    multi: "1",
+                    name: "Total Mismatch",
+                    email: "total@example.com",
+                    items: JSON.stringify([{ e: event.id, q: 1, p: 2000 }]),
+                  }),
+                },
+              },
             },
-          },
-        },
-      }));
+          }),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_total" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_total" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(

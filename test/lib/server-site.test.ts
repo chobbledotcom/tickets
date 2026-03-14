@@ -17,12 +17,12 @@ import {
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 describe("server (admin site)", () => {
@@ -42,7 +42,9 @@ describe("server (admin site)", () => {
     });
 
     test("shows homepage editor when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/site", {
+        cookie: await testCookie(),
+      });
       await expectHtmlResponse(
         response,
         200,
@@ -56,7 +58,9 @@ describe("server (admin site)", () => {
     test("displays existing values", async () => {
       await updateWebsiteTitle("My Events");
       await updateHomepageText("Welcome!");
-      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/site", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).toContain("My Events");
       expect(html).toContain("Welcome!");
@@ -107,7 +111,11 @@ describe("server (admin site)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain(
+      expect(
+        decodeURIComponent(
+          response.headers.get("location")!.replaceAll("+", " "),
+        ),
+      ).toContain(
         "Homepage updated",
       );
 
@@ -121,7 +129,11 @@ describe("server (admin site)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
-          { website_title: "", homepage_text: "", csrf_token: await testCsrfToken() },
+          {
+            website_title: "",
+            homepage_text: "",
+            csrf_token: await testCsrfToken(),
+          },
           await testCookie(),
         ),
       );
@@ -170,7 +182,11 @@ describe("server (admin site)", () => {
 
     test("handles missing fields gracefully", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/site", { csrf_token: await testCsrfToken() }, await testCookie()),
+        mockFormRequest(
+          "/admin/site",
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
+        ),
       );
       expect(response.status).toBe(302);
     });
@@ -244,7 +260,11 @@ describe("server (admin site)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain(
+      expect(
+        decodeURIComponent(
+          response.headers.get("location")!.replaceAll("+", " "),
+        ),
+      ).toContain(
         "Contact page updated",
       );
       expect(await getContactPageTextFromDb()).toBe("Email us!");
@@ -295,7 +315,9 @@ describe("server (admin site)", () => {
 
   describe("site subnav", () => {
     test("homepage shows subnav with Homepage and Contact links", async () => {
-      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/site", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
       expect(html).toContain('href="/admin/site/contact"');
@@ -318,13 +340,17 @@ describe("server (admin site)", () => {
   describe("admin nav", () => {
     test("shows Site link when public site is enabled", async () => {
       await updateShowPublicSite(true);
-      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/site", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
     });
 
     test("hides Site link when public site is disabled", async () => {
-      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).not.toContain('href="/admin/site"');
     });

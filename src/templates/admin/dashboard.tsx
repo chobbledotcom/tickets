@@ -10,7 +10,10 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { renderEventImage } from "#templates/public.tsx";
-import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
+import {
+  AttendeeTable,
+  type AttendeeTableRow,
+} from "#templates/attendee-table.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -18,12 +21,15 @@ export const EventRow = ({ e }: { e: EventWithCount }): string => {
   const isInactive = !e.active;
   return String(
     <tr class={isInactive ? "inactive-row" : undefined}>
-      <td><Raw html={renderEventImage(e, "event-thumbnail")} /><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
+      <td>
+        <Raw html={renderEventImage(e, "event-thumbnail")} />
+        <a href={`/admin/event/${e.id}`}>{e.name}</a>
+      </td>
       <td class="cell-description">{e.description}</td>
       <td>{isInactive ? "Inactive" : "Active"}</td>
       <td>{e.attendee_count} / {e.max_attendees}</td>
       <td>{new Date(e.created).toLocaleDateString()}</td>
-    </tr>
+    </tr>,
   );
 };
 
@@ -32,10 +38,14 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
   String(
     <li>
       <label>
-        <input type="checkbox" data-multi-booking-slug={e.slug} data-fields={e.fields} />
+        <input
+          type="checkbox"
+          data-multi-booking-slug={e.slug}
+          data-fields={e.fields}
+        />
         {` ${e.name}`}
       </label>
-    </li>
+    </li>,
   );
 
 /** Multi-booking link builder section (only rendered when 2+ active events) */
@@ -80,7 +90,7 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
         data-multi-booking-embed-iframe
         placeholder="Select two or more events"
       />
-    </details>
+    </details>,
   );
 };
 
@@ -113,16 +123,18 @@ const newestAttendeesSection = (
     <details open>
       <summary>Newest {count} Attendee{count !== 1 ? "s" : ""}</summary>
       <div class="table-scroll">
-        <Raw html={AttendeeTable({
-          rows: tableRows,
-          allowedDomain: getAllowedDomain(),
-          showEvent: true,
-          showDate: false,
-          showActions: false,
-          presorted: true,
-        })} />
+        <Raw
+          html={AttendeeTable({
+            rows: tableRows,
+            allowedDomain: getAllowedDomain(),
+            showEvent: true,
+            showDate: false,
+            showActions: false,
+            presorted: true,
+          })}
+        />
       </div>
-    </details>
+    </details>,
   );
 };
 
@@ -136,10 +148,9 @@ export const adminDashboardPage = (
   newestAttendees: Attendee[] = [],
   successMessage?: string | null,
 ): string => {
-  const eventRows =
-    events.length > 0
-      ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
-      : '<tr><td colspan="5">No events yet</td></tr>';
+  const eventRows = events.length > 0
+    ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
+    : '<tr><td colspan="5">No events yet</td></tr>';
 
   const activeEvents = filter((e: EventWithCount) => e.active)(events);
 
@@ -149,11 +160,11 @@ export const adminDashboardPage = (
 
       <Raw html={renderSuccess(successMessage ?? undefined)} />
 
-      {imageError && (
-        <p class="error">{imageError}</p>
-      )}
+      {imageError && <p class="error">{imageError}</p>}
 
-      <p><a href="/admin/event/new">Add Event</a></p>
+      <p>
+        <a href="/admin/event/new">Add Event</a>
+      </p>
 
       <div class="table-scroll">
         <table>
@@ -179,6 +190,6 @@ export const adminDashboardPage = (
       {newestAttendees.length > 0 && (
         <Raw html={newestAttendeesSection(newestAttendees, events)} />
       )}
-    </Layout>
+    </Layout>,
   );
 };

@@ -11,7 +11,10 @@ const denoImports: Record<string, string> = denoConfig.imports;
 
 const projectRoot = fromFileUrl(new URL("..", import.meta.url));
 
-const buildBundle = async (label: string, options: esbuild.BuildOptions): Promise<void> => {
+const buildBundle = async (
+  label: string,
+  options: esbuild.BuildOptions,
+): Promise<void> => {
   const result = await esbuild.build(options);
   if (result.errors.length > 0) {
     console.error(`${label} build failed:`);
@@ -45,7 +48,9 @@ const denoImportMapPlugin: Plugin = {
       for (const [key, value] of Object.entries(denoImports)) {
         if (typeof value !== "string" || !value.startsWith("./")) continue;
         if (key.endsWith("/") && args.path.startsWith(key)) {
-          return { path: projectRoot + value.slice(2) + args.path.slice(key.length) };
+          return {
+            path: projectRoot + value.slice(2) + args.path.slice(key.length),
+          };
         }
         if (args.path === key) {
           return { path: projectRoot + value.slice(2) };
@@ -60,13 +65,18 @@ const denoImportMapPlugin: Plugin = {
 const iframeResizerResolvePlugin: Plugin = {
   name: "iframe-resizer-resolve",
   setup(build) {
-    build.onResolve({ filter: /^(@iframe-resizer\/|auto-console-group)/ }, (args) => ({
-      path: fromFileUrl(import.meta.resolve(args.path)),
-    }));
+    build.onResolve(
+      { filter: /^(@iframe-resizer\/|auto-console-group)/ },
+      (args) => ({
+        path: fromFileUrl(import.meta.resolve(args.path)),
+      }),
+    );
   },
 };
 
-export const buildStaticAssets = async (options: { stop?: boolean } = {}): Promise<void> => {
+export const buildStaticAssets = async (
+  options: { stop?: boolean } = {},
+): Promise<void> => {
   await buildBundle("Scanner", {
     entryPoints: ["./src/client/scanner.js"],
     outfile: "./src/static/scanner.js",

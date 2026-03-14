@@ -18,8 +18,7 @@ export const DEFAULT_CONFIRMATION_HTML =
 <p style="color:#666;font-size:14px">Or copy this link: {{ ticket_url }}</p>
 </div>`;
 
-export const DEFAULT_CONFIRMATION_TEXT =
-  `Thanks for registering!
+export const DEFAULT_CONFIRMATION_TEXT = `Thanks for registering!
 
 You're confirmed for {{ event_names }}.
 
@@ -46,8 +45,7 @@ export const DEFAULT_ADMIN_HTML =
 {% endfor %}</table>
 </div>`;
 
-export const DEFAULT_ADMIN_TEXT =
-  `New registration
+export const DEFAULT_ADMIN_TEXT = `New registration
 
 Name: {{ attendee.name }}
 {% if attendee.email != "" %}Email: {{ attendee.email }}

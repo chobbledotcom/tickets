@@ -142,20 +142,24 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_test_123",
-              metadata: {
-                event_id: String(event.id),
-                name: "John",
-                email: "john@example.com",
-                quantity: "1",
-              },
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+          mockRetrieve: stub(
+            stripeApi,
+            "retrieveCheckoutSession",
+            () =>
+              Promise.resolve({
+                id: "cs_test",
+                payment_status: "paid",
+                payment_intent: "pi_test_123",
+                metadata: {
+                  event_id: String(event.id),
+                  name: "John",
+                  email: "john@example.com",
+                  quantity: "1",
+                },
+              } as unknown as Awaited<
+                ReturnType<typeof stripeApi.retrieveCheckoutSession>
+              >),
+          ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
             Promise.resolve(
               { id: "re_test" } as unknown as Awaited<
@@ -202,21 +206,25 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_second",
-              amount_total: 1000,
-              metadata: {
-                event_id: String(event.id),
-                name: "Second",
-                email: "second@example.com",
-                quantity: "1",
-              },
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+          mockRetrieve: stub(
+            stripeApi,
+            "retrieveCheckoutSession",
+            () =>
+              Promise.resolve({
+                id: "cs_test",
+                payment_status: "paid",
+                payment_intent: "pi_second",
+                amount_total: 1000,
+                metadata: {
+                  event_id: String(event.id),
+                  name: "Second",
+                  email: "second@example.com",
+                  quantity: "1",
+                },
+              } as unknown as Awaited<
+                ReturnType<typeof stripeApi.retrieveCheckoutSession>
+              >),
+          ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
             Promise.resolve(
               { id: "re_test" } as unknown as Awaited<
@@ -256,8 +264,11 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve(null)),
+          stub(
+            stripeApi,
+            "retrieveCheckoutSession",
+            () => Promise.resolve(null),
+          ),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_invalid"),
@@ -423,11 +434,15 @@ describe("server (payment flow)", () => {
 
       // Mock createCheckoutSession to return a validation error result
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
-        Promise.resolve({
-          error:
-            "The payment processor rejected the phone number as invalid. Please correct it and try again.",
-        }));
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        () =>
+          Promise.resolve({
+            error:
+              "The payment processor rejected the phone number as invalid. Please correct it and try again.",
+          }),
+      );
 
       try {
         const response = await submitTicketForm(event.slug, {
@@ -512,20 +527,24 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_test",
-              metadata: {
-                event_id: "99999", // Non-existent event
-                name: "John",
-                email: "john@example.com",
-                quantity: "1",
-              },
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+          mockRetrieve: stub(
+            stripeApi,
+            "retrieveCheckoutSession",
+            () =>
+              Promise.resolve({
+                id: "cs_test",
+                payment_status: "paid",
+                payment_intent: "pi_test",
+                metadata: {
+                  event_id: "99999", // Non-existent event
+                  name: "John",
+                  email: "john@example.com",
+                  quantity: "1",
+                },
+              } as unknown as Awaited<
+                ReturnType<typeof stripeApi.retrieveCheckoutSession>
+              >),
+          ),
           mockRefund: spy(stripeApi, "refundPayment"),
         }),
         async ({ mockRefund }) => {
@@ -747,32 +766,40 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_test_123",
-              amount_total: 1000,
-              metadata: {
-                event_id: String(event.id),
-                name: "John",
-                email: "john@example.com",
-                quantity: "1",
-              },
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+          mockRetrieve: stub(
+            stripeApi,
+            "retrieveCheckoutSession",
+            () =>
+              Promise.resolve({
+                id: "cs_test",
+                payment_status: "paid",
+                payment_intent: "pi_test_123",
+                amount_total: 1000,
+                metadata: {
+                  event_id: String(event.id),
+                  name: "John",
+                  email: "john@example.com",
+                  quantity: "1",
+                },
+              } as unknown as Awaited<
+                ReturnType<typeof stripeApi.retrieveCheckoutSession>
+              >),
+          ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
             Promise.resolve(
               { id: "re_test" } as unknown as Awaited<
                 ReturnType<typeof stripeApi.refundPayment>
               >,
             )),
-          mockAtomic: stub(attendeesApi, "createAttendeeAtomic", () =>
-            Promise.resolve({
-              success: false,
-              reason: "encryption_error",
-            })),
+          mockAtomic: stub(
+            attendeesApi,
+            "createAttendeeAtomic",
+            () =>
+              Promise.resolve({
+                success: false,
+                reason: "encryption_error",
+              }),
+          ),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -812,24 +839,28 @@ describe("server (payment flow)", () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_multi_success",
-          payment_status: "paid",
-          payment_intent: "pi_multi_success",
-          amount_total: 2500,
-          metadata: {
-            name: "Multi Payer",
-            email: "multi@example.com",
-            multi: "1",
-            items: JSON.stringify([
-              { e: event1.id, q: 1, p: 500 },
-              { e: event2.id, q: 2, p: 2000 },
-            ]),
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_success",
+            payment_status: "paid",
+            payment_intent: "pi_multi_success",
+            amount_total: 2500,
+            metadata: {
+              name: "Multi Payer",
+              email: "multi@example.com",
+              multi: "1",
+              items: JSON.stringify([
+                { e: event1.id, q: 1, p: 500 },
+                { e: event2.id, q: 2, p: 2000 },
+              ]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -865,20 +896,24 @@ describe("server (payment flow)", () => {
     test("returns error for invalid multi-ticket metadata", async () => {
       await setupStripe();
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_bad_multi",
-          payment_status: "paid",
-          payment_intent: "pi_bad",
-          metadata: {
-            name: "Bad",
-            email: "bad@example.com",
-            multi: "1",
-            items: "not-an-array",
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_bad_multi",
+            payment_status: "paid",
+            payment_intent: "pi_bad",
+            metadata: {
+              name: "Bad",
+              email: "bad@example.com",
+              multi: "1",
+              items: "not-an-array",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -897,20 +932,24 @@ describe("server (payment flow)", () => {
     test("skips refund for multi-ticket payment when event not found", async () => {
       await setupStripe();
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_multi_notfound",
-          payment_status: "paid",
-          payment_intent: "pi_multi_notfound",
-          metadata: {
-            name: "Missing Event",
-            email: "missing@example.com",
-            multi: "1",
-            items: JSON.stringify([{ e: 99999, q: 1, p: 500 }]),
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_notfound",
+            payment_status: "paid",
+            payment_intent: "pi_multi_notfound",
+            metadata: {
+              name: "Missing Event",
+              email: "missing@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: 99999, q: 1, p: 500 }]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       const mockRefund = spy(stripeApi, "refundPayment");
 
@@ -937,25 +976,33 @@ describe("server (payment flow)", () => {
       });
       await deactivateTestEvent(event.id);
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_multi_inactive",
-          payment_status: "paid",
-          payment_intent: "pi_multi_inactive",
-          metadata: {
-            name: "Inactive Event",
-            email: "inactive@example.com",
-            multi: "1",
-            items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_inactive",
+            payment_status: "paid",
+            payment_intent: "pi_multi_inactive",
+            metadata: {
+              name: "Inactive Event",
+              email: "inactive@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_test" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -989,25 +1036,32 @@ describe("server (payment flow)", () => {
         paymentId: "pi_first",
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_refund_fail",
-          payment_status: "paid",
-          payment_intent: "pi_refund_fail",
-          amount_total: 1000,
-          metadata: {
-            event_id: String(event.id),
-            name: "Refund Fail",
-            email: "refund@example.com",
-            quantity: "1",
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_refund_fail",
+            payment_status: "paid",
+            payment_intent: "pi_refund_fail",
+            amount_total: 1000,
+            metadata: {
+              event_id: String(event.id),
+              name: "Refund Fail",
+              email: "refund@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       // Mock refund to fail
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve(null));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () => Promise.resolve(null),
+      );
 
       try {
         const response = await handleRequest(
@@ -1042,29 +1096,37 @@ describe("server (payment flow)", () => {
         paymentId: "pi_first",
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_multi_rollback",
-          payment_status: "paid",
-          payment_intent: "pi_multi_rollback",
-          amount_total: 1500,
-          metadata: {
-            name: "Rollback User",
-            email: "rollback@example.com",
-            multi: "1",
-            items: JSON.stringify([
-              { e: event1.id, q: 1, p: 500 },
-              { e: event2.id, q: 1, p: 1000 },
-            ]),
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_rollback",
+            payment_status: "paid",
+            payment_intent: "pi_multi_rollback",
+            amount_total: 1500,
+            metadata: {
+              name: "Rollback User",
+              email: "rollback@example.com",
+              multi: "1",
+              items: JSON.stringify([
+                { e: event1.id, q: 1, p: 500 },
+                { e: event2.id, q: 1, p: 1000 },
+              ]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >));
+      const mockRefund = stub(
+        stripeApi,
+        "refundPayment",
+        () =>
+          Promise.resolve({ id: "re_test" } as unknown as Awaited<
+            ReturnType<typeof stripeApi.refundPayment>
+          >),
+      );
 
       try {
         const response = await handleRequest(
@@ -1091,21 +1153,25 @@ describe("server (payment flow)", () => {
         thankYouUrl: "https://example.com/single-thanks",
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_single_thankyou",
-          payment_status: "paid",
-          payment_intent: "pi_single_thankyou",
-          amount_total: 500,
-          metadata: {
-            event_id: String(event.id),
-            name: "Single",
-            email: "single@example.com",
-            quantity: "1",
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_single_thankyou",
+            payment_status: "paid",
+            payment_intent: "pi_single_thankyou",
+            amount_total: 500,
+            metadata: {
+              event_id: String(event.id),
+              name: "Single",
+              email: "single@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -1133,21 +1199,25 @@ describe("server (payment flow)", () => {
         thankYouUrl: "https://example.com/replay-thanks",
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_dupe_session",
-          payment_status: "paid",
-          payment_intent: "pi_dupe",
-          amount_total: 1000,
-          metadata: {
-            event_id: String(event.id),
-            name: "Dupe",
-            email: "dupe@example.com",
-            quantity: "1",
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_dupe_session",
+            payment_status: "paid",
+            payment_intent: "pi_dupe",
+            amount_total: 1000,
+            metadata: {
+              event_id: String(event.id),
+              name: "Dupe",
+              email: "dupe@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         // First request should redirect with tokens
@@ -1191,24 +1261,28 @@ describe("server (payment flow)", () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_multi_dupe",
-          payment_status: "paid",
-          payment_intent: "pi_multi_dupe",
-          amount_total: 1500,
-          metadata: {
-            name: "Multi Replay",
-            email: "multireplay@example.com",
-            multi: "1",
-            items: JSON.stringify([
-              { e: event1.id, q: 1, p: 500 },
-              { e: event2.id, q: 1, p: 1000 },
-            ]),
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_multi_dupe",
+            payment_status: "paid",
+            payment_intent: "pi_multi_dupe",
+            amount_total: 1500,
+            metadata: {
+              name: "Multi Replay",
+              email: "multireplay@example.com",
+              multi: "1",
+              items: JSON.stringify([
+                { e: event1.id, q: 1, p: 500 },
+                { e: event2.id, q: 1, p: 1000 },
+              ]),
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         // First request should redirect with tokens
@@ -1272,21 +1346,25 @@ describe("server (payment flow)", () => {
         thankYouUrl: "https://example.com/verified-thanks",
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_token_verify",
-          payment_status: "paid",
-          payment_intent: "pi_token_verify",
-          amount_total: 500,
-          metadata: {
-            event_id: String(event.id),
-            name: "Token Verify",
-            email: "verify@example.com",
-            quantity: "1",
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+      const mockRetrieve = stub(
+        stripeApi,
+        "retrieveCheckoutSession",
+        () =>
+          Promise.resolve({
+            id: "cs_token_verify",
+            payment_status: "paid",
+            payment_intent: "pi_token_verify",
+            amount_total: 500,
+            metadata: {
+              event_id: String(event.id),
+              name: "Token Verify",
+              email: "verify@example.com",
+              quantity: "1",
+            },
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+      );
 
       try {
         // Process payment to get redirect with token
@@ -1339,7 +1417,11 @@ describe("server (payment flow)", () => {
 
       try {
         const response = await handleRequest(
-          mockRequest(`/payment/success?tokens=${encodeURIComponent(result.attendee.ticket_token)}`),
+          mockRequest(
+            `/payment/success?tokens=${
+              encodeURIComponent(result.attendee.ticket_token)
+            }`,
+          ),
         );
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");
         expect(html).toContain("noreply@tickets.com");

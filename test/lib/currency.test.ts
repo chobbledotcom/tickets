@@ -9,7 +9,11 @@ import {
   toMajorUnits,
   toMinorUnits,
 } from "#lib/currency.ts";
-import { createTestDbWithSetup, resetDb, setupTestEncryptionKey } from "#test-utils";
+import {
+  createTestDbWithSetup,
+  resetDb,
+  setupTestEncryptionKey,
+} from "#test-utils";
 
 describe("currency", () => {
   afterEach(() => {
@@ -41,7 +45,10 @@ describe("currency", () => {
       const orig = Intl.NumberFormat.prototype.resolvedOptions;
       Intl.NumberFormat.prototype.resolvedOptions = function () {
         const opts = orig.call(this);
-        return { ...opts, minimumFractionDigits: undefined as unknown as number };
+        return {
+          ...opts,
+          minimumFractionDigits: undefined as unknown as number,
+        };
       };
       try {
         expect(getDecimalPlaces("GBP")).toBe(2);

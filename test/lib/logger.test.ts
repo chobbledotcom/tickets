@@ -197,8 +197,10 @@ describe("logger", () => {
 
     test("sends ntfy notification when NTFY_URL is configured", () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
+      const fetchStub = stub(
+        globalThis,
+        "fetch",
+        () => Promise.resolve(new Response()),
       );
 
       logError({ code: ErrorCode.DB_QUERY });
@@ -226,22 +228,34 @@ describe("logger", () => {
       });
 
       test("persists error to activity log", async () => {
-        logError({ code: ErrorCode.STRIPE_CHECKOUT, detail: "session creation failed" });
+        logError({
+          code: ErrorCode.STRIPE_CHECKOUT,
+          detail: "session creation failed",
+        });
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         const entries = await getAllActivityLog();
-        const match = entries.find((e) => e.message === "Error: Stripe checkout failed (session creation failed)");
+        const match = entries.find((e) =>
+          e.message ===
+            "Error: Stripe checkout failed (session creation failed)"
+        );
         expect(match).toBeDefined();
         expect(match!.event_id).toBeNull();
       });
 
       test("persists error with event ID to activity log", async () => {
         const event = await createTestEvent();
-        logError({ code: ErrorCode.PAYMENT_REFUND, eventId: event.id, detail: "refund declined" });
+        logError({
+          code: ErrorCode.PAYMENT_REFUND,
+          eventId: event.id,
+          detail: "refund declined",
+        });
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         const entries = await getAllActivityLog();
-        const match = entries.find((e) => e.message === "Error: Payment refund failed (refund declined)");
+        const match = entries.find((e) =>
+          e.message === "Error: Payment refund failed (refund declined)"
+        );
         expect(match).toBeDefined();
         expect(match!.event_id).toBe(event.id);
       });
@@ -251,7 +265,9 @@ describe("logger", () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         const entries = await getAllActivityLog();
-        const match = entries.find((e) => e.message === "Error: Database connection failed");
+        const match = entries.find((e) =>
+          e.message === "Error: Database connection failed"
+        );
         expect(match).toBeDefined();
       });
     });
@@ -267,13 +283,20 @@ describe("logger", () => {
 
   describe("formatErrorMessage", () => {
     test("formats error with detail", () => {
-      const context: ErrorContext = { code: ErrorCode.STRIPE_CHECKOUT, detail: "timeout" };
-      expect(formatErrorMessage(context)).toBe("Error: Stripe checkout failed (timeout)");
+      const context: ErrorContext = {
+        code: ErrorCode.STRIPE_CHECKOUT,
+        detail: "timeout",
+      };
+      expect(formatErrorMessage(context)).toBe(
+        "Error: Stripe checkout failed (timeout)",
+      );
     });
 
     test("formats error without detail", () => {
       const context: ErrorContext = { code: ErrorCode.DB_CONNECTION };
-      expect(formatErrorMessage(context)).toBe("Error: Database connection failed");
+      expect(formatErrorMessage(context)).toBe(
+        "Error: Database connection failed",
+      );
     });
 
     test("formats payment session error with detail", () => {
@@ -282,7 +305,9 @@ describe("logger", () => {
         eventId: 42,
         detail: "price mismatch",
       };
-      expect(formatErrorMessage(context)).toBe("Error: Payment session error (price mismatch)");
+      expect(formatErrorMessage(context)).toBe(
+        "Error: Payment session error (price mismatch)",
+      );
     });
   });
 

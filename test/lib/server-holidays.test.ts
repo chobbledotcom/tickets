@@ -12,14 +12,14 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectStatus,
-  testCookie,
-  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
   testHoliday,
   updateTestHoliday,
 } from "#test-utils";
@@ -401,7 +401,9 @@ describe("server (admin holidays)", () => {
         },
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/holidays?success=Holiday+deleted");
+      expect(response.headers.get("location")).toBe(
+        "/admin/holidays?success=Holiday+deleted",
+      );
     });
 
     test("returns 404 for non-existent holiday", async () => {

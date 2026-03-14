@@ -20,7 +20,10 @@ export type BookingResult =
   | { type: "checkout"; checkoutUrl: string }
   | { type: "sold_out" }
   | { type: "checkout_failed"; error?: string }
-  | { type: "creation_failed"; reason: "capacity_exceeded" | "encryption_error" };
+  | {
+    type: "creation_failed";
+    reason: "capacity_exceeded" | "encryption_error";
+  };
 
 /**
  * Process a single-event booking.
@@ -58,7 +61,9 @@ export const processBooking = async (
 
     const result = await provider.createCheckoutSession(event, intent, baseUrl);
     if (!result) return { type: "checkout_failed" };
-    if ("error" in result) return { type: "checkout_failed", error: result.error };
+    if ("error" in result) {
+      return { type: "checkout_failed", error: result.error };
+    }
 
     return { type: "checkout", checkoutUrl: result.checkoutUrl };
   }
@@ -71,8 +76,14 @@ export const processBooking = async (
     date,
   });
 
-  if (!result.success) return { type: "creation_failed", reason: result.reason };
+  if (!result.success) {
+    return { type: "creation_failed", reason: result.reason };
+  }
 
-  await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
+  await logAndNotifyRegistration(
+    event,
+    result.attendee,
+    await getCurrencyCode(),
+  );
   return { type: "success", attendee: result.attendee };
 };

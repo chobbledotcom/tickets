@@ -72,26 +72,35 @@ export const getHostEmailConfig = (): EmailConfig | null => {
   const fromAddress = getEnv("HOST_EMAIL_FROM_ADDRESS");
   if (!provider || !apiKey || !fromAddress) return null;
   if (!isEmailProvider(provider)) {
-    logError({ code: ErrorCode.EMAIL_SEND, detail: `invalid HOST_EMAIL_PROVIDER: "${provider}"` });
+    logError({
+      code: ErrorCode.EMAIL_SEND,
+      detail: `invalid HOST_EMAIL_PROVIDER: "${provider}"`,
+    });
     return null;
   }
   return { provider, apiKey, fromAddress };
 };
 
 type Headers = Record<string, string>;
-type ProviderRequest = (config: EmailConfig, msg: EmailMessage) => [url: string, headers: Headers, body: unknown];
+type ProviderRequest = (
+  config: EmailConfig,
+  msg: EmailMessage,
+) => [url: string, headers: Headers, body: unknown];
 
 const provider = (
   url: string | ((config: EmailConfig) => string),
   headers: (apiKey: string) => Headers,
   body: (config: EmailConfig, msg: EmailMessage) => unknown,
-): ProviderRequest => (config, msg) => [
+): ProviderRequest =>
+(config, msg) => [
   typeof url === "string" ? url : url(config),
   headers(config.apiKey),
   body(config, msg),
 ];
 
-const bearerAuth = (apiKey: string): Headers => ({ Authorization: `Bearer ${apiKey}` });
+const bearerAuth = (apiKey: string): Headers => ({
+  Authorization: `Bearer ${apiKey}`,
+});
 
 const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   const form = new FormData();
@@ -103,47 +112,80 @@ const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   if (msg.replyTo) form.append("h:Reply-To", msg.replyTo);
   for (const a of msg.attachments ?? []) {
     const bytes = Uint8Array.from(atob(a.content), (c) => c.charCodeAt(0));
-    form.append("attachment", new Blob([bytes], { type: a.contentType }), a.filename);
+    form.append(
+      "attachment",
+      new Blob([bytes], { type: a.contentType }),
+      a.filename,
+    );
   }
   return form;
 };
 
-const mailgun = (host: string) => provider(
-  (config) => `https://${host}/v3/${config.fromAddress.split("@")[1]}/messages`,
-  (apiKey) => ({ Authorization: `Basic ${btoa("api:" + apiKey)}` }),
-  mailgunBody,
-);
+const mailgun = (host: string) =>
+  provider(
+    (config) =>
+      `https://${host}/v3/${config.fromAddress.split("@")[1]}/messages`,
+    (apiKey) => ({ Authorization: `Basic ${btoa("api:" + apiKey)}` }),
+    mailgunBody,
+  );
 
 const PROVIDERS = {
-  resend: provider("https://api.resend.com/emails", bearerAuth, (config, msg) => ({
-    from: config.fromAddress, to: [msg.to], reply_to: msg.replyTo,
-    subject: msg.subject, html: msg.html, text: msg.text,
-    attachments: msg.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
-  })),
-  postmark: provider(
-    "https://api.postmarkapp.com/email",
-    (apiKey) => ({ "X-Postmark-Server-Token": apiKey, Accept: "application/json" }),
+  resend: provider(
+    "https://api.resend.com/emails",
+    bearerAuth,
     (config, msg) => ({
-      From: config.fromAddress, To: msg.to, ReplyTo: msg.replyTo,
-      Subject: msg.subject, HtmlBody: msg.html, TextBody: msg.text,
-      Attachments: msg.attachments?.map((a) => ({
-        Name: a.filename, Content: a.content, ContentType: a.contentType,
+      from: config.fromAddress,
+      to: [msg.to],
+      reply_to: msg.replyTo,
+      subject: msg.subject,
+      html: msg.html,
+      text: msg.text,
+      attachments: msg.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
       })),
     }),
   ),
-  sendgrid: provider("https://api.sendgrid.com/v3/mail/send", bearerAuth, (config, msg) => ({
-    personalizations: [{ to: [{ email: msg.to }] }],
-    from: { email: config.fromAddress },
-    reply_to: msg.replyTo ? { email: msg.replyTo } : undefined,
-    subject: msg.subject,
-    content: [
-      { type: "text/plain", value: msg.text },
-      { type: "text/html", value: msg.html },
-    ],
-    attachments: msg.attachments?.map((a) => ({
-      content: a.content, filename: a.filename, type: a.contentType, disposition: "attachment",
-    })),
-  })),
+  postmark: provider(
+    "https://api.postmarkapp.com/email",
+    (apiKey) => ({
+      "X-Postmark-Server-Token": apiKey,
+      Accept: "application/json",
+    }),
+    (config, msg) => ({
+      From: config.fromAddress,
+      To: msg.to,
+      ReplyTo: msg.replyTo,
+      Subject: msg.subject,
+      HtmlBody: msg.html,
+      TextBody: msg.text,
+      Attachments: msg.attachments?.map((a) => ({
+        Name: a.filename,
+        Content: a.content,
+        ContentType: a.contentType,
+      })),
+    }),
+  ),
+  sendgrid: provider(
+    "https://api.sendgrid.com/v3/mail/send",
+    bearerAuth,
+    (config, msg) => ({
+      personalizations: [{ to: [{ email: msg.to }] }],
+      from: { email: config.fromAddress },
+      reply_to: msg.replyTo ? { email: msg.replyTo } : undefined,
+      subject: msg.subject,
+      content: [
+        { type: "text/plain", value: msg.text },
+        { type: "text/html", value: msg.html },
+      ],
+      attachments: msg.attachments?.map((a) => ({
+        content: a.content,
+        filename: a.filename,
+        type: a.contentType,
+        disposition: "attachment",
+      })),
+    }),
+  ),
   "mailgun-us": mailgun("api.mailgun.net"),
   "mailgun-eu": mailgun("api.eu.mailgun.net"),
 } as const satisfies Record<string, ProviderRequest>;
@@ -170,10 +212,16 @@ export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
 };
 
 /** Send a single email via the configured provider. Logs errors, never throws. Returns HTTP status or undefined on non-HTTP errors. */
-export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise<number | undefined> => {
+export const sendEmail = async (
+  config: EmailConfig,
+  msg: EmailMessage,
+): Promise<number | undefined> => {
   const buildRequest = PROVIDERS[config.provider];
   if (!buildRequest) {
-    logError({ code: ErrorCode.EMAIL_SEND, detail: `unknown provider: ${config.provider}` });
+    logError({
+      code: ErrorCode.EMAIL_SEND,
+      detail: `unknown provider: ${config.provider}`,
+    });
     return undefined;
   }
   try {
@@ -181,11 +229,16 @@ export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise
     const isFormData = body instanceof FormData;
     const response = await fetch(url, {
       method: "POST",
-      headers: isFormData ? headers : { ...headers, "Content-Type": "application/json" },
+      headers: isFormData
+        ? headers
+        : { ...headers, "Content-Type": "application/json" },
       body: isFormData ? body : JSON.stringify(body),
     });
     if (!response.ok) {
-      logError({ code: ErrorCode.EMAIL_SEND, detail: `status=${response.status} to=${msg.to}` });
+      logError({
+        code: ErrorCode.EMAIL_SEND,
+        detail: `status=${response.status} to=${msg.to}`,
+      });
     }
     return response.status;
   } catch (error) {
@@ -198,7 +251,10 @@ export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise
 };
 
 /** Build SVG ticket data from an email entry (non-PII only) */
-export const buildSvgTicketData = (entry: EmailEntry, currency: string): SvgTicketData => ({
+export const buildSvgTicketData = (
+  entry: EmailEntry,
+  currency: string,
+): SvgTicketData => ({
   eventName: entry.event.name,
   eventDate: entry.event.date,
   eventLocation: entry.event.location,
@@ -206,7 +262,8 @@ export const buildSvgTicketData = (entry: EmailEntry, currency: string): SvgTick
   quantity: entry.attendee.quantity,
   pricePaid: entry.attendee.price_paid,
   currency,
-  checkinUrl: `https://${getAllowedDomain()}/checkin/${entry.attendee.ticket_token}`,
+  checkinUrl:
+    `https://${getAllowedDomain()}/checkin/${entry.attendee.ticket_token}`,
 });
 
 /** Generate SVG ticket attachments for all entries */
@@ -253,13 +310,22 @@ export const sendRegistrationEmails = async (
     buildTicketAttachments(entries, currency),
   ]);
   const promises: Promise<number | undefined>[] = [
-    sendEmail(config, { to: attendeeEmail, ...confirmation, replyTo, attachments }),
+    sendEmail(config, {
+      to: attendeeEmail,
+      ...confirmation,
+      replyTo,
+      attachments,
+    }),
   ];
 
   if (businessEmail) {
     const notification = await renderEmailContent("admin", data);
     promises.push(
-      sendEmail(config, { to: businessEmail, ...notification, replyTo: attendeeEmail }),
+      sendEmail(config, {
+        to: businessEmail,
+        ...notification,
+        replyTo: attendeeEmail,
+      }),
     );
   }
 
@@ -267,11 +333,16 @@ export const sendRegistrationEmails = async (
 };
 
 /** Send a test email to the business email address. Returns HTTP status or undefined on non-HTTP errors. */
-export const sendTestEmail = async (config: EmailConfig, to: string): Promise<number | undefined> => {
+export const sendTestEmail = async (
+  config: EmailConfig,
+  to: string,
+): Promise<number | undefined> => {
   return await sendEmail(config, {
     to,
     subject: "Test email from your ticket system",
-    html: "<p>This is a test email. Your email configuration is working correctly.</p>",
-    text: "This is a test email. Your email configuration is working correctly.",
+    html:
+      "<p>This is a test email. Your email configuration is working correctly.</p>",
+    text:
+      "This is a test email. Your email configuration is working correctly.",
   });
 };

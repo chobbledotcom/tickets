@@ -49,7 +49,10 @@ const getEventName = async (eventId: number): Promise<string> => {
  * Scanner is intentionally one-way (check-in only, no check-out) to prevent
  * accidental check-outs from double-scans during rapid door check-in.
  */
-const handleScanPost = (request: Request, { id }: { id: number }): Promise<Response> =>
+const handleScanPost = (
+  request: Request,
+  { id }: { id: number },
+): Promise<Response> =>
   withAuthJson(request, async (session, body) => {
     if (typeof body.token !== "string") {
       return jsonResponse({ status: "error", message: "Missing token" }, 400);
@@ -61,8 +64,14 @@ const handleScanPost = (request: Request, { id }: { id: number }): Promise<Respo
 
     const privateKey = await getPrivateKey(session);
     if (!privateKey) {
-      logError({ code: ErrorCode.KEY_DERIVATION, detail: "Scanner: private key unavailable" });
-      return jsonResponse({ status: "error", message: "Decryption unavailable" }, 500);
+      logError({
+        code: ErrorCode.KEY_DERIVATION,
+        detail: "Scanner: private key unavailable",
+      });
+      return jsonResponse({
+        status: "error",
+        message: "Decryption unavailable",
+      }, 500);
     }
 
     const attendee = await resolveTokenAttendee(token, privateKey);
@@ -110,7 +119,10 @@ const handleScanPost = (request: Request, { id }: { id: number }): Promise<Respo
     // Check them in
     await updateCheckedIn(attendee.id, true);
     const eventName = event?.name ?? await getEventName(attendee.event_id);
-    await logActivity(`Attendee checked in via scanner for '${eventName}'`, attendee.event_id);
+    await logActivity(
+      `Attendee checked in via scanner for '${eventName}'`,
+      attendee.event_id,
+    );
 
     return jsonResponse({
       status: "checked_in",

@@ -6,7 +6,11 @@ import {
   resetTheme,
   setThemeForTest,
 } from "#lib/theme.ts";
-import { createTestDbWithSetup, resetDb, setupTestEncryptionKey } from "#test-utils";
+import {
+  createTestDbWithSetup,
+  resetDb,
+  setupTestEncryptionKey,
+} from "#test-utils";
 import { updateTheme } from "#lib/db/settings.ts";
 
 describe("theme", () => {

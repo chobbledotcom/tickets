@@ -19,8 +19,8 @@ import { chromium } from "playwright-core";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const TARGET_URL =
-  process.argv[2] || "https://chobbledotcom.github.io/tickets/";
+const TARGET_URL = process.argv[2] ||
+  "https://chobbledotcom.github.io/tickets/";
 
 /** Scan ~/.cache/ms-playwright for the newest chromium binary. */
 function findChromium() {
@@ -83,16 +83,18 @@ function parseProxy() {
   const page = await context.newPage();
 
   const consoleMsgs = [];
-  page.on("console", (msg) =>
-    consoleMsgs.push(`[${msg.type()}] ${msg.text()}`),
+  page.on(
+    "console",
+    (msg) => consoleMsgs.push(`[${msg.type()}] ${msg.text()}`),
   );
 
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   const failedRequests = [];
-  page.on("requestfailed", (req) =>
-    failedRequests.push(`${req.url()} - ${req.failure()?.errorText}`),
+  page.on(
+    "requestfailed",
+    (req) => failedRequests.push(`${req.url()} - ${req.failure()?.errorText}`),
   );
 
   await page.goto(TARGET_URL, {

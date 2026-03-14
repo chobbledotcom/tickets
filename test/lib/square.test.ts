@@ -123,13 +123,23 @@ describe("square", () => {
 
   describe("enforceMetadataLimits", () => {
     test("returns metadata unchanged when all values within limit", () => {
-      const metadata = { event_id: "1", name: "John", email: "john@example.com", quantity: "2" };
+      const metadata = {
+        event_id: "1",
+        name: "John",
+        email: "john@example.com",
+        quantity: "2",
+      };
       expect(enforceMetadataLimits(metadata)).toEqual(metadata);
     });
 
     test("truncates name to 255 characters", () => {
       const longName = "A".repeat(300);
-      const metadata = { event_id: "1", name: longName, email: "john@example.com", quantity: "1" };
+      const metadata = {
+        event_id: "1",
+        name: longName,
+        email: "john@example.com",
+        quantity: "1",
+      };
       const result = enforceMetadataLimits(metadata);
       expect(result).not.toBeNull();
       expect(result!.name).toBe("A".repeat(255));
@@ -139,19 +149,33 @@ describe("square", () => {
 
     test("returns null when non-truncatable value exceeds limit", () => {
       const longItems = "[" + "{e:1,q:1},".repeat(50) + "]";
-      const metadata = { multi: "1", name: "John", email: "john@example.com", items: longItems };
+      const metadata = {
+        multi: "1",
+        name: "John",
+        email: "john@example.com",
+        items: longItems,
+      };
       expect(enforceMetadataLimits(metadata)).toBeNull();
     });
 
     test("returns null when email exceeds limit", () => {
       const longEmail = "a".repeat(300) + "@example.com";
-      const metadata = { event_id: "1", name: "John", email: longEmail, quantity: "1" };
+      const metadata = {
+        event_id: "1",
+        name: "John",
+        email: longEmail,
+        quantity: "1",
+      };
       expect(enforceMetadataLimits(metadata)).toBeNull();
     });
 
     test("passes through metadata with exactly 255-char values", () => {
       const exactName = "A".repeat(255);
-      const metadata = { event_id: "1", name: exactName, email: "john@example.com" };
+      const metadata = {
+        event_id: "1",
+        name: exactName,
+        email: "john@example.com",
+      };
       const result = enforceMetadataLimits(metadata);
       expect(result).toEqual(metadata);
     });
@@ -178,7 +202,15 @@ describe("square", () => {
         fields: "email" as const,
         closes_at: null,
         event_type: "standard" as const,
-        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookable_days: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimum_days_before: 1,
         maximum_days_after: 90,
         image_url: "",
@@ -226,7 +258,15 @@ describe("square", () => {
         fields: "email" as const,
         closes_at: null,
         event_type: "standard" as const,
-        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookable_days: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimum_days_before: 1,
         maximum_days_after: 90,
         image_url: "",
@@ -256,9 +296,13 @@ describe("square", () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
       const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () => Promise.resolve({
-          paymentLink: { orderId: "order_abc", url: "https://square.link/abc" },
-        }),
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: {
+              orderId: "order_abc",
+              url: "https://square.link/abc",
+            },
+          }),
       });
 
       await withMocks(
@@ -283,14 +327,22 @@ describe("square", () => {
             fields: "email" as const,
             closes_at: null,
             event_type: "standard" as const,
-            bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+            bookable_days: [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday",
+            ],
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
+            non_transferable: false,
+            can_pay_more: false,
+            max_price: 0,
+            hidden: false,
           };
           const intent = {
             eventId: 7,
@@ -319,7 +371,9 @@ describe("square", () => {
           expect(args.order.lineItems).toHaveLength(1);
           expect(args.order.lineItems[0].name).toBe("Ticket: Concert");
           expect(args.order.lineItems[0].quantity).toBe("3");
-          expect(args.order.lineItems[0].basePriceMoney.amount).toBe(BigInt(2500));
+          expect(args.order.lineItems[0].basePriceMoney.amount).toBe(
+            BigInt(2500),
+          );
           expect(args.order.lineItems[0].note).toBe("3 Tickets");
 
           // Verify metadata includes intent fields
@@ -349,9 +403,13 @@ describe("square", () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
       const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () => Promise.resolve({
-          paymentLink: { orderId: "order_xyz", url: "https://square.link/xyz" },
-        }),
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: {
+              orderId: "order_xyz",
+              url: "https://square.link/xyz",
+            },
+          }),
       });
 
       await withMocks(
@@ -376,14 +434,22 @@ describe("square", () => {
             fields: "email" as const,
             closes_at: null,
             event_type: "standard" as const,
-            bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+            bookable_days: [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday",
+            ],
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
+            non_transferable: false,
+            can_pay_more: false,
+            max_price: 0,
+            hidden: false,
           };
           const intent = {
             eventId: 1,
@@ -410,9 +476,10 @@ describe("square", () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
       const { client } = createMockClient({
-        checkoutCreate: () => Promise.resolve({
-          paymentLink: { url: "https://square.link/abc" },
-        }),
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: { url: "https://square.link/abc" },
+          }),
       });
 
       await withMocks(
@@ -437,14 +504,22 @@ describe("square", () => {
             fields: "email" as const,
             closes_at: null,
             event_type: "standard" as const,
-            bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+            bookable_days: [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday",
+            ],
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
+            non_transferable: false,
+            can_pay_more: false,
+            max_price: 0,
+            hidden: false,
           };
           const intent = {
             eventId: 1,
@@ -470,9 +545,13 @@ describe("square", () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
       const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () => Promise.resolve({
-          paymentLink: { orderId: "order_long_name", url: "https://square.link/long" },
-        }),
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: {
+              orderId: "order_long_name",
+              url: "https://square.link/long",
+            },
+          }),
       });
 
       await withMocks(
@@ -497,14 +576,22 @@ describe("square", () => {
             fields: "email" as const,
             closes_at: null,
             event_type: "standard" as const,
-            bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+            bookable_days: [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday",
+            ],
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
+            non_transferable: false,
+            can_pay_more: false,
+            max_price: 0,
+            hidden: false,
           };
           const intent = {
             eventId: 1,
@@ -573,8 +660,20 @@ describe("square", () => {
         address: "",
         special_instructions: "",
         items: [
-          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
-          { eventId: 2, quantity: 2, unitPrice: 500, slug: "event-2", name: "Event 2" },
+          {
+            eventId: 1,
+            quantity: 1,
+            unitPrice: 1000,
+            slug: "event-1",
+            name: "Event 1",
+          },
+          {
+            eventId: 2,
+            quantity: 2,
+            unitPrice: 500,
+            slug: "event-2",
+            name: "Event 2",
+          },
         ],
       };
       const result = await squareApi.createMultiPaymentLink(
@@ -593,7 +692,13 @@ describe("square", () => {
         address: "",
         special_instructions: "",
         items: [
-          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
+          {
+            eventId: 1,
+            quantity: 1,
+            unitPrice: 1000,
+            slug: "event-1",
+            name: "Event 1",
+          },
         ],
       };
       const result = await squareApi.createMultiPaymentLink(
@@ -607,9 +712,10 @@ describe("square", () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_multi_loc");
       const { client } = createMockClient({
-        checkoutCreate: () => Promise.resolve({
-          paymentLink: { url: "https://square.link/multi" },
-        }),
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: { url: "https://square.link/multi" },
+          }),
       });
 
       await withMocks(
@@ -622,7 +728,13 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             items: [
-              { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
+              {
+                eventId: 1,
+                quantity: 1,
+                unitPrice: 1000,
+                slug: "event-1",
+                name: "Event 1",
+              },
             ],
           };
 
@@ -639,9 +751,13 @@ describe("square", () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_multi_loc");
       const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () => Promise.resolve({
-          paymentLink: { orderId: "order_multi", url: "https://square.link/multi" },
-        }),
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: {
+              orderId: "order_multi",
+              url: "https://square.link/multi",
+            },
+          }),
       });
 
       await withMocks(
@@ -654,8 +770,20 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             items: [
-              { eventId: 10, quantity: 2, unitPrice: 1500, slug: "workshop-a", name: "Workshop A" },
-              { eventId: 20, quantity: 1, unitPrice: 3000, slug: "gala-dinner", name: "Gala Dinner" },
+              {
+                eventId: 10,
+                quantity: 2,
+                unitPrice: 1500,
+                slug: "workshop-a",
+                name: "Workshop A",
+              },
+              {
+                eventId: 20,
+                quantity: 1,
+                unitPrice: 3000,
+                slug: "gala-dinner",
+                name: "Gala Dinner",
+              },
             ],
           };
 
@@ -675,12 +803,16 @@ describe("square", () => {
           expect(args.order.lineItems).toHaveLength(2);
           expect(args.order.lineItems[0].name).toBe("Ticket: Workshop A");
           expect(args.order.lineItems[0].quantity).toBe("2");
-          expect(args.order.lineItems[0].basePriceMoney.amount).toBe(BigInt(1500));
+          expect(args.order.lineItems[0].basePriceMoney.amount).toBe(
+            BigInt(1500),
+          );
           expect(args.order.lineItems[0].note).toBe("2 Tickets");
 
           expect(args.order.lineItems[1].name).toBe("Ticket: Gala Dinner");
           expect(args.order.lineItems[1].quantity).toBe("1");
-          expect(args.order.lineItems[1].basePriceMoney.amount).toBe(BigInt(3000));
+          expect(args.order.lineItems[1].basePriceMoney.amount).toBe(
+            BigInt(3000),
+          );
           expect(args.order.lineItems[1].note).toBe("Ticket");
 
           // Verify multi-intent metadata
@@ -770,15 +902,24 @@ describe("square", () => {
 
     test("throws PaymentUserError for invalid phone number", async () => {
       const client = await setupFailingCheckout(
-        squareError('{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_PHONE_NUMBER", "detail": "Invalid phone number.", "field": "pre_populated_data.buyer_phone_number" }'),
+        squareError(
+          '{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_PHONE_NUMBER", "detail": "Invalid phone number.", "field": "pre_populated_data.buyer_phone_number" }',
+        ),
       );
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const event = testEvent({ unit_price: 1000, fields: "email" as const });
+          const event = testEvent({
+            unit_price: 1000,
+            fields: "email" as const,
+          });
           try {
-            await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+            await squareApi.createPaymentLink(
+              event,
+              validationIntent,
+              "http://localhost",
+            );
             expect(true).toBe(false); // should not reach here
           } catch (err) {
             expect(err instanceof PaymentUserError).toBe(true);
@@ -790,19 +931,30 @@ describe("square", () => {
 
     test("throws PaymentUserError for invalid email address", async () => {
       const client = await setupFailingCheckout(
-        squareError('{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_EMAIL_ADDRESS", "detail": "Invalid email.", "field": "pre_populated_data.buyer_email" }'),
+        squareError(
+          '{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_EMAIL_ADDRESS", "detail": "Invalid email.", "field": "pre_populated_data.buyer_email" }',
+        ),
       );
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const event = testEvent({ unit_price: 1000, fields: "email" as const });
+          const event = testEvent({
+            unit_price: 1000,
+            fields: "email" as const,
+          });
           try {
-            await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+            await squareApi.createPaymentLink(
+              event,
+              validationIntent,
+              "http://localhost",
+            );
             expect(true).toBe(false);
           } catch (err) {
             expect(err instanceof PaymentUserError).toBe(true);
-            expect((err as PaymentUserError).message).toContain("email address");
+            expect((err as PaymentUserError).message).toContain(
+              "email address",
+            );
           }
         },
       );
@@ -810,14 +962,23 @@ describe("square", () => {
 
     test("returns null for non-user-facing API errors", async () => {
       const client = await setupFailingCheckout(
-        squareError('{ "category": "API_ERROR", "code": "INTERNAL_SERVER_ERROR" }'),
+        squareError(
+          '{ "category": "API_ERROR", "code": "INTERNAL_SERVER_ERROR" }',
+        ),
       );
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const event = testEvent({ unit_price: 1000, fields: "email" as const });
-          const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+          const event = testEvent({
+            unit_price: 1000,
+            fields: "email" as const,
+          });
+          const result = await squareApi.createPaymentLink(
+            event,
+            validationIntent,
+            "http://localhost",
+          );
           expect(result).toBeNull();
         },
       );
@@ -825,14 +986,23 @@ describe("square", () => {
 
     test("returns null for validation error on unknown field", async () => {
       const client = await setupFailingCheckout(
-        squareError('{ "category": "INVALID_REQUEST_ERROR", "code": "MISSING_REQUIRED_PARAMETER", "field": "order.location_id" }'),
+        squareError(
+          '{ "category": "INVALID_REQUEST_ERROR", "code": "MISSING_REQUIRED_PARAMETER", "field": "order.location_id" }',
+        ),
       );
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const event = testEvent({ unit_price: 1000, fields: "email" as const });
-          const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+          const event = testEvent({
+            unit_price: 1000,
+            fields: "email" as const,
+          });
+          const result = await squareApi.createPaymentLink(
+            event,
+            validationIntent,
+            "http://localhost",
+          );
           expect(result).toBeNull();
         },
       );
@@ -844,8 +1014,15 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const event = testEvent({ unit_price: 1000, fields: "email" as const });
-          const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+          const event = testEvent({
+            unit_price: 1000,
+            fields: "email" as const,
+          });
+          const result = await squareApi.createPaymentLink(
+            event,
+            validationIntent,
+            "http://localhost",
+          );
           expect(result).toBeNull();
         },
       );
@@ -859,13 +1036,19 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const event = testEvent({ unit_price: 1000, fields: "email" as const });
-          const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+          const event = testEvent({
+            unit_price: 1000,
+            fields: "email" as const,
+          });
+          const result = await squareApi.createPaymentLink(
+            event,
+            validationIntent,
+            "http://localhost",
+          );
           expect(result).toBeNull();
         },
       );
     });
-
   });
 
   describe("retrieveOrder", () => {
@@ -884,25 +1067,32 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrieveOrder("order_missing");
           expect(result).toBeNull();
-          expect(ordersGet.calls[0]!.args[0]).toEqual({ orderId: "order_missing" });
+          expect(ordersGet.calls[0]!.args[0]).toEqual({
+            orderId: "order_missing",
+          });
         },
       );
     });
 
     test("maps tender paymentId correctly", async () => {
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_tenders",
-            metadata: { event_id: "1", name: "John", email: "john@example.com" },
-            state: "COMPLETED",
-            tenders: [
-              { id: "tender_1", paymentId: "pay_abc" },
-              { id: "tender_2", paymentId: null },
-            ],
-            totalMoney: { amount: BigInt(2000), currency: "USD" },
-          },
-        }),
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_tenders",
+              metadata: {
+                event_id: "1",
+                name: "John",
+                email: "john@example.com",
+              },
+              state: "COMPLETED",
+              tenders: [
+                { id: "tender_1", paymentId: "pay_abc" },
+                { id: "tender_2", paymentId: null },
+              ],
+              totalMoney: { amount: BigInt(2000), currency: "USD" },
+            },
+          }),
       });
 
       await withMocks(
@@ -919,15 +1109,16 @@ describe("square", () => {
 
     test("returns correct shape with state and id", async () => {
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_shape",
-            metadata: undefined,
-            state: "OPEN",
-            tenders: undefined,
-            totalMoney: { amount: BigInt(0), currency: "USD" },
-          },
-        }),
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_shape",
+              metadata: undefined,
+              state: "OPEN",
+              tenders: undefined,
+              totalMoney: { amount: BigInt(0), currency: "USD" },
+            },
+          }),
       });
 
       await withMocks(
@@ -945,15 +1136,20 @@ describe("square", () => {
 
     test("maps totalMoney from order response", async () => {
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_with_total",
-            metadata: { event_id: "1", name: "John", email: "john@example.com" },
-            state: "COMPLETED",
-            tenders: [{ id: "tender_1", paymentId: "pay_total" }],
-            totalMoney: { amount: BigInt(7500), currency: "GBP" },
-          },
-        }),
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_with_total",
+              metadata: {
+                event_id: "1",
+                name: "John",
+                email: "john@example.com",
+              },
+              state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_total" }],
+              totalMoney: { amount: BigInt(7500), currency: "GBP" },
+            },
+          }),
       });
 
       await withMocks(
@@ -966,7 +1162,6 @@ describe("square", () => {
         },
       );
     });
-
   });
 
   describe("retrievePayment", () => {
@@ -985,28 +1180,31 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrievePayment("pay_missing");
           expect(result).toBeNull();
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({ paymentId: "pay_missing" });
+          expect(paymentsGet.calls[0]!.args[0]).toEqual({
+            paymentId: "pay_missing",
+          });
         },
       );
     });
 
     test("maps payment fields correctly from SDK response", async () => {
       const { client } = createMockClient({
-        paymentsGet: () => Promise.resolve({
-          payment: {
-            id: "pay_full",
-            status: "COMPLETED",
-            orderId: "order_999",
-            amountMoney: {
-              amount: BigInt(5000),
-              currency: "GBP",
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: {
+              id: "pay_full",
+              status: "COMPLETED",
+              orderId: "order_999",
+              amountMoney: {
+                amount: BigInt(5000),
+                currency: "GBP",
+              },
+              refundedMoney: {
+                amount: BigInt(5000),
+                currency: "GBP",
+              },
             },
-            refundedMoney: {
-              amount: BigInt(5000),
-              currency: "GBP",
-            },
-          },
-        }),
+          }),
       });
 
       await withMocks(
@@ -1024,20 +1222,20 @@ describe("square", () => {
         },
       );
     });
-
   });
 
   describe("retrievePayment wrapper export", () => {
     test("delegates to squareApi.retrievePayment", async () => {
       const { client, paymentsGet } = createMockClient({
-        paymentsGet: () => Promise.resolve({
-          payment: {
-            id: "pay_wrapper",
-            status: "COMPLETED",
-            orderId: "order_wrapper",
-            amountMoney: { amount: BigInt(1000), currency: "USD" },
-          },
-        }),
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: {
+              id: "pay_wrapper",
+              status: "COMPLETED",
+              orderId: "order_wrapper",
+              amountMoney: { amount: BigInt(1000), currency: "USD" },
+            },
+          }),
       });
 
       await withMocks(
@@ -1047,7 +1245,9 @@ describe("square", () => {
           expect(result).not.toBeNull();
           expect(result!.id).toBe("pay_wrapper");
           expect(result!.status).toBe("COMPLETED");
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({ paymentId: "pay_wrapper" });
+          expect(paymentsGet.calls[0]!.args[0]).toEqual({
+            paymentId: "pay_wrapper",
+          });
         },
       );
     });
@@ -1061,8 +1261,7 @@ describe("square", () => {
 
     test("returns false when payment retrieval returns null", async () => {
       await withMocks(
-        () =>
-          stub(squareApi, "retrievePayment", () => Promise.resolve(null)),
+        () => stub(squareApi, "retrievePayment", () => Promise.resolve(null)),
         async () => {
           const result = await squareApi.refundPayment("pay_123");
           expect(result).toBe(false);
@@ -1072,17 +1271,19 @@ describe("square", () => {
 
     test("calls SDK refund with correct amount from payment", async () => {
       const { client, paymentsGet, refundsRefundPayment } = createMockClient({
-        paymentsGet: () => Promise.resolve({
-          payment: {
-            id: "pay_refund_me",
-            status: "COMPLETED",
-            orderId: "order_refund",
-            amountMoney: { amount: BigInt(4200), currency: "USD" },
-          },
-        }),
-        refundsRefundPayment: () => Promise.resolve({
-          refund: { id: "refund_123", status: "PENDING" },
-        }),
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: {
+              id: "pay_refund_me",
+              status: "COMPLETED",
+              orderId: "order_refund",
+              amountMoney: { amount: BigInt(4200), currency: "USD" },
+            },
+          }),
+        refundsRefundPayment: () =>
+          Promise.resolve({
+            refund: { id: "refund_123", status: "PENDING" },
+          }),
       });
 
       await withMocks(
@@ -1092,7 +1293,9 @@ describe("square", () => {
           expect(result).toBe(true);
 
           // Verify payments.get was called to fetch amount
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({ paymentId: "pay_refund_me" });
+          expect(paymentsGet.calls[0]!.args[0]).toEqual({
+            paymentId: "pay_refund_me",
+          });
 
           // Verify refund was called with correct amount and payment ID
           // deno-lint-ignore no-explicit-any
@@ -1108,15 +1311,17 @@ describe("square", () => {
 
     test("returns false when refund SDK call throws", async () => {
       const { client } = createMockClient({
-        paymentsGet: () => Promise.resolve({
-          payment: {
-            id: "pay_fail",
-            status: "COMPLETED",
-            orderId: "order_fail",
-            amountMoney: { amount: BigInt(1000), currency: "GBP" },
-          },
-        }),
-        refundsRefundPayment: () => Promise.reject(new Error("Square API error")),
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: {
+              id: "pay_fail",
+              status: "COMPLETED",
+              orderId: "order_fail",
+              amountMoney: { amount: BigInt(1000), currency: "GBP" },
+            },
+          }),
+        refundsRefundPayment: () =>
+          Promise.reject(new Error("Square API error")),
       });
 
       await withMocks(
@@ -1298,12 +1503,18 @@ describe("square", () => {
     });
 
     test("sends correct headers and snake_case body for payment link creation", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          payment_link: { order_id: "ord_rest", url: "https://square.link/rest" },
-        }),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              payment_link: {
+                order_id: "ord_rest",
+                url: "https://square.link/rest",
+              },
+            }),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
@@ -1319,7 +1530,10 @@ describe("square", () => {
           metadata: { event_id: "1", name: "Test" },
         },
         checkoutOptions: { redirectUrl: "https://example.com/success" },
-        prePopulatedData: { buyerEmail: "test@test.com", buyerPhoneNumber: "+44123" },
+        prePopulatedData: {
+          buyerEmail: "test@test.com",
+          buyerPhoneNumber: "+44123",
+        },
       });
 
       // Response mapped from snake_case
@@ -1329,7 +1543,9 @@ describe("square", () => {
       // Request verification
       // deno-lint-ignore no-explicit-any
       const [url, opts] = mockFetch.calls[0]!.args as any[];
-      expect(url).toBe("https://connect.squareupsandbox.com/v2/online-checkout/payment-links");
+      expect(url).toBe(
+        "https://connect.squareupsandbox.com/v2/online-checkout/payment-links",
+      );
       expect(opts.method).toBe("POST");
       expect(opts.headers.Authorization).toBe("Bearer EAAAl_rest_test");
       expect(opts.headers["Square-Version"]).toBe("2025-01-23");
@@ -1340,25 +1556,35 @@ describe("square", () => {
       expect(body.order.line_items[0].base_price_money.amount).toBe(2500);
       expect(body.order.line_items[0].base_price_money.currency).toBe("GBP");
       expect(body.order.metadata.event_id).toBe("1");
-      expect(body.checkout_options.redirect_url).toBe("https://example.com/success");
+      expect(body.checkout_options.redirect_url).toBe(
+        "https://example.com/success",
+      );
       expect(body.pre_populated_data.buyer_email).toBe("test@test.com");
       expect(body.pre_populated_data.buyer_phone_number).toBe("+44123");
     });
 
     test("omits buyer_phone_number from request when not provided", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          payment_link: { order_id: "ord_2", url: "https://square.link/2" },
-        }),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              payment_link: { order_id: "ord_2", url: "https://square.link/2" },
+            }),
+        })
+      );
 
       const client = await getSquareClient();
       await client!.checkout.paymentLinks.create({
         idempotencyKey: "idem-2",
         order: {
           locationId: "L_test",
-          lineItems: [{ name: "T", quantity: "1", note: "T", basePriceMoney: { amount: BigInt(100), currency: "USD" } }],
+          lineItems: [{
+            name: "T",
+            quantity: "1",
+            note: "T",
+            basePriceMoney: { amount: BigInt(100), currency: "USD" },
+          }],
           metadata: {},
         },
         checkoutOptions: { redirectUrl: "https://example.com" },
@@ -1371,10 +1597,12 @@ describe("square", () => {
     });
 
     test("returns undefined paymentLink when API returns no payment_link", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({}),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
@@ -1388,21 +1616,24 @@ describe("square", () => {
     });
 
     test("orders.get fetches correct URL and maps response to camelCase", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          order: {
-            id: "ord_100",
-            metadata: { event_id: "5" },
-            tenders: [
-              { id: "t_1", payment_id: "pay_1" },
-              { id: "t_2", payment_id: null },
-            ],
-            state: "COMPLETED",
-            total_money: { amount: 5000, currency: "USD" },
-          },
-        }),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              order: {
+                id: "ord_100",
+                metadata: { event_id: "5" },
+                tenders: [
+                  { id: "t_1", payment_id: "pay_1" },
+                  { id: "t_2", payment_id: null },
+                ],
+                state: "COMPLETED",
+                total_money: { amount: 5000, currency: "USD" },
+              },
+            }),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.orders.get({ orderId: "ord_100" });
@@ -1421,12 +1652,15 @@ describe("square", () => {
     });
 
     test("orders.get handles missing total_money", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          order: { id: "ord_no_total", metadata: {}, state: "OPEN" },
-        }),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              order: { id: "ord_no_total", metadata: {}, state: "OPEN" },
+            }),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.orders.get({ orderId: "ord_no_total" });
@@ -1435,10 +1669,12 @@ describe("square", () => {
     });
 
     test("orders.get returns null order when API returns none", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({}),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.orders.get({ orderId: "missing" });
@@ -1446,18 +1682,21 @@ describe("square", () => {
     });
 
     test("payments.get maps response with BigInt amounts", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          payment: {
-            id: "pay_1",
-            status: "COMPLETED",
-            order_id: "ord_1",
-            amount_money: { amount: 3000, currency: "GBP" },
-            refunded_money: { amount: 1000, currency: "GBP" },
-          },
-        }),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              payment: {
+                id: "pay_1",
+                status: "COMPLETED",
+                order_id: "ord_1",
+                amount_money: { amount: 3000, currency: "GBP" },
+                refunded_money: { amount: 1000, currency: "GBP" },
+              },
+            }),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_1" });
@@ -1473,12 +1712,19 @@ describe("square", () => {
     });
 
     test("payments.get handles missing amount_money", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          payment: { id: "pay_no_amount", status: "PENDING", order_id: "ord_x" },
-        }),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              payment: {
+                id: "pay_no_amount",
+                status: "PENDING",
+                order_id: "ord_x",
+              },
+            }),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_no_amount" });
@@ -1487,17 +1733,20 @@ describe("square", () => {
     });
 
     test("payments.get handles missing refunded_money", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          payment: {
-            id: "pay_2",
-            status: "COMPLETED",
-            order_id: "ord_2",
-            amount_money: { amount: 2000, currency: "USD" },
-          },
-        }),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              payment: {
+                id: "pay_2",
+                status: "COMPLETED",
+                order_id: "ord_2",
+                amount_money: { amount: 2000, currency: "USD" },
+              },
+            }),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_2" });
@@ -1506,10 +1755,12 @@ describe("square", () => {
     });
 
     test("payments.get returns null payment when API returns none", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({}),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+        })
+      );
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "missing" });
@@ -1517,10 +1768,12 @@ describe("square", () => {
     });
 
     test("refunds.refundPayment sends correct snake_case body", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ refund: { id: "ref_1" } }),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ refund: { id: "ref_1" } }),
+        })
+      );
 
       const client = await getSquareClient();
       await client!.refunds.refundPayment({
@@ -1541,11 +1794,13 @@ describe("square", () => {
     });
 
     test("throws error with status code and body for HTTP errors", async () => {
-      installMockFetch(() => Promise.resolve({
-        ok: false,
-        status: 400,
-        text: () => Promise.resolve('{"errors":[{"code":"BAD_REQUEST"}]}'),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve('{"errors":[{"code":"BAD_REQUEST"}]}'),
+        })
+      );
 
       const client = await getSquareClient();
       try {
@@ -1560,46 +1815,54 @@ describe("square", () => {
     test("uses production URL when sandbox is disabled", async () => {
       resetSquareClient();
       await updateSquareSandbox(false);
-      installMockFetch(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({}),
-      }));
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+        })
+      );
 
       const client = await getSquareClient();
       await client!.orders.get({ orderId: "test" });
 
       // deno-lint-ignore no-explicit-any
-      expect((mockFetch.calls[0]!.args as any[])[0]).toContain("connect.squareup.com");
+      expect((mockFetch.calls[0]!.args as any[])[0]).toContain(
+        "connect.squareup.com",
+      );
     });
   });
 
   describe("squarePaymentProvider integration", () => {
     test("retrieveSession maps COMPLETED order to paid status", async () => {
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_paid",
-            metadata: {
-              event_id: "1",
-              name: "John Doe",
-              email: "john@example.com",
-              phone: "555-1234",
-              quantity: "2",
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_paid",
+              metadata: {
+                event_id: "1",
+                name: "John Doe",
+                email: "john@example.com",
+                phone: "555-1234",
+                quantity: "2",
+              },
+              tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
+              state: "COMPLETED",
+              totalMoney: { amount: BigInt(5000), currency: "USD" },
             },
-            tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
-            state: "COMPLETED",
-            totalMoney: { amount: BigInt(5000), currency: "USD" },
-          },
-        }),
-        paymentsGet: () => Promise.resolve({
-          payment: { id: "pay_abc", status: "COMPLETED" },
-        }),
+          }),
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: { id: "pay_abc", status: "COMPLETED" },
+          }),
       });
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession("order_paid");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_paid",
+          );
           expect(result).not.toBeNull();
           expect(result!.id).toBe("order_paid");
           expect(result!.paymentStatus).toBe("paid");
@@ -1615,24 +1878,27 @@ describe("square", () => {
 
     test("retrieveSession maps OPEN order to unpaid status", async () => {
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_open",
-            metadata: {
-              event_id: "1",
-              name: "John",
-              email: "john@example.com",
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_open",
+              metadata: {
+                event_id: "1",
+                name: "John",
+                email: "john@example.com",
+              },
+              state: "OPEN",
+              totalMoney: { amount: BigInt(1000), currency: "USD" },
             },
-            state: "OPEN",
-            totalMoney: { amount: BigInt(1000), currency: "USD" },
-          },
-        }),
+          }),
       });
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession("order_open");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_open",
+          );
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("unpaid");
           expect(result!.paymentReference).toBe("");
@@ -1642,18 +1908,21 @@ describe("square", () => {
 
     test("retrieveSession returns null for missing metadata", async () => {
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_no_meta",
-            state: "COMPLETED",
-          },
-        }),
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_no_meta",
+              state: "COMPLETED",
+            },
+          }),
       });
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession("order_no_meta");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_no_meta",
+          );
           expect(result).toBeNull();
         },
       );
@@ -1661,19 +1930,22 @@ describe("square", () => {
 
     test("retrieveSession returns null for incomplete metadata", async () => {
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_bad_meta",
-            metadata: { email: "john@example.com" },
-            state: "COMPLETED",
-          },
-        }),
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_bad_meta",
+              metadata: { email: "john@example.com" },
+              state: "COMPLETED",
+            },
+          }),
       });
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession("order_bad_meta");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_bad_meta",
+          );
           expect(result).toBeNull();
         },
       );
@@ -1687,7 +1959,9 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession("order_gone");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_gone",
+          );
           expect(result).toBeNull();
         },
       );
@@ -1695,29 +1969,33 @@ describe("square", () => {
 
     test("retrieveSession returns amountTotal from order totalMoney", async () => {
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_with_amount",
-            metadata: {
-              event_id: "5",
-              name: "Total User",
-              email: "total@example.com",
-              quantity: "2",
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_with_amount",
+              metadata: {
+                event_id: "5",
+                name: "Total User",
+                email: "total@example.com",
+                quantity: "2",
+              },
+              tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
+              state: "COMPLETED",
+              totalMoney: { amount: BigInt(6000), currency: "GBP" },
             },
-            tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
-            state: "COMPLETED",
-            totalMoney: { amount: BigInt(6000), currency: "GBP" },
-          },
-        }),
-        paymentsGet: () => Promise.resolve({
-          payment: { id: "pay_total_123", status: "COMPLETED" },
-        }),
+          }),
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: { id: "pay_total_123", status: "COMPLETED" },
+          }),
       });
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession("order_with_amount");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_with_amount",
+          );
           expect(result).not.toBeNull();
           expect(result!.amountTotal).toBe(6000);
           expect(result!.paymentStatus).toBe("paid");
@@ -1726,33 +2004,36 @@ describe("square", () => {
       );
     });
 
-
     test("retrieveSession handles multi-ticket order", async () => {
       const items = JSON.stringify([{ e: 1, q: 2 }, { e: 2, q: 1 }]);
       const { client } = createMockClient({
-        ordersGet: () => Promise.resolve({
-          order: {
-            id: "order_multi",
-            metadata: {
-              multi: "1",
-              name: "John",
-              email: "john@example.com",
-              items,
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              id: "order_multi",
+              metadata: {
+                multi: "1",
+                name: "John",
+                email: "john@example.com",
+                items,
+              },
+              tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
+              state: "COMPLETED",
+              totalMoney: { amount: BigInt(3000), currency: "USD" },
             },
-            tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
-            state: "COMPLETED",
-            totalMoney: { amount: BigInt(3000), currency: "USD" },
-          },
-        }),
-        paymentsGet: () => Promise.resolve({
-          payment: { id: "pay_multi", status: "COMPLETED" },
-        }),
+          }),
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: { id: "pay_multi", status: "COMPLETED" },
+          }),
       });
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession("order_multi");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_multi",
+          );
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("paid");
           expect(result!.metadata.multi).toBe("1");
@@ -1763,9 +2044,13 @@ describe("square", () => {
 
     test("createCheckoutSession passes through SDK results", async () => {
       const { client } = createMockClient({
-        checkoutCreate: () => Promise.resolve({
-          paymentLink: { orderId: "order_prov", url: "https://square.link/prov" },
-        }),
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: {
+              orderId: "order_prov",
+              url: "https://square.link/prov",
+            },
+          }),
       });
 
       await withMocks(
@@ -1792,14 +2077,22 @@ describe("square", () => {
             fields: "email" as const,
             closes_at: null,
             event_type: "standard" as const,
-            bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+            bookable_days: [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday",
+            ],
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
+            non_transferable: false,
+            can_pay_more: false,
+            max_price: 0,
+            hidden: false,
           };
           const intent = {
             eventId: 1,
@@ -1827,9 +2120,13 @@ describe("square", () => {
 
     test("createMultiCheckoutSession passes through SDK results", async () => {
       const { client } = createMockClient({
-        checkoutCreate: () => Promise.resolve({
-          paymentLink: { orderId: "order_mprov", url: "https://square.link/mprov" },
-        }),
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: {
+              orderId: "order_mprov",
+              url: "https://square.link/mprov",
+            },
+          }),
       });
 
       await withMocks(
@@ -1844,7 +2141,13 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             items: [
-              { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
+              {
+                eventId: 1,
+                quantity: 1,
+                unitPrice: 1000,
+                slug: "event-1",
+                name: "Event 1",
+              },
             ],
           };
 
@@ -1863,23 +2166,27 @@ describe("square", () => {
 
     test("refundPayment delegates through SDK", async () => {
       const { client } = createMockClient({
-        paymentsGet: () => Promise.resolve({
-          payment: {
-            id: "pay_prov_ref",
-            status: "COMPLETED",
-            orderId: "order_prov_ref",
-            amountMoney: { amount: BigInt(2000), currency: "GBP" },
-          },
-        }),
-        refundsRefundPayment: () => Promise.resolve({
-          refund: { id: "refund_prov", status: "PENDING" },
-        }),
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: {
+              id: "pay_prov_ref",
+              status: "COMPLETED",
+              orderId: "order_prov_ref",
+              amountMoney: { amount: BigInt(2000), currency: "GBP" },
+            },
+          }),
+        refundsRefundPayment: () =>
+          Promise.resolve({
+            refund: { id: "refund_prov", status: "PENDING" },
+          }),
       });
 
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const result = await squarePaymentProvider.refundPayment("pay_prov_ref");
+          const result = await squarePaymentProvider.refundPayment(
+            "pay_prov_ref",
+          );
           expect(result).toBe(true);
         },
       );

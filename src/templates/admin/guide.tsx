@@ -59,21 +59,22 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Getting Started">
         <Q q="How do I create an event?">
           <p>
-            From the <strong>Events</strong> page, fill in the form at the
-            bottom. Give your event a name, set the capacity, and choose which
-            contact details to collect (any combination of email, phone,
-            postal address, and special instructions). You can leave the price
-            blank for free events.
-            Once created, share the booking link with your attendees.
+            From the <strong>Events</strong>{" "}
+            page, fill in the form at the bottom. Give your event a name, set
+            the capacity, and choose which contact details to collect (any
+            combination of email, phone, postal address, and special
+            instructions). You can leave the price blank for free events. Once
+            created, share the booking link with your attendees.
           </p>
         </Q>
 
         <Q q="How do I set up payments?">
           <p>
-            Go to <strong>Settings</strong> and choose Stripe or Square as your
-            payment provider. Paste in your API key and save. For Stripe, the
-            webhook is configured automatically. For Square, you'll need to copy
-            the webhook URL shown and add it in your Square Developer Dashboard.
+            Go to <strong>Settings</strong>{" "}
+            and choose Stripe or Square as your payment provider. Paste in your
+            API key and save. For Stripe, the webhook is configured
+            automatically. For Square, you'll need to copy the webhook URL shown
+            and add it in your Square Developer Dashboard.
           </p>
         </Q>
       </Section>
@@ -91,12 +92,12 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I report a bug?">
           <p>
-            This project is early in development (started January 2026) and
-            bugs are expected. If you find something that doesn&apos;t work
+            This project is early in development (started January 2026) and bugs
+            are expected. If you find something that doesn&apos;t work
             correctly, please email{" "}
-            <a href="mailto:hello@chobble.com">hello@chobble.com</a> with a
-            description of what happened and what you expected. The more detail
-            you can provide, the faster it can be fixed.
+            <a href="mailto:hello@chobble.com">hello@chobble.com</a>{" "}
+            with a description of what happened and what you expected. The more
+            detail you can provide, the faster it can be fixed.
           </p>
         </Q>
       </Section>
@@ -104,11 +105,12 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Events">
         <Q q="What's the difference between standard and daily events?">
           <p>
-            A <strong>standard event</strong> is a one-off &mdash; attendees
-            book a place and the capacity applies to the whole event. A{" "}
-            <strong>daily event</strong> lets attendees pick a specific date when
-            booking. The capacity limit applies separately to each date, so you
-            can run the same event every day with a fresh allocation.
+            A <strong>standard event</strong>{" "}
+            is a one-off &mdash; attendees book a place and the capacity applies
+            to the whole event. A <strong>daily event</strong>{" "}
+            lets attendees pick a specific date when booking. The capacity limit
+            applies separately to each date, so you can run the same event every
+            day with a fresh allocation.
           </p>
         </Q>
 
@@ -120,33 +122,34 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             one go. If any are paid, they complete one checkout for the total.
           </p>
           <p>
-            To generate the link, open the <strong>Multi-booking link</strong>{" "}
-            section on the <strong>Events</strong> page and tick the events you
-            want to combine. The link updates as you select, and events appear
-            in the order you tick them.
+            To generate the link, open the <strong>Multi-booking link</strong>
+            {" "}
+            section on the <strong>Events</strong>{" "}
+            page and tick the events you want to combine. The link updates as
+            you select, and events appear in the order you tick them.
           </p>
         </Q>
 
         <Q q="What are groups?">
           <p>
             Groups let you bundle related events under a single URL. Create a
-            group from the <strong>Groups</strong> page, then assign events to
-            it using the group dropdown on the event form. Share{" "}
-            <code>/ticket/your-group-slug</code> and attendees see all active
-            events in the group on one page. If you add terms and conditions to
-            a group, they replace the global T&amp;Cs for that page.
+            group from the <strong>Groups</strong>{" "}
+            page, then assign events to it using the group dropdown on the event
+            form. Share <code>/ticket/your-group-slug</code>{" "}
+            and attendees see all active events in the group on one page. If you
+            add terms and conditions to a group, they replace the global
+            T&amp;Cs for that page.
           </p>
         </Q>
 
         <Q q="What are the event date and location fields for?">
           <p>
             These are optional fields you can fill in when creating or editing
-            an event. The date is when the event takes place (in your
-            configured timezone) and the location is where it's held. Both are
-            displayed on the attendee's
-            ticket page so they know when and where to go. For daily events,
-            attendees already pick a date when booking, so the event date field
-            is more useful for standard (one-off) events.
+            an event. The date is when the event takes place (in your configured
+            timezone) and the location is where it's held. Both are displayed on
+            the attendee's ticket page so they know when and where to go. For
+            daily events, attendees already pick a date when booking, so the
+            event date field is more useful for standard (one-off) events.
           </p>
         </Q>
 
@@ -163,11 +166,12 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             When enabled, attendees can choose their own price instead of paying
             a fixed amount. The ticket price becomes a minimum. You can set a
-            maximum price using the "Maximum Price" field — it must be at least{" "}
-            {formatCurrency(100)} more than the ticket price.
-            If the ticket price is zero, it becomes a pay-what-you-want event
-            where attendees can optionally enter any amount up to the configured
-            maximum.
+            maximum price using the "Maximum Price" field — it must be at least
+            {" "}
+            {formatCurrency(100)}{" "}
+            more than the ticket price. If the ticket price is zero, it becomes
+            a pay-what-you-want event where attendees can optionally enter any
+            amount up to the configured maximum.
           </p>
         </Q>
 
@@ -182,34 +186,37 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I embed the booking form on my website?">
           <p>
-            You only need <strong>one</strong> of the two embed codes shown on
-            your event page &mdash; not both:
+            You only need <strong>one</strong>{" "}
+            of the two embed codes shown on your event page &mdash; not both:
           </p>
           <ul>
             <li>
-              <strong>Embed Script</strong> (recommended) &mdash; paste a single{" "}
-              <code>&lt;script&gt;</code> tag and it creates the iframe for you
-              with automatic resizing.
+              <strong>Embed Script</strong> (recommended) &mdash; paste a single
+              {" "}
+              <code>&lt;script&gt;</code>{" "}
+              tag and it creates the iframe for you with automatic resizing.
             </li>
             <li>
-              <strong>Embed Iframe</strong> &mdash; use this if your hosting
-              platform blocks third-party scripts or if you want full control
-              over the iframe styling yourself.
+              <strong>Embed Iframe</strong>{" "}
+              &mdash; use this if your hosting platform blocks third-party
+              scripts or if you want full control over the iframe styling
+              yourself.
             </li>
           </ul>
           <p>
-            In <strong>Settings</strong>, add your website's domain to the embed
+            In{" "}
+            <strong>Settings</strong>, add your website's domain to the embed
             hosts list so the browser allows the iframe to load.
           </p>
         </Q>
 
         <Q q="How do I manually add an attendee?">
           <p>
-            Open the event page and scroll down to <strong>Add Attendee</strong>.
-            Fill in the name and contact details, set the quantity, and submit.
-            The attendee is added directly without needing to go through the
-            booking form or payment flow. Useful for walk-ins, comps, or manual
-            corrections.
+            Open the event page and scroll down to{" "}
+            <strong>Add Attendee</strong>. Fill in the name and contact details,
+            set the quantity, and submit. The attendee is added directly without
+            needing to go through the booking form or payment flow. Useful for
+            walk-ins, comps, or manual corrections.
           </p>
         </Q>
 
@@ -217,54 +224,56 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             When creating or editing an event, enter a URL in the "thank you
             URL" field. After a successful booking or payment, attendees are
-            redirected to that address instead of seeing the default confirmation
-            page. The URL must use HTTPS.
+            redirected to that address instead of seeing the default
+            confirmation page. The URL must use HTTPS.
           </p>
         </Q>
 
         <Q q="How do I add an image to an event?">
           <p>
             When creating or editing an event, use the image upload field to
-            attach a picture. The image is displayed on the booking page and
-            in the public events listing. Supported formats include JPEG and
-            PNG.
+            attach a picture. The image is displayed on the booking page and in
+            the public events listing. Supported formats include JPEG and PNG.
           </p>
         </Q>
 
         <Q q="Where can I find the event QR code?">
           <p>
-            On the admin event page, click the <strong>QR code</strong> link
-            next to the public URL. This opens an SVG image of the QR code
-            that links to your event's registration page. You can save or
-            print it for posters, flyers, or other materials.
+            On the admin event page, click the <strong>QR code</strong>{" "}
+            link next to the public URL. This opens an SVG image of the QR code
+            that links to your event's registration page. You can save or print
+            it for posters, flyers, or other materials.
           </p>
         </Q>
 
         <Q q="How do I duplicate an event?">
           <p>
-            Open the event and click <strong>Duplicate</strong>. This creates
-            a new event with the same settings (name, capacity, price, fields,
-            etc.) so you can adjust what you need without starting from scratch.
+            Open the event and click{" "}
+            <strong>Duplicate</strong>. This creates a new event with the same
+            settings (name, capacity, price, fields, etc.) so you can adjust
+            what you need without starting from scratch.
           </p>
         </Q>
 
         <Q q="How do I deactivate an event?">
           <p>
-            Open the event and click <strong>Deactivate</strong>. Deactivated
-            events no longer accept bookings and are hidden from the public
-            events listing, but all existing attendee data is kept. Click{" "}
-            <strong>Reactivate</strong> to make the event bookable again.
+            Open the event and click{" "}
+            <strong>Deactivate</strong>. Deactivated events no longer accept
+            bookings and are hidden from the public events listing, but all
+            existing attendee data is kept. Click <strong>Reactivate</strong>
+            {" "}
+            to make the event bookable again.
           </p>
         </Q>
 
         <Q q="What are non-transferable tickets?">
           <p>
-            When you enable <strong>Non-Transferable</strong> on an event,
-            attendees see a notice on their ticket saying "Non-transferable
-            — ID required at entry". At check-in, the QR scanner prompts
-            door staff to verify the attendee's ID matches the name on the
-            ticket before completing check-in. This helps prevent ticket
-            touting.
+            When you enable <strong>Non-Transferable</strong>{" "}
+            on an event, attendees see a notice on their ticket saying
+            "Non-transferable — ID required at entry". At check-in, the QR
+            scanner prompts door staff to verify the attendee's ID matches the
+            name on the ticket before completing check-in. This helps prevent
+            ticket touting.
           </p>
         </Q>
 
@@ -281,7 +290,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I add terms and conditions?">
           <p>
-            In <strong>Settings</strong>, enter your terms in the "Terms and
+            In{" "}
+            <strong>Settings</strong>, enter your terms in the "Terms and
             Conditions" box. When set, attendees must tick an agreement checkbox
             before they can reserve tickets. Clear the box to remove the
             requirement.
@@ -302,9 +312,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             <a href="https://developers.facebook.com/tools/debug/">
               Facebook Sharing Debugger
             </a>{" "}
-            and click <strong>Scrape Again</strong> if the result looks wrong.
-            Once Facebook has successfully scraped the URL, future shares should
-            work normally.
+            and click <strong>Scrape Again</strong>{" "}
+            if the result looks wrong. Once Facebook has successfully scraped
+            the URL, future shares should work normally.
           </p>
         </Q>
       </Section>
@@ -312,10 +322,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Public Site">
         <Q q="What is the public site?">
           <p>
-            When enabled in <strong>Settings</strong>, your domain shows a
-            public website with navigation for Home, Events, Terms &amp;
-            Conditions, and Contact pages. The <strong>Events</strong> page
-            lists all active events with booking links. Visitors can browse
+            When enabled in{" "}
+            <strong>Settings</strong>, your domain shows a public website with
+            navigation for Home, Events, Terms &amp; Conditions, and Contact
+            pages. The <strong>Events</strong>{" "}
+            page lists all active events with booking links. Visitors can browse
             event details and book directly. If the public site is disabled,
             visitors can still book via direct ticket links.
           </p>
@@ -323,23 +334,25 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="Can I hide an event from the public list?">
           <p>
-            Yes. When editing an event, tick the <strong>Hidden Event</strong>{" "}
-            checkbox. Hidden events won&apos;t appear on the public Events
-            page and their ticket pages will be marked as{" "}
-            <code>noindex, nofollow</code> for search engines. The event is
-            still fully bookable via its direct link or when embedded in an
-            iframe.
+            Yes. When editing an event, tick the <strong>Hidden Event</strong>
+            {" "}
+            checkbox. Hidden events won&apos;t appear on the public Events page
+            and their ticket pages will be marked as{" "}
+            <code>noindex, nofollow</code>{" "}
+            for search engines. The event is still fully bookable via its direct
+            link or when embedded in an iframe.
           </p>
         </Q>
 
         <Q q="How do I edit the homepage and contact page?">
           <p>
-            Enable the public site in <strong>Settings</strong>, then open the{" "}
-            <strong>Site</strong> section from the admin navigation. The
-            homepage editor lets you set a website title (shown as the heading
-            on all public pages) and homepage text. The contact page editor
-            lets you set contact information. Line breaks are preserved in
-            both.
+            Enable the public site in <strong>Settings</strong>, then open the
+            {" "}
+            <strong>Site</strong>{" "}
+            section from the admin navigation. The homepage editor lets you set
+            a website title (shown as the heading on all public pages) and
+            homepage text. The contact page editor lets you set contact
+            information. Line breaks are preserved in both.
           </p>
         </Q>
       </Section>
@@ -349,17 +362,19 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             Event descriptions, terms and conditions, homepage text, and contact
             page text all support{" "}
-            <a href="https://www.markdownguide.org/cheat-sheet/">Markdown</a>{" "}
+            <a href="https://www.markdownguide.org/cheat-sheet/">Markdown</a>
+            {" "}
             formatting.
           </p>
         </Q>
 
         <Q q="What formatting can I use?">
           <p>
-            <strong>Bold</strong> with <code>**bold**</code>, <em>italic</em>{" "}
+            <strong>Bold</strong> with <code>**bold**</code>, <em>italic</em>
+            {" "}
             with <code>*italic*</code>, links with{" "}
-            <code>[text](https://...)</code>, and lists with <code>-</code> at
-            the start of a line. See the{" "}
+            <code>[text](https://...)</code>, and lists with <code>-</code>{" "}
+            at the start of a line. See the{" "}
             <a href="https://www.markdownguide.org/cheat-sheet/">
               Markdown cheat sheet
             </a>{" "}
@@ -371,9 +386,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Payments">
         <Q q="Which payment providers are supported?">
           <p>
-            <strong>Stripe</strong> and <strong>Square</strong>. Choose one in
-            Settings and enter your API credentials. You can switch between them
-            at any time.
+            <strong>Stripe</strong> and{" "}
+            <strong>Square</strong>. Choose one in Settings and enter your API
+            credentials. You can switch between them at any time.
           </p>
         </Q>
 
@@ -416,8 +431,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do refunds work?">
           <p>
-            See the <strong>Refunds</strong> section below for full details on
-            automatic refunds, admin-issued refunds, and bulk refunds.
+            See the <strong>Refunds</strong>{" "}
+            section below for full details on automatic refunds, admin-issued
+            refunds, and bulk refunds.
           </p>
         </Q>
       </Section>
@@ -425,16 +441,23 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section id="payment-setup" title="Payment Setup">
         <Q q="How do I find my Stripe secret key?">
           <ol>
-            <li>Log in to your <a href="https://dashboard.stripe.com">Stripe Dashboard</a></li>
-            <li>Click <strong>Developers</strong> in the top navigation bar</li>
-            <li>Select <strong>API keys</strong> from the sidebar</li>
+            <li>
+              Log in to your{" "}
+              <a href="https://dashboard.stripe.com">Stripe Dashboard</a>
+            </li>
+            <li>
+              Click <strong>Developers</strong> in the top navigation bar
+            </li>
+            <li>
+              Select <strong>API keys</strong> from the sidebar
+            </li>
             <li>
               Under <strong>Standard keys</strong>, find the{" "}
               <strong>Secret key</strong> row and click <strong>Reveal</strong>
             </li>
             <li>
-              Copy the key &mdash; it starts with <code>sk_live_</code> for live
-              mode or <code>sk_test_</code> for test mode
+              Copy the key &mdash; it starts with <code>sk_live_</code>{" "}
+              for live mode or <code>sk_test_</code> for test mode
             </li>
             <li>
               Paste it into the Stripe Secret Key field on the{" "}
@@ -442,9 +465,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             </li>
           </ol>
           <p>
-            <strong>Tip:</strong> Use a <code>sk_test_</code> key first to
-            verify everything works before switching to your live key. Test mode
-            lets you make bookings without real charges.
+            <strong>Tip:</strong> Use a <code>sk_test_</code>{" "}
+            key first to verify everything works before switching to your live
+            key. Test mode lets you make bookings without real charges.
           </p>
         </Q>
 
@@ -454,8 +477,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             <a href="/admin/settings">Settings</a>, the system automatically
             creates a webhook endpoint in your Stripe account and stores the
             signing secret. You can verify it's working by clicking the{" "}
-            <strong>Test Connection</strong> button that appears after saving
-            your key.
+            <strong>Test Connection</strong>{" "}
+            button that appears after saving your key.
           </p>
         </Q>
 
@@ -473,9 +496,12 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               </a>{" "}
               and sign in with your Square account
             </li>
-            <li>Click the <strong>+</strong> button to create a new application</li>
             <li>
-              Give it a name (e.g. your organisation or event name) and click{" "}
+              Click the <strong>+</strong> button to create a new application
+            </li>
+            <li>
+              Give it a name (e.g. your organisation or event name) and click
+              {" "}
               <strong>Save</strong>
             </li>
           </ol>
@@ -494,10 +520,13 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               </a>
             </li>
             <li>Select your application</li>
-            <li>Open the <strong>Credentials</strong> page</li>
             <li>
-              Copy the <strong>Access token</strong> for the environment you want
-              (Sandbox for testing, Production for real payments)
+              Open the <strong>Credentials</strong> page
+            </li>
+            <li>
+              Copy the <strong>Access token</strong>{" "}
+              for the environment you want (Sandbox for testing, Production for
+              real payments)
             </li>
             <li>
               Paste it into the Square Access Token field on the{" "}
@@ -515,15 +544,18 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               </a>{" "}
               and select your application
             </li>
-            <li>Open the <strong>Locations</strong> page in the sidebar</li>
             <li>
-              Copy the <strong>Location ID</strong> for the location you want to
-              accept payments at
+              Open the <strong>Locations</strong> page in the sidebar
+            </li>
+            <li>
+              Copy the <strong>Location ID</strong>{" "}
+              for the location you want to accept payments at
             </li>
           </ol>
           <p>
             You can also find your location ID in the main{" "}
-            <a href="https://squareup.com/dashboard">Square Dashboard</a> under{" "}
+            <a href="https://squareup.com/dashboard">Square Dashboard</a> under
+            {" "}
             <strong>Account &amp; Settings</strong> &rarr;{" "}
             <strong>Business information</strong> &rarr;{" "}
             <strong>Locations</strong>.
@@ -543,11 +575,16 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               </a>{" "}
               and select your application
             </li>
-            <li>Navigate to <strong>Webhooks</strong> in the sidebar</li>
-            <li>Click <strong>Add Subscription</strong></li>
             <li>
-              Set the <strong>Notification URL</strong> to the webhook URL shown
-              on your <a href="/admin/settings">Settings</a> page
+              Navigate to <strong>Webhooks</strong> in the sidebar
+            </li>
+            <li>
+              Click <strong>Add Subscription</strong>
+            </li>
+            <li>
+              Set the <strong>Notification URL</strong>{" "}
+              to the webhook URL shown on your{" "}
+              <a href="/admin/settings">Settings</a> page
             </li>
             <li>
               Subscribe to the <strong>payment.updated</strong> event
@@ -582,9 +619,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               </a>.
             </li>
             <li>
-              <strong>Square:</strong> Use your Sandbox access token and
-              location, and tick the <strong>Sandbox mode</strong> checkbox
-              on the Settings page. You can make test payments with{" "}
+              <strong>Square:</strong>{" "}
+              Use your Sandbox access token and location, and tick the{" "}
+              <strong>Sandbox mode</strong>{" "}
+              checkbox on the Settings page. You can make test payments with
+              {" "}
               <a href="https://developer.squareup.com/docs/devtools/sandbox/payments">
                 Square's sandbox test values
               </a>. Untick Sandbox mode when switching to production.
@@ -627,11 +666,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I refund all attendees for an event?">
           <p>
-            On the event page, click <strong>Refund All</strong> in the
-            navigation bar. Type the event name to confirm. Each attendee with a
-            recorded payment is refunded one by one. If some refunds fail (e.g.
-            a payment was already refunded via the provider dashboard), you'll
-            see a summary of how many succeeded and how many failed.
+            On the event page, click <strong>Refund All</strong>{" "}
+            in the navigation bar. Type the event name to confirm. Each attendee
+            with a recorded payment is refunded one by one. If some refunds fail
+            (e.g. a payment was already refunded via the provider dashboard),
+            you'll see a summary of how many succeeded and how many failed.
           </p>
         </Q>
 
@@ -645,10 +684,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="What happens to the attendee after a refund?">
           <p>
-            The attendee <strong>remains registered</strong>. A refund only
-            clears their payment record &mdash; it does not remove them from the
-            event. If you also want to remove them, delete the attendee
-            separately after refunding.
+            The attendee{" "}
+            <strong>remains registered</strong>. A refund only clears their
+            payment record &mdash; it does not remove them from the event. If
+            you also want to remove them, delete the attendee separately after
+            refunding.
           </p>
         </Q>
 
@@ -693,17 +733,17 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="What are bookable days?">
           <p>
             These are the days of the week your daily event runs on. If you only
-            tick Monday and Wednesday, those are the only days that appear in the
-            date picker. Weekends and unticked days are skipped.
+            tick Monday and Wednesday, those are the only days that appear in
+            the date picker. Weekends and unticked days are skipped.
           </p>
         </Q>
 
         <Q q="What are holidays?">
           <p>
             Holidays are date ranges when no daily events can be booked. Add
-            them from the <strong>Holidays</strong> page. Any dates falling
-            within a holiday range are removed from the booking calendar for all
-            daily events.
+            them from the <strong>Holidays</strong>{" "}
+            page. Any dates falling within a holiday range are removed from the
+            booking calendar for all daily events.
           </p>
         </Q>
       </Section>
@@ -714,8 +754,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             Each ticket has a unique QR code. When an attendee arrives, they
             show their QR code to a member of staff. The staff member scans it
             (or opens the link), which takes them to the check-in page. If
-            logged in as an admin, they'll see the attendee's details and
-            ticket quantity, with a button to check them in or out.
+            logged in as an admin, they'll see the attendee's details and ticket
+            quantity, with a button to check them in or out.
           </p>
         </Q>
 
@@ -731,10 +771,10 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="How do I use the QR scanner?">
           <p>
             Open an event and click <strong>Scanner</strong>. Tap{" "}
-            <strong>Start Camera</strong> to begin (grants camera permission on
-            first use). Point the camera at an attendee's QR code and check-in
-            happens automatically. The scanner works best with the rear camera
-            on mobile devices.
+            <strong>Start Camera</strong>{" "}
+            to begin (grants camera permission on first use). Point the camera
+            at an attendee's QR code and check-in happens automatically. The
+            scanner works best with the rear camera on mobile devices.
           </p>
         </Q>
 
@@ -757,19 +797,20 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="What do the scanner status messages mean?">
           <p>
-            <strong>Checked in</strong> &mdash; shows the attendee's name and
-            ticket count (e.g. "Jo checked in (2 tickets)").{" "}
-            <strong>Already checked in</strong> &mdash; they were already
-            marked as arrived.{" "}
-            <strong>Refunded</strong> &mdash; the attendee has been refunded
-            and cannot be checked in.{" "}
-            <strong>Ticket not found</strong> &mdash; the QR
-            code doesn't match any registration.{" "}
-            <strong>Different event</strong> &mdash; a confirmation dialogue
-            asks whether to check them in anyway.{" "}
-            <strong>ID verification</strong> &mdash; for non-transferable
-            events, staff are asked to confirm the attendee's ID matches
-            the ticket name before check-in proceeds.
+            <strong>Checked in</strong>{" "}
+            &mdash; shows the attendee's name and ticket count (e.g. "Jo checked
+            in (2 tickets)"). <strong>Already checked in</strong>{" "}
+            &mdash; they were already marked as arrived.{" "}
+            <strong>Refunded</strong>{" "}
+            &mdash; the attendee has been refunded and cannot be checked in.
+            {" "}
+            <strong>Ticket not found</strong>{" "}
+            &mdash; the QR code doesn't match any registration.{" "}
+            <strong>Different event</strong>{" "}
+            &mdash; a confirmation dialogue asks whether to check them in
+            anyway. <strong>ID verification</strong>{" "}
+            &mdash; for non-transferable events, staff are asked to confirm the
+            attendee's ID matches the ticket name before check-in proceeds.
           </p>
         </Q>
       </Section>
@@ -777,16 +818,18 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section id="user-classes" title="Users &amp; Permissions">
         <Q q="What's the difference between an owner and a manager?">
           <p>
-            <strong>Owners</strong> have full access: events, calendar, users,
-            settings, holidays, sessions, and the activity log.{" "}
-            <strong>Managers</strong> can only see events and the calendar. They
-            cannot change settings, manage users, or view the activity log.
+            <strong>Owners</strong>{" "}
+            have full access: events, calendar, users, settings, holidays,
+            sessions, and the activity log. <strong>Managers</strong>{" "}
+            can only see events and the calendar. They cannot change settings,
+            manage users, or view the activity log.
           </p>
         </Q>
 
         <Q q="How do I invite another admin?">
           <p>
-            Go to <strong>Users</strong>, enter a username and choose their role
+            Go to{" "}
+            <strong>Users</strong>, enter a username and choose their role
             (owner or manager). You'll receive an invite link to send them. They
             use the link to set their password and activate their account.
           </p>
@@ -794,9 +837,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How long do invite links last?">
           <p>
-            Invite links expire after <strong>7 days</strong>. If the link
-            expires before the person uses it, you'll need to delete the pending
-            user and create a new invite.
+            Invite links expire after{" "}
+            <strong>7 days</strong>. If the link expires before the person uses
+            it, you'll need to delete the pending user and create a new invite.
           </p>
         </Q>
       </Section>
@@ -805,38 +848,40 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="How is attendee data protected?">
           <p>
             All personal information (names, email addresses, phone numbers,
-            postal addresses) is encrypted before being stored. Even if the database were
-            compromised, the data cannot be read without the encryption keys.
-            Data is only decrypted when an authenticated admin views it.
+            postal addresses) is encrypted before being stored. Even if the
+            database were compromised, the data cannot be read without the
+            encryption keys. Data is only decrypted when an authenticated admin
+            views it.
           </p>
         </Q>
 
         <Q q="What happens if I lose my password?">
           <p>
-            There is <strong>no password recovery</strong>. If you lose your
-            password, you cannot log in or decrypt any data. Keep your password
-            safe. Another owner can delete your account and send a fresh
-            invite, and all existing attendee data remains accessible to other
-            admins.
+            There is{" "}
+            <strong>no password recovery</strong>. If you lose your password,
+            you cannot log in or decrypt any data. Keep your password safe.
+            Another owner can delete your account and send a fresh invite, and
+            all existing attendee data remains accessible to other admins.
           </p>
         </Q>
 
         <Q q="Can I export attendee data?">
           <p>
-            Yes. On any event's attendee list, click <strong>Export CSV</strong>.
-            The export includes name, email, phone, address, special
-            instructions, quantity, registration date, amount paid, transaction
-            ID, check-in status, and ticket URL. For daily events, you can
-            filter by date before exporting.
+            Yes. On any event's attendee list, click{" "}
+            <strong>Export CSV</strong>. The export includes name, email, phone,
+            address, special instructions, quantity, registration date, amount
+            paid, transaction ID, check-in status, and ticket URL. For daily
+            events, you can filter by date before exporting.
           </p>
         </Q>
 
         <Q q="What does 'reset database' do?">
           <p>
-            It permanently deletes <strong>everything</strong>: all events,
-            attendees, users, payment configuration, and sessions. The system
-            returns to its initial setup state. You must type a confirmation
-            phrase to proceed. This cannot be undone.
+            It permanently deletes{" "}
+            <strong>everything</strong>: all events, attendees, users, payment
+            configuration, and sessions. The system returns to its initial setup
+            state. You must type a confirmation phrase to proceed. This cannot
+            be undone.
           </p>
         </Q>
       </Section>
@@ -845,9 +890,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="What are webhooks for?">
           <p>
             Webhooks send an automatic notification to a URL of your choice
-            whenever someone registers for an event. You can use them to
-            connect to other services, e.g. sending a Slack message or updating
-            a spreadsheet.
+            whenever someone registers for an event. You can use them to connect
+            to other services, e.g. sending a Slack message or updating a
+            spreadsheet.
           </p>
         </Q>
 
@@ -867,11 +912,13 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
           <pre><code>{WEBHOOK_EXAMPLE_JSON}</code></pre>
           <p>
-            Prices are in the smallest currency unit (e.g. pence for GBP,
-            cents for USD). The <code>ticket_url</code> links to the
-            attendee's ticket page. For multi-event bookings the{" "}
-            <code>tickets</code> array contains one entry per event and the
-            URL combines all tokens with <code>+</code>.
+            Prices are in the smallest currency unit (e.g. pence for GBP, cents
+            for USD). The <code>ticket_url</code>{" "}
+            links to the attendee's ticket page. For multi-event bookings the
+            {" "}
+            <code>tickets</code>{" "}
+            array contains one entry per event and the URL combines all tokens
+            with <code>+</code>.
           </p>
         </Q>
       </Section>
@@ -887,10 +934,10 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I log out other users?">
           <p>
-            On the <strong>Sessions</strong> page, click "Log out of all other
-            sessions". This ends every session except your own, forcing all
-            other admins to log in again. Useful if you suspect an account has
-            been compromised.
+            On the <strong>Sessions</strong>{" "}
+            page, click "Log out of all other sessions". This ends every session
+            except your own, forcing all other admins to log in again. Useful if
+            you suspect an account has been compromised.
           </p>
         </Q>
       </Section>
@@ -898,11 +945,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Calendar">
         <Q q="What is the calendar page?">
           <p>
-            The <strong>Calendar</strong> page lets you pick a date and see
-            every attendee booked across all events on that day. This is
-            especially useful for daily events. You can export a CSV of the
-            day's attendees and manage check-ins, edits, and deletions from
-            the same view.
+            The <strong>Calendar</strong>{" "}
+            page lets you pick a date and see every attendee booked across all
+            events on that day. This is especially useful for daily events. You
+            can export a CSV of the day's attendees and manage check-ins, edits,
+            and deletions from the same view.
           </p>
         </Q>
       </Section>
@@ -910,10 +957,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Activity Log">
         <Q q="What is the activity log?">
           <p>
-            The <strong>Log</strong> page (owners only) shows a chronological
-            list of admin actions such as event creation, attendee changes,
-            and settings updates. Each event also has its own log, accessible
-            from the event page, showing only actions related to that event.
+            The <strong>Log</strong>{" "}
+            page (owners only) shows a chronological list of admin actions such
+            as event creation, attendee changes, and settings updates. Each
+            event also has its own log, accessible from the event page, showing
+            only actions related to that event.
           </p>
         </Q>
       </Section>
@@ -921,13 +969,14 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Email Notifications">
         <Q q="What are email notifications?">
           <p>
-            When configured, the system can send up to two emails after
-            each successful registration: a <strong>confirmation email</strong>{" "}
+            When configured, the system can send up to two emails after each
+            successful registration: a <strong>confirmation email</strong>{" "}
             to the attendee (if they provided an email address) with their
-            ticket details and link, and a{" "}
-            <strong>notification email</strong> to the business email address
-            (if one is set) letting you know someone has booked. Emails are
-            sent in the background and won't delay the booking process.
+            ticket details and link, and a <strong>notification email</strong>
+            {" "}
+            to the business email address (if one is set) letting you know
+            someone has booked. Emails are sent in the background and won't
+            delay the booking process.
           </p>
         </Q>
 
@@ -937,16 +986,26 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             required):
           </p>
           <ul>
-            <li><strong>Resend</strong></li>
-            <li><strong>Postmark</strong></li>
-            <li><strong>SendGrid</strong></li>
-            <li><strong>Mailgun (US)</strong></li>
-            <li><strong>Mailgun (EU)</strong></li>
+            <li>
+              <strong>Resend</strong>
+            </li>
+            <li>
+              <strong>Postmark</strong>
+            </li>
+            <li>
+              <strong>SendGrid</strong>
+            </li>
+            <li>
+              <strong>Mailgun (US)</strong>
+            </li>
+            <li>
+              <strong>Mailgun (EU)</strong>
+            </li>
           </ul>
           <p>
-            All providers work the same way &mdash; choose whichever you
-            already have an account with or whichever offers a free tier that
-            suits your volume.
+            All providers work the same way &mdash; choose whichever you already
+            have an account with or whichever offers a free tier that suits your
+            volume.
           </p>
         </Q>
 
@@ -960,13 +1019,14 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               Choose your email provider from the dropdown
             </li>
             <li>
-              Paste your provider's API key into the{" "}
-              <strong>API Key</strong> field
+              Paste your provider's API key into the <strong>API Key</strong>
+              {" "}
+              field
             </li>
             <li>
-              Enter a <strong>From Address</strong> &mdash; this is the sender
-              address that appears on outgoing emails. If left blank, the
-              business email address is used instead
+              Enter a <strong>From Address</strong>{" "}
+              &mdash; this is the sender address that appears on outgoing
+              emails. If left blank, the business email address is used instead
             </li>
             <li>Save the settings</li>
           </ol>
@@ -979,11 +1039,14 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I test that email is working?">
           <p>
-            After saving your email settings, a <strong>Send Test
-            Email</strong> button appears. Click it to send a test email to
-            your business email address. If the test fails, you'll see an
-            error with the HTTP status code from your provider &mdash; check
-            that your API key is correct and your from address is verified.
+            After saving your email settings, a{" "}
+            <strong>
+              Send Test Email
+            </strong>{" "}
+            button appears. Click it to send a test email to your business email
+            address. If the test fails, you'll see an error with the HTTP status
+            code from your provider &mdash; check that your API key is correct
+            and your from address is verified.
           </p>
         </Q>
 
@@ -1000,17 +1063,17 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             The attendee receives an email with the event name(s), quantity,
             price paid, and a clickable link to their ticket page. For
             multi-event bookings, all events are listed in a single email. The
-            business email is set as the reply-to address so attendees can
-            reply directly to you.
+            business email is set as the reply-to address so attendees can reply
+            directly to you.
           </p>
         </Q>
 
         <Q q="What does the admin notification email contain?">
           <p>
             You receive an email showing the attendee's name, email, phone,
-            address, and any special instructions, along with the event
-            name(s), quantity, and price. The attendee's email is set as the
-            reply-to address so you can reply directly to them.
+            address, and any special instructions, along with the event name(s),
+            quantity, and price. The attendee's email is set as the reply-to
+            address so you can reply directly to them.
           </p>
         </Q>
       </Section>
@@ -1018,24 +1081,26 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Email Templates">
         <Q q="Can I customise the emails that are sent?">
           <p>
-            Yes. In <a href="/admin/settings">Settings</a>, scroll to the
-            email template sections. You can customise both the{" "}
-            <strong>confirmation email</strong> (sent to the attendee) and the{" "}
-            <strong>admin notification email</strong> (sent to you). Each has
-            three parts: subject line, HTML body, and plain text body.
+            Yes. In{" "}
+            <a href="/admin/settings">Settings</a>, scroll to the email template
+            sections. You can customise both the{" "}
+            <strong>confirmation email</strong> (sent to the attendee) and the
+            {" "}
+            <strong>admin notification email</strong>{" "}
+            (sent to you). Each has three parts: subject line, HTML body, and
+            plain text body.
           </p>
           <p>
-            Templates use{" "}
-            <a href="https://liquidjs.com/">Liquid</a> syntax. Clear any
-            field to revert to the built-in default.
+            Templates use <a href="https://liquidjs.com/">Liquid</a>{" "}
+            syntax. Clear any field to revert to the built-in default.
           </p>
         </Q>
 
         <Q q="What variables can I use in templates?">
           <ul>
             <li>
-              <code>{"{{ event_names }}"}</code> &mdash; all event names
-              joined with &ldquo;and&rdquo;
+              <code>{"{{ event_names }}"}</code>{" "}
+              &mdash; all event names joined with &ldquo;and&rdquo;
             </li>
             <li>
               <code>{"{{ ticket_url }}"}</code> &mdash; link to view tickets
@@ -1057,9 +1122,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             </li>
           </ul>
           <p>
-            For multi-event bookings, loop through the{" "}
-            <code>entries</code> array:{" "}
-            <code>{"{% for entry in entries %}"}</code>. Each entry has{" "}
+            For multi-event bookings, loop through the <code>entries</code>{" "}
+            array: <code>{"{% for entry in entries %}"}</code>. Each entry has
+            {" "}
             <code>entry.event.name</code>,{" "}
             <code>entry.attendee.quantity</code>, etc.
           </p>
@@ -1071,11 +1136,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
           <ul>
             <li>
-              <code>{"{{ amount | currency }}"}</code> &mdash; formats a
-              number as currency (e.g. &pound;15.00)
+              <code>{"{{ amount | currency }}"}</code>{" "}
+              &mdash; formats a number as currency (e.g. &pound;15.00)
             </li>
             <li>
-              <code>{"{{ count | pluralize: \"ticket\", \"tickets\" }}"}</code>{" "}
+              <code>{'{{ count | pluralize: "ticket", "tickets" }}'}</code>{" "}
               &mdash; returns the singular or plural form based on the count
             </li>
           </ul>
@@ -1083,9 +1148,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="What happens if my template has an error?">
           <p>
-            If a custom template fails to render, the system falls back to
-            the built-in default template automatically. The email is still
-            sent &mdash; your attendees won't miss their confirmation.
+            If a custom template fails to render, the system falls back to the
+            built-in default template automatically. The email is still sent
+            &mdash; your attendees won't miss their confirmation.
           </p>
         </Q>
       </Section>
@@ -1093,21 +1158,22 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Custom Domain">
         <Q q="How do I set up a custom domain?">
           <p>
-            If your site runs on Bunny CDN and the{" "}
-            <code>BUNNY_API_KEY</code> environment variable is configured,
-            you'll see a <strong>Custom Domain</strong> section in{" "}
+            If your site runs on Bunny CDN and the <code>BUNNY_API_KEY</code>
+            {" "}
+            environment variable is configured, you'll see a{" "}
+            <strong>Custom Domain</strong> section in{" "}
             <a href="/admin/settings">Settings</a>. Enter your domain (e.g.{" "}
-            <code>tickets.yourdomain.com</code>) and save, then follow the
-            CNAME instructions shown and click <strong>Validate</strong>.
+            <code>tickets.yourdomain.com</code>) and save, then follow the CNAME
+            instructions shown and click <strong>Validate</strong>.
           </p>
         </Q>
 
         <Q q="What does validation do?">
           <p>
-            Validation checks that your DNS is set up correctly, registers
-            the hostname with Bunny CDN, requests a free SSL certificate,
-            and enables HTTPS. You can re-validate at any time if you change
-            your DNS.
+            Validation checks that your DNS is set up correctly, registers the
+            hostname with Bunny CDN, requests a free SSL certificate, and
+            enables HTTPS. You can re-validate at any time if you change your
+            DNS.
           </p>
         </Q>
       </Section>
@@ -1115,49 +1181,50 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Settings Overview">
         <Q q="What settings are available?">
           <p>
-            The <strong>Settings</strong> page (owners only) lets you
-            configure:
+            The <strong>Settings</strong> page (owners only) lets you configure:
           </p>
           <ul>
             <li>
-              <strong>Timezone</strong> &mdash; all dates and times use this
-              timezone
+              <strong>Timezone</strong>{" "}
+              &mdash; all dates and times use this timezone
             </li>
             <li>
-              <strong>Phone prefix</strong> &mdash; country calling code
-              (e.g. 44 for UK, 1 for US) used to normalise phone numbers
+              <strong>Phone prefix</strong>{" "}
+              &mdash; country calling code (e.g. 44 for UK, 1 for US) used to
+              normalise phone numbers
             </li>
             <li>
-              <strong>Business email</strong> &mdash; included in webhook
-              notifications
+              <strong>Business email</strong>{" "}
+              &mdash; included in webhook notifications
             </li>
             <li>
-              <strong>Payment provider</strong> &mdash; Stripe, Square, or
-              none
+              <strong>Payment provider</strong> &mdash; Stripe, Square, or none
             </li>
             <li>
-              <strong>Email provider</strong> &mdash; Resend, Postmark,
-              SendGrid, or Mailgun for automatic registration emails
+              <strong>Email provider</strong>{" "}
+              &mdash; Resend, Postmark, SendGrid, or Mailgun for automatic
+              registration emails
             </li>
             <li>
-              <strong>Email templates</strong> &mdash; customise
-              confirmation and admin notification emails using Liquid syntax
+              <strong>Email templates</strong>{" "}
+              &mdash; customise confirmation and admin notification emails using
+              Liquid syntax
             </li>
             <li>
-              <strong>Custom domain</strong> &mdash; set up a custom domain
-              for your site (Bunny CDN only)
+              <strong>Custom domain</strong>{" "}
+              &mdash; set up a custom domain for your site (Bunny CDN only)
             </li>
             <li>
-              <strong>Embed hosts</strong> &mdash; restrict which websites can
-              embed your booking forms
+              <strong>Embed hosts</strong>{" "}
+              &mdash; restrict which websites can embed your booking forms
             </li>
             <li>
-              <strong>Terms and conditions</strong> &mdash; attendees must
-              agree before booking
+              <strong>Terms and conditions</strong>{" "}
+              &mdash; attendees must agree before booking
             </li>
             <li>
-              <strong>Public site</strong> &mdash; enable or disable the
-              public website
+              <strong>Public site</strong>{" "}
+              &mdash; enable or disable the public website
             </li>
             <li>
               <strong>Site theme</strong> &mdash; light or dark
@@ -1175,13 +1242,14 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <ul>
             <li>
               <strong>ICS calendar</strong> &mdash;{" "}
-              <code>/feeds/events.ics</code> &mdash; subscribe from any calendar
-              app (Google Calendar, Apple Calendar, Thunderbird, etc.)
+              <code>/feeds/events.ics</code>{" "}
+              &mdash; subscribe from any calendar app (Google Calendar, Apple
+              Calendar, Thunderbird, etc.)
             </li>
             <li>
-              <strong>RSS feed</strong> &mdash;{" "}
-              <code>/feeds/events.rss</code> &mdash; subscribe from any RSS
-              reader
+              <strong>RSS feed</strong> &mdash; <code>/feeds/events.rss</code>
+              {" "}
+              &mdash; subscribe from any RSS reader
             </li>
           </ul>
           <p>
@@ -1192,9 +1260,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I connect to Mobilizon?">
           <p>
-            <a href="https://mobilizon.org/">Mobilizon</a> is a federated
-            event platform. You can use its built-in importer to pull events
-            from your ICS feed:
+            <a href="https://mobilizon.org/">Mobilizon</a>{" "}
+            is a federated event platform. You can use its built-in importer to
+            pull events from your ICS feed:
           </p>
           <ol>
             <li>
@@ -1207,8 +1275,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               <code>https://{getAllowedDomain()}/feeds/events.ics</code>
             </li>
             <li>
-              Set <strong>joinMode</strong> to <strong>external</strong> so the
-              &ldquo;Join&rdquo; button on Mobilizon links back to your
+              Set <strong>joinMode</strong> to <strong>external</strong>{" "}
+              so the &ldquo;Join&rdquo; button on Mobilizon links back to your
               registration page
             </li>
           </ol>
@@ -1223,27 +1291,33 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="What is the public API?">
           <p>
             The system includes a JSON API that exposes the same data and
-            booking functionality as the web interface. It lets you build
-            custom frontends, integrate with other services, or automate
-            bookings. No API key is needed &mdash; the API is public, just
-            like the booking forms.
+            booking functionality as the web interface. It lets you build custom
+            frontends, integrate with other services, or automate bookings. No
+            API key is needed &mdash; the API is public, just like the booking
+            forms.
           </p>
         </Q>
 
         <Q q="What endpoints are available?">
-          <p>The base URL is your domain (e.g.{" "}
-            <code>https://{getAllowedDomain()}</code>). All responses are JSON.</p>
+          <p>
+            The base URL is your domain (e.g.{" "}
+            <code>https://{getAllowedDomain()}</code>). All responses are JSON.
+          </p>
           <ul>
             <li>
-              <code>GET /api/events</code> &mdash; list all active, non-hidden
-              events
+              <code>GET /api/events</code>{" "}
+              &mdash; list all active, non-hidden events
             </li>
             <li>
-              <code>GET /api/events/:slug</code> &mdash; get a single event by
-              its slug (hidden events are accessible if you know the slug)
+              <code>GET /api/events/:slug</code>{" "}
+              &mdash; get a single event by its slug (hidden events are
+              accessible if you know the slug)
             </li>
             <li>
-              <code>GET /api/events/:slug/availability?quantity=N&amp;date=YYYY-MM-DD</code>{" "}
+              <code>
+                GET
+                /api/events/:slug/availability?quantity=N&amp;date=YYYY-MM-DD
+              </code>{" "}
               &mdash; check if spots are available
             </li>
             <li>
@@ -1259,17 +1333,18 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="How do I list events?">
           <pre><code>{`GET /api/events\n\nResponse:\n${API_LIST_EXAMPLE_JSON}`}</code></pre>
           <p>
-            Prices are in the smallest currency unit (e.g. pence for GBP,
-            cents for USD). <code>maxPurchasable</code> is 0 when the event is
-            sold out or registration is closed.
+            Prices are in the smallest currency unit (e.g. pence for GBP, cents
+            for USD). <code>maxPurchasable</code>{" "}
+            is 0 when the event is sold out or registration is closed.
           </p>
         </Q>
 
         <Q q="How do I get a single event?">
           <pre><code>{`GET /api/events/summer-workshop\n\nResponse:\n${API_SINGLE_EXAMPLE_JSON}`}</code></pre>
           <p>
-            The <code>availableDates</code> field is only included for daily
-            events. Returns <code>{"{ \"error\": \"Event not found\" }"}</code>{" "}
+            The <code>availableDates</code>{" "}
+            field is only included for daily events. Returns{" "}
+            <code>{'{ "error": "Event not found" }'}</code>{" "}
             with status 404 if the event doesn&apos;t exist or is inactive.
           </p>
         </Q>
@@ -1277,40 +1352,47 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="How do I check availability?">
           <pre><code>{`GET /api/events/summer-workshop/availability?quantity=2\n\nResponse:\n${API_AVAILABILITY_EXAMPLE_JSON}`}</code></pre>
           <p>
-            For daily events, add <code>&amp;date=YYYY-MM-DD</code> to check a
-            specific date. The <code>quantity</code> parameter defaults to 1.
+            For daily events, add <code>&amp;date=YYYY-MM-DD</code>{" "}
+            to check a specific date. The <code>quantity</code>{" "}
+            parameter defaults to 1.
           </p>
         </Q>
 
         <Q q="How do I create a booking?">
           <pre><code>{`POST /api/events/summer-workshop/book\nContent-Type: application/json\n\n${API_BOOK_REQUEST_JSON}`}</code></pre>
           <p>
-            Which fields are required depends on the event's field settings.
-            The <code>name</code> field is always required.{" "}
-            <code>date</code> is required for daily events (use a date from{" "}
-            <code>availableDates</code>). <code>customPrice</code> is for
-            pay-more events only (in major currency units, e.g. 10.00 for
+            Which fields are required depends on the event's field settings. The
+            {" "}
+            <code>name</code> field is always required. <code>date</code>{" "}
+            is required for daily events (use a date from{" "}
+            <code>availableDates</code>). <code>customPrice</code>{" "}
+            is for pay-more events only (in major currency units, e.g. 10.00 for
             &pound;10).
           </p>
-          <p><strong>Free event response:</strong></p>
+          <p>
+            <strong>Free event response:</strong>
+          </p>
           <pre><code>{API_BOOK_FREE_EXAMPLE_JSON}</code></pre>
-          <p><strong>Paid event response:</strong></p>
+          <p>
+            <strong>Paid event response:</strong>
+          </p>
           <pre><code>{API_BOOK_PAID_EXAMPLE_JSON}</code></pre>
           <p>
-            Redirect the user to <code>checkoutUrl</code> to complete payment.
-            Possible error responses: 400 (validation error or registration
-            closed), 404 (event not found), 409 (not enough spots available).
+            Redirect the user to <code>checkoutUrl</code>{" "}
+            to complete payment. Possible error responses: 400 (validation error
+            or registration closed), 404 (event not found), 409 (not enough
+            spots available).
           </p>
         </Q>
 
         <Q q="What data does the API expose?">
           <p>
-            The API exposes <strong>exactly the same data</strong> as the
-            public booking pages &mdash; no more. Internal fields like
-            capacity limits, attendee counts, close times, and webhook URLs
-            are never included. The <code>isSoldOut</code>,{" "}
-            <code>isClosed</code>, and <code>maxPurchasable</code> fields are
-            derived values, not raw database fields.
+            The API exposes <strong>exactly the same data</strong>{" "}
+            as the public booking pages &mdash; no more. Internal fields like
+            capacity limits, attendee counts, close times, and webhook URLs are
+            never included. The <code>isSoldOut</code>,{" "}
+            <code>isClosed</code>, and <code>maxPurchasable</code>{" "}
+            fields are derived values, not raw database fields.
           </p>
         </Q>
       </Section>
@@ -1330,9 +1412,10 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="Can you customise it for me?">
           <p>
-            Yes. I offer customisation at a transparent flat rate &mdash; see{" "}
-            <a href="https://chobble.com/prices">chobble.com/prices</a> for
-            current pricing. I can help you with custom features, branding,
+            Yes. I offer customisation at a transparent flat rate &mdash; see
+            {" "}
+            <a href="https://chobble.com/prices">chobble.com/prices</a>{" "}
+            for current pricing. I can help you with custom features, branding,
             event image design, hosting setup, or whatever you need. You'll own
             the code outright, and I can show you how to maintain it yourself or
             handle updates for you. Over 20 years building web systems means I
@@ -1344,10 +1427,10 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             Yes to both. I can set you up on your own Bunny CDN account (or
             another host) and handle the technical configuration. I also design
-            event images if you need them. Get in touch and we'll figure out exactly
-            what you need.
+            event images if you need them. Get in touch and we'll figure out
+            exactly what you need.
           </p>
         </Q>
       </Section>
-    </Layout>
+    </Layout>,
   );

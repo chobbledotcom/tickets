@@ -81,7 +81,8 @@ export const createSession = async (
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
   await getDb().execute({
-    sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
+    sql:
+      "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
     args: [tokenHash, csrfToken, expires, wrappedDataKey, userId],
   });
   // Pre-cache the new session using token hash as key

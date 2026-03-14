@@ -19,8 +19,7 @@ const eventTier = (event: Event): number => {
  * Create a comparator that uses pre-computed next-bookable-dates for daily events.
  */
 const compareEvents =
-  (nextDates: Map<number, string | null>) =>
-  (a: Event, b: Event): number => {
+  (nextDates: Map<number, string | null>) => (a: Event, b: Event): number => {
     const tierA = eventTier(a);
     const tierB = eventTier(b);
     if (tierA !== tierB) return tierA - tierB;

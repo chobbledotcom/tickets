@@ -17,13 +17,13 @@ import {
   createTestDbWithSetup,
   createTestManagerSession,
   expectHtmlResponse,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 /** JPEG magic bytes for a valid test image */
@@ -185,7 +185,12 @@ describe("server (header image settings)", () => {
     test("shows remove button when header image is set", async () => {
       await updateHeaderImageUrl("existing.jpg");
       const { response } = await adminGet("/admin/settings");
-      await expectHtmlResponse(response, 200, "Remove Image", "/image/existing.jpg");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Remove Image",
+        "/image/existing.jpg",
+      );
     });
 
     test("shows upload button when no header image exists", async () => {
@@ -260,7 +265,10 @@ describe("server (header image settings)", () => {
     });
 
     test("returns 403 for non-owner admin", async () => {
-      const managerCookie = await createTestManagerSession("mgr-header-session", "headerimgmgr");
+      const managerCookie = await createTestManagerSession(
+        "mgr-header-session",
+        "headerimgmgr",
+      );
       const { signCsrfToken } = await import("#lib/csrf.ts");
       const signedCsrf = await signCsrfToken();
       const request = mockMultipartRequest(
@@ -304,7 +312,11 @@ describe("server (header image settings)", () => {
         },
       );
       const response = await handleRequest(request);
-      await expectHtmlResponse(response, 400, "Image storage is not configured");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Image storage is not configured",
+      );
     });
 
     test("deletes old header image when uploading new one", async () => {
@@ -415,7 +427,12 @@ describe("server (header image settings)", () => {
     test("renders header image in page when set", async () => {
       await updateHeaderImageUrl("my-header.jpg");
       const { response } = await adminGet("/admin/settings");
-      await expectHtmlResponse(response, 200, 'class="header-image"', "/image/my-header.jpg");
+      await expectHtmlResponse(
+        response,
+        200,
+        'class="header-image"',
+        "/image/my-header.jpg",
+      );
     });
 
     test("does not render header image when not set", async () => {

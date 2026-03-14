@@ -5,10 +5,17 @@
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
 import { getAllowedDomain, getTz } from "#lib/config.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
-import { eventDateToCalendarDate, formatDateLabel, getAvailableDates } from "#lib/dates.ts";
+import {
+  eventDateToCalendarDate,
+  formatDateLabel,
+  getAvailableDates,
+} from "#lib/dates.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { decryptAttendees, decryptAttendeesForTable } from "#lib/db/attendees.ts";
+import {
+  decryptAttendees,
+  decryptAttendeesForTable,
+} from "#lib/db/attendees.ts";
 import { mergeEventFields } from "#lib/event-fields.ts";
 import {
   getAllDailyEvents,
@@ -18,7 +25,7 @@ import {
   getDailyEventAttendeesByDate,
 } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { isPaidEvent, type Attendee, type EventWithCount } from "#lib/types.ts";
+import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { csvResponse, getDateFilter } from "#routes/admin/utils.ts";
 import {
@@ -27,7 +34,11 @@ import {
   redirect,
   requireSessionOr,
 } from "#routes/utils.ts";
-import { adminCalendarPage, type CalendarAttendeeRow, type CalendarDateOption } from "#templates/admin/calendar.tsx";
+import {
+  adminCalendarPage,
+  type CalendarAttendeeRow,
+  type CalendarDateOption,
+} from "#templates/admin/calendar.tsx";
 import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
 
 /** Build a map of YYYY-MM-DD → event IDs for standard events that have a date */
@@ -54,7 +65,12 @@ const compileDateOptions = (
   attendeeDates: string[],
   standardEventDateMap: Map<string, number[]>,
   standardEvents: EventWithCount[],
-  holidays: { id: number; name: string; start_date: string; end_date: string }[],
+  holidays: {
+    id: number;
+    name: string;
+    start_date: string;
+    end_date: string;
+  }[],
 ): CalendarDateOption[] => {
   const availableDates = pipe(
     flatMap((event: EventWithCount) => getAvailableDates(event, holidays)),
@@ -73,8 +89,9 @@ const compileDateOptions = (
     pipe(
       filter((d: string) =>
         standardEvents.some(
-          (e) => standardEventDateMap.get(d)!.includes(e.id) && e.attendee_count > 0,
-        ),
+          (e) =>
+            standardEventDateMap.get(d)!.includes(e.id) && e.attendee_count > 0,
+        )
       ),
     )(standardDates),
   );
@@ -113,13 +130,22 @@ const buildCalendarAttendees = (
 
 /** Sort attendees by newest registration first */
 const sortAttendeesByCreatedDesc = (attendees: Attendee[]): Attendee[] =>
-  [...attendees].sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+  [...attendees].sort((a, b) =>
+    new Date(b.created).getTime() - new Date(a.created).getTime()
+  );
 
 /** Auth + parse date filter from request, then call handler */
 const withCalendarSession = (
   request: Request,
-  handler: (session: Parameters<Parameters<typeof requireSessionOr>[1]>[0], dateFilter: string | null) => Response | Promise<Response>,
-) => requireSessionOr(request, (session) => handler(session, getDateFilter(request)));
+  handler: (
+    session: Parameters<Parameters<typeof requireSessionOr>[1]>[0],
+    dateFilter: string | null,
+  ) => Response | Promise<Response>,
+) =>
+  requireSessionOr(
+    request,
+    (session) => handler(session, getDateFilter(request)),
+  );
 
 /** Load standard events and build their date map */
 const loadStandardEventContext = async () => {
@@ -139,10 +165,17 @@ const loadStandardEventAttendees = async (
   if (!matchingEventIds || matchingEventIds.length === 0) return [];
   const rawStandardAttendees = await getAttendeesByEventIds(matchingEventIds);
   if (standardEvents) {
-    const matchingEvents = standardEvents.filter((e) => matchingEventIds.includes(e.id));
+    const matchingEvents = standardEvents.filter((e) =>
+      matchingEventIds.includes(e.id)
+    );
     const fields = mergeEventFields(matchingEvents.map((e) => e.fields));
     const hasPaidEvent = matchingEvents.some(isPaidEvent);
-    return decryptAttendeesForTable(rawStandardAttendees, privateKey, fields, hasPaidEvent);
+    return decryptAttendeesForTable(
+      rawStandardAttendees,
+      privateKey,
+      fields,
+      hasPaidEvent,
+    );
   }
   return decryptAttendees(rawStandardAttendees, privateKey);
 };
@@ -152,12 +185,13 @@ const loadStandardEventAttendees = async (
  */
 const handleAdminCalendarGet = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    const [dailyEvents, attendeeDates, holidays, standardCtx] = await Promise.all([
-      getAllDailyEvents(),
-      getDailyEventAttendeeDates(),
-      getActiveHolidays(),
-      loadStandardEventContext(),
-    ]);
+    const [dailyEvents, attendeeDates, holidays, standardCtx] = await Promise
+      .all([
+        getAllDailyEvents(),
+        getDailyEventAttendeeDates(),
+        getActiveHolidays(),
+        loadStandardEventContext(),
+      ]);
 
     const allEvents = [...dailyEvents, ...standardCtx.standardEvents];
     let attendees: CalendarAttendeeRow[] = [];
@@ -166,17 +200,33 @@ const handleAdminCalendarGet = (request: Request) =>
       const dailyFields = mergeEventFields(dailyEvents.map((e) => e.fields));
       const [rawDailyAttendees, standardAttendees] = await Promise.all([
         getDailyEventAttendeesByDate(dateFilter),
-        loadStandardEventAttendees(dateFilter, standardCtx.standardEventDateMap, privateKey, standardCtx.standardEvents),
+        loadStandardEventAttendees(
+          dateFilter,
+          standardCtx.standardEventDateMap,
+          privateKey,
+          standardCtx.standardEvents,
+        ),
       ]);
       const hasPaidDailyEvent = dailyEvents.some(isPaidEvent);
-      const dailyAttendees = await decryptAttendeesForTable(rawDailyAttendees, privateKey, dailyFields, hasPaidDailyEvent);
-      const sortedAttendees = sortAttendeesByCreatedDesc([...dailyAttendees, ...standardAttendees]);
+      const dailyAttendees = await decryptAttendeesForTable(
+        rawDailyAttendees,
+        privateKey,
+        dailyFields,
+        hasPaidDailyEvent,
+      );
+      const sortedAttendees = sortAttendeesByCreatedDesc([
+        ...dailyAttendees,
+        ...standardAttendees,
+      ]);
       attendees = buildCalendarAttendees(allEvents, sortedAttendees);
     }
 
     const availableDates = compileDateOptions(
-      dailyEvents, attendeeDates, standardCtx.standardEventDateMap,
-      standardCtx.standardEvents, holidays,
+      dailyEvents,
+      attendeeDates,
+      standardCtx.standardEventDateMap,
+      standardCtx.standardEvents,
+      holidays,
     );
     const phonePrefix = await getPhonePrefixFromDb();
     return htmlResponse(
@@ -197,7 +247,9 @@ const handleAdminCalendarGet = (request: Request) =>
  */
 const handleAdminCalendarExport = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    if (!dateFilter) return redirect("/admin/calendar", "Select a date to export", false);
+    if (!dateFilter) {
+      return redirect("/admin/calendar", "Select a date to export", false);
+    }
 
     const privateKey = (await getPrivateKey(session))!;
     const [dailyEvents, rawDailyAttendees, standardCtx] = await Promise.all([
@@ -208,11 +260,18 @@ const handleAdminCalendarExport = (request: Request) =>
 
     const [dailyDecrypted, standardAttendees] = await Promise.all([
       decryptAttendees(rawDailyAttendees, privateKey),
-      loadStandardEventAttendees(dateFilter, standardCtx.standardEventDateMap, privateKey),
+      loadStandardEventAttendees(
+        dateFilter,
+        standardCtx.standardEventDateMap,
+        privateKey,
+      ),
     ]);
 
     const allEvents = [...dailyEvents, ...standardCtx.standardEvents];
-    const allAttendees = sortAttendeesByCreatedDesc([...dailyDecrypted, ...standardAttendees]);
+    const allAttendees = sortAttendeesByCreatedDesc([
+      ...dailyDecrypted,
+      ...standardAttendees,
+    ]);
     const attendees = buildCalendarAttendees(allEvents, allAttendees);
     const calendarAttendees: CalendarAttendee[] = attendees;
 

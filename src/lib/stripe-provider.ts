@@ -30,8 +30,9 @@ import {
 } from "#lib/stripe.ts";
 
 /** Convert a Stripe checkout session to a CheckoutResult */
-const stripeCheckoutResult = (session: { id?: string; url?: string | null } | null) =>
-  toCheckoutResult(session?.id, session?.url, "Stripe");
+const stripeCheckoutResult = (
+  session: { id?: string; url?: string | null } | null,
+) => toCheckoutResult(session?.id, session?.url, "Stripe");
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
@@ -39,12 +40,23 @@ export const stripePaymentProvider: PaymentProvider = {
 
   checkoutCompletedEventType: "checkout.session.completed",
 
-  async createCheckoutSession(event: Event, intent: RegistrationIntent, baseUrl: string) {
-    const session = await createCheckoutSessionWithIntent(event, intent, baseUrl);
+  async createCheckoutSession(
+    event: Event,
+    intent: RegistrationIntent,
+    baseUrl: string,
+  ) {
+    const session = await createCheckoutSessionWithIntent(
+      event,
+      intent,
+      baseUrl,
+    );
     return stripeCheckoutResult(session);
   },
 
-  async createMultiCheckoutSession(intent: MultiRegistrationIntent, baseUrl: string) {
+  async createMultiCheckoutSession(
+    intent: MultiRegistrationIntent,
+    baseUrl: string,
+  ) {
     const session = await createMultiCheckoutSession(intent, baseUrl);
     return stripeCheckoutResult(session);
   },
@@ -55,7 +67,8 @@ export const stripePaymentProvider: PaymentProvider = {
     const session = await retrieveCheckoutSession(sessionId);
     if (!session) return null;
 
-    const { id, payment_status, payment_intent, metadata, amount_total } = session;
+    const { id, payment_status, payment_intent, metadata, amount_total } =
+      session;
 
     if (!hasRequiredSessionMetadata(metadata)) {
       return null;
@@ -65,9 +78,12 @@ export const stripePaymentProvider: PaymentProvider = {
 
     return {
       id,
-      paymentStatus: isPaymentStatus(payment_status) ? payment_status : "unpaid",
-      paymentReference:
-        typeof payment_intent === "string" ? payment_intent : "",
+      paymentStatus: isPaymentStatus(payment_status)
+        ? payment_status
+        : "unpaid",
+      paymentReference: typeof payment_intent === "string"
+        ? payment_intent
+        : "",
       amountTotal: amount_total,
       metadata: extractSessionMetadata(metadata),
     };
@@ -107,5 +123,4 @@ export const stripePaymentProvider: PaymentProvider = {
   setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {
     return setupWebhookEndpoint(...args);
   },
-
 };

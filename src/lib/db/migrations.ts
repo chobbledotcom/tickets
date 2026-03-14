@@ -2,7 +2,13 @@
  * Database migrations
  */
 
-import { computeTicketTokenIndex, encrypt, encryptAttendeePII, generateTicketToken, hmacHash } from "#lib/crypto.ts";
+import {
+  computeTicketTokenIndex,
+  encrypt,
+  encryptAttendeePII,
+  generateTicketToken,
+  hmacHash,
+} from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 
@@ -23,22 +29,45 @@ const runMigration = async (sql: string): Promise<void> => {
 };
 
 /** Backfill a column with an encrypted value for matching rows */
-const backfillColumn = async (table: string, column: string, whereClause: string, encryptedValue: string): Promise<void> => {
-  const rows = await queryAll<{ id: number }>(`SELECT id FROM ${table} WHERE ${whereClause}`);
+const backfillColumn = async (
+  table: string,
+  column: string,
+  whereClause: string,
+  encryptedValue: string,
+): Promise<void> => {
+  const rows = await queryAll<{ id: number }>(
+    `SELECT id FROM ${table} WHERE ${whereClause}`,
+  );
   for (const row of rows) {
-    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedValue, row.id] });
+    await getDb().execute({
+      sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`,
+      args: [encryptedValue, row.id],
+    });
   }
 };
 
 /** Backfill a column with a symmetrically encrypted empty string */
-const backfillEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> =>
+const backfillEncryptedColumn = async (
+  table: string,
+  column: string,
+  whereClause: string,
+): Promise<void> =>
   backfillColumn(table, column, whereClause, await encrypt(""));
 
 /** Backfill a column with a hybrid-encrypted empty string */
-const backfillHybridEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> => {
+const backfillHybridEncryptedColumn = async (
+  table: string,
+  column: string,
+  whereClause: string,
+): Promise<void> => {
   const publicKey = await getPublicKey();
   if (!publicKey) return;
-  await backfillColumn(table, column, whereClause, await encryptAttendeePII("", publicKey));
+  await backfillColumn(
+    table,
+    column,
+    whereClause,
+    await encryptAttendeePII("", publicKey),
+  );
 };
 
 /**
@@ -136,7 +165,9 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Migration: rename stripe_payment_id -> payment_id for existing databases
-  await runMigration(`ALTER TABLE attendees RENAME COLUMN stripe_payment_id TO payment_id`);
+  await runMigration(
+    `ALTER TABLE attendees RENAME COLUMN stripe_payment_id TO payment_id`,
+  );
 
   // Create sessions table (includes all columns for fresh installs)
   await runMigration(`
@@ -191,7 +222,9 @@ export const initDb = async (): Promise<void> => {
     WHERE typeof(payment_session_id) = 'text'
   `);
   await runMigration(`DROP TABLE IF EXISTS processed_payments`);
-  await runMigration(`ALTER TABLE processed_payments_new RENAME TO processed_payments`);
+  await runMigration(
+    `ALTER TABLE processed_payments_new RENAME TO processed_payments`,
+  );
 
   // Migration: add price_paid column to attendees (encrypted with DB_ENCRYPTION_KEY)
   await runMigration(`ALTER TABLE attendees ADD COLUMN price_paid TEXT`);
@@ -208,17 +241,23 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Migration: add fields column to events (defaults to "email" for backwards compatibility)
-  await runMigration(`ALTER TABLE events ADD COLUMN fields TEXT NOT NULL DEFAULT 'email'`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN fields TEXT NOT NULL DEFAULT 'email'`,
+  );
 
   // Migration: add phone column to attendees (nullable, hybrid encrypted like email)
   await runMigration(`ALTER TABLE attendees ADD COLUMN phone TEXT`);
 
   // Migration: add name column to events (encrypted, defaults to existing slug for backfill)
-  await runMigration(`ALTER TABLE events ADD COLUMN name TEXT NOT NULL DEFAULT ''`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN name TEXT NOT NULL DEFAULT ''`,
+  );
   await runMigration(`UPDATE events SET name = slug WHERE name = ''`);
 
   // Migration: add description column to events (encrypted empty string for existing rows)
-  await runMigration(`ALTER TABLE events ADD COLUMN description TEXT NOT NULL DEFAULT ''`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN description TEXT NOT NULL DEFAULT ''`,
+  );
   const encryptedEmpty = await encrypt("");
   await getDb().execute({
     sql: `UPDATE events SET description = ? WHERE description = ''`,
@@ -226,7 +265,9 @@ export const initDb = async (): Promise<void> => {
   });
 
   // Migration: add checked_in column to attendees (hybrid encrypted, defaults to encrypted "false")
-  await runMigration(`ALTER TABLE attendees ADD COLUMN checked_in TEXT NOT NULL DEFAULT ''`);
+  await runMigration(
+    `ALTER TABLE attendees ADD COLUMN checked_in TEXT NOT NULL DEFAULT ''`,
+  );
   // Backfill existing attendees with encrypted "false" if public key is available
   const publicKey = await getPublicKey();
   if (publicKey) {
@@ -267,7 +308,9 @@ export const initDb = async (): Promise<void> => {
   {
     const existingPasswordHash = await getSetting("admin_password");
     const existingWrappedDataKey = await getSetting("wrapped_data_key");
-    const userCountRows = await queryAll<{ count: number }>("SELECT COUNT(*) as count FROM users");
+    const userCountRows = await queryAll<{ count: number }>(
+      "SELECT COUNT(*) as count FROM users",
+    );
     const hasNoUsers = userCountRows[0]!.count === 0;
 
     if (existingPasswordHash && hasNoUsers) {
@@ -278,7 +321,8 @@ export const initDb = async (): Promise<void> => {
       const encryptedAdminLevel = await encrypt("owner");
 
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+        sql:
+          `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
               VALUES (?, ?, ?, ?, ?)`,
         args: [
           encryptedUsername,
@@ -298,11 +342,15 @@ export const initDb = async (): Promise<void> => {
   await runMigration(`DELETE FROM sessions WHERE user_id IS NULL`);
 
   // Migration: add ticket_token column to attendees (unique, for public ticket URLs)
-  await runMigration(`ALTER TABLE attendees ADD COLUMN ticket_token TEXT NOT NULL DEFAULT ''`);
+  await runMigration(
+    `ALTER TABLE attendees ADD COLUMN ticket_token TEXT NOT NULL DEFAULT ''`,
+  );
 
   // Backfill existing attendees with random tokens
   {
-    const rows = await queryAll<{ id: number }>(`SELECT id FROM attendees WHERE ticket_token = ''`);
+    const rows = await queryAll<{ id: number }>(
+      `SELECT id FROM attendees WHERE ticket_token = ''`,
+    );
     for (const row of rows) {
       await getDb().execute({
         sql: `UPDATE attendees SET ticket_token = ? WHERE id = ?`,
@@ -317,10 +365,18 @@ export const initDb = async (): Promise<void> => {
   );
 
   // Migration: add event_type and daily booking config columns to events
-  await runMigration(`ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'standard'`);
-  await runMigration(`ALTER TABLE events ADD COLUMN bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]'`);
-  await runMigration(`ALTER TABLE events ADD COLUMN minimum_days_before INTEGER NOT NULL DEFAULT 1`);
-  await runMigration(`ALTER TABLE events ADD COLUMN maximum_days_after INTEGER NOT NULL DEFAULT 90`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'standard'`,
+  );
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]'`,
+  );
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN minimum_days_before INTEGER NOT NULL DEFAULT 1`,
+  );
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN maximum_days_after INTEGER NOT NULL DEFAULT 90`,
+  );
 
   // Migration: create holidays table
   await runMigration(`
@@ -349,7 +405,9 @@ export const initDb = async (): Promise<void> => {
   );
 
   // Migration: add group_id column to events (default 0 = no group)
-  await runMigration(`ALTER TABLE events ADD COLUMN group_id INTEGER NOT NULL DEFAULT 0`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN group_id INTEGER NOT NULL DEFAULT 0`,
+  );
   // Safety net: ensure existing rows never have NULL
   await runMigration(`UPDATE events SET group_id = 0 WHERE group_id IS NULL`);
 
@@ -357,32 +415,48 @@ export const initDb = async (): Promise<void> => {
   await runMigration(`ALTER TABLE attendees ADD COLUMN date TEXT DEFAULT NULL`);
 
   // Migration: add address column to attendees (hybrid encrypted like phone)
-  await runMigration(`ALTER TABLE attendees ADD COLUMN address TEXT NOT NULL DEFAULT ''`);
+  await runMigration(
+    `ALTER TABLE attendees ADD COLUMN address TEXT NOT NULL DEFAULT ''`,
+  );
 
   // Migration: convert event fields from "both" to "email,phone" (comma-separated format)
-  await runMigration(`UPDATE events SET fields = 'email,phone' WHERE fields = 'both'`);
+  await runMigration(
+    `UPDATE events SET fields = 'email,phone' WHERE fields = 'both'`,
+  );
 
   // Migration: add date and location columns to events (encrypted, empty string = not set)
   for (const col of ["date", "location"]) {
-    await runMigration(`ALTER TABLE events ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
+    await runMigration(
+      `ALTER TABLE events ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`,
+    );
     await backfillEncryptedColumn("events", col, `${col} = ''`);
   }
 
   // Migration: add special_instructions column to attendees (hybrid encrypted like address)
-  await runMigration(`ALTER TABLE attendees ADD COLUMN special_instructions TEXT NOT NULL DEFAULT ''`);
+  await runMigration(
+    `ALTER TABLE attendees ADD COLUMN special_instructions TEXT NOT NULL DEFAULT ''`,
+  );
 
   // Migration: add image_url column to events (encrypted, empty string = no image)
-  await runMigration(`ALTER TABLE events ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`,
+  );
   await backfillEncryptedColumn("events", "image_url", `image_url = ''`);
 
   // Migration: add ticket_token_index column for HMAC-based lookups
-  await runMigration(`ALTER TABLE attendees ADD COLUMN ticket_token_index TEXT`);
+  await runMigration(
+    `ALTER TABLE attendees ADD COLUMN ticket_token_index TEXT`,
+  );
 
   // Backfill: encrypt empty PII fields with encrypted empty strings
   await backfillHybridEncryptedColumn("attendees", "email", `email = ''`);
   await backfillHybridEncryptedColumn("attendees", "phone", `phone = ''`);
   await backfillHybridEncryptedColumn("attendees", "address", `address = ''`);
-  await backfillHybridEncryptedColumn("attendees", "special_instructions", `special_instructions = ''`);
+  await backfillHybridEncryptedColumn(
+    "attendees",
+    "special_instructions",
+    `special_instructions = ''`,
+  );
 
   // Backfill: encrypt existing plaintext ticket_token values and generate HMAC indexes
   {
@@ -390,7 +464,7 @@ export const initDb = async (): Promise<void> => {
     if (pubKey) {
       // Get all attendees that need migration (those with plaintext tokens or missing index)
       const attendees = await queryAll<{ id: number; ticket_token: string }>(
-        `SELECT id, ticket_token FROM attendees WHERE ticket_token_index IS NULL`
+        `SELECT id, ticket_token FROM attendees WHERE ticket_token_index IS NULL`,
       );
 
       for (const attendee of attendees) {
@@ -400,7 +474,8 @@ export const initDb = async (): Promise<void> => {
         const tokenIndex = await computeTicketTokenIndex(plaintextToken);
 
         await getDb().execute({
-          sql: `UPDATE attendees SET ticket_token = ?, ticket_token_index = ? WHERE id = ?`,
+          sql:
+            `UPDATE attendees SET ticket_token = ?, ticket_token_index = ? WHERE id = ?`,
           args: [encryptedToken, tokenIndex, attendee.id],
         });
       }
@@ -414,39 +489,67 @@ export const initDb = async (): Promise<void> => {
     const pubKey = await getPublicKey();
     if (pubKey) {
       // Get all attendees with empty strings in hybrid-encrypted fields (excluding ticket_token)
-      const invalidAttendees = await queryAll<{ id: number; name: string; email: string; phone: string; address: string; special_instructions: string; checked_in: string }>(
+      const invalidAttendees = await queryAll<
+        {
+          id: number;
+          name: string;
+          email: string;
+          phone: string;
+          address: string;
+          special_instructions: string;
+          checked_in: string;
+        }
+      >(
         `SELECT id, name, email, phone, address, special_instructions, checked_in
          FROM attendees
-         WHERE name = '' OR email = '' OR phone = '' OR address = '' OR special_instructions = '' OR checked_in = ''`
+         WHERE name = '' OR email = '' OR phone = '' OR address = '' OR special_instructions = '' OR checked_in = ''`,
       );
 
       for (const attendee of invalidAttendees) {
         // Encrypt empty strings for each field that has an empty value
         const updates: { field: string; value: string }[] = [];
 
-        if (attendee.name === '') {
-          updates.push({ field: 'name', value: await encryptAttendeePII('', pubKey) });
+        if (attendee.name === "") {
+          updates.push({
+            field: "name",
+            value: await encryptAttendeePII("", pubKey),
+          });
         }
-        if (attendee.email === '') {
-          updates.push({ field: 'email', value: await encryptAttendeePII('', pubKey) });
+        if (attendee.email === "") {
+          updates.push({
+            field: "email",
+            value: await encryptAttendeePII("", pubKey),
+          });
         }
-        if (attendee.phone === '') {
-          updates.push({ field: 'phone', value: await encryptAttendeePII('', pubKey) });
+        if (attendee.phone === "") {
+          updates.push({
+            field: "phone",
+            value: await encryptAttendeePII("", pubKey),
+          });
         }
-        if (attendee.address === '') {
-          updates.push({ field: 'address', value: await encryptAttendeePII('', pubKey) });
+        if (attendee.address === "") {
+          updates.push({
+            field: "address",
+            value: await encryptAttendeePII("", pubKey),
+          });
         }
-        if (attendee.special_instructions === '') {
-          updates.push({ field: 'special_instructions', value: await encryptAttendeePII('', pubKey) });
+        if (attendee.special_instructions === "") {
+          updates.push({
+            field: "special_instructions",
+            value: await encryptAttendeePII("", pubKey),
+          });
         }
-        if (attendee.checked_in === '') {
-          updates.push({ field: 'checked_in', value: await encryptAttendeePII('false', pubKey) });
+        if (attendee.checked_in === "") {
+          updates.push({
+            field: "checked_in",
+            value: await encryptAttendeePII("false", pubKey),
+          });
         }
 
         // Apply all updates for this attendee
         if (updates.length > 0) {
-          const setClause = updates.map(u => `${u.field} = ?`).join(', ');
-          const values = updates.map(u => u.value);
+          const setClause = updates.map((u) => `${u.field} = ?`).join(", ");
+          const values = updates.map((u) => u.value);
           await getDb().execute({
             sql: `UPDATE attendees SET ${setClause} WHERE id = ?`,
             args: [...values, attendee.id],
@@ -461,40 +564,65 @@ export const initDb = async (): Promise<void> => {
 
   // Create unique index on ticket_token_index for fast HMAC-based lookups
   await runMigration(
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token_index ON attendees(ticket_token_index)`
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token_index ON attendees(ticket_token_index)`,
   );
 
   // Migration: backfill NULL price_paid with encrypted "0" and NULL payment_id with encrypted ""
-  await backfillEncryptedColumn("attendees", "price_paid", `price_paid IS NULL`);
-  await backfillHybridEncryptedColumn("attendees", "payment_id", `payment_id IS NULL`);
+  await backfillEncryptedColumn(
+    "attendees",
+    "price_paid",
+    `price_paid IS NULL`,
+  );
+  await backfillHybridEncryptedColumn(
+    "attendees",
+    "payment_id",
+    `payment_id IS NULL`,
+  );
 
   // Migration: add refunded column to attendees (hybrid encrypted, "true"/"false" like checked_in)
-  await runMigration(`ALTER TABLE attendees ADD COLUMN refunded TEXT NOT NULL DEFAULT ''`);
+  await runMigration(
+    `ALTER TABLE attendees ADD COLUMN refunded TEXT NOT NULL DEFAULT ''`,
+  );
   await backfillHybridEncryptedColumn("attendees", "refunded", `refunded = ''`);
 
   // Migration: backfill NULL thank_you_url and webhook_url with encrypted empty strings
-  await backfillEncryptedColumn("events", "thank_you_url", `thank_you_url IS NULL`);
+  await backfillEncryptedColumn(
+    "events",
+    "thank_you_url",
+    `thank_you_url IS NULL`,
+  );
   await backfillEncryptedColumn("events", "webhook_url", `webhook_url IS NULL`);
 
   // Migration: add non_transferable column to events (boolean, default false)
-  await runMigration(`ALTER TABLE events ADD COLUMN non_transferable INTEGER NOT NULL DEFAULT 0`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN non_transferable INTEGER NOT NULL DEFAULT 0`,
+  );
 
   // Migration: add can_pay_more column to events (boolean, defaults to false/0)
-  await runMigration(`ALTER TABLE events ADD COLUMN can_pay_more INTEGER NOT NULL DEFAULT 0`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN can_pay_more INTEGER NOT NULL DEFAULT 0`,
+  );
 
   // Migration: backfill existing NULL unit_price values to 0
   // (SQLite cannot ALTER COLUMN to add NOT NULL; application code enforces non-null going forward)
-  await runMigration(`UPDATE events SET unit_price = 0 WHERE unit_price IS NULL`);
+  await runMigration(
+    `UPDATE events SET unit_price = 0 WHERE unit_price IS NULL`,
+  );
 
   // Migration: add hidden column to events (boolean, defaults to false/0)
-  await runMigration(`ALTER TABLE events ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`,
+  );
 
   // Migration: add max_price column to events (integer in minor units, 0 = use default)
-  await runMigration(`ALTER TABLE events ADD COLUMN max_price INTEGER NOT NULL DEFAULT 0`);
+  await runMigration(
+    `ALTER TABLE events ADD COLUMN max_price INTEGER NOT NULL DEFAULT 0`,
+  );
 
   // Update the version marker
   await getDb().execute({
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+    sql:
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
   });
 };

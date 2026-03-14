@@ -5,10 +5,10 @@
 import { reduce } from "#fp";
 import { type CacheStat, getAllCacheStats } from "#lib/cache-registry.ts";
 import {
-  type QueryLogEntry,
   getQueryLog,
   getQueryLogStartTime,
   isQueryLogEnabled,
+  type QueryLogEntry,
 } from "#lib/db/query-log.ts";
 
 /** Data passed to the footer renderer */
@@ -26,7 +26,9 @@ const sumDurations = reduce(
 /** Render a single cache stat line */
 const renderCacheStat = (stat: CacheStat): string =>
   stat.capacity
-    ? `<li>${escapeFooterHtml(stat.name)}: ${stat.entries}/${stat.capacity}</li>`
+    ? `<li>${
+      escapeFooterHtml(stat.name)
+    }: ${stat.entries}/${stat.capacity}</li>`
     : `<li>${escapeFooterHtml(stat.name)}: ${stat.entries}</li>`;
 
 /** Render the admin debug footer as an HTML string for injection before </body> */
@@ -44,7 +46,9 @@ export const debugFooterHtml = (data: DebugFooterData): string => {
     `<p><a href="https://github.com/chobbledotcom/tickets">Chobble Tickets</a></p>` +
     `<details>` +
     `<summary>${renderTimeMs.toFixed(0)}ms` +
-    ` &middot; ${queries.length} quer${queries.length === 1 ? "y" : "ies"} ${totalSqlMs.toFixed(0)}ms` +
+    ` &middot; ${queries.length} quer${queries.length === 1 ? "y" : "ies"} ${
+      totalSqlMs.toFixed(0)
+    }ms` +
     ` &middot; ${totalCacheEntries} cached</summary>` +
     `<p>Render: ${renderTimeMs.toFixed(1)}ms` +
     ` (sql ${totalSqlMs.toFixed(1)}ms + other ${otherMs.toFixed(1)}ms)</p>` +
@@ -53,7 +57,9 @@ export const debugFooterHtml = (data: DebugFooterData): string => {
         queries
           .map(
             (q) =>
-              `<li>${escapeFooterHtml(q.sql)} &mdash; ${q.durationMs.toFixed(1)}ms</li>`,
+              `<li>${escapeFooterHtml(q.sql)} &mdash; ${
+                q.durationMs.toFixed(1)
+              }ms</li>`,
           )
           .join("") +
         `</ul></details>`
@@ -76,10 +82,10 @@ export const debugFooterHtml = (data: DebugFooterData): string => {
 export const renderDebugFooter = (): string =>
   isQueryLogEnabled()
     ? debugFooterHtml({
-        renderTimeMs: performance.now() - getQueryLogStartTime(),
-        queries: getQueryLog(),
-        cacheStats: getAllCacheStats(),
-      })
+      renderTimeMs: performance.now() - getQueryLogStartTime(),
+      queries: getQueryLog(),
+      cacheStats: getAllCacheStats(),
+    })
     : "";
 
 /** Minimal HTML escaping for strings in the footer */

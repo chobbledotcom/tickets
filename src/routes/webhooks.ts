@@ -22,12 +22,12 @@ import {
   getAttendeesByTokens,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
-import {
-  finalizeSession,
-  reserveSession,
-} from "#lib/db/processed-payments.ts";
+import { finalizeSession, reserveSession } from "#lib/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
-import { extractSessionMetadata, hasRequiredSessionMetadata } from "#lib/payment-helpers.ts";
+import {
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+} from "#lib/payment-helpers.ts";
 import {
   getActivePaymentProvider,
   isPaymentStatus,
@@ -38,7 +38,10 @@ import {
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import { getAllowedDomain, getCurrencyCode } from "#lib/config.ts";
-import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
+import {
+  logAndNotifyMultiRegistration,
+  logAndNotifyRegistration,
+} from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
 import {
@@ -94,7 +97,10 @@ const withSessionId =
   (request: Request): Promise<Response> => {
     const sessionId = getSearchParam(request, "session_id");
     if (!sessionId) {
-      logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Payment callback missing session_id parameter" });
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: "Payment callback missing session_id parameter",
+      });
     }
     return sessionId
       ? handler(sessionId)
@@ -103,7 +109,11 @@ const withSessionId =
 
 /** Validated session data - either single or multi */
 type ValidatedSession =
-  | { type: "single"; session: ValidatedPaymentSession; intent: RegistrationIntent }
+  | {
+    type: "single";
+    session: ValidatedPaymentSession;
+    intent: RegistrationIntent;
+  }
   | { type: "multi"; session: ValidatedPaymentSession; intent: MultiIntent };
 
 type SessionValidation =
@@ -136,7 +146,9 @@ const validatePaidSession = async (
   }
 
   if (session.paymentStatus !== "paid") {
-    logRedirectError(`Payment not verified as paid (session=${sessionId}, status=${session.paymentStatus})`);
+    logRedirectError(
+      `Payment not verified as paid (session=${sessionId}, status=${session.paymentStatus})`,
+    );
     return {
       ok: false,
       response: paymentErrorResponse(
@@ -164,14 +176,28 @@ const validatePaidSession = async (
 
 /** Result type for processPaymentSession */
 type PaymentResult =
-  | { success: true; attendee: Pick<Attendee, "id">; event: EventWithCount; ticketTokens: string[] }
-  | { success: false; error: string; status?: number; refunded?: boolean; detail?: string };
+  | {
+    success: true;
+    attendee: Pick<Attendee, "id">;
+    event: EventWithCount;
+    ticketTokens: string[];
+  }
+  | {
+    success: false;
+    error: string;
+    status?: number;
+    refunded?: boolean;
+    detail?: string;
+  };
 
 /**
  * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
  * Logs an error if refund fails.
  */
-const tryRefund = async (paymentReference: string, eventId?: number): Promise<boolean> => {
+const tryRefund = async (
+  paymentReference: string,
+  eventId?: number,
+): Promise<boolean> => {
   if (!paymentReference) return false;
 
   const provider = await getActivePaymentProvider();
@@ -213,7 +239,9 @@ const refundAndFail = async (
   status?: number,
   eventId?: number | null,
 ): Promise<PaymentResult> => {
-  const metadataEventId = session.metadata.event_id ? Number.parseInt(session.metadata.event_id, 10) : undefined;
+  const metadataEventId = session.metadata.event_id
+    ? Number.parseInt(session.metadata.event_id, 10)
+    : undefined;
   const resolvedEventId = eventId ?? metadataEventId;
   const refunded = await tryRefund(session.paymentReference, resolvedEventId);
   if (refunded) {
@@ -293,7 +321,10 @@ const validateAndPrice = async (
   input: { eventId: number; quantity: number },
   includeEventName = false,
 ): Promise<EventPriceValidation> => {
-  const validation = await validateEventForPayment(input.eventId, includeEventName);
+  const validation = await validateEventForPayment(
+    input.eventId,
+    includeEventName,
+  );
   if (!validation.ok) return validation;
   const { event } = validation;
   const expectedPrice = event.unit_price * input.quantity;
@@ -302,7 +333,11 @@ const validateAndPrice = async (
 
 /** Check if the amount charged matches the current event price.
  * For pay-more events, the amount must be >= the expected minimum price and <= the max cap. */
-const hasPriceMismatch = (amountTotal: number, expectedPrice: number, event: Pick<EventWithCount, "can_pay_more" | "max_price">): boolean =>
+const hasPriceMismatch = (
+  amountTotal: number,
+  expectedPrice: number,
+  event: Pick<EventWithCount, "can_pay_more" | "max_price">,
+): boolean =>
   event.can_pay_more
     ? amountTotal < expectedPrice || amountTotal > event.max_price
     : amountTotal !== expectedPrice;
@@ -321,7 +356,12 @@ const alreadyProcessedResult = async (
 ): Promise<PaymentResult> => {
   const event = await getEventWithCount(eventId);
   if (!event) return { success: false, error: "Event not found", status: 404 };
-  return { success: true, attendee: { id: attendeeId }, event, ticketTokens: [] };
+  return {
+    success: true,
+    attendee: { id: attendeeId },
+    event,
+    ticketTokens: [],
+  };
 };
 
 /** Validate that a parsed value has the shape of a valid RawMultiItem */
@@ -330,7 +370,8 @@ const isMultiItem = (v: unknown): v is RawMultiItem => {
   const { e, q, p } = v as Record<string, unknown>;
   return typeof e === "number" && Number.isInteger(e) && e > 0 &&
     typeof q === "number" && Number.isInteger(q) && q >= 1 &&
-    (p === undefined || (typeof p === "number" && Number.isInteger(p) && p >= 0));
+    (p === undefined ||
+      (typeof p === "number" && Number.isInteger(p) && p >= 0));
 };
 
 /** Parse multi-ticket items from metadata */
@@ -339,7 +380,10 @@ const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
     const parsed: unknown = JSON.parse(itemsJson);
     if (!Array.isArray(parsed) || !parsed.every(isMultiItem)) return null;
     // Default p to 0 when absent — old webhooks may lack per-item prices
-    return map((item: RawMultiItem): MultiItem => ({ ...item, p: item.p ?? 0 }))(parsed);
+    return map((item: RawMultiItem): MultiItem => ({
+      ...item,
+      p: item.p ?? 0,
+    }))(parsed);
   } catch {
     return null;
   }
@@ -417,13 +461,24 @@ const processMultiPaymentSession = async (
 
   // Phase 2: Validate events and create attendees atomically
   // First pass: validate all events and compute expected prices
-  const validatedItems: { item: MultiItem; event: EventWithCount; expectedPrice: number }[] = [];
+  const validatedItems: {
+    item: MultiItem;
+    event: EventWithCount;
+    expectedPrice: number;
+  }[] = [];
   let expectedTotal = 0;
 
   for (const item of intent.items) {
-    const vp = await validateAndPrice({ eventId: item.e, quantity: item.q }, true);
+    const vp = await validateAndPrice(
+      { eventId: item.e, quantity: item.q },
+      true,
+    );
     if (!vp.ok) return validationFailure(session, vp, item.e);
-    validatedItems.push({ item, event: vp.event, expectedPrice: vp.expectedPrice });
+    validatedItems.push({
+      item,
+      event: vp.event,
+      expectedPrice: vp.expectedPrice,
+    });
     expectedTotal += vp.expectedPrice;
   }
 
@@ -433,25 +488,34 @@ const processMultiPaymentSession = async (
   if (hasPerItemPrices) {
     for (const { item, event, expectedPrice } of validatedItems) {
       if (hasPriceMismatch(item.p, expectedPrice, event)) {
-        return priceMismatchRefund(session,
+        return priceMismatchRefund(
+          session,
           `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
-          event.id);
+          event.id,
+        );
       }
     }
 
     // Cart total must equal the sum of per-item prices
-    const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+    const metadataTotal = validatedItems.reduce(
+      (sum, { item }) => sum + item.p,
+      0,
+    );
     if (session.amountTotal !== metadataTotal) {
-      return priceMismatchRefund(session,
+      return priceMismatchRefund(
+        session,
         `Multi-ticket total mismatch: provider charged ${session.amountTotal} but sum(p) = ${metadataTotal}`,
-        validatedItems[0]?.event.id);
+        validatedItems[0]?.event.id,
+      );
     }
   } else {
     // No per-item prices: validate that provider charged at least the expected total
     if (session.amountTotal < expectedTotal) {
-      return priceMismatchRefund(session,
+      return priceMismatchRefund(
+        session,
         `Multi-ticket total mismatch: provider charged ${session.amountTotal} but expected at least ${expectedTotal}`,
-        validatedItems[0]?.event.id);
+        validatedItems[0]?.event.id,
+      );
     }
   }
 
@@ -460,11 +524,13 @@ const processMultiPaymentSession = async (
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
   if (!hasPerItemPrices) {
-    logDebug("Payment", `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`);
+    logDebug(
+      "Payment",
+      `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
+    );
   }
 
   for (const { item, event, expectedPrice } of validatedItems) {
-
     const result = await createAttendeeAtomic({
       eventId: item.e,
       name: intent.name,
@@ -506,13 +572,18 @@ const processMultiPaymentSession = async (
   await finalizeSession(sessionId, firstAttendee.attendee.id);
 
   // Log and send consolidated webhook for all created attendees
-  await logAndNotifyMultiRegistration(createdAttendees, await getCurrencyCode());
+  await logAndNotifyMultiRegistration(
+    createdAttendees,
+    await getCurrencyCode(),
+  );
 
   return {
     success: true,
     attendee: firstAttendee.attendee,
     event: firstAttendee.event,
-    ticketTokens: map(({ attendee }: { attendee: Attendee }) => attendee.ticket_token)(createdAttendees),
+    ticketTokens: map(({ attendee }: { attendee: Attendee }) =>
+      attendee.ticket_token
+    )(createdAttendees),
   };
 };
 
@@ -581,14 +652,25 @@ const processPaymentSession = async (
   // Phase 3: Finalize the session with the attendee ID
   await finalizeSession(sessionId, result.attendee.id);
 
-  await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
-  return { success: true, attendee: result.attendee, event, ticketTokens: [result.attendee.ticket_token] };
+  await logAndNotifyRegistration(
+    event,
+    result.attendee,
+    await getCurrencyCode(),
+  );
+  return {
+    success: true,
+    attendee: result.attendee,
+    event,
+    ticketTokens: [result.attendee.ticket_token],
+  };
 };
 
 /**
  * Format error message based on refund status
  */
-const formatPaymentError = (result: PaymentResult & { success: false }): string => {
+const formatPaymentError = (
+  result: PaymentResult & { success: false },
+): string => {
   if (result.refunded === true) {
     return `${result.error} Your payment has been automatically refunded.`;
   }
@@ -601,15 +683,16 @@ const formatPaymentError = (result: PaymentResult & { success: false }): string 
 /**
  * Process session_id param: validate, create attendee, redirect with tokens.
  */
-const processSessionAndRedirect = async (sessionId: string): Promise<Response> => {
+const processSessionAndRedirect = async (
+  sessionId: string,
+): Promise<Response> => {
   const validation = await validatePaidSession(sessionId);
   if (!validation.ok) return validation.response;
 
   const { data } = validation;
-  const result =
-    data.type === "multi"
-      ? await processMultiPaymentSession(sessionId, data)
-      : await processPaymentSession(sessionId, data);
+  const result = data.type === "multi"
+    ? await processMultiPaymentSession(sessionId, data)
+    : await processPaymentSession(sessionId, data);
 
   if (!result.success) {
     // Log once at the redirect boundary
@@ -627,22 +710,30 @@ const processSessionAndRedirect = async (sessionId: string): Promise<Response> =
   // Redirect to success page with verified tokens in URL
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
-    return redirectResponse(`/payment/success?tokens=${encodeURIComponent(result.ticketTokens.join("+"))}`);
+    return redirectResponse(
+      `/payment/success?tokens=${
+        encodeURIComponent(result.ticketTokens.join("+"))
+      }`,
+    );
   }
 
   // Already-processed session (no tokens available) - render directly
-  const thankYouUrl =
-    data.type === "single" ? result.event.thank_you_url : "";
-  return htmlResponse(successPage({ ticketUrl: null, thankYouUrl, paid: true }));
+  const thankYouUrl = data.type === "single" ? result.event.thank_you_url : "";
+  return htmlResponse(
+    successPage({ ticketUrl: null, thankYouUrl, paid: true }),
+  );
 };
 
 /**
  * Render success page from verified tokens param.
  */
-const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> => {
+const renderSuccessFromTokens = async (
+  tokensParam: string,
+): Promise<Response> => {
   const tokens = parseTokens(tokensParam);
   const attendeeResults = tokens.length > 0
-    ? await getAttendeesByTokens(tokens) : [];
+    ? await getAttendeesByTokens(tokens)
+    : [];
   const verifiedTokens: string[] = [];
   const eventIds: number[] = [];
 
@@ -670,7 +761,9 @@ const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> =
 
   const fromEmail = await getFromEmailIfConfigured();
 
-  return htmlResponse(successPage({ ticketUrl, thankYouUrl, paid: true, fromEmail }));
+  return htmlResponse(
+    successPage({ ticketUrl, thankYouUrl, paid: true, fromEmail }),
+  );
 };
 
 /**
@@ -690,7 +783,10 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
   const tokensParam = getSearchParam(request, "tokens");
   if (tokensParam) return renderSuccessFromTokens(tokensParam);
 
-  logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Payment success callback with no session_id or tokens" });
+  logError({
+    code: ErrorCode.PAYMENT_SESSION,
+    detail: "Payment success callback with no session_id or tokens",
+  });
   return Promise.resolve(paymentErrorResponse("Invalid payment callback"));
 };
 
@@ -721,7 +817,9 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   // Use getEvent (not getEventWithCount) - we only need slug for redirect
   const event = await getEvent(intent.eventId);
   if (!event) {
-    logCancelError(`Event not found (session=${sid}, eventId=${intent.eventId})`);
+    logCancelError(
+      `Event not found (session=${sid}, eventId=${intent.eventId})`,
+    );
     return paymentErrorResponse("Event not found", 404);
   }
 
@@ -745,7 +843,9 @@ const extractSessionFromEvent = (
   event: WebhookEvent,
 ): ValidatedPaymentSession | null => {
   const obj = event.data.object;
-  const metadata = obj.metadata as Record<string, string | undefined> | undefined;
+  const metadata = obj.metadata as
+    | Record<string, string | undefined>
+    | undefined;
 
   // Validate required fields with strict type checking
   if (
@@ -759,9 +859,12 @@ const extractSessionFromEvent = (
 
   return {
     id: obj.id,
-    paymentStatus: isPaymentStatus(obj.payment_status) ? obj.payment_status : "unpaid",
-    paymentReference:
-      typeof obj.payment_intent === "string" ? obj.payment_intent : "",
+    paymentStatus: isPaymentStatus(obj.payment_status)
+      ? obj.payment_status
+      : "unpaid",
+    paymentReference: typeof obj.payment_intent === "string"
+      ? obj.payment_intent
+      : "",
     amountTotal: obj.amount_total,
     metadata: extractSessionMetadata(metadata),
   };
@@ -776,11 +879,13 @@ const getWebhookSignatureHeader = (
   request: Request,
 ): string | null =>
   request.headers.get("stripe-signature") ??
-  request.headers.get("x-square-hmacsha256-signature") ??
-  null;
+    request.headers.get("x-square-hmacsha256-signature") ??
+    null;
 
 /** Extract order/session ID from webhook event object (used for Square fallback) */
-const extractSessionIdFromObject = (obj: Record<string, unknown>): string | null => {
+const extractSessionIdFromObject = (
+  obj: Record<string, unknown>,
+): string | null => {
   if (typeof obj.order_id === "string") return obj.order_id;
   if (typeof obj.id === "string") return obj.id;
   return null;
@@ -802,13 +907,19 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Get signature header (sync — headers are always available)
   const signature = getWebhookSignatureHeader(request);
   if (!signature) {
-    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Webhook missing signature header" });
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Webhook missing signature header",
+    });
     return plainResponse("Missing signature", 400);
   }
 
   const provider = await getActivePaymentProvider();
   if (!provider) {
-    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Webhook received but payment provider not configured" });
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Webhook received but payment provider not configured",
+    });
     return plainResponse("Payment provider not configured", 400);
   }
 
@@ -821,9 +932,17 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   const webhookUrl = `https://${getAllowedDomain()}/payment/webhook`;
 
   // Verify signature (pass raw bytes so HMAC is computed on exact received bytes)
-  const verification = await provider.verifyWebhookSignature(payload, signature, webhookUrl, payloadBytes);
+  const verification = await provider.verifyWebhookSignature(
+    payload,
+    signature,
+    webhookUrl,
+    payloadBytes,
+  );
   if (!verification.valid) {
-    logError({ code: ErrorCode.PAYMENT_SIGNATURE, detail: `Webhook signature verification failed: ${verification.error}` });
+    logError({
+      code: ErrorCode.PAYMENT_SIGNATURE,
+      detail: `Webhook signature verification failed: ${verification.error}`,
+    });
     return plainResponse(verification.error, 400);
   }
 
@@ -846,19 +965,28 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     const sessionId = extractSessionIdFromObject(obj);
 
     if (!sessionId) {
-      logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Webhook event missing session ID" });
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: "Webhook event missing session ID",
+      });
       return plainResponse("Invalid session data", 400);
     }
 
     // For Square payment.updated: check payment status before retrieving order
     if (typeof obj.status === "string" && obj.status !== "COMPLETED") {
-      logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Webhook payment not completed (status=${obj.status})` });
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: `Webhook payment not completed (status=${obj.status})`,
+      });
       return webhookAckResponse({ status: "pending" });
     }
 
     session = await provider.retrieveSession(sessionId);
     if (!session) {
-      logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Failed to retrieve session ${sessionId}` });
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: `Failed to retrieve session ${sessionId}`,
+      });
       return plainResponse("Invalid session data", 400);
     }
   }
@@ -876,7 +1004,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   // Verify payment is complete
   if (session.paymentStatus !== "paid") {
-    logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})` });
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail:
+        `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})`,
+    });
     return webhookAckResponse({ status: "pending" });
   }
 
@@ -889,11 +1021,17 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   if (isMulti) {
     const multiIntent = extractMultiIntent(session);
     if (!multiIntent) {
-      logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Invalid multi-ticket session data for ${session.id}` });
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: `Invalid multi-ticket session data for ${session.id}`,
+      });
       return plainResponse("Invalid multi-ticket session data", 400);
     }
     eventIdForLog = multiIntent.items[0]?.e;
-    result = await processMultiPaymentSession(session.id, { session, intent: multiIntent });
+    result = await processMultiPaymentSession(session.id, {
+      session,
+      intent: multiIntent,
+    });
   } else {
     const intent = extractIntent(session);
     eventIdForLog = intent.eventId;

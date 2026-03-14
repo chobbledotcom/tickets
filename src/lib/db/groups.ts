@@ -6,7 +6,10 @@ import { collectionCache, mapParallel } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
-import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
+import {
+  encryptedNameSchema,
+  idAndEncryptedSlugSchema,
+} from "#lib/db/common-schema.ts";
 import { defineIdTable } from "#lib/db/define-id-table.ts";
 import { queryAndMap } from "#lib/db/query.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
@@ -39,7 +42,9 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
 });
 
 /** Execute a query and decrypt the resulting group rows */
-const queryGroups = queryAndMap<Group, Group>((row) => rawGroupsTable.fromDb(row));
+const queryGroups = queryAndMap<Group, Group>((row) =>
+  rawGroupsTable.fromDb(row)
+);
 
 const groupsCache = collectionCache(
   () => queryGroups("SELECT * FROM groups ORDER BY id ASC"),
@@ -75,8 +80,7 @@ export const groupsTable: typeof rawGroupsTable = {
 /**
  * Get all groups, decrypted, ordered by id (from cache)
  */
-export const getAllGroups = (): Promise<Group[]> =>
-  groupsCache.getAll();
+export const getAllGroups = (): Promise<Group[]> => groupsCache.getAll();
 
 /**
  * Get a single group by slug_index (from cache)
@@ -128,7 +132,9 @@ const queryGroupEvents = async (
   groupId: number,
   activeOnly: boolean,
 ): Promise<EventWithCount[]> => {
-  const where = activeOnly ? "e.active = 1 AND e.group_id = ?" : "e.group_id = ?";
+  const where = activeOnly
+    ? "e.active = 1 AND e.group_id = ?"
+    : "e.group_id = ?";
   const rows = await queryAll<EventWithCount>(
     `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
      FROM events e
@@ -145,14 +151,16 @@ const queryGroupEvents = async (
 /**
  * Get active events in a group with attendee counts.
  */
-export const getActiveEventsByGroupId = (groupId: number): Promise<EventWithCount[]> =>
-  queryGroupEvents(groupId, true);
+export const getActiveEventsByGroupId = (
+  groupId: number,
+): Promise<EventWithCount[]> => queryGroupEvents(groupId, true);
 
 /**
  * Get all events in a group with attendee counts (including inactive).
  */
-export const getEventsByGroupId = (groupId: number): Promise<EventWithCount[]> =>
-  queryGroupEvents(groupId, false);
+export const getEventsByGroupId = (
+  groupId: number,
+): Promise<EventWithCount[]> => queryGroupEvents(groupId, false);
 
 /**
  * Get ungrouped events (group_id = 0) with attendee counts.

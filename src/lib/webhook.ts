@@ -9,7 +9,7 @@ import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
-import { isPaidEvent, type ContactInfo } from "#lib/types.ts";
+import { type ContactInfo, isPaidEvent } from "#lib/types.ts";
 import { nowIso } from "#lib/now.ts";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 
@@ -71,8 +71,10 @@ export const buildWebhookPayload = async (
   currency: string,
 ): Promise<WebhookPayload> => {
   const first = entries[0]!;
-  const totalPricePaid = entries.reduce((sum, { attendee }) =>
-    sum + Number.parseInt(attendee.price_paid, 10), 0);
+  const totalPricePaid = entries.reduce(
+    (sum, { attendee }) => sum + Number.parseInt(attendee.price_paid, 10),
+    0,
+  );
 
   const hasPaidEvent = entries.some(({ event }) => isPaidEvent(event));
   const businessEmail = await getBusinessEmailFromDb();
@@ -147,7 +149,9 @@ export const sendRegistrationWebhooks = async (
 
   const payload = await buildWebhookPayload(entries, currency);
   const firstEventId = entries[0]?.event.id;
-  await Promise.allSettled(webhookUrls.map((url) => sendWebhook(url, payload, firstEventId)));
+  await Promise.allSettled(
+    webhookUrls.map((url) => sendWebhook(url, payload, firstEventId)),
+  );
 };
 
 /**

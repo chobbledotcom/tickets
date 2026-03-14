@@ -3,7 +3,11 @@
  */
 
 import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
-import { getAllHolidays, type HolidayInput, holidaysTable } from "#lib/db/holidays.ts";
+import {
+  getAllHolidays,
+  type HolidayInput,
+  holidaysTable,
+} from "#lib/db/holidays.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -51,7 +55,8 @@ const crud = createOwnerCrudHandlers({
   renderEdit: adminHolidayEditPage,
   renderDelete: adminHolidayDeletePage,
   getName: (h) => h.name,
-  deleteConfirmError: "Holiday name does not match. Please type the exact name to confirm deletion.",
+  deleteConfirmError:
+    "Holiday name does not match. Please type the exact name to confirm deletion.",
 });
 
 /** Holiday routes */
@@ -60,7 +65,10 @@ export const holidaysRoutes = defineRoutes({
   "GET /admin/holiday/new": crud.newGet,
   "POST /admin/holiday": crud.createPost,
   "GET /admin/holiday/:id/edit": (request, { id }) => crud.editGet(request, id),
-  "POST /admin/holiday/:id/edit": (request, { id }) => crud.editPost(request, id),
-  "GET /admin/holiday/:id/delete": (request, { id }) => crud.deleteGet(request, id),
-  "POST /admin/holiday/:id/delete": (request, { id }) => crud.deletePost(request, id),
+  "POST /admin/holiday/:id/edit": (request, { id }) =>
+    crud.editPost(request, id),
+  "GET /admin/holiday/:id/delete": (request, { id }) =>
+    crud.deleteGet(request, id),
+  "POST /admin/holiday/:id/delete": (request, { id }) =>
+    crud.deletePost(request, id),
 });

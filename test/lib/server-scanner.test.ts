@@ -14,11 +14,11 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
-  testCookie,
-  testCsrfToken,
   resetDb,
   resetTestSlugCounter,
   setupEventAndLogin,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 import { isJsonApiPath } from "#routes/middleware.ts";
 
@@ -51,7 +51,11 @@ const setupScanTest = async (
     email,
     eventOverrides,
   );
-  return { event, token, session: { cookie: await testCookie(), csrfToken: await testCsrfToken() } };
+  return {
+    event,
+    token,
+    session: { cookie: await testCookie(), csrfToken: await testCsrfToken() },
+  };
 };
 
 describe("QR Scanner", () => {
@@ -304,7 +308,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns not_found for invalid token", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         mockScanRequest(
           event.id,
@@ -337,7 +343,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns 403 for invalid CSRF token", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         mockScanRequest(
           event.id,
@@ -351,7 +359,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns 400 for missing token in body", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         mockScanRequest(event.id, {}, session.cookie, session.csrfToken),
       );
@@ -360,7 +370,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns 403 when x-csrf-token header is absent", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         new Request(`http://localhost/admin/event/${event.id}/scan`, {
           method: "POST",
@@ -377,7 +389,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns 400 for malformed JSON body", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         new Request(`http://localhost/admin/event/${event.id}/scan`, {
           method: "POST",
@@ -399,7 +413,9 @@ describe("QR Scanner", () => {
     test("returns 500 when private key is unavailable", async () => {
       const { getDb } = await import("#lib/db/client.ts");
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
 
       // Remove wrapped_private_key from settings to make key derivation fail
       await getDb().execute({
@@ -489,7 +505,8 @@ describe("QR Scanner", () => {
       const tokenIndex = await computeTicketTokenIndex(token);
       await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
       await getDb().execute({
-        sql: "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
+        sql:
+          "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
         args: [tokenIndex],
       });
 

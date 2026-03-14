@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
 import {
+  getBusinessEmailFromDb,
   isValidBusinessEmail,
   normalizeBusinessEmail,
-  getBusinessEmailFromDb,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import { invalidateSettingsCache } from "#lib/db/settings.ts";
@@ -86,19 +86,27 @@ describe("business-email", () => {
 
   describe("normalizeBusinessEmail", () => {
     test("trims whitespace", () => {
-      expect(normalizeBusinessEmail("  test@example.com  ")).toBe("test@example.com");
+      expect(normalizeBusinessEmail("  test@example.com  ")).toBe(
+        "test@example.com",
+      );
     });
 
     test("converts to lowercase", () => {
-      expect(normalizeBusinessEmail("Test@Example.Com")).toBe("test@example.com");
+      expect(normalizeBusinessEmail("Test@Example.Com")).toBe(
+        "test@example.com",
+      );
     });
 
     test("trims and lowercases together", () => {
-      expect(normalizeBusinessEmail("  USER@EXAMPLE.COM  ")).toBe("user@example.com");
+      expect(normalizeBusinessEmail("  USER@EXAMPLE.COM  ")).toBe(
+        "user@example.com",
+      );
     });
 
     test("handles already normalized email", () => {
-      expect(normalizeBusinessEmail("user@example.com")).toBe("user@example.com");
+      expect(normalizeBusinessEmail("user@example.com")).toBe(
+        "user@example.com",
+      );
     });
   });
 
@@ -156,19 +164,27 @@ describe("business-email", () => {
     });
 
     test("throws on invalid email format", async () => {
-      await expect(updateBusinessEmail("not-an-email")).rejects.toThrow("Invalid business email format");
+      await expect(updateBusinessEmail("not-an-email")).rejects.toThrow(
+        "Invalid business email format",
+      );
     });
 
     test("throws on email without @", async () => {
-      await expect(updateBusinessEmail("notanemail")).rejects.toThrow("Invalid business email format");
+      await expect(updateBusinessEmail("notanemail")).rejects.toThrow(
+        "Invalid business email format",
+      );
     });
 
     test("throws on email without domain", async () => {
-      await expect(updateBusinessEmail("test@")).rejects.toThrow("Invalid business email format");
+      await expect(updateBusinessEmail("test@")).rejects.toThrow(
+        "Invalid business email format",
+      );
     });
 
     test("throws on email without TLD", async () => {
-      await expect(updateBusinessEmail("test@example")).rejects.toThrow("Invalid business email format");
+      await expect(updateBusinessEmail("test@example")).rejects.toThrow(
+        "Invalid business email format",
+      );
     });
   });
 

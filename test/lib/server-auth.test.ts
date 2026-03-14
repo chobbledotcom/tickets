@@ -63,7 +63,9 @@ describe("server (admin auth)", () => {
 
       const response = await awaitTestRequest("/admin/login", { cookie });
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin?success=Already+logged+in");
+      expect(response.headers.get("location")).toBe(
+        "/admin?success=Already+logged+in",
+      );
     });
   });
 

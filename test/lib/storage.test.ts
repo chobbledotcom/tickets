@@ -196,10 +196,21 @@ describe("storage", () => {
 
   describe("allowed image types", () => {
     test("accepts the four supported types", () => {
-      expect(validateImage(new Uint8Array([0xFF, 0xD8, 0xFF]), "image/jpeg").valid).toBe(true);
-      expect(validateImage(new Uint8Array([0x89, 0x50, 0x4E, 0x47]), "image/png").valid).toBe(true);
-      expect(validateImage(new Uint8Array([0x47, 0x49, 0x46, 0x38]), "image/gif").valid).toBe(true);
-      expect(validateImage(new Uint8Array([0x52, 0x49, 0x46, 0x46]), "image/webp").valid).toBe(true);
+      expect(
+        validateImage(new Uint8Array([0xFF, 0xD8, 0xFF]), "image/jpeg").valid,
+      ).toBe(true);
+      expect(
+        validateImage(new Uint8Array([0x89, 0x50, 0x4E, 0x47]), "image/png")
+          .valid,
+      ).toBe(true);
+      expect(
+        validateImage(new Uint8Array([0x47, 0x49, 0x46, 0x38]), "image/gif")
+          .valid,
+      ).toBe(true);
+      expect(
+        validateImage(new Uint8Array([0x52, 0x49, 0x46, 0x46]), "image/webp")
+          .valid,
+      ).toBe(true);
     });
 
     test("rejects unsupported types", () => {
@@ -211,7 +222,16 @@ describe("storage", () => {
 
   describe("encryptBytes / decryptBytes", () => {
     test("round-trips binary data through encrypt then decrypt", async () => {
-      const original = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46]);
+      const original = new Uint8Array([
+        0xFF,
+        0xD8,
+        0xFF,
+        0xE0,
+        0x00,
+        0x10,
+        0x4A,
+        0x46,
+      ]);
       const encrypted = await encryptBytes(original);
       // Encrypted data should be larger (12 byte IV + 16 byte auth tag)
       expect(encrypted.byteLength).toBeGreaterThan(original.byteLength);

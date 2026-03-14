@@ -37,18 +37,24 @@ export type TableSchema<Row> = {
 /** Derive column metadata: whether it's an input column and whether it has a default */
 type ColumnMeta<K, Row, Schema extends TableSchema<Row>> = K extends keyof Row
   ? {
-      isInput: Schema[K]["generated"] extends true ? false : true;
-      hasDefault: Schema[K]["default"] extends () => Row[K] ? true : false;
-    }
+    isInput: Schema[K]["generated"] extends true ? false : true;
+    hasDefault: Schema[K]["default"] extends () => Row[K] ? true : false;
+  }
   : { isInput: false; hasDefault: false };
 
 /** Check if column is input-eligible (not generated) */
-type IsInputColumn<K, Row, Schema extends TableSchema<Row>> =
-  ColumnMeta<K, Row, Schema>["isInput"];
+type IsInputColumn<K, Row, Schema extends TableSchema<Row>> = ColumnMeta<
+  K,
+  Row,
+  Schema
+>["isInput"];
 
 /** Check if column has a default value */
-type ColumnHasDefault<K, Row, Schema extends TableSchema<Row>> =
-  ColumnMeta<K, Row, Schema>["hasDefault"];
+type ColumnHasDefault<K, Row, Schema extends TableSchema<Row>> = ColumnMeta<
+  K,
+  Row,
+  Schema
+>["hasDefault"];
 
 /** Extract input keys based on whether they have defaults */
 type InputKeysWith<
@@ -57,9 +63,8 @@ type InputKeysWith<
   WithDefault extends boolean,
 > = {
   [K in keyof Row]: IsInputColumn<K, Row, Schema> extends true
-    ? ColumnHasDefault<K, Row, Schema> extends WithDefault
-      ? K
-      : never
+    ? ColumnHasDefault<K, Row, Schema> extends WithDefault ? K
+    : never
     : never;
 }[keyof Row];
 
@@ -82,11 +87,13 @@ type OptionalInputKeys<Row, Schema extends TableSchema<Row>> = InputKeysWith<
  * - Excludes generated columns
  * - Makes columns with defaults optional
  */
-export type InputFor<Row, Schema extends TableSchema<Row>> = {
-  [K in RequiredInputKeys<Row, Schema>]: Row[K];
-} & {
-  [K in OptionalInputKeys<Row, Schema>]?: Row[K];
-};
+export type InputFor<Row, Schema extends TableSchema<Row>> =
+  & {
+    [K in RequiredInputKeys<Row, Schema>]: Row[K];
+  }
+  & {
+    [K in OptionalInputKeys<Row, Schema>]?: Row[K];
+  };
 
 /**
  * Convert snake_case to camelCase
@@ -237,7 +244,9 @@ export const defineTable = <Row, Input = Row>(config: {
   const toDbValues = async (
     input: Input | Partial<Input>,
   ): Promise<Record<string, InValue>> => {
-    const entries = await mapParallel((col: string) => processColumn(col, input))(inputColumns);
+    const entries = await mapParallel((col: string) =>
+      processColumn(col, input)
+    )(inputColumns);
     return Object.fromEntries(compact(entries));
   };
 
@@ -247,7 +256,8 @@ export const defineTable = <Row, Input = Row>(config: {
     input: Input,
     dbValues: Record<string, InValue>,
   ): unknown => {
-    const inputValue = (input as Record<string, unknown>)[inputKeyMap[col] as string];
+    const inputValue =
+      (input as Record<string, unknown>)[inputKeyMap[col] as string];
     if (inputValue !== undefined) return inputValue;
     if (col in dbValues) return dbValues[col];
     return null;
@@ -280,9 +290,9 @@ export const defineTable = <Row, Input = Row>(config: {
 
   // Get columns that were provided in input
   const getProvidedColumns = (input: Partial<Input>): string[] =>
-    filter((col: string) =>
-      (inputKeyMap[col] as string) in (input as object),
-    )(inputColumns);
+    filter((col: string) => (inputKeyMap[col] as string) in (input as object))(
+      inputColumns,
+    );
 
   // Update implementation - uses RETURNING * to avoid a second round trip
   const update = async (
@@ -353,8 +363,7 @@ type AsyncTransform<T> = (v: T) => Promise<T>;
 
 /** Wrap encrypt/decrypt functions to handle null values */
 const wrapNullable =
-  <T>(fn: AsyncTransform<T>): AsyncTransform<T | null> =>
-  (v) =>
+  <T>(fn: AsyncTransform<T>): AsyncTransform<T | null> => (v) =>
     v === null ? Promise.resolve(null) : fn(v);
 
 /**
@@ -405,6 +414,8 @@ export const col = {
   boolean: (defaultValue: boolean): ColumnDef<boolean> => ({
     default: () => defaultValue,
     write: ((v: boolean) => v ? 1 : 0) as unknown as (v: boolean) => boolean,
-    read: ((v: unknown) => Number(v) === 1) as unknown as (v: boolean) => boolean,
+    read: ((v: unknown) => Number(v) === 1) as unknown as (
+      v: boolean,
+    ) => boolean,
   }),
 };

@@ -15,7 +15,9 @@
   --color-text: #111;
   --color-text-secondary: #999;
   --color-scrollbar: #cacae8;
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  --font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
+    Cantarell, "Helvetica Neue", sans-serif;
   --hover-brightness: 1.2;
   --justify-important: left;
   --justify-normal: left;
@@ -42,7 +44,12 @@
 
 [data-theme="dark"] body {
   background: #23062b;
-  background: linear-gradient(342deg, rgb(16, 2, 19) 0%, rgb(5, 5, 61) 35%, rgb(22, 1, 23) 100%);
+  background: linear-gradient(
+    342deg,
+    rgb(16, 2, 19) 0%,
+    rgb(5, 5, 61) 35%,
+    rgb(22, 1, 23) 100%
+  );
   background-size: 100% 100%;
   background-attachment: fixed;
 }
@@ -952,19 +959,24 @@ form > button {
 }
 
 /* Hide daily-only fields when event type is "standard" */
-form:has(select[name="event_type"] option[value="standard"]:checked) > label:has([name="bookable_days"]),
-form:has(select[name="event_type"] option[value="standard"]:checked) > label:has([name="minimum_days_before"]),
-form:has(select[name="event_type"] option[value="standard"]:checked) > label:has([name="maximum_days_after"]) {
+form:has(select[name="event_type"] option[value="standard"]:checked)
+  > label:has([name="bookable_days"]),
+form:has(select[name="event_type"] option[value="standard"]:checked)
+  > label:has([name="minimum_days_before"]),
+form:has(select[name="event_type"] option[value="standard"]:checked)
+  > label:has([name="maximum_days_after"]) {
   display: none;
 }
 
 /* Hide event date field when event type is "daily" */
-form:has(select[name="event_type"] option[value="daily"]:checked) > label:has([name="date_date"]) {
+form:has(select[name="event_type"] option[value="daily"]:checked)
+  > label:has([name="date_date"]) {
   display: none;
 }
 
 /* Hide max price field when "Allow Pay More" is not checked */
-form:not(:has(input[name="can_pay_more"]:checked)) > label:has([name="max_price"]) {
+form:not(:has(input[name="can_pay_more"]:checked))
+  > label:has([name="max_price"]) {
   display: none;
 }
 

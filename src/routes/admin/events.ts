@@ -61,7 +61,6 @@ import {
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
-  type AttendeeFilter,
   adminDeactivateEventPage,
   adminDeleteEventPage,
   adminDuplicateEventPage,
@@ -69,6 +68,7 @@ import {
   adminEventNewPage,
   adminEventPage,
   adminReactivateEventPage,
+  type AttendeeFilter,
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import type {
@@ -79,17 +79,18 @@ import { eventFields, groupIdField, slugField } from "#templates/fields.ts";
 
 /** Generate a unique event slug, retrying on collision */
 const generateUniqueEventSlug = (excludeEventId?: number) =>
-  generateUniqueSlug(computeSlugIndex, (slug) =>
-    isSlugTaken(slug, excludeEventId),
+  generateUniqueSlug(
+    computeSlugIndex,
+    (slug) => isSlugTaken(slug, excludeEventId),
   );
 
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>
   value
     ? value
-        .split(",")
-        .map((d) => d.trim())
-        .filter((d) => d)
+      .split(",")
+      .map((d) => d.trim())
+      .filter((d) => d)
     : undefined;
 
 /** Extract common event fields from validated form values, normalizing datetimes to UTC */
@@ -148,7 +149,9 @@ const extractEventUpdateInput = async (
 /** Validate max_price is at least unit_price + 100 cents */
 const validateMaxPrice = (input: EventInput): string | null => {
   if (input.maxPrice < (input.unitPrice ?? 0) + 100) {
-    return `Maximum price must be at least ${formatCurrency(100)} more than the ticket price`;
+    return `Maximum price must be at least ${
+      formatCurrency(100)
+    } more than the ticket price`;
   }
   return null;
 };
@@ -248,7 +251,11 @@ const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
     await logActivity(`Event '${result.row.name}' created`, result.row);
     const errorMessage = await processFormImage(formData, result.row.id);
     if (errorMessage) {
-      return redirect("/admin", `Event created but image was not saved: ${errorMessage}`, false);
+      return redirect(
+        "/admin",
+        `Event created but image was not saved: ${errorMessage}`,
+        false,
+      );
     }
     return redirect("/admin", "Event created", true);
   });
@@ -265,7 +272,6 @@ const getCheckinMessage = (
   }
   return null;
 };
-
 
 /** Filter attendees by date for daily events */
 const filterByDate = (
@@ -293,10 +299,12 @@ const applyDateFilter = (
   attendees: Attendee[],
   request: Request,
 ) => {
-  const dateFilter =
-    event.event_type === "daily" ? getDateFilter(request) : null;
-  const availableDates =
-    event.event_type === "daily" ? getUniqueDates(attendees) : [];
+  const dateFilter = event.event_type === "daily"
+    ? getDateFilter(request)
+    : null;
+  const availableDates = event.event_type === "daily"
+    ? getUniqueDates(attendees)
+    : [];
   return {
     dateFilter,
     availableDates,
@@ -372,23 +380,24 @@ const getEventAndGroups = async (
   return event ? { event, groups } : null;
 };
 
-const withEventAndGroupsPage =
-  (
-    renderPage: (
-      event: EventWithCount,
-      groups: Group[],
-      session: AdminSession,
-    ) => string,
-  ): TypedRouteHandler<"GET /admin/event/:id"> =>
-  (request, params) =>
-    requireSessionOr(request, (session) =>
+const withEventAndGroupsPage = (
+  renderPage: (
+    event: EventWithCount,
+    groups: Group[],
+    session: AdminSession,
+  ) => string,
+): TypedRouteHandler<"GET /admin/event/:id"> =>
+(request, params) =>
+  requireSessionOr(
+    request,
+    (session) =>
       orNotFound(getEventAndGroups(params.id), (ctx) =>
-        htmlResponse(renderPage(ctx.event, ctx.groups, session)),
-      ),
-    );
+        htmlResponse(renderPage(ctx.event, ctx.groups, session))),
+  );
 
-const handleAdminEventDuplicateGet: TypedRouteHandler<"GET /admin/event/:id/duplicate"> =
-  withEventAndGroupsPage(adminDuplicateEventPage);
+const handleAdminEventDuplicateGet: TypedRouteHandler<
+  "GET /admin/event/:id/duplicate"
+> = withEventAndGroupsPage(adminDuplicateEventPage);
 
 /** Handle GET /admin/event/:id/edit */
 const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> =
@@ -428,11 +437,15 @@ const handleAdminEventEditPost: TypedRouteHandler<
       );
       if (errorMessage) {
         return redirect(
-          `/admin/event/${result.row.id}`, `Event updated but image was not saved: ${errorMessage}`, false,
+          `/admin/event/${result.row.id}`,
+          `Event updated but image was not saved: ${errorMessage}`,
+          false,
         );
       }
       return redirect(
-        `/admin/event/${result.row.id}`, "Event updated", true,
+        `/admin/event/${result.row.id}`,
+        "Event updated",
+        true,
       );
     }
     if ("notFound" in result) return notFoundResponse();
@@ -440,9 +453,9 @@ const handleAdminEventEditPost: TypedRouteHandler<
     const ctx = await getEventAndGroups(id);
     return ctx
       ? htmlResponse(
-          adminEventEditPage(ctx.event, ctx.groups, session, result.error),
-          400,
-        )
+        adminEventEditPage(ctx.event, ctx.groups, session, result.error),
+        400,
+      )
       : notFoundResponse();
   });
 
@@ -468,7 +481,9 @@ const handleAdminEventExport: TypedRouteHandler<
       ? `${sanitizedName}_${dateFilter}_attendees.csv`
       : `${sanitizedName}_attendees.csv`;
     await logActivity(
-      `CSV exported for '${event.name}'${dateFilter ? ` (date: ${dateFilter})` : ""}`,
+      `CSV exported for '${event.name}'${
+        dateFilter ? ` (date: ${dateFilter})` : ""
+      }`,
       event,
     );
     return csvResponse(csv, filename);
@@ -492,38 +507,39 @@ const handleEventWithConfirmation = (
   errorMsg: string,
   action: (event: EventWithCount) => Promise<Response>,
 ): Promise<Response> =>
-  withAuthForm(request, (session, form) =>
-    orNotFound(getEventWithCount(id), (event) => {
-      const confirmIdentifier = form.get("confirm_identifier") ?? "";
-      if (!verifyIdentifier(event.name, confirmIdentifier)) {
-        return eventErrorPage(event, renderPage, session, errorMsg);
-      }
-      return action(event);
-    }),
+  withAuthForm(
+    request,
+    (session, form) =>
+      orNotFound(getEventWithCount(id), (event) => {
+        const confirmIdentifier = form.get("confirm_identifier") ?? "";
+        if (!verifyIdentifier(event.name, confirmIdentifier)) {
+          return eventErrorPage(event, renderPage, session, errorMsg);
+        }
+        return action(event);
+      }),
   );
 
 const CONFIRM_NAME_MSG =
   "Event name does not match. Please type the exact name to confirm.";
 
 /** Factory for event toggle handlers (deactivate/reactivate) */
-const eventToggleHandler =
-  (
-    renderPage: typeof adminDeactivateEventPage,
-    active: boolean,
-    verb: string,
-  ): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
-  (request, { id }) =>
-    handleEventWithConfirmation(
-      request,
-      id,
-      renderPage,
-      CONFIRM_NAME_MSG,
-      async (event) => {
-        await eventsTable.update(id, { active });
-        await logActivity(`Event '${event.name}' ${verb}`, id);
-        return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
-      },
-    );
+const eventToggleHandler = (
+  renderPage: typeof adminDeactivateEventPage,
+  active: boolean,
+  verb: string,
+): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
+(request, { id }) =>
+  handleEventWithConfirmation(
+    request,
+    id,
+    renderPage,
+    CONFIRM_NAME_MSG,
+    async (event) => {
+      await eventsTable.update(id, { active });
+      await logActivity(`Event '${event.name}' ${verb}`, id);
+      return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
+    },
+  );
 
 /** Handle POST /admin/event/:id/deactivate */
 const handleAdminEventDeactivatePost = eventToggleHandler(
@@ -550,12 +566,13 @@ const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (
   request,
   { id },
 ) =>
-  requireSessionOr(request, (session) =>
-    orNotFound(getEventWithActivityLog(id), (result) =>
-      htmlResponse(
-        adminEventActivityLogPage(result.event, result.entries, session),
-      ),
-    ),
+  requireSessionOr(
+    request,
+    (session) =>
+      orNotFound(getEventWithActivityLog(id), (result) =>
+        htmlResponse(
+          adminEventActivityLogPage(result.event, result.entries, session),
+        )),
   );
 
 /** Perform event deletion */
@@ -574,36 +591,38 @@ const handleAdminEventDelete: TypedRouteHandler<
 > = (request, { id }) =>
   getSearchParam(request, "verify_identifier") !== "false"
     ? handleEventWithConfirmation(
-        request,
-        id,
-        adminDeleteEventPage,
-        "Event name does not match. Please type the exact name to confirm deletion.",
-        performDelete,
-      )
-    : withAuthForm(request, () =>
-        orNotFound(getEventWithCount(id), performDelete),
-      );
+      request,
+      id,
+      adminDeleteEventPage,
+      "Event name does not match. Please type the exact name to confirm deletion.",
+      performDelete,
+    )
+    : withAuthForm(
+      request,
+      () => orNotFound(getEventWithCount(id), performDelete),
+    );
 
 /** Handle POST /admin/event/:id/image/delete (delete event image) */
 const handleImageDelete: TypedRouteHandler<
   "POST /admin/event/:id/image/delete"
 > = (request, { id }) =>
-  withAuthForm(request, () =>
-    orNotFound(getEventWithCount(id), async (event) => {
-      if (event.image_url) {
-        await tryDeleteImage(event.image_url, event.id, "image removal");
-        await eventsTable.update(id, { imageUrl: "" });
-        await logActivity(`Image removed for '${event.name}'`, event);
-      }
-      return redirect(`/admin/event/${id}`, "Image removed", true);
-    }),
+  withAuthForm(
+    request,
+    () =>
+      orNotFound(getEventWithCount(id), async (event) => {
+        if (event.image_url) {
+          await tryDeleteImage(event.image_url, event.id, "image removal");
+          await eventsTable.update(id, { imageUrl: "" });
+          await logActivity(`Image removed for '${event.name}'`, event);
+        }
+        return redirect(`/admin/event/${id}`, "Image removed", true);
+      }),
   );
 
 /** Create a handler that renders the event page with a specific attendee filter */
 const eventPageHandler =
   (activeFilter?: AttendeeFilter): TypedRouteHandler<"GET /admin/event/:id"> =>
-  (request, params) =>
-    renderEventPage(request, params, activeFilter);
+  (request, params) => renderEventPage(request, params, activeFilter);
 
 /** Handle GET /admin/event/:id */
 const handleAdminEventGet = eventPageHandler();
