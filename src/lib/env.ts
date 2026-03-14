@@ -19,7 +19,7 @@ declare const process: { env: Record<string, string | undefined> } | undefined;
  */
 export function getEnv(key: string): string | undefined {
   // Try process.env first (available in Bunny Edge via node:process)
-  if (typeof process !== "undefined" && process?.env && key in process.env) {
+  if (process?.env && key in process.env) {
     return process.env[key];
   }
 

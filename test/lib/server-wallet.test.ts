@@ -197,7 +197,7 @@ describe("wallet route (/wallet/:token)", () => {
 
     expect(files["pass.json"]).toBeDefined();
     expect(files["manifest.json"]).toBeDefined();
-    expect(files["signature"]).toBeDefined();
+    expect(files.signature).toBeDefined();
   });
 
   test("pass.json contains correct event data", async () => {

@@ -255,7 +255,7 @@ describe("apple-wallet", () => {
       expect(files["icon@2x.png"]).toBeDefined();
       expect(files["icon@3x.png"]).toBeDefined();
       expect(files["manifest.json"]).toBeDefined();
-      expect(files["signature"]).toBeDefined();
+      expect(files.signature).toBeDefined();
 
       // pass.json matches generatePassJson
       const passJson = JSON.parse(
