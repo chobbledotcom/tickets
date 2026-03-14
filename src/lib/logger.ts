@@ -222,11 +222,10 @@ const persistErrorToActivityLog = async (
 };
 
 /**
- * Log a classified error to console.error and persist to the activity log.
- * Console output uses error codes and safe metadata (never PII).
- * Activity log entry is encrypted and visible to admins on the log pages.
+ * Log a classified error to console.error only (no ntfy, no activity log).
+ * Use this where calling logError would cause infinite recursion (e.g. ntfy.ts).
  */
-export const logError = (context: ErrorContext): void => {
+export const logErrorLocal = (context: ErrorContext): void => {
   const { code, eventId, attendeeId, detail } = context;
 
   const parts = [
@@ -237,8 +236,17 @@ export const logError = (context: ErrorContext): void => {
   ].filter(Boolean);
 
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
+};
 
-  addPendingWork(sendNtfyError(code));
+/**
+ * Log a classified error to console.error and persist to the activity log.
+ * Console output uses error codes and safe metadata (never PII).
+ * Activity log entry is encrypted and visible to admins on the log pages.
+ */
+export const logError = (context: ErrorContext): void => {
+  logErrorLocal(context);
+
+  addPendingWork(sendNtfyError(context.code));
   addPendingWork(persistErrorToActivityLog(context));
 };
 

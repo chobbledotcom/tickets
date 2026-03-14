@@ -11,6 +11,7 @@ import {
   formatErrorMessage,
   logDebug,
   logError,
+  logErrorLocal,
   logRequest,
   redactPath,
   runWithRequestId,
@@ -269,6 +270,50 @@ describe("logger", () => {
         );
         expect(match).toBeDefined();
       });
+    });
+  });
+
+  describe("logErrorLocal", () => {
+    let errorSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
+
+    beforeEach(() => {
+      errorSpy = spy(console, "error");
+    });
+
+    afterEach(() => {
+      errorSpy.restore();
+    });
+
+    test("logs error to console", () => {
+      logErrorLocal({ code: ErrorCode.DB_CONNECTION });
+
+      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
+    });
+
+    test("logs error with all context", () => {
+      logErrorLocal({
+        code: ErrorCode.CDN_REQUEST,
+        eventId: 5,
+        detail: "ntfy send failed",
+      });
+
+      expect(errorSpy.calls[0]!.args).toEqual([
+        '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',
+      ]);
+    });
+
+    test("does not send ntfy notification", () => {
+      Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
+
+      logErrorLocal({ code: ErrorCode.DB_QUERY });
+
+      expect(fetchStub.calls.length).toBe(0);
+
+      fetchStub.restore();
+      Deno.env.delete("NTFY_URL");
     });
   });
 

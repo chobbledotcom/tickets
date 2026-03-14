@@ -57,12 +57,13 @@ describe("ntfy", () => {
       expect(headers["Tags"]).toBe("warning");
     });
 
-    test("silently swallows fetch failures", async () => {
+    test("logs error locally when fetch fails", async () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/my-topic");
       fetchStub.restore();
       fetchStub = stub(globalThis, "fetch", () =>
         Promise.reject(new Error("Network error")),
       );
+      const errorSpy = spy(console, "error");
 
       sendNtfyError(ErrorCode.WEBHOOK_SEND);
 
@@ -70,7 +71,10 @@ describe("ntfy", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(fetchStub.calls.length).toBe(1);
-      // Should not throw — error is silently swallowed
+      expect(errorSpy.calls.length).toBe(1);
+      expect(errorSpy.calls[0]!.args[0]).toContain("[Error] E_CDN_REQUEST");
+      expect(errorSpy.calls[0]!.args[0]).toContain("ntfy send failed");
+      errorSpy.restore();
     });
   });
 });
