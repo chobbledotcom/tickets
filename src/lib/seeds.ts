@@ -62,11 +62,10 @@ const prepareEvent = async (
   slug: string,
   slugIndex: string,
 ) => {
-  const name = DEMO_EVENT_NAMES[index % DEMO_EVENT_NAMES.length] ?? "";
+  const name = DEMO_EVENT_NAMES[index % DEMO_EVENT_NAMES.length]!;
   const description =
-    DEMO_EVENT_DESCRIPTIONS[index % DEMO_EVENT_DESCRIPTIONS.length] ?? "";
-  const location =
-    DEMO_EVENT_LOCATIONS[index % DEMO_EVENT_LOCATIONS.length] ?? "";
+    DEMO_EVENT_DESCRIPTIONS[index % DEMO_EVENT_DESCRIPTIONS.length]!;
+  const location = DEMO_EVENT_LOCATIONS[index % DEMO_EVENT_LOCATIONS.length]!;
   const created = nowIso();
 
   const [
@@ -223,7 +222,7 @@ export const createSeeds = async (
       quantities,
       capacity: sum(quantities),
       unitPrice: i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
-      slug: slugs[i] ?? { slug: "", slugIndex: "" },
+      slug: slugs[i]!,
     };
   });
 
@@ -248,10 +247,7 @@ export const createSeeds = async (
   let totalAttendees = 0;
 
   for (const [e, eventId] of eventIds.entries()) {
-    const { quantities, unitPrice } = eventData[e] ?? {
-      quantities: [],
-      unitPrice: 0,
-    };
+    const { quantities, unitPrice } = eventData[e]!;
 
     for (let offset = 0; offset < attendeesPerEvent; offset += CHUNK_SIZE) {
       const batchSize = Math.min(CHUNK_SIZE, attendeesPerEvent - offset);
