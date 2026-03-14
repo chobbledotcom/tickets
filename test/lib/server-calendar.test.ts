@@ -81,7 +81,7 @@ describe("admin calendar", () => {
       });
 
       const response = await awaitTestRequest(`/admin/calendar?date=${date1}`, {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain("User A");
@@ -164,7 +164,7 @@ describe("admin calendar", () => {
 
     test("ignores invalid date parameter", async () => {
       const response = await awaitTestRequest("/admin/calendar?date=invalid", {
-        cookie,
+        cookie: await testCookie(),
       });
       await expectHtmlResponse(
         response,
@@ -339,7 +339,7 @@ describe("admin calendar", () => {
 
     test("redirects to calendar when no date provided", async () => {
       const response = await awaitTestRequest("/admin/calendar/export", {
-        cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/calendar?error=Select+a+date+to+export");

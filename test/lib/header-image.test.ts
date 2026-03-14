@@ -237,8 +237,6 @@ describe("server (header image settings)", () => {
     });
 
     test("rejects oversized image", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const oversized = new Uint8Array(257 * 1024);
       oversized[0] = 0xFF;
       oversized[1] = 0xD8;
@@ -247,8 +245,8 @@ describe("server (header image settings)", () => {
       await withStorageMock(async () => {
         const request = mockMultipartRequest(
           "/admin/settings/header-image",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
           {
             fieldName: "header_image",
             name: "big.jpg",
@@ -281,12 +279,10 @@ describe("server (header image settings)", () => {
     });
 
     test("rejects request with no file", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const request = mockMultipartRequest(
         "/admin/settings/header-image",
-        { csrf_token: csrfToken },
-        cookie,
+        { csrf_token: await testCsrfToken() },
+        await testCookie(),
       );
       const response = await handleRequest(request);
       await expectHtmlResponse(response, 400, "No image file provided");
@@ -295,12 +291,11 @@ describe("server (header image settings)", () => {
     test("returns error when storage is not configured", async () => {
       Deno.env.delete("STORAGE_ZONE_NAME");
       Deno.env.delete("STORAGE_ZONE_KEY");
-      const { cookie, csrfToken } = await getTestSession();
 
       const request = mockMultipartRequest(
         "/admin/settings/header-image",
-        { csrf_token: csrfToken },
-        cookie,
+        { csrf_token: await testCsrfToken() },
+        await testCookie(),
         {
           fieldName: "header_image",
           name: "logo.jpg",
@@ -314,13 +309,12 @@ describe("server (header image settings)", () => {
 
     test("deletes old header image when uploading new one", async () => {
       await updateHeaderImageUrl("old-header.jpg");
-      const { cookie, csrfToken } = await getTestSession();
 
       await withStorageMock(async (fetchCalls) => {
         const request = mockMultipartRequest(
           "/admin/settings/header-image",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
           {
             fieldName: "header_image",
             name: "new-logo.jpg",
@@ -344,13 +338,11 @@ describe("server (header image settings)", () => {
     });
 
     test("rejects mismatched magic bytes", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       await withStorageMock(async () => {
         const request = mockMultipartRequest(
           "/admin/settings/header-image",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
           {
             fieldName: "header_image",
             name: "fake.jpg",
@@ -367,13 +359,12 @@ describe("server (header image settings)", () => {
   describe("POST /admin/settings/header-image/delete", () => {
     test("removes header image", async () => {
       await updateHeaderImageUrl("to-delete.jpg");
-      const { cookie, csrfToken } = await getTestSession();
 
       await withStorageMock(async () => {
         const request = mockFormRequest(
           "/admin/settings/header-image/delete",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         );
         const response = await handleRequest(request);
         expect(response.status).toBe(302);
@@ -385,12 +376,10 @@ describe("server (header image settings)", () => {
     });
 
     test("returns error when no header image exists", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const request = mockFormRequest(
         "/admin/settings/header-image/delete",
-        { csrf_token: csrfToken },
-        cookie,
+        { csrf_token: await testCsrfToken() },
+        await testCookie(),
       );
       const response = await handleRequest(request);
       await expectHtmlResponse(response, 400, "No header image to remove");
@@ -398,7 +387,6 @@ describe("server (header image settings)", () => {
 
     test("succeeds even when storage delete throws", async () => {
       await updateHeaderImageUrl("failing.jpg");
-      const { cookie, csrfToken } = await getTestSession();
 
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (): Promise<Response> => {
@@ -408,8 +396,8 @@ describe("server (header image settings)", () => {
       try {
         const request = mockFormRequest(
           "/admin/settings/header-image/delete",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         );
         const response = await handleRequest(request);
         expect(response.status).toBe(302);

@@ -236,12 +236,11 @@ describe("server (admin site)", () => {
     });
 
     test("saves contact page text", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
-          { contact_page_text: "Email us!", csrf_token: csrfToken },
-          cookie,
+          { contact_page_text: "Email us!", csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -253,12 +252,11 @@ describe("server (admin site)", () => {
 
     test("clears contact text when empty", async () => {
       await updateContactPageText("Old text");
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
-          { contact_page_text: "", csrf_token: csrfToken },
-          cookie,
+          { contact_page_text: "", csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -266,15 +264,14 @@ describe("server (admin site)", () => {
     });
 
     test("rejects text exceeding max length", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
           {
             contact_page_text: "x".repeat(MAX_PAGE_TEXT_LENGTH + 1),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(
@@ -285,12 +282,11 @@ describe("server (admin site)", () => {
     });
 
     test("handles missing field gracefully", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -299,8 +295,7 @@ describe("server (admin site)", () => {
 
   describe("site subnav", () => {
     test("homepage shows subnav with Homepage and Contact links", async () => {
-      const { cookie } = await getTestSession();
-      const response = await awaitTestRequest("/admin/site", { cookie });
+      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
       expect(html).toContain('href="/admin/site/contact"');
@@ -309,9 +304,8 @@ describe("server (admin site)", () => {
     });
 
     test("contact page shows subnav with Homepage and Contact links", async () => {
-      const { cookie } = await getTestSession();
       const response = await awaitTestRequest("/admin/site/contact", {
-        cookie,
+        await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
@@ -324,15 +318,13 @@ describe("server (admin site)", () => {
   describe("admin nav", () => {
     test("shows Site link when public site is enabled", async () => {
       await updateShowPublicSite(true);
-      const { cookie } = await getTestSession();
-      const response = await awaitTestRequest("/admin/site", { cookie });
+      const response = await awaitTestRequest("/admin/site", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
     });
 
     test("hides Site link when public site is disabled", async () => {
-      const { cookie } = await getTestSession();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).not.toContain('href="/admin/site"');
     });
