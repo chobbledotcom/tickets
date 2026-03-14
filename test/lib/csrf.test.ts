@@ -104,6 +104,10 @@ describe("verifySignedCsrfToken", () => {
     expect(await verifySignedCsrfToken("s1.a.b.c.d.extra")).toBe(false);
   });
 
+  test("rejects a token with empty parts", async () => {
+    expect(await verifySignedCsrfToken("s1..nonce.hmac")).toBe(false);
+  });
+
   test("rejects a token with non-numeric timestamp", async () => {
     expect(await verifySignedCsrfToken("s1.notanumber.nonce.hmac")).toBe(false);
   });

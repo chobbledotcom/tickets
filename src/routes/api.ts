@@ -116,7 +116,7 @@ const findActiveEvent = async (
   slug: string,
 ): Promise<EventWithCount | Response> => {
   const event = await getEventWithCountBySlug(slug);
-  return event && event.active ? event : apiResponse(EVENT_NOT_FOUND, 404);
+  return event?.active ? event : apiResponse(EVENT_NOT_FOUND, 404);
 };
 
 /** Parse a JSON request body, returning a 400 response on failure */

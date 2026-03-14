@@ -282,6 +282,11 @@ describe("password hashing", () => {
       expect(result).toBe(false);
     });
 
+    it("returns false for hash with empty parts", async () => {
+      const result = await verifyPassword("password", "pbkdf2:::");
+      expect(result).toBe(false);
+    });
+
     it("returns false for hash with mismatched length", async () => {
       // Create a valid-looking hash but with truncated hash data
       const shortHash = btoa("short");
