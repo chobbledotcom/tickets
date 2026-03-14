@@ -10,30 +10,10 @@
  */
 
 import { getDecimalPlaces } from "#lib/currency.ts";
+import { startOfHour } from "#lib/dates.ts";
+import type { WalletPassData } from "#routes/token-utils.ts";
 
-/** Data needed to generate a Google Wallet pass — mirrors Apple PassData */
-export type GooglePassData = {
-  /** Unique token identifying this ticket */
-  serialNumber: string;
-  /** Platform/domain name shown on the pass */
-  organizationName: string;
-  /** Event name displayed as primary field */
-  eventName: string;
-  /** ISO 8601 date for the event */
-  eventDate: string;
-  /** Venue shown on the pass */
-  eventLocation: string;
-  /** Selected date for daily/recurring events (null for one-off events) */
-  attendeeDate: string | null;
-  /** Ticket quantity */
-  quantity: number;
-  /** Price in minor units (e.g. pence) */
-  pricePaid: number;
-  /** Currency code (e.g. "GBP") */
-  currencyCode: string;
-  /** Full URL encoded in the QR barcode */
-  checkinUrl: string;
-};
+export type { WalletPassData as GooglePassData } from "#routes/token-utils.ts";
 
 /** Google Wallet credentials from service account */
 export type GoogleWalletCredentials = {
@@ -89,16 +69,9 @@ export const isValidGooglePrivateKey = async (
   }
 };
 
-/** Round a date down to the start of the current hour for cache-stable JWTs */
-const startOfHour = (date: Date): number => {
-  const d = new Date(date);
-  d.setMinutes(0, 0, 0);
-  return Math.floor(d.getTime() / 1000);
-};
-
 /** Build the EventTicketClass for inline JWT creation */
 export const buildEventTicketClass = (
-  data: GooglePassData,
+  data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Record<string, unknown> => ({
   id: `${creds.issuerId}.${data.serialNumber}-class`,
@@ -133,7 +106,7 @@ export const buildEventTicketClass = (
 
 /** Build the EventTicketObject for inline JWT creation */
 export const buildEventTicketObject = (
-  data: GooglePassData,
+  data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Record<string, unknown> => {
   const textModules: Array<Record<string, unknown>> = [];
@@ -178,13 +151,13 @@ export const buildEventTicketObject = (
 
 /** Build the full JWT payload for a Google Wallet save link */
 export const buildJwtPayload = (
-  data: GooglePassData,
+  data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Record<string, unknown> => ({
   iss: creds.serviceAccountEmail,
   aud: "google",
   typ: "savetowallet",
-  iat: startOfHour(new Date()),
+  iat: Math.floor(startOfHour(new Date()).getTime() / 1000),
   origins: [],
   payload: {
     eventTicketClasses: [buildEventTicketClass(data, creds)],
@@ -217,7 +190,7 @@ const SAVE_URL = "https://pay.google.com/gp/v/save/";
 
 /** Generate the full "Add to Google Wallet" save URL */
 export const buildGoogleWalletUrl = async (
-  data: GooglePassData,
+  data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Promise<string> => {
   const payload = buildJwtPayload(data, creds);
