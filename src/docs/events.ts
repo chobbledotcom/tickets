@@ -8,6 +8,6 @@
  * @module
  */
 
+export * from "#lib/dates.ts";
 export * from "#lib/event-fields.ts";
 export * from "#lib/sort-events.ts";
-export * from "#lib/dates.ts";

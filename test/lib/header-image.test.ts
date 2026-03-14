@@ -29,6 +29,62 @@ import {
 /** JPEG magic bytes for a valid test image */
 const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
+/** Submit a file to the header-image upload endpoint */
+const submitHeaderImage = async (
+  file: {
+    name: string;
+    data: Uint8Array;
+    contentType: string;
+  },
+  cookie?: string,
+  csrfToken?: string,
+): Promise<Response> => {
+  const csrf = csrfToken ?? (await testCsrfToken());
+  const ck = cookie ?? (await testCookie());
+  return handleRequest(
+    mockMultipartRequest(
+      "/admin/settings/header-image",
+      { csrf_token: csrf },
+      ck,
+      { fieldName: "header_image", ...file },
+    ),
+  );
+};
+
+/** Submit a JPEG to the header-image upload endpoint */
+const submitHeaderJpeg = (
+  filename: string,
+  cookie?: string,
+  csrfToken?: string,
+): Promise<Response> =>
+  submitHeaderImage(
+    { name: filename, data: JPEG_HEADER, contentType: "image/jpeg" },
+    cookie,
+    csrfToken,
+  );
+
+/** Submit a POST to delete the header image */
+const submitHeaderImageDelete = async (
+  cookie?: string,
+  csrfToken?: string,
+): Promise<Response> => {
+  const csrf = csrfToken ?? (await testCsrfToken());
+  const ck = cookie ?? (await testCookie());
+  return handleRequest(
+    mockFormRequest(
+      "/admin/settings/header-image/delete",
+      { csrf_token: csrf },
+      ck,
+    ),
+  );
+};
+
+/** Assert response is a 302 redirect to /admin/settings */
+const expectSettingsRedirect = (response: Response): void => {
+  expect(response.status).toBe(302);
+  expect(response.headers.get("location")).toContain("/admin/settings");
+};
+
 /** Mock fetch to intercept Bunny CDN API calls */
 const withStorageMock = async (
   fn: (fetchCalls: string[]) => Promise<void>,
@@ -203,20 +259,8 @@ describe("server (header image settings)", () => {
   describe("POST /admin/settings/header-image", () => {
     test("uploads header image successfully", async () => {
       await withStorageMock(async () => {
-        const request = mockMultipartRequest(
-          "/admin/settings/header-image",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-          {
-            fieldName: "header_image",
-            name: "logo.jpg",
-            data: JPEG_HEADER,
-            contentType: "image/jpeg",
-          },
-        );
-        const response = await handleRequest(request);
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toContain("/admin/settings");
+        const response = await submitHeaderJpeg("logo.jpg");
+        expectSettingsRedirect(response);
 
         const url = await getHeaderImageUrlFromDb();
         expect(url).not.toBeNull();
@@ -226,18 +270,11 @@ describe("server (header image settings)", () => {
 
     test("rejects invalid image type", async () => {
       await withStorageMock(async () => {
-        const request = mockMultipartRequest(
-          "/admin/settings/header-image",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-          {
-            fieldName: "header_image",
-            name: "doc.pdf",
-            data: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
-            contentType: "application/pdf",
-          },
-        );
-        const response = await handleRequest(request);
+        const response = await submitHeaderImage({
+          name: "doc.pdf",
+          data: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+          contentType: "application/pdf",
+        });
         await expectHtmlResponse(response, 400, "JPEG, PNG, GIF, or WebP");
       });
     });
@@ -249,18 +286,11 @@ describe("server (header image settings)", () => {
       oversized[2] = 0xff;
 
       await withStorageMock(async () => {
-        const request = mockMultipartRequest(
-          "/admin/settings/header-image",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-          {
-            fieldName: "header_image",
-            name: "big.jpg",
-            data: oversized,
-            contentType: "image/jpeg",
-          },
-        );
-        const response = await handleRequest(request);
+        const response = await submitHeaderImage({
+          name: "big.jpg",
+          data: oversized,
+          contentType: "image/jpeg",
+        });
         await expectHtmlResponse(response, 400, "256KB");
       });
     });
@@ -272,18 +302,11 @@ describe("server (header image settings)", () => {
       );
       const { signCsrfToken } = await import("#lib/csrf.ts");
       const signedCsrf = await signCsrfToken();
-      const request = mockMultipartRequest(
-        "/admin/settings/header-image",
-        { csrf_token: signedCsrf },
+      const response = await submitHeaderJpeg(
+        "logo.jpg",
         managerCookie,
-        {
-          fieldName: "header_image",
-          name: "logo.jpg",
-          data: JPEG_HEADER,
-          contentType: "image/jpeg",
-        },
+        signedCsrf,
       );
-      const response = await handleRequest(request);
       expect(response.status).toBe(403);
     });
 
@@ -301,18 +324,7 @@ describe("server (header image settings)", () => {
       Deno.env.delete("STORAGE_ZONE_NAME");
       Deno.env.delete("STORAGE_ZONE_KEY");
 
-      const request = mockMultipartRequest(
-        "/admin/settings/header-image",
-        { csrf_token: await testCsrfToken() },
-        await testCookie(),
-        {
-          fieldName: "header_image",
-          name: "logo.jpg",
-          data: JPEG_HEADER,
-          contentType: "image/jpeg",
-        },
-      );
-      const response = await handleRequest(request);
+      const response = await submitHeaderJpeg("logo.jpg");
       await expectHtmlResponse(
         response,
         400,
@@ -324,20 +336,8 @@ describe("server (header image settings)", () => {
       await updateHeaderImageUrl("old-header.jpg");
 
       await withStorageMock(async (fetchCalls) => {
-        const request = mockMultipartRequest(
-          "/admin/settings/header-image",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-          {
-            fieldName: "header_image",
-            name: "new-logo.jpg",
-            data: JPEG_HEADER,
-            contentType: "image/jpeg",
-          },
-        );
-        const response = await handleRequest(request);
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toContain("/admin/settings");
+        const response = await submitHeaderJpeg("new-logo.jpg");
+        expectSettingsRedirect(response);
 
         const deleteCall = fetchCalls.find((url) =>
           url.includes("old-header.jpg"),
@@ -352,18 +352,11 @@ describe("server (header image settings)", () => {
 
     test("rejects mismatched magic bytes", async () => {
       await withStorageMock(async () => {
-        const request = mockMultipartRequest(
-          "/admin/settings/header-image",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-          {
-            fieldName: "header_image",
-            name: "fake.jpg",
-            data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
-            contentType: "image/jpeg",
-          },
-        );
-        const response = await handleRequest(request);
+        const response = await submitHeaderImage({
+          name: "fake.jpg",
+          data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
+          contentType: "image/jpeg",
+        });
         await expectHtmlResponse(response, 400, "valid image");
       });
     });
@@ -374,14 +367,8 @@ describe("server (header image settings)", () => {
       await updateHeaderImageUrl("to-delete.jpg");
 
       await withStorageMock(async () => {
-        const request = mockFormRequest(
-          "/admin/settings/header-image/delete",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        );
-        const response = await handleRequest(request);
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toContain("/admin/settings");
+        const response = await submitHeaderImageDelete();
+        expectSettingsRedirect(response);
 
         const url = await getHeaderImageUrlFromDb();
         expect(url).toBeNull();
@@ -389,12 +376,7 @@ describe("server (header image settings)", () => {
     });
 
     test("returns error when no header image exists", async () => {
-      const request = mockFormRequest(
-        "/admin/settings/header-image/delete",
-        { csrf_token: await testCsrfToken() },
-        await testCookie(),
-      );
-      const response = await handleRequest(request);
+      const response = await submitHeaderImageDelete();
       await expectHtmlResponse(response, 400, "No header image to remove");
     });
 
@@ -407,14 +389,8 @@ describe("server (header image settings)", () => {
       };
 
       try {
-        const request = mockFormRequest(
-          "/admin/settings/header-image/delete",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        );
-        const response = await handleRequest(request);
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toContain("/admin/settings");
+        const response = await submitHeaderImageDelete();
+        expectSettingsRedirect(response);
 
         const url = await getHeaderImageUrlFromDb();
         expect(url).toBeNull();
@@ -446,8 +422,7 @@ describe("server (header image settings)", () => {
 
   describe("header image proxy", () => {
     test("serves header image via proxy route", async () => {
-      const imageData = JPEG_HEADER;
-      const encrypted = await encryptBytes(imageData);
+      const encrypted = await encryptBytes(JPEG_HEADER);
 
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
@@ -471,10 +446,12 @@ describe("server (header image settings)", () => {
           mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"),
         );
         expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe("image/jpeg");
-        expect(response.headers.get("cache-control")).toContain("immutable");
-        const body = new Uint8Array(await response.arrayBuffer());
-        expect(body).toEqual(imageData);
+        const headers = response.headers;
+        expect(headers.get("content-type")).toBe("image/jpeg");
+        expect(headers.get("cache-control")).toContain("immutable");
+        expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+          JPEG_HEADER,
+        );
       } finally {
         globalThis.fetch = originalFetch;
       }

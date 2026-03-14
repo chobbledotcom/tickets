@@ -72,7 +72,7 @@
       }
     },
     {
-      "includes": ["src/index.ts"],
+      "includes": ["src/index.ts", "src/lib/logger.ts"],
       "linter": {
         "rules": {
           "suspicious": {

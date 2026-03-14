@@ -441,16 +441,20 @@ describe("server (event images)", () => {
   });
 
   describe("POST /admin/event/:id/image/delete", () => {
+    const expectImageDeleteRedirect = (response: Response, eventId: number) => {
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        `/admin/event/${eventId}?success=Image+removed`,
+      );
+    };
+
     test("removes image from event and storage", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
       await eventsTable.update(event.id, { imageUrl: "to-delete.jpg" });
 
       await withStorageMock(async () => {
         const response = await submitImageDelete(event.id, cookie, csrfToken);
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}?success=Image+removed`,
-        );
+        expectImageDeleteRedirect(response, event.id);
 
         const updated = await getEventWithCount(event.id);
         expect(updated?.image_url).toBe("");
@@ -461,10 +465,7 @@ describe("server (event images)", () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
 
       const response = await submitImageDelete(event.id, cookie, csrfToken);
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?success=Image+removed`,
-      );
+      expectImageDeleteRedirect(response, event.id);
     });
 
     test("returns 404 for non-existent event", async () => {

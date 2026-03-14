@@ -7,6 +7,22 @@ import {
   isSecureMode,
 } from "#lib/cookies.ts";
 
+/** Assert common cookie attributes for dev (localhost) mode */
+const expectDevCookieAttributes = (cookie: string) => {
+  expect(cookie).toContain("HttpOnly");
+  expect(cookie).not.toContain("; Secure;");
+  expect(cookie).toContain("SameSite=Strict");
+  expect(cookie).toContain("Path=/");
+};
+
+/** Assert common cookie attributes for secure (non-localhost) mode */
+const expectSecureCookieAttributes = (cookie: string) => {
+  expect(cookie).toContain("HttpOnly");
+  expect(cookie).toContain("; Secure;");
+  expect(cookie).toContain("SameSite=Strict");
+  expect(cookie).toContain("Path=/");
+};
+
 const withAllowedDomain = (domain: string, run: () => void): void => {
   const original = Deno.env.get("ALLOWED_DOMAIN");
   Deno.env.set("ALLOWED_DOMAIN", domain);
@@ -54,10 +70,7 @@ describe("buildSessionCookie", () => {
     withAllowedDomain("example.com", () => {
       const cookie = buildSessionCookie("test-token");
       expect(cookie).toContain("__Host-session=test-token");
-      expect(cookie).toContain("HttpOnly");
-      expect(cookie).toContain("; Secure;");
-      expect(cookie).toContain("SameSite=Strict");
-      expect(cookie).toContain("Path=/");
+      expectSecureCookieAttributes(cookie);
       expect(cookie).toContain("Max-Age=86400");
     });
   });
@@ -66,10 +79,7 @@ describe("buildSessionCookie", () => {
     withAllowedDomain("localhost", () => {
       const cookie = buildSessionCookie("test-token");
       expect(cookie).toContain("session=test-token");
-      expect(cookie).toContain("HttpOnly");
-      expect(cookie).not.toContain("; Secure;");
-      expect(cookie).toContain("SameSite=Strict");
-      expect(cookie).toContain("Path=/");
+      expectDevCookieAttributes(cookie);
       expect(cookie).toContain("Max-Age=86400");
     });
   });
@@ -87,10 +97,7 @@ describe("clearSessionCookie", () => {
     withAllowedDomain("example.com", () => {
       const cookie = clearSessionCookie();
       expect(cookie).toContain("__Host-session=");
-      expect(cookie).toContain("HttpOnly");
-      expect(cookie).toContain("; Secure;");
-      expect(cookie).toContain("SameSite=Strict");
-      expect(cookie).toContain("Path=/");
+      expectSecureCookieAttributes(cookie);
       expect(cookie).toContain("Max-Age=0");
     });
   });
@@ -99,10 +106,7 @@ describe("clearSessionCookie", () => {
     withAllowedDomain("localhost", () => {
       const cookie = clearSessionCookie();
       expect(cookie).toContain("session=");
-      expect(cookie).toContain("HttpOnly");
-      expect(cookie).not.toContain("; Secure;");
-      expect(cookie).toContain("SameSite=Strict");
-      expect(cookie).toContain("Path=/");
+      expectDevCookieAttributes(cookie);
       expect(cookie).toContain("Max-Age=0");
     });
   });

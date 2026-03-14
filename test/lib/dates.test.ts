@@ -16,6 +16,17 @@ import { createTestDbWithSetup, resetDb, testEvent } from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
+/** All seven weekday names — used for daily events bookable every day */
+const ALL_DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
 describe("dates", () => {
   beforeEach(async () => {
     await createTestDbWithSetup();
@@ -88,65 +99,34 @@ describe("dates", () => {
       }
     });
 
-    test("excludes holidays", () => {
-      // Pick a date range that includes "today + 1" as a holiday
-      const holidayDate = addDays(today(), 1);
-      const holidays = [
-        {
-          id: 1,
-          name: "Holiday",
-          start_date: holidayDate,
-          end_date: holidayDate,
-        },
-      ];
-
-      const event = testEvent({
+    const dailyEventWithAllDays = () =>
+      testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
 
-      const dates = getAvailableDates(event, holidays);
+    const makeHoliday = (name: string, start: string, end: string) => [
+      { id: 1, name, start_date: start, end_date: end },
+    ];
+
+    test("excludes holidays", () => {
+      const holidayDate = addDays(today(), 1);
+      const dates = getAvailableDates(
+        dailyEventWithAllDays(),
+        makeHoliday("Holiday", holidayDate, holidayDate),
+      );
       expect(dates).not.toContain(holidayDate);
     });
 
     test("excludes holiday ranges", () => {
       const holidayStart = addDays(today(), 1);
       const holidayEnd = addDays(today(), 3);
-      const holidays = [
-        {
-          id: 1,
-          name: "Holiday Range",
-          start_date: holidayStart,
-          end_date: holidayEnd,
-        },
-      ];
-
-      const event = testEvent({
-        event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
-        minimum_days_before: 0,
-        maximum_days_after: 7,
-      });
-
-      const dates = getAvailableDates(event, holidays);
+      const dates = getAvailableDates(
+        dailyEventWithAllDays(),
+        makeHoliday("Holiday Range", holidayStart, holidayEnd),
+      );
       expect(dates).not.toContain(holidayStart);
       expect(dates).not.toContain(addDays(today(), 2));
       expect(dates).not.toContain(holidayEnd);
@@ -155,15 +135,7 @@ describe("dates", () => {
     test("respects minimum_days_before", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 3,
         maximum_days_after: 10,
       });
@@ -176,15 +148,7 @@ describe("dates", () => {
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 0,
         maximum_days_after: 0,
       });
@@ -198,15 +162,7 @@ describe("dates", () => {
     test("respects maximum_days_after when non-zero", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -235,15 +191,7 @@ describe("dates", () => {
     test("returns the first available date", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 0,
         maximum_days_after: 14,
       });
@@ -271,15 +219,7 @@ describe("dates", () => {
 
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -291,15 +231,7 @@ describe("dates", () => {
     test("respects minimum_days_before", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 3,
         maximum_days_after: 10,
       });
@@ -317,15 +249,7 @@ describe("dates", () => {
 
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 1,
         maximum_days_after: 3,
       });
@@ -336,15 +260,7 @@ describe("dates", () => {
     test("uses 730 days when maximum_days_after is 0", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+        bookable_days: [...ALL_DAYS],
         minimum_days_before: 0,
         maximum_days_after: 0,
       });

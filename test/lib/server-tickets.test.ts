@@ -2,10 +2,9 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   awaitTestRequest,
-  createDailyTestEvent,
+  createDailyTestAttendee,
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeWithToken,
@@ -16,6 +15,12 @@ import {
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
+
+/** Fetch a ticket page and return the response body text */
+const fetchTicketBody = async (tokenPath: string): Promise<string> => {
+  const response = await awaitTestRequest(`/t/${tokenPath}`);
+  return response.text();
+};
 
 describe("ticket view (/t/:tokens)", () => {
   beforeEach(async () => {
@@ -53,10 +58,7 @@ describe("ticket view (/t/:tokens)", () => {
       2,
     );
 
-    const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
-    expect(response.status).toBe(200);
-
-    const body = await response.text();
+    const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
     expect(body).toContain(eventA.name);
     expect(body).toContain(eventB.name);
   });
@@ -138,22 +140,14 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("displays booked date for daily event tickets", async () => {
-    const event = await createDailyTestEvent({
-      maxAttendees: 10,
-      maximumDaysAfter: 30,
-    });
     const date = "2026-02-15";
-    const result = await createAttendeeAtomic({
-      eventId: event.id,
-      name: "Zara",
-      email: "zara@test.com",
+    const { token } = await createDailyTestAttendee(
+      "Zara",
+      "zara@test.com",
       date,
-    });
-    if (!result.success) throw new Error("Failed to create attendee");
-
-    const response = await awaitTestRequest(
-      `/t/${result.attendee.ticket_token}`,
     );
+
+    const response = await awaitTestRequest(`/t/${token}`);
     expect(response.status).toBe(200);
 
     const body = await response.text();
@@ -162,34 +156,14 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("shows date for daily event and shows standard event without date on same ticket page", async () => {
-    const dailyEvent = await createTestEvent({
-      maxAttendees: 10,
-      eventType: "daily",
-      bookableDays: [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-      ],
-      minimumDaysBefore: 0,
-      maximumDaysAfter: 30,
-    });
+    const date = "2026-02-15";
+    const { event: dailyEvent, token: tokenA } = await createDailyTestAttendee(
+      "Mixed",
+      "mixed@test.com",
+      date,
+    );
     const { event: standardEvent, token: tokenB } =
       await createTestAttendeeWithToken("Mixed", "mixed@test.com");
-    const date = "2026-02-15";
-    const dailyResult = await createAttendeeAtomic({
-      eventId: dailyEvent.id,
-      name: "Mixed",
-      email: "mixed@test.com",
-      date,
-    });
-    if (!dailyResult.success) {
-      throw new Error("Failed to create daily attendee");
-    }
-    const tokenA = dailyResult.attendee.ticket_token;
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
     expect(response.status).toBe(200);
@@ -208,8 +182,7 @@ describe("ticket view (/t/:tokens)", () => {
       "alice@test.com",
     );
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchTicketBody(token);
     expect(body).not.toContain("Booking Date");
   });
 
@@ -261,8 +234,7 @@ describe("ticket view (/t/:tokens)", () => {
   test("does not show description when empty", async () => {
     const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchTicketBody(token);
     expect(body).not.toContain("ticket-card-description");
   });
 
@@ -285,8 +257,7 @@ describe("ticket view (/t/:tokens)", () => {
   test("does not show price for free tickets", async () => {
     const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchTicketBody(token);
     expect(body).not.toContain("ticket-card-price");
   });
 

@@ -157,7 +157,8 @@ const extractRecordFile = (record: string): string | null => {
   const sfMatch = record.match(/SF:(.*)/);
   if (!sfMatch) return null;
   const file = sfMatch[1].replace(`${projectRoot}/`, "");
-  if (COVERAGE_EXCLUSIONS.some((exclusion) => file.includes(exclusion))) return null;
+  if (COVERAGE_EXCLUSIONS.some((exclusion) => file.includes(exclusion)))
+    return null;
   return file;
 };
 
@@ -179,7 +180,8 @@ const findCoverageFailures = (
   lcov: string,
 ): { lineFailures: string[]; branchFailures: string[] } => {
   const records = lcov.split("end_of_record").filter((r) => r.includes("SF:"));
-  if (records.length === 0) return { lineFailures: ["No coverage data found"], branchFailures: [] };
+  if (records.length === 0)
+    return { lineFailures: ["No coverage data found"], branchFailures: [] };
 
   const lineFailures: string[] = [];
   const branchFailures: string[] = [];

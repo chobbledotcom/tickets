@@ -15,6 +15,6 @@
  * @module
  */
 
-export * from "#lib/payments.ts";
-export * from "#lib/payment-helpers.ts";
 export * from "#lib/booking.ts";
+export * from "#lib/payment-helpers.ts";
+export * from "#lib/payments.ts";

@@ -911,6 +911,19 @@ export const createTestEvent = (
   );
 };
 
+/**
+ * Create an embeddable test event and return its ticket page response.
+ * Useful for testing security headers, CSP, and embed behavior on ticket pages.
+ */
+export const getEmbeddableTicketResponse = async (): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const event = await createTestEvent({
+    maxAttendees: 50,
+    thankYouUrl: "https://example.com",
+  });
+  return handleRequest(mockRequest(`/ticket/${event.slug}`));
+};
+
 /** Convert a price in minor units to the form value in major units */
 export const priceFormValue = (minorUnits: number): string =>
   toMajorUnits(minorUnits);
@@ -1987,3 +2000,82 @@ const _testCerts: SigningCredentials = (() => {
 
 /** Return pre-built test certificates for Apple Wallet signing */
 export const generateTestCerts = (): SigningCredentials => _testCerts;
+
+// ---------------------------------------------------------------------------
+// Email / Webhook test factories
+// ---------------------------------------------------------------------------
+
+import type { EmailEntry, EmailEvent } from "#lib/email.ts";
+import type { WebhookAttendee } from "#lib/webhook.ts";
+
+export type { EmailEntry, EmailEvent, WebhookAttendee };
+
+/**
+ * Create a daily event and an attendee with a booked date.
+ * Returns the event, attendee, and ticket token.
+ */
+export const createDailyTestAttendee = async (
+  name: string,
+  email: string,
+  date: string,
+  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+): Promise<{ event: Event; attendee: Attendee; token: string }> => {
+  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+  const event = await createDailyTestEvent({
+    maxAttendees: 10,
+    maximumDaysAfter: 30,
+    ...eventOverrides,
+  });
+  const result = await createAttendeeAtomic({
+    eventId: event.id,
+    name,
+    email,
+    date,
+  });
+  const { attendee } = result as Extract<typeof result, { success: true }>;
+  return { event, attendee, token: attendee.ticket_token };
+};
+
+/** Build an EmailEvent with sensible defaults */
+export const makeTestEvent = (
+  overrides: Partial<EmailEvent> = {},
+): EmailEvent => ({
+  id: 1,
+  name: "Test Event",
+  slug: "test-event",
+  webhook_url: "",
+  max_attendees: 100,
+  attendee_count: 10,
+  unit_price: 0,
+  can_pay_more: false,
+  date: "",
+  location: "",
+  ...overrides,
+});
+
+/** Build a WebhookAttendee with sensible defaults */
+export const makeTestAttendee = (
+  overrides: Partial<WebhookAttendee> = {},
+): WebhookAttendee => ({
+  id: 42,
+  quantity: 1,
+  name: "Jane Doe",
+  email: "jane@example.com",
+  phone: "555-1234",
+  address: "",
+  special_instructions: "",
+  payment_id: "",
+  price_paid: "0",
+  ticket_token: "AABB001122",
+  date: null,
+  ...overrides,
+});
+
+/** Build an EmailEntry from event/attendee overrides */
+export const makeTestEntry = (
+  eventOverrides?: Partial<EmailEvent>,
+  attendeeOverrides?: Partial<WebhookAttendee>,
+): EmailEntry => ({
+  event: makeTestEvent(eventOverrides),
+  attendee: makeTestAttendee(attendeeOverrides),
+});

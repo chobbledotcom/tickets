@@ -8,8 +8,8 @@
  * @module
  */
 
+export * from "#lib/apple-wallet.ts";
 export * from "#lib/qr.ts";
 export * from "#lib/svg-ticket.ts";
-export * from "#lib/apple-wallet.ts";
-export * from "#lib/wallet-icons.ts";
 export * from "#lib/ticket-url.ts";
+export * from "#lib/wallet-icons.ts";
