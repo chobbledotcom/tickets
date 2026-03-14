@@ -43,12 +43,18 @@ type ColumnMeta<K, Row, Schema extends TableSchema<Row>> = K extends keyof Row
   : { isInput: false; hasDefault: false };
 
 /** Check if column is input-eligible (not generated) */
-type IsInputColumn<K, Row, Schema extends TableSchema<Row>> =
-  ColumnMeta<K, Row, Schema>["isInput"];
+type IsInputColumn<K, Row, Schema extends TableSchema<Row>> = ColumnMeta<
+  K,
+  Row,
+  Schema
+>["isInput"];
 
 /** Check if column has a default value */
-type ColumnHasDefault<K, Row, Schema extends TableSchema<Row>> =
-  ColumnMeta<K, Row, Schema>["hasDefault"];
+type ColumnHasDefault<K, Row, Schema extends TableSchema<Row>> = ColumnMeta<
+  K,
+  Row,
+  Schema
+>["hasDefault"];
 
 /** Extract input keys based on whether they have defaults */
 type InputKeysWith<
@@ -104,9 +110,7 @@ export const toSnakeCase = (s: string): string =>
  * Build input key mapping from DB columns
  * snake_case DB column → camelCase input key
  */
-export const buildInputKeyMap = (
-  columns: string[],
-): Record<string, string> =>
+export const buildInputKeyMap = (columns: string[]): Record<string, string> =>
   reduce(
     (acc: Record<string, string>, col: string) => {
       acc[col] = toCamelCase(col);
@@ -237,7 +241,9 @@ export const defineTable = <Row, Input = Row>(config: {
   const toDbValues = async (
     input: Input | Partial<Input>,
   ): Promise<Record<string, InValue>> => {
-    const entries = await mapParallel((col: string) => processColumn(col, input))(inputColumns);
+    const entries = await mapParallel((col: string) =>
+      processColumn(col, input),
+    )(inputColumns);
     return Object.fromEntries(compact(entries));
   };
 
@@ -247,7 +253,9 @@ export const defineTable = <Row, Input = Row>(config: {
     input: Input,
     dbValues: Record<string, InValue>,
   ): unknown => {
-    const inputValue = (input as Record<string, unknown>)[inputKeyMap[col] as string];
+    const inputValue = (input as Record<string, unknown>)[
+      inputKeyMap[col] as string
+    ];
     if (inputValue !== undefined) return inputValue;
     if (col in dbValues) return dbValues[col];
     return null;
@@ -269,20 +277,17 @@ export const defineTable = <Row, Input = Row>(config: {
       ? { [primaryKey]: Number(result.lastInsertRowid) }
       : {};
 
-    return reduce(
-      (row: Record<string, unknown>, col: string) => {
-        row[col] = getReturnValue(col, input, dbValues);
-        return row;
-      },
-      initialRow,
-    )(inputColumns) as Row;
+    return reduce((row: Record<string, unknown>, col: string) => {
+      row[col] = getReturnValue(col, input, dbValues);
+      return row;
+    }, initialRow)(inputColumns) as Row;
   };
 
   // Get columns that were provided in input
   const getProvidedColumns = (input: Partial<Input>): string[] =>
-    filter((col: string) =>
-      (inputKeyMap[col] as string) in (input as object),
-    )(inputColumns);
+    filter((col: string) => (inputKeyMap[col] as string) in (input as object))(
+      inputColumns,
+    );
 
   // Update implementation - uses RETURNING * to avoid a second round trip
   const update = async (
@@ -404,7 +409,9 @@ export const col = {
   /** Boolean column stored as INTEGER 0/1 in the database */
   boolean: (defaultValue: boolean): ColumnDef<boolean> => ({
     default: () => defaultValue,
-    write: ((v: boolean) => v ? 1 : 0) as unknown as (v: boolean) => boolean,
-    read: ((v: unknown) => Number(v) === 1) as unknown as (v: boolean) => boolean,
+    write: ((v: boolean) => (v ? 1 : 0)) as unknown as (v: boolean) => boolean,
+    read: ((v: unknown) => Number(v) === 1) as unknown as (
+      v: boolean,
+    ) => boolean,
   }),
 };

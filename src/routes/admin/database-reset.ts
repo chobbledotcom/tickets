@@ -3,10 +3,10 @@
  * Access is strictly restricted to demo mode (DEMO_MODE=true).
  */
 
-import { isDemoMode } from "#lib/demo.ts";
+import { clearSessionCookie } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
-import { clearSessionCookie } from "#lib/cookies.ts";
+import { isDemoMode } from "#lib/demo.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
@@ -56,7 +56,9 @@ const handleDemoResetPost = (request: Request): Response | Promise<Response> =>
       if (phraseError) return resetPageError(phraseError, 400);
 
       await resetDatabase();
-      return redirect("/setup/", "Database reset", true, { cookie: clearSessionCookie() });
+      return redirect("/setup/", "Database reset", true, {
+        cookie: clearSessionCookie(),
+      });
     }),
   );
 

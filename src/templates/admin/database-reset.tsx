@@ -16,7 +16,13 @@ export const RESET_PHRASE_MISMATCH_ERROR =
   "Confirmation phrase does not match. Please type the exact phrase to confirm reset.";
 
 /** Shared reset database form - used on both admin settings and demo reset pages */
-export const ResetDatabaseForm = ({ action, id }: { action: string; id?: string }): JSX.Element => (
+export const ResetDatabaseForm = ({
+  action,
+  id,
+}: {
+  action: string;
+  id?: string;
+}): JSX.Element => (
   <CsrfForm action={action} id={id}>
     <h2>Reset Database</h2>
     <article>
@@ -56,5 +62,5 @@ export const demoResetPage = (error?: string): string =>
       <p>
         <a href="/admin">Back to login</a>
       </p>
-    </Layout>
+    </Layout>,
   );

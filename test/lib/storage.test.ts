@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import {
   detectImageType,
   generateImageFilename,
@@ -8,7 +9,6 @@ import {
   isStorageEnabled,
   validateImage,
 } from "#lib/storage.ts";
-import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 
 describe("storage", () => {
   beforeEach(() => {
@@ -77,12 +77,12 @@ describe("storage", () => {
 
   describe("detectImageType", () => {
     test("detects JPEG from magic bytes", () => {
-      const data = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00]);
+      const data = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00]);
       expect(detectImageType(data)).toBe("image/jpeg");
     });
 
     test("detects PNG from magic bytes", () => {
-      const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D]);
+      const data = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d]);
       expect(detectImageType(data)).toBe("image/png");
     });
 
@@ -108,8 +108,8 @@ describe("storage", () => {
   });
 
   describe("validateImage", () => {
-    const jpegHeader = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0]);
-    const pngHeader = new Uint8Array([0x89, 0x50, 0x4E, 0x47]);
+    const jpegHeader = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const pngHeader = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 
     test("accepts valid JPEG image", () => {
       const result = validateImage(jpegHeader, "image/jpeg");
@@ -129,9 +129,9 @@ describe("storage", () => {
 
     test("rejects image exceeding size limit", () => {
       const largeData = new Uint8Array(256 * 1024 + 1);
-      largeData[0] = 0xFF;
-      largeData[1] = 0xD8;
-      largeData[2] = 0xFF;
+      largeData[0] = 0xff;
+      largeData[1] = 0xd8;
+      largeData[2] = 0xff;
       const result = validateImage(largeData, "image/jpeg");
       expect(result.valid).toBe(false);
       if (!result.valid) {
@@ -158,9 +158,9 @@ describe("storage", () => {
 
     test("accepts image exactly at size limit", () => {
       const data = new Uint8Array(256 * 1024);
-      data[0] = 0xFF;
-      data[1] = 0xD8;
-      data[2] = 0xFF;
+      data[0] = 0xff;
+      data[1] = 0xd8;
+      data[2] = 0xff;
       const result = validateImage(data, "image/jpeg");
       expect(result.valid).toBe(true);
     });
@@ -196,14 +196,25 @@ describe("storage", () => {
 
   describe("allowed image types", () => {
     test("accepts the four supported types", () => {
-      expect(validateImage(new Uint8Array([0xFF, 0xD8, 0xFF]), "image/jpeg").valid).toBe(true);
-      expect(validateImage(new Uint8Array([0x89, 0x50, 0x4E, 0x47]), "image/png").valid).toBe(true);
-      expect(validateImage(new Uint8Array([0x47, 0x49, 0x46, 0x38]), "image/gif").valid).toBe(true);
-      expect(validateImage(new Uint8Array([0x52, 0x49, 0x46, 0x46]), "image/webp").valid).toBe(true);
+      expect(
+        validateImage(new Uint8Array([0xff, 0xd8, 0xff]), "image/jpeg").valid,
+      ).toBe(true);
+      expect(
+        validateImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), "image/png")
+          .valid,
+      ).toBe(true);
+      expect(
+        validateImage(new Uint8Array([0x47, 0x49, 0x46, 0x38]), "image/gif")
+          .valid,
+      ).toBe(true);
+      expect(
+        validateImage(new Uint8Array([0x52, 0x49, 0x46, 0x46]), "image/webp")
+          .valid,
+      ).toBe(true);
     });
 
     test("rejects unsupported types", () => {
-      const jpeg = new Uint8Array([0xFF, 0xD8, 0xFF]);
+      const jpeg = new Uint8Array([0xff, 0xd8, 0xff]);
       expect(validateImage(jpeg, "image/svg+xml").valid).toBe(false);
       expect(validateImage(jpeg, "application/pdf").valid).toBe(false);
     });
@@ -211,12 +222,14 @@ describe("storage", () => {
 
   describe("encryptBytes / decryptBytes", () => {
     test("round-trips binary data through encrypt then decrypt", async () => {
-      const original = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46]);
+      const original = new Uint8Array([
+        0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46,
+      ]);
       const encrypted = await encryptBytes(original);
       // Encrypted data should be larger (12 byte IV + 16 byte auth tag)
       expect(encrypted.byteLength).toBeGreaterThan(original.byteLength);
       // Encrypted data should not start with original magic bytes
-      expect(encrypted[0]).not.toBe(0xFF);
+      expect(encrypted[0]).not.toBe(0xff);
       const decrypted = await decryptBytes(encrypted);
       expect(decrypted).toEqual(original);
     });

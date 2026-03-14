@@ -22,8 +22,8 @@ export const sendNtfyError = async (code: string): Promise<void> => {
     await fetch(ntfyUrl, {
       method: "POST",
       headers: {
-        "Title": `${domain} error`,
-        "Tags": "warning",
+        Title: `${domain} error`,
+        Tags: "warning",
       },
       body: code,
     });

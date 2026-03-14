@@ -108,7 +108,10 @@ export const reserveSession = async (
       }
 
       // Check if reservation is stale (abandoned by crashed process)
-      if (existing.attendee_id === null && isReservationStale(existing.processed_at)) {
+      if (
+        existing.attendee_id === null &&
+        isReservationStale(existing.processed_at)
+      ) {
         await deleteStaleReservation(sessionId);
         return reserveSession(sessionId);
       }

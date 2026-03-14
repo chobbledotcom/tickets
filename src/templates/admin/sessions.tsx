@@ -4,10 +4,10 @@
 
 import { map, pipe, reduce } from "#fp";
 import { CsrfForm } from "#lib/forms.tsx";
-import type { AdminSession, Session } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { Layout } from "#templates/layout.tsx";
+import type { AdminSession, Session } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -23,7 +23,7 @@ const SessionRow = ({
       <td>{session.token.slice(0, 8)}...</td>
       <td>{new Date(session.expires).toLocaleString()}</td>
       <td>{isCurrent ? <mark>Current</mark> : ""}</td>
-    </tr>
+    </tr>,
   );
 
 /**
@@ -55,32 +55,32 @@ export const adminSessionsPage = (
 
       {success && <div class="success">{success}</div>}
 
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Token</th>
-                <th>Expires</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <Raw html={sessionRows} />
-            </tbody>
-          </table>
-        </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th>Expires</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={sessionRows} />
+          </tbody>
+        </table>
+      </div>
 
       {otherSessionCount > 0 && (
         <>
           <br />
 
-            <CsrfForm action="/admin/sessions" class="one-button">
-              <button type="submit" class="danger">
-                Log out of all other sessions ({otherSessionCount})
-              </button>
-            </CsrfForm>
+          <CsrfForm action="/admin/sessions" class="one-button">
+            <button type="submit" class="danger">
+              Log out of all other sessions ({otherSessionCount})
+            </button>
+          </CsrfForm>
         </>
       )}
-    </Layout>
+    </Layout>,
   );
 };

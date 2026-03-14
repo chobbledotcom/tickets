@@ -19,6 +19,14 @@ import {
   PaymentUserError,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
+import type {
+  CheckoutSessionResult,
+  MultiRegistrationIntent,
+  PaymentProvider,
+  RegistrationIntent,
+  ValidatedPaymentSession,
+  WebhookSetupResult,
+} from "#lib/payments.ts";
 import {
   createMultiPaymentLink,
   createPaymentLink,
@@ -28,14 +36,6 @@ import {
   verifyWebhookSignature,
 } from "#lib/square.ts";
 import type { Event } from "#lib/types.ts";
-import type {
-  CheckoutSessionResult,
-  MultiRegistrationIntent,
-  PaymentProvider,
-  RegistrationIntent,
-  ValidatedPaymentSession,
-  WebhookSetupResult,
-} from "#lib/payments.ts";
 
 /** Wrap a checkout operation, converting PaymentUserError to { error } result */
 const withUserError = async <T extends { orderId: string; url: string }>(
@@ -56,7 +56,11 @@ export const squarePaymentProvider: PaymentProvider = {
 
   checkoutCompletedEventType: "payment.updated",
 
-  createCheckoutSession(event: Event, intent: RegistrationIntent, baseUrl: string) {
+  createCheckoutSession(
+    event: Event,
+    intent: RegistrationIntent,
+    baseUrl: string,
+  ) {
     return withUserError(() => createPaymentLink(event, intent, baseUrl));
   },
 
@@ -100,7 +104,9 @@ export const squarePaymentProvider: PaymentProvider = {
     };
   },
 
-  verifyWebhookSignature(...args: Parameters<PaymentProvider["verifyWebhookSignature"]>) {
+  verifyWebhookSignature(
+    ...args: Parameters<PaymentProvider["verifyWebhookSignature"]>
+  ) {
     return verifyWebhookSignature(...args);
   },
 
@@ -123,7 +129,8 @@ export const squarePaymentProvider: PaymentProvider = {
     // and provides the signature key. This method is a no-op for Square.
     return Promise.resolve({
       success: false,
-      error: "Square webhooks must be configured manually in the Square Developer Dashboard",
+      error:
+        "Square webhooks must be configured manually in the Square Developer Dashboard",
     });
   },
 };

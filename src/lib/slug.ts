@@ -47,7 +47,8 @@ const SLUG_PATTERN = /^[a-z0-9-]+$/;
 /** Validate a normalized slug. Returns error message or null. */
 export const validateSlug = (slug: string): string | null => {
   if (!slug) return "Slug is required";
-  if (!SLUG_PATTERN.test(slug)) return "Slug may only contain lowercase letters, numbers, and hyphens";
+  if (!SLUG_PATTERN.test(slug))
+    return "Slug may only contain lowercase letters, numbers, and hyphens";
   return null;
 };
 
@@ -66,7 +67,7 @@ export const generateUniqueSlug = async (
   for (let attempt = 0; attempt < 10; attempt++) {
     const slug = generateSlug();
     const slugIndex = await computeIndex(slug);
-    if (!await isTaken(slug)) return { slug, slugIndex };
+    if (!(await isTaken(slug))) return { slug, slugIndex };
   }
   throw new Error("Failed to generate unique slug after 10 attempts");
 };

@@ -2,9 +2,9 @@
  * Admin authentication routes - login and logout
  */
 
+import { buildSessionCookie, clearSessionCookie } from "#lib/cookies.ts";
 import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto.ts";
 import { verifySignedCsrfToken } from "#lib/csrf.ts";
-import { buildSessionCookie, clearSessionCookie } from "#lib/cookies.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
@@ -12,6 +12,7 @@ import {
 } from "#lib/db/login-attempts.ts";
 import { createSession, deleteSession } from "#lib/db/sessions.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
+import { getEnv } from "#lib/env.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
@@ -25,8 +26,7 @@ import {
   redirect,
   withAuthForm,
 } from "#routes/utils.ts";
-import { loginFields, type LoginFormValues } from "#templates/fields.ts";
-import { getEnv } from "#lib/env.ts";
+import { type LoginFormValues, loginFields } from "#templates/fields.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>
@@ -46,7 +46,9 @@ const createLoginSession = async (
 
   await createSession(token, csrfToken, expires, wrappedDataKey, userId);
 
-  return redirect("/admin", "Logged in", true, { cookie: buildSessionCookie(token) });
+  return redirect("/admin", "Logged in", true, {
+    cookie: buildSessionCookie(token),
+  });
 };
 
 /**
@@ -63,7 +65,7 @@ const handleAdminLogin = async (
 
   // Validate login CSRF token (signed token pattern)
   const csrfForm = form.get("csrf_token") || "";
-  if (!csrfForm || !await verifySignedCsrfToken(csrfForm)) {
+  if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
     return loginResponse("Invalid or expired form. Please try again.", 403);
   }
 
@@ -129,7 +131,9 @@ const handleAdminLogin = async (
 const handleAdminLogout = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session) => {
     await deleteSession(session.token);
-    return redirect("/admin", "Logged out", true, { cookie: clearSessionCookie() });
+    return redirect("/admin", "Logged out", true, {
+      cookie: clearSessionCookie(),
+    });
   });
 
 /** Handle GET /admin/login - redirect to dashboard if already authenticated */

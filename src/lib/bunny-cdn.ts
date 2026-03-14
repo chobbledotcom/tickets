@@ -49,7 +49,7 @@ const findPullZoneIdImpl = async (): Promise<
 
   const data: BunnyPullZoneListResponse = await response.json();
   const zone = data.Items.find((z) =>
-    z.Hostnames.some((h) => h.Value === cdnHostname)
+    z.Hostnames.some((h) => h.Value === cdnHostname),
   );
 
   if (!zone) {
@@ -74,8 +74,14 @@ const parseBunnyError = async (
     const json = JSON.parse(text);
     if (json.Message) message = json.Message;
     if (json.ErrorKey) errorKey = json.ErrorKey;
-  } catch { /* use raw text */ }
-  return { ok: false, error: `${label} failed (${response.status}): ${message}`, errorKey };
+  } catch {
+    /* use raw text */
+  }
+  return {
+    ok: false,
+    error: `${label} failed (${response.status}): ${message}`,
+    errorKey,
+  };
 };
 
 /** POST to a Bunny CDN pull zone endpoint with JSON body. */
@@ -89,7 +95,10 @@ const pullZonePost = async (
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { AccessKey: getBunnyApiKey(), "Content-Type": "application/json" },
+    headers: {
+      AccessKey: getBunnyApiKey(),
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
 
@@ -101,8 +110,7 @@ const pullZonePost = async (
 const loadFreeCertificate = async (
   hostname: string,
 ): Promise<BunnyApiResult> => {
-  const url =
-    `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
+  const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
 
   const response = await fetch(url, {
     method: "GET",

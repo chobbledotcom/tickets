@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { handleRequest } from "#routes";
 import {
@@ -242,12 +242,10 @@ describe("server (setup)", () => {
 
         await withMocks(
           () => ({
-            mockCompleteSetup: stub(settingsApi, "completeSetup",
-              () => Promise.reject(new Error("Database error")),
+            mockCompleteSetup: stub(settingsApi, "completeSetup", () =>
+              Promise.reject(new Error("Database error")),
             ),
-            mockConsoleError: stub(console, "error",
-              () => {},
-            ),
+            mockConsoleError: stub(console, "error", () => {}),
           }),
           async () => {
             const response = await handleRequest(
@@ -388,8 +386,9 @@ describe("server (setup)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Initial setup completed")))
-        .toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Initial setup completed")),
+      ).toBe(true);
     });
   });
 

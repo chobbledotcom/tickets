@@ -47,12 +47,15 @@ export type MultiRegistrationIntent = ContactInfo & {
  * - Success: { sessionId, checkoutUrl }
  * - User-facing error (e.g. invalid phone): { error }
  * - Internal/unknown failure: null */
-export type CheckoutSessionResult = {
-  sessionId: string;
-  checkoutUrl: string;
-} | {
-  error: string;
-} | null;
+export type CheckoutSessionResult =
+  | {
+      sessionId: string;
+      checkoutUrl: string;
+    }
+  | {
+      error: string;
+    }
+  | null;
 
 /**
  * Metadata attached to a validated payment session.

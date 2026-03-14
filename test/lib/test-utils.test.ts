@@ -1,9 +1,15 @@
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { afterEach, beforeAll, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it as test,
+} from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import {
   awaitTestRequest,
   createTestAttendee,
@@ -18,11 +24,11 @@ import {
   expectRedirect,
   expectStatus,
   generateTestEventName,
+  getAdminLoginCsrfToken,
   getCsrfTokenFromCookie,
   getJoinCsrfToken,
   getPageCsrfToken,
   getSetupCsrfToken,
-  getAdminLoginCsrfToken,
   getTicketCsrfToken,
   invalidateTestDbCache,
   loginAsAdmin,
@@ -30,10 +36,10 @@ import {
   mockRequest,
   mockWebhookRequest,
   randomString,
+  requireJoinCsrfToken,
   resetDb,
   resetTestSession,
   resetTestSlugCounter,
-  requireJoinCsrfToken,
   setupStripe,
   submitJoinForm,
   submitTicketForm,
@@ -111,7 +117,9 @@ describe("test-utils", () => {
         { name: "John" },
         `${getSessionCookieName()}=abc123`,
       );
-      expect(request.headers.get("cookie")).toBe(`${getSessionCookieName()}=abc123`);
+      expect(request.headers.get("cookie")).toBe(
+        `${getSessionCookieName()}=abc123`,
+      );
     });
   });
 
@@ -125,7 +133,9 @@ describe("test-utils", () => {
 
     test("formats session token as cookie", () => {
       const request = testRequest("/admin/logout", "abc123");
-      expect(request.headers.get("cookie")).toBe(`${getSessionCookieName()}=abc123`);
+      expect(request.headers.get("cookie")).toBe(
+        `${getSessionCookieName()}=abc123`,
+      );
     });
 
     test("uses raw cookie string when provided", () => {
@@ -141,7 +151,9 @@ describe("test-utils", () => {
       const request = testRequest("/admin/", "token123", {
         cookie: `${getSessionCookieName()}=other`,
       });
-      expect(request.headers.get("cookie")).toBe(`${getSessionCookieName()}=token123`);
+      expect(request.headers.get("cookie")).toBe(
+        `${getSessionCookieName()}=token123`,
+      );
     });
 
     test("creates POST request with form data", async () => {
@@ -162,7 +174,9 @@ describe("test-utils", () => {
         data: { name: "Test Event" },
       });
       expect(request.method).toBe("POST");
-      expect(request.headers.get("cookie")).toBe(`${getSessionCookieName()}=mytoken`);
+      expect(request.headers.get("cookie")).toBe(
+        `${getSessionCookieName()}=mytoken`,
+      );
       const body = await request.text();
       expect(body).toContain("name=Test+Event");
     });
@@ -281,7 +295,13 @@ describe("test-utils", () => {
     test("returns csrf_token when session exists", async () => {
       await createTestDb();
       const { createSession } = await import("#lib/db/sessions.ts");
-      await createSession("test-sess-token", "test-csrf-value", Date.now() + 60000, null, 1);
+      await createSession(
+        "test-sess-token",
+        "test-csrf-value",
+        Date.now() + 60000,
+        null,
+        1,
+      );
       const result = await getCsrfTokenFromCookie(
         `${getSessionCookieName()}=test-sess-token`,
       );
@@ -295,11 +315,15 @@ describe("test-utils", () => {
     });
 
     test("returns null when html has no csrf_token field", () => {
-      expect(getAdminLoginCsrfToken("<form><input type='text'></form>")).toBe(null);
+      expect(getAdminLoginCsrfToken("<form><input type='text'></form>")).toBe(
+        null,
+      );
     });
 
     test("extracts csrf_token value from html form", () => {
-      expect(getAdminLoginCsrfToken('<input name="csrf_token" value="abc123">')).toBe("abc123");
+      expect(
+        getAdminLoginCsrfToken('<input name="csrf_token" value="abc123">'),
+      ).toBe("abc123");
     });
   });
 
@@ -309,7 +333,9 @@ describe("test-utils", () => {
     });
 
     test("extracts csrf_token value from html form", () => {
-      expect(getJoinCsrfToken('<input name="csrf_token" value="join-token-123">')).toBe("join-token-123");
+      expect(
+        getJoinCsrfToken('<input name="csrf_token" value="join-token-123">'),
+      ).toBe("join-token-123");
     });
   });
 
@@ -321,7 +347,9 @@ describe("test-utils", () => {
     });
 
     test("returns csrf token when present in html", () => {
-      expect(requireJoinCsrfToken('<input name="csrf_token" value="abc123">')).toBe("abc123");
+      expect(
+        requireJoinCsrfToken('<input name="csrf_token" value="abc123">'),
+      ).toBe("abc123");
     });
   });
 
@@ -335,7 +363,9 @@ describe("test-utils", () => {
     });
 
     test("extracts csrf_token value from html form", () => {
-      expect(getSetupCsrfToken('<input name="csrf_token" value="setup-token-789">')).toBe("setup-token-789");
+      expect(
+        getSetupCsrfToken('<input name="csrf_token" value="setup-token-789">'),
+      ).toBe("setup-token-789");
     });
   });
 
@@ -349,7 +379,9 @@ describe("test-utils", () => {
     });
 
     test("extracts csrf_token value from html form", () => {
-      expect(getTicketCsrfToken('<input name="csrf_token" value="ticket-xyz789">')).toBe("ticket-xyz789");
+      expect(
+        getTicketCsrfToken('<input name="csrf_token" value="ticket-xyz789">'),
+      ).toBe("ticket-xyz789");
     });
   });
 
@@ -367,7 +399,10 @@ describe("test-utils", () => {
     test("returns error response for non-existent slug", async () => {
       await createTestDbWithSetup();
       // Non-existent slug page has no form, falls back to signed token
-      const response = await submitTicketForm("non-existent-slug", { name: "Test", email: "t@t.com" });
+      const response = await submitTicketForm("non-existent-slug", {
+        name: "Test",
+        email: "t@t.com",
+      });
       expect(response.status).toBe(404);
     });
   });
@@ -400,7 +435,9 @@ describe("test-utils", () => {
         password: "newpassword123",
         password_confirm: "newpassword123",
       });
-      expectRedirect("/join/complete?success=Password+set+successfully")(response);
+      expectRedirect("/join/complete?success=Password+set+successfully")(
+        response,
+      );
     });
 
     test("returns error response for mismatched passwords", async () => {
@@ -419,7 +456,8 @@ describe("test-utils", () => {
     });
 
     test("creates an invite and returns the invite code", async () => {
-      const { inviteCode, cookie, csrfToken } = await createTestInvite("invitee1");
+      const { inviteCode, cookie, csrfToken } =
+        await createTestInvite("invitee1");
       expect(inviteCode).toBeTruthy();
       expect(cookie).toContain(`${getSessionCookieName()}=`);
       expect(csrfToken).toMatch(/^s1\./);
@@ -427,9 +465,9 @@ describe("test-utils", () => {
 
     test("throws when invite creation fails (duplicate username)", async () => {
       await createTestInvite("duplicate-user");
-      await expect(
-        createTestInvite("duplicate-user"),
-      ).rejects.toThrow("Failed to create invite");
+      await expect(createTestInvite("duplicate-user")).rejects.toThrow(
+        "Failed to create invite",
+      );
     });
   });
 
@@ -713,18 +751,18 @@ describe("test-utils", () => {
 
     test("createTestEvent throws on validation failure when name is empty", async () => {
       // Empty name triggers validation failure, returning 400 instead of 302
-      await expect(
-        createTestEvent({ name: "" }),
-      ).rejects.toThrow("Failed to create event: 400");
+      await expect(createTestEvent({ name: "" })).rejects.toThrow(
+        "Failed to create event: 400",
+      );
     });
 
     test("authenticatedFormRequest throws on non-302 response via update", async () => {
       // Update with empty name triggers validation failure.
       // The update handler returns a 200 error page (not 302) on validation failure.
       const event = await createTestEvent();
-      await expect(
-        updateTestEvent(event.id, { name: "" }),
-      ).rejects.toThrow("Failed to update event");
+      await expect(updateTestEvent(event.id, { name: "" })).rejects.toThrow(
+        "Failed to update event",
+      );
     });
   });
 
@@ -1128,7 +1166,11 @@ describe("test-compat", () => {
 
     test("updateTestGroup can update only the name", async () => {
       await createTestDbWithSetup();
-      const group = await createTestGroup({ name: "Before", slug: "update-name-group", termsAndConditions: "Terms" });
+      const group = await createTestGroup({
+        name: "Before",
+        slug: "update-name-group",
+        termsAndConditions: "Terms",
+      });
       const updated = await updateTestGroup(group.id, { name: "After" });
       expect(updated.name).toBe("After");
       expect(updated.slug).toBe("update-name-group");
@@ -1137,7 +1179,11 @@ describe("test-compat", () => {
 
     test("updateTestGroup can update only the slug", async () => {
       await createTestDbWithSetup();
-      const group = await createTestGroup({ name: "Name", slug: "before-slug", termsAndConditions: "" });
+      const group = await createTestGroup({
+        name: "Name",
+        slug: "before-slug",
+        termsAndConditions: "",
+      });
       const updated = await updateTestGroup(group.id, { slug: "after-slug" });
       expect(updated.name).toBe("Name");
       expect(updated.slug).toBe("after-slug");
@@ -1145,15 +1191,24 @@ describe("test-compat", () => {
 
     test("updateTestGroup can update only terms_and_conditions", async () => {
       await createTestDbWithSetup();
-      const group = await createTestGroup({ name: "Name", slug: "terms-only", termsAndConditions: "" });
-      const updated = await updateTestGroup(group.id, { termsAndConditions: "New terms" });
+      const group = await createTestGroup({
+        name: "Name",
+        slug: "terms-only",
+        termsAndConditions: "",
+      });
+      const updated = await updateTestGroup(group.id, {
+        termsAndConditions: "New terms",
+      });
       expect(updated.slug).toBe("terms-only");
       expect(updated.terms_and_conditions).toBe("New terms");
     });
 
     test("deleteTestGroup deletes the group", async () => {
       await createTestDbWithSetup();
-      const group = await createTestGroup({ name: "Del", slug: "delete-group-helper" });
+      const group = await createTestGroup({
+        name: "Del",
+        slug: "delete-group-helper",
+      });
       await deleteTestGroup(group.id);
       const { groupsTable } = await import("#lib/db/groups.ts");
       expect(await groupsTable.findById(group.id)).toBeNull();

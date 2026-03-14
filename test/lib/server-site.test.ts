@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getContactPageTextFromDb,
   getHomepageTextFromDb,
@@ -107,9 +107,11 @@ describe("server (admin site)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain(
-        "Homepage updated",
-      );
+      expect(
+        decodeURIComponent(
+          response.headers.get("location")!.replaceAll("+", " "),
+        ),
+      ).toContain("Homepage updated");
 
       expect(await getWebsiteTitleFromDb()).toBe("My Site");
       expect(await getHomepageTextFromDb()).toBe("Welcome!");
@@ -244,9 +246,11 @@ describe("server (admin site)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain(
-        "Contact page updated",
-      );
+      expect(
+        decodeURIComponent(
+          response.headers.get("location")!.replaceAll("+", " "),
+        ),
+      ).toContain("Contact page updated");
       expect(await getContactPageTextFromDb()).toBe("Email us!");
     });
 

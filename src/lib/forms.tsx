@@ -3,10 +3,9 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import { appendIframeParam } from "#lib/iframe.ts";
-
-import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 
 const escapeHtml = (str: string): string =>
   str
@@ -92,10 +91,11 @@ const renderDatetimeInputs = (
   name: string,
   { date, time }: { date: string; time: string },
 ): string =>
-  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>`
-  + `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
+  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>` +
+  `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
 
-const DATETIME_PARTIAL_ERROR = "Please enter a date when providing a time, or leave both blank";
+const DATETIME_PARTIAL_ERROR =
+  "Please enter a date when providing a time, or leave both blank";
 
 /** Combine date and time form values into a datetime string, defaulting time when absent */
 const getDatetimeValue = (
@@ -136,18 +136,16 @@ export const renderField = (field: Field, value: string = ""): string =>
         />
       ) : field.type === "checkbox-group" && field.options ? (
         <Raw
-          html={renderCheckboxGroup(field.name, field.options, new Set(value ? value.split(",").map((v) => v.trim()) : []))}
+          html={renderCheckboxGroup(
+            field.name,
+            field.options,
+            new Set(value ? value.split(",").map((v) => v.trim()) : []),
+          )}
         />
       ) : field.type === "datetime" ? (
-        <Raw
-          html={renderDatetimeInputs(field.name, splitDatetime(value))}
-        />
+        <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />
       ) : field.type === "file" ? (
-        <input
-          type="file"
-          name={field.name}
-          accept={field.accept}
-        />
+        <input type="file" name={field.name} accept={field.accept} />
       ) : (
         <input
           type={field.type}
@@ -163,17 +161,13 @@ export const renderField = (field: Field, value: string = ""): string =>
           autocomplete={field.autocomplete}
         />
       )}
-      {field.hint && (
-        <small>
-          {field.hint}
-        </small>
-      )}
+      {field.hint && <small>{field.hint}</small>}
       {field.hintHtml && (
         <small>
           <Raw html={field.hintHtml} />
         </small>
       )}
-    </label>
+    </label>,
   );
 
 /**
@@ -184,7 +178,9 @@ export const renderFields = (
   values: FieldValues = {},
 ): string =>
   pipe(
-    map((f: Field) => renderField(f, String(values[f.name] ?? f.defaultValue ?? ""))),
+    map((f: Field) =>
+      renderField(f, String(values[f.name] ?? f.defaultValue ?? "")),
+    ),
     joinStrings,
   )(fields);
 
@@ -220,12 +216,17 @@ const validateSingleField = (
     const result = getDatetimeValue(form, field.name);
     if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
     if (!result) {
-      if (field.required) return { valid: false, error: `${field.label} is required` };
+      if (field.required)
+        return { valid: false, error: `${field.label} is required` };
       return { valid: true, value: null };
     }
     trimmed = result;
   } else if (field.type === "checkbox-group") {
-    trimmed = form.getAll(field.name).map((v) => v.trim()).filter((v) => v).join(",");
+    trimmed = form
+      .getAll(field.name)
+      .map((v) => v.trim())
+      .filter((v) => v)
+      .join(",");
   } else {
     trimmed = (form.get(field.name) || "").trim();
   }
@@ -308,19 +309,25 @@ export const setFormError = (formId: string, message: string): void => {
  * When `id` is provided, the form gets an id attribute (also usable as an anchor).
  * Shows a success or error message when the form's id matches the current state.
  */
-export const CsrfForm = (
-  { action, children, ...rest }: {
-    action: string;
-    children?: Child;
-    id?: string;
-    class?: string;
-    enctype?: string;
-  },
-): JSX.Element => (
+export const CsrfForm = ({
+  action,
+  children,
+  ...rest
+}: {
+  action: string;
+  children?: Child;
+  id?: string;
+  class?: string;
+  enctype?: string;
+}): JSX.Element => (
   <form method="POST" action={appendIframeParam(action)} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
-    {rest.id && rest.id === _successStore.formId && <Raw html={renderSuccess(_successStore.message)} />}
-    {rest.id && rest.id === _errorStore.formId && <Raw html={renderError(_errorStore.message)} />}
+    {rest.id && rest.id === _successStore.formId && (
+      <Raw html={renderSuccess(_successStore.message)} />
+    )}
+    {rest.id && rest.id === _errorStore.formId && (
+      <Raw html={renderError(_errorStore.message)} />
+    )}
     {children}
   </form>
 );

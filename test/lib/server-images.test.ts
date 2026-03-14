@@ -1,5 +1,8 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { encryptBytes } from "#lib/crypto.ts";
+import { toMajorUnits } from "#lib/currency.ts";
+import { eventsTable, getEventWithCount } from "#lib/db/events.ts";
 import { handleRequest } from "#routes";
 import {
   createTestDbWithSetup,
@@ -17,12 +20,9 @@ import {
   updateTestEvent,
   withFetchMock,
 } from "#test-utils";
-import { encryptBytes } from "#lib/crypto.ts";
-import { toMajorUnits } from "#lib/currency.ts";
-import { eventsTable, getEventWithCount } from "#lib/db/events.ts";
 
 /** JPEG magic bytes for a valid test image */
-const JPEG_HEADER = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]);
+const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 /** PDF magic bytes for an invalid image type test */
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
@@ -32,7 +32,9 @@ const PROXY_PATH = "/image/abc123-def4-5678-9abc-def012345678";
 
 /** Standard CDN 201 success response */
 const cdnOkResponse = (): Response =>
-  new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), { status: 201 });
+  new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), {
+    status: 201,
+  });
 
 /** Mock fetch to intercept Bunny CDN API calls, forwarding others to real fetch */
 const withStorageMock = (
@@ -144,7 +146,9 @@ const expectImageErrorRedirect = (
   expect(response.status).toBe(302);
   const location = response.headers.get("location") ?? "";
   expect(location).toContain("error=");
-  expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(errorSubstring);
+  expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
+    errorSubstring,
+  );
 };
 
 /** Shared form fields for creating a new event via POST /admin/event */
@@ -212,7 +216,12 @@ describe("server (event images)", () => {
       Deno.env.delete("STORAGE_ZONE_KEY");
       const { event, cookie, csrfToken } = await setupEventAndLogin();
 
-      const response = await submitEditJpeg(event.id, cookie, csrfToken, "test.jpg");
+      const response = await submitEditJpeg(
+        event.id,
+        cookie,
+        csrfToken,
+        "test.jpg",
+      );
       expect(response.status).toBe(302);
       const updated = await getEventWithCount(event.id);
       expect(updated?.image_url).toBe("");
@@ -245,9 +254,9 @@ describe("server (event images)", () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
 
       const oversized = new Uint8Array(257 * 1024);
-      oversized[0] = 0xFF;
-      oversized[1] = 0xD8;
-      oversized[2] = 0xFF;
+      oversized[0] = 0xff;
+      oversized[1] = 0xd8;
+      oversized[2] = 0xff;
 
       await withStorageMock(async () => {
         const response = await submitEditImage(event.id, cookie, csrfToken, {
@@ -276,7 +285,12 @@ describe("server (event images)", () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
 
       await withStorageMock(async () => {
-        const response = await submitEditJpeg(event.id, cookie, csrfToken, "photo.jpg");
+        const response = await submitEditJpeg(
+          event.id,
+          cookie,
+          csrfToken,
+          "photo.jpg",
+        );
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe(
           `/admin/event/${event.id}?success=Event+updated`,
@@ -293,11 +307,16 @@ describe("server (event images)", () => {
       await eventsTable.update(event.id, { imageUrl: "old-image.jpg" });
 
       await withStorageMock(async (fetchCalls) => {
-        const response = await submitEditJpeg(event.id, cookie, csrfToken, "new-photo.jpg");
+        const response = await submitEditJpeg(
+          event.id,
+          cookie,
+          csrfToken,
+          "new-photo.jpg",
+        );
         expect(response.status).toBe(302);
 
         const deleteCall = fetchCalls.find((url) =>
-          url.includes("old-image.jpg")
+          url.includes("old-image.jpg"),
         );
         expect(deleteCall).not.toBeUndefined();
       });
@@ -318,7 +337,12 @@ describe("server (event images)", () => {
           return null;
         });
 
-        const response = await submitEditJpeg(event.id, cookie, csrfToken, "new.jpg");
+        const response = await submitEditJpeg(
+          event.id,
+          cookie,
+          csrfToken,
+          "new.jpg",
+        );
         expect(response.status).toBe(302);
         const updated = await getEventWithCount(event.id);
         expect(updated?.image_url).toMatch(/\.jpg$/);
@@ -333,7 +357,9 @@ describe("server (event images)", () => {
 
       await withStorageMock(async () => {
         const response = await submitCreateImage(
-          cookie, csrfToken, "Image Test Event",
+          cookie,
+          csrfToken,
+          "Image Test Event",
           { name: "photo.jpg", data: JPEG_HEADER, contentType: "image/jpeg" },
         );
         expect(response.status).toBe(302);
@@ -352,7 +378,9 @@ describe("server (event images)", () => {
 
       await withStorageMock(async () => {
         const response = await submitCreateImage(
-          cookie, csrfToken, "Bad Image Event",
+          cookie,
+          csrfToken,
+          "Bad Image Event",
           { name: "test.pdf", data: PDF_BYTES, contentType: "application/pdf" },
         );
         expect(response.status).toBe(302);
@@ -434,7 +462,9 @@ describe("server (event images)", () => {
 
       const response = await submitImageDelete(event.id, cookie, csrfToken);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=Image+removed`);
+      expect(response.headers.get("location")).toBe(
+        `/admin/event/${event.id}?success=Image+removed`,
+      );
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -494,7 +524,11 @@ describe("server (event images)", () => {
       await withCdnProxy(
         () => new Response("Unauthorized", { status: 401 }),
         async () => {
-          await expectHtmlResponse(await proxyRequest(), 503, "Temporary Error");
+          await expectHtmlResponse(
+            await proxyRequest(),
+            503,
+            "Temporary Error",
+          );
         },
       );
     });

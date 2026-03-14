@@ -48,9 +48,8 @@ export const safeAsync = async <T>(
  * Create a withClient helper that runs an operation with a lazily-resolved client.
  * Returns null if the client is not available or the operation fails.
  */
-export const createWithClient = <Client>(
-  getClient: () => Promise<Client | null>,
-) =>
+export const createWithClient =
+  <Client>(getClient: () => Promise<Client | null>) =>
   async <T>(
     op: (client: Client) => Promise<T>,
     errorCode: ErrorCodeType,
@@ -78,10 +77,16 @@ export const serializeMultiItems = (
  * are converted to metadata entries. Falsy values are excluded entirely — they
  * will become "" when extractSessionMetadata normalizes the metadata back.
  */
-const optionalFields = (intent: Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & { date?: string | null }): Record<string, string> => ({
+const optionalFields = (
+  intent: Partial<
+    Pick<ContactInfo, "phone" | "address" | "special_instructions">
+  > & { date?: string | null },
+): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
-  ...(intent.special_instructions ? { special_instructions: intent.special_instructions } : {}),
+  ...(intent.special_instructions
+    ? { special_instructions: intent.special_instructions }
+    : {}),
   ...(intent.date ? { date: intent.date } : {}),
 });
 

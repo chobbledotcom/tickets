@@ -50,9 +50,10 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
     : "";
 
   const pricePaid = Number(attendee.price_paid);
-  const priceHtml = pricePaid > 0
-    ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
-    : "";
+  const priceHtml =
+    pricePaid > 0
+      ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
+      : "";
 
   const nonTransferableHtml = event.non_transferable
     ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
@@ -82,7 +83,10 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
  * Ticket view page - shows individual cards for each ticket with its own QR code
  * The QR code encodes the /checkin/:token URL for admin scanning
  */
-export const ticketViewPage = (cards: TicketCard[], walletEnabled = false): string => {
+export const ticketViewPage = (
+  cards: TicketCard[],
+  walletEnabled = false,
+): string => {
   const cardHtml = pipe(
     map((card: TicketCard) => renderTicketCard(card, walletEnabled)),
     (c: string[]) => c.join(""),
@@ -94,6 +98,6 @@ export const ticketViewPage = (cards: TicketCard[], walletEnabled = false): stri
       <div class="ticket-slider">
         <Raw html={cardHtml} />
       </div>
-    </Layout>
+    </Layout>,
   );
 };

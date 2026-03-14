@@ -15,8 +15,8 @@ const MAX_IMAGE_SIZE = 256 * 1024;
 
 /** Supported image types — single source of truth for mime, extension, and magic bytes */
 const IMAGE_TYPES = [
-  { mime: "image/jpeg", ext: ".jpg", magic: [0xFF, 0xD8, 0xFF] },
-  { mime: "image/png", ext: ".png", magic: [0x89, 0x50, 0x4E, 0x47] },
+  { mime: "image/jpeg", ext: ".jpg", magic: [0xff, 0xd8, 0xff] },
+  { mime: "image/png", ext: ".png", magic: [0x89, 0x50, 0x4e, 0x47] },
   { mime: "image/gif", ext: ".gif", magic: [0x47, 0x49, 0x46, 0x38] },
   { mime: "image/webp", ext: ".webp", magic: [0x52, 0x49, 0x46, 0x46] },
 ] as const;
@@ -161,7 +161,9 @@ export const uploadImage = async (
 /**
  * Collect a ReadableStream into a single Uint8Array.
  */
-const collectStream = async (stream: ReadableStream<Uint8Array>): Promise<Uint8Array> => {
+const collectStream = async (
+  stream: ReadableStream<Uint8Array>,
+): Promise<Uint8Array> => {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let totalLength = 0;
@@ -190,7 +192,9 @@ const isFileNotFound = (err: unknown): boolean =>
  * pull zone URL, which requires a separate pull zone linked to the storage zone.
  * Returns the decrypted image bytes, or null if the file does not exist.
  */
-export const downloadImage = async (filename: string): Promise<Uint8Array | null> => {
+export const downloadImage = async (
+  filename: string,
+): Promise<Uint8Array | null> => {
   try {
     const sz = connectZone();
     const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);

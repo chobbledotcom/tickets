@@ -3,22 +3,23 @@
  */
 
 import { compact, map, pipe, reduce } from "#fp";
-import {
-  generateSecureToken,
-  getPrivateKeyFromSession,
-} from "#lib/crypto.ts";
-import { CSRF_INVALID_FORM_MESSAGE, signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
-import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
+import { generateSecureToken, getPrivateKeyFromSession } from "#lib/crypto.ts";
+import {
+  CSRF_INVALID_FORM_MESSAGE,
+  signCsrfToken,
+  verifySignedCsrfToken,
+} from "#lib/csrf.ts";
+import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
+import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
 import { nowMs } from "#lib/now.ts";
+import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
 import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import { notFoundPage, temporaryErrorPage } from "#templates/public.tsx";
 
@@ -148,16 +149,21 @@ export const getAuthenticatedSession = async (
  * Get private key for decrypting attendee PII from an authenticated session
  * Returns null if session doesn't have wrapped_data_key
  */
-export const getPrivateKey = async (
-  session: { token: string; wrappedDataKey: string | null },
-): Promise<CryptoKey | null> => {
+export const getPrivateKey = async (session: {
+  token: string;
+  wrappedDataKey: string | null;
+}): Promise<CryptoKey | null> => {
   if (!session.wrappedDataKey) return null;
 
   const wrappedPrivateKey = await getWrappedPrivateKey();
   if (!wrappedPrivateKey) return null;
 
   try {
-    return await getPrivateKeyFromSession(session.token, session.wrappedDataKey, wrappedPrivateKey);
+    return await getPrivateKeyFromSession(
+      session.token,
+      session.wrappedDataKey,
+      wrappedPrivateKey,
+    );
   } catch {
     return null;
   }
@@ -198,7 +204,9 @@ export const temporaryErrorResponse = (): Response =>
  * Reads iframe mode from the per-request store (set by detectIframeMode).
  */
 export const checkoutResponse = (checkoutUrl: string): Response =>
-  getIframeMode() ? htmlResponse(checkoutPopupPage(checkoutUrl)) : redirectResponse(checkoutUrl);
+  getIframeMode()
+    ? htmlResponse(checkoutPopupPage(checkoutUrl))
+    : redirectResponse(checkoutUrl);
 
 /**
  * Create bare 302 redirect response (no message).
@@ -219,7 +227,11 @@ export const redirectResponse = (url: string, cookie?: string): Response => {
 };
 
 /** Options for redirect */
-type RedirectOpts = { formId?: string; cookie?: string; form?: URLSearchParams };
+type RedirectOpts = {
+  formId?: string;
+  cookie?: string;
+  form?: URLSearchParams;
+};
 
 /**
  * Redirect with a success or error message (PRG pattern).
@@ -228,7 +240,10 @@ type RedirectOpts = { formId?: string; cookie?: string; form?: URLSearchParams }
  * browser scrolls to the form that was just submitted.
  */
 export const redirect = (
-  url: string, message: string, succeeded: boolean, opts?: RedirectOpts,
+  url: string,
+  message: string,
+  succeeded: boolean,
+  opts?: RedirectOpts,
 ): Response => {
   const target = opts?.form?.get("return_url") || url;
   const u = new URL(target, "http://localhost");
@@ -291,10 +306,7 @@ export const parseRequest = (
 /**
  * Get search param from request URL
  */
-export const getSearchParam = (
-  request: Request,
-  key: string,
-): string => {
+export const getSearchParam = (request: Request, key: string): string => {
   const url = new URL(request.url);
   return url.searchParams.get(key) ?? "";
 };
@@ -339,9 +351,7 @@ export const withEventPage =
   ): ((request: Request, params: { id: number }) => Promise<Response>) =>
   (request, { id }) =>
     requireSessionOr(request, (session) =>
-      withEvent(id, (event) =>
-        htmlResponse(renderPage(event, session)),
-      ),
+      withEvent(id, (event) => htmlResponse(renderPage(event, session))),
     );
 
 /** Load event by slug or return 404 */
@@ -363,7 +373,9 @@ export const withActiveEventBySlug = (
 ): Promise<Response> => withEventBySlug(slug, requireActiveEvent(fn));
 
 /** Check if an event's registration period has closed */
-export const isRegistrationClosed = (event: { closes_at: string | null }): boolean =>
+export const isRegistrationClosed = (event: {
+  closes_at: string | null;
+}): boolean =>
   event.closes_at !== null && new Date(event.closes_at).getTime() < nowMs();
 
 /** Create a formatter for attendee creation failures (capacity_exceeded / encryption_error) */
@@ -373,9 +385,14 @@ export const formatCreationError =
     capacityMsgWithName: (name: string) => string,
     fallbackMsg: string,
   ) =>
-  (reason: "capacity_exceeded" | "encryption_error", eventName?: string): string =>
+  (
+    reason: "capacity_exceeded" | "encryption_error",
+    eventName?: string,
+  ): string =>
     reason === "capacity_exceeded"
-      ? eventName ? capacityMsgWithName(eventName) : capacityMsg
+      ? eventName
+        ? capacityMsgWithName(eventName)
+        : capacityMsg
       : fallbackMsg;
 
 /** Format a countdown from now to a future closes_at date, e.g. "3 days and 5 hours from now" */
@@ -386,7 +403,8 @@ export const formatCountdown = (closesAt: string): string => {
   const days = Math.floor(totalHours / 24);
   const hours = totalHours % 24;
   const pl = (n: number, unit: string) => `${n} ${unit}${n !== 1 ? "s" : ""}`;
-  if (days > 0 && hours > 0) return `${pl(days, "day")} and ${pl(hours, "hour")} from now`;
+  if (days > 0 && hours > 0)
+    return `${pl(days, "day")} and ${pl(hours, "hour")} from now`;
   if (days > 0) return `${pl(days, "day")} from now`;
   if (hours > 0) return `${pl(hours, "hour")} from now`;
   return `${pl(Math.max(1, Math.floor(diffMs / (1000 * 60))), "minute")} from now`;
@@ -418,14 +436,17 @@ export const withSession = async (
 export const requireSessionOr = (
   request: Request,
   handler: (session: AuthSession) => Response | Promise<Response>,
-): Promise<Response> => withSession(request, handler, () => redirectResponse("/admin"));
+): Promise<Response> =>
+  withSession(request, handler, () => redirectResponse("/admin"));
 
 /** Check owner role, return 403 if not owner */
 const requireOwnerRole = (
   session: AuthSession,
   handler: (session: AuthSession) => Response | Promise<Response>,
 ): Response | Promise<Response> =>
-  session.adminLevel === "owner" ? handler(session) : htmlResponse("Forbidden", 403);
+  session.adminLevel === "owner"
+    ? handler(session)
+    : htmlResponse("Forbidden", 403);
 
 /** CSRF form result type */
 export type CsrfFormResult =
@@ -444,7 +465,7 @@ export const requireCsrfForm = async (
   const form = await parseFormData(request);
   const formCsrf = form.get("csrf_token") || "";
 
-  if (formCsrf && await verifySignedCsrfToken(formCsrf)) {
+  if (formCsrf && (await verifySignedCsrfToken(formCsrf))) {
     return { ok: true, form };
   }
 
@@ -462,9 +483,8 @@ export const withCsrfForm = async (
   onInvalid: (message: string, status: number) => Response,
   handler: (form: URLSearchParams) => Response | Promise<Response>,
 ): Promise<Response> => {
-  const csrf = await requireCsrfForm(
-    request,
-    () => onInvalid(CSRF_INVALID_FORM_MESSAGE, 403),
+  const csrf = await requireCsrfForm(request, () =>
+    onInvalid(CSRF_INVALID_FORM_MESSAGE, 403),
   );
   return csrf.ok ? handler(csrf.form) : csrf.response;
 };
@@ -487,14 +507,17 @@ export const requireAuthForm = async (
 
   const form = await parseFormData(request);
   const csrfToken = form.get("csrf_token") || "";
-  if (!await verifySignedCsrfToken(csrfToken)) {
+  if (!(await verifySignedCsrfToken(csrfToken))) {
     return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
   }
 
   return { ok: true, session, form };
 };
 
-type FormHandler = (session: AuthSession, form: URLSearchParams) => Response | Promise<Response>;
+type FormHandler = (
+  session: AuthSession,
+  form: URLSearchParams,
+) => Response | Promise<Response>;
 type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
 
 /** Unwrap an AuthFormResult, optionally checking role */
@@ -512,19 +535,29 @@ const handleAuthForm = async (
 };
 
 /** Handle request with auth form - unwrap AuthFormResult */
-export const withAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
-  handleAuthForm(request, null, handler);
+export const withAuthForm = (
+  request: Request,
+  handler: FormHandler,
+): Promise<Response> => handleAuthForm(request, null, handler);
 
 /** Require owner role - returns 403 if not owner, redirect if not authenticated */
-export const requireOwnerOr = (request: Request, handler: SessionHandler): Promise<Response> =>
+export const requireOwnerOr = (
+  request: Request,
+  handler: SessionHandler,
+): Promise<Response> =>
   requireSessionOr(request, (session) => requireOwnerRole(session, handler));
 
 /** Handle request with owner auth form - requires owner role + CSRF validation */
-export const withOwnerAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
-  handleAuthForm(request, "owner", handler);
+export const withOwnerAuthForm = (
+  request: Request,
+  handler: FormHandler,
+): Promise<Response> => handleAuthForm(request, "owner", handler);
 
 /** Handler function that receives session and multipart FormData */
-type MultipartFormHandler = (session: AuthSession, formData: FormData) => Response | Promise<Response>;
+type MultipartFormHandler = (
+  session: AuthSession,
+  formData: FormData,
+) => Response | Promise<Response>;
 
 /**
  * Handle multipart form request with auth + CSRF validation.
@@ -539,7 +572,7 @@ export const withAuthMultipartForm = async (
 
   const formData = await request.formData();
   const csrfToken = String(formData.get("csrf_token") ?? "");
-  if (!await verifySignedCsrfToken(csrfToken)) {
+  if (!(await verifySignedCsrfToken(csrfToken))) {
     return htmlResponse("Invalid CSRF token", 403);
   }
 
@@ -582,19 +615,26 @@ export const rssResponse = (xml: string): Response =>
     headers: { "content-type": "application/rss+xml; charset=utf-8" },
   });
 
-type JsonHandler = (session: AuthSession, body: Record<string, unknown>) => Response | Promise<Response>;
+type JsonHandler = (
+  session: AuthSession,
+  body: Record<string, unknown>,
+) => Response | Promise<Response>;
 
 /**
  * Handle JSON API request with auth + CSRF validation (from x-csrf-token header).
  * Mirrors withAuthForm but for JSON endpoints.
  * Content-type is already validated by middleware.
  */
-export async function withAuthJson(request: Request, handler: JsonHandler): Promise<Response> {
+export async function withAuthJson(
+  request: Request,
+  handler: JsonHandler,
+): Promise<Response> {
   const session = await getAuthenticatedSession(request);
-  if (!session) return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
+  if (!session)
+    return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
 
   const csrfHeader = request.headers.get("x-csrf-token") ?? "";
-  if (!await verifySignedCsrfToken(csrfHeader)) {
+  if (!(await verifySignedCsrfToken(csrfHeader))) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
     return jsonResponse({ status: "error", message: "Forbidden" }, 403);
   }
@@ -603,8 +643,14 @@ export async function withAuthJson(request: Request, handler: JsonHandler): Prom
   try {
     body = await request.json();
   } catch {
-    logError({ code: ErrorCode.VALIDATION_FORM, detail: "Malformed JSON body" });
-    return jsonResponse({ status: "error", message: "Invalid request body" }, 400);
+    logError({
+      code: ErrorCode.VALIDATION_FORM,
+      detail: "Malformed JSON body",
+    });
+    return jsonResponse(
+      { status: "error", message: "Invalid request body" },
+      400,
+    );
   }
 
   return handler(session, body);

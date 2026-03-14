@@ -6,11 +6,10 @@
  * Callers handle input parsing/validation and response formatting.
  */
 
-import { isPaymentsEnabled } from "#lib/config.ts";
-import { getCurrencyCode } from "#lib/config.ts";
+import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
-import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { RegistrationIntent } from "#lib/payments.ts";
+import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 
@@ -20,7 +19,10 @@ export type BookingResult =
   | { type: "checkout"; checkoutUrl: string }
   | { type: "sold_out" }
   | { type: "checkout_failed"; error?: string }
-  | { type: "creation_failed"; reason: "capacity_exceeded" | "encryption_error" };
+  | {
+      type: "creation_failed";
+      reason: "capacity_exceeded" | "encryption_error";
+    };
 
 /**
  * Process a single-event booking.
@@ -38,7 +40,8 @@ export const processBooking = async (
   customUnitPrice?: number,
 ): Promise<BookingResult> => {
   const paymentsEnabled = await isPaymentsEnabled();
-  const needsPayment = (paymentsEnabled && event.unit_price > 0) ||
+  const needsPayment =
+    (paymentsEnabled && event.unit_price > 0) ||
     (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
 
   if (needsPayment) {
@@ -58,7 +61,8 @@ export const processBooking = async (
 
     const result = await provider.createCheckoutSession(event, intent, baseUrl);
     if (!result) return { type: "checkout_failed" };
-    if ("error" in result) return { type: "checkout_failed", error: result.error };
+    if ("error" in result)
+      return { type: "checkout_failed", error: result.error };
 
     return { type: "checkout", checkoutUrl: result.checkoutUrl };
   }
@@ -71,8 +75,13 @@ export const processBooking = async (
     date,
   });
 
-  if (!result.success) return { type: "creation_failed", reason: result.reason };
+  if (!result.success)
+    return { type: "creation_failed", reason: result.reason };
 
-  await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
+  await logAndNotifyRegistration(
+    event,
+    result.attendee,
+    await getCurrencyCode(),
+  );
   return { type: "success", attendee: result.attendee };
 };

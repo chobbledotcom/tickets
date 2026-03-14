@@ -1,17 +1,17 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { encryptBytes } from "#lib/crypto.ts";
+import {
+  getHeaderImageUrlFromDb,
+  updateHeaderImageUrl,
+} from "#lib/db/settings.ts";
 import {
   getHeaderImageUrl,
   loadHeaderImage,
   resetHeaderImage,
   setHeaderImageForTest,
 } from "#lib/header-image.ts";
-import {
-  getHeaderImageUrlFromDb,
-  updateHeaderImageUrl,
-} from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
-import { encryptBytes } from "#lib/crypto.ts";
 import {
   adminGet,
   createTestDbWithSetup,
@@ -27,7 +27,7 @@ import {
 } from "#test-utils";
 
 /** JPEG magic bytes for a valid test image */
-const JPEG_HEADER = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]);
+const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 /** Mock fetch to intercept Bunny CDN API calls */
 const withStorageMock = async (
@@ -39,11 +39,12 @@ const withStorageMock = async (
     input: string | URL | Request,
     init?: RequestInit,
   ): Promise<Response> => {
-    const url = typeof input === "string"
-      ? input
-      : input instanceof URL
-      ? input.toString()
-      : input.url;
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
     fetchCalls.push(url);
     if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
       return Promise.resolve(
@@ -185,7 +186,12 @@ describe("server (header image settings)", () => {
     test("shows remove button when header image is set", async () => {
       await updateHeaderImageUrl("existing.jpg");
       const { response } = await adminGet("/admin/settings");
-      await expectHtmlResponse(response, 200, "Remove Image", "/image/existing.jpg");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Remove Image",
+        "/image/existing.jpg",
+      );
     });
 
     test("shows upload button when no header image exists", async () => {
@@ -238,9 +244,9 @@ describe("server (header image settings)", () => {
 
     test("rejects oversized image", async () => {
       const oversized = new Uint8Array(257 * 1024);
-      oversized[0] = 0xFF;
-      oversized[1] = 0xD8;
-      oversized[2] = 0xFF;
+      oversized[0] = 0xff;
+      oversized[1] = 0xd8;
+      oversized[2] = 0xff;
 
       await withStorageMock(async () => {
         const request = mockMultipartRequest(
@@ -260,7 +266,10 @@ describe("server (header image settings)", () => {
     });
 
     test("returns 403 for non-owner admin", async () => {
-      const managerCookie = await createTestManagerSession("mgr-header-session", "headerimgmgr");
+      const managerCookie = await createTestManagerSession(
+        "mgr-header-session",
+        "headerimgmgr",
+      );
       const { signCsrfToken } = await import("#lib/csrf.ts");
       const signedCsrf = await signCsrfToken();
       const request = mockMultipartRequest(
@@ -304,7 +313,11 @@ describe("server (header image settings)", () => {
         },
       );
       const response = await handleRequest(request);
-      await expectHtmlResponse(response, 400, "Image storage is not configured");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Image storage is not configured",
+      );
     });
 
     test("deletes old header image when uploading new one", async () => {
@@ -327,7 +340,7 @@ describe("server (header image settings)", () => {
         expect(response.headers.get("location")).toContain("/admin/settings");
 
         const deleteCall = fetchCalls.find((url) =>
-          url.includes("old-header.jpg")
+          url.includes("old-header.jpg"),
         );
         expect(deleteCall).not.toBeUndefined();
 
@@ -415,7 +428,12 @@ describe("server (header image settings)", () => {
     test("renders header image in page when set", async () => {
       await updateHeaderImageUrl("my-header.jpg");
       const { response } = await adminGet("/admin/settings");
-      await expectHtmlResponse(response, 200, 'class="header-image"', "/image/my-header.jpg");
+      await expectHtmlResponse(
+        response,
+        200,
+        'class="header-image"',
+        "/image/my-header.jpg",
+      );
     });
 
     test("does not render header image when not set", async () => {
@@ -433,11 +451,12 @@ describe("server (header image settings)", () => {
 
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
-        const url = typeof input === "string"
-          ? input
-          : input instanceof URL
-          ? input.toString()
-          : input.url;
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
         if (url.includes("storage.bunnycdn.com")) {
           return Promise.resolve(
             // deno-lint-ignore no-explicit-any

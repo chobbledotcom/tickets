@@ -1,5 +1,5 @@
-import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
 import { normalizePhone } from "#lib/phone.ts";
 
 describe("normalizePhone", () => {

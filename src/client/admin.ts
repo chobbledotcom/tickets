@@ -4,28 +4,40 @@
 import { buildEmbedSnippets } from "#lib/embed.ts";
 
 /* Select-on-click: auto-select input contents when clicked */
-for (const el of document.querySelectorAll<HTMLInputElement>("[data-select-on-click]")) {
+for (const el of document.querySelectorAll<HTMLInputElement>(
+  "[data-select-on-click]",
+)) {
   el.addEventListener("click", () => el.select());
 }
 
 /* Nav-select: navigate to selected option value on change */
-for (const el of document.querySelectorAll<HTMLSelectElement>("[data-nav-select]")) {
+for (const el of document.querySelectorAll<HTMLSelectElement>(
+  "[data-nav-select]",
+)) {
   el.addEventListener("change", () => {
     location.href = el.value;
   });
 }
 
 /* Multi-booking link builder: track checkbox selection order */
-const multiUrl = document.querySelector<HTMLInputElement>("[data-multi-booking-url]");
+const multiUrl = document.querySelector<HTMLInputElement>(
+  "[data-multi-booking-url]",
+);
 if (multiUrl) {
-  const multiEmbedScript = document.querySelector<HTMLInputElement>("[data-multi-booking-embed-script]")!;
-  const multiEmbedIframe = document.querySelector<HTMLInputElement>("[data-multi-booking-embed-iframe]")!;
+  const multiEmbedScript = document.querySelector<HTMLInputElement>(
+    "[data-multi-booking-embed-script]",
+  )!;
+  const multiEmbedIframe = document.querySelector<HTMLInputElement>(
+    "[data-multi-booking-embed-iframe]",
+  )!;
   const selectedSlugs: string[] = [];
   const domain = multiUrl.dataset.domain!;
   const urlPlaceholder = multiUrl.placeholder;
   const embedScriptPlaceholder = multiEmbedScript.placeholder;
   const embedIframePlaceholder = multiEmbedIframe.placeholder;
-  for (const cb of document.querySelectorAll<HTMLInputElement>("[data-multi-booking-slug]")) {
+  for (const cb of document.querySelectorAll<HTMLInputElement>(
+    "[data-multi-booking-slug]",
+  )) {
     cb.addEventListener("change", () => {
       const slug = cb.dataset.multiBookingSlug!;
       if (cb.checked) {
@@ -58,10 +70,14 @@ if (multiUrl) {
 }
 
 /* Fill default template: clicking "Edit default template" fills the textarea */
-for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-fill-default]")) {
+for (const link of document.querySelectorAll<HTMLAnchorElement>(
+  "[data-fill-default]",
+)) {
   link.addEventListener("click", (e) => {
     e.preventDefault();
-    const ta = document.getElementById(link.dataset.fillDefault!) as HTMLTextAreaElement | null;
+    const ta = document.getElementById(
+      link.dataset.fillDefault!,
+    ) as HTMLTextAreaElement | null;
     if (ta && !ta.value) {
       ta.value = ta.dataset.defaultTpl ?? "";
       ta.focus();
@@ -70,8 +86,11 @@ for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-fill-defa
 }
 
 /* Auto-populate closes_at from event date when closes_at is empty */
-const dateInput = document.querySelector<HTMLInputElement>('input[name="date"]');
-const closesAtInput = document.querySelector<HTMLInputElement>('input[name="closes_at"]');
+const dateInput =
+  document.querySelector<HTMLInputElement>('input[name="date"]');
+const closesAtInput = document.querySelector<HTMLInputElement>(
+  'input[name="closes_at"]',
+);
 if (dateInput && closesAtInput) {
   dateInput.addEventListener("change", () => {
     if (dateInput.value && !closesAtInput.value) {
@@ -85,17 +104,25 @@ if (dateInput && closesAtInput) {
  * this deferred script) and buffers calls until the parent handshake completes.
  * scrollToOffset(0, 0) scrolls the parent to the iframe's top-left corner. */
 if (document.querySelector("[data-scroll-into-view]")) {
-  const { parentIframe } = window as unknown as { parentIframe?: { scrollToOffset: (x: number, y: number) => void } };
+  const { parentIframe } = window as unknown as {
+    parentIframe?: { scrollToOffset: (x: number, y: number) => void };
+  };
   parentIframe?.scrollToOffset(0, 0);
 }
 
 /* Stripe checkout popup: opens Stripe in a new window when embedded in an iframe.
  * No-JS fallback: the Pay Now link has target="_blank" and works as a plain link. */
-const checkoutPopup = document.querySelector<HTMLElement>("[data-checkout-popup]");
+const checkoutPopup = document.querySelector<HTMLElement>(
+  "[data-checkout-popup]",
+);
 if (checkoutPopup) {
   const checkoutUrl = checkoutPopup.dataset.checkoutPopup!;
-  const waitingEl = checkoutPopup.querySelector<HTMLElement>("[data-checkout-waiting]")!;
-  const openLink = checkoutPopup.querySelector<HTMLAnchorElement>("[data-open-checkout]")!;
+  const waitingEl = checkoutPopup.querySelector<HTMLElement>(
+    "[data-checkout-waiting]",
+  )!;
+  const openLink = checkoutPopup.querySelector<HTMLAnchorElement>(
+    "[data-open-checkout]",
+  )!;
   let popup: Window | null = null;
 
   const showPayButton = () => {
@@ -143,25 +170,33 @@ if (checkoutPopup) {
   if (nav) {
     if (location.hash) {
       nav.classList.add("nav-no-transition", "nav-hidden");
-      requestAnimationFrame(() => { nav.classList.remove("nav-no-transition"); });
+      requestAnimationFrame(() => {
+        nav.classList.remove("nav-no-transition");
+      });
     }
     let lastY = scrollY;
     let ticking = false;
-    document.addEventListener("scroll", () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        const y = scrollY;
-        nav.classList.toggle("nav-hidden", y > 0 && y > lastY);
-        lastY = y;
-        ticking = false;
-      });
-    }, { passive: true });
+    document.addEventListener(
+      "scroll",
+      () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          const y = scrollY;
+          nav.classList.toggle("nav-hidden", y > 0 && y > lastY);
+          lastY = y;
+          ticking = false;
+        });
+      },
+      { passive: true },
+    );
   }
 }
 
 /* Payment result pages: notify opener iframe via postMessage when in a popup */
-const paymentResult = document.querySelector<HTMLElement>("[data-payment-result]");
+const paymentResult = document.querySelector<HTMLElement>(
+  "[data-payment-result]",
+);
 if (paymentResult && window.opener) {
   const result = paymentResult.dataset.paymentResult;
   try {
@@ -184,7 +219,9 @@ if (btn instanceof HTMLButtonElement) {
     resultDiv.classList.add("hidden");
     resultDiv.classList.remove("success", "error");
     try {
-      const csrfInput = btn.closest("form")?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
+      const csrfInput = btn
+        .closest("form")
+        ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
       const csrfToken = csrfInput?.value ?? "";
       const res = await fetch("/admin/settings/stripe/test", {
         method: "POST",
@@ -214,7 +251,10 @@ if (btn instanceof HTMLButtonElement) {
       }
       resultDiv.textContent = lines.join("\n");
       resultDiv.classList.remove("hidden", "success", "error");
-      resultDiv.classList.add(data.ok ? "success" : "error", "stripe-test-result");
+      resultDiv.classList.add(
+        data.ok ? "success" : "error",
+        "stripe-test-result",
+      );
     } catch (e) {
       resultDiv.textContent = `Connection test failed: ${e instanceof Error ? e.message : "Unknown error"}`;
       resultDiv.classList.remove("hidden", "success", "error");

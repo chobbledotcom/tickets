@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { updateEmbedHosts } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {

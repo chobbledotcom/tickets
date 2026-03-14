@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
   "files": {
-    "includes": ["**/*.js", "**/*.ts"],
+    "includes": ["**/*.js", "**/*.ts", "**/*.tsx"],
     "ignoreUnknown": true
   },
   "formatter": {
@@ -50,7 +50,7 @@
   },
   "overrides": [
     {
-      "includes": ["test/**/*.js", "test/**/*.ts"],
+      "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {
           "suspicious": {

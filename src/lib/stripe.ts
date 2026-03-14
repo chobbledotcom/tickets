@@ -14,7 +14,11 @@ import { getStripeWebhookEndpointId } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
-import { computeHmacSha256, hmacToHex, secureCompare } from "#lib/payment-crypto.ts";
+import {
+  computeHmacSha256,
+  hmacToHex,
+  secureCompare,
+} from "#lib/payment-crypto.ts";
 import {
   buildMultiIntentMetadata,
   buildSingleIntentMetadata,
@@ -52,9 +56,12 @@ export const sanitizeErrorDetail = (err: unknown): string => {
   // Stripe SDK errors have statusCode, code, and type properties.
   // Use "in" narrowing instead of a blanket type assertion.
   const parts: string[] = [];
-  if ("statusCode" in err && typeof err.statusCode === "number") parts.push(`status=${err.statusCode}`);
-  if ("code" in err && typeof err.code === "string") parts.push(`code=${err.code}`);
-  if ("type" in err && typeof err.type === "string") parts.push(`type=${err.type}`);
+  if ("statusCode" in err && typeof err.statusCode === "number")
+    parts.push(`status=${err.statusCode}`);
+  if ("code" in err && typeof err.code === "string")
+    parts.push(`code=${err.code}`);
+  if ("type" in err && typeof err.type === "string")
+    parts.push(`type=${err.type}`);
 
   return parts.length > 0 ? parts.join(" ") : err.name;
 };
@@ -66,10 +73,7 @@ const getMockConfigImpl = (): Stripe.StripeConfig | undefined => {
   const mockHost = getEnv("STRIPE_MOCK_HOST");
   if (!mockHost) return undefined;
 
-  const mockPort = Number.parseInt(
-    getEnv("STRIPE_MOCK_PORT") || "12111",
-    10,
-  );
+  const mockPort = Number.parseInt(getEnv("STRIPE_MOCK_PORT") || "12111", 10);
   return {
     host: mockHost,
     port: mockPort,
@@ -77,7 +81,9 @@ const getMockConfigImpl = (): Stripe.StripeConfig | undefined => {
   };
 };
 
-const [getMockConfig, setMockConfig] = lazyRef<Stripe.StripeConfig | undefined>(getMockConfigImpl);
+const [getMockConfig, setMockConfig] = lazyRef<Stripe.StripeConfig | undefined>(
+  getMockConfigImpl,
+);
 
 const createStripeClient = async (secretKey: string): Promise<Stripe> => {
   const mockConfig = getMockConfig();
@@ -182,7 +188,9 @@ const setupWebhookEndpointImpl = async (
     }
 
     // Check if a webhook already exists for this exact URL
-    const existingEndpoints = await client.webhookEndpoints.list({ limit: 100 });
+    const existingEndpoints = await client.webhookEndpoints.list({
+      limit: 100,
+    });
     const existingForUrl = existingEndpoints.data.find(
       (ep) => ep.url === webhookUrl,
     );
@@ -208,7 +216,10 @@ const setupWebhookEndpointImpl = async (
       secret: endpoint.secret,
     };
   } catch (err) {
-    logError({ code: ErrorCode.STRIPE_WEBHOOK_SETUP, detail: sanitizeErrorDetail(err) });
+    logError({
+      code: ErrorCode.STRIPE_WEBHOOK_SETUP,
+      detail: sanitizeErrorDetail(err),
+    });
     return { success: false, error: errorMessage(err) };
   }
 };
@@ -220,7 +231,9 @@ const setupWebhookEndpointImpl = async (
 export const stripeApi: {
   getStripeClient: () => Promise<Stripe | null>;
   resetStripeClient: () => void;
-  retrieveCheckoutSession: (id: string) => Promise<Stripe.Checkout.Session | null>;
+  retrieveCheckoutSession: (
+    id: string,
+  ) => Promise<Stripe.Checkout.Session | null>;
   retrievePaymentIntent: (id: string) => Promise<Stripe.PaymentIntent | null>;
   refundPayment: (intentId: string) => Promise<Stripe.Refund | null>;
   createCheckoutSessionWithIntent: (
@@ -252,12 +265,13 @@ export const stripeApi: {
   retrieveCheckoutSession: (
     id: string,
   ): Promise<Stripe.Checkout.Session | null> =>
-    withClient((s) => s.checkout.sessions.retrieve(id), ErrorCode.STRIPE_SESSION),
+    withClient(
+      (s) => s.checkout.sessions.retrieve(id),
+      ErrorCode.STRIPE_SESSION,
+    ),
 
   /** Retrieve a payment intent (for checking refund status) */
-  retrievePaymentIntent: (
-    id: string,
-  ): Promise<Stripe.PaymentIntent | null> =>
+  retrievePaymentIntent: (id: string): Promise<Stripe.PaymentIntent | null> =>
     withClient(
       (s) => s.paymentIntents.retrieve(id, { expand: ["latest_charge"] }),
       ErrorCode.STRIPE_SESSION,
@@ -276,7 +290,10 @@ export const stripeApi: {
     intent: RegistrationIntent,
     baseUrl: string,
   ): Promise<CheckoutResult> => {
-    logDebug("Stripe", `Creating checkout session for event=${event.id} qty=${intent.quantity}`);
+    logDebug(
+      "Stripe",
+      `Creating checkout session for event=${event.id} qty=${intent.quantity}`,
+    );
     const config = await buildSessionParams({
       event,
       quantity: intent.quantity,
@@ -286,12 +303,20 @@ export const stripeApi: {
       metadata: buildSingleIntentMetadata(event.id, intent),
       unitPriceOverride: intent.customUnitPrice,
     });
-    logDebug("Stripe", `Calling Stripe API checkout.sessions.create for event=${event.id}`);
+    logDebug(
+      "Stripe",
+      `Calling Stripe API checkout.sessions.create for event=${event.id}`,
+    );
     const session = await withClient(
       (stripe) => stripe.checkout.sessions.create(config),
       ErrorCode.STRIPE_CHECKOUT,
     );
-    logDebug("Stripe", session ? `Session created id=${session.id} url=${session.url ?? "none"}` : `Session creation failed for event=${event.id}`);
+    logDebug(
+      "Stripe",
+      session
+        ? `Session created id=${session.id} url=${session.url ?? "none"}`
+        : `Session creation failed for event=${event.id}`,
+    );
     return session;
   },
 
@@ -300,7 +325,10 @@ export const stripeApi: {
     intent: MultiRegistrationIntent,
     baseUrl: string,
   ): Promise<CheckoutResult> => {
-    logDebug("Stripe", `Creating multi-checkout session for ${intent.items.length} events`);
+    logDebug(
+      "Stripe",
+      `Creating multi-checkout session for ${intent.items.length} events`,
+    );
     const currency = (await getCurrencyCode()).toLowerCase();
 
     // Build line items for each event
@@ -328,12 +356,20 @@ export const stripeApi: {
       metadata: buildMultiIntentMetadata(intent),
     };
 
-    logDebug("Stripe", "Calling Stripe API checkout.sessions.create for multi-checkout");
+    logDebug(
+      "Stripe",
+      "Calling Stripe API checkout.sessions.create for multi-checkout",
+    );
     const session = await withClient(
       (stripe) => stripe.checkout.sessions.create(params),
       ErrorCode.STRIPE_CHECKOUT,
     );
-    logDebug("Stripe", session ? `Multi-session created id=${session.id} url=${session.url ?? "none"}` : "Multi-session creation failed");
+    logDebug(
+      "Stripe",
+      session
+        ? `Multi-session created id=${session.id} url=${session.url ?? "none"}`
+        : "Multi-session creation failed",
+    );
     return session;
   },
 
@@ -368,7 +404,10 @@ export const stripeApi: {
     // Step 2: Test webhook endpoint
     const endpointId = await getStripeWebhookEndpointId();
     if (!endpointId) {
-      result.webhook = { configured: false, error: "No webhook endpoint ID stored" };
+      result.webhook = {
+        configured: false,
+        error: "No webhook endpoint ID stored",
+      };
       return result;
     }
 
@@ -395,9 +434,9 @@ export const stripeApi: {
 };
 
 export type {
-  RegistrationIntent,
-  MultiRegistrationItem,
   MultiRegistrationIntent,
+  MultiRegistrationItem,
+  RegistrationIntent,
 } from "#lib/payments.ts";
 
 /**
@@ -522,7 +561,10 @@ export const verifyWebhookSignature = async (
 
   const parsed = parseSignatureHeader(signature);
   if (!parsed.ok) {
-    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: `invalid header: ${parsed.reason}` });
+    logError({
+      code: ErrorCode.STRIPE_SIGNATURE,
+      detail: `invalid header: ${parsed.reason}`,
+    });
     return { valid: false, error: "Invalid signature header format" };
   }
 
@@ -544,7 +586,9 @@ export const verifyWebhookSignature = async (
   const expectedSignature = await computeSignature(signedPayload, secret);
 
   // Check if any signature matches (constant-time)
-  const isValid = signatures.some((sig) => secureCompare(sig, expectedSignature));
+  const isValid = signatures.some((sig) =>
+    secureCompare(sig, expectedSignature),
+  );
 
   if (!isValid) {
     logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
@@ -556,7 +600,10 @@ export const verifyWebhookSignature = async (
     const event = JSON.parse(payload) as StripeWebhookEvent;
     return { valid: true, event };
   } catch (err) {
-    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: `invalid JSON: ${err}` });
+    logError({
+      code: ErrorCode.STRIPE_SIGNATURE,
+      detail: `invalid JSON: ${err}`,
+    });
     return { valid: false, error: "Invalid JSON payload" };
   }
 };

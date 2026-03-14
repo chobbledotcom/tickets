@@ -12,9 +12,13 @@ type Fn = (arg: any) => any;
 /** Validates that each fn's return type is assignable to the next fn's parameter */
 type ValidChain<Fns extends Fn[]> = Fns extends [Fn]
   ? true
-  : Fns extends
-    [infer A extends Fn, infer B extends Fn, ...infer Rest extends Fn[]]
-    ? ReturnType<A> extends Parameters<B>[0] ? ValidChain<[B, ...Rest]>
+  : Fns extends [
+        infer A extends Fn,
+        infer B extends Fn,
+        ...infer Rest extends Fn[],
+      ]
+    ? ReturnType<A> extends Parameters<B>[0]
+      ? ValidChain<[B, ...Rest]>
       : false
     : true;
 
@@ -24,9 +28,10 @@ type LastReturn<Fns extends Fn[]> = Fns extends [...Fn[], infer L extends Fn]
   : never;
 
 /** Computes pipe's return type, returning a non-callable error type on mismatch */
-type PipeReturn<Fns extends [Fn, ...Fn[]]> = ValidChain<Fns> extends true
-  ? (arg: Parameters<Fns[0]>[0]) => LastReturn<Fns>
-  : (invalid: never) => never;
+type PipeReturn<Fns extends [Fn, ...Fn[]]> =
+  ValidChain<Fns> extends true
+    ? (arg: Parameters<Fns[0]>[0]) => LastReturn<Fns>
+    : (invalid: never) => never;
 
 /**
  * Compose functions left-to-right (pipe)
@@ -128,9 +133,8 @@ export const uniqueBy =
 /**
  * Remove null and undefined values from array
  */
-export const compact = <T>(
-  array: (T | null | undefined)[],
-): T[] => array.filter((x): x is T => x !== null && x !== undefined);
+export const compact = <T>(array: (T | null | undefined)[]): T[] =>
+  array.filter((x): x is T => x !== null && x !== undefined);
 
 /**
  * Group array items by a key function
@@ -269,8 +273,11 @@ type AsyncFn = (arg: any) => Promise<any>;
 /** Validates that each async fn's Awaited return matches the next fn's parameter */
 type ValidAsyncChain<Fns extends AsyncFn[]> = Fns extends [AsyncFn]
   ? true
-  : Fns extends
-    [infer A extends AsyncFn, infer B extends AsyncFn, ...infer Rest extends AsyncFn[]]
+  : Fns extends [
+        infer A extends AsyncFn,
+        infer B extends AsyncFn,
+        ...infer Rest extends AsyncFn[],
+      ]
     ? Awaited<ReturnType<A>> extends Parameters<B>[0]
       ? ValidAsyncChain<[B, ...Rest]>
       : false
@@ -280,7 +287,8 @@ type ValidAsyncChain<Fns extends AsyncFn[]> = Fns extends [AsyncFn]
 type LastAsyncReturn<Fns extends AsyncFn[]> = Fns extends [
   ...AsyncFn[],
   infer L extends AsyncFn,
-] ? Awaited<ReturnType<L>>
+]
+  ? Awaited<ReturnType<L>>
   : never;
 
 /** Computes pipeAsync's return type, returning a non-callable error type on mismatch */

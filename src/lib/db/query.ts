@@ -7,10 +7,9 @@ import { trackQuery } from "#lib/db/query-log.ts";
  *
  * Useful for running a query and decrypting/transforming each row via `table.fromDb`.
  */
-export const queryAndMap = <Row, Out>(
-  toOut: (row: Row) => Promise<Out>,
-) =>
-async (sql: string): Promise<Out[]> => {
-  const result = await trackQuery(sql, () => getDb().execute(sql));
-  return mapParallel(toOut)(resultRows<Row>(result));
-};
+export const queryAndMap =
+  <Row, Out>(toOut: (row: Row) => Promise<Out>) =>
+  async (sql: string): Promise<Out[]> => {
+    const result = await trackQuery(sql, () => getDb().execute(sql));
+    return mapParallel(toOut)(resultRows<Row>(result));
+  };

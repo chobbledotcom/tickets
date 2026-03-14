@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
   CONFIG_KEYS,
@@ -17,12 +17,10 @@ import {
 } from "#lib/db/settings.ts";
 
 const { PAGE_CACHE_TTL_MS } = settingsApi;
+
 import { encrypt } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
-import {
-  createTestDbWithSetup,
-  resetDb,
-} from "#test-utils";
+import { createTestDbWithSetup, resetDb } from "#test-utils";
 
 describe("page content cache", () => {
   let fakeTime: FakeTime | null = null;
