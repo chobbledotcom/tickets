@@ -12,6 +12,7 @@ import {
 } from "#lib/db/login-attempts.ts";
 import { createSession, deleteSession } from "#lib/db/sessions.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
+import { lazyRef } from "#fp";
 import { getEnv } from "#lib/env.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
@@ -28,9 +29,18 @@ import {
 } from "#routes/utils.ts";
 import { type LoginFormValues, loginFields } from "#templates/fields.ts";
 
+/** Whether to skip the login delay (for testing) */
+const [getSkipLoginDelay, setSkipLoginDelay] = lazyRef(
+  () => !!getEnv("TEST_SKIP_LOGIN_DELAY"),
+);
+
+/** Explicitly set the skip-login-delay flag (for testing without env var races) */
+export const setSkipLoginDelayForTest = (skip: boolean): void =>
+  setSkipLoginDelay(skip);
+
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>
-  getEnv("TEST_SKIP_LOGIN_DELAY")
+  getSkipLoginDelay()
     ? Promise.resolve()
     : new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
 

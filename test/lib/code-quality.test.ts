@@ -321,6 +321,8 @@ describe("code quality", () => {
       "lib/demo.ts:setDemoModeForTest",
       // Reset cached Liquid engine between tests (currency changes need fresh filters)
       "lib/email-renderer.ts:resetEngine",
+      // Skip login delay in tests without env var races
+      "routes/admin/auth.ts:setSkipLoginDelayForTest",
     ];
 
     /**
