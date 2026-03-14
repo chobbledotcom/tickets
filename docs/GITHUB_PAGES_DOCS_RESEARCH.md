@@ -256,19 +256,69 @@ Create a `docs/` folder that publishes to GitHub Pages, documenting the features
 
 ---
 
+## The Deno Compatibility Problem
+
+A critical factor: **TypeDoc** (which powers auto-generated API docs for VitePress, Starlight, and Docusaurus) is Node-based and has [documented issues](https://github.com/denoland/std/issues/321) with Deno-style imports. This project uses:
+- `#fp`, `#lib/` import aliases (from `deno.json` import maps)
+- `npm:` and `jsr:` specifiers
+- `.ts` extension imports
+
+TypeDoc can't resolve these without a wrapper `tsconfig.json` with manual path mappings, and even then some Deno idioms may break.
+
+**`deno doc`** is the only tool that natively understands this project's full import structure. `deno doc --json` outputs structured API data, and `deno doc --html` generates a complete static reference site — both with zero configuration.
+
+---
+
 ## Recommendations
 
-### Top Pick: VitePress
+### Option A: Lume + `deno doc` (Deepest Integration)
 
-**Why:** Best balance of source integration, ease of setup, and maintenance for this project.
-
-- File includes (`<<<`) are the killer feature — embed any section of `src/lib/types.ts`, `src/lib/crypto.ts`, route handlers, etc. directly in docs. When source changes, docs update on next build.
-- Region markers (`// #region encryption` / `// #endregion`) let you surgically embed specific code sections.
-- Minimal setup — runs in `docs/` folder, independent of the Deno project.
-- Can add TypeDoc-generated API reference via `vitepress-plugin-typedoc` if desired later.
-- Dark mode, search, responsive sidebar all built-in.
+**Why:** The only fully Deno-native approach. No Node.js needed. `deno doc` natively resolves `#fp`, `#lib/`, `npm:`, `jsr:` — zero compatibility issues. Lume is what Deno's own documentation site uses.
 
 **Integration approach:**
+- `deno doc --json` extracts API data that a custom Lume plugin transforms into reference pages
+- Lume build scripts can `import type { Event } from "#lib/types"` directly
+- Narrative docs in Markdown alongside auto-generated API reference
+- Shares the project's `deno.json` import maps and TypeScript config
+
+**Choose this if:** Deno-native tooling matters, you want the deepest possible source integration, and you're comfortable writing a Lume plugin to transform `deno doc` JSON output.
+
+```
+docs/
+├── _config.ts             # Lume config
+├── _includes/
+│   └── layout.njk         # Base layout template
+├── index.md               # Landing page
+├── guide/
+│   ├── getting-started.md
+│   ├── events.md
+│   ├── booking.md
+│   ├── payments.md
+│   ├── encryption.md
+│   └── api.md
+├── reference/             # Auto-generated from deno doc --json
+│   ├── types.md
+│   ├── routes.md
+│   └── database.md
+├── _plugins/
+│   └── deno-doc.ts        # Custom plugin: runs deno doc, generates pages
+└── deno.json              # Lume-specific Deno config
+```
+
+---
+
+### Option B: VitePress (Best Batteries-Included)
+
+**Why:** Best balance of ease-of-setup and source integration for narrative docs. File includes (`<<<`) embed actual source code sections that stay in sync. Huge community, built-in search, dark mode, responsive sidebar.
+
+**Integration approach:**
+- `<<<` file includes embed source code directly: `<<< @/../src/lib/types.ts#event-types {typescript}`
+- `// #region` / `// #endregion` markers in source files for surgical embedding
+- Auto-generated API docs possible via `vitepress-plugin-typedoc` (but requires `tsconfig.json` path mappings to handle `#` aliases)
+- Runs as an isolated Node project in `docs/` with its own `package.json`
+
+**Choose this if:** You want the fastest path to a polished docs site and are OK with Node.js for the docs build. Source code embedding via `<<<` is the killer feature.
+
 ```
 docs/
 ├── .vitepress/
@@ -276,25 +326,25 @@ docs/
 ├── index.md               # Landing page
 ├── guide/
 │   ├── getting-started.md # Setup, deployment
-│   ├── events.md          # Event management (includes from src/lib/db/events.ts)
-│   ├── booking.md         # Booking flow (includes from src/lib/booking.ts)
-│   ├── payments.md        # Payment integration (includes from src/lib/payments.ts)
-│   ├── encryption.md      # Security model (includes from src/lib/crypto.ts)
+│   ├── events.md          # Includes from src/lib/db/events.ts
+│   ├── booking.md         # Includes from src/lib/booking.ts
+│   ├── payments.md        # Includes from src/lib/payments.ts
+│   ├── encryption.md      # Includes from src/lib/crypto.ts
 │   ├── email.md           # Email configuration
-│   └── api.md             # Public API (includes from src/routes/api.ts)
+│   └── api.md             # Includes from src/routes/api.ts
 ├── reference/
-│   ├── types.md           # Core types (includes from src/lib/types.ts)
+│   ├── types.md           # Includes from src/lib/types.ts
 │   ├── routes.md          # Route reference
 │   ├── database.md        # Schema reference
 │   └── config.md          # Environment variables
-└── package.json           # VitePress dependency (isolated from Deno project)
+└── package.json           # VitePress dependency (isolated from Deno)
 ```
 
-**Example source integration in a doc page:**
+**Example doc page:**
 ```markdown
 ## Event Types
 
-The system supports two event types — standard (fixed date) and daily (recurring):
+The system supports standard (fixed date) and daily (recurring) events:
 
 <<< @/../src/lib/types.ts#event-types {typescript}
 
@@ -307,31 +357,40 @@ All PII is encrypted at rest using hybrid RSA-OAEP + AES-256-GCM:
 
 ---
 
-### Runner-up: Starlight (Astro)
+### Option C: Starlight (Astro) (Best Auto-Generated API Docs)
 
-Choose Starlight over VitePress if:
-- You want `starlight-typedoc` for auto-generated API reference pages
-- You want component islands (interactive demos in docs)
-- You prefer Astro's content collections over VitePress's file-based approach
+**Why:** The `starlight-typedoc` plugin generates full API reference pages automatically. Component islands allow interactive demos. Excellent accessibility and i18n.
 
----
-
-### Honorable Mention: Lume + TypeDoc hybrid
-
-Choose this if Deno-native tooling is a priority:
-- Lume generates the narrative docs site
-- Custom Deno scripts import directly from `src/` to auto-generate reference pages
-- TypeDoc (or `deno doc --json`) generates API reference data
-- Maximum integration, but requires more custom work
+**Choose this if:** Auto-generated API reference is the priority and you're willing to invest in `tsconfig.json` path mappings for TypeDoc compatibility.
 
 ---
 
-### Recommended Approach: VitePress + Region Markers
+### Option D: `deno doc --html` (Simplest Starting Point)
 
-1. Add `// #region` markers to key source files (`types.ts`, `crypto.ts`, `payments.ts`, etc.)
-2. Set up VitePress in `docs/` with `package.json` (isolated Node project)
-3. Write narrative docs in markdown that embed source via `<<<`
-4. Add a GitHub Actions workflow to build and deploy to GitHub Pages
-5. Optionally add `vitepress-plugin-typedoc` later for auto-generated API reference
+**Why:** One command, zero dependencies, perfect Deno compatibility:
+```bash
+deno doc --html --name="Chobble Tickets" --output=./docs/ src/index.ts
+```
 
-This approach gives you docs that are **always in sync with source code** because they literally include it, while keeping the docs tooling isolated from the Deno project runtime.
+**Choose this if:** You want pure API reference docs with zero setup. Can always layer a narrative docs solution on top later.
+
+---
+
+### Quick Decision Guide
+
+| Priority | Best choice |
+|---|---|
+| Deepest source integration, Deno-native | **Lume + `deno doc`** |
+| Fastest polished result, narrative docs | **VitePress** |
+| Auto-generated API reference pages | **Starlight + `starlight-typedoc`** |
+| Zero setup, API-only docs | **`deno doc --html`** |
+| Prose-only guides, minimal tooling | **mdBook** |
+
+---
+
+### Suggested Phased Approach
+
+1. **Phase 1:** Start with `deno doc --html` for instant API reference (one command, zero config)
+2. **Phase 2:** Add VitePress or Lume for narrative docs (guides, tutorials, feature docs)
+3. **Phase 3:** Add CI workflow to rebuild docs on push, deploy to GitHub Pages
+4. **Phase 4:** Add `// #region` markers to source files for targeted code embedding in docs
