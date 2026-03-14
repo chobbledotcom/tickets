@@ -4,9 +4,10 @@
  * POST /admin/event/:id/scan - JSON check-in API
  */
 
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { isJsonApiPath } from "#routes/middleware.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -19,7 +20,6 @@ import {
   resetTestSlugCounter,
   setupEventAndLogin,
 } from "#test-utils";
-import { isJsonApiPath } from "#routes/middleware.ts";
 
 /** Create a JSON POST request for the scan API */
 const mockScanRequest = (
@@ -284,8 +284,7 @@ describe("QR Scanner", () => {
       // Point attendee at a non-existent event to simulate orphan
       await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
       await getDb().execute({
-        sql:
-          "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
+        sql: "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
         args: [tokenIndex],
       });
       await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
@@ -307,7 +306,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns not_found for invalid token", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         mockScanRequest(
           event.id,
@@ -340,7 +341,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns 403 for invalid CSRF token", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         mockScanRequest(
           event.id,
@@ -354,7 +357,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns 400 for missing token in body", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         mockScanRequest(event.id, {}, session.cookie, session.csrfToken),
       );
@@ -363,7 +368,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns 403 when x-csrf-token header is absent", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         new Request(`http://localhost/admin/event/${event.id}/scan`, {
           method: "POST",
@@ -380,7 +387,9 @@ describe("QR Scanner", () => {
     });
 
     test("returns 400 for malformed JSON body", async () => {
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
       const response = await handleRequest(
         new Request(`http://localhost/admin/event/${event.id}/scan`, {
           method: "POST",
@@ -402,7 +411,9 @@ describe("QR Scanner", () => {
     test("returns 500 when private key is unavailable", async () => {
       const { getDb } = await import("#lib/db/client.ts");
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
-      const { event, ...session } = await setupEventAndLogin({ maxAttendees: 10 });
+      const { event, ...session } = await setupEventAndLogin({
+        maxAttendees: 10,
+      });
 
       // Remove wrapped_private_key from settings to make key derivation fail
       await getDb().execute({

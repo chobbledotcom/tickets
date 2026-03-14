@@ -1,53 +1,55 @@
-import { afterAll, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterAll, describe, it as test } from "@std/testing/bdd";
 import * as esbuild from "esbuild";
 import { minifyCss } from "../../scripts/css-minify.ts";
 
-describe({
-  name: "build-edge",
-  sanitizeResources: false,
-  sanitizeOps: false,
-}, () => {
-  afterAll(async () => {
-    await esbuild.stop();
-  });
+describe(
+  {
+    name: "build-edge",
+    sanitizeResources: false,
+    sanitizeOps: false,
+  },
+  () => {
+    afterAll(async () => {
+      await esbuild.stop();
+    });
 
-  describe("minifyCss", () => {
-    test("removes whitespace and newlines", async () => {
-      const input = `
+    describe("minifyCss", () => {
+      test("removes whitespace and newlines", async () => {
+        const input = `
         .foo {
           color: red;
           margin: 10px;
         }
       `;
-      const result = await minifyCss(input);
-      // esbuild minifies CSS by removing unnecessary whitespace
-      // Result may have trailing newline but no internal newlines
-      expect(result.trim()).not.toContain("\n");
-      expect(result).toContain(".foo");
-      expect(result).toContain("color:");
-      expect(result).toContain("red");
-    });
+        const result = await minifyCss(input);
+        // esbuild minifies CSS by removing unnecessary whitespace
+        // Result may have trailing newline but no internal newlines
+        expect(result.trim()).not.toContain("\n");
+        expect(result).toContain(".foo");
+        expect(result).toContain("color:");
+        expect(result).toContain("red");
+      });
 
-    test("removes comments", async () => {
-      const input = `
+      test("removes comments", async () => {
+        const input = `
         /* This is a comment */
         .bar { color: blue; }
       `;
-      const result = await minifyCss(input);
-      expect(result).not.toContain("comment");
-      expect(result).toContain(".bar");
-    });
+        const result = await minifyCss(input);
+        expect(result).not.toContain("comment");
+        expect(result).toContain(".bar");
+      });
 
-    test("shortens color values where possible", async () => {
-      const input = ".test { color: #ffffff; }";
-      const result = await minifyCss(input);
-      // esbuild may shorten #ffffff to #fff
-      expect(result).toMatch(/#fff(?:fff)?/);
-    });
+      test("shortens color values where possible", async () => {
+        const input = ".test { color: #ffffff; }";
+        const result = await minifyCss(input);
+        // esbuild may shorten #ffffff to #fff
+        expect(result).toMatch(/#fff(?:fff)?/);
+      });
 
-    test("preserves valid CSS syntax", async () => {
-      const input = `
+      test("preserves valid CSS syntax", async () => {
+        const input = `
         :root {
           --color-primary: #791a81;
         }
@@ -56,27 +58,28 @@ describe({
           padding: 1rem 2rem;
         }
       `;
-      const result = await minifyCss(input);
-      expect(result).toContain("--color-primary");
-      expect(result).toContain("var(--color-primary)");
-    });
+        const result = await minifyCss(input);
+        expect(result).toContain("--color-primary");
+        expect(result).toContain("var(--color-primary)");
+      });
 
-    test("handles empty input", async () => {
-      const result = await minifyCss("");
-      expect(result).toBe("");
-    });
+      test("handles empty input", async () => {
+        const result = await minifyCss("");
+        expect(result).toBe("");
+      });
 
-    test("handles media queries", async () => {
-      const input = `
+      test("handles media queries", async () => {
+        const input = `
         @media (max-width: 768px) {
           .mobile { display: block; }
         }
       `;
-      const result = await minifyCss(input);
-      expect(result).toContain("@media");
-      expect(result).toContain("max-width:");
-      expect(result).toContain("768px");
-      expect(result).toContain(".mobile");
+        const result = await minifyCss(input);
+        expect(result).toContain("@media");
+        expect(result).toContain("max-width:");
+        expect(result).toContain("768px");
+        expect(result).toContain(".mobile");
+      });
     });
-  });
-});
+  },
+);
