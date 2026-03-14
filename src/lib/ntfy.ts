@@ -28,7 +28,6 @@ export const sendNtfyError = async (code: string): Promise<void> => {
       body: code,
     });
   } catch {
-    // biome-ignore lint/suspicious/noConsole: Can't use logError here (would cause infinite loop)
-    console.error("[Error] E_NTFY_SEND");
+    // Silently swallow — can't use logError here (would cause infinite loop)
   }
 };

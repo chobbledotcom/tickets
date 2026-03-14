@@ -176,7 +176,6 @@ export const logRequest = (entry: RequestLogEntry): void => {
   const { method, path, status, durationMs } = entry;
   const redactedPath = redactPath(path);
 
-  // biome-ignore lint/suspicious/noConsole: Intentional debug logging
   console.debug(
     `${getLogPrefix()}[Request] ${method} ${redactedPath} ${status} ${durationMs}ms`,
   );
@@ -237,7 +236,6 @@ export const logError = (context: ErrorContext): void => {
     detail ? `detail="${detail}"` : null,
   ].filter(Boolean);
 
-  // biome-ignore lint/suspicious/noConsole: Intentional error logging
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
 
   addPendingWork(sendNtfyError(code));
@@ -270,6 +268,5 @@ export type LogCategory =
  * For detailed debugging during development
  */
 export const logDebug = (category: LogCategory, message: string): void => {
-  // biome-ignore lint/suspicious/noConsole: Intentional debug logging
   console.debug(`${getLogPrefix()}[${category}] ${message}`);
 };
