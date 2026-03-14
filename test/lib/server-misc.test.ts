@@ -54,9 +54,7 @@ describe("server (misc)", () => {
   }
 
   /** Run a request to an invalid domain and return the [Domain] debug log line */
-  async function getDomainDebugLog(
-    request: Request,
-  ) {
+  async function getDomainDebugLog(request: Request) {
     const debugSpy = spy(console, "debug");
     await handleRequest(request);
     const calls = debugSpy.calls.map((c) => c.args[0] as string);

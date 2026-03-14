@@ -558,7 +558,11 @@ describe("server (admin groups)", () => {
     };
 
     test("hides total revenue for free events", async () => {
-      const { group } = await createGroupWithEvent("Free Group", "free-group", "Free Event");
+      const { group } = await createGroupWithEvent(
+        "Free Group",
+        "free-group",
+        "Free Event",
+      );
       const html = await getGroupPageHtml(group.id);
       expect(html).not.toContain("Total Revenue");
     });
@@ -595,7 +599,11 @@ describe("server (admin groups)", () => {
     });
 
     test("shows no attendees message for group with events but no registrations", async () => {
-      const { group } = await createGroupWithEvent("No Reg Group", "no-reg-group", "Empty Event");
+      const { group } = await createGroupWithEvent(
+        "No Reg Group",
+        "no-reg-group",
+        "Empty Event",
+      );
       const html = await getGroupPageHtml(group.id);
       expect(html).toContain("No attendees yet");
     });
