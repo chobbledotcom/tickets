@@ -1,0 +1,9 @@
+{
+	"name": "Chobble Tickets",
+	"url": "https://tix.chobble.com",
+	"socials": {
+		"RSS": "/feed.xml"
+	},
+	"sticky_mobile_nav": true,
+	"horizontal_nav": true
+}
