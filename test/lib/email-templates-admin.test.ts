@@ -13,7 +13,8 @@ import {
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
@@ -22,17 +23,11 @@ import { resetEngine } from "#lib/email-renderer.ts";
 import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
 
 describe("admin email templates", () => {
-  let cookie: string;
-  let csrfToken: string;
-
   beforeEach(async () => {
     resetTestSlugCounter();
     setCurrencyCodeForTest("GBP");
     resetEngine();
     await createTestDbWithSetup();
-    const session = await getTestSession();
-    cookie = session.cookie;
-    csrfToken = session.csrfToken;
   });
 
   afterEach(() => {

@@ -6,7 +6,8 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -82,14 +83,12 @@ describe("admin debug footer", () => {
 
   test("manager sees footer", async () => {
     // Create and activate a manager user
-    const { cookie: ownerCookie, csrfToken: ownerCsrf } = await getTestSession();
-
     const inviteResponse = await handleRequest(
       mockFormRequest("/admin/users", {
         username: "manager1",
         admin_level: "manager",
-        csrf_token: ownerCsrf,
-      }, ownerCookie),
+        csrf_token: await testCsrfToken(),
+      }, await testCookie()),
     );
     const inviteUrl = inviteResponse.headers.get("location") ?? "";
     const inviteMatch = inviteUrl.match(/invite=([^&]+)/);
@@ -111,8 +110,8 @@ describe("admin debug footer", () => {
     // Activate the manager
     await handleRequest(
       mockFormRequest("/admin/users/2/activate", {
-        csrf_token: ownerCsrf,
-      }, ownerCookie),
+        csrf_token: await testCsrfToken(),
+      }, await testCookie()),
     );
 
     // Login as manager
@@ -133,10 +132,9 @@ describe("admin debug footer", () => {
   });
 
   test("footer not injected for POST responses", async () => {
-    const { cookie, csrfToken } = await getTestSession();
     // POST to logout — it returns a redirect, not HTML, so no footer
     const response = await handleRequest(
-      mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
+      mockFormRequest("/admin/logout", { csrf_token: await testCsrfToken() }, await testCookie()),
     );
     const body = await response.text();
     expect(body).not.toContain("Chobble Tickets");

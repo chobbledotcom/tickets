@@ -17,7 +17,8 @@ import {
   createTestDbWithSetup,
   createTestManagerSession,
   expectHtmlResponse,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -195,13 +196,11 @@ describe("server (header image settings)", () => {
 
   describe("POST /admin/settings/header-image", () => {
     test("uploads header image successfully", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       await withStorageMock(async () => {
         const request = mockMultipartRequest(
           "/admin/settings/header-image",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
           {
             fieldName: "header_image",
             name: "logo.jpg",
@@ -220,13 +219,11 @@ describe("server (header image settings)", () => {
     });
 
     test("rejects invalid image type", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       await withStorageMock(async () => {
         const request = mockMultipartRequest(
           "/admin/settings/header-image",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
           {
             fieldName: "header_image",
             name: "doc.pdf",

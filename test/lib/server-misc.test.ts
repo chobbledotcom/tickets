@@ -14,7 +14,8 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
@@ -358,14 +359,12 @@ describe("server (misc)", () => {
 
   describe("routes/utils.ts (CSRF token validation)", () => {
     test("empty csrf_token from form falls back to empty string", async () => {
-      const { cookie } = await getTestSession();
-
       // Send form without csrf_token field at all
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings",
           { current_password: "test" },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
@@ -701,7 +700,6 @@ describe("server (misc)", () => {
     });
 
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
-      const { cookie } = await getTestSession();
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
 
@@ -714,7 +712,7 @@ describe("server (misc)", () => {
 
       // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey
       const response = await handleRequest(
-        mockRequest("/admin", { headers: { cookie } }),
+        mockRequest("/admin", { headers: { cookie: await testCookie() } }),
       );
 
       expect(response.status).toBe(302);

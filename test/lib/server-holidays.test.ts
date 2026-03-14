@@ -12,7 +12,8 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectStatus,
-  getTestSession,
+  testCookie,
+  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -41,15 +42,13 @@ describe("server (admin holidays)", () => {
 
     test("returns 403 for non-owner", async () => {
       // Create a manager user and login
-      const { cookie: ownerCookie, csrfToken: ownerCsrf } =
-        await getTestSession();
       // Create a manager invite
       const inviteResponse = await handleRequest(
         mockFormRequest("/admin/users", {
           username: "manager1",
           admin_level: "manager",
-          csrf_token: ownerCsrf,
-        }, ownerCookie),
+          csrf_token: await testCsrfToken(),
+        }, await testCookie()),
       );
       expect(inviteResponse.status).toBe(302);
       const inviteUrl = inviteResponse.headers.get("location") ?? "";
@@ -80,8 +79,8 @@ describe("server (admin holidays)", () => {
       // Owner activates the manager
       const activateResponse = await handleRequest(
         mockFormRequest("/admin/users/2/activate", {
-          csrf_token: ownerCsrf,
-        }, ownerCookie),
+          csrf_token: await testCsrfToken(),
+        }, await testCookie()),
       );
       expect(activateResponse.status).toBe(302);
 
