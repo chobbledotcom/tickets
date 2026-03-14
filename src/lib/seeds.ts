@@ -229,7 +229,13 @@ export const createSeeds = async (
   // Prepare and insert events in a single batch
   const eventStatements = await Promise.all(
     map((d: (typeof eventData)[number]) =>
-      prepareEvent(d.index, d.capacity, d.unitPrice, d.slug.slug, d.slug.slugIndex),
+      prepareEvent(
+        d.index,
+        d.capacity,
+        d.unitPrice,
+        d.slug.slug,
+        d.slug.slugIndex,
+      ),
     )(eventData),
   );
   await executeBatch(eventStatements);
