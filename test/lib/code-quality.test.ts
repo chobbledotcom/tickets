@@ -87,9 +87,7 @@ const getRelativePath = (fullPath: string): string =>
   fullPath.replace(`${SRC_DIR}/`, "");
 
 /** Read all files once and cache contents in a Map keyed by path */
-const readAllFiles = async (
-  files: string[],
-): Promise<Map<string, string>> => {
+const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
   const entries = await Promise.all(
     files.map(async (f) => [f, await Deno.readTextFile(f)] as const),
   );
@@ -320,8 +318,11 @@ describe("code quality", () => {
       "lib/cache-registry.ts:resetCacheRegistry",
       // Reset cached demo mode between tests
       "lib/demo.ts:resetDemoMode",
+      "lib/demo.ts:setDemoModeForTest",
       // Reset cached Liquid engine between tests (currency changes need fresh filters)
       "lib/email-renderer.ts:resetEngine",
+      // Skip login delay in tests without env var races
+      "routes/admin/auth.ts:setSkipLoginDelayForTest",
     ];
 
     /**

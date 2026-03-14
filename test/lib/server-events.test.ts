@@ -5,7 +5,7 @@ import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
-import { resetDemoMode } from "#lib/demo.ts";
+import { setDemoModeForTest } from "#lib/demo.ts";
 import { nowMs } from "#lib/now.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
@@ -41,8 +41,7 @@ describe("server (admin events)", () => {
   });
 
   afterEach(() => {
-    Deno.env.delete("DEMO_MODE");
-    resetDemoMode();
+    setDemoModeForTest(false);
     resetDb();
   });
 
@@ -100,34 +99,28 @@ describe("server (admin events)", () => {
     });
 
     test("clears webhook URL when creating event in demo mode", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
 
-      try {
-        const response = await handleRequest(
-          mockMultipartRequest(
-            "/admin/event",
-            {
-              name: "Demo Event",
-              max_attendees: "50",
-              max_quantity: "1",
-              webhook_url: "https://example.com/webhook",
-              csrf_token: await testCsrfToken(),
-            },
-            await testCookie(),
-          ),
-        );
-        expectRedirect("/admin?success=Event+created")(response);
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "Demo Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            webhook_url: "https://example.com/webhook",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expectRedirect("/admin?success=Event+created")(response);
 
-        // Verify webhook_url was cleared
-        const { getEvent } = await import("#lib/db/events.ts");
-        const event = await getEvent(1);
-        expect(event).not.toBeNull();
-        expect(event?.webhook_url).toBe("");
-      } finally {
-        Deno.env.delete("DEMO_MODE");
-        resetDemoMode();
-      }
+      // Verify webhook_url was cleared
+      const { getEvent } = await import("#lib/db/events.ts");
+      const event = await getEvent(1);
+      expect(event).not.toBeNull();
+      expect(event?.webhook_url).toBe("");
     });
 
     test("creates event with group_id when provided", async () => {
@@ -746,39 +739,33 @@ describe("server (admin events)", () => {
     });
 
     test("clears webhook URL when updating event in demo mode", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
 
-      try {
-        const { event, cookie, csrfToken } = await setupEventAndLogin({
-          maxAttendees: 100,
-          webhookUrl: "https://example.com/original-webhook",
-        });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        maxAttendees: 100,
+        webhookUrl: "https://example.com/original-webhook",
+      });
 
-        const response = await handleRequest(
-          mockFormRequest(
-            "/admin/event/1/edit",
-            {
-              name: event.name,
-              slug: event.slug,
-              max_attendees: "200",
-              max_quantity: "5",
-              webhook_url: "https://example.com/new-webhook",
-              csrf_token: csrfToken,
-            },
-            cookie,
-          ),
-        );
-        expectRedirect("/admin/event/1?success=Event+updated")(response);
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            name: event.name,
+            slug: event.slug,
+            max_attendees: "200",
+            max_quantity: "5",
+            webhook_url: "https://example.com/new-webhook",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectRedirect("/admin/event/1?success=Event+updated")(response);
 
-        // Verify webhook_url was cleared
-        const { getEventWithCount } = await import("#lib/db/events.ts");
-        const updated = await getEventWithCount(1);
-        expect(updated?.webhook_url).toBe("");
-      } finally {
-        Deno.env.delete("DEMO_MODE");
-        resetDemoMode();
-      }
+      // Verify webhook_url was cleared
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(1);
+      expect(updated?.webhook_url).toBe("");
     });
 
     test("updates event group_id", async () => {
@@ -1620,7 +1607,9 @@ describe("server (admin events)", () => {
         maxAttendees: 50,
       });
 
-      const response = await awaitTestRequest("/admin/log", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/log", {
+        cookie: await testCookie(),
+      });
       await expectHtmlResponse(response, 200, "Log");
     });
 
@@ -1630,7 +1619,9 @@ describe("server (admin events)", () => {
         await logActivity(`Action ${i}`);
       }
 
-      const response = await awaitTestRequest("/admin/log", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/log", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).toContain("Showing the most recent 200 entries");
     });
@@ -1667,7 +1658,10 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/deactivate",
-          { csrf_token: await testCsrfToken(), confirm_identifier: "something" },
+          {
+            csrf_token: await testCsrfToken(),
+            confirm_identifier: "something",
+          },
           await testCookie(),
         ),
       );
@@ -1680,7 +1674,10 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/reactivate",
-          { csrf_token: await testCsrfToken(), confirm_identifier: "something" },
+          {
+            csrf_token: await testCsrfToken(),
+            confirm_identifier: "something",
+          },
           await testCookie(),
         ),
       );

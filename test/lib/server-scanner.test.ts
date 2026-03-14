@@ -15,11 +15,11 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
-  testCookie,
-  testCsrfToken,
   resetDb,
   resetTestSlugCounter,
   setupEventAndLogin,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 /** Create a JSON POST request for the scan API */
@@ -51,7 +51,11 @@ const setupScanTest = async (
     email,
     eventOverrides,
   );
-  return { event, token, session: { cookie: await testCookie(), csrfToken: await testCsrfToken() } };
+  return {
+    event,
+    token,
+    session: { cookie: await testCookie(), csrfToken: await testCsrfToken() },
+  };
 };
 
 describe("QR Scanner", () => {
