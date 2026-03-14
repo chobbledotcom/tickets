@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#lib/db/attendees.ts";
+import { paymentsApi } from "#lib/payments.ts";
 import { handleRequest } from "#routes";
 import {
   adminAttendeeAction,
@@ -15,17 +16,16 @@ import {
   expectHtmlResponse,
   expectRedirect,
   getAttendeesRaw,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   mockProviderType,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
   setupEventAndLogin,
+  testCookie,
+  testCsrfToken,
   withMocks,
 } from "#test-utils";
-import { paymentsApi } from "#lib/payments.ts";
 
 describe("server (admin attendees)", () => {
   beforeEach(async () => {

@@ -1,26 +1,26 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
 import {
-  getSetting,
+  CONFIG_KEYS,
   getEmailTemplateSet,
+  getSetting,
   invalidateSettingsCache,
   updateEmailTemplate,
-  CONFIG_KEYS,
 } from "#lib/db/settings.ts";
+import { resetEngine } from "#lib/email-renderer.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
-import { resetEngine } from "#lib/email-renderer.ts";
-import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
 
 describe("admin email templates", () => {
   beforeEach(async () => {

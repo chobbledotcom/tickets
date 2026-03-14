@@ -1,6 +1,20 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
+import {
+  getAppleWalletConfig,
+  getAppleWalletPassTypeIdFromDb,
+  getAppleWalletTeamIdFromDb,
+  getHostAppleWalletConfig,
+  hasAppleWalletConfig,
+  hasAppleWalletDbConfig,
+  updateAppleWalletPassTypeId,
+  updateAppleWalletSigningCert,
+  updateAppleWalletSigningKey,
+  updateAppleWalletTeamId,
+  updateAppleWalletWwdrCert,
+} from "#lib/db/settings.ts";
+import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestAttendeeWithToken,
@@ -8,26 +22,12 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   generateTestCerts,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
-import { handleRequest } from "#routes";
-import {
-  hasAppleWalletConfig,
-  hasAppleWalletDbConfig,
-  getHostAppleWalletConfig,
-  getAppleWalletConfig,
-  getAppleWalletPassTypeIdFromDb,
-  getAppleWalletTeamIdFromDb,
-  updateAppleWalletPassTypeId,
-  updateAppleWalletTeamId,
-  updateAppleWalletSigningCert,
-  updateAppleWalletSigningKey,
-  updateAppleWalletWwdrCert,
-} from "#lib/db/settings.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();

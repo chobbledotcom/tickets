@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { handleRequest } from "#routes";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resetDemoMode } from "#lib/demo.ts";
+import { handleRequest } from "#routes";
 import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
@@ -13,12 +13,12 @@ import {
   expectRedirect,
   extractCsrfToken,
   invalidateTestDbCache,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 describe("server (demo reset)", () => {

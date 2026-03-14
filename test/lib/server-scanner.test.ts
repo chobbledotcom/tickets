@@ -15,11 +15,11 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
-  testCookie,
-  testCsrfToken,
   resetDb,
   resetTestSlugCounter,
   setupEventAndLogin,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 /** Create a JSON POST request for the scan API */

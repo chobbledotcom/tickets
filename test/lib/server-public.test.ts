@@ -25,7 +25,6 @@ import {
   expectHtmlResponse,
   expectRedirect,
   getTicketCsrfToken,
-  testCookie,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -33,6 +32,7 @@ import {
   setupStripe,
   submitMultiTicketForm,
   submitTicketForm,
+  testCookie,
   updateTestEvent,
 } from "#test-utils";
 

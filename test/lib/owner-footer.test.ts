@@ -1,19 +1,19 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
   adminGet,
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
-  testCookie,
-  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 describe("admin debug footer", () => {

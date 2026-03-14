@@ -1,12 +1,12 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { handleRequest } from "#routes";
-import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
-import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
-import { getAllEvents } from "#lib/db/events.ts";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
+import { getAllEvents } from "#lib/db/events.ts";
 import { invalidateSettingsCache } from "#lib/db/settings.ts";
+import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
+import { handleRequest } from "#routes";
+import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -14,14 +14,14 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   extractCsrfToken,
-  testCookie,
-  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 /** Create a manager user and return their session cookie */

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { formatDateLabel } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { handleRequest } from "#routes";
@@ -10,11 +10,11 @@ import {
   createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 /** Create attendee + login, returning token + session for check-in tests */

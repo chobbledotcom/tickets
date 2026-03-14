@@ -8,10 +8,10 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
-  testCookie,
   resetDb,
   resetTestSlugCounter,
   submitTicketForm,
+  testCookie,
 } from "#test-utils";
 
 describe("admin calendar", () => {
