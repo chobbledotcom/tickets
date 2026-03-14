@@ -245,6 +245,18 @@ describe("password hashing", () => {
       const hash2 = await hashPassword("samepassword");
       expect(hash1).not.toBe(hash2);
     });
+
+    it("uses production iterations when TEST_PBKDF2_ITERATIONS is unset", async () => {
+      const saved = Deno.env.get("TEST_PBKDF2_ITERATIONS");
+      Deno.env.delete("TEST_PBKDF2_ITERATIONS");
+      try {
+        const hash = await hashPassword("password");
+        const iterations = Number(hash.split(":")[1]);
+        expect(iterations).toBe(600000);
+      } finally {
+        if (saved !== undefined) Deno.env.set("TEST_PBKDF2_ITERATIONS", saved);
+      }
+    });
   });
 
   describe("verifyPassword", () => {
@@ -501,6 +513,19 @@ describe("RSA key pair and hybrid encryption", () => {
       expect(sharedPair.privateKey).toBeDefined();
       expect(JSON.parse(sharedPair.publicKey).kty).toBe("RSA");
       expect(JSON.parse(sharedPair.privateKey).kty).toBe("RSA");
+    });
+
+    it("uses production key size when TEST_RSA_KEY_SIZE is unset", async () => {
+      const saved = Deno.env.get("TEST_RSA_KEY_SIZE");
+      Deno.env.delete("TEST_RSA_KEY_SIZE");
+      try {
+        const pair = await generateKeyPair();
+        const jwk = JSON.parse(pair.publicKey);
+        // 2048-bit RSA key: n (modulus) is 256 bytes = 344 base64url chars
+        expect(jwk.n.length).toBeGreaterThan(300);
+      } finally {
+        if (saved !== undefined) Deno.env.set("TEST_RSA_KEY_SIZE", saved);
+      }
     });
 
     it("generates different key pairs each time", async () => {
