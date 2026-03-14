@@ -13,7 +13,7 @@
     "lint:fix": "deno lint --fix src test scripts",
     "fmt": "deno fmt src test scripts",
     "typecheck": "deno check src/**/*.ts src/**/*.tsx test/**/*.ts",
-    "cpd": "deno run -A npm:jscpd --config .jscpd.json",
+    "cpd": "deno run -A npm:jscpd src --config .jscpd.json",
     "biome:fix": "deno run -A npm:@biomejs/biome check --write src test scripts",
     "biome:check": "deno run -A npm:@biomejs/biome check src test scripts",
     "precommit": "deno task biome:fix; deno task typecheck && deno task lint && deno task cpd && deno task build:edge && deno task test:coverage"

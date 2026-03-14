@@ -14,6 +14,6 @@
 	"gitignore": true,
 	"exitCode": 1,
 	"minLines": 1,
-	"minTokens": 50,
+	"minTokens": 23,
 	"path": ["src", "test", "scripts"]
 }
