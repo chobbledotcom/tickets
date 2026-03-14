@@ -45,12 +45,6 @@ export const adminSettingsPage = (
     <Layout title="Settings" theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
 
-      <p>
-        For advanced settings including public API, Apple Wallet, Google Wallet,
-        custom email templates, mail provider, timezone, custom domain, and
-        database reset, <a href="/admin/settings-advanced">click here</a>.
-      </p>
-
       {s.storageEnabled && (
         <div>
           {s.headerImageUrl && (
@@ -405,5 +399,11 @@ export const adminSettingsPage = (
         </fieldset>
         <button type="submit">Save Theme</button>
       </CsrfForm>
+
+      <p>
+        For advanced settings including public API, Apple Wallet, custom email
+        templates, mail provider, timezone, custom domain, and database reset,{" "}
+        <a href="/admin/settings-advanced">click here</a>.
+      </p>
     </Layout>,
   );

@@ -15,24 +15,19 @@ import {
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
-  loginAsAdmin,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 describe("admin email templates", () => {
-  let cookie: string;
-  let csrfToken: string;
-
   beforeEach(async () => {
     resetTestSlugCounter();
     setCurrencyCodeForTest("GBP");
     resetEngine();
     await createTestDbWithSetup();
-    const session = await loginAsAdmin();
-    cookie = session.cookie;
-    csrfToken = session.csrfToken;
   });
 
   afterEach(() => {
@@ -44,7 +39,7 @@ describe("admin email templates", () => {
   describe("settings page", () => {
     test("shows email template sections", async () => {
       const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie,
+        cookie: await testCookie(),
       });
       await expectHtmlResponse(
         response,
@@ -56,7 +51,7 @@ describe("admin email templates", () => {
 
     test("shows default templates as placeholders", async () => {
       const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain("Your tickets for");
@@ -65,7 +60,7 @@ describe("admin email templates", () => {
 
     test("uses 'Leave blank' placeholder for html/text bodies", async () => {
       const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain(
@@ -75,7 +70,7 @@ describe("admin email templates", () => {
 
     test("shows edit default template links for html/text bodies", async () => {
       const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain('data-fill-default="confirmation_html"');
@@ -87,7 +82,7 @@ describe("admin email templates", () => {
 
     test("includes default templates as data attributes", async () => {
       const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain("data-default-tpl=");
@@ -112,9 +107,9 @@ describe("admin email templates", () => {
             subject: "Custom: {{ event_names }}",
             html: "<b>{{ attendee.name }}</b>",
             text: "Hi {{ attendee.name }}",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -133,9 +128,9 @@ describe("admin email templates", () => {
             subject: "Custom: {{ event_names }}",
             html: "<b>{{ attendee.name }}</b>",
             text: "Hi {{ attendee.name }}",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -171,9 +166,9 @@ describe("admin email templates", () => {
             subject: "",
             html: "",
             text: "",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -192,9 +187,9 @@ describe("admin email templates", () => {
             subject: "{% for x in items %}unclosed",
             html: "",
             text: "",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -208,9 +203,9 @@ describe("admin email templates", () => {
         mockFormRequest(
           "/admin/settings/email-templates/confirmation",
           {
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -229,9 +224,9 @@ describe("admin email templates", () => {
             subject: "",
             html: "x".repeat(51_201),
             text: "",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -250,9 +245,9 @@ describe("admin email templates", () => {
             subject: "New: {{ attendee.name }}",
             html: "<p>Admin HTML</p>",
             text: "Admin text",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -271,9 +266,9 @@ describe("admin email templates", () => {
             type: "confirmation",
             template: "Hello {{ attendee.name }}",
             format: "text",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -290,9 +285,9 @@ describe("admin email templates", () => {
             type: "confirmation",
             template: "{% invalid %}",
             format: "text",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -309,9 +304,9 @@ describe("admin email templates", () => {
             type: "invalid",
             template: "test",
             format: "text",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -325,9 +320,9 @@ describe("admin email templates", () => {
         mockFormRequest(
           "/admin/settings/email-templates/preview",
           {
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -344,9 +339,9 @@ describe("admin email templates", () => {
             type: "confirmation",
             template: '{% render "nonexistent" %}',
             format: "text",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -364,9 +359,9 @@ describe("admin email templates", () => {
             template:
               "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
             format: "html",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 

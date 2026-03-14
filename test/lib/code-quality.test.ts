@@ -62,14 +62,17 @@ const ALIASING_PATTERN =
  */
 const THEN_PATTERN = /\.then\s*\(/g;
 
-const getAllTsFiles = async (dir: string): Promise<string[]> => {
+const getAllFilesWithExt = async (
+  dir: string,
+  ext: string,
+): Promise<string[]> => {
   const files: string[] = [];
 
   for await (const entry of Deno.readDir(dir)) {
     const fullPath = join(dir, entry.name);
     if (entry.isDirectory) {
-      files.push(...(await getAllTsFiles(fullPath)));
-    } else if (entry.name.endsWith(".ts")) {
+      files.push(...(await getAllFilesWithExt(fullPath, ext)));
+    } else if (entry.name.endsWith(ext)) {
       files.push(fullPath);
     }
   }
@@ -77,23 +80,62 @@ const getAllTsFiles = async (dir: string): Promise<string[]> => {
   return files;
 };
 
+const getAllTsFiles = (dir: string): Promise<string[]> =>
+  getAllFilesWithExt(dir, ".ts");
+
 const getRelativePath = (fullPath: string): string =>
   fullPath.replace(`${SRC_DIR}/`, "");
 
+/** Read all files once and cache contents in a Map keyed by path */
+const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
+  const entries = await Promise.all(
+    files.map(async (f) => [f, await Deno.readTextFile(f)] as const),
+  );
+  return new Map(entries);
+};
+
 describe("code quality", () => {
+  /** Cached file lists and contents, populated once on first use */
+  let srcFiles: string[];
+  let srcContents: Map<string, string>;
+  let testFiles: string[];
+  let testContents: Map<string, string>;
+  let tsxFiles: string[];
+  let tsxContents: Map<string, string>;
+
+  const ensureLoaded = async (): Promise<void> => {
+    if (srcContents) return;
+    const [sf, tf, txf] = await Promise.all([
+      getAllTsFiles(SRC_DIR),
+      getAllTsFiles(TEST_DIR),
+      getAllFilesWithExt(SRC_DIR, ".tsx"),
+    ]);
+    srcFiles = sf;
+    testFiles = tf;
+    tsxFiles = txf;
+    const [sc, tc, txc] = await Promise.all([
+      readAllFiles(srcFiles),
+      readAllFiles(testFiles),
+      readAllFiles(tsxFiles),
+    ]);
+    srcContents = sc;
+    testContents = tc;
+    tsxContents = txc;
+  };
+
   describe("no in-memory state", () => {
     test("source files should not use module-level Map or Set for state", async () => {
-      const files = await getAllTsFiles(SRC_DIR);
+      await ensureLoaded();
       const violations: string[] = [];
 
-      for (const file of files) {
+      for (const file of srcFiles) {
         const relativePath = getRelativePath(file);
 
         if (ALLOWED_FILES_STATE.includes(relativePath)) {
           continue;
         }
 
-        const content = await Deno.readTextFile(file);
+        const content = srcContents.get(file)!;
 
         for (const { pattern, description } of FORBIDDEN_PATTERNS) {
           if (pattern.test(content)) {
@@ -108,13 +150,13 @@ describe("code quality", () => {
 
   describe("no aliasing", () => {
     test("should not alias functions or variables at module level", async () => {
-      const files = await getAllTsFiles(SRC_DIR);
+      await ensureLoaded();
       const violations: string[] = [];
 
-      for (const file of files) {
+      for (const file of srcFiles) {
         const relativePath = getRelativePath(file);
         if (TEST_UTILITY_FILES.includes(relativePath)) continue;
-        const content = await Deno.readTextFile(file);
+        const content = srcContents.get(file)!;
         const lines = content.split("\n");
 
         let lineNum = 0;
@@ -137,13 +179,13 @@ describe("code quality", () => {
 
   describe("no module-level let", () => {
     test("should use const with once()/lazyRef() instead of let", async () => {
-      const files = await getAllTsFiles(SRC_DIR);
+      await ensureLoaded();
       const violations: string[] = [];
 
-      for (const file of files) {
+      for (const file of srcFiles) {
         const relativePath = getRelativePath(file);
         if (TEST_UTILITY_FILES.includes(relativePath)) continue;
-        const content = await Deno.readTextFile(file);
+        const content = srcContents.get(file)!;
         const lines = content.split("\n");
 
         let lineNum = 0;
@@ -165,12 +207,12 @@ describe("code quality", () => {
 
   describe("no .then() usage", () => {
     test("should use async/await instead of .then()", async () => {
-      const files = await getAllTsFiles(SRC_DIR);
+      await ensureLoaded();
       const violations: string[] = [];
 
-      for (const file of files) {
+      for (const file of srcFiles) {
         const relativePath = getRelativePath(file);
-        const content = await Deno.readTextFile(file);
+        const content = srcContents.get(file)!;
         const lines = content.split("\n");
 
         let lineNum = 0;
@@ -276,8 +318,11 @@ describe("code quality", () => {
       "lib/cache-registry.ts:resetCacheRegistry",
       // Reset cached demo mode between tests
       "lib/demo.ts:resetDemoMode",
+      "lib/demo.ts:setDemoModeForTest",
       // Reset cached Liquid engine between tests (currency changes need fresh filters)
       "lib/email-renderer.ts:resetEngine",
+      // Skip login delay in tests without env var races
+      "routes/admin/auth.ts:setSkipLoginDelayForTest",
     ];
 
     /**
@@ -342,27 +387,12 @@ describe("code quality", () => {
       return usageCount > 0;
     };
 
-    /** Get all .tsx files in a directory recursively */
-    const getAllTsxFiles = async (dir: string): Promise<string[]> => {
-      const files: string[] = [];
-      for await (const entry of Deno.readDir(dir)) {
-        const fullPath = join(dir, entry.name);
-        if (entry.isDirectory) {
-          files.push(...(await getAllTsxFiles(fullPath)));
-        } else if (entry.name.endsWith(".tsx")) {
-          files.push(fullPath);
-        }
-      }
-      return files;
-    };
-
-    const isUsedInProductionCode = async (
+    const isUsedInProductionCode = (
       symbolName: string,
       sourceFile: string,
-      srcFiles: string[],
-    ): Promise<boolean> => {
+    ): boolean => {
       // Check if it's used within the same file
-      const sourceContent = await Deno.readTextFile(sourceFile);
+      const sourceContent = srcContents.get(sourceFile)!;
       if (isUsedInSameFile(symbolName, sourceContent)) {
         return true;
       }
@@ -380,17 +410,14 @@ describe("code quality", () => {
         // Skip test utilities - imports there don't count as production usage
         if (TEST_UTILITY_PATHS.includes(relativePath)) continue;
 
-        const content = await Deno.readTextFile(file);
-        if (importPattern.test(content)) {
+        if (importPattern.test(srcContents.get(file)!)) {
           return true;
         }
       }
 
       // Also check .tsx files as importers
-      const tsxFiles = await getAllTsxFiles(SRC_DIR);
       for (const file of tsxFiles) {
-        const content = await Deno.readTextFile(file);
-        if (importPattern.test(content)) {
+        if (importPattern.test(tsxContents.get(file)!)) {
           return true;
         }
       }
@@ -399,15 +426,13 @@ describe("code quality", () => {
     };
 
     /** Check if a symbol is imported in any test file */
-    const isUsedInTests = async (symbolName: string): Promise<boolean> => {
-      const testFiles = await getAllTsFiles(TEST_DIR);
+    const isUsedInTests = (symbolName: string): boolean => {
       const importPattern = new RegExp(
         `import\\s*\\{[^}]*\\b${symbolName}\\b[^}]*\\}`,
       );
 
       for (const testFile of testFiles) {
-        const testContent = await Deno.readTextFile(testFile);
-        if (importPattern.test(testContent)) {
+        if (importPattern.test(testContents.get(testFile)!)) {
           return true;
         }
       }
@@ -433,14 +458,11 @@ describe("code quality", () => {
     };
 
     /** Find test-only violations for a single file */
-    const findFileViolations = async (
-      file: string,
-      srcFiles: string[],
-    ): Promise<string[]> => {
+    const findFileViolations = (file: string): string[] => {
       const relativePath = getRelativePath(file);
       const violations: string[] = [];
 
-      const content = await Deno.readTextFile(file);
+      const content = srcContents.get(file)!;
       if (isPrimarilyReExportModule(content)) return violations;
 
       const exports = extractExports(content);
@@ -449,13 +471,9 @@ describe("code quality", () => {
         const hookKey = `${relativePath}:${exportName}`;
         if (ALLOWED_TEST_HOOKS.includes(hookKey)) continue;
 
-        const usedInProduction = await isUsedInProductionCode(
-          exportName,
-          file,
-          srcFiles,
-        );
+        const usedInProduction = isUsedInProductionCode(exportName, file);
 
-        if (!usedInProduction && (await isUsedInTests(exportName))) {
+        if (!usedInProduction && isUsedInTests(exportName)) {
           violations.push(
             `${relativePath}: "${exportName}" is exported but only used in tests`,
           );
@@ -466,14 +484,14 @@ describe("code quality", () => {
     };
 
     test("exports from src/ should be used in production code, not just tests", async () => {
-      const srcFiles = await getAllTsFiles(SRC_DIR);
+      await ensureLoaded();
       const violations: string[] = [];
 
       for (const file of srcFiles) {
         const relativePath = getRelativePath(file);
         if (shouldSkipFile(relativePath)) continue;
 
-        const fileViolations = await findFileViolations(file, srcFiles);
+        const fileViolations = findFileViolations(file);
         violations.push(...fileViolations);
       }
 

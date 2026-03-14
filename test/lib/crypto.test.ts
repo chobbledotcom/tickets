@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
+import { beforeEach, describe, it } from "@std/testing/bdd";
 import {
   clearEncryptionKeyCache,
   constantTimeEqual,
@@ -124,10 +124,6 @@ describe("encryption", () => {
     setupTestEncryptionKey();
   });
 
-  afterEach(() => {
-    clearTestEncryptionKey();
-  });
-
   describe("validateEncryptionKey", () => {
     it("succeeds with valid 32-byte key", () => {
       expect(() => validateEncryptionKey()).not.toThrow();
@@ -249,6 +245,18 @@ describe("password hashing", () => {
       const hash2 = await hashPassword("samepassword");
       expect(hash1).not.toBe(hash2);
     });
+
+    it("uses production iterations when TEST_PBKDF2_ITERATIONS is unset", async () => {
+      const saved = Deno.env.get("TEST_PBKDF2_ITERATIONS");
+      Deno.env.delete("TEST_PBKDF2_ITERATIONS");
+      try {
+        const hash = await hashPassword("password");
+        const iterations = Number(hash.split(":")[1]);
+        expect(iterations).toBe(600000);
+      } finally {
+        if (saved !== undefined) Deno.env.set("TEST_PBKDF2_ITERATIONS", saved);
+      }
+    });
   });
 
   describe("verifyPassword", () => {
@@ -314,10 +322,6 @@ describe("hmacHash", () => {
     setupTestEncryptionKey();
   });
 
-  afterEach(() => {
-    clearTestEncryptionKey();
-  });
-
   it("produces consistent hash for same IP", async () => {
     const ip = "192.168.1.1";
     const hash1 = await hmacHash(ip);
@@ -375,10 +379,6 @@ describe("KEK derivation", () => {
     setupTestEncryptionKey();
   });
 
-  afterEach(() => {
-    clearTestEncryptionKey();
-  });
-
   it("derives a usable CryptoKey", async () => {
     const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==";
     const kek = await deriveKEK(passwordHash);
@@ -413,10 +413,6 @@ describe("KEK derivation", () => {
 describe("key wrapping", () => {
   beforeEach(() => {
     setupTestEncryptionKey();
-  });
-
-  afterEach(() => {
-    clearTestEncryptionKey();
   });
 
   describe("wrapKey and unwrapKey", () => {
@@ -497,88 +493,107 @@ describe("key wrapping", () => {
 });
 
 describe("RSA key pair and hybrid encryption", () => {
+  // Generate one shared key pair for tests that just need a valid key pair,
+  // avoiding expensive RSA key generation (~300-600ms each at 1024 bits).
+  let sharedPair: { publicKey: string; privateKey: string };
+  let sharedPubKey: CryptoKey;
+  let sharedPrivKey: CryptoKey;
+
+  const ensureSharedKeyPair = async (): Promise<void> => {
+    if (sharedPair) return;
+    sharedPair = await generateKeyPair();
+    sharedPubKey = await importPublicKey(sharedPair.publicKey);
+    sharedPrivKey = await importPrivateKey(sharedPair.privateKey);
+  };
+
   describe("generateKeyPair", () => {
     it("generates valid key pair", async () => {
-      const { publicKey, privateKey } = await generateKeyPair();
-      expect(publicKey).toBeDefined();
-      expect(privateKey).toBeDefined();
-      expect(JSON.parse(publicKey).kty).toBe("RSA");
-      expect(JSON.parse(privateKey).kty).toBe("RSA");
+      await ensureSharedKeyPair();
+      expect(sharedPair.publicKey).toBeDefined();
+      expect(sharedPair.privateKey).toBeDefined();
+      expect(JSON.parse(sharedPair.publicKey).kty).toBe("RSA");
+      expect(JSON.parse(sharedPair.privateKey).kty).toBe("RSA");
+    });
+
+    it("uses production key size when TEST_RSA_KEY_SIZE is unset", async () => {
+      const saved = Deno.env.get("TEST_RSA_KEY_SIZE");
+      Deno.env.delete("TEST_RSA_KEY_SIZE");
+      try {
+        const pair = await generateKeyPair();
+        const jwk = JSON.parse(pair.publicKey);
+        // 2048-bit RSA key: n (modulus) is 256 bytes = 344 base64url chars
+        expect(jwk.n.length).toBeGreaterThan(300);
+      } finally {
+        if (saved !== undefined) Deno.env.set("TEST_RSA_KEY_SIZE", saved);
+      }
     });
 
     it("generates different key pairs each time", async () => {
-      const pair1 = await generateKeyPair();
+      await ensureSharedKeyPair();
       const pair2 = await generateKeyPair();
-      expect(pair1.publicKey).not.toBe(pair2.publicKey);
-      expect(pair1.privateKey).not.toBe(pair2.privateKey);
+      expect(sharedPair.publicKey).not.toBe(pair2.publicKey);
+      expect(sharedPair.privateKey).not.toBe(pair2.privateKey);
     });
   });
 
   describe("hybridEncrypt and hybridDecrypt", () => {
     it("round-trips a simple string", async () => {
-      const { publicKey, privateKey } = await generateKeyPair();
-      const pubKey = await importPublicKey(publicKey);
-      const privKey = await importPrivateKey(privateKey);
+      await ensureSharedKeyPair();
 
       const plaintext = "hello world";
-      const encrypted = await hybridEncrypt(plaintext, pubKey);
-      const decrypted = await hybridDecrypt(encrypted, privKey);
+      const encrypted = await hybridEncrypt(plaintext, sharedPubKey);
+      const decrypted = await hybridDecrypt(encrypted, sharedPrivKey);
       expect(decrypted).toBe(plaintext);
     });
 
     it("round-trips unicode and emoji", async () => {
-      const { publicKey, privateKey } = await generateKeyPair();
-      const pubKey = await importPublicKey(publicKey);
-      const privKey = await importPrivateKey(privateKey);
+      await ensureSharedKeyPair();
 
       const plaintext = "こんにちは 🌍 émojis";
-      const encrypted = await hybridEncrypt(plaintext, pubKey);
-      const decrypted = await hybridDecrypt(encrypted, privKey);
+      const encrypted = await hybridEncrypt(plaintext, sharedPubKey);
+      const decrypted = await hybridDecrypt(encrypted, sharedPrivKey);
       expect(decrypted).toBe(plaintext);
     });
 
     it("produces different ciphertext for same plaintext", async () => {
-      const { publicKey } = await generateKeyPair();
-      const pubKey = await importPublicKey(publicKey);
+      await ensureSharedKeyPair();
 
-      const encrypted1 = await hybridEncrypt("same text", pubKey);
-      const encrypted2 = await hybridEncrypt("same text", pubKey);
+      const encrypted1 = await hybridEncrypt("same text", sharedPubKey);
+      const encrypted2 = await hybridEncrypt("same text", sharedPubKey);
       expect(encrypted1).not.toBe(encrypted2);
     });
 
     it("has correct prefix", async () => {
-      const { publicKey } = await generateKeyPair();
-      const pubKey = await importPublicKey(publicKey);
+      await ensureSharedKeyPair();
 
-      const encrypted = await hybridEncrypt("test", pubKey);
+      const encrypted = await hybridEncrypt("test", sharedPubKey);
       expect(encrypted.startsWith("hyb:1:")).toBe(true);
     });
 
     it("fails with wrong private key", async () => {
-      const pair1 = await generateKeyPair();
+      await ensureSharedKeyPair();
+      // Need a second key pair to test wrong-key failure
       const pair2 = await generateKeyPair();
-
-      const pubKey = await importPublicKey(pair1.publicKey);
       const wrongPrivKey = await importPrivateKey(pair2.privateKey);
 
-      const encrypted = await hybridEncrypt("secret", pubKey);
+      const encrypted = await hybridEncrypt("secret", sharedPubKey);
       await expect(hybridDecrypt(encrypted, wrongPrivKey)).rejects.toThrow();
     });
 
     it("throws on invalid format", async () => {
-      const { privateKey } = await generateKeyPair();
-      const privKey = await importPrivateKey(privateKey);
+      await ensureSharedKeyPair();
 
-      await expect(hybridDecrypt("invalid", privKey)).rejects.toThrow(
+      await expect(hybridDecrypt("invalid", sharedPrivKey)).rejects.toThrow(
         "Invalid hybrid encrypted data format",
       );
     });
 
     it("throws on wrong number of parts", async () => {
-      const { privateKey } = await generateKeyPair();
-      const privKey = await importPrivateKey(privateKey);
+      await ensureSharedKeyPair();
 
-      await expect(hybridDecrypt("hyb:1:only:two", privKey)).rejects.toThrow(
+      await expect(
+        hybridDecrypt("hyb:1:only:two", sharedPrivKey),
+      ).rejects.toThrow(
         "Invalid hybrid encrypted data format: wrong number of parts",
       );
     });

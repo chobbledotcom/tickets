@@ -12,9 +12,10 @@ import {
   expectAdminRedirect,
   expectResultError,
   expectResultNotFound,
-  loginAsAdmin,
   resetDb,
   successResponse,
+  testCookie,
+  testCsrfToken,
   testRequest,
 } from "#test-utils";
 
@@ -345,7 +346,8 @@ describe("rest/handlers", () => {
     path: string,
     data: Record<string, string>,
   ): Promise<Request> => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const cookie = await testCookie();
+    const csrfToken = await testCsrfToken();
     const sessionToken =
       cookie.match(new RegExp(`${getSessionCookieName()}=([^;]+)`))?.[1] ?? "";
     return testRequest(path, sessionToken, {

@@ -14,19 +14,18 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   extractCsrfToken,
-  loginAsAdmin,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 /** Create a manager user and return their session cookie */
 const loginAsManager = async (): Promise<string> => {
-  const { cookie: ownerCookie, csrfToken: ownerCsrf } = await loginAsAdmin();
-
   // Create a manager invite
   const inviteResponse = await handleRequest(
     mockFormRequest(
@@ -34,9 +33,9 @@ const loginAsManager = async (): Promise<string> => {
       {
         username: "manager1",
         admin_level: "manager",
-        csrf_token: ownerCsrf,
+        csrf_token: await testCsrfToken(),
       },
-      ownerCookie,
+      await testCookie(),
     ),
   );
   const inviteUrl = inviteResponse.headers.get("location") ?? "";
@@ -62,8 +61,8 @@ const loginAsManager = async (): Promise<string> => {
   await handleRequest(
     mockFormRequest(
       "/admin/users/2/activate",
-      { csrf_token: ownerCsrf },
-      ownerCookie,
+      { csrf_token: await testCsrfToken() },
+      await testCookie(),
     ),
   );
 
@@ -145,13 +144,15 @@ describe("server (admin seeds)", () => {
     });
 
     test("creates seed events with no attendees", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "2", attendees_per_event: "0", csrf_token: csrfToken },
-          cookie,
+          {
+            event_count: "2",
+            attendees_per_event: "0",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
         ),
       );
 
@@ -164,13 +165,15 @@ describe("server (admin seeds)", () => {
     });
 
     test("creates seed events with attendees including paid and free", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "2", attendees_per_event: "3", csrf_token: csrfToken },
-          cookie,
+          {
+            event_count: "2",
+            attendees_per_event: "3",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
         ),
       );
 
@@ -205,17 +208,15 @@ describe("server (admin seeds)", () => {
     });
 
     test("clamps event count to max", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
             event_count: "999",
             attendees_per_event: "0",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -224,8 +225,6 @@ describe("server (admin seeds)", () => {
     });
 
     test("clamps attendees per event to max", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Request more than SEED_MAX_ATTENDEES but create 0 events to avoid slow creation
       // We verify clamping by checking a single event with attendees
       const response = await handleRequest(
@@ -234,9 +233,9 @@ describe("server (admin seeds)", () => {
           {
             event_count: "1",
             attendees_per_event: "9999",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -245,17 +244,15 @@ describe("server (admin seeds)", () => {
     });
 
     test("clamps negative values to minimum", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
             event_count: "-5",
             attendees_per_event: "-10",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -264,13 +261,11 @@ describe("server (admin seeds)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           { event_count: "1", attendees_per_event: "0", csrf_token: "invalid" },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -278,13 +273,15 @@ describe("server (admin seeds)", () => {
     });
 
     test("created events are active", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "1", attendees_per_event: "0", csrf_token: csrfToken },
-          cookie,
+          {
+            event_count: "1",
+            attendees_per_event: "0",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
         ),
       );
 
@@ -295,8 +292,6 @@ describe("server (admin seeds)", () => {
     });
 
     test("returns 500 when seed creation fails", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Remove public key to cause createSeeds to fail
       await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
       invalidateSettingsCache();
@@ -304,8 +299,12 @@ describe("server (admin seeds)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "1", attendees_per_event: "0", csrf_token: csrfToken },
-          cookie,
+          {
+            event_count: "1",
+            attendees_per_event: "0",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
         ),
       );
 
@@ -314,17 +313,15 @@ describe("server (admin seeds)", () => {
     });
 
     test("handles non-numeric event count as 1", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
             event_count: "abc",
             attendees_per_event: "2",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -333,17 +330,15 @@ describe("server (admin seeds)", () => {
     });
 
     test("handles non-numeric attendees per event as 0", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
             event_count: "1",
             attendees_per_event: "abc",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
 
@@ -362,12 +357,10 @@ describe("server (admin seeds)", () => {
     });
 
     test("can seed multiple times additively", async () => {
-      const { cookie } = await loginAsAdmin();
-
       // First seed
       const get1 = await handleRequest(
         mockRequest("/admin/seeds", {
-          headers: { cookie },
+          headers: { cookie: await testCookie() },
         }),
       );
       const html1 = await get1.text();
@@ -377,14 +370,14 @@ describe("server (admin seeds)", () => {
         mockFormRequest(
           "/admin/seeds",
           { event_count: "2", attendees_per_event: "0", csrf_token: csrf1 },
-          cookie,
+          await testCookie(),
         ),
       );
 
       // Second seed
       const get2 = await handleRequest(
         mockRequest("/admin/seeds", {
-          headers: { cookie },
+          headers: { cookie: await testCookie() },
         }),
       );
       const html2 = await get2.text();
@@ -394,7 +387,7 @@ describe("server (admin seeds)", () => {
         mockFormRequest(
           "/admin/seeds",
           { event_count: "3", attendees_per_event: "0", csrf_token: csrf2 },
-          cookie,
+          await testCookie(),
         ),
       );
 

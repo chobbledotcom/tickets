@@ -1,19 +1,15 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   isSignedCsrfToken,
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#lib/csrf.ts";
-import { clearTestEncryptionKey, setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils";
 
 describe("signCsrfToken", () => {
   beforeEach(() => {
     setupTestEncryptionKey();
-  });
-
-  afterEach(() => {
-    clearTestEncryptionKey();
   });
 
   test("produces a token with s1. prefix", async () => {
@@ -48,7 +44,6 @@ describe("isSignedCsrfToken", () => {
     setupTestEncryptionKey();
     const token = await signCsrfToken();
     expect(isSignedCsrfToken(token)).toBe(true);
-    clearTestEncryptionKey();
   });
 
   test("returns false for plain tokens", () => {
@@ -63,10 +58,6 @@ describe("isSignedCsrfToken", () => {
 describe("verifySignedCsrfToken", () => {
   beforeEach(() => {
     setupTestEncryptionKey();
-  });
-
-  afterEach(() => {
-    clearTestEncryptionKey();
   });
 
   test("accepts a freshly signed token", async () => {

@@ -415,6 +415,7 @@ export const hasStripeKey = async (): Promise<boolean> => {
 
 const { get: getStripeSecretKeyFromDb, update: updateStripeKey } =
   encryptedSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
+
 export { getStripeSecretKeyFromDb, updateStripeKey };
 
 export const getStripeWebhookSecretFromDb = encryptedSetting(

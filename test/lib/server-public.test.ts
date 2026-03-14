@@ -25,7 +25,6 @@ import {
   expectHtmlResponse,
   expectRedirect,
   getTicketCsrfToken,
-  loginAsAdmin,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -33,6 +32,7 @@ import {
   setupStripe,
   submitMultiTicketForm,
   submitTicketForm,
+  testCookie,
   updateTestEvent,
 } from "#test-utils";
 
@@ -1370,6 +1370,29 @@ describe("server (public routes)", () => {
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
       expect(response.status).toBe(404);
+    });
+
+    test("preserves slug order instead of sorting events", async () => {
+      const event1 = await createTestEvent({
+        name: "Zebra Event",
+        maxAttendees: 50,
+        date: "2026-12-01",
+      });
+      const event2 = await createTestEvent({
+        name: "Alpha Event",
+        maxAttendees: 50,
+        date: "2026-01-01",
+      });
+      // Request with Zebra first, Alpha second — opposite of sort order
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      const html = await response.text();
+      const zebraPos = html.indexOf("Zebra Event");
+      const alphaPos = html.indexOf("Alpha Event");
+      expect(zebraPos).toBeGreaterThan(-1);
+      expect(alphaPos).toBeGreaterThan(-1);
+      expect(zebraPos).toBeLessThan(alphaPos);
     });
 
     test("does not set CSRF cookies for multi-ticket (uses signed tokens)", async () => {
@@ -3890,9 +3913,8 @@ describe("server (public routes)", () => {
 
     test("admin edit page shows can_pay_more checked for enabled event", async () => {
       const event = await payMoreEvent();
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more" value="1" checked');
@@ -3903,9 +3925,8 @@ describe("server (public routes)", () => {
         unitPrice: 1000,
         maxAttendees: 50,
       });
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more"');

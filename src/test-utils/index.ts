@@ -32,7 +32,7 @@ import {
   updateTimezone,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
-import { resetDemoMode } from "#lib/demo.ts";
+import { setDemoModeForTest } from "#lib/demo.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
@@ -271,7 +271,7 @@ export const resetDb = (): void => {
   resetSessionCache();
   resetTestSession();
   resetCurrencyCode();
-  resetDemoMode();
+  setDemoModeForTest(false);
 };
 
 /**
@@ -746,12 +746,12 @@ export const setupEventAndLogin = async (
   csrfToken: string;
 }> => {
   const event = await createTestEvent(overrides);
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   return { event, cookie, csrfToken };
 };
 
 /** Get or create an authenticated session for test helpers (cached) */
-const getTestSession = async (): Promise<{
+export const getTestSession = async (): Promise<{
   cookie: string;
   csrfToken: string;
 }> => {
@@ -784,6 +784,16 @@ const getTestSession = async (): Promise<{
 export const resetTestSession = (): void => {
   testSession = null;
 };
+
+/**
+ * Convenience accessors for the cached admin session.
+ * Lazily initializes via getTestSession() on first call per test.
+ * Use instead of `const { cookie, csrfToken } = await getTestSession()`.
+ */
+export const testCookie = async (): Promise<string> =>
+  (await getTestSession()).cookie;
+export const testCsrfToken = async (): Promise<string> =>
+  (await getTestSession()).csrfToken;
 
 /**
  * Execute an authenticated request expecting a redirect.
@@ -1323,7 +1333,7 @@ export const createTestInvite = async (
   username: string,
   adminLevel = "manager",
 ): Promise<{ inviteCode: string; cookie: string; csrfToken: string }> => {
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   const { handleRequest } = await import("#routes");
   const inviteResponse = await handleRequest(
     mockFormRequest(
@@ -1610,9 +1620,7 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
   );
 };
 
-export type { HolidayInput };
-
-export type { GroupInput };
+export type { GroupInput, HolidayInput };
 
 /**
  * Create an attendee directly using createAttendeeAtomic (bypasses HTTP layer).
@@ -1682,7 +1690,7 @@ export const adminFormPost = async (
   path: string,
   data: Record<string, string> = {},
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   const { handleRequest } = await import("#routes");
   const response = await handleRequest(
     mockFormRequest(path, { csrf_token: csrfToken, ...data }, cookie),
@@ -1696,7 +1704,7 @@ export const adminFormPost = async (
 export const adminGet = async (
   path: string,
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   const response = await awaitTestRequest(path, { cookie });
   return { response, cookie, csrfToken };
 };
@@ -1788,7 +1796,7 @@ export const setupAdminTest = async (
     "John Doe",
     "john@example.com",
   );
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   return { event, attendee, cookie, csrfToken };
 };
 

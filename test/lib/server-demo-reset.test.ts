@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { resetDemoMode } from "#lib/demo.ts";
+import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
 import {
   RESET_DATABASE_PHRASE,
@@ -13,22 +13,23 @@ import {
   expectRedirect,
   extractCsrfToken,
   invalidateTestDbCache,
-  loginAsAdmin,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 describe("server (demo reset)", () => {
   beforeEach(async () => {
+    setDemoModeForTest(false);
     resetTestSlugCounter();
     await createTestDbWithSetup();
   });
 
   afterEach(() => {
-    Deno.env.delete("DEMO_MODE");
-    resetDemoMode();
+    setDemoModeForTest(false);
     resetDb();
   });
 
@@ -39,14 +40,14 @@ describe("server (demo reset)", () => {
     });
 
     test("returns 404 when demo mode is off even for authenticated admin", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/demo/reset", { cookie });
+      const response = await awaitTestRequest("/demo/reset", {
+        cookie: await testCookie(),
+      });
       expect(response.status).toBe(404);
     });
 
     test("shows reset page when demo mode is on", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const response = await handleRequest(mockRequest("/demo/reset"));
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain("confirm_phrase");
@@ -54,8 +55,7 @@ describe("server (demo reset)", () => {
     });
 
     test("contains back to login link", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const response = await handleRequest(mockRequest("/demo/reset"));
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain('href="/admin"');
@@ -73,20 +73,21 @@ describe("server (demo reset)", () => {
     });
 
     test("returns 404 when demo mode is off even for authenticated admin", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/demo/reset",
-          { confirm_phrase: RESET_DATABASE_PHRASE, csrf_token: csrfToken },
-          cookie,
+          {
+            confirm_phrase: RESET_DATABASE_PHRASE,
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
     });
 
     test("rejects missing CSRF token in demo mode", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const response = await handleRequest(
         mockFormRequest("/demo/reset", {
           confirm_phrase: RESET_DATABASE_PHRASE,
@@ -96,8 +97,7 @@ describe("server (demo reset)", () => {
     });
 
     test("rejects invalid CSRF token in demo mode", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const response = await handleRequest(
         mockFormRequest("/demo/reset", {
           confirm_phrase: RESET_DATABASE_PHRASE,
@@ -108,8 +108,7 @@ describe("server (demo reset)", () => {
     });
 
     test("rejects wrong confirmation phrase", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
 
       // Get valid CSRF token
       const getResponse = await handleRequest(mockRequest("/demo/reset"));
@@ -126,8 +125,7 @@ describe("server (demo reset)", () => {
     });
 
     test("rejects empty confirmation phrase", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
 
       const getResponse = await handleRequest(mockRequest("/demo/reset"));
       const html = await getResponse.text();
@@ -143,8 +141,7 @@ describe("server (demo reset)", () => {
     });
 
     test("resets database and redirects to setup in demo mode", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
 
       const getResponse = await handleRequest(mockRequest("/demo/reset"));
       const html = await getResponse.text();
@@ -171,8 +168,7 @@ describe("server (demo reset)", () => {
     });
 
     test("shows reset link when demo mode is on", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const response = await handleRequest(mockRequest("/admin/login"));
       const html = await response.text();
       expect(html).toContain('href="/demo/reset"');
@@ -182,9 +178,8 @@ describe("server (demo reset)", () => {
 
   describe("shared form component", () => {
     test("admin settings page uses shared reset form", async () => {
-      const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(RESET_DATABASE_PHRASE);
@@ -192,8 +187,7 @@ describe("server (demo reset)", () => {
     });
 
     test("demo reset page uses shared reset form", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const response = await handleRequest(mockRequest("/demo/reset"));
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(RESET_DATABASE_PHRASE);
