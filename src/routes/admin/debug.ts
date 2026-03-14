@@ -44,28 +44,28 @@ type CertValidation = {
   wwdrCert: string;
 };
 
-/** Validate Apple Wallet PEM certs/key, returning "Valid", "Invalid", or "Not set" for each */
+/** Validate Apple Wallet PEM certs/key, returning "Valid", "Invalid PEM", or "Not set" for each */
 const validateAppleWalletCerts = (
   config: Awaited<ReturnType<typeof getAppleWalletConfig>>,
 ): CertValidation => {
-  if (!config) return { signingCert: "Not set", signingKey: "Not set", wwdrCert: "Not set" };
-
-  const check = (
-    value: string | undefined,
-    validator: (pem: string) => boolean,
-  ): string => {
-    if (!value) return "Not set";
-    try {
-      return validator(value) ? "Valid" : "Invalid PEM";
-    } catch {
-      return "Invalid PEM";
-    }
-  };
+  if (!config) {
+    return {
+      signingCert: "Not set",
+      signingKey: "Not set",
+      wwdrCert: "Not set",
+    };
+  }
 
   return {
-    signingCert: check(config.signingCert, isValidPemCertificate),
-    signingKey: check(config.signingKey, isValidPemPrivateKey),
-    wwdrCert: check(config.wwdrCert, isValidPemCertificate),
+    signingCert: isValidPemCertificate(config.signingCert)
+      ? "Valid"
+      : "Invalid PEM",
+    signingKey: isValidPemPrivateKey(config.signingKey)
+      ? "Valid"
+      : "Invalid PEM",
+    wwdrCert: isValidPemCertificate(config.wwdrCert)
+      ? "Valid"
+      : "Invalid PEM",
   };
 };
 
@@ -120,17 +120,18 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
         ? squareWebhookKey !== null
         : false;
 
-  const appleWalletSource = appleWalletDbConfigured
-    ? "Database"
-    : appleWalletEnvConfigured
-      ? "Environment variables"
-      : "";
-
-  const appleWalletPassTypeIdDisplay = appleWalletDbConfigured
-    ? (appleWalletPassTypeId ?? "")
-    : appleWalletEnvConfigured
-      ? (getHostAppleWalletConfig()?.passTypeId ?? "")
-      : "";
+  const resolveWalletPassTypeId = (): string => {
+    if (appleWalletDbConfigured) return appleWalletPassTypeId as string;
+    if (appleWalletEnvConfigured) return getHostAppleWalletConfig()!.passTypeId;
+    return "";
+  };
+  const resolveWalletSource = (): string => {
+    if (appleWalletDbConfigured) return "Database";
+    if (appleWalletEnvConfigured) return "Environment variables";
+    return "";
+  };
+  const walletPassTypeId = resolveWalletPassTypeId();
+  const walletSource = resolveWalletSource();
 
   const certValidation = validateAppleWalletCerts(appleWalletConfig);
 
@@ -138,8 +139,8 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     appleWallet: {
       dbConfigured: appleWalletDbConfigured,
       envConfigured: appleWalletEnvConfigured,
-      passTypeId: appleWalletPassTypeIdDisplay,
-      source: appleWalletSource,
+      passTypeId: walletPassTypeId,
+      source: walletSource,
       certValidation,
     },
     payment: {

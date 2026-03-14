@@ -1,11 +1,23 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import {
+  setPaymentProvider,
+  setStripeWebhookConfig,
+  updateAppleWalletPassTypeId,
+  updateAppleWalletSigningCert,
+  updateAppleWalletSigningKey,
+  updateAppleWalletTeamId,
+  updateAppleWalletWwdrCert,
+  updateSquareWebhookSignatureKey,
+  updateStripeKey,
+} from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
+  generateTestCerts,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
@@ -49,7 +61,7 @@ describe("server (admin debug)", () => {
       expect(html).toContain("Pass Type ID");
     });
 
-    test("shows Apple Wallet cert validation status", async () => {
+    test("shows Apple Wallet cert validation as Not set when unconfigured", async () => {
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("Signing certificate");
@@ -131,6 +143,137 @@ describe("server (admin debug)", () => {
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("No secrets or keys are shown");
+    });
+  });
+
+  describe("GET /admin/debug with Stripe configured", () => {
+    test("shows stripe as provider with key and webhook status", async () => {
+      await setPaymentProvider("stripe");
+      await updateStripeKey("sk_test_fake");
+      await setStripeWebhookConfig({
+        secret: "whsec_fake",
+        endpointId: "we_fake",
+      });
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("stripe");
+      expect(html).toContain("Configured");
+    });
+  });
+
+  describe("GET /admin/debug with Square configured", () => {
+    test("shows square as provider with webhook status", async () => {
+      await setPaymentProvider("square");
+      await updateSquareWebhookSignatureKey("sig_fake");
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("square");
+    });
+  });
+
+  describe("GET /admin/debug with Apple Wallet DB config", () => {
+    test("shows Database as source with valid cert status", async () => {
+      const certs = generateTestCerts();
+      await Promise.all([
+        updateAppleWalletPassTypeId("pass.com.test.tickets"),
+        updateAppleWalletTeamId("TESTTEAM01"),
+        updateAppleWalletSigningCert(certs.signingCert),
+        updateAppleWalletSigningKey(certs.signingKey),
+        updateAppleWalletWwdrCert(certs.wwdrCert),
+      ]);
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Database");
+      expect(html).toContain("pass.com.test.tickets");
+      expect(html).toContain("Valid");
+    });
+
+    test("shows Invalid PEM for bad certificate data", async () => {
+      await Promise.all([
+        updateAppleWalletPassTypeId("pass.com.test.tickets"),
+        updateAppleWalletTeamId("TESTTEAM01"),
+        updateAppleWalletSigningCert("not-a-valid-pem"),
+        updateAppleWalletSigningKey("not-a-valid-pem"),
+        updateAppleWalletWwdrCert("not-a-valid-pem"),
+      ]);
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Invalid PEM");
+    });
+  });
+
+  describe("GET /admin/debug with Apple Wallet env vars", () => {
+    const envKeys = [
+      "APPLE_WALLET_PASS_TYPE_ID",
+      "APPLE_WALLET_TEAM_ID",
+      "APPLE_WALLET_SIGNING_CERT",
+      "APPLE_WALLET_SIGNING_KEY",
+      "APPLE_WALLET_WWDR_CERT",
+    ] as const;
+
+    const origValues = envKeys.map((k) => [k, Deno.env.get(k)] as const);
+
+    afterEach(() => {
+      for (const [key, val] of origValues) {
+        if (val) Deno.env.set(key, val);
+        else Deno.env.delete(key);
+      }
+    });
+
+    test("shows Environment variables as source when env configured", async () => {
+      const certs = generateTestCerts();
+      Deno.env.set("APPLE_WALLET_PASS_TYPE_ID", "pass.com.env.test");
+      Deno.env.set("APPLE_WALLET_TEAM_ID", "ENVTEAM01");
+      Deno.env.set("APPLE_WALLET_SIGNING_CERT", certs.signingCert);
+      Deno.env.set("APPLE_WALLET_SIGNING_KEY", certs.signingKey);
+      Deno.env.set("APPLE_WALLET_WWDR_CERT", certs.wwdrCert);
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Environment variables");
+      expect(html).toContain("pass.com.env.test");
+    });
+  });
+
+  describe("GET /admin/debug with host email env vars", () => {
+    const envKeys = [
+      "HOST_EMAIL_PROVIDER",
+      "HOST_EMAIL_API_KEY",
+      "HOST_EMAIL_FROM_ADDRESS",
+    ] as const;
+
+    const origValues = envKeys.map((k) => [k, Deno.env.get(k)] as const);
+
+    afterEach(() => {
+      for (const [key, val] of origValues) {
+        if (val) Deno.env.set(key, val);
+        else Deno.env.delete(key);
+      }
+    });
+
+    test("shows host email provider when env configured", async () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
+      Deno.env.set("HOST_EMAIL_API_KEY", "re_test_key");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "test@example.com");
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("resend");
+    });
+  });
+
+  describe("GET /admin/debug with Bunny CDN enabled", () => {
+    const origApiKey = Deno.env.get("BUNNY_API_KEY");
+
+    afterEach(() => {
+      if (origApiKey) Deno.env.set("BUNNY_API_KEY", origApiKey);
+      else Deno.env.delete("BUNNY_API_KEY");
+    });
+
+    test("shows CDN as configured when Bunny CDN is enabled", async () => {
+      Deno.env.set("BUNNY_API_KEY", "test-key");
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("badge-ok");
+      expect(html).toContain("CDN management");
     });
   });
 });
