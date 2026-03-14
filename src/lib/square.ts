@@ -61,17 +61,20 @@ const mapTender = (t: SquareRawTender) => ({
   paymentId: t.paymentId ?? t.payment_id,
 });
 
+/** A single line item for Square checkout */
+type SquareLineItem = {
+  name: string;
+  quantity: string;
+  note: string;
+  basePriceMoney: { amount: bigint; currency: string };
+};
+
 /** Input for creating a Square payment link */
 export type CreatePaymentLinkInput = {
   idempotencyKey: string;
   order: {
     locationId: string;
-    lineItems: Array<{
-      name: string;
-      quantity: string;
-      note: string;
-      basePriceMoney: { amount: bigint; currency: string };
-    }>;
+    lineItems: SquareLineItem[];
     metadata: Record<string, string>;
   };
   checkoutOptions: { redirectUrl: string };
@@ -456,12 +459,7 @@ export type PaymentLinkResult = {
 type PaymentLinkParams = {
   locationId: string;
   currency: string;
-  lineItems: Array<{
-    name: string;
-    quantity: string;
-    note: string;
-    basePriceMoney: { amount: bigint; currency: string };
-  }>;
+  lineItems: SquareLineItem[];
   metadata: Record<string, string>;
   baseUrl: string;
   email: string;
