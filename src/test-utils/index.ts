@@ -58,6 +58,11 @@ export const TEST_ENCRYPTION_KEY =
  */
 export const setupTestEncryptionKey = (): void => {
   Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
+  // Also set in process.env since getEnv() checks process.env first
+  // (prevents CI environment variables from overriding the test key)
+  if (typeof globalThis.process !== "undefined" && globalThis.process?.env) {
+    globalThis.process.env.DB_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+  }
   Deno.env.set("TEST_PBKDF2_ITERATIONS", "1"); // Enable fast password hashing for tests
   Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
   Deno.env.set("TEST_RSA_KEY_SIZE", "1024"); // Use smaller RSA keys for faster test setup
@@ -70,6 +75,9 @@ export const setupTestEncryptionKey = (): void => {
  */
 export const clearTestEncryptionKey = (): void => {
   Deno.env.delete("DB_ENCRYPTION_KEY");
+  if (typeof globalThis.process !== "undefined" && globalThis.process?.env) {
+    delete globalThis.process.env.DB_ENCRYPTION_KEY;
+  }
   Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
   Deno.env.delete("TEST_RSA_KEY_SIZE");
