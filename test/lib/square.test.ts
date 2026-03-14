@@ -10,32 +10,33 @@ import {
 import { PaymentUserError } from "#lib/payment-helpers.ts";
 import type { WebhookEvent } from "#lib/payments.ts";
 import {
+  type CreatePaymentLinkInput,
   constructTestWebhookEvent,
   enforceMetadataLimits,
   getSquareClient,
+  type RefundPaymentInput,
   resetSquareClient,
   retrievePayment,
+  type SquareClient,
   squareApi,
   verifyWebhookSignature,
 } from "#lib/square.ts";
 import { squarePaymentProvider } from "#lib/square-provider.ts";
 import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
 
+/** Mock implementation function type (accepts unknown args, returns unknown) */
+type MockFn = (...args: unknown[]) => unknown;
+
 /** Create a mock Square SDK client with spyable methods */
 const createMockClient = (
   impls: {
-    // deno-lint-ignore no-explicit-any
-    checkoutCreate?: (...args: any[]) => any;
-    // deno-lint-ignore no-explicit-any
-    ordersGet?: (...args: any[]) => any;
-    // deno-lint-ignore no-explicit-any
-    paymentsGet?: (...args: any[]) => any;
-    // deno-lint-ignore no-explicit-any
-    refundsRefundPayment?: (...args: any[]) => any;
+    checkoutCreate?: MockFn;
+    ordersGet?: MockFn;
+    paymentsGet?: MockFn;
+    refundsRefundPayment?: MockFn;
   } = {},
 ) => {
-  // deno-lint-ignore no-explicit-any
-  const noop = () => undefined as any;
+  const noop: MockFn = () => undefined;
   const checkoutCreate = spy(impls.checkoutCreate ?? noop);
   const ordersGet = spy(impls.ordersGet ?? noop);
   const paymentsGet = spy(impls.paymentsGet ?? noop);
@@ -47,7 +48,7 @@ const createMockClient = (
       orders: { get: ordersGet },
       payments: { get: paymentsGet },
       refunds: { refundPayment: refundsRefundPayment },
-    },
+    } as unknown as SquareClient,
     checkoutCreate,
     ordersGet,
     paymentsGet,
@@ -367,16 +368,16 @@ describe("square", () => {
           expect(result!.url).toBe("https://square.link/abc");
 
           // Verify SDK was called with correctly constructed order
-          // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.calls[0]!.args[0] as any;
+          const args = checkoutCreate.calls[0]!
+            .args[0] as CreatePaymentLinkInput;
           expect(args.order.locationId).toBe("L_loc_456");
           expect(args.order.lineItems).toHaveLength(1);
-          expect(args.order.lineItems[0].name).toBe("Ticket: Concert");
-          expect(args.order.lineItems[0].quantity).toBe("3");
-          expect(args.order.lineItems[0].basePriceMoney.amount).toBe(
+          expect(args.order.lineItems[0]!.name).toBe("Ticket: Concert");
+          expect(args.order.lineItems[0]!.quantity).toBe("3");
+          expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
             BigInt(2500),
           );
-          expect(args.order.lineItems[0].note).toBe("3 Tickets");
+          expect(args.order.lineItems[0]!.note).toBe("3 Tickets");
 
           // Verify metadata includes intent fields
           expect(args.order.metadata.event_id).toBe("7");
@@ -465,11 +466,11 @@ describe("square", () => {
 
           await squareApi.createPaymentLink(event, intent, "http://localhost");
 
-          // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.calls[0]!.args[0] as any;
+          const args = checkoutCreate.calls[0]!
+            .args[0] as CreatePaymentLinkInput;
           expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
           expect(args.order.metadata.phone).toBeUndefined();
-          expect(args.order.lineItems[0].note).toBe("Ticket");
+          expect(args.order.lineItems[0]!.note).toBe("Ticket");
         },
       );
     });
@@ -613,9 +614,9 @@ describe("square", () => {
           expect(result).not.toBeNull();
 
           // Verify name was truncated in metadata
-          // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.calls[0]!.args[0] as any;
-          expect(args.order.metadata.name.length).toBe(255);
+          const args = checkoutCreate.calls[0]!
+            .args[0] as CreatePaymentLinkInput;
+          expect(args.order.metadata.name!.length).toBe(255);
         },
       );
     });
@@ -798,31 +799,31 @@ describe("square", () => {
           expect(result!.orderId).toBe("order_multi");
           expect(result!.url).toBe("https://square.link/multi");
 
-          // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.calls[0]!.args[0] as any;
+          const args = checkoutCreate.calls[0]!
+            .args[0] as CreatePaymentLinkInput;
 
           // Verify multiple line items
           expect(args.order.lineItems).toHaveLength(2);
-          expect(args.order.lineItems[0].name).toBe("Ticket: Workshop A");
-          expect(args.order.lineItems[0].quantity).toBe("2");
-          expect(args.order.lineItems[0].basePriceMoney.amount).toBe(
+          expect(args.order.lineItems[0]!.name).toBe("Ticket: Workshop A");
+          expect(args.order.lineItems[0]!.quantity).toBe("2");
+          expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
             BigInt(1500),
           );
-          expect(args.order.lineItems[0].note).toBe("2 Tickets");
+          expect(args.order.lineItems[0]!.note).toBe("2 Tickets");
 
-          expect(args.order.lineItems[1].name).toBe("Ticket: Gala Dinner");
-          expect(args.order.lineItems[1].quantity).toBe("1");
-          expect(args.order.lineItems[1].basePriceMoney.amount).toBe(
+          expect(args.order.lineItems[1]!.name).toBe("Ticket: Gala Dinner");
+          expect(args.order.lineItems[1]!.quantity).toBe("1");
+          expect(args.order.lineItems[1]!.basePriceMoney.amount).toBe(
             BigInt(3000),
           );
-          expect(args.order.lineItems[1].note).toBe("Ticket");
+          expect(args.order.lineItems[1]!.note).toBe("Ticket");
 
           // Verify multi-intent metadata
           expect(args.order.metadata.multi).toBe("1");
           expect(args.order.metadata.name).toBe("Alice Wonder");
           expect(args.order.metadata.email).toBe("alice@example.com");
           expect(args.order.metadata.phone).toBe("555-1111");
-          const items = JSON.parse(args.order.metadata.items);
+          const items = JSON.parse(args.order.metadata.items!);
           expect(items).toHaveLength(2);
           expect(items[0]).toEqual({ e: 10, q: 2, p: 3000 });
           expect(items[1]).toEqual({ e: 20, q: 1, p: 3000 });
@@ -1300,8 +1301,8 @@ describe("square", () => {
           });
 
           // Verify refund was called with correct amount and payment ID
-          // deno-lint-ignore no-explicit-any
-          const refundArgs = refundsRefundPayment.calls[0]!.args[0] as any;
+          const refundArgs = refundsRefundPayment.calls[0]!
+            .args[0] as RefundPaymentInput;
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
           expect(refundArgs.amountMoney.currency).toBe("USD");
@@ -1483,15 +1484,19 @@ describe("square", () => {
 
   describe("Square REST client transport", () => {
     let originalFetch: typeof globalThis.fetch;
-    // deno-lint-ignore no-explicit-any
-    let mockFetch: { calls: { args: any[] }[] };
+    type FetchHeaders = Record<string, string>;
+    type FetchCall = {
+      args: [
+        string,
+        { method?: string; headers?: FetchHeaders; body?: string },
+      ];
+    };
+    let mockFetch: { calls: FetchCall[] };
 
     /** Create a mock fetch with the given implementation and assign to globalThis */
-    // deno-lint-ignore no-explicit-any
-    const installMockFetch = (impl: (...args: any[]) => any) => {
-      mockFetch = spy(impl);
-      // deno-lint-ignore no-explicit-any
-      globalThis.fetch = mockFetch as any;
+    const installMockFetch = (impl: (...args: unknown[]) => unknown) => {
+      mockFetch = spy(impl) as unknown as typeof mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
     };
 
     beforeEach(async () => {
@@ -1545,16 +1550,15 @@ describe("square", () => {
       expect(result.paymentLink!.url).toBe("https://square.link/rest");
 
       // Request verification
-      // deno-lint-ignore no-explicit-any
-      const [url, opts] = mockFetch.calls[0]!.args as any[];
+      const [url, opts] = mockFetch.calls[0]!.args;
       expect(url).toBe(
         "https://connect.squareupsandbox.com/v2/online-checkout/payment-links",
       );
       expect(opts.method).toBe("POST");
-      expect(opts.headers.Authorization).toBe("Bearer EAAAl_rest_test");
-      expect(opts.headers["Square-Version"]).toBe("2025-01-23");
+      expect(opts.headers!.Authorization).toBe("Bearer EAAAl_rest_test");
+      expect(opts.headers!["Square-Version"]).toBe("2025-01-23");
 
-      const body = JSON.parse(opts.body);
+      const body = JSON.parse(opts.body!);
       expect(body.idempotency_key).toBe("idem-rest");
       expect(body.order.location_id).toBe("L_rest");
       expect(body.order.line_items[0].base_price_money.amount).toBe(2500);
@@ -1597,8 +1601,7 @@ describe("square", () => {
         prePopulatedData: { buyerEmail: "a@b.com" },
       });
 
-      // deno-lint-ignore no-explicit-any
-      const body = JSON.parse((mockFetch.calls[0]!.args as any[])[1].body);
+      const body = JSON.parse(mockFetch.calls[0]!.args[1].body as string);
       expect(body.pre_populated_data.buyer_phone_number).toBeUndefined();
     });
 
@@ -1644,14 +1647,13 @@ describe("square", () => {
       const client = await getSquareClient();
       const result = await client!.orders.get({ orderId: "ord_100" });
 
-      // deno-lint-ignore no-explicit-any
-      expect((mockFetch.calls[0]!.args as any[])[0]).toBe(
+      expect(mockFetch.calls[0]!.args[0]).toBe(
         "https://connect.squareupsandbox.com/v2/orders/ord_100",
       );
       expect(result.order!.id).toBe("ord_100");
-      expect(result.order!.metadata.event_id).toBe("5");
-      expect(result.order!.tenders[0].paymentId).toBe("pay_1");
-      expect(result.order!.tenders[1].paymentId).toBeNull();
+      expect(result.order!.metadata!.event_id).toBe("5");
+      expect(result.order!.tenders![0]!.paymentId).toBe("pay_1");
+      expect(result.order!.tenders![1]!.paymentId).toBeNull();
       expect(result.order!.state).toBe("COMPLETED");
       expect(result.order!.totalMoney!.amount).toBe(BigInt(5000));
       expect(result.order!.totalMoney!.currency).toBe("USD");
@@ -1707,8 +1709,7 @@ describe("square", () => {
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_1" });
 
-      // deno-lint-ignore no-explicit-any
-      expect((mockFetch.calls[0]!.args as any[])[0]).toBe(
+      expect(mockFetch.calls[0]!.args[0]).toBe(
         "https://connect.squareupsandbox.com/v2/payments/pay_1",
       );
       expect(result.payment!.id).toBe("pay_1");
@@ -1788,11 +1789,10 @@ describe("square", () => {
         amountMoney: { amount: BigInt(3000), currency: "GBP" },
       });
 
-      // deno-lint-ignore no-explicit-any
-      const [url, opts] = mockFetch.calls[0]!.args as any[];
+      const [url, opts] = mockFetch.calls[0]!.args;
       expect(url).toBe("https://connect.squareupsandbox.com/v2/refunds");
       expect(opts.method).toBe("POST");
-      const body = JSON.parse(opts.body);
+      const body = JSON.parse(opts.body!);
       expect(body.idempotency_key).toBe("idem-ref");
       expect(body.payment_id).toBe("pay_1");
       expect(body.amount_money.amount).toBe(3000);
@@ -1831,10 +1831,7 @@ describe("square", () => {
       const client = await getSquareClient();
       await client!.orders.get({ orderId: "test" });
 
-      // deno-lint-ignore no-explicit-any
-      expect((mockFetch.calls[0]!.args as any[])[0]).toContain(
-        "connect.squareup.com",
-      );
+      expect(mockFetch.calls[0]!.args[0]).toContain("connect.squareup.com");
     });
   });
 

@@ -48,12 +48,45 @@ import type { Event } from "#lib/types.ts";
  */
 const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
+/** Raw tender from Square REST API (snake_case) or camelCase from our client */
+type SquareRawTender = {
+  id?: string;
+  payment_id?: string;
+  paymentId?: string;
+};
+
 /** Extract tender id and paymentId from raw tender data (handles both snake_case and camelCase) */
-// deno-lint-ignore no-explicit-any
-const mapTender = (t: any) => ({
+const mapTender = (t: SquareRawTender) => ({
   id: t.id,
   paymentId: t.paymentId ?? t.payment_id,
 });
+
+/** Input for creating a Square payment link */
+export type CreatePaymentLinkInput = {
+  idempotencyKey: string;
+  order: {
+    locationId: string;
+    lineItems: Array<{
+      name: string;
+      quantity: string;
+      note: string;
+      basePriceMoney: { amount: bigint; currency: string };
+    }>;
+    metadata: Record<string, string>;
+  };
+  checkoutOptions: { redirectUrl: string };
+  prePopulatedData: {
+    buyerEmail: string;
+    buyerPhoneNumber?: string;
+  };
+};
+
+/** Input for refunding a Square payment */
+export type RefundPaymentInput = {
+  idempotencyKey: string;
+  paymentId: string;
+  amountMoney: { amount: bigint | undefined; currency: string };
+};
 
 /** A single error entry from Square's API error response */
 type SquareApiErrorEntry = {
@@ -159,8 +192,7 @@ const squareFetch = async (
   baseUrl: string,
   path: string,
   options?: { method?: string; body?: unknown },
-  // deno-lint-ignore no-explicit-any
-): Promise<any> => {
+): Promise<unknown> => {
   const response = await fetch(`${baseUrl}${path}`, {
     method: options?.method ?? "GET",
     headers: {
@@ -179,6 +211,34 @@ const squareFetch = async (
   return response.json();
 };
 
+/** Square REST API response shapes (snake_case) */
+type SquarePaymentLinkResponse = {
+  payment_link?: {
+    order_id?: string;
+    url?: string;
+  };
+};
+
+type SquareOrderResponse = {
+  order?: {
+    id?: string;
+    metadata?: Record<string, string>;
+    tenders?: SquareRawTender[];
+    state?: string;
+    total_money?: { amount: number; currency: string };
+  };
+};
+
+type SquarePaymentResponse = {
+  payment?: {
+    id?: string;
+    status?: string;
+    order_id?: string;
+    amount_money?: { amount: number; currency: string };
+    refunded_money?: { amount: number; currency: string };
+  };
+};
+
 /**
  * Create a lightweight Square API client using direct fetch calls.
  * Translates between camelCase (app code) and snake_case (Square REST API).
@@ -187,39 +247,44 @@ const squareFetch = async (
 const createSquareClient = (accessToken: string, sandbox: boolean) => {
   const base = sandbox ? SQUARE_BASE_URL.sandbox : SQUARE_BASE_URL.production;
 
-  const post = (path: string, body: unknown) =>
-    squareFetch(accessToken, base, path, { method: "POST", body });
-  const get = (path: string) => squareFetch(accessToken, base, path);
+  const post = <T>(path: string, body: unknown) =>
+    squareFetch(accessToken, base, path, {
+      method: "POST",
+      body,
+    }) as Promise<T>;
+  const get = <T>(path: string) =>
+    squareFetch(accessToken, base, path) as Promise<T>;
 
   return {
     checkout: {
       paymentLinks: {
-        // deno-lint-ignore no-explicit-any
-        create: async (p: any) => {
-          const data = await post("/v2/online-checkout/payment-links", {
-            idempotency_key: p.idempotencyKey,
-            order: {
-              location_id: p.order.locationId,
-              // deno-lint-ignore no-explicit-any
-              line_items: p.order.lineItems.map((i: any) => ({
-                name: i.name,
-                quantity: i.quantity,
-                note: i.note,
-                base_price_money: {
-                  amount: i.basePriceMoney.amount,
-                  currency: i.basePriceMoney.currency,
-                },
-              })),
-              metadata: p.order.metadata,
+        create: async (p: CreatePaymentLinkInput) => {
+          const data = await post<SquarePaymentLinkResponse>(
+            "/v2/online-checkout/payment-links",
+            {
+              idempotency_key: p.idempotencyKey,
+              order: {
+                location_id: p.order.locationId,
+                line_items: p.order.lineItems.map((i) => ({
+                  name: i.name,
+                  quantity: i.quantity,
+                  note: i.note,
+                  base_price_money: {
+                    amount: i.basePriceMoney.amount,
+                    currency: i.basePriceMoney.currency,
+                  },
+                })),
+                metadata: p.order.metadata,
+              },
+              checkout_options: { redirect_url: p.checkoutOptions.redirectUrl },
+              pre_populated_data: {
+                buyer_email: p.prePopulatedData.buyerEmail,
+                ...(p.prePopulatedData.buyerPhoneNumber
+                  ? { buyer_phone_number: p.prePopulatedData.buyerPhoneNumber }
+                  : {}),
+              },
             },
-            checkout_options: { redirect_url: p.checkoutOptions.redirectUrl },
-            pre_populated_data: {
-              buyer_email: p.prePopulatedData.buyerEmail,
-              ...(p.prePopulatedData.buyerPhoneNumber
-                ? { buyer_phone_number: p.prePopulatedData.buyerPhoneNumber }
-                : {}),
-            },
-          });
+          );
           const link = data?.payment_link;
           return {
             paymentLink: link
@@ -231,7 +296,9 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
     },
     orders: {
       get: async (p: { orderId: string }) => {
-        const data = await get(`/v2/orders/${encodeURIComponent(p.orderId)}`);
+        const data = await get<SquareOrderResponse>(
+          `/v2/orders/${encodeURIComponent(p.orderId)}`,
+        );
         const o = data?.order;
         if (!o) return { order: null };
         return {
@@ -252,7 +319,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
     },
     payments: {
       get: async (p: { paymentId: string }) => {
-        const data = await get(
+        const data = await get<SquarePaymentResponse>(
           `/v2/payments/${encodeURIComponent(p.paymentId)}`,
         );
         const pm = data?.payment;
@@ -279,9 +346,8 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
       },
     },
     refunds: {
-      // deno-lint-ignore no-explicit-any
-      refundPayment: async (p: any) => {
-        await post("/v2/refunds", {
+      refundPayment: async (p: RefundPaymentInput) => {
+        await post<unknown>("/v2/refunds", {
           idempotency_key: p.idempotencyKey,
           payment_id: p.paymentId,
           amount_money: {
@@ -479,6 +545,9 @@ const preparePaymentLink = async (
 
   return { config, metadata };
 };
+
+/** Type for the Square API client returned by createSquareClient */
+export type SquareClient = ReturnType<typeof createSquareClient>;
 
 /**
  * Stubbable API for testing - allows mocking in ES modules
