@@ -257,8 +257,7 @@ describe("ticket view (/t/:tokens)", () => {
   test("does not show price for free tickets", async () => {
     const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchTicketBody(token);
     expect(body).not.toContain("ticket-card-price");
   });
 

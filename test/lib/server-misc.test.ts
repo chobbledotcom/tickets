@@ -18,6 +18,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
+  getEmbeddableTicketResponse,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
@@ -37,13 +38,7 @@ describe("server (misc)", () => {
   });
 
   /** Create an embeddable test event and return its ticket page response */
-  async function getTicketPageResponse(): Promise<Response> {
-    const event = await createTestEvent({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-    return handleRequest(mockRequest(`/ticket/${event.slug}`));
-  }
+  const getTicketPageResponse = getEmbeddableTicketResponse;
 
   /** Create two embeddable test events and return the multi-slug ticket page response */
   async function getMultiSlugTicketPageResponse(): Promise<Response> {

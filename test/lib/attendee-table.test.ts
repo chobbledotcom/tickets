@@ -36,6 +36,18 @@ const makeOpts = (
   ...overrides,
 });
 
+/** Zara (id=1, B Event) then Alice (id=2, A Event) — unsorted input order */
+const zaraAliceRows = (): AttendeeTableRow[] => [
+  makeRow({
+    attendee: testAttendee({ id: 1, name: "Zara" }),
+    eventName: "B Event",
+  }),
+  makeRow({
+    attendee: testAttendee({ id: 2, name: "Alice" }),
+    eventName: "A Event",
+  }),
+];
+
 describe("AttendeeTable", () => {
   describe("always-visible columns", () => {
     test("renders check-in button column", () => {
@@ -420,39 +432,19 @@ describe("AttendeeTable", () => {
 
   describe("presorted option", () => {
     test("preserves row order when presorted is true", () => {
-      const rows = [
-        makeRow({
-          attendee: testAttendee({ id: 1, name: "Zara" }),
-          eventName: "B Event",
-        }),
-        makeRow({
-          attendee: testAttendee({ id: 2, name: "Alice" }),
-          eventName: "A Event",
-        }),
-      ];
       const html = AttendeeTable(
-        makeOpts({ rows, showEvent: true, presorted: true }),
+        makeOpts({ rows: zaraAliceRows(), showEvent: true, presorted: true }),
       );
-      const nameIdx1 = html.indexOf("Zara");
-      const nameIdx2 = html.indexOf("Alice");
-      expect(nameIdx1).toBeLessThan(nameIdx2);
+      const zaraIdx = html.indexOf("Zara");
+      const aliceIdx = html.indexOf("Alice");
+      expect(zaraIdx).toBeLessThan(aliceIdx);
     });
 
     test("sorts rows by default when presorted is not set", () => {
-      const rows = [
-        makeRow({
-          attendee: testAttendee({ id: 1, name: "Zara" }),
-          eventName: "B Event",
-        }),
-        makeRow({
-          attendee: testAttendee({ id: 2, name: "Alice" }),
-          eventName: "A Event",
-        }),
-      ];
-      const html = AttendeeTable(makeOpts({ rows, showEvent: true }));
-      const nameIdx1 = html.indexOf("Alice");
-      const nameIdx2 = html.indexOf("Zara");
-      expect(nameIdx1).toBeLessThan(nameIdx2);
+      const html = AttendeeTable(
+        makeOpts({ rows: zaraAliceRows(), showEvent: true }),
+      );
+      expect(html.indexOf("Alice")).toBeLessThan(html.indexOf("Zara"));
     });
   });
 });
@@ -561,20 +553,10 @@ describe("sortAttendeeRows", () => {
 
 describe("AttendeeTable sorting", () => {
   test("renders rows in sorted order", () => {
-    const rows = [
-      makeRow({
-        attendee: testAttendee({ id: 1, name: "Zara" }),
-        eventName: "B Event",
-      }),
-      makeRow({
-        attendee: testAttendee({ id: 2, name: "Alice" }),
-        eventName: "A Event",
-      }),
-    ];
-    const html = AttendeeTable(makeOpts({ rows, showEvent: true }));
-    const nameIdx1 = html.indexOf("Alice");
-    const nameIdx2 = html.indexOf("Zara");
-    expect(nameIdx1).toBeLessThan(nameIdx2);
+    const html = AttendeeTable(
+      makeOpts({ rows: zaraAliceRows(), showEvent: true }),
+    );
+    expect(html.indexOf("Alice")).toBeLessThan(html.indexOf("Zara"));
   });
 });
 

@@ -261,12 +261,7 @@ describe("server (admin site)", () => {
           await testCookie(),
         ),
       );
-      expect(response.status).toBe(302);
-      expect(
-        decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
-        ),
-      ).toContain("Contact page updated");
+      expectRedirectContaining(response, "Contact page updated");
       expect(await getContactPageTextFromDb()).toBe("Email us!");
     });
 

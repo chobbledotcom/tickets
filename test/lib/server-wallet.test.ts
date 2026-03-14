@@ -32,6 +32,46 @@ import {
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();
 
+/** Submit Apple Wallet settings form with overrides applied to valid defaults */
+const submitWalletSettingsForm = async (
+  overrides: Record<string, string> = {},
+) => {
+  const defaults: Record<string, string> = {
+    apple_wallet_pass_type_id: "pass.com.test",
+    apple_wallet_team_id: "TESTTEAM01",
+    apple_wallet_signing_cert: testCerts.signingCert,
+    apple_wallet_signing_key: testCerts.signingKey,
+    apple_wallet_wwdr_cert: testCerts.wwdrCert,
+    csrf_token: await testCsrfToken(),
+  };
+  return handleRequest(
+    mockFormRequest(
+      "/admin/settings/apple-wallet",
+      { ...defaults, ...overrides },
+      await testCookie(),
+    ),
+  );
+};
+
+/** Fetch a pkpass response for a given token (configure wallet first) */
+const fetchPkpassResponse = (token: string) =>
+  awaitTestRequest(`/wallet/${token}.pkpass`);
+
+// deno-lint-ignore no-explicit-any
+/** Fetch and parse pass.json from a pkpass response */
+const parsePkpassJson = async (token: string): Promise<Record<string, any>> => {
+  const response = await fetchPkpassResponse(token);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const files = unzipSync(bytes);
+  return JSON.parse(new TextDecoder().decode(files["pass.json"]!));
+};
+
+/** Fetch a ticket page and return the HTML body */
+const fetchWalletTicketBody = async (token: string): Promise<string> => {
+  const response = await awaitTestRequest(`/t/${token}`);
+  return response.text();
+};
+
 /** Configure all Apple Wallet settings in the database */
 const configureAppleWallet = async () => {
   await Promise.all([
@@ -93,7 +133,7 @@ describe("wallet route (/wallet/:token)", () => {
       "alice@test.com",
     );
 
-    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
+    const response = await fetchPkpassResponse(token);
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe(
       "application/vnd.apple.pkpass",
@@ -107,7 +147,7 @@ describe("wallet route (/wallet/:token)", () => {
       "alice@test.com",
     );
 
-    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
+    const response = await fetchPkpassResponse(token);
     const cacheControl = response.headers.get("Cache-Control");
     expect(cacheControl).toContain("public");
     expect(cacheControl).toContain("s-maxage=3600");
@@ -120,7 +160,7 @@ describe("wallet route (/wallet/:token)", () => {
       "alice@test.com",
     );
 
-    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
+    const response = await fetchPkpassResponse(token);
     const disposition = response.headers.get("Content-Disposition")!;
     expect(disposition).toContain("inline");
     expect(disposition).toContain("ticket.pkpass");
@@ -133,7 +173,7 @@ describe("wallet route (/wallet/:token)", () => {
       "alice@test.com",
     );
 
-    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
+    const response = await fetchPkpassResponse(token);
     const contentLength = response.headers.get("Content-Length");
     expect(contentLength).not.toBeNull();
     const body = new Uint8Array(await response.arrayBuffer());
@@ -147,9 +187,9 @@ describe("wallet route (/wallet/:token)", () => {
       "alice@test.com",
     );
 
-    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
-    const body = new Uint8Array(await response.arrayBuffer());
-    const files = unzipSync(body);
+    const response = await fetchPkpassResponse(token);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const files = unzipSync(bytes);
 
     expect(files["pass.json"]).toBeDefined();
     expect(files["manifest.json"]).toBeDefined();
@@ -167,10 +207,7 @@ describe("wallet route (/wallet/:token)", () => {
       },
     );
 
-    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
-    const body = new Uint8Array(await response.arrayBuffer());
-    const files = unzipSync(body);
-    const passJson = JSON.parse(new TextDecoder().decode(files["pass.json"]!));
+    const passJson = await parsePkpassJson(token);
 
     expect(passJson.passTypeIdentifier).toBe("pass.com.test.tickets");
     expect(passJson.teamIdentifier).toBe("TESTTEAM01");
@@ -203,8 +240,7 @@ describe("ticket view wallet link", () => {
       "Alice",
       "alice@test.com",
     );
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchWalletTicketBody(token);
     expect(body).not.toContain("wallet-link");
     expect(body).not.toContain("Add to Apple Wallet");
   });
@@ -215,8 +251,7 @@ describe("ticket view wallet link", () => {
       "Alice",
       "alice@test.com",
     );
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchWalletTicketBody(token);
     expect(body).toContain("wallet-link");
     expect(body).toContain("Add to Apple Wallet");
     expect(body).toContain(`/wallet/${token}.pkpass`);

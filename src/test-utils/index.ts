@@ -911,6 +911,19 @@ export const createTestEvent = (
   );
 };
 
+/**
+ * Create an embeddable test event and return its ticket page response.
+ * Useful for testing security headers, CSP, and embed behavior on ticket pages.
+ */
+export const getEmbeddableTicketResponse = async (): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const event = await createTestEvent({
+    maxAttendees: 50,
+    thankYouUrl: "https://example.com",
+  });
+  return handleRequest(mockRequest(`/ticket/${event.slug}`));
+};
+
 /** Convert a price in minor units to the form value in major units */
 export const priceFormValue = (minorUnits: number): string =>
   toMajorUnits(minorUnits);

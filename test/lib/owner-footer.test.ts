@@ -6,10 +6,9 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
-  mockAdminLoginRequest,
+  createTestManagerSession,
   mockFormRequest,
   mockRequest,
-  requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
   testCookie,
@@ -82,58 +81,8 @@ describe("admin debug footer", () => {
   });
 
   test("manager sees footer", async () => {
-    // Create and activate a manager user
-    const inviteResponse = await handleRequest(
-      mockFormRequest(
-        "/admin/users",
-        {
-          username: "manager1",
-          admin_level: "manager",
-          csrf_token: await testCsrfToken(),
-        },
-        await testCookie(),
-      ),
-    );
-    const inviteUrl = inviteResponse.headers.get("location") ?? "";
-    const inviteMatch = inviteUrl.match(/invite=([^&]+)/);
-    const inviteLink = decodeURIComponent(inviteMatch![1] as string);
-    const inviteToken = inviteLink.split("/join/")[1]!;
+    const managerCookie = await createTestManagerSession();
 
-    // Set password for manager
-    const joinPageResponse = await handleRequest(
-      mockRequest(`/join/${inviteToken}`),
-    );
-    const joinHtml = await joinPageResponse.text();
-    const joinCsrf = requireJoinCsrfToken(joinHtml);
-    await handleRequest(
-      mockFormRequest(`/join/${inviteToken}`, {
-        password: "managerpass123",
-        password_confirm: "managerpass123",
-        csrf_token: joinCsrf,
-      }),
-    );
-
-    // Activate the manager
-    await handleRequest(
-      mockFormRequest(
-        "/admin/users/2/activate",
-        {
-          csrf_token: await testCsrfToken(),
-        },
-        await testCookie(),
-      ),
-    );
-
-    // Login as manager
-    const loginResponse = await handleRequest(
-      await mockAdminLoginRequest({
-        username: "manager1",
-        password: "managerpass123",
-      }),
-    );
-    const managerCookie = loginResponse.headers.get("set-cookie") ?? "";
-
-    // Manager GET should now contain the footer
     const response = await awaitTestRequest("/admin/", {
       cookie: managerCookie,
     });
