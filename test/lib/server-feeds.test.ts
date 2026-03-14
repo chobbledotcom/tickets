@@ -164,30 +164,11 @@ describe("feeds", () => {
     });
 
     test("excludes inactive events", async () => {
-      await updateShowPublicSite(true);
-      const event = await createTestEvent({
-        name: "Hidden",
-        maxAttendees: 100,
-      });
-      await deactivateTestEvent(event.id);
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
-      const body = await response.text();
-      expect(body).not.toContain("Hidden");
-      expect(body).not.toContain("BEGIN:VEVENT");
+      await expectExcludesInactive("/feeds/events.ics", "BEGIN:VEVENT");
     });
 
     test("excludes events with closed registration", async () => {
-      await updateShowPublicSite(true);
-      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
-      await createTestEvent({
-        name: "Closed Event",
-        maxAttendees: 100,
-        closesAt: pastDate,
-      });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
-      const body = await response.text();
-      expect(body).not.toContain("Closed Event");
-      expect(body).not.toContain("BEGIN:VEVENT");
+      await expectExcludesClosedRegistration("/feeds/events.ics", "BEGIN:VEVENT");
     });
 
     test("excludes hidden events", async () => {
@@ -343,30 +324,11 @@ describe("feeds", () => {
     });
 
     test("excludes inactive events", async () => {
-      await updateShowPublicSite(true);
-      const event = await createTestEvent({
-        name: "Hidden",
-        maxAttendees: 100,
-      });
-      await deactivateTestEvent(event.id);
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
-      const body = await response.text();
-      expect(body).not.toContain("Hidden");
-      expect(body).not.toContain("<item>");
+      await expectExcludesInactive("/feeds/events.rss", "<item>");
     });
 
     test("excludes events with closed registration", async () => {
-      await updateShowPublicSite(true);
-      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
-      await createTestEvent({
-        name: "Closed Event",
-        maxAttendees: 100,
-        closesAt: pastDate,
-      });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
-      const body = await response.text();
-      expect(body).not.toContain("Closed Event");
-      expect(body).not.toContain("<item>");
+      await expectExcludesClosedRegistration("/feeds/events.rss", "<item>");
     });
 
     test("excludes hidden events", async () => {

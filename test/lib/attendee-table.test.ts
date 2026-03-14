@@ -48,6 +48,14 @@ const zaraAliceRows = (): AttendeeTableRow[] => [
   }),
 ];
 
+/** Render zaraAliceRows with default sorting and assert Alice appears before Zara */
+const expectAliceSortedBeforeZara = () => {
+  const html = AttendeeTable(
+    makeOpts({ rows: zaraAliceRows(), showEvent: true }),
+  );
+  expect(html.indexOf("Alice")).toBeLessThan(html.indexOf("Zara"));
+};
+
 describe("AttendeeTable", () => {
   describe("always-visible columns", () => {
     test("renders check-in button column", () => {
@@ -441,10 +449,7 @@ describe("AttendeeTable", () => {
     });
 
     test("sorts rows by default when presorted is not set", () => {
-      const html = AttendeeTable(
-        makeOpts({ rows: zaraAliceRows(), showEvent: true }),
-      );
-      expect(html.indexOf("Alice")).toBeLessThan(html.indexOf("Zara"));
+      expectAliceSortedBeforeZara();
     });
   });
 });
@@ -553,10 +558,7 @@ describe("sortAttendeeRows", () => {
 
 describe("AttendeeTable sorting", () => {
   test("renders rows in sorted order", () => {
-    const html = AttendeeTable(
-      makeOpts({ rows: zaraAliceRows(), showEvent: true }),
-    );
-    expect(html.indexOf("Alice")).toBeLessThan(html.indexOf("Zara"));
+    expectAliceSortedBeforeZara();
   });
 });
 

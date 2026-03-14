@@ -570,6 +570,15 @@ describe("server (admin refunds)", () => {
   });
 
   describe("event page UI", () => {
+    /** Create an event with an attendee and return the admin event page HTML */
+    const getEventPageHtml = async (eventId: number): Promise<string> => {
+      const response = await awaitTestRequest(`/admin/event/${eventId}`, {
+        cookie: await testCookie(),
+      });
+      expect(response.status).toBe(200);
+      return response.text();
+    };
+
     test("shows Refund link for paid attendees on paid events", async () => {
       const event = await createPaidEvent();
       await createPaidTestAttendee(
@@ -587,36 +596,18 @@ describe("server (admin refunds)", () => {
 
     test("does not show Refund link for free events", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(
-        event.id,
-        event.slug,
-        "Free User",
-        "free@example.com",
-      );
+      await createTestAttendee(event.id, event.slug, "Free User", "free@example.com");
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie: await testCookie(),
-      });
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await getEventPageHtml(event.id);
       expect(html).not.toContain("Refund All");
     });
 
     test("does not show Refund link for attendees without payment_id on paid events", async () => {
       const event = await createPaidEvent();
       // Create a free attendee on a paid event (no payment_id)
-      await createTestAttendee(
-        event.id,
-        event.slug,
-        "No Payment User",
-        "nopay@example.com",
-      );
+      await createTestAttendee(event.id, event.slug, "No Payment User", "nopay@example.com");
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie: await testCookie(),
-      });
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await getEventPageHtml(event.id);
       // The event nav should still show Refund All (because it's a paid event)
       expect(html).toContain("Refund All");
       // But the attendee row should NOT show an individual refund link
