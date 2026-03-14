@@ -62,10 +62,11 @@ const prepareEvent = async (
   slug: string,
   slugIndex: string,
 ) => {
-  const name = DEMO_EVENT_NAMES[index % DEMO_EVENT_NAMES.length]!;
+  const name = DEMO_EVENT_NAMES[index % DEMO_EVENT_NAMES.length] ?? "";
   const description =
-    DEMO_EVENT_DESCRIPTIONS[index % DEMO_EVENT_DESCRIPTIONS.length]!;
-  const location = DEMO_EVENT_LOCATIONS[index % DEMO_EVENT_LOCATIONS.length]!;
+    DEMO_EVENT_DESCRIPTIONS[index % DEMO_EVENT_DESCRIPTIONS.length] ?? "";
+  const location =
+    DEMO_EVENT_LOCATIONS[index % DEMO_EVENT_LOCATIONS.length] ?? "";
   const created = nowIso();
 
   const [
@@ -211,38 +212,27 @@ export const createSeeds = async (
   const publicKeyJwk = await getPublicKey();
   if (!publicKeyJwk) throw new Error("Public key not configured");
 
-  // Pre-compute random quantities for each event's attendees
-  const allQuantities = Array.from({ length: eventCount }, () =>
-    map((_: number) => randomQuantity())(
-      Array.from({ length: attendeesPerEvent }, (_, i) => i),
-    ),
-  );
-
-  // Each event's max_attendees = total quantity of its attendees
-  const eventCapacities = map((quantities: number[]) => sum(quantities))(
-    allQuantities,
-  );
-
-  // Make half the events paid with a random unit price
-  const eventUnitPrices = Array.from({ length: eventCount }, (_, i) =>
-    i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
-  );
-
-  // Generate unique slugs sequentially, then prepare events in parallel
+  // Build structured event data: quantities, capacity, price, and slug per event
   const slugs = await generateUniqueSlugs(eventCount);
-  const eventStatements = await Promise.all(
-    map((i: number) =>
-      prepareEvent(
-        i,
-        eventCapacities[i]!,
-        eventUnitPrices[i]!,
-        slugs[i]!.slug,
-        slugs[i]!.slugIndex,
-      ),
-    )(Array.from({ length: eventCount }, (_, i) => i)),
-  );
+  const eventData = Array.from({ length: eventCount }, (_, i) => {
+    const quantities = Array.from({ length: attendeesPerEvent }, () =>
+      randomQuantity(),
+    );
+    return {
+      index: i,
+      quantities,
+      capacity: sum(quantities),
+      unitPrice: i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
+      slug: slugs[i] ?? { slug: "", slugIndex: "" },
+    };
+  });
 
-  // Insert events in a single batch and get their IDs
+  // Prepare and insert events in a single batch
+  const eventStatements = await Promise.all(
+    map((d: (typeof eventData)[number]) =>
+      prepareEvent(d.index, d.capacity, d.unitPrice, d.slug.slug, d.slug.slugIndex),
+    )(eventData),
+  );
   await executeBatch(eventStatements);
   invalidateEventsCache();
 
@@ -257,23 +247,19 @@ export const createSeeds = async (
   const CHUNK_SIZE = 50;
   let totalAttendees = 0;
 
-  for (let e = 0; e < eventIds.length; e++) {
-    const eventId = eventIds[e]!;
-    const quantities = allQuantities[e]!;
-    const unitPrice = eventUnitPrices[e]!;
+  for (const [e, eventId] of eventIds.entries()) {
+    const { quantities, unitPrice } = eventData[e] ?? {
+      quantities: [],
+      unitPrice: 0,
+    };
 
     for (let offset = 0; offset < attendeesPerEvent; offset += CHUNK_SIZE) {
       const batchSize = Math.min(CHUNK_SIZE, attendeesPerEvent - offset);
       const chunkQuantities = quantities.slice(offset, offset + batchSize);
       const attendeeStatements = await Promise.all(
-        map((i: number) =>
-          prepareAttendee(
-            eventId,
-            publicKeyJwk,
-            chunkQuantities[i]!,
-            unitPrice,
-          ),
-        )(Array.from({ length: batchSize }, (_, i) => i)),
+        map((q: number) =>
+          prepareAttendee(eventId, publicKeyJwk, q, unitPrice),
+        )(chunkQuantities),
       );
       await executeBatch(attendeeStatements);
       totalAttendees += batchSize;

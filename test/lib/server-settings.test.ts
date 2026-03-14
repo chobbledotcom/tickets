@@ -74,7 +74,7 @@ describe("server (admin settings)", () => {
         /id="settings-phone-prefix"[\s\S]*?<\/form>/,
       );
       expect(formMatch).toBeDefined();
-      expect(formMatch![0]).toContain("Phone prefix updated");
+      expect(formMatch?.[0]).toContain("Phone prefix updated");
     });
 
     test("does not show success on non-matching forms", async () => {
@@ -86,7 +86,7 @@ describe("server (admin settings)", () => {
       // The theme form should not contain the success message
       const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
       expect(themeFormMatch).toBeDefined();
-      expect(themeFormMatch![0]).not.toContain("Timezone updated");
+      expect(themeFormMatch?.[0]).not.toContain("Timezone updated");
     });
 
     test("each settings form has an id attribute", async () => {
@@ -1858,7 +1858,7 @@ describe("server (admin settings)", () => {
           expect(response.status).toBe(302);
           expect(
             decodeURIComponent(
-              response.headers.get("location")!.replaceAll("+", " "),
+              response.headers.get("location")?.replaceAll("+", " "),
             ),
           ).toContain("unchanged");
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_original");
@@ -1935,7 +1935,7 @@ describe("server (admin settings)", () => {
       expect(response.status).toBe(302);
       expect(
         decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
+          response.headers.get("location")?.replaceAll("+", " "),
         ),
       ).toContain("unchanged");
     });
@@ -2057,7 +2057,7 @@ describe("server (admin settings)", () => {
           expect(response.status).toBe(302);
           expect(
             decodeURIComponent(
-              response.headers.get("location")!.replaceAll("+", " "),
+              response.headers.get("location")?.replaceAll("+", " "),
             ),
           ).toContain("unchanged");
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_keep_me");

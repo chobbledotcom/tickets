@@ -372,10 +372,10 @@ describe("server (webhooks)", () => {
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
         expect(attendees1[0]?.quantity).toBe(2);
-        expect(await decrypt(attendees1[0]!.price_paid)).toBe("1000"); // 500 * 2
+        expect(await decrypt(attendees1[0]?.price_paid)).toBe("1000"); // 500 * 2
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.quantity).toBe(1);
-        expect(await decrypt(attendees2[0]!.price_paid)).toBe("1000"); // 1000 * 1
+        expect(await decrypt(attendees2[0]?.price_paid)).toBe("1000"); // 1000 * 1
       } finally {
         mockVerify.restore();
       }
@@ -423,7 +423,7 @@ describe("server (webhooks)", () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event1.id);
         expect(attendees.length).toBe(1);
-        expect(await decrypt(attendees[0]!.price_paid)).toBe("500"); // 500 * 1, not 1200
+        expect(await decrypt(attendees[0]?.price_paid)).toBe("500"); // 500 * 1, not 1200
       } finally {
         mockVerify.restore();
       }
@@ -470,7 +470,7 @@ describe("server (webhooks)", () => {
 
         // Verify refund was actually attempted
         expect(mockRefund.calls.length).toBe(1);
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_underpaid"]);
+        expect(mockRefund.calls[0]?.args).toEqual(["pi_underpaid"]);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -990,7 +990,7 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(3);
-        expect(await decrypt(attendees[0]!.price_paid)).toBe("1500");
+        expect(await decrypt(attendees[0]?.price_paid)).toBe("1500");
       } finally {
         mockRetrieve.restore();
       }
@@ -1033,7 +1033,7 @@ describe("server (webhooks)", () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(await decrypt(attendees[0]!.price_paid)).toBe("2000");
+        expect(await decrypt(attendees[0]?.price_paid)).toBe("2000");
       } finally {
         mockRetrieve.restore();
       }
@@ -1978,7 +1978,7 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        expect(await decrypt(attendees[0]!.price_paid)).toBe("0");
+        expect(await decrypt(attendees[0]?.price_paid)).toBe("0");
       } finally {
         mockRetrieve.restore();
       }
@@ -2021,7 +2021,7 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        expect(await decrypt(attendees[0]!.price_paid)).toBe("0");
+        expect(await decrypt(attendees[0]?.price_paid)).toBe("0");
       } finally {
         mockRetrieve.restore();
       }
@@ -2302,7 +2302,7 @@ describe("server (webhooks)", () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(await decrypt(attendees[0]!.price_paid)).toBe("2500");
+        expect(await decrypt(attendees[0]?.price_paid)).toBe("2500");
       } finally {
         mockVerify.restore();
       }
@@ -2368,7 +2368,7 @@ describe("server (webhooks)", () => {
         expect(attendees.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_mismatch"]);
+        expect(mockRefund.calls[0]?.args).toEqual(["pi_mismatch"]);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -2446,7 +2446,7 @@ describe("server (webhooks)", () => {
         expect(attendees2.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
+        expect(mockRefund.calls[0]?.args).toEqual(["pi_multi_mismatch"]);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -2498,7 +2498,7 @@ describe("server (webhooks)", () => {
         expect(attendees.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_redirect_mismatch"]);
+        expect(mockRefund.calls[0]?.args).toEqual(["pi_redirect_mismatch"]);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -3097,7 +3097,7 @@ describe("server (webhooks)", () => {
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         expect(response.status).toBe(200);
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_refund_log"]);
+        expect(mockRefund.calls[0]?.args).toEqual(["pi_refund_log"]);
 
         // Verify refund success was logged to console
         const refundLog = debugLogs.find((log) =>
@@ -3112,8 +3112,8 @@ describe("server (webhooks)", () => {
           e.message.includes("Automatic refund"),
         );
         expect(refundEntry).toBeDefined();
-        expect(refundEntry!.event_id).toBe(event.id);
-        expect(refundEntry!.message).toContain(
+        expect(refundEntry?.event_id).toBe(event.id);
+        expect(refundEntry?.message).toContain(
           "no longer accepting registrations",
         );
       } finally {
@@ -3177,8 +3177,8 @@ describe("server (webhooks)", () => {
           e.message.includes("Automatic refund"),
         );
         expect(refundEntry).toBeDefined();
-        expect(refundEntry!.event_id).toBe(event.id);
-        expect(refundEntry!.message).toContain("price");
+        expect(refundEntry?.event_id).toBe(event.id);
+        expect(refundEntry?.message).toContain("price");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3234,7 +3234,7 @@ describe("server (webhooks)", () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(await decrypt(attendees[0]!.price_paid)).toBe("2500");
+        expect(await decrypt(attendees[0]?.price_paid)).toBe("2500");
       } finally {
         mockVerify.restore();
       }
@@ -3301,9 +3301,9 @@ describe("server (webhooks)", () => {
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
-        expect(await decrypt(attendees1[0]!.price_paid)).toBe("2000");
+        expect(await decrypt(attendees1[0]?.price_paid)).toBe("2000");
         expect(attendees2.length).toBe(1);
-        expect(await decrypt(attendees2[0]!.price_paid)).toBe("1000");
+        expect(await decrypt(attendees2[0]?.price_paid)).toBe("1000");
       } finally {
         mockVerify.restore();
       }

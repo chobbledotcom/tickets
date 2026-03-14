@@ -131,12 +131,12 @@ describe("webhook", () => {
       expect(payload.payment_id).toBeNull();
       expect(payload.ticket_url).toBe("https://localhost/t/AABB001122");
       expect(payload.tickets).toHaveLength(1);
-      expect(payload.tickets[0]!.event_name).toBe("Test Event");
-      expect(payload.tickets[0]!.event_slug).toBe("test-event");
-      expect(payload.tickets[0]!.unit_price).toBe(0);
-      expect(payload.tickets[0]!.quantity).toBe(1);
-      expect(payload.tickets[0]!.date).toBeNull();
-      expect(payload.tickets[0]!.ticket_token).toBe("AABB001122");
+      expect(payload.tickets[0]?.event_name).toBe("Test Event");
+      expect(payload.tickets[0]?.event_slug).toBe("test-event");
+      expect(payload.tickets[0]?.unit_price).toBe(0);
+      expect(payload.tickets[0]?.quantity).toBe(1);
+      expect(payload.tickets[0]?.date).toBeNull();
+      expect(payload.tickets[0]?.ticket_token).toBe("AABB001122");
       expect(payload.timestamp).toBeDefined();
       expect(payload.business_email).toBe("");
     });
@@ -154,8 +154,8 @@ describe("webhook", () => {
       expect(payload.price_paid).toBe(1000);
       expect(payload.payment_id).toBe("pi_abc123");
       expect(payload.currency).toBe("USD");
-      expect(payload.tickets[0]!.unit_price).toBe(500);
-      expect(payload.tickets[0]!.quantity).toBe(2);
+      expect(payload.tickets[0]?.unit_price).toBe(500);
+      expect(payload.tickets[0]?.quantity).toBe(2);
     });
 
     test("builds payload for multi-event entries", async () => {
@@ -188,13 +188,13 @@ describe("webhook", () => {
         "https://localhost/t/AA00BB11CC+DD22EE33FF",
       );
       expect(payload.tickets).toHaveLength(2);
-      expect(payload.tickets[0]!.event_name).toBe("Event A");
-      expect(payload.tickets[0]!.unit_price).toBe(300);
-      expect(payload.tickets[0]!.ticket_token).toBe("AA00BB11CC");
-      expect(payload.tickets[1]!.event_name).toBe("Event B");
-      expect(payload.tickets[1]!.unit_price).toBe(700);
-      expect(payload.tickets[1]!.quantity).toBe(2);
-      expect(payload.tickets[1]!.ticket_token).toBe("DD22EE33FF");
+      expect(payload.tickets[0]?.event_name).toBe("Event A");
+      expect(payload.tickets[0]?.unit_price).toBe(300);
+      expect(payload.tickets[0]?.ticket_token).toBe("AA00BB11CC");
+      expect(payload.tickets[1]?.event_name).toBe("Event B");
+      expect(payload.tickets[1]?.unit_price).toBe(700);
+      expect(payload.tickets[1]?.quantity).toBe(2);
+      expect(payload.tickets[1]?.ticket_token).toBe("DD22EE33FF");
     });
 
     test("includes price_paid for free can_pay_more event where attendee paid", async () => {
@@ -220,7 +220,7 @@ describe("webhook", () => {
         "GBP",
       );
 
-      expect(payload.tickets[0]!.date).toBe("2025-07-15");
+      expect(payload.tickets[0]?.date).toBe("2025-07-15");
     });
 
     test("includes mixed dates for multi-event with daily and standard events", async () => {
@@ -237,8 +237,8 @@ describe("webhook", () => {
 
       const payload = await buildWebhookPayload(entries, "GBP");
 
-      expect(payload.tickets[0]!.date).toBe("2025-07-15");
-      expect(payload.tickets[1]!.date).toBeNull();
+      expect(payload.tickets[0]?.date).toBe("2025-07-15");
+      expect(payload.tickets[1]?.date).toBeNull();
     });
 
     test("returns 0 price_paid when attendee has no price_paid on paid event", async () => {

@@ -384,7 +384,7 @@ describe("server (admin settings-advanced)", () => {
       expect(response.status).toBe(302);
       expect(
         decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
+          response.headers.get("location")?.replaceAll("+", " "),
         ),
       ).toContain("Email provider disabled");
     });
@@ -406,7 +406,7 @@ describe("server (admin settings-advanced)", () => {
       expect(response.status).toBe(302);
       expect(
         decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
+          response.headers.get("location")?.replaceAll("+", " "),
         ),
       ).toContain("Email settings updated");
     });

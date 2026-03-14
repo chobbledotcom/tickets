@@ -80,7 +80,7 @@ describe("logger", () => {
         durationMs: 42,
       });
 
-      expect(debugSpy.calls[0]!.args).toEqual([
+      expect(debugSpy.calls[0]?.args).toEqual([
         "[Request] GET /ticket/[redacted] 200 42ms",
       ]);
     });
@@ -93,7 +93,7 @@ describe("logger", () => {
         durationMs: 100,
       });
 
-      expect(debugSpy.calls[0]!.args).toEqual([
+      expect(debugSpy.calls[0]?.args).toEqual([
         "[Request] POST /admin/events/[id] 201 100ms",
       ]);
     });
@@ -106,7 +106,7 @@ describe("logger", () => {
         durationMs: 5,
       });
 
-      expect(debugSpy.calls[0]!.args).toEqual(["[Request] GET /admin 403 5ms"]);
+      expect(debugSpy.calls[0]?.args).toEqual(["[Request] GET /admin 403 5ms"]);
     });
 
     test("suppresses logs when TEST_SUPPRESS_REQUEST_LOGS is set", () => {
@@ -135,7 +135,7 @@ describe("logger", () => {
       });
 
       expect(debugSpy.calls.length).toBe(1);
-      expect(debugSpy.calls[0]!.args).toEqual([
+      expect(debugSpy.calls[0]?.args).toEqual([
         "[Request] POST /admin/login 302 1ms",
       ]);
     });
@@ -155,13 +155,13 @@ describe("logger", () => {
     test("logs error code only", () => {
       logError({ code: ErrorCode.DB_CONNECTION });
 
-      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
+      expect(errorSpy.calls[0]?.args).toEqual(["[Error] E_DB_CONNECTION"]);
     });
 
     test("logs error with event ID", () => {
       logError({ code: ErrorCode.CAPACITY_EXCEEDED, eventId: 42 });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(errorSpy.calls[0]?.args).toEqual([
         "[Error] E_CAPACITY_EXCEEDED event=42",
       ]);
     });
@@ -169,7 +169,7 @@ describe("logger", () => {
     test("logs error with attendee ID", () => {
       logError({ code: ErrorCode.WEBHOOK_SEND, attendeeId: 99 });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(errorSpy.calls[0]?.args).toEqual([
         "[Error] E_WEBHOOK_SEND attendee=99",
       ]);
     });
@@ -177,7 +177,7 @@ describe("logger", () => {
     test("logs error with detail", () => {
       logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(errorSpy.calls[0]?.args).toEqual([
         '[Error] E_STRIPE_SIGNATURE detail="mismatch"',
       ]);
     });
@@ -190,7 +190,7 @@ describe("logger", () => {
         detail: "inactive",
       });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(errorSpy.calls[0]?.args).toEqual([
         '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
       ]);
     });
@@ -204,7 +204,7 @@ describe("logger", () => {
       logError({ code: ErrorCode.DB_QUERY });
 
       expect(fetchStub.calls.length).toBe(1);
-      const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
+      const [url, options] = fetchStub.calls[0]?.args as [string, RequestInit];
       expect(url).toBe("https://ntfy.sh/test-topic");
       expect(options.body).toBe("E_DB_QUERY");
 
@@ -239,7 +239,7 @@ describe("logger", () => {
             "Error: Stripe checkout failed (session creation failed)",
         );
         expect(match).toBeDefined();
-        expect(match!.event_id).toBeNull();
+        expect(match?.event_id).toBeNull();
       });
 
       test("persists error with event ID to activity log", async () => {
@@ -256,7 +256,7 @@ describe("logger", () => {
           (e) => e.message === "Error: Payment refund failed (refund declined)",
         );
         expect(match).toBeDefined();
-        expect(match!.event_id).toBe(event.id);
+        expect(match?.event_id).toBe(event.id);
       });
 
       test("persists error without detail to activity log", async () => {
@@ -324,13 +324,13 @@ describe("logger", () => {
     test("logs with Setup category", () => {
       logDebug("Setup", "Validation passed");
 
-      expect(debugSpy.calls[0]!.args).toEqual(["[Setup] Validation passed"]);
+      expect(debugSpy.calls[0]?.args).toEqual(["[Setup] Validation passed"]);
     });
 
     test("logs with Webhook category", () => {
       logDebug("Webhook", "Sending notification");
 
-      expect(debugSpy.calls[0]!.args).toEqual([
+      expect(debugSpy.calls[0]?.args).toEqual([
         "[Webhook] Sending notification",
       ]);
     });
@@ -338,7 +338,7 @@ describe("logger", () => {
     test("logs with Stripe category", () => {
       logDebug("Stripe", "Creating checkout session");
 
-      expect(debugSpy.calls[0]!.args).toEqual([
+      expect(debugSpy.calls[0]?.args).toEqual([
         "[Stripe] Creating checkout session",
       ]);
     });
@@ -393,7 +393,7 @@ describe("logger", () => {
         });
       });
 
-      const message = debugSpy.calls[0]!.args[0] as string;
+      const message = debugSpy.calls[0]?.args[0] as string;
       expect(message).toMatch(
         /^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/,
       );
@@ -414,8 +414,8 @@ describe("logger", () => {
         logError({ code: ErrorCode.DB_CONNECTION });
       });
 
-      const requestMsg = debugSpy.calls[0]!.args[0] as string;
-      const errorMsg = errorSpy.calls[0]!.args[0] as string;
+      const requestMsg = debugSpy.calls[0]?.args[0] as string;
+      const errorMsg = errorSpy.calls[0]?.args[0] as string;
       const requestId = requestMsg.slice(1, 5);
       expect(errorMsg).toBe(`[${requestId}] [Error] E_DB_CONNECTION`);
 
@@ -430,7 +430,7 @@ describe("logger", () => {
         logDebug("Setup", "test message");
       });
 
-      const message = debugSpy.calls[0]!.args[0] as string;
+      const message = debugSpy.calls[0]?.args[0] as string;
       expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Setup\] test message$/);
       debugSpy.restore();
     });
@@ -443,7 +443,7 @@ describe("logger", () => {
         runWithRequestId(() => {
           logRequest({ method: "GET", path: "/", status: 200, durationMs: 0 });
         });
-        ids.push((debugSpy.calls[i]!.args[0] as string).slice(1, 5));
+        ids.push((debugSpy.calls[i]?.args[0] as string).slice(1, 5));
       }
 
       // With 65536 possible values, 10 samples should not all be identical
@@ -462,7 +462,7 @@ describe("logger", () => {
         durationMs: 10,
       });
 
-      expect(debugSpy.calls[0]!.args).toEqual([
+      expect(debugSpy.calls[0]?.args).toEqual([
         "[Request] GET /admin 200 10ms",
       ]);
       debugSpy.restore();

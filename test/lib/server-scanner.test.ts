@@ -211,7 +211,7 @@ describe("QR Scanner", () => {
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id);
+      await markRefunded(attendees[0]?.id);
 
       const response = await handleRequest(
         mockScanRequest(event.id, { token }, session.cookie, session.csrfToken),

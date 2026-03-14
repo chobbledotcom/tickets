@@ -58,15 +58,15 @@ describe("apple-wallet", () => {
       const pass = generatePassJson(makePassData(), creds);
       const barcodes = pass.barcodes as Array<Record<string, string>>;
       expect(barcodes).toHaveLength(1);
-      expect(barcodes[0]!.format).toBe("PKBarcodeFormatQR");
-      expect(barcodes[0]!.message).toBe("https://example.com/checkin/ABC123");
-      expect(barcodes[0]!.messageEncoding).toBe("iso-8859-1");
+      expect(barcodes[0]?.format).toBe("PKBarcodeFormatQR");
+      expect(barcodes[0]?.message).toBe("https://example.com/checkin/ABC123");
+      expect(barcodes[0]?.messageEncoding).toBe("iso-8859-1");
     });
 
     test("includes event name in primary fields", () => {
       const pass = generatePassJson(makePassData(), creds);
       const ticket = pass.eventTicket as TicketFields;
-      expect(ticket.primaryFields[0]!.value).toBe("Summer Concert");
+      expect(ticket.primaryFields[0]?.value).toBe("Summer Concert");
     });
 
     test("includes event date in secondary fields", () => {
@@ -74,7 +74,7 @@ describe("apple-wallet", () => {
       const ticket = pass.eventTicket as TicketFields;
       const dateField = ticket.secondaryFields.find((f) => f.key === "date");
       expect(dateField).toBeDefined();
-      expect(dateField!.value).toBe("2026-06-15T19:00:00Z");
+      expect(dateField?.value).toBe("2026-06-15T19:00:00Z");
     });
 
     test("includes location in secondary fields", () => {
@@ -84,7 +84,7 @@ describe("apple-wallet", () => {
         (f) => f.key === "location",
       );
       expect(locationField).toBeDefined();
-      expect(locationField!.value).toBe("Town Hall");
+      expect(locationField?.value).toBe("Town Hall");
     });
 
     test("omits date when eventDate is empty", () => {
@@ -109,7 +109,7 @@ describe("apple-wallet", () => {
       const ticket = pass.eventTicket as TicketFields;
       const qtyField = ticket.auxiliaryFields.find((f) => f.key === "qty");
       expect(qtyField).toBeDefined();
-      expect(qtyField!.value).toBe(3);
+      expect(qtyField?.value).toBe(3);
     });
 
     test("omits quantity when equal to 1", () => {
@@ -128,8 +128,8 @@ describe("apple-wallet", () => {
       const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
       expect(priceField).toBeDefined();
-      expect(priceField!.value).toBe(25);
-      expect(priceField!.currencyCode).toBe("EUR");
+      expect(priceField?.value).toBe(25);
+      expect(priceField?.currencyCode).toBe("EUR");
     });
 
     test("omits price when zero", () => {
@@ -150,7 +150,7 @@ describe("apple-wallet", () => {
         (f) => f.key === "booking-date",
       );
       expect(dateField).toBeDefined();
-      expect(dateField!.value).toBe("2026-06-15");
+      expect(dateField?.value).toBe("2026-06-15");
     });
 
     test("sets relevantDate from eventDate", () => {
@@ -255,7 +255,7 @@ describe("apple-wallet", () => {
       expect(files["icon@2x.png"]).toBeDefined();
       expect(files["icon@3x.png"]).toBeDefined();
       expect(files["manifest.json"]).toBeDefined();
-      expect(files["signature"]).toBeDefined();
+      expect(files.signature).toBeDefined();
 
       // pass.json matches generatePassJson
       const passJson = JSON.parse(
@@ -342,8 +342,8 @@ describe("apple-wallet", () => {
       );
       const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
-      expect(priceField!.value).toBe(1000);
-      expect(priceField!.currencyCode).toBe("JPY");
+      expect(priceField?.value).toBe(1000);
+      expect(priceField?.currencyCode).toBe("JPY");
     });
 
     test("converts price using currency decimal places for GBP (2 decimals)", () => {
@@ -353,8 +353,8 @@ describe("apple-wallet", () => {
       );
       const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
-      expect(priceField!.value).toBe(25);
-      expect(priceField!.currencyCode).toBe("GBP");
+      expect(priceField?.value).toBe(25);
+      expect(priceField?.currencyCode).toBe("GBP");
     });
   });
 });

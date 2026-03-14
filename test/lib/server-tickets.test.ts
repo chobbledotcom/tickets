@@ -123,9 +123,9 @@ describe("ticket view (/t/:tokens)", () => {
     await createTestAttendee(event.id, event.slug, "Grace", "grace@test.com");
     const attendees = await getAttendeesRaw(event.id);
 
-    expect(attendees[0]!.ticket_token).not.toBe("");
-    expect(attendees[1]!.ticket_token).not.toBe("");
-    expect(attendees[0]!.ticket_token).not.toBe(attendees[1]!.ticket_token);
+    expect(attendees[0]?.ticket_token).not.toBe("");
+    expect(attendees[1]?.ticket_token).not.toBe("");
+    expect(attendees[0]?.ticket_token).not.toBe(attendees[1]?.ticket_token);
   });
 
   test("includes inline SVG QR code in ticket view", async () => {

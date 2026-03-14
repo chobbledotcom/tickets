@@ -153,7 +153,7 @@ describe("wallet route (/wallet/:token)", () => {
 
     expect(files["pass.json"]).toBeDefined();
     expect(files["manifest.json"]).toBeDefined();
-    expect(files["signature"]).toBeDefined();
+    expect(files.signature).toBeDefined();
   });
 
   test("pass.json contains correct event data", async () => {
@@ -513,11 +513,11 @@ describe("getHostAppleWalletConfig", () => {
     setWalletEnvVars();
     const config = getHostAppleWalletConfig();
     expect(config).not.toBeNull();
-    expect(config!.passTypeId).toBe("pass.com.env.tickets");
-    expect(config!.teamId).toBe("ENVTEAM001");
-    expect(config!.signingCert).toContain("BEGIN CERTIFICATE");
-    expect(config!.signingKey).toContain("BEGIN RSA PRIVATE KEY");
-    expect(config!.wwdrCert).toContain("BEGIN CERTIFICATE");
+    expect(config?.passTypeId).toBe("pass.com.env.tickets");
+    expect(config?.teamId).toBe("ENVTEAM001");
+    expect(config?.signingCert).toContain("BEGIN CERTIFICATE");
+    expect(config?.signingKey).toContain("BEGIN RSA PRIVATE KEY");
+    expect(config?.wwdrCert).toContain("BEGIN CERTIFICATE");
   });
 });
 
@@ -542,8 +542,8 @@ describe("Apple Wallet env var fallback", () => {
     setWalletEnvVars();
     const config = await getAppleWalletConfig();
     expect(config).not.toBeNull();
-    expect(config!.passTypeId).toBe("pass.com.env.tickets");
-    expect(config!.teamId).toBe("ENVTEAM001");
+    expect(config?.passTypeId).toBe("pass.com.env.tickets");
+    expect(config?.teamId).toBe("ENVTEAM001");
   });
 
   test("getAppleWalletConfig prefers DB config over env vars", async () => {
@@ -551,8 +551,8 @@ describe("Apple Wallet env var fallback", () => {
     await configureAppleWallet();
     const config = await getAppleWalletConfig();
     expect(config).not.toBeNull();
-    expect(config!.passTypeId).toBe("pass.com.test.tickets");
-    expect(config!.teamId).toBe("TESTTEAM01");
+    expect(config?.passTypeId).toBe("pass.com.test.tickets");
+    expect(config?.teamId).toBe("TESTTEAM01");
   });
 
   test("wallet route works with env var config", async () => {

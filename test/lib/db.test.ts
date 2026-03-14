@@ -278,7 +278,7 @@ describe("db", () => {
 
       // Key hierarchy should be generated
       expect(await getPublicKey()).toBeTruthy();
-      expect(user!.wrapped_data_key).toBeTruthy();
+      expect(user?.wrapped_data_key).toBeTruthy();
       expect(await getWrappedPrivateKey()).toBeTruthy();
     });
 
@@ -354,23 +354,23 @@ describe("db", () => {
       // Use the user from createTestDbWithSetup
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const oldWrappedKey = user!.wrapped_data_key;
+      const oldWrappedKey = user?.wrapped_data_key;
 
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(oldHash).toBeTruthy();
 
       const { updateUserPassword } = await import("#lib/db/settings.ts");
       const success = await updateUserPassword(
-        user!.id,
+        user?.id,
         oldHash!,
-        user!.wrapped_data_key!,
+        user?.wrapped_data_key!,
         "newpassword456",
       );
       expect(success).toBe(true);
 
       // Wrapped key should be different (re-wrapped with new KEK)
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(updatedUser!.wrapped_data_key).not.toBe(oldWrappedKey);
+      expect(updatedUser?.wrapped_data_key).not.toBe(oldWrappedKey);
 
       // Old password should no longer work
       expect(
@@ -390,9 +390,9 @@ describe("db", () => {
       const { updateUserPassword } = await import("#lib/db/settings.ts");
       // Pass a bogus password hash - KEK derivation will produce wrong key
       const success = await updateUserPassword(
-        user!.id,
+        user?.id,
         "pbkdf2:bogus:hash",
-        user!.wrapped_data_key!,
+        user?.wrapped_data_key!,
         "newpassword",
       );
       expect(success).toBe(false);
@@ -433,9 +433,9 @@ describe("db", () => {
 
       const { updateUserPassword } = await import("#lib/db/settings.ts");
       const changeSuccess = await updateUserPassword(
-        user!.id,
+        user?.id,
         oldHash!,
-        user!.wrapped_data_key!,
+        user?.wrapped_data_key!,
         newPassword,
       );
       expect(changeSuccess).toBe(true);
@@ -460,7 +460,7 @@ describe("db", () => {
       expect(newPasswordHash).toBeTruthy();
 
       const kek = await deriveKEK(newPasswordHash!);
-      const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
+      const dataKey = await unwrapKey(updatedUser?.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = await getWrappedPrivateKey();
       expect(wrappedPrivateKey).toBeTruthy();
@@ -713,7 +713,7 @@ describe("db", () => {
 
       const allLog = await getAllActivityLog();
       expect(allLog).toHaveLength(1);
-      expect(allLog[0]!.message).toBe("Global action");
+      expect(allLog[0]?.message).toBe("Global action");
     });
 
     test("deleteEvent works with no attendees", async () => {
@@ -1408,9 +1408,9 @@ describe("db", () => {
       // Update password using user-based API
       const { updateUserPassword } = await import("#lib/db/settings.ts");
       const success = await updateUserPassword(
-        user!.id,
+        user?.id,
         initialHash!,
-        user!.wrapped_data_key!,
+        user?.wrapped_data_key!,
         "new-password-123",
       );
       expect(success).toBe(true);
@@ -2449,7 +2449,7 @@ describe("db", () => {
       // Pass corrupted wrapped_data_key - unwrap will fail
       const { updateUserPassword } = await import("#lib/db/settings.ts");
       const result = await updateUserPassword(
-        user!.id,
+        user?.id,
         passwordHash!,
         "corrupted_wrapped_data_key",
         "newpassword",
@@ -2554,8 +2554,8 @@ describe("db", () => {
       // Single-word columns like "name" should map to themselves
       // This exercises the ?? dbCol fallback since toCamelCase("name") === "name"
       const map = buildInputKeyMap(["name", "max_attendees"]);
-      expect(map["name"]).toBe("name");
-      expect(map["max_attendees"]).toBe("maxAttendees");
+      expect(map.name).toBe("name");
+      expect(map.max_attendees).toBe("maxAttendees");
     });
 
     test("getProvidedColumns uses inputKeyMap fallback for single-word keys", async () => {

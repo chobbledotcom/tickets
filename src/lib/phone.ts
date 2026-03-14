@@ -6,5 +6,5 @@
 export const normalizePhone = (phone: string, prefix: string): string => {
   const digits = phone.replace(/\D/g, "");
   if (!digits) return "";
-  return digits.startsWith("0") ? "+" + prefix + digits.slice(1) : "+" + digits;
+  return digits.startsWith("0") ? `+${prefix}${digits.slice(1)}` : `+${digits}`;
 };

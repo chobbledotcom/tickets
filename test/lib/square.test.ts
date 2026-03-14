@@ -144,13 +144,13 @@ describe("square", () => {
       };
       const result = enforceMetadataLimits(metadata);
       expect(result).not.toBeNull();
-      expect(result!.name).toBe("A".repeat(255));
-      expect(result!.name!.length).toBe(255);
-      expect(result!.event_id).toBe("1");
+      expect(result?.name).toBe("A".repeat(255));
+      expect(result?.name?.length).toBe(255);
+      expect(result?.event_id).toBe("1");
     });
 
     test("returns null when non-truncatable value exceeds limit", () => {
-      const longItems = "[" + "{e:1,q:1},".repeat(50) + "]";
+      const longItems = `[${"{e:1,q:1},".repeat(50)}]`;
       const metadata = {
         multi: "1",
         name: "John",
@@ -161,7 +161,7 @@ describe("square", () => {
     });
 
     test("returns null when email exceeds limit", () => {
-      const longEmail = "a".repeat(300) + "@example.com";
+      const longEmail = `${"a".repeat(300)}@example.com`;
       const metadata = {
         event_id: "1",
         name: "John",
@@ -363,12 +363,12 @@ describe("square", () => {
           );
 
           expect(result).not.toBeNull();
-          expect(result!.orderId).toBe("order_abc");
-          expect(result!.url).toBe("https://square.link/abc");
+          expect(result?.orderId).toBe("order_abc");
+          expect(result?.url).toBe("https://square.link/abc");
 
           // Verify SDK was called with correctly constructed order
           // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.calls[0]!.args[0] as any;
+          const args = checkoutCreate.calls[0]?.args[0] as any;
           expect(args.order.locationId).toBe("L_loc_456");
           expect(args.order.lineItems).toHaveLength(1);
           expect(args.order.lineItems[0].name).toBe("Ticket: Concert");
@@ -466,7 +466,7 @@ describe("square", () => {
           await squareApi.createPaymentLink(event, intent, "http://localhost");
 
           // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.calls[0]!.args[0] as any;
+          const args = checkoutCreate.calls[0]?.args[0] as any;
           expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
           expect(args.order.metadata.phone).toBeUndefined();
           expect(args.order.lineItems[0].note).toBe("Ticket");
@@ -614,7 +614,7 @@ describe("square", () => {
 
           // Verify name was truncated in metadata
           // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.calls[0]!.args[0] as any;
+          const args = checkoutCreate.calls[0]?.args[0] as any;
           expect(args.order.metadata.name.length).toBe(255);
         },
       );
@@ -635,7 +635,7 @@ describe("square", () => {
           const intent = {
             eventId: 1,
             name: "John",
-            email: "a".repeat(300) + "@example.com",
+            email: `${"a".repeat(300)}@example.com`,
             phone: "",
             address: "",
             special_instructions: "",
@@ -795,11 +795,11 @@ describe("square", () => {
           );
 
           expect(result).not.toBeNull();
-          expect(result!.orderId).toBe("order_multi");
-          expect(result!.url).toBe("https://square.link/multi");
+          expect(result?.orderId).toBe("order_multi");
+          expect(result?.url).toBe("https://square.link/multi");
 
           // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.calls[0]!.args[0] as any;
+          const args = checkoutCreate.calls[0]?.args[0] as any;
 
           // Verify multiple line items
           expect(args.order.lineItems).toHaveLength(2);
@@ -1069,7 +1069,7 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrieveOrder("order_missing");
           expect(result).toBeNull();
-          expect(ordersGet.calls[0]!.args[0]).toEqual({
+          expect(ordersGet.calls[0]?.args[0]).toEqual({
             orderId: "order_missing",
           });
         },
@@ -1102,9 +1102,9 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrieveOrder("order_tenders");
           expect(result).not.toBeNull();
-          expect(result!.tenders).toHaveLength(2);
-          expect(result!.tenders![0]!.paymentId).toBe("pay_abc");
-          expect(result!.tenders![1]!.paymentId).toBeUndefined();
+          expect(result?.tenders).toHaveLength(2);
+          expect(result?.tenders?.[0]?.paymentId).toBe("pay_abc");
+          expect(result?.tenders?.[1]?.paymentId).toBeUndefined();
         },
       );
     });
@@ -1128,10 +1128,10 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrieveOrder("order_shape");
           expect(result).not.toBeNull();
-          expect(result!.id).toBe("order_shape");
-          expect(result!.state).toBe("OPEN");
-          expect(result!.metadata).toBeUndefined();
-          expect(result!.tenders).toBeUndefined();
+          expect(result?.id).toBe("order_shape");
+          expect(result?.state).toBe("OPEN");
+          expect(result?.metadata).toBeUndefined();
+          expect(result?.tenders).toBeUndefined();
         },
       );
     });
@@ -1159,8 +1159,8 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrieveOrder("order_with_total");
           expect(result).not.toBeNull();
-          expect(result!.totalMoney.amount).toBe(BigInt(7500));
-          expect(result!.totalMoney.currency).toBe("GBP");
+          expect(result?.totalMoney.amount).toBe(BigInt(7500));
+          expect(result?.totalMoney.currency).toBe("GBP");
         },
       );
     });
@@ -1182,7 +1182,7 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrievePayment("pay_missing");
           expect(result).toBeNull();
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({
+          expect(paymentsGet.calls[0]?.args[0]).toEqual({
             paymentId: "pay_missing",
           });
         },
@@ -1214,13 +1214,13 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrievePayment("pay_full");
           expect(result).not.toBeNull();
-          expect(result!.id).toBe("pay_full");
-          expect(result!.status).toBe("COMPLETED");
-          expect(result!.orderId).toBe("order_999");
-          expect(result!.amountMoney!.amount).toBe(BigInt(5000));
-          expect(result!.amountMoney!.currency).toBe("GBP");
-          expect(result!.refundedMoney!.amount).toBe(BigInt(5000));
-          expect(result!.refundedMoney!.currency).toBe("GBP");
+          expect(result?.id).toBe("pay_full");
+          expect(result?.status).toBe("COMPLETED");
+          expect(result?.orderId).toBe("order_999");
+          expect(result?.amountMoney?.amount).toBe(BigInt(5000));
+          expect(result?.amountMoney?.currency).toBe("GBP");
+          expect(result?.refundedMoney?.amount).toBe(BigInt(5000));
+          expect(result?.refundedMoney?.currency).toBe("GBP");
         },
       );
     });
@@ -1245,9 +1245,9 @@ describe("square", () => {
         async () => {
           const result = await retrievePayment("pay_wrapper");
           expect(result).not.toBeNull();
-          expect(result!.id).toBe("pay_wrapper");
-          expect(result!.status).toBe("COMPLETED");
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({
+          expect(result?.id).toBe("pay_wrapper");
+          expect(result?.status).toBe("COMPLETED");
+          expect(paymentsGet.calls[0]?.args[0]).toEqual({
             paymentId: "pay_wrapper",
           });
         },
@@ -1295,13 +1295,13 @@ describe("square", () => {
           expect(result).toBe(true);
 
           // Verify payments.get was called to fetch amount
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({
+          expect(paymentsGet.calls[0]?.args[0]).toEqual({
             paymentId: "pay_refund_me",
           });
 
           // Verify refund was called with correct amount and payment ID
           // deno-lint-ignore no-explicit-any
-          const refundArgs = refundsRefundPayment.calls[0]!.args[0] as any;
+          const refundArgs = refundsRefundPayment.calls[0]?.args[0] as any;
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
           expect(refundArgs.amountMoney.currency).toBe("USD");
@@ -1519,7 +1519,7 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.checkout.paymentLinks.create({
+      const result = await client?.checkout.paymentLinks.create({
         idempotencyKey: "idem-rest",
         order: {
           locationId: "L_rest",
@@ -1541,12 +1541,12 @@ describe("square", () => {
       });
 
       // Response mapped from snake_case
-      expect(result.paymentLink!.orderId).toBe("ord_rest");
-      expect(result.paymentLink!.url).toBe("https://square.link/rest");
+      expect(result.paymentLink?.orderId).toBe("ord_rest");
+      expect(result.paymentLink?.url).toBe("https://square.link/rest");
 
       // Request verification
       // deno-lint-ignore no-explicit-any
-      const [url, opts] = mockFetch.calls[0]!.args as any[];
+      const [url, opts] = mockFetch.calls[0]?.args as any[];
       expect(url).toBe(
         "https://connect.squareupsandbox.com/v2/online-checkout/payment-links",
       );
@@ -1579,7 +1579,7 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      await client!.checkout.paymentLinks.create({
+      await client?.checkout.paymentLinks.create({
         idempotencyKey: "idem-2",
         order: {
           locationId: "L_test",
@@ -1598,7 +1598,7 @@ describe("square", () => {
       });
 
       // deno-lint-ignore no-explicit-any
-      const body = JSON.parse((mockFetch.calls[0]!.args as any[])[1].body);
+      const body = JSON.parse((mockFetch.calls[0]?.args as any[])[1].body);
       expect(body.pre_populated_data.buyer_phone_number).toBeUndefined();
     });
 
@@ -1611,7 +1611,7 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.checkout.paymentLinks.create({
+      const result = await client?.checkout.paymentLinks.create({
         idempotencyKey: "idem-3",
         order: { locationId: "L", lineItems: [], metadata: {} },
         checkoutOptions: { redirectUrl: "https://example.com" },
@@ -1642,19 +1642,19 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.orders.get({ orderId: "ord_100" });
+      const result = await client?.orders.get({ orderId: "ord_100" });
 
       // deno-lint-ignore no-explicit-any
-      expect((mockFetch.calls[0]!.args as any[])[0]).toBe(
+      expect((mockFetch.calls[0]?.args as any[])[0]).toBe(
         "https://connect.squareupsandbox.com/v2/orders/ord_100",
       );
-      expect(result.order!.id).toBe("ord_100");
-      expect(result.order!.metadata.event_id).toBe("5");
-      expect(result.order!.tenders[0].paymentId).toBe("pay_1");
-      expect(result.order!.tenders[1].paymentId).toBeNull();
-      expect(result.order!.state).toBe("COMPLETED");
-      expect(result.order!.totalMoney!.amount).toBe(BigInt(5000));
-      expect(result.order!.totalMoney!.currency).toBe("USD");
+      expect(result.order?.id).toBe("ord_100");
+      expect(result.order?.metadata.event_id).toBe("5");
+      expect(result.order?.tenders[0].paymentId).toBe("pay_1");
+      expect(result.order?.tenders[1].paymentId).toBeNull();
+      expect(result.order?.state).toBe("COMPLETED");
+      expect(result.order?.totalMoney?.amount).toBe(BigInt(5000));
+      expect(result.order?.totalMoney?.currency).toBe("USD");
     });
 
     test("orders.get handles missing total_money", async () => {
@@ -1669,9 +1669,9 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.orders.get({ orderId: "ord_no_total" });
-      expect(result.order!.id).toBe("ord_no_total");
-      expect(result.order!.totalMoney).toBeUndefined();
+      const result = await client?.orders.get({ orderId: "ord_no_total" });
+      expect(result.order?.id).toBe("ord_no_total");
+      expect(result.order?.totalMoney).toBeUndefined();
     });
 
     test("orders.get returns null order when API returns none", async () => {
@@ -1683,7 +1683,7 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.orders.get({ orderId: "missing" });
+      const result = await client?.orders.get({ orderId: "missing" });
       expect(result.order).toBeNull();
     });
 
@@ -1705,16 +1705,16 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.payments.get({ paymentId: "pay_1" });
+      const result = await client?.payments.get({ paymentId: "pay_1" });
 
       // deno-lint-ignore no-explicit-any
-      expect((mockFetch.calls[0]!.args as any[])[0]).toBe(
+      expect((mockFetch.calls[0]?.args as any[])[0]).toBe(
         "https://connect.squareupsandbox.com/v2/payments/pay_1",
       );
-      expect(result.payment!.id).toBe("pay_1");
-      expect(result.payment!.orderId).toBe("ord_1");
-      expect(result.payment!.amountMoney!.amount).toBe(BigInt(3000));
-      expect(result.payment!.refundedMoney!.amount).toBe(BigInt(1000));
+      expect(result.payment?.id).toBe("pay_1");
+      expect(result.payment?.orderId).toBe("ord_1");
+      expect(result.payment?.amountMoney?.amount).toBe(BigInt(3000));
+      expect(result.payment?.refundedMoney?.amount).toBe(BigInt(1000));
     });
 
     test("payments.get handles missing amount_money", async () => {
@@ -1733,9 +1733,9 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.payments.get({ paymentId: "pay_no_amount" });
-      expect(result.payment!.id).toBe("pay_no_amount");
-      expect(result.payment!.amountMoney).toBeUndefined();
+      const result = await client?.payments.get({ paymentId: "pay_no_amount" });
+      expect(result.payment?.id).toBe("pay_no_amount");
+      expect(result.payment?.amountMoney).toBeUndefined();
     });
 
     test("payments.get handles missing refunded_money", async () => {
@@ -1755,9 +1755,9 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.payments.get({ paymentId: "pay_2" });
-      expect(result.payment!.amountMoney!.amount).toBe(BigInt(2000));
-      expect(result.payment!.refundedMoney).toBeUndefined();
+      const result = await client?.payments.get({ paymentId: "pay_2" });
+      expect(result.payment?.amountMoney?.amount).toBe(BigInt(2000));
+      expect(result.payment?.refundedMoney).toBeUndefined();
     });
 
     test("payments.get returns null payment when API returns none", async () => {
@@ -1769,7 +1769,7 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.payments.get({ paymentId: "missing" });
+      const result = await client?.payments.get({ paymentId: "missing" });
       expect(result.payment).toBeNull();
     });
 
@@ -1782,14 +1782,14 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      await client!.refunds.refundPayment({
+      await client?.refunds.refundPayment({
         idempotencyKey: "idem-ref",
         paymentId: "pay_1",
         amountMoney: { amount: BigInt(3000), currency: "GBP" },
       });
 
       // deno-lint-ignore no-explicit-any
-      const [url, opts] = mockFetch.calls[0]!.args as any[];
+      const [url, opts] = mockFetch.calls[0]?.args as any[];
       expect(url).toBe("https://connect.squareupsandbox.com/v2/refunds");
       expect(opts.method).toBe("POST");
       const body = JSON.parse(opts.body);
@@ -1810,7 +1810,7 @@ describe("square", () => {
 
       const client = await getSquareClient();
       try {
-        await client!.orders.get({ orderId: "bad" });
+        await client?.orders.get({ orderId: "bad" });
         expect(true).toBe(false);
       } catch (err) {
         expect((err as Error).message).toContain("Status code: 400");
@@ -1829,10 +1829,10 @@ describe("square", () => {
       );
 
       const client = await getSquareClient();
-      await client!.orders.get({ orderId: "test" });
+      await client?.orders.get({ orderId: "test" });
 
       // deno-lint-ignore no-explicit-any
-      expect((mockFetch.calls[0]!.args as any[])[0]).toContain(
+      expect((mockFetch.calls[0]?.args as any[])[0]).toContain(
         "connect.squareup.com",
       );
     });
@@ -1869,14 +1869,14 @@ describe("square", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_paid");
           expect(result).not.toBeNull();
-          expect(result!.id).toBe("order_paid");
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_abc");
-          expect(result!.metadata.event_id).toBe("1");
-          expect(result!.metadata.name).toBe("John Doe");
-          expect(result!.metadata.email).toBe("john@example.com");
-          expect(result!.metadata.phone).toBe("555-1234");
-          expect(result!.metadata.quantity).toBe("2");
+          expect(result?.id).toBe("order_paid");
+          expect(result?.paymentStatus).toBe("paid");
+          expect(result?.paymentReference).toBe("pay_abc");
+          expect(result?.metadata.event_id).toBe("1");
+          expect(result?.metadata.name).toBe("John Doe");
+          expect(result?.metadata.email).toBe("john@example.com");
+          expect(result?.metadata.phone).toBe("555-1234");
+          expect(result?.metadata.quantity).toBe("2");
         },
       );
     });
@@ -1904,8 +1904,8 @@ describe("square", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("unpaid");
-          expect(result!.paymentReference).toBe("");
+          expect(result?.paymentStatus).toBe("unpaid");
+          expect(result?.paymentReference).toBe("");
         },
       );
     });
@@ -1997,9 +1997,9 @@ describe("square", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_with_amount");
           expect(result).not.toBeNull();
-          expect(result!.amountTotal).toBe(6000);
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_total_123");
+          expect(result?.amountTotal).toBe(6000);
+          expect(result?.paymentStatus).toBe("paid");
+          expect(result?.paymentReference).toBe("pay_total_123");
         },
       );
     });
@@ -2037,9 +2037,9 @@ describe("square", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_multi");
           expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.metadata.multi).toBe("1");
-          expect(result!.metadata.items).toBe(items);
+          expect(result?.paymentStatus).toBe("paid");
+          expect(result?.metadata.multi).toBe("1");
+          expect(result?.metadata.items).toBe(items);
         },
       );
     });

@@ -31,7 +31,7 @@ describe("ntfy", () => {
       sendNtfyError(ErrorCode.DB_CONNECTION);
 
       expect(fetchStub.calls.length).toBe(1);
-      const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
+      const [url, options] = fetchStub.calls[0]?.args as [string, RequestInit];
       expect(url).toBe("https://ntfy.sh/my-topic");
       expect(options.method).toBe("POST");
       expect(options.body).toBe("E_DB_CONNECTION");
@@ -42,9 +42,9 @@ describe("ntfy", () => {
 
       sendNtfyError(ErrorCode.CAPACITY_EXCEEDED);
 
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
+      const [, options] = fetchStub.calls[0]?.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
-      expect(headers["Title"]).toBe("localhost error");
+      expect(headers.Title).toBe("localhost error");
     });
 
     test("includes warning tag in headers", () => {
@@ -52,9 +52,9 @@ describe("ntfy", () => {
 
       sendNtfyError(ErrorCode.STRIPE_SIGNATURE);
 
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
+      const [, options] = fetchStub.calls[0]?.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
-      expect(headers["Tags"]).toBe("warning");
+      expect(headers.Tags).toBe("warning");
     });
 
     test("logs error when fetch fails", async () => {
@@ -71,7 +71,7 @@ describe("ntfy", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(fetchStub.calls.length).toBe(1);
-      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_NTFY_SEND"]);
+      expect(errorSpy.calls[0]?.args).toEqual(["[Error] E_NTFY_SEND"]);
       errorSpy.restore();
     });
   });

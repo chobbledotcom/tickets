@@ -176,7 +176,7 @@ describe("server (payment flow)", () => {
           );
 
           // Verify refund was called
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
+          expect(mockRefund.calls[0]?.args).toEqual(["pi_test_123"]);
         },
         resetStripeClient,
       );
@@ -238,7 +238,7 @@ describe("server (payment flow)", () => {
           );
 
           // Verify refund was called
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_second"]);
+          expect(mockRefund.calls[0]?.args).toEqual(["pi_second"]);
         },
         resetStripeClient,
       );
@@ -802,7 +802,7 @@ describe("server (payment flow)", () => {
           );
 
           // Verify refund was called
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
+          expect(mockRefund.calls[0]?.args).toEqual(["pi_test_123"]);
         },
       );
     });
