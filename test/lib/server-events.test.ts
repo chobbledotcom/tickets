@@ -1543,10 +1543,7 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event with max_price", () => {
     test("creates event with max_price", async () => {
-      const event = await createTestEvent({
-        canPayMore: true,
-        maxPrice: 50000,
-      });
+      const event = await createTestEvent({ canPayMore: true, maxPrice: 50000 });
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.max_price).toBe(50000);
@@ -1596,10 +1593,7 @@ describe("server (admin events)", () => {
     });
 
     test("updates max_price via edit", async () => {
-      const event = await createTestEvent({
-        canPayMore: true,
-        unitPrice: 1000,
-      });
+      const event = await createTestEvent({ canPayMore: true, unitPrice: 1000 });
       await updateTestEvent(event.id, { maxPrice: 25000 });
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
@@ -1620,9 +1614,7 @@ describe("server (admin events)", () => {
         maxAttendees: 50,
       });
 
-      const response = await awaitTestRequest("/admin/log", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/log", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, "Log");
     });
 
@@ -1632,9 +1624,7 @@ describe("server (admin events)", () => {
         await logActivity(`Action ${i}`);
       }
 
-      const response = await awaitTestRequest("/admin/log", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/log", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("Showing the most recent 200 entries");
     });
@@ -1671,10 +1661,7 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/deactivate",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "something",
-          },
+          { csrf_token: await testCsrfToken(), confirm_identifier: "something" },
           await testCookie(),
         ),
       );
@@ -1687,10 +1674,7 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/reactivate",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "something",
-          },
+          { csrf_token: await testCsrfToken(), confirm_identifier: "something" },
           await testCookie(),
         ),
       );
@@ -2018,9 +2002,8 @@ describe("server (admin events)", () => {
       const db = getDb();
       const originalExecute = db.execute.bind(db);
       const executeStub = stub(db, "execute", async (query: unknown) => {
-        const sql = typeof query === "string"
-          ? query
-          : (query as { sql: string }).sql;
+        const sql =
+          typeof query === "string" ? query : (query as { sql: string }).sql;
         // Intercept the isSlugTaken query
         if (
           sql.includes("SELECT 1 WHERE EXISTS") &&
@@ -2072,10 +2055,8 @@ describe("server (admin events)", () => {
       // We spy on findById to return null, simulating the event being deleted
       // between the initial check and the update.
       const { eventsTable: table } = await import("#lib/db/events.ts");
-      const findByIdStub2 = stub(
-        table,
-        "findById",
-        () => Promise.resolve(null),
+      const findByIdStub2 = stub(table, "findById", () =>
+        Promise.resolve(null),
       );
 
       try {
@@ -2775,7 +2756,7 @@ describe("server (admin events)", () => {
       const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
       const logs = await getEventActivityLog(event.id);
       const updateLog = logs.find((l: { message: string }) =>
-        l.message.includes("updated")
+        l.message.includes("updated"),
       );
       expect(updateLog).toBeDefined();
       expect(updateLog?.message).toContain(event.name);
@@ -3032,8 +3013,7 @@ describe("server (admin events)", () => {
       // Insert a stale reservation (older than 5 minutes)
       const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
       await getDb().execute({
-        sql:
-          "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["cs_stale_admin_test", staleTime],
       });
 
@@ -3067,8 +3047,7 @@ describe("server (admin events)", () => {
 
       // Insert a fresh reservation (just now)
       await getDb().execute({
-        sql:
-          "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["cs_fresh_admin_test", new Date().toISOString()],
       });
 

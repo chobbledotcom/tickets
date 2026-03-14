@@ -28,11 +28,7 @@ import {
   PaymentUserError,
 } from "#lib/payment-helpers.ts";
 
-import {
-  computeHmacSha256,
-  hmacToBase64,
-  secureCompare,
-} from "#lib/payment-crypto.ts";
+import { computeHmacSha256, hmacToBase64, secureCompare } from "#lib/payment-crypto.ts";
 import type {
   MultiRegistrationIntent,
   RegistrationIntent,
@@ -51,10 +47,7 @@ const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
 /** Extract tender id and paymentId from raw tender data (handles both snake_case and camelCase) */
 // deno-lint-ignore no-explicit-any
-const mapTender = (t: any) => ({
-  id: t.id,
-  paymentId: t.paymentId ?? t.payment_id,
-});
+const mapTender = (t: any) => ({ id: t.id, paymentId: t.paymentId ?? t.payment_id });
 
 /** A single error entry from Square's API error response */
 type SquareApiErrorEntry = {
@@ -85,9 +78,7 @@ const parseSquareApiErrors = (err: Error): SquareApiErrorEntry[] | null => {
 
 /** Convert Square INVALID_REQUEST_ERROR entries on user-provided fields
  * to a user-facing message, or null if no user-facing errors found. */
-const toUserFacingSquareError = (
-  errors: SquareApiErrorEntry[],
-): string | null => {
+const toUserFacingSquareError = (errors: SquareApiErrorEntry[]): string | null => {
   for (const err of errors) {
     if (err.category !== "INVALID_REQUEST_ERROR" || !err.field) continue;
     const label = SQUARE_FIELD_LABELS[err.field];
@@ -125,18 +116,14 @@ export const enforceMetadataLimits = (
     if (key === "name") continue; // handled below
     logError({
       code: ErrorCode.SQUARE_CHECKOUT,
-      detail:
-        `Metadata value for "${key}" exceeds ${SQUARE_METADATA_MAX_VALUE_LENGTH} chars (${value.length})`,
+      detail: `Metadata value for "${key}" exceeds ${SQUARE_METADATA_MAX_VALUE_LENGTH} chars (${value.length})`,
     });
     return null;
   }
 
   const name = metadata.name;
   if (name && name.length > SQUARE_METADATA_MAX_VALUE_LENGTH) {
-    return {
-      ...metadata,
-      name: name.slice(0, SQUARE_METADATA_MAX_VALUE_LENGTH),
-    };
+    return { ...metadata, name: name.slice(0, SQUARE_METADATA_MAX_VALUE_LENGTH) };
   }
 
   return metadata;
@@ -246,9 +233,9 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
             state: o.state,
             totalMoney: o.total_money
               ? {
-                amount: BigInt(o.total_money.amount),
-                currency: o.total_money.currency,
-              }
+                  amount: BigInt(o.total_money.amount),
+                  currency: o.total_money.currency,
+                }
               : undefined,
           },
         };
@@ -268,15 +255,15 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
             orderId: pm.order_id,
             amountMoney: pm.amount_money
               ? {
-                amount: BigInt(pm.amount_money.amount),
-                currency: pm.amount_money.currency,
-              }
+                  amount: BigInt(pm.amount_money.amount),
+                  currency: pm.amount_money.currency,
+                }
               : undefined,
             refundedMoney: pm.refunded_money
               ? {
-                amount: BigInt(pm.refunded_money.amount),
-                currency: pm.refunded_money.currency,
-              }
+                  amount: BigInt(pm.refunded_money.amount),
+                  currency: pm.refunded_money.currency,
+                }
               : undefined,
           },
         };
@@ -325,10 +312,7 @@ const getClientImpl = async () => {
     // Cache not initialized
   }
 
-  logDebug(
-    "Square",
-    `Creating new Square client (${sandbox ? "sandbox" : "production"})`,
-  );
+  logDebug("Square", `Creating new Square client (${sandbox ? "sandbox" : "production"})`);
   setCache({ accessToken, sandbox });
   return createSquareClient(accessToken, sandbox);
 };
@@ -444,9 +428,7 @@ const createPaymentLinkImpl = (
   );
 
 /** Normalize a phone number for Square pre-populated checkout data */
-const normalizeCheckoutPhone = async (
-  phone: string | undefined,
-): Promise<string | undefined> => {
+const normalizeCheckoutPhone = async (phone: string | undefined): Promise<string | undefined> => {
   if (!phone) return undefined;
   const prefix = await getPhonePrefixFromDb();
   return normalizePhone(phone, prefix);
@@ -470,12 +452,7 @@ const buildCheckoutOptions = async (
 const preparePaymentLink = async (
   rawMetadata: Record<string, string>,
   label: string,
-): Promise<
-  {
-    config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>;
-    metadata: Record<string, string>;
-  } | null
-> => {
+): Promise<{ config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>; metadata: Record<string, string> } | null> => {
   const config = await getPaymentLinkConfig();
   if (!config) return null;
 
@@ -529,26 +506,13 @@ export const squareApi: {
           name: `Ticket: ${event.name}`,
           quantity: String(intent.quantity),
           note: intent.quantity > 1 ? `${intent.quantity} Tickets` : "Ticket",
-          basePriceMoney: {
-            amount: BigInt(intent.customUnitPrice ?? event.unit_price),
-            currency: prep.config.currency,
-          },
+          basePriceMoney: { amount: BigInt(intent.customUnitPrice ?? event.unit_price), currency: prep.config.currency },
         },
       ],
-      ...await buildCheckoutOptions(
-        intent,
-        prep.metadata,
-        baseUrl,
-        "Payment link",
-      ),
+      ...await buildCheckoutOptions(intent, prep.metadata, baseUrl, "Payment link"),
     });
 
-    logDebug(
-      "Square",
-      result
-        ? `Payment link created orderId=${result.orderId}`
-        : "Payment link creation failed",
-    );
+    logDebug("Square", result ? `Payment link created orderId=${result.orderId}` : "Payment link creation failed");
     return result;
   },
 
@@ -567,29 +531,16 @@ export const squareApi: {
       name: `Ticket: ${item.name}`,
       quantity: String(item.quantity),
       note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
-      basePriceMoney: {
-        amount: BigInt(item.unitPrice),
-        currency: prep.config.currency,
-      },
+      basePriceMoney: { amount: BigInt(item.unitPrice), currency: prep.config.currency },
     }))(intent.items);
 
     const result = await createPaymentLinkImpl({
       ...prep.config,
       lineItems,
-      ...await buildCheckoutOptions(
-        intent,
-        prep.metadata,
-        baseUrl,
-        "Multi payment link",
-      ),
+      ...await buildCheckoutOptions(intent, prep.metadata, baseUrl, "Multi payment link"),
     });
 
-    logDebug(
-      "Square",
-      result
-        ? `Multi payment link created orderId=${result.orderId}`
-        : "Multi payment link creation failed",
-    );
+    logDebug("Square", result ? `Multi payment link created orderId=${result.orderId}` : "Multi payment link creation failed");
     return result;
   },
 
@@ -604,11 +555,11 @@ export const squareApi: {
         // Convert nullable metadata values to plain string record
         const metadata: Record<string, string> | undefined = order.metadata
           ? Object.fromEntries(
-            Object.entries(order.metadata).filter(
-              (entry): entry is [string, string] =>
-                typeof entry[1] === "string",
-            ),
-          )
+              Object.entries(order.metadata).filter(
+                (entry): entry is [string, string] =>
+                  typeof entry[1] === "string",
+              ),
+            )
           : undefined;
 
         return {
@@ -736,10 +687,7 @@ export const verifyWebhookSignature = async (
 ): Promise<WebhookVerifyResult> => {
   const secret = await getSquareWebhookSignatureKey();
   if (!secret) {
-    logError({
-      code: ErrorCode.CONFIG_MISSING,
-      detail: "Square webhook signature key",
-    });
+    logError({ code: ErrorCode.CONFIG_MISSING, detail: "Square webhook signature key" });
     return { valid: false, error: "Webhook signature key not configured" };
   }
 
@@ -750,12 +698,7 @@ export const verifyWebhookSignature = async (
   if (!secureCompare(signature, expectedSignature)) {
     logError({
       code: ErrorCode.SQUARE_SIGNATURE,
-      detail:
-        `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${
-          signature.slice(0, 8)
-        }..., expectedPrefix=${
-          expectedSignature.slice(0, 8)
-        }..., bodyLength=${payloadBytes.length}`,
+      detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}..., bodyLength=${payloadBytes.length}`,
     });
     return { valid: false, error: "Signature verification failed" };
   }

@@ -12,9 +12,17 @@ import {
 } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { htmlResponse, redirect, withCsrfForm } from "#routes/utils.ts";
+import {
+  htmlResponse,
+  redirect,
+  withCsrfForm,
+} from "#routes/utils.ts";
 import { joinFields, type JoinFormValues } from "#templates/fields.ts";
-import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
+import {
+  joinCompletePage,
+  joinErrorPage,
+  joinPage,
+} from "#templates/join.tsx";
 
 /** Validate invite code and return user, or an error response */
 const validateInvite = async (code: string): Promise<
@@ -42,16 +50,10 @@ const validateInvite = async (code: string): Promise<
 /** Run handler with validated invite, returning error response if invalid */
 const withValidInvite = async (
   code: string,
-  handler: (
-    code: string,
-    user: User,
-    username: string,
-  ) => Response | Promise<Response>,
+  handler: (code: string, user: User, username: string) => Response | Promise<Response>,
 ): Promise<Response> => {
   const result = await validateInvite(code);
-  return result instanceof Response
-    ? result
-    : handler(code, result.user, result.username);
+  return result instanceof Response ? result : handler(code, result.user, result.username);
 };
 
 /** Route params for invite code routes */
@@ -60,10 +62,7 @@ type InviteCodeParams = { code: string };
 /**
  * Handle GET /join/:code
  */
-const handleJoinGet = (
-  _request: Request,
-  { code }: InviteCodeParams,
-): Promise<Response> =>
+const handleJoinGet = (_request: Request, { code }: InviteCodeParams): Promise<Response> =>
   withValidInvite(code, async (code, _user, username) => {
     await signCsrfToken();
     return htmlResponse(joinPage(code, username));
@@ -72,10 +71,7 @@ const handleJoinGet = (
 /**
  * Handle POST /join/:code
  */
-const handleJoinPost = (
-  request: Request,
-  { code }: InviteCodeParams,
-): Promise<Response> =>
+const handleJoinPost = (request: Request, { code }: InviteCodeParams): Promise<Response> =>
   withValidInvite(code, (code, user, username) =>
     withCsrfForm(
       request,
@@ -88,8 +84,7 @@ const handleJoinPost = (
           return htmlResponse(joinPage(code, username, validation.error), 400);
         }
 
-        const { password, password_confirm: passwordConfirm } =
-          validation.values;
+        const { password, password_confirm: passwordConfirm } = validation.values;
 
         if (password.length < 8) {
           return htmlResponse(
@@ -115,7 +110,8 @@ const handleJoinPost = (
 /**
  * Handle GET /join/complete - password set confirmation page
  */
-const handleJoinComplete = (): Response => htmlResponse(joinCompletePage());
+const handleJoinComplete = (): Response =>
+  htmlResponse(joinCompletePage());
 
 /** Join routes */
 const joinRoutes = defineRoutes({

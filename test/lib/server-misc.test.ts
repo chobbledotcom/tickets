@@ -8,22 +8,18 @@ import {
   normalizeHostname,
 } from "#routes";
 import { detectIframeMode } from "#lib/iframe.ts";
-import {
-  redirect,
-  redirectResponse,
-  temporaryErrorResponse,
-} from "#routes/utils.ts";
+import { redirect, redirectResponse, temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
+  testCookie,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
   resetDb,
   resetTestSlugCounter,
-  testCookie,
 } from "#test-utils";
 
 describe("server (misc)", () => {
@@ -274,26 +270,18 @@ describe("server (misc)", () => {
     test("creates success redirect without form ID", () => {
       const response = redirect("/admin/settings", "Saved", true);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/settings?success=Saved",
-      );
+      expect(response.headers.get("location")).toBe("/admin/settings?success=Saved");
     });
 
     test("creates success redirect with form ID and anchor", () => {
-      const response = redirect("/admin/settings", "Timezone updated", true, {
-        formId: "settings-timezone",
-      });
+      const response = redirect("/admin/settings", "Timezone updated", true, { formId: "settings-timezone" });
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toBe(
-        "/admin/settings?success=Timezone+updated&form=settings-timezone#settings-timezone",
-      );
+      expect(location).toBe("/admin/settings?success=Timezone+updated&form=settings-timezone#settings-timezone");
     });
 
     test("encodes special characters in message and form ID", () => {
-      const response = redirect("/admin/settings", "A & B", true, {
-        formId: "form&id",
-      });
+      const response = redirect("/admin/settings", "A & B", true, { formId: "form&id" });
       const location = response.headers.get("location")!;
       expect(location).toContain("success=A+%26+B");
       expect(location).toContain("form=form%26id");
@@ -303,29 +291,19 @@ describe("server (misc)", () => {
     test("creates error redirect", () => {
       const response = redirect("/admin/settings", "Something failed", false);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/settings?error=Something+failed",
-      );
+      expect(response.headers.get("location")).toBe("/admin/settings?error=Something+failed");
     });
 
     test("appends success param to path with existing query params", () => {
-      const response = redirect(
-        "/admin/event/1?tab=attendees",
-        "Updated",
-        true,
-      );
+      const response = redirect("/admin/event/1?tab=attendees", "Updated", true);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/event/1?tab=attendees&success=Updated",
-      );
+      expect(response.headers.get("location")).toBe("/admin/event/1?tab=attendees&success=Updated");
     });
 
     test("preserves hash fragment", () => {
       const response = redirect("/admin/calendar#attendees", "Done", true);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/calendar?success=Done#attendees",
-      );
+      expect(response.headers.get("location")).toBe("/admin/calendar?success=Done#attendees");
     });
 
     test("encodes special characters in message", () => {
@@ -335,9 +313,7 @@ describe("server (misc)", () => {
     });
 
     test("passes cookie through to response", () => {
-      const response = redirect("/admin", "Done", true, {
-        cookie: "session=abc; Path=/",
-      });
+      const response = redirect("/admin", "Done", true, { cookie: "session=abc; Path=/" });
       expect(response.headers.get("set-cookie")).toBe("session=abc; Path=/");
     });
   });
@@ -352,9 +328,7 @@ describe("server (misc)", () => {
     test("appends iframe=true when iframe mode is active", () => {
       detectIframeMode("https://example.com/?iframe=true");
       const response = redirectResponse("/ticket/reserved?tokens=abc");
-      expect(response.headers.get("location")).toBe(
-        "/ticket/reserved?tokens=abc&iframe=true",
-      );
+      expect(response.headers.get("location")).toBe("/ticket/reserved?tokens=abc&iframe=true");
       detectIframeMode("https://example.com/");
     });
 
@@ -443,9 +417,7 @@ describe("server (misc)", () => {
         }),
       );
       expect(response.status).toBe(301);
-      expect(response.headers.get("location")).toBe(
-        "http://localhost/admin/login",
-      );
+      expect(response.headers.get("location")).toBe("http://localhost/admin/login");
     });
 
     test("allows requests with valid domain including port", async () => {
@@ -523,9 +495,7 @@ describe("server (misc)", () => {
         mockRequestWithHost("/ticket/my-event?qty=2", "evil.com"),
       );
       expect(response.status).toBe(301);
-      expect(response.headers.get("location")).toBe(
-        "http://localhost/ticket/my-event?qty=2",
-      );
+      expect(response.headers.get("location")).toBe("http://localhost/ticket/my-event?qty=2");
     });
 
     test("uses https scheme when allowed domain is not localhost", async () => {
@@ -535,9 +505,7 @@ describe("server (misc)", () => {
           mockRequestWithHost("/ticket/my-event", "evil.com"),
         );
         expect(response.status).toBe(301);
-        expect(response.headers.get("location")).toBe(
-          "https://example.com/ticket/my-event",
-        );
+        expect(response.headers.get("location")).toBe("https://example.com/ticket/my-event");
       } finally {
         Deno.env.set("ALLOWED_DOMAIN", "localhost");
       }

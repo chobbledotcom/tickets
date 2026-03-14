@@ -13,12 +13,8 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 const SiteSubNav = (): JSX.Element => (
   <nav>
     <ul>
-      <li>
-        <a href="/admin/site">Homepage</a>
-      </li>
-      <li>
-        <a href="/admin/site/contact">Contact</a>
-      </li>
+      <li><a href="/admin/site">Homepage</a></li>
+      <li><a href="/admin/site/contact">Contact</a></li>
     </ul>
   </nav>
 );
@@ -45,12 +41,7 @@ export const adminSiteHomePage = (
 
       <CsrfForm action="/admin/site">
         <label for="website_title">Website Title</label>
-        <p>
-          <small>
-            Displayed as the main heading on all public pages (max 128
-            characters).
-          </small>
-        </p>
+        <p><small>Displayed as the main heading on all public pages (max 128 characters).</small></p>
         <input
           type="text"
           id="website_title"
@@ -61,24 +52,17 @@ export const adminSiteHomePage = (
         />
 
         <label for="homepage_text">Homepage Text</label>
-        <p>
-          <small>
-            Text displayed on the public homepage (max 2048 characters).{" "}
-            <Raw html={FORMATTING_HINT} />
-          </small>
-        </p>
+        <p><small>Text displayed on the public homepage (max 2048 characters). <Raw html={FORMATTING_HINT} /></small></p>
         <textarea
           id="homepage_text"
           name="homepage_text"
           rows="4"
           placeholder="Welcome to our site..."
-        >
-          {homepageText ?? ""}
-        </textarea>
+        >{homepageText ?? ""}</textarea>
 
         <button type="submit">Save</button>
       </CsrfForm>
-    </Layout>,
+    </Layout>
   );
 
 /**
@@ -102,23 +86,15 @@ export const adminSiteContactPage = (
 
       <CsrfForm action="/admin/site/contact">
         <label for="contact_page_text">Contact Page Text</label>
-        <p>
-          <small>
-            Text displayed on the public contact page (max 2048 characters).
-            {" "}
-            <Raw html={FORMATTING_HINT} />
-          </small>
-        </p>
+        <p><small>Text displayed on the public contact page (max 2048 characters). <Raw html={FORMATTING_HINT} /></small></p>
         <textarea
           id="contact_page_text"
           name="contact_page_text"
           rows="4"
           placeholder="Get in touch with us..."
-        >
-          {contactPageText ?? ""}
-        </textarea>
+        >{contactPageText ?? ""}</textarea>
 
         <button type="submit">Save</button>
       </CsrfForm>
-    </Layout>,
+    </Layout>
   );

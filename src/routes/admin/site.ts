@@ -3,11 +3,7 @@
  * Owner-only access
  */
 
-import {
-  applyDemoOverrides,
-  SITE_CONTACT_DEMO_FIELDS,
-  SITE_HOME_DEMO_FIELDS,
-} from "#lib/demo.ts";
+import { applyDemoOverrides, SITE_CONTACT_DEMO_FIELDS, SITE_HOME_DEMO_FIELDS } from "#lib/demo.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   getContactPageTextFromDb,
@@ -28,26 +24,18 @@ import {
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
-import {
-  adminSiteContactPage,
-  adminSiteHomePage,
-} from "#templates/admin/site.tsx";
+import { adminSiteContactPage, adminSiteHomePage } from "#templates/admin/site.tsx";
 
-type PageRenderer = (
-  session: AuthSession,
-  error: string,
-  success: string,
-) => Promise<string>;
+type PageRenderer = (session: AuthSession, error: string, success: string) => Promise<string>;
 
 /** Build error page callback for a given renderer */
-const errorPageFor =
-  (session: AuthSession, render: PageRenderer) =>
+const errorPageFor = (session: AuthSession, render: PageRenderer) =>
   async (error: string, status: number): Promise<Response> =>
     htmlResponse(await render(session, error, ""), status);
 
 /** Owner-only GET route that renders a site editor page */
-const siteGetRoute =
-  (render: PageRenderer) => (request: Request): Promise<Response> => {
+const siteGetRoute = (render: PageRenderer) =>
+  (request: Request): Promise<Response> => {
     const success = getSearchParam(request, "success");
     return requireOwnerOr(request, async (session) => {
       const html = await render(session, "", success);
@@ -55,14 +43,11 @@ const siteGetRoute =
     });
   };
 
-type SitePostHandler = (
-  session: AuthSession,
-  form: URLSearchParams,
-) => Promise<Response>;
+type SitePostHandler = (session: AuthSession, form: URLSearchParams) => Promise<Response>;
 
 /** Owner-only POST route for site editor forms */
-const sitePostRoute =
-  (handler: SitePostHandler) => (request: Request): Promise<Response> =>
+const sitePostRoute = (handler: SitePostHandler) =>
+  (request: Request): Promise<Response> =>
     withOwnerAuthForm(request, handler);
 
 /** Render homepage editor with current state */

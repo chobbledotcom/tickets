@@ -15,19 +15,13 @@ export type TokenEntry = {
 };
 
 /** Handler type for token-based route methods */
-type TokenMethodHandler = (
-  request: Request,
-  tokens: string[],
-) => Promise<Response>;
+type TokenMethodHandler = (request: Request, tokens: string[]) => Promise<Response>;
 
 /** Map of HTTP method to handler */
 type TokenMethodMap = Record<string, TokenMethodHandler>;
 
 /** Extract the token segment from a path like /prefix/tokens */
-export const extractTokenSegment = (
-  prefix: string,
-  path: string,
-): string | null => {
+export const extractTokenSegment = (prefix: string, path: string): string | null => {
   const pattern = new RegExp(`^/${prefix}/(.+)$`);
   const match = path.match(pattern);
   return match?.[1] ?? null;
@@ -53,9 +47,7 @@ export type TokenLookupResult =
   | { ok: false; response: Response };
 
 /** Look up attendees by tokens, returning 404 if none found */
-export const lookupAttendees = async (
-  tokens: string[],
-): Promise<TokenLookupResult> => {
+export const lookupAttendees = async (tokens: string[]): Promise<TokenLookupResult> => {
   const attendees = await getAttendeesByTokens(tokens);
   const valid = compact(attendees);
   return valid.length === 0
@@ -70,8 +62,7 @@ export const lookupAttendees = async (
 export const createTokenRoute = (
   prefix: string,
   methods: TokenMethodMap,
-) =>
-(
+) => (
   request: Request,
   path: string,
   method: string,

@@ -8,11 +8,7 @@ describe("ntfy", () => {
   let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
 
   beforeEach(() => {
-    fetchStub = stub(
-      globalThis,
-      "fetch",
-      () => Promise.resolve(new Response()),
-    );
+    fetchStub = stub(globalThis, "fetch", () => Promise.resolve(new Response()));
   });
 
   afterEach(() => {
@@ -62,11 +58,7 @@ describe("ntfy", () => {
     test("logs error when fetch fails", async () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/my-topic");
       fetchStub.restore();
-      fetchStub = stub(
-        globalThis,
-        "fetch",
-        () => Promise.reject(new Error("Network error")),
-      );
+      fetchStub = stub(globalThis, "fetch", () => Promise.reject(new Error("Network error")));
       const errorSpy = spy(console, "error");
 
       sendNtfyError(ErrorCode.WEBHOOK_SEND);

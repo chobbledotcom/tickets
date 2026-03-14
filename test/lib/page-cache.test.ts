@@ -19,7 +19,10 @@ import {
 const { PAGE_CACHE_TTL_MS } = settingsApi;
 import { encrypt } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils";
+import {
+  createTestDbWithSetup,
+  resetDb,
+} from "#test-utils";
 
 describe("page content cache", () => {
   let fakeTime: FakeTime | null = null;

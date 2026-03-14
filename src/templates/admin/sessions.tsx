@@ -23,7 +23,7 @@ const SessionRow = ({
       <td>{session.token.slice(0, 8)}...</td>
       <td>{new Date(session.expires).toLocaleString()}</td>
       <td>{isCurrent ? <mark>Current</mark> : ""}</td>
-    </tr>,
+    </tr>
   );
 
 /**
@@ -35,14 +35,15 @@ export const adminSessionsPage = (
   adminSession: AdminSession,
   success: string,
 ): string => {
-  const sessionRows = sessions.length > 0
-    ? pipe(
-      map((s: Session) =>
-        SessionRow({ session: s, isCurrent: s.token === currentToken })
-      ),
-      joinStrings,
-    )(sessions)
-    : '<tr><td colspan="3">No sessions</td></tr>';
+  const sessionRows =
+    sessions.length > 0
+      ? pipe(
+          map((s: Session) =>
+            SessionRow({ session: s, isCurrent: s.token === currentToken }),
+          ),
+          joinStrings,
+        )(sessions)
+      : '<tr><td colspan="3">No sessions</td></tr>';
 
   const otherSessionCount = sessions.filter(
     (s) => s.token !== currentToken,
@@ -54,32 +55,32 @@ export const adminSessionsPage = (
 
       {success && <div class="success">{success}</div>}
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Token</th>
-              <th>Expires</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={sessionRows} />
-          </tbody>
-        </table>
-      </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Expires</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Raw html={sessionRows} />
+            </tbody>
+          </table>
+        </div>
 
       {otherSessionCount > 0 && (
         <>
           <br />
 
-          <CsrfForm action="/admin/sessions" class="one-button">
-            <button type="submit" class="danger">
-              Log out of all other sessions ({otherSessionCount})
-            </button>
-          </CsrfForm>
+            <CsrfForm action="/admin/sessions" class="one-button">
+              <button type="submit" class="danger">
+                Log out of all other sessions ({otherSessionCount})
+              </button>
+            </CsrfForm>
         </>
       )}
-    </Layout>,
+    </Layout>
   );
 };

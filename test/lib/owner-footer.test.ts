@@ -6,14 +6,14 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
+  testCookie,
+  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
-  testCookie,
-  testCsrfToken,
 } from "#test-utils";
 
 describe("admin debug footer", () => {
@@ -96,9 +96,7 @@ describe("admin debug footer", () => {
     const inviteToken = inviteLink.split("/join/")[1]!;
 
     // Set password for manager
-    const joinPageResponse = await handleRequest(
-      mockRequest(`/join/${inviteToken}`),
-    );
+    const joinPageResponse = await handleRequest(mockRequest(`/join/${inviteToken}`));
     const joinHtml = await joinPageResponse.text();
     const joinCsrf = requireJoinCsrfToken(joinHtml);
     await handleRequest(
@@ -126,9 +124,7 @@ describe("admin debug footer", () => {
     const managerCookie = loginResponse.headers.get("set-cookie") ?? "";
 
     // Manager GET should now contain the footer
-    const response = await awaitTestRequest("/admin/", {
-      cookie: managerCookie,
-    });
+    const response = await awaitTestRequest("/admin/", { cookie: managerCookie });
     const html = await response.text();
     expect(html).toContain("Events");
     expect(html).toContain("Chobble Tickets");
@@ -138,11 +134,7 @@ describe("admin debug footer", () => {
   test("footer not injected for POST responses", async () => {
     // POST to logout — it returns a redirect, not HTML, so no footer
     const response = await handleRequest(
-      mockFormRequest(
-        "/admin/logout",
-        { csrf_token: await testCsrfToken() },
-        await testCookie(),
-      ),
+      mockFormRequest("/admin/logout", { csrf_token: await testCsrfToken() }, await testCookie()),
     );
     const body = await response.text();
     expect(body).not.toContain("Chobble Tickets");

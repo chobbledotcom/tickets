@@ -21,7 +21,8 @@ export const registerCache = (provider: CacheStatProvider): void => {
 };
 
 /** Collect stats from all registered caches */
-export const getAllCacheStats = (): CacheStat[] => providers.map((p) => p());
+export const getAllCacheStats = (): CacheStat[] =>
+  providers.map((p) => p());
 
 /** Reset the registry (for testing) */
 export const resetCacheRegistry = (): void => {

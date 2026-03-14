@@ -25,9 +25,7 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
     // biome-ignore lint/suspicious/noConsole: Edge script error logging
     console.error("[Tickets] Request error:", error);
     return new Response(
-      encodeBody(
-        '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="refresh" content="2"><title>Temporary Error</title></head><body><h1>Temporary Error</h1><p>Something went wrong loading this page. Retrying automatically&hellip;</p></body></html>',
-      ),
+      encodeBody('<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="refresh" content="2"><title>Temporary Error</title></head><body><h1>Temporary Error</h1><p>Something went wrong loading this page. Retrying automatically&hellip;</p></body></html>'),
       {
         status: 503,
         headers: { "content-type": "text/html; charset=utf-8" },

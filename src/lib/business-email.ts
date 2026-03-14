@@ -1,10 +1,5 @@
 import { getDb } from "#lib/db/client.ts";
-import {
-  CONFIG_KEYS,
-  getSetting,
-  invalidateSettingsCache,
-  setSetting,
-} from "#lib/db/settings.ts";
+import { CONFIG_KEYS, getSetting, invalidateSettingsCache, setSetting } from "#lib/db/settings.ts";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 
 /**

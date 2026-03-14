@@ -20,18 +20,18 @@ import {
   createTestGroup,
   createTestHoliday,
   deactivateTestEvent,
-  expectCheckoutRedirect,
   expectHtmlResponse,
   expectRedirect,
   getTicketCsrfToken,
+  testCookie,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
   setupStripe,
+  expectCheckoutRedirect,
   submitMultiTicketForm,
   submitTicketForm,
-  testCookie,
   updateTestEvent,
 } from "#test-utils";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
@@ -204,37 +204,26 @@ describe("server (public routes)", () => {
     });
 
     test("hidden event is still accessible via direct ticket URL", async () => {
-      const event = await createTestEvent({
-        name: "Secret Event",
-        hidden: true,
-      });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const event = await createTestEvent({ name: "Secret Event", hidden: true });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       await expectHtmlResponse(response, 200, "Secret Event");
     });
 
     test("hidden event ticket page has noindex x-robots-tag", async () => {
       const event = await createTestEvent({ hidden: true });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     });
 
     test("non-hidden event ticket page has index x-robots-tag", async () => {
       const event = await createTestEvent();
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       expect(response.headers.get("x-robots-tag")).toBe("index, follow");
     });
 
     test("x-robots-noindex signal header is not leaked to client", async () => {
       const event = await createTestEvent({ hidden: true });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       expect(response.headers.has("x-robots-noindex")).toBe(false);
     });
 
@@ -1818,9 +1807,7 @@ describe("server (public routes)", () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const origCreate = attendeesApi.createAttendeeAtomic;
       let callCount = 0;
-      const mockCreate = stub(
-        attendeesApi,
-        "createAttendeeAtomic",
+      const mockCreate = stub(attendeesApi, "createAttendeeAtomic",
         (...args: Parameters<typeof origCreate>) => {
           callCount++;
           if (callCount === 2) {
@@ -2386,14 +2373,11 @@ describe("server (public routes)", () => {
       });
 
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockAtomic = stub(
-        attendeesApi,
-        "createAttendeeAtomic",
-        () =>
-          Promise.resolve({
-            success: false,
-            reason: "encryption_error",
-          }),
+      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic",
+        () => Promise.resolve({
+          success: false,
+          reason: "encryption_error",
+        }),
       );
 
       try {
@@ -2484,9 +2468,7 @@ describe("server (public routes)", () => {
       // Mock checkBatchAvailability via attendeesApi to return false,
       // simulating a race condition where event sells out between page load and check
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockBatch = stub(
-        attendeesApi,
-        "checkBatchAvailability",
+      const mockBatch = stub(attendeesApi, "checkBatchAvailability",
         () => Promise.resolve(false),
       );
 
@@ -2647,9 +2629,7 @@ describe("server (public routes)", () => {
       // Mock paymentsApi.getConfiguredProvider to return null so getActivePaymentProvider
       // returns null, while isPaymentsEnabled still returns true from the DB
       const { paymentsApi } = await import("#lib/payments.ts");
-      const mockConfigured = stub(
-        paymentsApi,
-        "getConfiguredProvider",
+      const mockConfigured = stub(paymentsApi, "getConfiguredProvider",
         () => Promise.resolve(null),
       );
 
@@ -3520,18 +3500,11 @@ describe("server (public routes)", () => {
     });
 
     const payMoreEvent = (overrides: Record<string, unknown> = {}) =>
-      createTestEvent({
-        unitPrice: 1000,
-        canPayMore: true,
-        maxAttendees: 50,
-        ...overrides,
-      });
+      createTestEvent({ unitPrice: 1000, canPayMore: true, maxAttendees: 50, ...overrides });
 
     test("GET shows price input when can_pay_more is enabled", async () => {
       const event = await payMoreEvent();
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).toContain('name="custom_price"');
       expect(html).toContain("Your Price (£10 minimum)");
@@ -3540,22 +3513,15 @@ describe("server (public routes)", () => {
     });
 
     test("GET does not show price input when can_pay_more is disabled", async () => {
-      const event = await createTestEvent({
-        unitPrice: 1000,
-        maxAttendees: 50,
-      });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const event = await createTestEvent({ unitPrice: 1000, maxAttendees: 50 });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).not.toContain('name="custom_price"');
     });
 
     test("GET shows price input for can_pay_more events with zero unit_price", async () => {
       const event = await payMoreEvent({ unitPrice: undefined });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).toContain('name="custom_price"');
       expect(html).toContain("Your Price (optional, up to £100)");
@@ -3564,9 +3530,7 @@ describe("server (public routes)", () => {
 
     test("GET shows optional price input for free can_pay_more events", async () => {
       const event = await payMoreEvent({ unitPrice: 0 });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).toContain('name="custom_price"');
       expect(html).toContain("Your Price (optional, up to £100)");
@@ -3577,9 +3541,7 @@ describe("server (public routes)", () => {
       await setupStripe();
       const event = await payMoreEvent({ unitPrice: 0 });
       const response = await submitTicketForm(event.slug, {
-        name: "Donor",
-        email: "donor@example.com",
-        quantity: "1",
+        name: "Donor", email: "donor@example.com", quantity: "1",
         custom_price: "5.00",
       });
       expectCheckoutRedirect(response);
@@ -3588,9 +3550,7 @@ describe("server (public routes)", () => {
     test("POST free can_pay_more with empty price registers for free", async () => {
       const event = await payMoreEvent({ unitPrice: 0 });
       const response = await submitTicketForm(event.slug, {
-        name: "Freebie",
-        email: "free@example.com",
-        quantity: "1",
+        name: "Freebie", email: "free@example.com", quantity: "1",
         custom_price: "",
       });
       expect(response.status).toBe(302);
@@ -3604,9 +3564,7 @@ describe("server (public routes)", () => {
     test("POST free can_pay_more with zero price registers for free", async () => {
       const event = await payMoreEvent({ unitPrice: 0 });
       const response = await submitTicketForm(event.slug, {
-        name: "Freebie",
-        email: "free@example.com",
-        quantity: "1",
+        name: "Freebie", email: "free@example.com", quantity: "1",
         custom_price: "0",
       });
       expect(response.status).toBe(302);
@@ -3620,9 +3578,7 @@ describe("server (public routes)", () => {
     test("POST rejects price below minimum", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "5.00",
       });
       const html = await response.text();
@@ -3633,9 +3589,7 @@ describe("server (public routes)", () => {
       await setupStripe();
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "10.00",
       });
       expectCheckoutRedirect(response);
@@ -3645,9 +3599,7 @@ describe("server (public routes)", () => {
       await setupStripe();
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "25.00",
       });
       expectCheckoutRedirect(response);
@@ -3656,9 +3608,7 @@ describe("server (public routes)", () => {
     test("POST rejects price above maximum", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "150.00",
       });
       const html = await response.text();
@@ -3669,9 +3619,7 @@ describe("server (public routes)", () => {
       await setupStripe();
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "100.00",
       });
       expectCheckoutRedirect(response);
@@ -3679,18 +3627,14 @@ describe("server (public routes)", () => {
 
     test("GET shows min price in label", async () => {
       const event = await payMoreEvent();
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).toContain("£10 minimum");
     });
 
     test("GET shows max price for free can_pay_more event", async () => {
       const event = await payMoreEvent({ unitPrice: 0 });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).toContain("up to £100");
     });
@@ -3698,9 +3642,7 @@ describe("server (public routes)", () => {
     test("POST rejects empty custom_price for paid can_pay_more event", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "",
       });
       const html = await response.text();
@@ -3710,9 +3652,7 @@ describe("server (public routes)", () => {
     test("POST rejects invalid custom_price", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "abc",
       });
       const html = await response.text();
@@ -3722,9 +3662,7 @@ describe("server (public routes)", () => {
     test("POST rejects negative custom_price", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "-5.00",
       });
       const html = await response.text();
@@ -3732,18 +3670,9 @@ describe("server (public routes)", () => {
     });
 
     test("GET multi-ticket page shows pay-more inputs only for can_pay_more events", async () => {
-      const event1 = await payMoreEvent({
-        name: "Pay More Multi",
-        unitPrice: 500,
-      });
-      const event2 = await createTestEvent({
-        name: "Normal Multi",
-        unitPrice: 1000,
-        maxAttendees: 50,
-      });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
+      const event1 = await payMoreEvent({ name: "Pay More Multi", unitPrice: 500 });
+      const event2 = await createTestEvent({ name: "Normal Multi", unitPrice: 1000, maxAttendees: 50 });
+      const response = await handleRequest(mockRequest(`/ticket/${event1.slug}+${event2.slug}`));
       const html = await response.text();
       expect(html).toContain(`name="custom_price_${event1.id}"`);
       expect(html).not.toContain(`name="custom_price_${event2.id}"`);
@@ -3751,46 +3680,24 @@ describe("server (public routes)", () => {
 
     test("POST multi-ticket with can_pay_more redirects to checkout", async () => {
       await setupStripe();
-      const event1 = await payMoreEvent({
-        name: "Pay More A",
-        unitPrice: 500,
-        maxQuantity: 5,
-      });
-      const event2 = await createTestEvent({
-        name: "Normal B",
-        unitPrice: 1000,
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
+      const event1 = await payMoreEvent({ name: "Pay More A", unitPrice: 500, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal B", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
-        email: "john@example.com",
-        [`quantity_${event1.id}`]: "1",
-        [`quantity_${event2.id}`]: "1",
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "1", [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "15.00",
       });
       expectCheckoutRedirect(response);
     });
 
     test("POST multi-ticket rejects custom_price below minimum", async () => {
-      const event1 = await payMoreEvent({
-        name: "Pay More Reject",
-        unitPrice: 500,
-        maxQuantity: 5,
-      });
-      const event2 = await createTestEvent({
-        name: "Normal Reject",
-        unitPrice: 1000,
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
+      const event1 = await payMoreEvent({ name: "Pay More Reject", unitPrice: 500, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal Reject", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
-        email: "john@example.com",
-        [`quantity_${event1.id}`]: "1",
-        [`quantity_${event2.id}`]: "1",
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "1", [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "2.00",
       });
       const html = await response.text();
@@ -3798,23 +3705,12 @@ describe("server (public routes)", () => {
     });
 
     test("POST multi-ticket rejects custom_price above maximum", async () => {
-      const event1 = await payMoreEvent({
-        name: "Pay More Max Reject",
-        unitPrice: 500,
-        maxQuantity: 5,
-      });
-      const event2 = await createTestEvent({
-        name: "Normal Max Reject",
-        unitPrice: 1000,
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
+      const event1 = await payMoreEvent({ name: "Pay More Max Reject", unitPrice: 500, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal Max Reject", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
-        email: "john@example.com",
-        [`quantity_${event1.id}`]: "1",
-        [`quantity_${event2.id}`]: "1",
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "1", [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "200.00",
       });
       const html = await response.text();
@@ -3823,46 +3719,24 @@ describe("server (public routes)", () => {
 
     test("POST multi-ticket skips price check for can_pay_more event with qty 0", async () => {
       await setupStripe();
-      const event1 = await payMoreEvent({
-        name: "Pay More Skip",
-        unitPrice: 500,
-        maxQuantity: 5,
-      });
-      const event2 = await createTestEvent({
-        name: "Normal Skip",
-        unitPrice: 1000,
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
+      const event1 = await payMoreEvent({ name: "Pay More Skip", unitPrice: 500, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal Skip", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
-        email: "john@example.com",
-        [`quantity_${event1.id}`]: "0",
-        [`quantity_${event2.id}`]: "1",
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "0", [`quantity_${event2.id}`]: "1",
       });
       expectCheckoutRedirect(response);
     });
 
     test("POST multi-ticket free can_pay_more with custom price redirects to checkout", async () => {
       await setupStripe();
-      const event1 = await payMoreEvent({
-        name: "Free Donate",
-        unitPrice: 0,
-        maxQuantity: 5,
-      });
-      const event2 = await createTestEvent({
-        name: "Normal Paid",
-        unitPrice: 1000,
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
+      const event1 = await payMoreEvent({ name: "Free Donate", unitPrice: 0, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal Paid", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
-        email: "john@example.com",
-        [`quantity_${event1.id}`]: "1",
-        [`quantity_${event2.id}`]: "1",
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "1", [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "5.00",
       });
       expectCheckoutRedirect(response);
@@ -3870,23 +3744,12 @@ describe("server (public routes)", () => {
 
     test("POST multi-ticket free can_pay_more with zero price still processes paid event", async () => {
       await setupStripe();
-      const event1 = await payMoreEvent({
-        name: "Free No Donate",
-        unitPrice: 0,
-        maxQuantity: 5,
-      });
-      const event2 = await createTestEvent({
-        name: "Normal Paid 2",
-        unitPrice: 1000,
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
+      const event1 = await payMoreEvent({ name: "Free No Donate", unitPrice: 0, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal Paid 2", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
-        email: "john@example.com",
-        [`quantity_${event1.id}`]: "1",
-        [`quantity_${event2.id}`]: "1",
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "1", [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "0",
       });
       expectCheckoutRedirect(response);
@@ -3894,21 +3757,14 @@ describe("server (public routes)", () => {
 
     test("admin edit page shows can_pay_more checked for enabled event", async () => {
       const event = await payMoreEvent();
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more" value="1" checked');
     });
 
     test("admin edit page shows can_pay_more unchecked for disabled event", async () => {
-      const event = await createTestEvent({
-        unitPrice: 1000,
-        maxAttendees: 50,
-      });
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie: await testCookie(),
-      });
+      const event = await createTestEvent({ unitPrice: 1000, maxAttendees: 50 });
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more"');
       expect(html).not.toContain('name="can_pay_more" value="1" checked');
@@ -3917,9 +3773,7 @@ describe("server (public routes)", () => {
     test("POST respects custom max_price", async () => {
       const event = await payMoreEvent({ maxPrice: 2000 });
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "25.00",
       });
       const html = await response.text();
@@ -3930,9 +3784,7 @@ describe("server (public routes)", () => {
       await setupStripe();
       const event = await payMoreEvent({ maxPrice: 5000 });
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
+        name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "45.00",
       });
       expectCheckoutRedirect(response);

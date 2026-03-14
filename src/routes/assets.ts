@@ -14,10 +14,7 @@ const CACHE_HEADERS = {
 };
 
 /** Create a handler that serves a static file with the given content type */
-const staticHandler = (
-  filename: string,
-  contentType: string,
-): () => Response => {
+const staticHandler = (filename: string, contentType: string): (() => Response) => {
   const content = encodeBody(Deno.readTextFileSync(join(staticDir, filename)));
   return () =>
     new Response(content, {
@@ -36,11 +33,5 @@ export const handleMvpCss = staticHandler("mvp.css", CSS);
 export const handleAdminJs = staticHandler("admin.js", JS);
 export const handleScannerJs = staticHandler("scanner.js", JS);
 export const handleEmbedJs = staticHandler("embed.js", JS);
-export const handleIframeResizerParentJs = staticHandler(
-  "iframe-resizer-parent.js",
-  JS,
-);
-export const handleIframeResizerChildJs = staticHandler(
-  "iframe-resizer-child.js",
-  JS,
-);
+export const handleIframeResizerParentJs = staticHandler("iframe-resizer-parent.js", JS);
+export const handleIframeResizerChildJs = staticHandler("iframe-resizer-child.js", JS);

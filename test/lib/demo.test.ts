@@ -1,19 +1,7 @@
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  it as test,
-} from "@std/testing/bdd";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
-import {
-  createTestDbWithSetup,
-  mockRequest,
-  resetDb,
-  setupTestEncryptionKey,
-} from "#test-utils";
+import { createTestDbWithSetup, mockRequest, resetDb, setupTestEncryptionKey } from "#test-utils";
 import {
   applyDemoOverrides,
   ATTENDEE_DEMO_FIELDS,
@@ -80,10 +68,7 @@ describe("demo", () => {
 
   describe("applyDemoOverrides", () => {
     test("returns form unchanged when demo mode is off", () => {
-      const form = new URLSearchParams({
-        name: "Real Name",
-        email: "real@example.com",
-      });
+      const form = new URLSearchParams({ name: "Real Name", email: "real@example.com" });
       const result = applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(result.get("name")).toBe("Real Name");
       expect(result.get("email")).toBe("real@example.com");
@@ -92,10 +77,7 @@ describe("demo", () => {
     test("replaces fields that exist in the form when demo mode is on", () => {
       Deno.env.set("DEMO_MODE", "true");
       resetDemoMode();
-      const form = new URLSearchParams({
-        name: "Real Name",
-        email: "real@example.com",
-      });
+      const form = new URLSearchParams({ name: "Real Name", email: "real@example.com" });
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(form.get("name")).not.toBe("Real Name");
       expect(DEMO_NAMES as readonly string[]).toContain(form.get("name"));
@@ -147,12 +129,8 @@ describe("demo", () => {
       });
       applyDemoOverrides(form, EVENT_DEMO_FIELDS);
       expect(DEMO_EVENT_NAMES as readonly string[]).toContain(form.get("name"));
-      expect(DEMO_EVENT_DESCRIPTIONS as readonly string[]).toContain(
-        form.get("description"),
-      );
-      expect(DEMO_EVENT_LOCATIONS as readonly string[]).toContain(
-        form.get("location"),
-      );
+      expect(DEMO_EVENT_DESCRIPTIONS as readonly string[]).toContain(form.get("description"));
+      expect(DEMO_EVENT_LOCATIONS as readonly string[]).toContain(form.get("location"));
     });
   });
 
@@ -164,32 +142,14 @@ describe("demo", () => {
       const resource = {
         table: {} as never,
         fields: [],
-        parseInput: (_form: URLSearchParams) =>
-          Promise.resolve({ ok: true as const, input: {} }),
-        parsePartialInput: (_form: URLSearchParams) =>
-          Promise.resolve({ ok: true as const, input: {} }),
-        create: (form: URLSearchParams) => {
-          lastCreateForm = form;
-          return Promise.resolve({
-            ok: true as const,
-            row: { id: 1, name: "" },
-          });
-        },
-        update: (_id: unknown, form: URLSearchParams) => {
-          lastUpdateForm = form;
-          return Promise.resolve({
-            ok: true as const,
-            row: { id: 1, name: "" },
-          });
-        },
+        parseInput: (_form: URLSearchParams) => Promise.resolve({ ok: true as const, input: {} }),
+        parsePartialInput: (_form: URLSearchParams) => Promise.resolve({ ok: true as const, input: {} }),
+        create: (form: URLSearchParams) => { lastCreateForm = form; return Promise.resolve({ ok: true as const, row: { id: 1, name: "" } }); },
+        update: (_id: unknown, form: URLSearchParams) => { lastUpdateForm = form; return Promise.resolve({ ok: true as const, row: { id: 1, name: "" } }); },
         delete: () => Promise.resolve({ ok: true as const }),
         verifyName: (_row: unknown, _name: string) => true,
       };
-      return {
-        resource,
-        getLastCreateForm: () => lastCreateForm,
-        getLastUpdateForm: () => lastUpdateForm,
-      };
+      return { resource, getLastCreateForm: () => lastCreateForm, getLastUpdateForm: () => lastUpdateForm };
     };
 
     test("delegates create with demo overrides applied", () => {
@@ -197,18 +157,13 @@ describe("demo", () => {
       resetDemoMode();
 
       const { resource, getLastCreateForm } = makeFakeResource();
-      const wrapped = wrapResourceForDemo(
-        resource,
-        { name: DEMO_GROUP_NAMES } as DemoFieldMap,
-      );
+      const wrapped = wrapResourceForDemo(resource, { name: DEMO_GROUP_NAMES } as DemoFieldMap);
 
       const form = new URLSearchParams({ name: "Real Group" });
       wrapped.create(form);
 
       // applyDemoOverrides mutates the form in place before passing to resource
-      expect(DEMO_GROUP_NAMES as readonly string[]).toContain(
-        getLastCreateForm()!.get("name"),
-      );
+      expect(DEMO_GROUP_NAMES as readonly string[]).toContain(getLastCreateForm()!.get("name"));
     });
 
     test("delegates update with demo overrides applied", () => {
@@ -216,34 +171,23 @@ describe("demo", () => {
       resetDemoMode();
 
       const { resource, getLastUpdateForm } = makeFakeResource();
-      const wrapped = wrapResourceForDemo(
-        resource,
-        { name: DEMO_HOLIDAY_NAMES } as DemoFieldMap,
-      );
+      const wrapped = wrapResourceForDemo(resource, { name: DEMO_HOLIDAY_NAMES } as DemoFieldMap);
 
       const form = new URLSearchParams({ name: "Real Holiday" });
       wrapped.update(42, form);
 
-      expect(DEMO_HOLIDAY_NAMES as readonly string[]).toContain(
-        getLastUpdateForm()!.get("name"),
-      );
+      expect(DEMO_HOLIDAY_NAMES as readonly string[]).toContain(getLastUpdateForm()!.get("name"));
     });
 
     test("preserves verifyName from original resource", () => {
       const { resource } = makeFakeResource();
-      const wrapped = wrapResourceForDemo(
-        resource,
-        { name: DEMO_NAMES } as DemoFieldMap,
-      );
+      const wrapped = wrapResourceForDemo(resource, { name: DEMO_NAMES } as DemoFieldMap);
       expect(wrapped.verifyName).toBe(resource.verifyName);
     });
 
     test("does not apply overrides when demo mode is off", () => {
       const { resource, getLastCreateForm } = makeFakeResource();
-      const wrapped = wrapResourceForDemo(
-        resource,
-        { name: DEMO_NAMES } as DemoFieldMap,
-      );
+      const wrapped = wrapResourceForDemo(resource, { name: DEMO_NAMES } as DemoFieldMap);
 
       const form = new URLSearchParams({ name: "Unchanged" });
       wrapped.create(form);

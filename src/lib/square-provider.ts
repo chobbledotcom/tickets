@@ -56,11 +56,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
   checkoutCompletedEventType: "payment.updated",
 
-  createCheckoutSession(
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ) {
+  createCheckoutSession(event: Event, intent: RegistrationIntent, baseUrl: string) {
     return withUserError(() => createPaymentLink(event, intent, baseUrl));
   },
 
@@ -104,9 +100,7 @@ export const squarePaymentProvider: PaymentProvider = {
     };
   },
 
-  verifyWebhookSignature(
-    ...args: Parameters<PaymentProvider["verifyWebhookSignature"]>
-  ) {
+  verifyWebhookSignature(...args: Parameters<PaymentProvider["verifyWebhookSignature"]>) {
     return verifyWebhookSignature(...args);
   },
 
@@ -129,8 +123,7 @@ export const squarePaymentProvider: PaymentProvider = {
     // and provides the signature key. This method is a no-op for Square.
     return Promise.resolve({
       success: false,
-      error:
-        "Square webhooks must be configured manually in the Square Developer Dashboard",
+      error: "Square webhooks must be configured manually in the Square Developer Dashboard",
     });
   },
 };

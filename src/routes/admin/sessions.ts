@@ -17,9 +17,7 @@ import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 /**
  * Handle GET /admin/sessions
  */
-const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> = (
-  request,
-) =>
+const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const sessions = await getAllSessions();
     const tokenHash = await hashSessionToken(session.token);
@@ -35,11 +33,7 @@ const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> = (
 const handleAdminSessionsPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session) => {
     await deleteOtherSessions(session.token);
-    return redirect(
-      "/admin/sessions",
-      "Logged out of all other sessions",
-      true,
-    );
+    return redirect("/admin/sessions", "Logged out of all other sessions", true);
   });
 
 /** Session management routes */

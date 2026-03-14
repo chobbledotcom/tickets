@@ -45,10 +45,7 @@ const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
   const usedSlugs = new Set<string>();
   const results: SlugWithIndex[] = [];
   for (let i = 0; i < count; i++) {
-    const result = await generateUniqueSlug(
-      hmacHash,
-      (slug) => Promise.resolve(usedSlugs.has(slug)),
-    );
+    const result = await generateUniqueSlug(hmacHash, (slug) => Promise.resolve(usedSlugs.has(slug)));
     usedSlugs.add(result.slug);
     results.push(result);
   }
@@ -56,76 +53,34 @@ const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
 };
 
 /** Prepare encrypted values for a single event */
-const prepareEvent = async (
-  index: number,
-  maxAttendees: number,
-  unitPrice: number,
-  slug: string,
-  slugIndex: string,
-) => {
+const prepareEvent = async (index: number, maxAttendees: number, unitPrice: number, slug: string, slugIndex: string) => {
   const name = DEMO_EVENT_NAMES[index % DEMO_EVENT_NAMES.length]!;
-  const description =
-    DEMO_EVENT_DESCRIPTIONS[index % DEMO_EVENT_DESCRIPTIONS.length]!;
+  const description = DEMO_EVENT_DESCRIPTIONS[index % DEMO_EVENT_DESCRIPTIONS.length]!;
   const location = DEMO_EVENT_LOCATIONS[index % DEMO_EVENT_LOCATIONS.length]!;
   const created = nowIso();
 
-  const [
-    encName,
-    encSlug,
-    encDesc,
-    encLoc,
-    encDate,
-    encThankYou,
-    encWebhook,
-    encClosesAt,
-    encImageUrl,
-  ] = await Promise.all([
-    encrypt(name),
-    encrypt(slug),
-    encrypt(description),
-    encrypt(location),
-    encrypt(""),
-    encrypt(""),
-    encrypt(""),
-    encrypt(""),
-    encrypt(""),
-  ]);
+  const [encName, encSlug, encDesc, encLoc, encDate, encThankYou, encWebhook, encClosesAt, encImageUrl] =
+    await Promise.all([
+      encrypt(name),
+      encrypt(slug),
+      encrypt(description),
+      encrypt(location),
+      encrypt(""),
+      encrypt(""),
+      encrypt(""),
+      encrypt(""),
+      encrypt(""),
+    ]);
 
   return {
-    sql:
-      `INSERT INTO events (name, slug, slug_index, description, date, location, group_id, created, max_attendees, thank_you_url, unit_price, max_quantity, webhook_url, active, fields, closes_at, event_type, bookable_days, minimum_days_before, maximum_days_after, image_url, non_transferable)
+    sql: `INSERT INTO events (name, slug, slug_index, description, date, location, group_id, created, max_attendees, thank_you_url, unit_price, max_quantity, webhook_url, active, fields, closes_at, event_type, bookable_days, minimum_days_before, maximum_days_after, image_url, non_transferable)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
-      encName,
-      encSlug,
-      slugIndex,
-      encDesc,
-      encDate,
-      encLoc,
-      0,
-      created,
-      maxAttendees,
-      encThankYou,
-      unitPrice,
-      4,
-      encWebhook,
-      1,
-      "email",
-      encClosesAt,
-      "standard",
-      JSON.stringify([
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-      ]),
-      1,
-      90,
-      encImageUrl,
-      0,
+      encName, encSlug, slugIndex, encDesc, encDate, encLoc,
+      0, created, maxAttendees, encThankYou, unitPrice, 4,
+      encWebhook, 1, "email", encClosesAt, "standard",
+      JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+      1, 90, encImageUrl, 0,
     ],
   };
 };
@@ -135,63 +90,32 @@ const piiEncryptor = (publicKeyJwk: string) => (value: string) =>
   encryptAttendeePII(value, publicKeyJwk);
 
 /** Prepare encrypted values for a single attendee */
-const prepareAttendee = async (
-  eventId: number,
-  publicKeyJwk: string,
-  quantity: number,
-  unitPrice: number,
-) => {
+const prepareAttendee = async (eventId: number, publicKeyJwk: string, quantity: number, unitPrice: number) => {
   const encPII = piiEncryptor(publicKeyJwk);
   const ticketToken = generateTicketToken();
   const created = nowIso();
   const pricePaid = String(unitPrice * quantity);
 
   // Encrypt contact fields, ticket metadata, and compute token index in parallel
-  const [
-    encContact,
-    encPaymentId,
-    encPricePaid,
-    encCheckedIn,
-    encRefunded,
-    encTicketToken,
-    ticketTokenIndex,
-  ] = await Promise.all([
-    Promise.all([
-      encPII(randomName()),
-      encPII(randomChoice(DEMO_EMAILS)),
-      encPII(randomChoice(DEMO_PHONES)),
-      encPII(randomChoice(DEMO_ADDRESSES)),
-      encPII(randomChoice(DEMO_SPECIAL_INSTRUCTIONS)),
-    ]),
-    unitPrice > 0 ? encPII(`pi_seed_${eventId}_${Date.now()}`) : encPII(""),
-    encrypt(pricePaid),
-    encPII("false"),
-    encPII("false"),
-    encPII(ticketToken),
-    computeTicketTokenIndex(ticketToken),
-  ]);
+  const [encContact, encPaymentId, encPricePaid, encCheckedIn, encRefunded, encTicketToken, ticketTokenIndex] =
+    await Promise.all([
+      Promise.all([encPII(randomName()), encPII(randomChoice(DEMO_EMAILS)), encPII(randomChoice(DEMO_PHONES)), encPII(randomChoice(DEMO_ADDRESSES)), encPII(randomChoice(DEMO_SPECIAL_INSTRUCTIONS))]),
+      unitPrice > 0 ? encPII(`pi_seed_${eventId}_${Date.now()}`) : encPII(""),
+      encrypt(pricePaid),
+      encPII("false"),
+      encPII("false"),
+      encPII(ticketToken),
+      computeTicketTokenIndex(ticketToken),
+    ]);
 
   const [encName, encEmail, encPhone, encAddress, encSpecial] = encContact;
   return {
-    sql:
-      `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
+    sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
-      eventId,
-      encName,
-      encEmail,
-      encPhone,
-      encAddress,
-      encSpecial,
-      created,
-      encPaymentId,
-      quantity,
-      encPricePaid,
-      encCheckedIn,
-      encRefunded,
-      encTicketToken,
-      ticketTokenIndex,
-      null,
+      eventId, encName, encEmail, encPhone, encAddress, encSpecial,
+      created, encPaymentId, quantity, encPricePaid, encCheckedIn, encRefunded,
+      encTicketToken, ticketTokenIndex, null,
     ],
   };
 };
@@ -215,37 +139,22 @@ export const createSeeds = async (
   if (!publicKeyJwk) throw new Error("Public key not configured");
 
   // Pre-compute random quantities for each event's attendees
-  const allQuantities = Array.from(
-    { length: eventCount },
-    () =>
-      map((_: number) => randomQuantity())(
-        Array.from({ length: attendeesPerEvent }, (_, i) => i),
-      ),
+  const allQuantities = Array.from({ length: eventCount }, () =>
+    map((_: number) => randomQuantity())(Array.from({ length: attendeesPerEvent }, (_, i) => i)),
   );
 
   // Each event's max_attendees = total quantity of its attendees
-  const eventCapacities = map((quantities: number[]) => sum(quantities))(
-    allQuantities,
-  );
+  const eventCapacities = map((quantities: number[]) => sum(quantities))(allQuantities);
 
   // Make half the events paid with a random unit price
-  const eventUnitPrices = Array.from(
-    { length: eventCount },
-    (_, i) => i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
+  const eventUnitPrices = Array.from({ length: eventCount }, (_, i) =>
+    i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
   );
 
   // Generate unique slugs sequentially, then prepare events in parallel
   const slugs = await generateUniqueSlugs(eventCount);
   const eventStatements = await Promise.all(
-    map((i: number) =>
-      prepareEvent(
-        i,
-        eventCapacities[i]!,
-        eventUnitPrices[i]!,
-        slugs[i]!.slug,
-        slugs[i]!.slugIndex,
-      )
-    )(Array.from({ length: eventCount }, (_, i) => i)),
+    map((i: number) => prepareEvent(i, eventCapacities[i]!, eventUnitPrices[i]!, slugs[i]!.slug, slugs[i]!.slugIndex))(Array.from({ length: eventCount }, (_, i) => i)),
   );
 
   // Insert events in a single batch and get their IDs
@@ -272,9 +181,7 @@ export const createSeeds = async (
       const batchSize = Math.min(CHUNK_SIZE, attendeesPerEvent - offset);
       const chunkQuantities = quantities.slice(offset, offset + batchSize);
       const attendeeStatements = await Promise.all(
-        map((i: number) =>
-          prepareAttendee(eventId, publicKeyJwk, chunkQuantities[i]!, unitPrice)
-        )(
+        map((i: number) => prepareAttendee(eventId, publicKeyJwk, chunkQuantities[i]!, unitPrice))(
           Array.from({ length: batchSize }, (_, i) => i),
         ),
       );

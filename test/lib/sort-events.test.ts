@@ -5,12 +5,7 @@ import { updateTimezone } from "#lib/db/settings.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import type { EventWithCount, Holiday } from "#lib/types.ts";
-import {
-  createTestDbWithSetup,
-  resetDb,
-  testEvent,
-  testEventWithCount,
-} from "#test-utils";
+import { createTestDbWithSetup, resetDb, testEvent, testEventWithCount } from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
@@ -34,18 +29,8 @@ describe("sortEvents", () => {
   });
 
   test("places no-date standard events before dated standard events", () => {
-    const noDate = testEvent({
-      id: 1,
-      name: "Undated",
-      event_type: "standard",
-      date: "",
-    });
-    const dated = testEvent({
-      id: 2,
-      name: "Dated",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
-    });
+    const noDate = testEvent({ id: 1, name: "Undated", event_type: "standard", date: "" });
+    const dated = testEvent({ id: 2, name: "Dated", event_type: "standard", date: "2026-06-15T14:00:00.000Z" });
 
     const sorted = sortEvents([dated, noDate], []);
     expect(sorted[0]!.name).toBe("Undated");
@@ -53,12 +38,7 @@ describe("sortEvents", () => {
   });
 
   test("places dated standard events before daily events", () => {
-    const dated = testEvent({
-      id: 1,
-      name: "Dated",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
-    });
+    const dated = testEvent({ id: 1, name: "Dated", event_type: "standard", date: "2026-06-15T14:00:00.000Z" });
     const daily = testEvent({ id: 2, name: "Daily", event_type: "daily" });
 
     const sorted = sortEvents([daily, dated], []);
@@ -67,12 +47,7 @@ describe("sortEvents", () => {
   });
 
   test("places no-date standard before daily events", () => {
-    const noDate = testEvent({
-      id: 1,
-      name: "Undated",
-      event_type: "standard",
-      date: "",
-    });
+    const noDate = testEvent({ id: 1, name: "Undated", event_type: "standard", date: "" });
     const daily = testEvent({ id: 2, name: "Daily", event_type: "daily" });
 
     const sorted = sortEvents([daily, noDate], []);
@@ -81,42 +56,17 @@ describe("sortEvents", () => {
   });
 
   test("sorts no-date standard events alphabetically by name", () => {
-    const c = testEvent({
-      id: 1,
-      name: "Charlie",
-      event_type: "standard",
-      date: "",
-    });
-    const a = testEvent({
-      id: 2,
-      name: "Alpha",
-      event_type: "standard",
-      date: "",
-    });
-    const b = testEvent({
-      id: 3,
-      name: "Bravo",
-      event_type: "standard",
-      date: "",
-    });
+    const c = testEvent({ id: 1, name: "Charlie", event_type: "standard", date: "" });
+    const a = testEvent({ id: 2, name: "Alpha", event_type: "standard", date: "" });
+    const b = testEvent({ id: 3, name: "Bravo", event_type: "standard", date: "" });
 
     const sorted = sortEvents([c, a, b], []);
     expect(sorted.map((e) => e.name)).toEqual(["Alpha", "Bravo", "Charlie"]);
   });
 
   test("sorts dated standard events by date ascending", () => {
-    const later = testEvent({
-      id: 1,
-      name: "Later",
-      event_type: "standard",
-      date: "2026-09-01T10:00:00.000Z",
-    });
-    const earlier = testEvent({
-      id: 2,
-      name: "Earlier",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
-    });
+    const later = testEvent({ id: 1, name: "Later", event_type: "standard", date: "2026-09-01T10:00:00.000Z" });
+    const earlier = testEvent({ id: 2, name: "Earlier", event_type: "standard", date: "2026-06-15T14:00:00.000Z" });
 
     const sorted = sortEvents([later, earlier], []);
     expect(sorted[0]!.name).toBe("Earlier");
@@ -124,18 +74,8 @@ describe("sortEvents", () => {
   });
 
   test("sorts dated standard events by name when dates are equal", () => {
-    const b = testEvent({
-      id: 1,
-      name: "Bravo",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
-    });
-    const a = testEvent({
-      id: 2,
-      name: "Alpha",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
-    });
+    const b = testEvent({ id: 1, name: "Bravo", event_type: "standard", date: "2026-06-15T14:00:00.000Z" });
+    const a = testEvent({ id: 2, name: "Alpha", event_type: "standard", date: "2026-06-15T14:00:00.000Z" });
 
     const sorted = sortEvents([b, a], []);
     expect(sorted[0]!.name).toBe("Alpha");
@@ -279,24 +219,9 @@ describe("sortEvents", () => {
   });
 
   test("sorts a mixed list of all three event types correctly", () => {
-    const daily = testEvent({
-      id: 1,
-      name: "Daily Event",
-      event_type: "daily",
-      minimum_days_before: 0,
-    });
-    const datedStandard = testEvent({
-      id: 2,
-      name: "Dated Standard",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
-    });
-    const nodateStandard = testEvent({
-      id: 3,
-      name: "No-Date Standard",
-      event_type: "standard",
-      date: "",
-    });
+    const daily = testEvent({ id: 1, name: "Daily Event", event_type: "daily", minimum_days_before: 0 });
+    const datedStandard = testEvent({ id: 2, name: "Dated Standard", event_type: "standard", date: "2026-06-15T14:00:00.000Z" });
+    const nodateStandard = testEvent({ id: 3, name: "No-Date Standard", event_type: "standard", date: "" });
 
     const sorted = sortEvents([daily, datedStandard, nodateStandard], []);
     expect(sorted.map((e) => e.name)).toEqual([
@@ -307,11 +232,7 @@ describe("sortEvents", () => {
   });
 
   test("preserves EventWithCount fields", () => {
-    const event = testEventWithCount({
-      id: 1,
-      name: "Test",
-      attendee_count: 42,
-    });
+    const event = testEventWithCount({ id: 1, name: "Test", attendee_count: 42 });
     const sorted = sortEvents([event], []);
     expect((sorted[0] as EventWithCount).attendee_count).toBe(42);
   });

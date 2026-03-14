@@ -50,11 +50,7 @@ export const logActivity = (
   message: string,
   event?: number | { id: number } | null,
 ): Promise<ActivityLogEntry> =>
-  activityLogTable.insert({
-    message,
-    eventId: (typeof event === "object" && event !== null ? event.id : event) ??
-      null,
-  });
+  activityLogTable.insert({ message, eventId: (typeof event === "object" && event !== null ? event.id : event) ?? null });
 
 /** Query activity log with optional event filter, decrypts messages */
 const queryActivityLog = async (
@@ -108,8 +104,7 @@ export const getEventWithActivityLog = async (
       args: [eventId],
     },
     {
-      sql:
-        `SELECT * FROM activity_log WHERE event_id = ? ORDER BY created DESC, id DESC LIMIT ?`,
+      sql: `SELECT * FROM activity_log WHERE event_id = ? ORDER BY created DESC, id DESC LIMIT ?`,
       args: [eventId, limit],
     },
   ]);

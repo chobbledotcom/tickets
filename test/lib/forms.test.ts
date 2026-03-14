@@ -23,10 +23,10 @@ import {
   mergeEventFields,
   setupFields,
   validateAddress,
+  validateSpecialInstructions,
   validateBookableDays,
   validateDate,
   validatePhone,
-  validateSpecialInstructions,
 } from "#templates/fields.ts";
 import {
   baseEventForm,
@@ -56,9 +56,7 @@ const rendered = (
 ): string => renderField(field(overrides), value);
 
 /** Helper: build event form data with overrides. */
-const eventForm = (
-  overrides: Record<string, string> = {},
-): Record<string, string> => ({
+const eventForm = (overrides: Record<string, string> = {}): Record<string, string> => ({
   ...baseEventForm,
   ...overrides,
 });
@@ -75,79 +73,44 @@ describe("forms", () => {
     });
 
     test("renders required attribute", () => {
-      const html = rendered({
-        name: "email",
-        label: "Email",
-        type: "email",
-        required: true,
-      });
+      const html = rendered({ name: "email", label: "Email", type: "email", required: true });
       expect(html).toContain("required");
     });
 
     test("renders placeholder", () => {
-      const html = rendered({
-        name: "name",
-        label: "Name",
-        placeholder: "Enter your name",
-      });
+      const html = rendered({ name: "name", label: "Name", placeholder: "Enter your name" });
       expect(html).toContain('placeholder="Enter your name"');
     });
 
     test("renders hint text", () => {
-      const html = rendered({
-        name: "password",
-        label: "Password",
-        type: "password",
-        hint: "Minimum 8 characters",
-      });
+      const html = rendered({ name: "password", label: "Password", type: "password", hint: "Minimum 8 characters" });
       expect(html).toContain("Minimum 8 characters");
       expect(html).toContain("<small");
     });
 
     test("renders hintHtml as raw HTML", () => {
-      const html = rendered({
-        name: "desc",
-        label: "Description",
-        hintHtml: '<a href="/guide">Help</a>',
-      });
+      const html = rendered({ name: "desc", label: "Description", hintHtml: '<a href="/guide">Help</a>' });
       expect(html).toContain('<a href="/guide">Help</a>');
       expect(html).toContain("<small");
     });
 
     test("renders min attribute for number", () => {
-      const html = rendered({
-        name: "quantity",
-        label: "Quantity",
-        type: "number",
-        min: 1,
-      });
+      const html = rendered({ name: "quantity", label: "Quantity", type: "number", min: 1 });
       expect(html).toContain('min="1"');
     });
 
     test("renders pattern attribute", () => {
-      const html = rendered({
-        name: "code",
-        label: "Code",
-        pattern: "[A-Z]{3}",
-      });
+      const html = rendered({ name: "code", label: "Code", pattern: "[A-Z]{3}" });
       expect(html).toContain('pattern="[A-Z]{3}"');
     });
 
     test("renders maxlength attribute", () => {
-      const html = rendered({
-        name: "desc",
-        label: "Description",
-        maxlength: 128,
-      });
+      const html = rendered({ name: "desc", label: "Description", maxlength: 128 });
       expect(html).toContain('maxlength="128"');
     });
 
     test("renders autocomplete attribute when provided", () => {
-      const html = rendered({
-        name: "name",
-        label: "Name",
-        autocomplete: "name",
-      });
+      const html = rendered({ name: "name", label: "Name", autocomplete: "name" });
       expect(html).toContain('autocomplete="name"');
     });
 
@@ -157,11 +120,7 @@ describe("forms", () => {
     });
 
     test("renders textarea for textarea type", () => {
-      const html = rendered({
-        name: "description",
-        label: "Description",
-        type: "textarea",
-      });
+      const html = rendered({ name: "description", label: "Description", type: "textarea" });
       expect(html).toContain("<textarea");
       expect(html).toContain('rows="3"');
       expect(html).not.toContain("<input");
@@ -173,20 +132,13 @@ describe("forms", () => {
     });
 
     test("escapes HTML in value", () => {
-      const html = rendered(
-        { name: "name", label: "Name" },
-        '<script>alert("xss")</script>',
-      );
+      const html = rendered({ name: "name", label: "Name" }, '<script>alert("xss")</script>');
       expect(html).toContain("&lt;script&gt;");
       expect(html).not.toContain("<script>");
     });
 
     test("renders textarea with value", () => {
-      const html = rendered({
-        name: "description",
-        label: "Description",
-        type: "textarea",
-      }, "Some description");
+      const html = rendered({ name: "description", label: "Description", type: "textarea" }, "Some description");
       expect(html).toContain(">Some description</textarea>");
     });
   });
@@ -216,18 +168,14 @@ describe("forms", () => {
     });
 
     test("handles null values", () => {
-      const fields: Field[] = [
-        field({ name: "price", label: "Price", type: "number" }),
-      ];
+      const fields: Field[] = [field({ name: "price", label: "Price", type: "number" })];
       const html = renderFields(fields, { price: null });
       expect(html).not.toContain('value="null"');
     });
   });
 
   describe("validateForm", () => {
-    const requiredName: Field[] = [
-      field({ name: "name", label: "Name", required: true }),
-    ];
+    const requiredName: Field[] = [field({ name: "name", label: "Name", required: true })];
 
     test("validates required fields", () => {
       expectInvalid("Name is required")(requiredName, { name: "" });
@@ -243,22 +191,13 @@ describe("forms", () => {
     });
 
     test("parses number fields", () => {
-      const fields: Field[] = [
-        field({
-          name: "quantity",
-          label: "Quantity",
-          type: "number",
-          required: true,
-        }),
-      ];
+      const fields: Field[] = [field({ name: "quantity", label: "Quantity", type: "number", required: true })];
       const values = expectValid(fields, { quantity: "42" });
       expect(values.quantity).toBe(42);
     });
 
     test("returns null for empty optional number", () => {
-      const fields: Field[] = [
-        field({ name: "price", label: "Price", type: "number" }),
-      ];
+      const fields: Field[] = [field({ name: "price", label: "Price", type: "number" })];
       const values = expectValid(fields, { price: "" });
       expect(values.price).toBeNull();
     });
@@ -315,10 +254,7 @@ describe("forms", () => {
       const fields: Field[] = [
         field({ name: "days", label: "Days", type: "checkbox-group" }),
       ];
-      const result = validateForm(
-        new URLSearchParams({ days: "Monday,Friday" }),
-        fields,
-      );
+      const result = validateForm(new URLSearchParams({ days: "Monday,Friday" }), fields);
       expect(result.valid).toBe(true);
       if (result.valid) {
         expect(result.values.days).toBe("Monday,Friday");
@@ -454,10 +390,7 @@ describe("forms", () => {
     });
 
     test("accepts valid email", () => {
-      expectValid(getTicketFields("email"), {
-        name: "John Doe",
-        email: "john@example.com",
-      });
+      expectValid(getTicketFields("email"), { name: "John Doe", email: "john@example.com" });
     });
   });
 
@@ -551,8 +484,7 @@ describe("forms", () => {
     });
 
     test("accepts multi-line address within limit", () => {
-      expect(validateAddress("123 Main St\nApt 4\nSpringfield, IL 62701"))
-        .toBeNull();
+      expect(validateAddress("123 Main St\nApt 4\nSpringfield, IL 62701")).toBeNull();
     });
   });
 
@@ -649,9 +581,7 @@ describe("forms", () => {
     });
 
     test("returns all five contact fields for email,phone,address,special_instructions setting", () => {
-      const fields = getTicketFields(
-        "email,phone,address,special_instructions",
-      );
+      const fields = getTicketFields("email,phone,address,special_instructions");
       expect(fields.length).toBe(5);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("email");
@@ -709,9 +639,7 @@ describe("forms", () => {
     });
 
     test("returns email,phone when all events use email,phone", () => {
-      expect(mergeEventFields(["email,phone", "email,phone"])).toBe(
-        "email,phone",
-      );
+      expect(mergeEventFields(["email,phone", "email,phone"])).toBe("email,phone");
     });
 
     test("returns email,phone when events differ (email + phone)", () => {
@@ -731,9 +659,7 @@ describe("forms", () => {
     });
 
     test("returns email,phone,address for all fields combined", () => {
-      expect(mergeEventFields(["email", "phone,address"])).toBe(
-        "email,phone,address",
-      );
+      expect(mergeEventFields(["email", "phone,address"])).toBe("email,phone,address");
     });
 
     test("sorts output in canonical CONTACT_FIELDS order", () => {
@@ -741,9 +667,7 @@ describe("forms", () => {
     });
 
     test("includes special_instructions when merged", () => {
-      expect(mergeEventFields(["email,special_instructions", "phone"])).toBe(
-        "email,phone,special_instructions",
-      );
+      expect(mergeEventFields(["email,special_instructions", "phone"])).toBe("email,phone,special_instructions");
     });
   });
 
@@ -780,10 +704,7 @@ describe("forms", () => {
     });
 
     test("validates fields select accepts email,phone,address,special_instructions", () => {
-      expectValid(
-        eventFields,
-        eventForm({ fields: "email,phone,address,special_instructions" }),
-      );
+      expectValid(eventFields, eventForm({ fields: "email,phone,address,special_instructions" }));
     });
   });
 
@@ -810,26 +731,18 @@ describe("forms", () => {
 
   describe("eventFields Bookable Days validation", () => {
     test("validates bookable_days accepts valid days", () => {
-      expectValid(
-        eventFields,
-        eventForm({ bookable_days: "Monday,Wednesday,Friday" }),
-      );
+      expectValid(eventFields, eventForm({ bookable_days: "Monday,Wednesday,Friday" }));
     });
 
     test("validates bookable_days accepts all days", () => {
       expectValid(
         eventFields,
-        eventForm({
-          bookable_days:
-            "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-        }),
+        eventForm({ bookable_days: "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday" }),
       );
     });
 
     test("validates bookable_days rejects invalid day name", () => {
-      expectInvalid(
-        "Invalid day: Funday. Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
-      )(
+      expectInvalid("Invalid day: Funday. Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday")(
         eventFields,
         eventForm({ bookable_days: "Monday,Funday" }),
       );
@@ -863,10 +776,7 @@ describe("forms", () => {
     });
 
     test("accepts valid phone for phone-only events", () => {
-      expectValid(getTicketFields("phone"), {
-        name: "John Doe",
-        phone: "+1 555 123 4567",
-      });
+      expectValid(getTicketFields("phone"), { name: "John Doe", phone: "+1 555 123 4567" });
     });
 
     test("validates both email and phone for email,phone setting", () => {
@@ -895,9 +805,7 @@ describe("forms", () => {
   });
 
   describe("holidayFields validation", () => {
-    const holidayForm = (
-      overrides: Record<string, string> = {},
-    ): Record<string, string> => ({
+    const holidayForm = (overrides: Record<string, string> = {}): Record<string, string> => ({
       name: "Bank Holiday",
       start_date: "2026-12-25",
       end_date: "2026-12-25",
@@ -905,24 +813,15 @@ describe("forms", () => {
     });
 
     test("validates required name", () => {
-      expectInvalid("Holiday Name is required")(
-        holidayFields,
-        holidayForm({ name: "" }),
-      );
+      expectInvalid("Holiday Name is required")(holidayFields, holidayForm({ name: "" }));
     });
 
     test("validates required start_date", () => {
-      expectInvalid("Start Date is required")(
-        holidayFields,
-        holidayForm({ start_date: "" }),
-      );
+      expectInvalid("Start Date is required")(holidayFields, holidayForm({ start_date: "" }));
     });
 
     test("validates required end_date", () => {
-      expectInvalid("End Date is required")(
-        holidayFields,
-        holidayForm({ end_date: "" }),
-      );
+      expectInvalid("End Date is required")(holidayFields, holidayForm({ end_date: "" }));
     });
 
     test("validates start_date format", () => {
@@ -947,10 +846,7 @@ describe("forms", () => {
     });
 
     test("accepts multi-day holiday", () => {
-      expectValid(
-        holidayFields,
-        holidayForm({ start_date: "2026-12-24", end_date: "2026-12-26" }),
-      );
+      expectValid(holidayFields, holidayForm({ start_date: "2026-12-24", end_date: "2026-12-26" }));
     });
   });
 
@@ -964,21 +860,15 @@ describe("forms", () => {
     });
 
     test("rejects wrong format", () => {
-      expect(validateDate("12/25/2026")).toBe(
-        "Please enter a valid date (YYYY-MM-DD)",
-      );
+      expect(validateDate("12/25/2026")).toBe("Please enter a valid date (YYYY-MM-DD)");
     });
 
     test("rejects partial date", () => {
-      expect(validateDate("2026-12")).toBe(
-        "Please enter a valid date (YYYY-MM-DD)",
-      );
+      expect(validateDate("2026-12")).toBe("Please enter a valid date (YYYY-MM-DD)");
     });
 
     test("rejects text", () => {
-      expect(validateDate("not-a-date")).toBe(
-        "Please enter a valid date (YYYY-MM-DD)",
-      );
+      expect(validateDate("not-a-date")).toBe("Please enter a valid date (YYYY-MM-DD)");
     });
 
     test("rejects empty string", () => {
@@ -992,32 +882,20 @@ describe("forms", () => {
 
   describe("renderField date type", () => {
     test("renders date input", () => {
-      const html = rendered({
-        name: "start_date",
-        label: "Start Date",
-        type: "date",
-      });
+      const html = rendered({ name: "start_date", label: "Start Date", type: "date" });
       expect(html).toContain('type="date"');
       expect(html).toContain('name="start_date"');
     });
 
     test("renders date input with value", () => {
-      const html = rendered({
-        name: "start_date",
-        label: "Start Date",
-        type: "date",
-      }, "2026-12-25");
+      const html = rendered({ name: "start_date", label: "Start Date", type: "date" }, "2026-12-25");
       expect(html).toContain('value="2026-12-25"');
     });
   });
 
   describe("renderField datetime type", () => {
     test("renders split date and time inputs", () => {
-      const html = rendered({
-        name: "closes_at",
-        label: "Closes At",
-        type: "datetime",
-      });
+      const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" });
       expect(html).toContain('type="date"');
       expect(html).toContain('name="closes_at_date"');
       expect(html).toContain('placeholder="Date"');
@@ -1027,21 +905,13 @@ describe("forms", () => {
     });
 
     test("renders split inputs with value", () => {
-      const html = rendered({
-        name: "closes_at",
-        label: "Closes At",
-        type: "datetime",
-      }, "2099-06-15T14:30");
+      const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" }, "2099-06-15T14:30");
       expect(html).toContain('value="2099-06-15"');
       expect(html).toContain('value="14:30"');
     });
 
     test("renders split inputs without value", () => {
-      const html = rendered({
-        name: "closes_at",
-        label: "Closes At",
-        type: "datetime",
-      }, "");
+      const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" }, "");
       expect(html).not.toContain("value=");
     });
   });
@@ -1053,10 +923,7 @@ describe("forms", () => {
 
     test("combines date and time into datetime string", () => {
       const result = validateForm(
-        new URLSearchParams({
-          closes_at_date: "2099-06-15",
-          closes_at_time: "14:30",
-        }),
+        new URLSearchParams({ closes_at_date: "2099-06-15", closes_at_time: "14:30" }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
@@ -1078,12 +945,7 @@ describe("forms", () => {
 
     test("rejects empty required datetime", () => {
       const requiredDatetime: Field[] = [
-        field({
-          name: "closes_at",
-          label: "Closes At",
-          type: "datetime",
-          required: true,
-        }),
+        field({ name: "closes_at", label: "Closes At", type: "datetime", required: true }),
       ];
       const result = validateForm(
         new URLSearchParams({ closes_at_date: "", closes_at_time: "" }),
@@ -1097,10 +959,7 @@ describe("forms", () => {
 
     test("defaults time to 00:00 when only date is provided", () => {
       const result = validateForm(
-        new URLSearchParams({
-          closes_at_date: "2099-06-15",
-          closes_at_time: "",
-        }),
+        new URLSearchParams({ closes_at_date: "2099-06-15", closes_at_time: "" }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
@@ -1116,9 +975,7 @@ describe("forms", () => {
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.error).toBe(
-          "Please enter a date when providing a time, or leave both blank",
-        );
+        expect(result.error).toBe("Please enter a date when providing a time, or leave both blank");
       }
     });
   });
@@ -1196,9 +1053,7 @@ describe("forms", () => {
 
     test("setup password fields have autocomplete=new-password", () => {
       const pwField = setupFields.find((f) => f.name === "admin_password");
-      const confirmField = setupFields.find((f) =>
-        f.name === "admin_password_confirm"
-      );
+      const confirmField = setupFields.find((f) => f.name === "admin_password_confirm");
       expect(pwField!.autocomplete).toBe("new-password");
       expect(confirmField!.autocomplete).toBe("new-password");
     });
@@ -1228,11 +1083,7 @@ describe("forms", () => {
     });
 
     test("accepts all days of the week", () => {
-      expect(
-        validateBookableDays(
-          "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-        ),
-      ).toBeNull();
+      expect(validateBookableDays("Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday")).toBeNull();
     });
 
     test("trims whitespace around day names", () => {
@@ -1240,9 +1091,7 @@ describe("forms", () => {
     });
 
     test("rejects invalid day name", () => {
-      expect(validateBookableDays("Monday,Funday")).toContain(
-        "Invalid day: Funday",
-      );
+      expect(validateBookableDays("Monday,Funday")).toContain("Invalid day: Funday");
     });
 
     test("rejects empty string after splitting", () => {
@@ -1263,9 +1112,7 @@ describe("forms", () => {
 
     test("includes hidden csrf_token input with stored token", () => {
       const html = String(CsrfForm({ action: "/submit" }));
-      expect(html).toContain(
-        `<input type="hidden" name="csrf_token" value="${getCurrentCsrfToken()}"`,
-      );
+      expect(html).toContain(`<input type="hidden" name="csrf_token" value="${getCurrentCsrfToken()}"`);
     });
 
     test("passes through class attribute", () => {
@@ -1274,24 +1121,18 @@ describe("forms", () => {
     });
 
     test("passes through enctype for multipart forms", () => {
-      const html = String(
-        CsrfForm({ action: "/upload", enctype: "multipart/form-data" }),
-      );
+      const html = String(CsrfForm({ action: "/upload", enctype: "multipart/form-data" }));
       expect(html).toContain('enctype="multipart/form-data"');
     });
 
     test("renders children inside the form", () => {
-      const html = String(
-        CsrfForm({ action: "/submit", children: "Submit here" }),
-      );
+      const html = String(CsrfForm({ action: "/submit", children: "Submit here" }));
       expect(html).toContain("Submit here");
       expect(html).toContain("</form>");
     });
 
     test("renders id attribute when provided", () => {
-      const html = String(
-        CsrfForm({ action: "/submit", id: "settings-timezone" }),
-      );
+      const html = String(CsrfForm({ action: "/submit", id: "settings-timezone" }));
       expect(html).toContain('id="settings-timezone"');
     });
 

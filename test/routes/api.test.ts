@@ -5,9 +5,9 @@ import { handleRequest } from "#routes";
 import { updateShowPublicApi } from "#lib/db/settings.ts";
 import {
   createDailyTestEvent,
-  createTestAttendeeDirect,
   createTestDbWithSetup,
   createTestEvent,
+  createTestAttendeeDirect,
   deactivateTestEvent,
   resetDb,
   resetTestSlugCounter,
@@ -122,13 +122,8 @@ describe("Public API", () => {
 
   describe("GET /api/events/:slug", () => {
     test("returns event details by slug", async () => {
-      const event = await createTestEvent({
-        name: "My Event",
-        description: "Hello",
-      });
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}`),
-      );
+      const event = await createTestEvent({ name: "My Event", description: "Hello" });
+      const response = await handleRequest(apiRequest(`/api/events/${event.slug}`));
       expect(response.status).toBe(200);
       const body = await jsonBody(response);
       const apiEvent = body.event as Record<string, unknown>;
@@ -138,9 +133,7 @@ describe("Public API", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(
-        apiRequest("/api/events/nonexistent"),
-      );
+      const response = await handleRequest(apiRequest("/api/events/nonexistent"));
       expect(response.status).toBe(404);
       const body = await jsonBody(response);
       expect(body.error).toBe("Event not found");
@@ -149,20 +142,13 @@ describe("Public API", () => {
     test("returns 404 for inactive event", async () => {
       const event = await createTestEvent();
       await deactivateTestEvent(event.id);
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}`),
-      );
+      const response = await handleRequest(apiRequest(`/api/events/${event.slug}`));
       expect(response.status).toBe(404);
     });
 
     test("allows hidden events to be accessed by slug", async () => {
-      const event = await createTestEvent({
-        name: "Hidden Event",
-        hidden: true,
-      });
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}`),
-      );
+      const event = await createTestEvent({ name: "Hidden Event", hidden: true });
+      const response = await handleRequest(apiRequest(`/api/events/${event.slug}`));
       expect(response.status).toBe(200);
       const body = await jsonBody(response);
       expect((body.event as Record<string, unknown>).name).toBe("Hidden Event");
@@ -170,9 +156,7 @@ describe("Public API", () => {
 
     test("includes availableDates for daily events", async () => {
       const event = await createDailyTestEvent();
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}`),
-      );
+      const response = await handleRequest(apiRequest(`/api/events/${event.slug}`));
       expect(response.status).toBe(200);
       const body = await jsonBody(response);
       const apiEvent = body.event as Record<string, unknown>;
@@ -182,9 +166,7 @@ describe("Public API", () => {
 
     test("does not include availableDates for standard events", async () => {
       const event = await createTestEvent();
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}`),
-      );
+      const response = await handleRequest(apiRequest(`/api/events/${event.slug}`));
       const body = await jsonBody(response);
       const apiEvent = body.event as Record<string, unknown>;
       expect(apiEvent.availableDates).toBeUndefined();
@@ -283,10 +265,7 @@ describe("Public API", () => {
     });
 
     test("returns 400 when required email is missing", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 10,
-        fields: "email",
-      });
+      const event = await createTestEvent({ maxAttendees: 10, fields: "email" });
       const response = await handleRequest(
         apiRequest(`/api/events/${event.slug}/book`, {
           method: "POST",
@@ -358,10 +337,7 @@ describe("Public API", () => {
     });
 
     test("caps quantity at max_quantity", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 2,
-      });
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 2 });
       const response = await handleRequest(
         apiRequest(`/api/events/${event.slug}/book`, {
           method: "POST",
@@ -447,8 +423,7 @@ describe("Public API", () => {
         apiRequest(`/api/events/${event.slug}`),
       );
       const detail = await jsonBody(detailResponse);
-      const dates = (detail.event as Record<string, unknown>)
-        .availableDates as string[];
+      const dates = (detail.event as Record<string, unknown>).availableDates as string[];
       expect(dates.length).toBeGreaterThan(0);
 
       const response = await handleRequest(
@@ -628,10 +603,7 @@ describe("Public API", () => {
     });
 
     test("handles booking when email not in event fields", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 10,
-        fields: "phone",
-      });
+      const event = await createTestEvent({ maxAttendees: 10, fields: "phone" });
       const response = await handleRequest(
         apiRequest(`/api/events/${event.slug}/book`, {
           method: "POST",
@@ -650,10 +622,8 @@ describe("Public API", () => {
         unitPrice: 1000,
       });
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () => Promise.resolve(null),
+      const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
+        Promise.resolve(null),
       );
       try {
         const response = await handleRequest(
@@ -677,10 +647,8 @@ describe("Public API", () => {
         unitPrice: 1000,
       });
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () => Promise.resolve({ error: "Invalid amount" }),
+      const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
+        Promise.resolve({ error: "Invalid amount" }),
       );
       try {
         const response = await handleRequest(
@@ -700,14 +668,8 @@ describe("Public API", () => {
     test("returns 500 on encryption error for free event", async () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const event = await createTestEvent({ maxAttendees: 10 });
-      const mockCreate = stub(
-        attendeesApi,
-        "createAttendeeAtomic",
-        () =>
-          Promise.resolve({
-            success: false as const,
-            reason: "encryption_error" as const,
-          }),
+      const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
+        Promise.resolve({ success: false as const, reason: "encryption_error" as const }),
       );
       try {
         const response = await handleRequest(

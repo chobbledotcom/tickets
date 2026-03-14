@@ -58,13 +58,14 @@ export interface DeleteHandlerOptions<R> {
 type IdHandler = (req: Request, id: InValue) => Promise<Response>;
 
 /** Require auth and dispatch with ID */
-const authHandler = (
-  handler: (req: Request, id: InValue, auth: AuthOk) => MaybeAsync<Response>,
-): IdHandler =>
-async (req, id) => {
-  const a = await requireAuthForm(req);
-  return a.ok ? handler(req, id, a) : a.response;
-};
+const authHandler =
+  (
+    handler: (req: Request, id: InValue, auth: AuthOk) => MaybeAsync<Response>,
+  ): IdHandler =>
+  async (req, id) => {
+    const a = await requireAuthForm(req);
+    return a.ok ? handler(req, id, a) : a.response;
+  };
 
 /** Dispatch create result */
 const dispatchCreate = <R>(

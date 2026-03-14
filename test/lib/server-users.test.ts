@@ -26,6 +26,8 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
+  testCookie,
+  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -34,8 +36,6 @@ import {
   submitJoinForm,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
-  testCookie,
-  testCsrfToken,
 } from "#test-utils";
 
 describe("server (multi-user admin)", () => {
@@ -145,24 +145,14 @@ describe("server (multi-user admin)", () => {
   describe("isInviteExpired", () => {
     test("returns true for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
-      const user = await createInvitedUser(
-        "expired-check",
-        "manager",
-        "somehash",
-        expiry,
-      );
+      const user = await createInvitedUser("expired-check", "manager", "somehash", expiry);
 
       expect(await isInviteExpired(user)).toBe(true);
     });
 
     test("returns false for valid invite", async () => {
       const expiry = new Date(Date.now() + 86400000).toISOString();
-      const user = await createInvitedUser(
-        "valid-check",
-        "manager",
-        "somehash",
-        expiry,
-      );
+      const user = await createInvitedUser("valid-check", "manager", "somehash", expiry);
 
       expect(await isInviteExpired(user)).toBe(false);
     });
@@ -221,23 +211,17 @@ describe("server (multi-user admin)", () => {
     });
 
     test("owner user can access settings page", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       expect(response.status).toBe(200);
     });
 
     test("owner user can access sessions page", async () => {
-      const response = await awaitTestRequest("/admin/sessions", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/sessions", { cookie: await testCookie() });
       expect(response.status).toBe(200);
     });
 
     test("owner user can access users page", async () => {
-      const response = await awaitTestRequest("/admin/users", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/users", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, "Users", TEST_ADMIN_USERNAME);
     });
 
@@ -258,9 +242,7 @@ describe("server (multi-user admin)", () => {
     });
 
     test("shows users list when authenticated as owner", async () => {
-      const response = await awaitTestRequest("/admin/users", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/users", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, TEST_ADMIN_USERNAME, "owner");
     });
   });
@@ -301,9 +283,7 @@ describe("server (multi-user admin)", () => {
     });
 
     test("renders invite user form when authenticated as owner", async () => {
-      const response = await awaitTestRequest("/admin/user/new", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/user/new", { cookie: await testCookie() });
       await expectHtmlResponse(
         response,
         200,
@@ -394,29 +374,17 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const response = await awaitTestRequest("/admin/users/2/delete", {
-        cookie: await testCookie(),
-      });
-      await expectHtmlResponse(
-        response,
-        200,
-        "Delete User",
-        "todelete",
-        "confirm_identifier",
-      );
+      const response = await awaitTestRequest("/admin/users/2/delete", { cookie: await testCookie() });
+      await expectHtmlResponse(response, 200, "Delete User", "todelete", "confirm_identifier");
     });
 
     test("returns 404 for nonexistent user", async () => {
-      const response = await awaitTestRequest("/admin/users/999/delete", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/users/999/delete", { cookie: await testCookie() });
       expect(response.status).toBe(404);
     });
 
     test("rejects deleting self", async () => {
-      const response = await awaitTestRequest("/admin/users/1/delete", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/users/1/delete", { cookie: await testCookie() });
       await expectHtmlResponse(response, 400, "Cannot delete your own account");
     });
   });
@@ -471,10 +439,7 @@ describe("server (multi-user admin)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "wrongname",
-          },
+          { csrf_token: await testCsrfToken(), confirm_identifier: "wrongname" },
           await testCookie(),
         ),
       );
@@ -511,10 +476,7 @@ describe("server (multi-user admin)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/1/delete",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: TEST_ADMIN_USERNAME,
-          },
+          { csrf_token: await testCsrfToken(), confirm_identifier: TEST_ADMIN_USERNAME },
           await testCookie(),
         ),
       );
@@ -542,10 +504,7 @@ describe("server (multi-user admin)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "otheradmin",
-          },
+          { csrf_token: await testCsrfToken(), confirm_identifier: "otheradmin" },
           await testCookie(),
         ),
       );
@@ -630,9 +589,7 @@ describe("server (multi-user admin)", () => {
         password_confirm: "newpassword123",
       });
 
-      expectRedirect("/join/complete?success=Password+set+successfully")(
-        joinPostResponse,
-      );
+      expectRedirect("/join/complete?success=Password+set+successfully")(joinPostResponse);
 
       // Verify user now has a password
       const user = await getUserByUsername("joiner2");
@@ -670,9 +627,7 @@ describe("server (multi-user admin)", () => {
 
   describe("navigation", () => {
     test("owner sees all nav links", async () => {
-      const response = await awaitTestRequest("/admin/", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("Settings");
       expect(html).toContain("Sessions");
@@ -732,9 +687,7 @@ describe("server (multi-user admin)", () => {
       );
       expect(activateResponse.status).toBe(302);
       const location = activateResponse.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "activated successfully",
-      );
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("activated successfully");
     });
 
     test("returns 404 for nonexistent user", async () => {
@@ -833,11 +786,7 @@ describe("server (multi-user admin)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users",
-          {
-            username: "",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
+          { username: "", admin_level: "manager", csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -957,9 +906,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const response = await awaitTestRequest("/admin/users", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/users", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("Invited");
     });
@@ -978,18 +925,14 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const expiredExpiry = await encrypt(
-        new Date(Date.now() - 1000).toISOString(),
-      );
+      const expiredExpiry = await encrypt(new Date(Date.now() - 1000).toISOString());
       await getDb().execute({
         sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",
         args: [expiredExpiry],
       });
       invalidateUsersCache();
 
-      const response = await awaitTestRequest("/admin/users", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/users", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("Invite Expired");
     });
@@ -1342,10 +1285,7 @@ describe("server (multi-user admin)", () => {
       await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "auditdelete",
-          },
+          { csrf_token: await testCsrfToken(), confirm_identifier: "auditdelete" },
           await testCookie(),
         ),
       );

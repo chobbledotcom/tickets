@@ -6,7 +6,7 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import { type PublicEvent, toPublicEvent } from "#routes/api.ts";
+import { toPublicEvent, type PublicEvent } from "#routes/api.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { EXAMPLE_EVENT } from "#lib/webhook-example.ts";
 
@@ -14,8 +14,7 @@ import { EXAMPLE_EVENT } from "#lib/webhook-example.ts";
 export const API_EXAMPLE_EVENT: EventWithCount = {
   id: 1,
   name: EXAMPLE_EVENT.name,
-  description:
-    "A hands-on workshop covering watercolours and sketching techniques. All materials provided.",
+  description: "A hands-on workshop covering watercolours and sketching techniques. All materials provided.",
   date: "Sat 20 Aug 2025, 10:00 AM",
   location: "Village Hall",
   slug: EXAMPLE_EVENT.slug,
@@ -43,9 +42,8 @@ export const API_EXAMPLE_EVENT: EventWithCount = {
 };
 
 /** The example PublicEvent, produced by toPublicEvent */
-export const API_EXAMPLE_PUBLIC_EVENT: PublicEvent = toPublicEvent(
-  API_EXAMPLE_EVENT,
-);
+export const API_EXAMPLE_PUBLIC_EVENT: PublicEvent =
+  toPublicEvent(API_EXAMPLE_EVENT);
 
 /** Example list response JSON */
 export const API_LIST_EXAMPLE_JSON: string = JSON.stringify(
@@ -56,12 +54,7 @@ export const API_LIST_EXAMPLE_JSON: string = JSON.stringify(
 
 /** Example single-event response JSON */
 export const API_SINGLE_EXAMPLE_JSON: string = JSON.stringify(
-  {
-    event: {
-      ...API_EXAMPLE_PUBLIC_EVENT,
-      availableDates: ["2025-08-20", "2025-08-21"],
-    },
-  },
+  { event: { ...API_EXAMPLE_PUBLIC_EVENT, availableDates: ["2025-08-20", "2025-08-21"] } },
   null,
   2,
 );

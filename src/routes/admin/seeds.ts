@@ -2,7 +2,7 @@
  * Admin seed data routes - populate database with sample events and attendees
  */
 
-import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
+import { SEED_MAX_ATTENDEES, createSeeds } from "#lib/seeds.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
@@ -17,7 +17,9 @@ export const MAX_SEED_EVENTS = 30;
 
 /** Handle GET /admin/seeds (show seed form) */
 const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = (request) =>
-  requireOwnerOr(request, (session) => htmlResponse(adminSeedsPage(session)));
+  requireOwnerOr(request, (session) =>
+    htmlResponse(adminSeedsPage(session)),
+  );
 
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
@@ -36,10 +38,7 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
       return htmlResponse(adminSeedsPage(session, undefined, result));
     } catch {
       return htmlResponse(
-        adminSeedsPage(
-          session,
-          "Failed to create seed data. Ensure setup is complete.",
-        ),
+        adminSeedsPage(session, "Failed to create seed data. Ensure setup is complete."),
         500,
       );
     }

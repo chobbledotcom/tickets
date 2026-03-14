@@ -16,16 +16,16 @@ const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
     <tr>
       <td>{new Date(entry.created).toLocaleString()}</td>
       <td>{entry.message}</td>
-    </tr>,
+    </tr>
   );
 
 /** Generate activity log table rows */
 const activityLogRows = (entries: ActivityLogEntry[]): string =>
   entries.length > 0
     ? pipe(
-      map((entry: ActivityLogEntry) => ActivityLogRow({ entry })),
-      joinStrings,
-    )(entries)
+        map((entry: ActivityLogEntry) => ActivityLogRow({ entry })),
+        joinStrings,
+      )(entries)
     : '<tr><td colspan="2">No activity recorded yet</td></tr>';
 
 /**
@@ -39,21 +39,21 @@ export const adminEventActivityLogPage = (
   String(
     <Layout title={`Log: ${event.name}`}>
       <AdminNav session={session} active="/admin/log" />
-      <h2>Log</h2>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={activityLogRows(entries)} />
-          </tbody>
-        </table>
-      </div>
-    </Layout>,
+        <h2>Log</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Raw html={activityLogRows(entries)} />
+            </tbody>
+          </table>
+        </div>
+    </Layout>
   );
 
 /**
@@ -67,20 +67,20 @@ export const adminGlobalActivityLogPage = (
   String(
     <Layout title="Log">
       <AdminNav session={session} active="/admin/log" />
-      <h2>Log</h2>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={activityLogRows(entries)} />
-          </tbody>
-        </table>
-      </div>
-      {truncated && <p>Showing the most recent 200 entries.</p>}
-    </Layout>,
+        <h2>Log</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Raw html={activityLogRows(entries)} />
+            </tbody>
+          </table>
+        </div>
+        {truncated && <p>Showing the most recent 200 entries.</p>}
+    </Layout>
   );

@@ -18,9 +18,7 @@ import { ErrorCode } from "#lib/logger.ts";
 describe("payment-helpers", () => {
   describe("errorMessage", () => {
     test("returns message from Error instance", () => {
-      expect(errorMessage(new Error("something broke"))).toBe(
-        "something broke",
-      );
+      expect(errorMessage(new Error("something broke"))).toBe("something broke");
     });
 
     test("returns 'Unknown error' for non-Error values", () => {
@@ -99,7 +97,7 @@ describe("payment-helpers", () => {
 
     test("passes client to operation and returns result", async () => {
       const withClient = createWithClient(() =>
-        Promise.resolve({ token: "abc" })
+        Promise.resolve({ token: "abc" }),
       );
       const result = await withClient(
         (client) => Promise.resolve(`got-${client.token}`),
@@ -110,7 +108,7 @@ describe("payment-helpers", () => {
 
     test("returns null when operation throws", async () => {
       const withClient = createWithClient(() =>
-        Promise.resolve({ token: "abc" })
+        Promise.resolve({ token: "abc" }),
       );
       const result = await withClient(
         (_client) => Promise.reject(new Error("op failed")),
@@ -121,7 +119,7 @@ describe("payment-helpers", () => {
 
     test("re-throws PaymentUserError from operation", async () => {
       const withClient = createWithClient(() =>
-        Promise.resolve({ token: "abc" })
+        Promise.resolve({ token: "abc" }),
       );
       await expect(
         withClient(
@@ -134,13 +132,7 @@ describe("payment-helpers", () => {
 
   describe("serializeMultiItems", () => {
     test("serializes single item with total price to compact JSON", () => {
-      const items = [{
-        eventId: 1,
-        quantity: 2,
-        unitPrice: 1000,
-        slug: "evt",
-        name: "Evt",
-      }];
+      const items = [{ eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt", name: "Evt" }];
       const result = serializeMultiItems(items);
       expect(result).toBe(JSON.stringify([{ e: 1, q: 2, p: 2000 }]));
     });
@@ -165,13 +157,7 @@ describe("payment-helpers", () => {
 
     test("omits slug from serialized output but includes total price", () => {
       const items = [
-        {
-          eventId: 5,
-          quantity: 1,
-          unitPrice: 9999,
-          slug: "secret-slug",
-          name: "Secret Event",
-        },
+        { eventId: 5, quantity: 1, unitPrice: 9999, slug: "secret-slug", name: "Secret Event" },
       ];
       const result = serializeMultiItems(items);
       expect(result).not.toContain("unitPrice");
@@ -322,20 +308,8 @@ describe("payment-helpers", () => {
         address: "",
         special_instructions: "",
         items: [
-          {
-            eventId: 1,
-            quantity: 2,
-            unitPrice: 1000,
-            slug: "evt-1",
-            name: "Evt 1",
-          },
-          {
-            eventId: 2,
-            quantity: 1,
-            unitPrice: 500,
-            slug: "evt-2",
-            name: "Evt 2",
-          },
+          { eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt-1", name: "Evt 1" },
+          { eventId: 2, quantity: 1, unitPrice: 500, slug: "evt-2", name: "Evt 2" },
         ],
       };
       const result = buildMultiIntentMetadata(intent);
@@ -357,13 +331,7 @@ describe("payment-helpers", () => {
         phone: "+1234567890",
         address: "",
         special_instructions: "",
-        items: [{
-          eventId: 1,
-          quantity: 1,
-          unitPrice: 100,
-          slug: "e",
-          name: "E",
-        }],
+        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
       expect(result.phone).toBe("+1234567890");
@@ -376,13 +344,7 @@ describe("payment-helpers", () => {
         phone: "",
         address: "",
         special_instructions: "",
-        items: [{
-          eventId: 1,
-          quantity: 1,
-          unitPrice: 100,
-          slug: "e",
-          name: "E",
-        }],
+        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
       expect("phone" in result).toBe(false);
@@ -396,13 +358,7 @@ describe("payment-helpers", () => {
         address: "",
         special_instructions: "",
         date: "2026-02-10",
-        items: [{
-          eventId: 1,
-          quantity: 1,
-          unitPrice: 100,
-          slug: "e",
-          name: "E",
-        }],
+        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
       expect(result.date).toBe("2026-02-10");
@@ -416,13 +372,7 @@ describe("payment-helpers", () => {
         address: "",
         special_instructions: "",
         date: null,
-        items: [{
-          eventId: 1,
-          quantity: 1,
-          unitPrice: 100,
-          slug: "e",
-          name: "E",
-        }],
+        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
       expect("date" in result).toBe(false);
@@ -431,11 +381,7 @@ describe("payment-helpers", () => {
 
   describe("toCheckoutResult", () => {
     test("returns session result when both id and url provided", () => {
-      const result = toCheckoutResult(
-        "sess_123",
-        "https://pay.example.com",
-        "Stripe",
-      );
+      const result = toCheckoutResult("sess_123", "https://pay.example.com", "Stripe");
       expect(result).toEqual({
         sessionId: "sess_123",
         checkoutUrl: "https://pay.example.com",
@@ -443,11 +389,7 @@ describe("payment-helpers", () => {
     });
 
     test("returns null when sessionId is undefined", () => {
-      const result = toCheckoutResult(
-        undefined,
-        "https://pay.example.com",
-        "Stripe",
-      );
+      const result = toCheckoutResult(undefined, "https://pay.example.com", "Stripe");
       expect(result).toBeNull();
     });
 

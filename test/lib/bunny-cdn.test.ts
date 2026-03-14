@@ -261,11 +261,8 @@ describe("bunny-cdn", () => {
       await withFixedPullZoneId(async () => {
         await withMocks(
           () =>
-            stub(
-              globalThis,
-              "fetch",
-              () => Promise.resolve(new Response(null, { status: 204 })),
-            ),
+            stub(globalThis, "fetch", () =>
+              Promise.resolve(new Response(null, { status: 204 }))),
           async () => {
             const result = await bunnyCdnApi.validateCustomDomain(
               "cdn.example.com",
@@ -385,7 +382,8 @@ describe("bunny-cdn", () => {
             );
             expect(result).toEqual({
               ok: false,
-              error: "Add hostname failed (400): Something went wrong.",
+              error:
+                "Add hostname failed (400): Something went wrong.",
               errorKey: "pullzone.some_other_error",
             });
           },
@@ -462,7 +460,8 @@ describe("bunny-cdn", () => {
             );
             expect(result).toEqual({
               ok: false,
-              error: "Load free certificate failed (400): Certificate error",
+              error:
+                "Load free certificate failed (400): Certificate error",
             });
             expect(callCount).toBe(2);
           },

@@ -128,9 +128,7 @@ export const jsx = (tag: string | Component, props: Props | null): SafeHtml => {
 
   // Fragment fast-path: pass through single SafeHtml child without re-wrapping
   if (tag === Fragment) {
-    return isSafeHtml(children)
-      ? children
-      : new SafeHtml(renderChild(children));
+    return isSafeHtml(children) ? children : new SafeHtml(renderChild(children));
   }
 
   // Component function - call it with props
@@ -155,12 +153,13 @@ export const jsx = (tag: string | Component, props: Props | null): SafeHtml => {
 };
 
 // JSX runtime exports (used by TypeScript's JSX transform)
-export { jsx as jsxDEV, jsx as jsxs };
+export { jsx as jsxs, jsx as jsxDEV };
 
 /**
  * Fragment - just renders children without wrapper
  */
-export const Fragment = ({ children }: Props): string => renderChild(children);
+export const Fragment = ({ children }: Props): string =>
+  renderChild(children);
 
 /**
  * Raw HTML insertion (use sparingly, bypasses escaping)

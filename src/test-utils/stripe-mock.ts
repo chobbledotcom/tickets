@@ -41,8 +41,7 @@ export const downloadStripeMock = async (): Promise<void> => {
   const platform = getPlatform();
   const arch = getArch();
 
-  const url =
-    `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
+  const url = `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
 
   // Use curl to download - avoids Deno TLS certificate issues
   const curlCmd = new Deno.Command("curl", {

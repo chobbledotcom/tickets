@@ -146,8 +146,8 @@ const main = async () => {
     const duration = performance.now() - start;
     cachedTimings.push(duration);
   }
-  const avgCached = cachedTimings.reduce((a, b) => a + b, 0) /
-    cachedTimings.length;
+  const avgCached =
+    cachedTimings.reduce((a, b) => a + b, 0) / cachedTimings.length;
   log(`  Cached calls (avg of 5): ${avgCached.toFixed(4)}ms`);
   log(`  ✅ ${(firstDuration / avgCached).toFixed(0)}x faster with caching!\n`);
 
@@ -172,13 +172,11 @@ const main = async () => {
     const duration = performance.now() - start;
     sessionTimings.push(duration);
   }
-  const avgSession = sessionTimings.reduce((a, b) => a + b, 0) /
-    sessionTimings.length;
+  const avgSession =
+    sessionTimings.reduce((a, b) => a + b, 0) / sessionTimings.length;
   log(`  Cached calls (avg of 5): ${avgSession.toFixed(4)}ms`);
   log(
-    `  ✅ ${
-      (sessionDuration1 / avgSession).toFixed(0)
-    }x faster with caching!\n`,
+    `  ✅ ${(sessionDuration1 / avgSession).toFixed(0)}x faster with caching!\n`,
   );
 
   // Network latency reality check

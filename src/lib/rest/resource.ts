@@ -53,17 +53,11 @@ type ValidateFn<Input> =
 /**
  * Resource interface - provides typed REST operations
  */
-export interface Resource<
-  Row,
-  Input,
-  Values extends FieldValues = FieldValues,
-> {
+export interface Resource<Row, Input, Values extends FieldValues = FieldValues> {
   readonly table: Table<Row, Input>;
   readonly fields: Field[];
   parseInput: (form: URLSearchParams) => Promise<ParseResult<Input>>;
-  parsePartialInput: (
-    form: URLSearchParams,
-  ) => Promise<ParseResult<Partial<Input>>>;
+  parsePartialInput: (form: URLSearchParams) => Promise<ParseResult<Partial<Input>>>;
   create: (form: URLSearchParams) => Promise<CreateResult<Row>>;
   update: (id: InValue, form: URLSearchParams) => Promise<UpdateResult<Row>>;
   delete: (id: InValue) => Promise<DeleteResult>;
@@ -73,11 +67,7 @@ export interface Resource<
 /**
  * Configuration for defineResource
  */
-export interface ResourceConfig<
-  Row,
-  Input,
-  Values extends FieldValues = FieldValues,
-> {
+export interface ResourceConfig<Row, Input, Values extends FieldValues = FieldValues> {
   table: Table<Row, Input>;
   fields: Field[];
   toInput: (values: Values) => Input | Promise<Input>;
@@ -138,22 +128,13 @@ const parseAndValidate = async <Input>(
 };
 
 /** Resource with required name verification (created when nameField is provided) */
-export type NamedResource<
-  Row,
-  Input,
-  Values extends FieldValues = FieldValues,
-> = Resource<Row, Input, Values> & {
-  verifyName: (row: Row, confirmName: string) => boolean;
-};
+export type NamedResource<Row, Input, Values extends FieldValues = FieldValues> =
+  Resource<Row, Input, Values> & { verifyName: (row: Row, confirmName: string) => boolean };
 
 /**
  * Define a REST resource with typed CRUD operations.
  */
-export const defineResource = <
-  Row,
-  Input,
-  Values extends FieldValues = FieldValues,
->(
+export const defineResource = <Row, Input, Values extends FieldValues = FieldValues>(
   config: ResourceConfig<Row, Input, Values>,
 ): Resource<Row, Input, Values> => {
   const { table, fields, toInput, nameField } = config;
@@ -208,9 +189,9 @@ export const defineResource = <
 
   const verifyName = nameField
     ? (row: Row, confirmName: string): boolean => {
-      const name = String(row[nameField]);
-      return name.trim().toLowerCase() === confirmName.trim().toLowerCase();
-    }
+        const name = String(row[nameField]);
+        return name.trim().toLowerCase() === confirmName.trim().toLowerCase();
+      }
     : undefined;
 
   return {
@@ -228,11 +209,7 @@ export const defineResource = <
 /**
  * Define a named REST resource - requires nameField and guarantees verifyName is present.
  */
-export const defineNamedResource = <
-  Row,
-  Input,
-  V extends FieldValues = FieldValues,
->(
+export const defineNamedResource = <Row, Input, V extends FieldValues = FieldValues>(
   config: ResourceConfig<Row, Input, V> & { nameField: keyof Row & string },
 ): NamedResource<Row, Input, V> =>
   defineResource(config) as NamedResource<Row, Input, V>;

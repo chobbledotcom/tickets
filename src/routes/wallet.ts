@@ -9,12 +9,7 @@ import { getAllowedDomain } from "#lib/config.ts";
 import { decrypt } from "#lib/crypto.ts";
 import { getCurrencyCodeFromDb } from "#lib/db/settings.ts";
 import { getAppleWalletConfig } from "#lib/db/settings.ts";
-import {
-  createTokenRoute,
-  lookupAttendees,
-  resolveEntries,
-  type TokenEntry,
-} from "#routes/token-utils.ts";
+import { createTokenRoute, lookupAttendees, resolveEntries, type TokenEntry } from "#routes/token-utils.ts";
 import { notFoundResponse } from "#routes/utils.ts";
 
 /** Cache pkpass responses for 1 hour on CDN, 5 minutes in browser */
@@ -24,10 +19,7 @@ const CACHE_CONTROL = "public, max-age=300, s-maxage=3600";
 const PKPASS_CONTENT_TYPE = "application/vnd.apple.pkpass";
 
 /** Build PassData from a resolved token entry */
-const buildPassData = async (
-  entry: TokenEntry,
-  token: string,
-): Promise<PassData> => {
+const buildPassData = async (entry: TokenEntry, token: string): Promise<PassData> => {
   const { event, attendee } = entry;
   const domain = getAllowedDomain();
   const currencyCode = await getCurrencyCodeFromDb();
@@ -52,10 +44,7 @@ const buildPassData = async (
 const PKPASS_EXT = ".pkpass";
 
 /** Handle GET /wallet/:token.pkpass — generate and return .pkpass */
-const handleWalletGet = async (
-  _request: Request,
-  tokens: string[],
-): Promise<Response> => {
+const handleWalletGet = async (_request: Request, tokens: string[]): Promise<Response> => {
   // Only support single-token downloads
   const raw = tokens[0];
   if (!raw || tokens.length > 1) return notFoundResponse();

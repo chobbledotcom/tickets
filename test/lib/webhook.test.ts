@@ -31,9 +31,7 @@ const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
 });
 
 /** Helper to build a WebhookAttendee with sensible defaults */
-const makeAttendee = (
-  overrides: Partial<WebhookAttendee> = {},
-): WebhookAttendee => ({
+const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee => ({
   id: 42,
   quantity: 1,
   name: "Jane Doe",
@@ -76,8 +74,7 @@ const eventFromDb = (
 ): Partial<WebhookEvent> => ({ id, name, slug, webhook_url });
 
 /** Flush pending async operations (fire-and-forget webhooks) */
-const flushAsync = (): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, 0));
+const flushAsync = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("webhook", () => {
   // deno-lint-ignore no-explicit-any
@@ -162,20 +159,11 @@ describe("webhook", () => {
       const entries = [
         makeEntry(
           { id: 1, name: "Event A", slug: "event-a", unit_price: 300 },
-          {
-            ticket_token: "AA00BB11CC",
-            price_paid: "300",
-            payment_id: "pi_multi",
-          },
+          { ticket_token: "AA00BB11CC", price_paid: "300", payment_id: "pi_multi" },
         ),
         makeEntry(
           { id: 2, name: "Event B", slug: "event-b", unit_price: 700 },
-          {
-            ticket_token: "DD22EE33FF",
-            quantity: 2,
-            price_paid: "1400",
-            payment_id: "pi_multi",
-          },
+          { ticket_token: "DD22EE33FF", quantity: 2, price_paid: "1400", payment_id: "pi_multi" },
         ),
       ];
 
@@ -184,9 +172,7 @@ describe("webhook", () => {
       expect(payload.name).toBe("Jane Doe");
       expect(payload.price_paid).toBe(1700);
       expect(payload.payment_id).toBe("pi_multi");
-      expect(payload.ticket_url).toBe(
-        "https://localhost/t/AA00BB11CC+DD22EE33FF",
-      );
+      expect(payload.ticket_url).toBe("https://localhost/t/AA00BB11CC+DD22EE33FF");
       expect(payload.tickets).toHaveLength(2);
       expect(payload.tickets[0]!.event_name).toBe("Event A");
       expect(payload.tickets[0]!.unit_price).toBe(300);
@@ -201,10 +187,7 @@ describe("webhook", () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ unit_price: 0, can_pay_more: true }),
-          attendee: makeAttendee({
-            price_paid: "500",
-            payment_id: "pi_donate",
-          }),
+          attendee: makeAttendee({ price_paid: "500", payment_id: "pi_donate" }),
         },
       ];
 
@@ -276,10 +259,7 @@ describe("webhook", () => {
     });
 
     test("sends POST request with correct payload", async () => {
-      const payload: WebhookPayload = await buildWebhookPayload(
-        defaultEntries(),
-        "GBP",
-      );
+      const payload: WebhookPayload = await buildWebhookPayload(defaultEntries(), "GBP");
 
       await sendWebhook("https://example.com/webhook", payload);
 
@@ -310,33 +290,21 @@ describe("webhook", () => {
       const logs = await sendAndCollectErrors(
         () => Promise.reject(new Error("Connection refused")),
       );
-      expect(
-        logs.some((c) =>
-          c.includes("E_WEBHOOK_SEND") && c.includes("Connection refused")
-        ),
-      ).toBe(true);
+      expect(logs.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("Connection refused"))).toBe(true);
     });
 
     test("logs non-Error thrown values as strings", async () => {
       const logs = await sendAndCollectErrors(
         () => Promise.reject("socket hang up"),
       );
-      expect(
-        logs.some((c) =>
-          c.includes("E_WEBHOOK_SEND") && c.includes("socket hang up")
-        ),
-      ).toBe(true);
+      expect(logs.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("socket hang up"))).toBe(true);
     });
 
     test("logs status on non-2xx response", async () => {
       const logs = await sendAndCollectErrors(
         () => Promise.resolve(new Response("Not Found", { status: 404 })),
       );
-      expect(
-        logs.some((c) =>
-          c.includes("E_WEBHOOK_SEND") && c.includes("status=404")
-        ),
-      ).toBe(true);
+      expect(logs.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("status=404"))).toBe(true);
     });
 
     test("does not log error on successful 2xx response", async () => {
@@ -353,9 +321,7 @@ describe("webhook", () => {
       await createTestDbWithSetup();
 
       await withErrorSpy(async () => {
-        restubFetch(() =>
-          Promise.resolve(new Response("Bad Gateway", { status: 502 }))
-        );
+        restubFetch(() => Promise.resolve(new Response("Bad Gateway", { status: 502 })));
         const payload = await buildWebhookPayload(defaultEntries(), "GBP");
         await sendWebhook("https://example.com/webhook", payload);
       });
@@ -363,9 +329,7 @@ describe("webhook", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const entries = await getAllActivityLog();
-      const match = entries.find((e) =>
-        e.message === "Error: Webhook send failed (status=502 for 'Test Event')"
-      );
+      const match = entries.find((e) => e.message === "Error: Webhook send failed (status=502 for 'Test Event')");
       expect(match).toBeDefined();
     });
 
@@ -380,9 +344,7 @@ describe("webhook", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const entries = await getAllActivityLog();
-      const errorEntries = entries.filter((e) =>
-        e.message.startsWith("Error:")
-      );
+      const errorEntries = entries.filter((e) => e.message.startsWith("Error:"));
       expect(errorEntries).toHaveLength(0);
     });
 
@@ -393,16 +355,10 @@ describe("webhook", () => {
       await createTestDbWithSetup();
 
       await withErrorSpy(async () => {
-        restubFetch(() =>
-          Promise.resolve(new Response("Error", { status: 500 }))
-        );
+        restubFetch(() => Promise.resolve(new Response("Error", { status: 500 })));
         const entries: RegistrationEntry[] = [
-          makeEntry({ id: 1, name: "Event A", slug: "event-a" }, {
-            ticket_token: "AA11BB22CC",
-          }),
-          makeEntry({ id: 2, name: "Event B", slug: "event-b" }, {
-            ticket_token: "DD33EE44FF",
-          }),
+          makeEntry({ id: 1, name: "Event A", slug: "event-a" }, { ticket_token: "AA11BB22CC" }),
+          makeEntry({ id: 2, name: "Event B", slug: "event-b" }, { ticket_token: "DD33EE44FF" }),
         ];
         const payload = await buildWebhookPayload(entries, "GBP");
         await sendWebhook("https://example.com/webhook", payload);
@@ -411,10 +367,7 @@ describe("webhook", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const entries = await getAllActivityLog();
-      const match = entries.find((e) =>
-        e.message ===
-          "Error: Webhook send failed (status=500 for 'Event A, Event B')"
-      );
+      const match = entries.find((e) => e.message === "Error: Webhook send failed (status=500 for 'Event A, Event B')");
       expect(match).toBeDefined();
     });
   });
@@ -471,6 +424,7 @@ describe("webhook", () => {
 
       expect(fetchSpy.calls.length).toBe(0);
     });
+
   });
 
   describe("logAndNotifyRegistration", () => {
@@ -484,9 +438,7 @@ describe("webhook", () => {
 
     test("sends webhook when event has webhook_url", async () => {
       const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
-      const dbEvent = await createTestEvent({
-        webhookUrl: "https://example.com/hook",
-      });
+      const dbEvent = await createTestEvent({ webhookUrl: "https://example.com/hook" });
       const event = makeEvent(eventFromDb(dbEvent, "https://example.com/hook"));
 
       await logAndNotifyRegistration(event, makeAttendee(), "GBP");
@@ -510,6 +462,7 @@ describe("webhook", () => {
 
       expect(fetchSpy.calls.length).toBe(0);
     });
+
   });
 
   describe("logAndNotifyMultiRegistration", () => {
@@ -523,12 +476,8 @@ describe("webhook", () => {
 
     test("sends webhooks for multi-event registration", async () => {
       const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
-      const dbEventA = await createTestEvent({
-        webhookUrl: "https://hook.com",
-      });
-      const dbEventB = await createTestEvent({
-        webhookUrl: "https://hook.com",
-      });
+      const dbEventA = await createTestEvent({ webhookUrl: "https://hook.com" });
+      const dbEventB = await createTestEvent({ webhookUrl: "https://hook.com" });
       const entries = [
         makeEntry(eventFromDb(dbEventA, "https://hook.com")),
         makeEntry(eventFromDb(dbEventB, "https://hook.com")),
@@ -557,5 +506,7 @@ describe("webhook", () => {
 
       expect(fetchSpy.calls.length).toBe(0);
     });
+
+
   });
 });

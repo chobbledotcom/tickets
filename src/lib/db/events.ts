@@ -6,30 +6,14 @@ import type { ResultSet } from "@libsql/client";
 import { collectionCache, filter as fpFilter } from "#fp";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { registerCache } from "#lib/cache-registry.ts";
-import {
-  executeBatch,
-  getDb,
-  inPlaceholders,
-  queryAll,
-  queryBatch,
-  resultRows,
-} from "#lib/db/client.ts";
-import {
-  encryptedNameSchema,
-  idAndEncryptedSlugSchema,
-} from "#lib/db/common-schema.ts";
+import { executeBatch, getDb, inPlaceholders, queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
+import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
 import { defineIdTable } from "#lib/db/define-id-table.ts";
 import { col } from "#lib/db/table.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso, nowMs } from "#lib/now.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
-import type {
-  Attendee,
-  Event,
-  EventFields,
-  EventType,
-  EventWithCount,
-} from "#lib/types.ts";
+import type { Attendee, Event, EventFields, EventType, EventWithCount } from "#lib/types.ts";
 
 /** Default bookable days (all days of the week) */
 export const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];
@@ -84,10 +68,7 @@ const normalizeUtcDatetime = (value: string, label: string): string => {
   }
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `${label} invalid datetime (${value})`,
-    });
+    logError({ code: ErrorCode.DATA_INVALID, detail: `${label} invalid datetime (${value})` });
     return "";
   }
   return date.toISOString();
@@ -132,38 +113,38 @@ export const EVENTS_CACHE_TTL_MS = 60_000;
  * Write methods (insert, update, deleteById) auto-invalidate the events cache.
  */
 const rawEventsTable = defineIdTable<Event, EventInput>("events", {
-  ...idAndEncryptedSlugSchema(encrypt, decrypt),
-  ...encryptedNameSchema(encrypt, decrypt),
-  description: { default: () => "", write: encrypt, read: decrypt },
-  date: { default: () => "", write: writeEventDate, read: decryptDatetime },
-  location: { default: () => "", write: encrypt, read: decrypt },
-  group_id: col.withDefault(() => 0),
-  created: col.withDefault(() => nowIso()),
-  max_attendees: col.simple<number>(),
-  thank_you_url: { default: () => "", write: encrypt, read: decrypt },
-  unit_price: col.withDefault(() => 0),
-  max_quantity: col.withDefault(() => 1),
-  webhook_url: { default: () => "", write: encrypt, read: decrypt },
-  active: col.boolean(true),
-  fields: col.withDefault<EventFields>(() => "email"),
-  closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
-  event_type: col.withDefault<EventType>(() => "standard"),
-  bookable_days: col.converted<string[]>({
-    default: () => [...DEFAULT_BOOKABLE_DAYS],
-    write: (v) => JSON.stringify(v),
-    read: (v) => {
-      const parsed: unknown = JSON.parse(v as string);
-      return Array.isArray(parsed) ? parsed : [];
-    },
-  }),
-  minimum_days_before: col.withDefault(() => 1),
-  maximum_days_after: col.withDefault(() => 90),
-  image_url: { default: () => "", write: encrypt, read: decrypt },
-  non_transferable: col.boolean(false),
-  can_pay_more: col.boolean(false),
-  max_price: col.withDefault(() => 0),
-  hidden: col.boolean(false),
-});
+    ...idAndEncryptedSlugSchema(encrypt, decrypt),
+    ...encryptedNameSchema(encrypt, decrypt),
+    description: { default: () => "", write: encrypt, read: decrypt },
+    date: { default: () => "", write: writeEventDate, read: decryptDatetime },
+    location: { default: () => "", write: encrypt, read: decrypt },
+    group_id: col.withDefault(() => 0),
+    created: col.withDefault(() => nowIso()),
+    max_attendees: col.simple<number>(),
+    thank_you_url: { default: () => "", write: encrypt, read: decrypt },
+    unit_price: col.withDefault(() => 0),
+    max_quantity: col.withDefault(() => 1),
+    webhook_url: { default: () => "", write: encrypt, read: decrypt },
+    active: col.boolean(true),
+    fields: col.withDefault<EventFields>(() => "email"),
+    closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
+    event_type: col.withDefault<EventType>(() => "standard"),
+    bookable_days: col.converted<string[]>({
+      default: () => [...DEFAULT_BOOKABLE_DAYS],
+      write: (v) => JSON.stringify(v),
+      read: (v) => {
+        const parsed: unknown = JSON.parse(v as string);
+        return Array.isArray(parsed) ? parsed : [];
+      },
+    }),
+    minimum_days_before: col.withDefault(() => 1),
+    maximum_days_after: col.withDefault(() => 90),
+    image_url: { default: () => "", write: encrypt, read: decrypt },
+    non_transferable: col.boolean(false),
+    can_pay_more: col.boolean(false),
+    max_price: col.withDefault(() => 0),
+    hidden: col.boolean(false),
+  });
 
 export const eventsTable: typeof rawEventsTable = {
   ...rawEventsTable,
@@ -183,10 +164,9 @@ export const eventsTable: typeof rawEventsTable = {
   },
 };
 
+
 /** Find a cached event by ID */
-const findCachedEventById = async (
-  id: number,
-): Promise<EventWithCount | null> => {
+const findCachedEventById = async (id: number): Promise<EventWithCount | null> => {
   const events = await eventsCache.getAll();
   return events.find((e) => e.id === id) ?? null;
 };
@@ -209,9 +189,7 @@ export const isSlugTaken = async (
   const sql = excludeEventId
     ? "SELECT 1 WHERE EXISTS (SELECT 1 FROM events WHERE slug_index = ? AND id != ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)"
     : "SELECT 1 WHERE EXISTS (SELECT 1 FROM events WHERE slug_index = ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)";
-  const args = excludeEventId
-    ? [slugIndex, excludeEventId, slugIndex]
-    : [slugIndex, slugIndex];
+  const args = excludeEventId ? [slugIndex, excludeEventId, slugIndex] : [slugIndex, slugIndex];
   const result = await getDb().execute({ sql, args });
   return result.rows.length > 0;
 };
@@ -223,11 +201,7 @@ export const isSlugTaken = async (
  */
 export const deleteEvent = async (eventId: number): Promise<void> => {
   await executeBatch([
-    {
-      sql:
-        "DELETE FROM processed_payments WHERE attendee_id IN (SELECT id FROM attendees WHERE event_id = ?)",
-      args: [eventId],
-    },
+    { sql: "DELETE FROM processed_payments WHERE attendee_id IN (SELECT id FROM attendees WHERE event_id = ?)", args: [eventId] },
     { sql: "DELETE FROM attendees WHERE event_id = ?", args: [eventId] },
     { sql: "DELETE FROM activity_log WHERE event_id = ?", args: [eventId] },
     { sql: "DELETE FROM events WHERE id = ?", args: [eventId] },
@@ -271,9 +245,7 @@ const queryEventsWithCounts = async (
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
   );
-  return Promise.all(
-    rows.map((row) => decryptAndAttachCount(row, row.attendee_count)),
-  );
+  return Promise.all(rows.map((row) => decryptAndAttachCount(row, row.attendee_count)));
 };
 
 const eventsCache = collectionCache(
@@ -329,10 +301,7 @@ export const getEventWithAttendeesRaw = async (
 ): Promise<EventWithAttendees | null> => {
   const [eventResult, attendeesResult] = await queryBatch([
     { sql: "SELECT * FROM events WHERE id = ?", args: [id] },
-    {
-      sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
-      args: [id],
-    },
+    { sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC", args: [id] },
   ]);
 
   const attendeesRaw = resultRows<Attendee>(attendeesResult!);
@@ -344,9 +313,7 @@ export const getEventWithAttendeesRaw = async (
 };
 
 /** Get cached events filtered by event_type */
-const getCachedEventsByType = async (
-  type: EventType,
-): Promise<EventWithCount[]> => {
+const getCachedEventsByType = async (type: EventType): Promise<EventWithCount[]> => {
   const events = await eventsCache.getAll();
   return fpFilter((e: EventWithCount) => e.event_type === type)(events);
 };
@@ -402,9 +369,7 @@ export const getAttendeesByEventIds = (
   eventIds: number[],
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
-    `SELECT * FROM attendees WHERE event_id IN (${
-      inPlaceholders(eventIds)
-    }) ORDER BY created DESC`,
+    `SELECT * FROM attendees WHERE event_id IN (${inPlaceholders(eventIds)}) ORDER BY created DESC`,
     eventIds,
   );
 
@@ -426,20 +391,13 @@ export const getEventWithAttendeeRaw = async (
   const [eventResult, attendeeResult, countResult] = await queryBatch([
     { sql: "SELECT * FROM events WHERE id = ?", args: [eventId] },
     { sql: "SELECT * FROM attendees WHERE id = ?", args: [attendeeId] },
-    {
-      sql:
-        "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ?",
-      args: [eventId],
-    },
+    { sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ?", args: [eventId] },
   ]);
 
   return withBatchEvent(
     eventResult!,
     () => resultRows<{ count: number }>(countResult!)[0]!.count,
-    (event) => ({
-      event,
-      attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
-    }),
+    (event) => ({ event, attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null }),
   );
 };
 

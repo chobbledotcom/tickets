@@ -17,14 +17,14 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
+  testCookie,
+  testCsrfToken,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
-  testCookie,
-  testCsrfToken,
   withMocks,
 } from "#test-utils";
 
@@ -47,13 +47,13 @@ describe("server (admin settings)", () => {
     });
 
     test("shows settings page when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, "Settings", "Change Password");
     });
 
     test("does not display success when form param is missing", async () => {
+
       const response = await awaitTestRequest(
         "/admin/settings?success=Test+success+message",
         { cookie: await testCookie() },
@@ -63,6 +63,7 @@ describe("server (admin settings)", () => {
     });
 
     test("displays success message on the matching form when form param is provided", async () => {
+
       const response = await awaitTestRequest(
         "/admin/settings?success=Phone+prefix+updated&form=settings-phone-prefix",
         { cookie: await testCookie() },
@@ -79,6 +80,7 @@ describe("server (admin settings)", () => {
     });
 
     test("does not show success on non-matching forms", async () => {
+
       const response = await awaitTestRequest(
         "/admin/settings?success=Timezone+updated&form=settings-timezone",
         { cookie: await testCookie() },
@@ -91,9 +93,8 @@ describe("server (admin settings)", () => {
     });
 
     test("each settings form has an id attribute", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain('id="settings-phone-prefix"');
       expect(html).toContain('id="settings-business-email"');
@@ -106,13 +107,13 @@ describe("server (admin settings)", () => {
     });
 
     test("shows link to advanced settings", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain('href="/admin/settings-advanced"');
       expect(html).toContain("advanced settings");
     });
+
   });
 
   describe("POST /admin/settings", () => {
@@ -128,6 +129,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings",
@@ -144,6 +146,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects missing required fields", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings",
@@ -160,6 +163,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects password shorter than 8 characters", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings",
@@ -176,6 +180,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects mismatched passwords", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings",
@@ -192,6 +197,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects incorrect current password", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings",
@@ -208,6 +214,7 @@ describe("server (admin settings)", () => {
     });
 
     test("changes password and invalidates session", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings",
@@ -231,9 +238,7 @@ describe("server (admin settings)", () => {
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
 
       // Verify old session is invalidated
-      const dashboardResponse = await awaitTestRequest("/admin/", {
-        cookie: await testCookie(),
-      });
+      const dashboardResponse = await awaitTestRequest("/admin/", { cookie: await testCookie() });
       const html = await dashboardResponse.text();
       expect(html).toContain("Login"); // Should show login, not dashboard
 
@@ -248,6 +253,7 @@ describe("server (admin settings)", () => {
     });
 
     test("returns error when password update fails", async () => {
+
       // Corrupt the wrapped_data_key so updateUserPassword fails to unwrap it
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
@@ -283,6 +289,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/stripe",
@@ -297,6 +304,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects missing stripe key", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/stripe",
@@ -318,8 +326,10 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
+
           const response = await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
@@ -334,21 +344,15 @@ describe("server (admin settings)", () => {
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
           expect(location).toContain("/admin/settings?success=");
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-            "Stripe key updated",
-          );
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-            "webhook configured",
-          );
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Stripe key updated");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("webhook configured");
         },
       );
     });
 
     test("settings page shows Stripe is not configured initially", async () => {
       await setPaymentProvider("stripe");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       const html = await expectHtmlResponse(
         response,
         200,
@@ -367,8 +371,10 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
+
           // Set the Stripe key
           await handleRequest(
             mockFormRequest(
@@ -424,7 +430,8 @@ describe("server (admin settings)", () => {
                 error: "No Stripe secret key configured",
               },
               webhook: { configured: false },
-            })),
+            }),
+          ),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -463,7 +470,8 @@ describe("server (admin settings)", () => {
                 status: "enabled",
                 enabledEvents: ["checkout.session.completed"],
               },
-            })),
+            }),
+          ),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -500,7 +508,8 @@ describe("server (admin settings)", () => {
                 configured: false,
                 error: "No webhook endpoint ID stored",
               },
-            })),
+            }),
+          ),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -524,6 +533,7 @@ describe("server (admin settings)", () => {
 
   describe("POST /admin/settings/embed-hosts", () => {
     test("clears embed hosts when empty", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/embed-hosts",
@@ -541,6 +551,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid embed host pattern", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/embed-hosts",
@@ -553,6 +564,7 @@ describe("server (admin settings)", () => {
     });
 
     test("normalizes and saves embed hosts", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/embed-hosts",
@@ -587,6 +599,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square",
@@ -602,6 +615,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects missing square access token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square",
@@ -617,6 +631,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects missing location ID", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square",
@@ -632,6 +647,7 @@ describe("server (admin settings)", () => {
     });
 
     test("updates Square credentials successfully", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square",
@@ -653,9 +669,7 @@ describe("server (admin settings)", () => {
 
     test("settings page shows Square is not configured initially", async () => {
       await setPaymentProvider("square");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       await expectHtmlResponse(
         response,
         200,
@@ -665,6 +679,7 @@ describe("server (admin settings)", () => {
     });
 
     test("settings page shows Square is configured after setting token", async () => {
+
       // Set the Square credentials
       await handleRequest(
         mockFormRequest(
@@ -679,9 +694,7 @@ describe("server (admin settings)", () => {
       );
 
       // Check the settings page shows it's configured
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("A Square access token is currently configured");
     });
@@ -698,6 +711,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects missing webhook signature key", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
@@ -712,6 +726,7 @@ describe("server (admin settings)", () => {
     });
 
     test("updates Square webhook key successfully", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
@@ -733,6 +748,7 @@ describe("server (admin settings)", () => {
 
   describe("POST /admin/settings/payment-provider (square)", () => {
     test("sets provider to square", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/payment-provider",
@@ -762,6 +778,7 @@ describe("server (admin settings)", () => {
     });
 
     test("sets payment provider to stripe", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/payment-provider",
@@ -780,6 +797,7 @@ describe("server (admin settings)", () => {
     });
 
     test("disables payment provider with none", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/payment-provider",
@@ -798,6 +816,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid payment provider", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/payment-provider",
@@ -814,14 +833,11 @@ describe("server (admin settings)", () => {
 
   describe("POST /admin/settings/stripe (webhook setup failure)", () => {
     test("shows error when webhook setup fails", async () => {
-      const mockSetupWebhook = stub(
-        stripeApi,
-        "setupWebhookEndpoint",
-        () =>
-          Promise.resolve({
-            success: false,
-            error: "Connection refused",
-          }),
+      const mockSetupWebhook = stub(stripeApi, "setupWebhookEndpoint", () =>
+        Promise.resolve({
+          success: false,
+          error: "Connection refused",
+        }),
       );
 
       try {
@@ -850,6 +866,7 @@ describe("server (admin settings)", () => {
   });
   describe("admin/settings.ts (form.get fallbacks)", () => {
     test("payment provider POST without payment_provider field uses empty fallback", async () => {
+
       // Submit without payment_provider field at all
       const response = await handleRequest(
         mockFormRequest(
@@ -862,6 +879,7 @@ describe("server (admin settings)", () => {
     });
 
     test("reset database POST without confirm_phrase field uses empty fallback", async () => {
+
       // Submit without confirm_phrase field
       const response = await handleRequest(
         mockFormRequest(
@@ -889,6 +907,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/terms",
@@ -903,6 +922,7 @@ describe("server (admin settings)", () => {
     });
 
     test("saves terms and conditions", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/terms",
@@ -923,6 +943,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects terms exceeding max length", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/terms",
@@ -938,6 +959,7 @@ describe("server (admin settings)", () => {
     });
 
     test("accepts terms at exactly max length", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/terms",
@@ -957,6 +979,7 @@ describe("server (admin settings)", () => {
     });
 
     test("clears terms when empty", async () => {
+
       // First save some terms
       await handleRequest(
         mockFormRequest(
@@ -989,6 +1012,7 @@ describe("server (admin settings)", () => {
     });
 
     test("handles missing terms field gracefully", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/terms",
@@ -1005,9 +1029,8 @@ describe("server (admin settings)", () => {
     });
 
     test("settings page shows terms and conditions section", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       await expectHtmlResponse(
         response,
         200,
@@ -1019,9 +1042,7 @@ describe("server (admin settings)", () => {
 
     test("settings page shows current terms when configured", async () => {
       await updateTermsAndConditions("You must be 18 or older.");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, "You must be 18 or older.");
     });
   });
@@ -1072,6 +1093,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/business-email",
@@ -1101,9 +1123,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Business email updated",
-      );
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Business email updated");
 
       const saved = await getBusinessEmailFromDb();
       expect(saved).toBe("contact@example.com");
@@ -1132,15 +1152,14 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Business email cleared",
-      );
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Business email cleared");
 
       const saved = await getBusinessEmailFromDb();
       expect(saved).toBe("");
     });
 
     test("rejects invalid email format", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/business-email",
@@ -1158,6 +1177,7 @@ describe("server (admin settings)", () => {
 
   describe("audit logging", () => {
     test("logs activity when password is changed", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings",
@@ -1178,6 +1198,7 @@ describe("server (admin settings)", () => {
     });
 
     test("logs activity when payment provider is set", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/payment-provider",
@@ -1193,6 +1214,7 @@ describe("server (admin settings)", () => {
     });
 
     test("logs activity when payment provider is disabled", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/payment-provider",
@@ -1215,15 +1237,14 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
+
           await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_log_key",
-                csrf_token: await testCsrfToken(),
-              },
+              { stripe_secret_key: "sk_test_log_key", csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
           );
@@ -1237,6 +1258,7 @@ describe("server (admin settings)", () => {
     });
 
     test("logs activity when Square credentials are configured", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/square",
@@ -1256,6 +1278,7 @@ describe("server (admin settings)", () => {
     });
 
     test("logs activity when Square webhook key is configured", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
@@ -1270,19 +1293,17 @@ describe("server (admin settings)", () => {
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) =>
-          l.message.includes("Square webhook signature key configured")
+          l.message.includes("Square webhook signature key configured"),
         ),
       ).toBe(true);
     });
 
     test("logs activity when terms and conditions are updated", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/terms",
-          {
-            terms_and_conditions: "New terms",
-            csrf_token: await testCsrfToken(),
-          },
+          { terms_and_conditions: "New terms", csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -1294,6 +1315,7 @@ describe("server (admin settings)", () => {
     });
 
     test("logs activity when terms and conditions are removed", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/terms",
@@ -1309,6 +1331,7 @@ describe("server (admin settings)", () => {
     });
 
     test("logs activity when timezone is updated", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/timezone",
@@ -1320,19 +1343,17 @@ describe("server (admin settings)", () => {
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) =>
-          l.message.includes("Timezone set to America/New_York")
+          l.message.includes("Timezone set to America/New_York"),
         ),
       ).toBe(true);
     });
 
     test("logs activity when business email is updated", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/business-email",
-          {
-            business_email: "audit@example.com",
-            csrf_token: await testCsrfToken(),
-          },
+          { business_email: "audit@example.com", csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -1344,6 +1365,7 @@ describe("server (admin settings)", () => {
     });
 
     test("logs activity when business email is cleared", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/business-email",
@@ -1359,6 +1381,7 @@ describe("server (admin settings)", () => {
     });
 
     test("logs activity when database reset is initiated", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/reset-database",
@@ -1389,6 +1412,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/theme",
@@ -1403,6 +1427,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid theme value", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/theme",
@@ -1417,6 +1442,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects missing theme field", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/theme",
@@ -1430,6 +1456,7 @@ describe("server (admin settings)", () => {
     });
 
     test("updates theme to dark successfully", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/theme",
@@ -1443,12 +1470,11 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Theme updated to dark",
-      );
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Theme updated to dark");
     });
 
     test("updates theme to light successfully", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/theme",
@@ -1462,9 +1488,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Theme updated to light",
-      );
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Theme updated to light");
     });
 
     test("theme setting persists in database", async () => {
@@ -1495,9 +1519,7 @@ describe("server (admin settings)", () => {
       // Set theme to dark
       await settingsApi.updateTheme("dark");
 
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       expect(response.status).toBe(200);
       const html = await response.text();
       // Check that dark radio button is checked
@@ -1517,6 +1539,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/show-public-site",
@@ -1531,6 +1554,7 @@ describe("server (admin settings)", () => {
     });
 
     test("enables public site", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/show-public-site",
@@ -1544,12 +1568,11 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Public site enabled",
-      );
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public site enabled");
     });
 
     test("disables public site", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/show-public-site",
@@ -1563,9 +1586,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Public site disabled",
-      );
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public site disabled");
     });
 
     test("setting persists in database", async () => {
@@ -1590,9 +1611,8 @@ describe("server (admin settings)", () => {
     });
 
     test("settings page displays show public site section", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       await expectHtmlResponse(
         response,
         200,
@@ -1612,6 +1632,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/phone-prefix",
@@ -1626,6 +1647,7 @@ describe("server (admin settings)", () => {
     });
 
     test("saves valid phone prefix", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/phone-prefix",
@@ -1645,6 +1667,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects non-digit input", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/phone-prefix",
@@ -1660,6 +1683,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects empty input", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/phone-prefix",
@@ -1675,6 +1699,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects when phone_prefix field is missing", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/phone-prefix",
@@ -1710,13 +1735,13 @@ describe("server (admin settings)", () => {
     });
 
     test("settings page displays phone prefix form", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, "Phone Prefix", "phone_prefix");
     });
 
     test("logs activity when phone prefix is changed", async () => {
+
       await handleRequest(
         mockFormRequest(
           "/admin/settings/phone-prefix",
@@ -1746,24 +1771,21 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
+
           // Configure a Stripe key
           await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_real_secret",
-                csrf_token: await testCsrfToken(),
-              },
+              { stripe_secret_key: "sk_test_real_secret", csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
           );
 
           // Settings page should show sentinel, not the actual key
-          const response = await awaitTestRequest("/admin/settings", {
-            cookie: await testCookie(),
-          });
+          const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
           const html = await response.text();
           expect(html).toContain(MASK_SENTINEL);
           expect(html).not.toContain("sk_test_real_secret");
@@ -1788,34 +1810,26 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/settings", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain(MASK_SENTINEL);
       expect(html).not.toContain("EAAAl_real_secret");
     });
 
     test("shows mask sentinel for configured email API key", async () => {
-      const { MASK_SENTINEL, settingsApi } = await import(
-        "#lib/db/settings.ts"
-      );
+      const { MASK_SENTINEL, settingsApi } = await import("#lib/db/settings.ts");
 
       await settingsApi.updateEmailProvider("resend");
       await settingsApi.updateEmailApiKey("re_real_secret_key");
 
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain(MASK_SENTINEL);
       expect(html).not.toContain("re_real_secret_key");
     });
 
     test("submitting sentinel for Stripe key does not overwrite existing key", async () => {
-      const { MASK_SENTINEL, getStripeSecretKeyFromDb } = await import(
-        "#lib/db/settings.ts"
-      );
+      const { MASK_SENTINEL, getStripeSecretKeyFromDb } = await import("#lib/db/settings.ts");
       await setPaymentProvider("stripe");
 
       await withMocks(
@@ -1825,16 +1839,15 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
+
           // Configure a Stripe key
           await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_original",
-                csrf_token: await testCsrfToken(),
-              },
+              { stripe_secret_key: "sk_test_original", csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
           );
@@ -1843,31 +1856,20 @@ describe("server (admin settings)", () => {
           const response = await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              {
-                stripe_secret_key: MASK_SENTINEL,
-                csrf_token: await testCsrfToken(),
-              },
+              { stripe_secret_key: MASK_SENTINEL, csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
           );
 
           expect(response.status).toBe(302);
-          expect(
-            decodeURIComponent(
-              response.headers.get("location")!.replaceAll("+", " "),
-            ),
-          ).toContain("unchanged");
+          expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_original");
         },
       );
     });
 
     test("submitting sentinel for Square token preserves token but updates location", async () => {
-      const {
-        MASK_SENTINEL,
-        getSquareAccessTokenFromDb,
-        getSquareLocationIdFromDb,
-      } = await import("#lib/db/settings.ts");
+      const { MASK_SENTINEL, getSquareAccessTokenFromDb, getSquareLocationIdFromDb } = await import("#lib/db/settings.ts");
       await setPaymentProvider("square");
 
       // Configure Square credentials
@@ -1908,10 +1910,7 @@ describe("server (admin settings)", () => {
       await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
-          {
-            square_webhook_signature_key: "sig_original",
-            csrf_token: await testCsrfToken(),
-          },
+          { square_webhook_signature_key: "sig_original", csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -1920,26 +1919,17 @@ describe("server (admin settings)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
-          {
-            square_webhook_signature_key: MASK_SENTINEL,
-            csrf_token: await testCsrfToken(),
-          },
+          { square_webhook_signature_key: MASK_SENTINEL, csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
 
       expect(response.status).toBe(302);
-      expect(
-        decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
-        ),
-      ).toContain("unchanged");
+      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
     });
 
     test("submitting sentinel for email API key does not overwrite existing key", async () => {
-      const { MASK_SENTINEL, getEmailApiKeyFromDb } = await import(
-        "#lib/db/settings.ts"
-      );
+      const { MASK_SENTINEL, getEmailApiKeyFromDb } = await import("#lib/db/settings.ts");
 
       // Configure email with API key
       await handleRequest(
@@ -1983,16 +1973,15 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
+
           // Configure initial key
           await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_old",
-                csrf_token: await testCsrfToken(),
-              },
+              { stripe_secret_key: "sk_test_old", csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
           );
@@ -2001,10 +1990,7 @@ describe("server (admin settings)", () => {
           await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_new",
-                csrf_token: await testCsrfToken(),
-              },
+              { stripe_secret_key: "sk_test_new", csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
           );
@@ -2025,16 +2011,15 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
+
           // Configure a Stripe key first
           await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_keep_me",
-                csrf_token: await testCsrfToken(),
-              },
+              { stripe_secret_key: "sk_test_keep_me", csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
           );
@@ -2049,11 +2034,7 @@ describe("server (admin settings)", () => {
           );
 
           expect(response.status).toBe(302);
-          expect(
-            decodeURIComponent(
-              response.headers.get("location")!.replaceAll("+", " "),
-            ),
-          ).toContain("unchanged");
+          expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_keep_me");
         },
       );
@@ -2092,13 +2073,11 @@ describe("server (admin settings)", () => {
     });
 
     test("empty Square webhook key rejected", async () => {
+
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
-          {
-            square_webhook_signature_key: "",
-            csrf_token: await testCsrfToken(),
-          },
+          { square_webhook_signature_key: "", csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -2161,4 +2140,5 @@ describe("server (admin settings)", () => {
       );
     });
   });
+
 });

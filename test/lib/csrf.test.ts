@@ -1,11 +1,7 @@
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { setupTestEncryptionKey } from "#test-utils";
-import {
-  isSignedCsrfToken,
-  signCsrfToken,
-  verifySignedCsrfToken,
-} from "#lib/csrf.ts";
+import { isSignedCsrfToken, signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 
 describe("signCsrfToken", () => {
   beforeEach(() => {

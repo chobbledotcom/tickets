@@ -33,18 +33,8 @@ const ASSET_DEFS: [string, string, string, string][] = [
   ["mvp.css", "handleMvpCss", CSS, "CSS_PATH"],
   ["admin.js", "handleAdminJs", JS, "JS_PATH"],
   ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH"],
-  [
-    "iframe-resizer-parent.js",
-    "handleIframeResizerParentJs",
-    JS,
-    "IFRAME_RESIZER_PARENT_JS_PATH",
-  ],
-  [
-    "iframe-resizer-child.js",
-    "handleIframeResizerChildJs",
-    JS,
-    "IFRAME_RESIZER_CHILD_JS_PATH",
-  ],
+  ["iframe-resizer-parent.js", "handleIframeResizerParentJs", JS, "IFRAME_RESIZER_PARENT_JS_PATH"],
+  ["iframe-resizer-child.js", "handleIframeResizerChildJs", JS, "IFRAME_RESIZER_CHILD_JS_PATH"],
   ["embed.js", "handleEmbedJs", JS, "EMBED_JS_PATH"],
 ];
 
@@ -70,9 +60,7 @@ const buildAssetPathsModule = (): string =>
     .filter(([, , , pathConst]) => pathConst)
     .map(([filename, , , pathConst]) => {
       // Embed script should always use latest version without cache-busting
-      const cacheBuster = pathConst === "EMBED_JS_PATH"
-        ? ""
-        : `?ts=${BUILD_TS}`;
+      const cacheBuster = pathConst === "EMBED_JS_PATH" ? "" : `?ts=${BUILD_TS}`;
       return `export const ${pathConst} = "/${filename}${cacheBuster}";`;
     })
     .join("\n");
@@ -80,12 +68,9 @@ const buildAssetPathsModule = (): string =>
 /** Build the inline assets module with pre-read content and handler functions */
 const buildAssetsModule = (): string => {
   const varLines = ASSET_DEFS
-    .map(([filename], i) =>
-      `const v${i} = ${JSON.stringify(STATIC_ASSETS[filename])};`
-    );
+    .map(([filename], i) => `const v${i} = ${JSON.stringify(STATIC_ASSETS[filename])};`);
 
-  const cacheHeader =
-    `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`;
+  const cacheHeader = `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`;
 
   const handlerLines = ASSET_DEFS
     .map(([, exportName, contentType], i) =>
@@ -130,10 +115,7 @@ const inlineAssetsPlugin: Plugin = {
 
 /** Discover Deno's npm cache path via `deno info --json` */
 const getDenoNpmCache = (): string => {
-  const result = new Deno.Command(Deno.execPath(), {
-    args: ["info", "--json"],
-    stdout: "piped",
-  }).outputSync();
+  const result = new Deno.Command(Deno.execPath(), { args: ["info", "--json"], stdout: "piped" }).outputSync();
   const info = JSON.parse(new TextDecoder().decode(result.stdout));
   return `${info.npmCache}/registry.npmjs.org`;
 };
@@ -166,12 +148,7 @@ const findPackageDir = (name: string): string => {
 
 /** Check if a file exists */
 const exists = (path: string): boolean => {
-  try {
-    Deno.statSync(path);
-    return true;
-  } catch {
-    return false;
-  }
+  try { Deno.statSync(path); return true; } catch { return false; }
 };
 
 /** Resolve a file path, trying .js/.json extensions and /index.js for extensionless CJS entries */
@@ -183,18 +160,11 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
   // Split into package name and subpath (scoped packages have 2 segments)
   const nameSegments = specifier.startsWith("@") ? 2 : 1;
   const idx = specifier.split("/", nameSegments).join("/").length;
-  const pkgName = specifier.slice(
-    0,
-    idx === specifier.length ? undefined : idx,
-  );
+  const pkgName = specifier.slice(0, idx === specifier.length ? undefined : idx);
   const subpath = idx < specifier.length ? specifier.slice(idx + 1) : "";
 
   let pkgDir: string;
-  try {
-    pkgDir = findPackageDir(pkgName);
-  } catch {
-    return null;
-  }
+  try { pkgDir = findPackageDir(pkgName); } catch { return null; }
 
   const pkgJson = JSON.parse(Deno.readTextFileSync(`${pkgDir}/package.json`));
 
@@ -222,9 +192,7 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
       // e.g. { "./lib/index.js": "./lib/browser.js", "fs": false }
       if (typeof pkgJson.browser === "object" && pkgJson.browser !== null) {
         const mapped = pkgJson.browser[entry];
-        if (typeof mapped === "string") {
-          return resolveFile(`${pkgDir}/${mapped}`);
-        }
+        if (typeof mapped === "string") return resolveFile(`${pkgDir}/${mapped}`);
       }
       return resolveFile(`${pkgDir}/${entry}`);
     }
@@ -240,9 +208,7 @@ const denoNpmResolverPlugin: Plugin = {
   setup(build) {
     // Redirect packages that need platform-specific entry points
     for (const [pkg, subpath] of Object.entries(EDGE_SUBPATHS)) {
-      const filter = new RegExp(
-        `^${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-      );
+      const filter = new RegExp(`^${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
       build.onResolve({ filter }, () => {
         const resolved = resolveNpmSpecifier(`${pkg}${subpath}`);
         return resolved ? { path: resolved } : undefined;
@@ -314,11 +280,7 @@ await esbuild.build({
   bundle: true,
   external: nodeExternals,
   define: { "process.env.NODE_ENV": '"production"' },
-  plugins: [
-    shimBareNodeCryptoPlugin,
-    denoNpmResolverPlugin,
-    inlineAssetsPlugin,
-  ],
+  plugins: [shimBareNodeCryptoPlugin, denoNpmResolverPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 

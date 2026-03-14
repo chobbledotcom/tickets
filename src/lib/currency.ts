@@ -60,10 +60,7 @@ export const toMajorUnits = (minorUnits: number): string => {
 };
 
 /** Result type for price validation */
-export type PriceResult = { ok: true; price: number } | {
-  ok: false;
-  error: string;
-};
+export type PriceResult = { ok: true; price: number } | { ok: false; error: string };
 
 /**
  * Validate and convert a raw price string to minor units.
@@ -76,9 +73,7 @@ export const validatePrice = (
   maxPrice: number,
 ): PriceResult => {
   if (!raw) {
-    return minPrice === 0
-      ? { ok: true, price: 0 }
-      : { ok: false, error: "Please enter a price" };
+    return minPrice === 0 ? { ok: true, price: 0 } : { ok: false, error: "Please enter a price" };
   }
   const parsed = Number.parseFloat(raw);
   if (Number.isNaN(parsed) || parsed < 0) {
@@ -86,10 +81,7 @@ export const validatePrice = (
   }
   const priceMinor = toMinorUnits(parsed);
   if (priceMinor < minPrice) {
-    return {
-      ok: false,
-      error: "Price must be at least the minimum ticket price",
-    };
+    return { ok: false, error: "Price must be at least the minimum ticket price" };
   }
   if (priceMinor > maxPrice) {
     return { ok: false, error: "Price exceeds the maximum allowed" };

@@ -28,10 +28,7 @@ const withHashedIpAttempts = async <T>(
 };
 
 /** Check if lockout is active, resetting expired locks */
-const checkLockout = async (
-  hashedIp: string,
-  row: LoginAttemptRow | null,
-): Promise<boolean> => {
+const checkLockout = async (hashedIp: string, row: LoginAttemptRow | null): Promise<boolean> => {
   if (!row) return false;
 
   const currentMs = nowMs();
@@ -50,25 +47,20 @@ const checkLockout = async (
 };
 
 /** Record attempt and return whether account is now locked */
-const recordAttempt = async (
-  hashedIp: string,
-  row: LoginAttemptRow | null,
-): Promise<boolean> => {
+const recordAttempt = async (hashedIp: string, row: LoginAttemptRow | null): Promise<boolean> => {
   const newAttempts = (row?.attempts ?? 0) + 1;
 
   if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
     const lockedUntil = nowMs() + LOCKOUT_DURATION_MS;
     await getDb().execute({
-      sql:
-        "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+      sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
       args: [hashedIp, newAttempts, lockedUntil],
     });
     return true;
   }
 
   await getDb().execute({
-    sql:
-      "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
+    sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
     args: [hashedIp, newAttempts],
   });
   return false;

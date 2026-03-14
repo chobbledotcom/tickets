@@ -70,9 +70,7 @@ const renderSelectOptions = (
   options
     .map(
       (opt) =>
-        `<option value="${escapeHtml(opt.value)}"${
-          opt.value === selectedValue ? " selected" : ""
-        }>${escapeHtml(opt.label)}</option>`,
+        `<option value="${escapeHtml(opt.value)}"${opt.value === selectedValue ? " selected" : ""}>${escapeHtml(opt.label)}</option>`,
     )
     .join("");
 
@@ -82,33 +80,22 @@ const renderCheckboxGroup = (
   options: { value: string; label: string }[],
   selectedValues: Set<string>,
 ): string =>
-  `<fieldset class="checkbox-group">${
-    options
-      .map(
-        (opt) =>
-          `<label><input type="checkbox" name="${escapeHtml(name)}" value="${
-            escapeHtml(opt.value)
-          }"${selectedValues.has(opt.value) ? " checked" : ""}> ${
-            escapeHtml(opt.label)
-          }</label>`,
-      )
-      .join("")
-  }</fieldset>`;
+  `<fieldset class="checkbox-group">${options
+    .map(
+      (opt) =>
+        `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(opt.value)}"${selectedValues.has(opt.value) ? " checked" : ""}> ${escapeHtml(opt.label)}</label>`,
+    )
+    .join("")}</fieldset>`;
 
 /** Render split date and time inputs for a datetime field */
 const renderDatetimeInputs = (
   name: string,
   { date, time }: { date: string; time: string },
 ): string =>
-  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date"${
-    date ? ` value="${escapeHtml(date)}"` : ""
-  }>` +
-  `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time"${
-    time ? ` value="${escapeHtml(time)}"` : ""
-  }>`;
+  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>`
+  + `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
 
-const DATETIME_PARTIAL_ERROR =
-  "Please enter a date when providing a time, or leave both blank";
+const DATETIME_PARTIAL_ERROR = "Please enter a date when providing a time, or leave both blank";
 
 /** Combine date and time form values into a datetime string, defaulting time when absent */
 const getDatetimeValue = (
@@ -134,66 +121,48 @@ export const renderField = (field: Field, value: string = ""): string =>
   String(
     <label>
       {field.label}
-      {field.type === "textarea"
-        ? (
-          <textarea
-            name={field.name}
-            rows="3"
-            required={field.required}
-            placeholder={field.placeholder}
-          >
-            <Raw html={escapeHtml(value)} />
-          </textarea>
-        )
-        : field.type === "select" && field.options
-        ? (
-          <Raw
-            html={`<select name="${escapeHtml(field.name)}" id="${
-              escapeHtml(field.name)
-            }">${renderSelectOptions(field.options, value)}</select>`}
-          />
-        )
-        : field.type === "checkbox-group" && field.options
-        ? (
-          <Raw
-            html={renderCheckboxGroup(
-              field.name,
-              field.options,
-              new Set(
-                value ? value.split(",").map((v) => v.trim()) : [],
-              ),
-            )}
-          />
-        )
-        : field.type === "datetime"
-        ? (
-          <Raw
-            html={renderDatetimeInputs(field.name, splitDatetime(value))}
-          />
-        )
-        : field.type === "file"
-        ? (
-          <input
-            type="file"
-            name={field.name}
-            accept={field.accept}
-          />
-        )
-        : (
-          <input
-            type={field.type}
-            name={field.name}
-            value={value || undefined}
-            required={field.required}
-            placeholder={field.placeholder}
-            min={field.min}
-            inputmode={field.inputmode}
-            maxlength={field.maxlength}
-            pattern={field.pattern}
-            autofocus={field.autofocus}
-            autocomplete={field.autocomplete}
-          />
-        )}
+      {field.type === "textarea" ? (
+        <textarea
+          name={field.name}
+          rows="3"
+          required={field.required}
+          placeholder={field.placeholder}
+        >
+          <Raw html={escapeHtml(value)} />
+        </textarea>
+      ) : field.type === "select" && field.options ? (
+        <Raw
+          html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+        />
+      ) : field.type === "checkbox-group" && field.options ? (
+        <Raw
+          html={renderCheckboxGroup(field.name, field.options, new Set(value ? value.split(",").map((v) => v.trim()) : []))}
+        />
+      ) : field.type === "datetime" ? (
+        <Raw
+          html={renderDatetimeInputs(field.name, splitDatetime(value))}
+        />
+      ) : field.type === "file" ? (
+        <input
+          type="file"
+          name={field.name}
+          accept={field.accept}
+        />
+      ) : (
+        <input
+          type={field.type}
+          name={field.name}
+          value={value || undefined}
+          required={field.required}
+          placeholder={field.placeholder}
+          min={field.min}
+          inputmode={field.inputmode}
+          maxlength={field.maxlength}
+          pattern={field.pattern}
+          autofocus={field.autofocus}
+          autocomplete={field.autocomplete}
+        />
+      )}
       {field.hint && (
         <small>
           {field.hint}
@@ -204,7 +173,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           <Raw html={field.hintHtml} />
         </small>
       )}
-    </label>,
+    </label>
   );
 
 /**
@@ -215,9 +184,7 @@ export const renderFields = (
   values: FieldValues = {},
 ): string =>
   pipe(
-    map((f: Field) =>
-      renderField(f, String(values[f.name] ?? f.defaultValue ?? ""))
-    ),
+    map((f: Field) => renderField(f, String(values[f.name] ?? f.defaultValue ?? ""))),
     joinStrings,
   )(fields);
 
@@ -230,7 +197,9 @@ const parseFieldValue = (
   trimmed: string,
 ): string | number | null =>
   field.type === "number"
-    ? trimmed ? Number.parseInt(trimmed, 10) : null
+    ? trimmed
+      ? Number.parseInt(trimmed, 10)
+      : null
     : trimmed;
 
 /**
@@ -251,15 +220,12 @@ const validateSingleField = (
     const result = getDatetimeValue(form, field.name);
     if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
     if (!result) {
-      if (field.required) {
-        return { valid: false, error: `${field.label} is required` };
-      }
+      if (field.required) return { valid: false, error: `${field.label} is required` };
       return { valid: true, value: null };
     }
     trimmed = result;
   } else if (field.type === "checkbox-group") {
-    trimmed = form.getAll(field.name).map((v) => v.trim()).filter((v) => v)
-      .join(",");
+    trimmed = form.getAll(field.name).map((v) => v.trim()).filter((v) => v).join(",");
   } else {
     trimmed = (form.get(field.name) || "").trim();
   }
@@ -353,12 +319,8 @@ export const CsrfForm = (
 ): JSX.Element => (
   <form method="POST" action={appendIframeParam(action)} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
-    {rest.id && rest.id === _successStore.formId && (
-      <Raw html={renderSuccess(_successStore.message)} />
-    )}
-    {rest.id && rest.id === _errorStore.formId && (
-      <Raw html={renderError(_errorStore.message)} />
-    )}
+    {rest.id && rest.id === _successStore.formId && <Raw html={renderSuccess(_successStore.message)} />}
+    {rest.id && rest.id === _errorStore.formId && <Raw html={renderError(_errorStore.message)} />}
     {children}
   </form>
 );

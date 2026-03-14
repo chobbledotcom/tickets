@@ -22,9 +22,7 @@ export const adminScannerPage = (
     >
       <AdminNav session={session} active="/admin/" />
       <h1>Scanner</h1>
-      <p>
-        <a href={`/admin/event/${event.id}`}>&larr; {event.name}</a>
-      </p>
+      <p><a href={`/admin/event/${event.id}`}>&larr; {event.name}</a></p>
 
       <article>
         <div id="scanner-container">
@@ -34,19 +32,12 @@ export const adminScannerPage = (
             playsinline
             muted
             class="hidden"
-          >
-          </video>
+          ></video>
           <div id="scanner-status" class="hidden"></div>
           <div id="scanner-confirm" class="hidden">
             <div id="scanner-confirm-backdrop"></div>
             <div id="scanner-confirm-box">
-              <button
-                id="scanner-confirm-close"
-                type="button"
-                aria-label="Close"
-              >
-                &times;
-              </button>
+              <button id="scanner-confirm-close" type="button" aria-label="Close">&times;</button>
               <p id="scanner-confirm-message"></p>
               <div class="scanner-confirm-actions">
                 <button id="scanner-confirm-yes" type="button">Yes</button>
@@ -60,5 +51,5 @@ export const adminScannerPage = (
           Start Camera
         </button>
       </article>
-    </Layout>,
+    </Layout>
   );

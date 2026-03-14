@@ -7,20 +7,12 @@ import { map, pipe } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import {
-  getShowPublicSiteFromDb,
-  getWebsiteTitleFromDb,
-} from "#lib/db/settings.ts";
+import { getShowPublicSiteFromDb, getWebsiteTitleFromDb } from "#lib/db/settings.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import {
-  icsResponse,
-  isRegistrationClosed,
-  redirectResponse,
-  rssResponse,
-} from "#routes/utils.ts";
+import { icsResponse, isRegistrationClosed, redirectResponse, rssResponse } from "#routes/utils.ts";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
 export const escapeIcs = (text: string): string =>
@@ -56,25 +48,15 @@ const loadFeedData = async (): Promise<FeedData> => {
     allEvents.filter((e) => e.active && !e.hidden && !isRegistrationClosed(e)),
     holidays,
   );
-  return {
-    events,
-    domain: getAllowedDomain(),
-    title: websiteTitle || "Events",
-  };
+  return { events, domain: getAllowedDomain(), title: websiteTitle || "Events" };
 };
 
 /** Guard: redirect to admin if public site is disabled */
-const requirePublicSite = async <T>(
-  fn: () => Promise<T>,
-): Promise<T | Response> =>
+const requirePublicSite = async <T>(fn: () => Promise<T>): Promise<T | Response> =>
   await getShowPublicSiteFromDb() ? fn() : redirectResponse("/admin/");
 
 /** Build a single VEVENT block */
-const buildVEvent = (
-  event: EventWithCount,
-  domain: string,
-  dtstamp: string,
-): string => {
+const buildVEvent = (event: EventWithCount, domain: string, dtstamp: string): string => {
   const lines = [
     "BEGIN:VEVENT",
     `UID:${event.id}@${domain}`,
@@ -82,9 +64,7 @@ const buildVEvent = (
     `SUMMARY:${escapeIcs(event.name)}`,
     `URL:https://${domain}/ticket/${event.slug}`,
   ];
-  if (event.description) {
-    lines.push(`DESCRIPTION:${escapeIcs(event.description)}`);
-  }
+  if (event.description) lines.push(`DESCRIPTION:${escapeIcs(event.description)}`);
   if (event.date) lines.push(`DTSTART:${formatIcsDate(event.date)}`);
   if (event.location) lines.push(`LOCATION:${escapeIcs(event.location)}`);
   lines.push("END:VEVENT");
@@ -153,13 +133,13 @@ const buildRss = ({ events, domain, title }: FeedData): string => {
 /** Handle GET /feeds/events.ics */
 const handleIcs = (): Promise<Response> =>
   requirePublicSite(async () =>
-    icsResponse(buildIcs(await loadFeedData()))
+    icsResponse(buildIcs(await loadFeedData())),
   ) as Promise<Response>;
 
 /** Handle GET /feeds/events.rss */
 const handleRss = (): Promise<Response> =>
   requirePublicSite(async () =>
-    rssResponse(buildRss(await loadFeedData()))
+    rssResponse(buildRss(await loadFeedData())),
   ) as Promise<Response>;
 
 /** Feed routes */

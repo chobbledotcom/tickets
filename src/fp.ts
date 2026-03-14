@@ -10,12 +10,13 @@
 type Fn = (arg: any) => any;
 
 /** Validates that each fn's return type is assignable to the next fn's parameter */
-type ValidChain<Fns extends Fn[]> = Fns extends [Fn] ? true
+type ValidChain<Fns extends Fn[]> = Fns extends [Fn]
+  ? true
   : Fns extends
     [infer A extends Fn, infer B extends Fn, ...infer Rest extends Fn[]]
     ? ReturnType<A> extends Parameters<B>[0] ? ValidChain<[B, ...Rest]>
-    : false
-  : true;
+      : false
+    : true;
 
 /** Extracts the return type of the last fn in a tuple */
 type LastReturn<Fns extends Fn[]> = Fns extends [...Fn[], infer L extends Fn]
@@ -45,33 +46,40 @@ export function pipe(
  * Curried filter
  */
 export const filter =
-  <T>(predicate: (item: T) => boolean) => (array: T[]): T[] =>
+  <T>(predicate: (item: T) => boolean) =>
+  (array: T[]): T[] =>
     array.filter(predicate);
 
 /**
  * Curried map
  */
-export const map = <T, U>(fn: (item: T) => U) => (array: T[]): U[] =>
-  array.map(fn);
+export const map =
+  <T, U>(fn: (item: T) => U) =>
+  (array: T[]): U[] =>
+    array.map(fn);
 
 /**
  * Curried flatMap
  */
-export const flatMap = <T, U>(fn: (item: T) => U[]) => (array: T[]): U[] =>
-  array.flatMap(fn);
+export const flatMap =
+  <T, U>(fn: (item: T) => U[]) =>
+  (array: T[]): U[] =>
+    array.flatMap(fn);
 
 /**
  * Curried reduce
  */
 export const reduce =
-  <T, U>(fn: (acc: U, item: T) => U, initial: U) => (array: T[]): U =>
+  <T, U>(fn: (acc: U, item: T) => U, initial: U) =>
+  (array: T[]): U =>
     array.reduce(fn, initial);
 
 /**
  * Non-mutating sort with comparator
  */
 export const sort =
-  <T>(comparator: (a: T, b: T) => number) => (array: T[]): T[] =>
+  <T>(comparator: (a: T, b: T) => number) =>
+  (array: T[]): T[] =>
     [...array].sort(comparator);
 
 /**
@@ -79,9 +87,7 @@ export const sort =
  */
 export const sortBy =
   <T>(keyOrFn: keyof T | ((item: T) => string | number)) =>
-  (
-    array: T[],
-  ): T[] => {
+  (array: T[]): T[] => {
     const getValue = (item: T): string | number =>
       typeof keyOrFn === "function"
         ? keyOrFn(item)
@@ -104,18 +110,20 @@ export const unique = <T>(array: T[]): T[] => [...new Set(array)];
 /**
  * Remove duplicates by a key function
  */
-export const uniqueBy = <T>(fn: (item: T) => unknown) => (array: T[]): T[] => {
-  const seen = new Set<unknown>();
-  const result: T[] = [];
-  for (const item of array) {
-    const key = fn(item);
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(item);
+export const uniqueBy =
+  <T>(fn: (item: T) => unknown) =>
+  (array: T[]): T[] => {
+    const seen = new Set<unknown>();
+    const result: T[] = [];
+    for (const item of array) {
+      const key = fn(item);
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(item);
+      }
     }
-  }
-  return result;
-};
+    return result;
+  };
 
 /**
  * Remove null and undefined values from array
@@ -128,7 +136,8 @@ export const compact = <T>(
  * Group array items by a key function
  */
 export const groupBy =
-  <T>(fn: (item: T) => string) => (array: T[]): Record<string, T[]> => {
+  <T>(fn: (item: T) => string) =>
+  (array: T[]): Record<string, T[]> => {
     const result: Record<string, T[]> = {};
     for (const item of array) {
       const key = fn(item);
@@ -144,7 +153,7 @@ export const groupBy =
  * Lazy evaluation - compute once on first call, cache forever.
  * Use instead of `let x = null; const getX = () => x ??= compute();`
  */
-export const once = <T>(fn: () => T): () => T => {
+export const once = <T>(fn: () => T): (() => T) => {
   let computed = false;
   let value: T;
   return (): T => {
@@ -187,7 +196,8 @@ export const lazyRef = <T>(
  * Pick specific keys from an object
  */
 export const pick =
-  <T extends object, K extends keyof T>(keys: K[]) => (obj: T): Pick<T, K> => {
+  <T extends object, K extends keyof T>(keys: K[]) =>
+  (obj: T): Pick<T, K> => {
     const result = {} as Pick<T, K>;
     for (const key of keys) {
       if (key in obj) {
@@ -257,16 +267,14 @@ export const bracket =
 type AsyncFn = (arg: any) => Promise<any>;
 
 /** Validates that each async fn's Awaited return matches the next fn's parameter */
-type ValidAsyncChain<Fns extends AsyncFn[]> = Fns extends [AsyncFn] ? true
-  : Fns extends [
-    infer A extends AsyncFn,
-    infer B extends AsyncFn,
-    ...infer Rest extends AsyncFn[],
-  ]
+type ValidAsyncChain<Fns extends AsyncFn[]> = Fns extends [AsyncFn]
+  ? true
+  : Fns extends
+    [infer A extends AsyncFn, infer B extends AsyncFn, ...infer Rest extends AsyncFn[]]
     ? Awaited<ReturnType<A>> extends Parameters<B>[0]
       ? ValidAsyncChain<[B, ...Rest]>
-    : false
-  : true;
+      : false
+    : true;
 
 /** Extracts the Awaited return type of the last async fn */
 type LastAsyncReturn<Fns extends AsyncFn[]> = Fns extends [
@@ -305,7 +313,8 @@ export function pipeAsync(
  * Map over a promise-returning function sequentially (one at a time)
  */
 export const mapSequential =
-  <T, U>(fn: (item: T) => Promise<U>) => async (array: T[]): Promise<U[]> => {
+  <T, U>(fn: (item: T) => Promise<U>) =>
+  async (array: T[]): Promise<U[]> => {
     const results: U[] = [];
     for (const item of array) {
       results.push(await fn(item));
@@ -317,7 +326,8 @@ export const mapSequential =
  * Map over a promise-returning function in parallel (Promise.all)
  */
 export const mapParallel =
-  <T, U>(fn: (item: T) => Promise<U>) => (array: T[]): Promise<U[]> =>
+  <T, U>(fn: (item: T) => Promise<U>) =>
+  (array: T[]): Promise<U[]> =>
     Promise.all(array.map(fn));
 
 /** Bounded LRU cache returned by boundedLru() */

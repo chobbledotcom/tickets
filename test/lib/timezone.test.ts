@@ -98,29 +98,20 @@ describe("timezone", () => {
 
   describe("formatDatetimeInTz", () => {
     test("formats UTC datetime in London winter time (GMT)", () => {
-      const result = formatDatetimeInTz(
-        "2026-01-15T14:30:00.000Z",
-        "Europe/London",
-      );
+      const result = formatDatetimeInTz("2026-01-15T14:30:00.000Z", "Europe/London");
       expect(result).toContain("Thursday 15 January 2026 at 14:30");
       expect(result).toContain("GMT");
     });
 
     test("formats UTC datetime in London summer time (BST)", () => {
       // 13:30 UTC = 14:30 BST
-      const result = formatDatetimeInTz(
-        "2026-06-15T13:30:00.000Z",
-        "Europe/London",
-      );
+      const result = formatDatetimeInTz("2026-06-15T13:30:00.000Z", "Europe/London");
       expect(result).toContain("Monday 15 June 2026 at 14:30");
     });
 
     test("formats UTC datetime in Tokyo", () => {
       // 05:30 UTC = 14:30 JST
-      const result = formatDatetimeInTz(
-        "2026-06-15T05:30:00.000Z",
-        "Asia/Tokyo",
-      );
+      const result = formatDatetimeInTz("2026-06-15T05:30:00.000Z", "Asia/Tokyo");
       expect(result).toContain("Monday 15 June 2026 at 14:30");
     });
 
@@ -139,19 +130,13 @@ describe("timezone", () => {
 
     test("converts UTC to London summer time", () => {
       // 13:30 UTC = 14:30 BST
-      const result = utcToLocalInput(
-        "2026-06-15T13:30:00.000Z",
-        "Europe/London",
-      );
+      const result = utcToLocalInput("2026-06-15T13:30:00.000Z", "Europe/London");
       expect(result).toBe("2026-06-15T14:30");
     });
 
     test("converts UTC to London winter time", () => {
       // 14:30 UTC = 14:30 GMT
-      const result = utcToLocalInput(
-        "2026-01-15T14:30:00.000Z",
-        "Europe/London",
-      );
+      const result = utcToLocalInput("2026-01-15T14:30:00.000Z", "Europe/London");
       expect(result).toBe("2026-01-15T14:30");
     });
 

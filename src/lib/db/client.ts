@@ -6,20 +6,10 @@
  * call and record the SQL via the query-log module.
  */
 
-import {
-  type Client,
-  createClient,
-  type InValue,
-  type ResultSet,
-  type TransactionMode,
-} from "@libsql/client";
+import { type Client, createClient, type InValue, type ResultSet, type TransactionMode } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { getEnv } from "#lib/env.ts";
-import {
-  addQueryLogEntry,
-  isQueryLogEnabled,
-  trackQuery,
-} from "#lib/db/query-log.ts";
+import { addQueryLogEntry, isQueryLogEnabled, trackQuery } from "#lib/db/query-log.ts";
 
 const createDbClient = (): Client => {
   const url = getEnv("DB_URL");
@@ -109,9 +99,7 @@ export const queryBatch = (
  */
 export const executeBatch = async (
   statements: Array<{ sql: string; args: InValue[] }>,
-): Promise<void> => {
-  await trackedBatch(statements, "write");
-};
+): Promise<void> => { await trackedBatch(statements, "write"); };
 
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
 export const inPlaceholders = (values: readonly unknown[]): string =>

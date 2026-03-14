@@ -38,6 +38,7 @@ describe("env", () => {
     test("returns undefined when not set in either", () => {
       expect(getEnv("TEST_ENV_VAR")).toBeUndefined();
     });
+
   });
 
   describe("requireEnv", () => {

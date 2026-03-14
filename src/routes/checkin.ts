@@ -19,11 +19,7 @@ import {
   redirectResponse,
   withAuthForm,
 } from "#routes/utils.ts";
-import {
-  createTokenRoute,
-  lookupAttendees,
-  resolveEntries,
-} from "#routes/token-utils.ts";
+import { createTokenRoute, lookupAttendees, resolveEntries } from "#routes/token-utils.ts";
 
 const formatTicketCount = (count: number): string => {
   const suffix = count === 1 ? "" : "s";
@@ -42,10 +38,7 @@ const sumTicketCount = (
 };
 
 /** Decrypt attendees using the session's private key */
-const decryptWithSession = async (
-  rawAttendees: Attendee[],
-  session: AuthSession,
-) => {
+const decryptWithSession = async (rawAttendees: Attendee[], session: AuthSession) => {
   const privateKey = (await getPrivateKey(session))!;
   return decryptAttendees(rawAttendees, privateKey);
 };
@@ -60,15 +53,7 @@ const renderAdminView = async (
   const decrypted = await decryptWithSession(rawAttendees, session);
   const entries = await resolveEntries(decrypted);
   const phonePrefix = await getPhonePrefixFromDb();
-  return htmlResponse(
-    checkinAdminPage(
-      entries,
-      `/checkin/${tokens.join("+")}`,
-      message,
-      getAllowedDomain(),
-      phonePrefix,
-    ),
-  );
+  return htmlResponse(checkinAdminPage(entries, `/checkin/${tokens.join("+")}`, message, getAllowedDomain(), phonePrefix));
 };
 
 /** Look up attendees by tokens, returning early with error response if not found */
@@ -94,48 +79,34 @@ const handleCheckinGet = (
   });
 
 /** Handle POST /checkin/:tokens - set check-in status from form field */
-const handleCheckinPost = (
-  request: Request,
-  tokens: string[],
-): Promise<Response> =>
-  withAuthForm(
-    request,
-    (session, form) =>
-      withLookup(tokens, async (rawAttendees) => {
-        const checkedIn = form.get("check_in") === "true";
-        const decrypted = await decryptWithSession(rawAttendees, session);
-        const eligible = filter((a: Attendee) => !a.refunded)(decrypted);
+const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response> =>
+  withAuthForm(request, (session, form) =>
+    withLookup(tokens, async (rawAttendees) => {
+      const checkedIn = form.get("check_in") === "true";
+      const decrypted = await decryptWithSession(rawAttendees, session);
+      const eligible = filter((a: Attendee) => !a.refunded)(decrypted);
 
-        if (eligible.length === 0) {
-          return redirectResponse(
-            `/checkin/${tokens.join("+")}?message=${
-              encodeURIComponent("Cannot check in refunded tickets")
-            }`,
-          );
-        }
+      if (eligible.length === 0) {
+        return redirectResponse(`/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`);
+      }
 
-        const totalTickets = sumTicketCount(eligible);
-        const uncheckedTickets = sumTicketCount(
-          eligible,
-          (attendee) => !attendee.checked_in,
-        );
-        await Promise.all(
-          map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible),
-        );
+      const totalTickets = sumTicketCount(eligible);
+      const uncheckedTickets = sumTicketCount(
+        eligible,
+        (attendee) => !attendee.checked_in,
+      );
+      await Promise.all(map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible));
 
-        let message: string;
-        if (!checkedIn) {
-          message = "Checked out";
-        } else if (uncheckedTickets === 0) {
-          message = `Already checked in ${formatTicketCount(totalTickets)}`;
-        } else {
-          message = `Checked in ${formatTicketCount(uncheckedTickets)}`;
-        }
-        return redirectResponse(
-          `/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`,
-        );
-      }),
-  );
+      let message: string;
+      if (!checkedIn) {
+        message = "Checked out";
+      } else if (uncheckedTickets === 0) {
+        message = `Already checked in ${formatTicketCount(totalTickets)}`;
+      } else {
+        message = `Checked in ${formatTicketCount(uncheckedTickets)}`;
+      }
+      return redirectResponse(`/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`);
+    }));
 
 /** Route check-in requests */
 export const routeCheckin = createTokenRoute("checkin", {

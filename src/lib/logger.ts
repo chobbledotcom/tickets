@@ -55,36 +55,21 @@ const ERROR_DEFS = {
   AUTH_RATE_LIMITED: ["E_AUTH_RATE_LIMITED", "Rate limited"],
 
   // Payment provider errors (provider-agnostic)
-  PAYMENT_SIGNATURE: [
-    "E_PAYMENT_SIGNATURE",
-    "Payment signature verification failed",
-  ],
+  PAYMENT_SIGNATURE: ["E_PAYMENT_SIGNATURE", "Payment signature verification failed"],
   PAYMENT_SESSION: ["E_PAYMENT_SESSION", "Payment session error"],
   PAYMENT_REFUND: ["E_PAYMENT_REFUND", "Payment refund failed"],
   PAYMENT_CHECKOUT: ["E_PAYMENT_CHECKOUT", "Payment checkout failed"],
-  PAYMENT_WEBHOOK_SETUP: [
-    "E_PAYMENT_WEBHOOK_SETUP",
-    "Payment webhook setup failed",
-  ],
+  PAYMENT_WEBHOOK_SETUP: ["E_PAYMENT_WEBHOOK_SETUP", "Payment webhook setup failed"],
 
   // Stripe-specific errors (used by stripe.ts internals)
-  STRIPE_SIGNATURE: [
-    "E_STRIPE_SIGNATURE",
-    "Stripe signature verification failed",
-  ],
+  STRIPE_SIGNATURE: ["E_STRIPE_SIGNATURE", "Stripe signature verification failed"],
   STRIPE_SESSION: ["E_STRIPE_SESSION", "Stripe session retrieval failed"],
   STRIPE_REFUND: ["E_STRIPE_REFUND", "Stripe refund failed"],
   STRIPE_CHECKOUT: ["E_STRIPE_CHECKOUT", "Stripe checkout failed"],
-  STRIPE_WEBHOOK_SETUP: [
-    "E_STRIPE_WEBHOOK_SETUP",
-    "Stripe webhook setup failed",
-  ],
+  STRIPE_WEBHOOK_SETUP: ["E_STRIPE_WEBHOOK_SETUP", "Stripe webhook setup failed"],
 
   // Square-specific errors (used by square.ts internals)
-  SQUARE_SIGNATURE: [
-    "E_SQUARE_SIGNATURE",
-    "Square signature verification failed",
-  ],
+  SQUARE_SIGNATURE: ["E_SQUARE_SIGNATURE", "Square signature verification failed"],
   SQUARE_SESSION: ["E_SQUARE_SESSION", "Square session retrieval failed"],
   SQUARE_REFUND: ["E_SQUARE_REFUND", "Square refund failed"],
   SQUARE_CHECKOUT: ["E_SQUARE_CHECKOUT", "Square checkout failed"],
@@ -92,10 +77,7 @@ const ERROR_DEFS = {
 
   // Validation errors
   VALIDATION_FORM: ["E_VALIDATION_FORM", "Form validation error"],
-  VALIDATION_CONTENT_TYPE: [
-    "E_VALIDATION_CONTENT_TYPE",
-    "Invalid content type",
-  ],
+  VALIDATION_CONTENT_TYPE: ["E_VALIDATION_CONTENT_TYPE", "Invalid content type"],
   DATA_INVALID: ["E_DATA_INVALID", "Invalid data"],
 
   // Storage errors
@@ -106,10 +88,7 @@ const ERROR_DEFS = {
 
   // Email errors
   EMAIL_SEND: ["E_EMAIL_SEND", "Email send failed"],
-  EMAIL_TEMPLATE_RENDER: [
-    "E_EMAIL_TEMPLATE_RENDER",
-    "Email template render failed",
-  ],
+  EMAIL_TEMPLATE_RENDER: ["E_EMAIL_TEMPLATE_RENDER", "Email template render failed"],
 
   // Not found
   NOT_FOUND_EVENT: ["E_NOT_FOUND_EVENT", "Event not found"],
@@ -128,17 +107,18 @@ const ERROR_DEFS = {
 type ErrorDefs = typeof ERROR_DEFS;
 
 /** Error code strings for use in logError calls */
-export const ErrorCode: { [K in keyof ErrorDefs]: ErrorDefs[K][0] } = Object
-  .fromEntries(
+export const ErrorCode: { [K in keyof ErrorDefs]: ErrorDefs[K][0] } =
+  Object.fromEntries(
     Object.entries(ERROR_DEFS).map(([k, [code]]) => [k, code]),
   ) as { [K in keyof ErrorDefs]: ErrorDefs[K][0] };
 
 export type ErrorCodeType = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /** Human-readable labels for error codes (shown in admin activity log) */
-export const errorCodeLabel: Record<ErrorCodeType, string> = Object.fromEntries(
-  Object.values(ERROR_DEFS).map(([code, label]) => [code, label]),
-) as Record<ErrorCodeType, string>;
+export const errorCodeLabel: Record<ErrorCodeType, string> =
+  Object.fromEntries(
+    Object.values(ERROR_DEFS).map(([code, label]) => [code, label]),
+  ) as Record<ErrorCodeType, string>;
 
 /**
  * Redact dynamic segments from paths for privacy-safe logging
@@ -199,18 +179,14 @@ export type ErrorContext = {
 /** Format an error context into a human-readable activity log message */
 export const formatErrorMessage = (context: ErrorContext): string => {
   const label = errorCodeLabel[context.code];
-  return context.detail
-    ? `Error: ${label} (${context.detail})`
-    : `Error: ${label}`;
+  return context.detail ? `Error: ${label} (${context.detail})` : `Error: ${label}`;
 };
 
 /** Guard against recursive logError→logActivity→logError loops */
 const errorPersistGuard = { active: false };
 
 /** Persist error to activity log, swallowing failures to prevent cascading errors */
-const persistErrorToActivityLog = async (
-  context: ErrorContext,
-): Promise<void> => {
+const persistErrorToActivityLog = async (context: ErrorContext): Promise<void> => {
   if (errorPersistGuard.active) return;
   errorPersistGuard.active = true;
   try {
@@ -247,7 +223,7 @@ export const logError = (context: ErrorContext): void => {
 /**
  * Create a request timer for measuring duration
  */
-export const createRequestTimer = (): () => number => {
+export const createRequestTimer = (): (() => number) => {
   const start = performance.now();
   return () => Math.round(performance.now() - start);
 };

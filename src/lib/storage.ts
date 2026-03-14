@@ -161,9 +161,7 @@ export const uploadImage = async (
 /**
  * Collect a ReadableStream into a single Uint8Array.
  */
-const collectStream = async (
-  stream: ReadableStream<Uint8Array>,
-): Promise<Uint8Array> => {
+const collectStream = async (stream: ReadableStream<Uint8Array>): Promise<Uint8Array> => {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let totalLength = 0;
@@ -192,9 +190,7 @@ const isFileNotFound = (err: unknown): boolean =>
  * pull zone URL, which requires a separate pull zone linked to the storage zone.
  * Returns the decrypted image bytes, or null if the file does not exist.
  */
-export const downloadImage = async (
-  filename: string,
-): Promise<Uint8Array | null> => {
+export const downloadImage = async (filename: string): Promise<Uint8Array | null> => {
   try {
     const sz = connectZone();
     const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);

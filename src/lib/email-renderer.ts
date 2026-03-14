@@ -8,10 +8,7 @@
 
 import { lazyRef, map } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
-import type {
-  EmailTemplateFormat,
-  EmailTemplateType,
-} from "#lib/db/settings.ts";
+import type { EmailTemplateFormat, EmailTemplateType } from "#lib/db/settings.ts";
 import { getEmailTemplateSet } from "#lib/db/settings.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { isPaidEvent } from "#lib/types.ts";
@@ -25,13 +22,11 @@ import { Liquid } from "liquidjs";
 const createEngine = (): Liquid => {
   const engine = new Liquid({ strictVariables: false, strictFilters: true });
 
-  engine.registerFilter("currency", (v: string | number) => formatCurrency(v));
+  engine.registerFilter("currency", (v: string | number) =>
+    formatCurrency(v));
 
-  engine.registerFilter(
-    "pluralize",
-    (count: number, singular: string, plural: string) =>
-      count === 1 ? singular : plural,
-  );
+  engine.registerFilter("pluralize", (count: number, singular: string, plural: string) =>
+    count === 1 ? singular : plural);
 
   return engine;
 };
@@ -125,13 +120,7 @@ export const renderEmailContent = async (
   const custom = await getEmailTemplateSet(type);
 
   const [subject, html, text] = await Promise.all([
-    safeRender(
-      custom.subject ?? defaults.subject,
-      data,
-      defaults.subject,
-      type,
-      "subject",
-    ),
+    safeRender(custom.subject ?? defaults.subject, data, defaults.subject, type, "subject"),
     safeRender(custom.html ?? defaults.html, data, defaults.html, type, "html"),
     safeRender(custom.text ?? defaults.text, data, defaults.text, type, "text"),
   ]);
@@ -152,9 +141,7 @@ const safeRender = async (
   } catch (error) {
     logError({
       code: ErrorCode.EMAIL_TEMPLATE_RENDER,
-      detail: `template render error (${type}/${format}): ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      detail: `template render error (${type}/${format}): ${error instanceof Error ? error.message : String(error)}`,
     });
     return await renderTemplate(fallbackTemplate, data);
   }

@@ -5,16 +5,13 @@
 import { filter, map, pipe } from "#fp";
 
 /** Matches a valid hostname like "example.com" or "sub.example.com" */
-export const DOMAIN_PATTERN =
-  /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
+export const DOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 /**
  * Matches a hostname with optional wildcard prefix ("*.example.com").
  * Rejects ports, paths, protocols, spaces, bare "*", "**.", "*example.com".
  */
-const HOST_PATTERN = new RegExp(
-  `^(?:\\*\\.)?${DOMAIN_PATTERN.source.slice(1)}`,
-);
+const HOST_PATTERN = new RegExp(`^(?:\\*\\.)?${DOMAIN_PATTERN.source.slice(1)}`);
 
 /**
  * Validate a single host pattern
@@ -22,9 +19,7 @@ const HOST_PATTERN = new RegExp(
  */
 export const validateHostPattern = (host: string): string | null => {
   if (host === "") return "Empty host pattern";
-  if (host === "*") {
-    return "Bare wildcard '*' is not allowed — use '*.example.com'";
-  }
+  if (host === "*") return "Bare wildcard '*' is not allowed — use '*.example.com'";
   if (!HOST_PATTERN.test(host)) {
     return `Invalid host pattern: '${host}' — must be a hostname like 'example.com' or '*.example.com'`;
   }

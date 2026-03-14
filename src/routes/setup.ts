@@ -17,19 +17,20 @@ import { setupFields, type SetupFormValues } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /** Response helper - renders setup page with current stored CSRF token */
-const setupResponse = (error?: string, status = 200) =>
-  htmlResponse(setupPage(error), status);
+const setupResponse =
+  (error?: string, status = 200) =>
+    htmlResponse(setupPage(error), status);
 
 /**
  * Validate setup form data (uses form framework + custom validation)
  */
 type SetupValidation =
   | {
-    valid: true;
-    username: string;
-    password: string;
-    currency: string;
-  }
+      valid: true;
+      username: string;
+      password: string;
+      currency: string;
+    }
   | { valid: false; error: string };
 
 const validateSetupForm = (form: URLSearchParams): SetupValidation => {
@@ -42,11 +43,7 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
     return validation;
   }
 
-  const {
-    admin_username: username,
-    admin_password: password,
-    admin_password_confirm: passwordConfirm,
-  } = validation.values;
+  const { admin_username: username, admin_password: password, admin_password_confirm: passwordConfirm } = validation.values;
   const currency = (validation.values.currency_code || "GBP").toUpperCase();
 
   // Check Data Controller Agreement acceptance
@@ -87,9 +84,7 @@ type SetupCheck = () => Promise<boolean>;
 /**
  * Handle GET /setup/
  */
-const handleSetupGet = async (
-  isSetupComplete: SetupCheck,
-): Promise<Response> => {
+const handleSetupGet = async (isSetupComplete: SetupCheck): Promise<Response> => {
   if (await isSetupComplete()) return redirectResponse("/");
   await signCsrfToken();
   return setupResponse();
@@ -157,9 +152,7 @@ const handleSetupPost = async (
 /**
  * Handle GET /setup/complete - setup success page
  */
-const handleSetupComplete = async (
-  isSetupComplete: SetupCheck,
-): Promise<Response> => {
+const handleSetupComplete = async (isSetupComplete: SetupCheck): Promise<Response> => {
   if (!(await isSetupComplete())) {
     return redirectResponse("/setup/");
   }

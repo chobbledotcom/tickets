@@ -199,8 +199,7 @@ export const createTestDbWithSetup = async (
     if (cachedSetupUsers) {
       for (const row of cachedSetupUsers) {
         await cachedClient!.execute({
-          sql:
-            "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
           args: [
             row.id,
             row.username_hash,
@@ -379,8 +378,8 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
   typeof input === "string"
     ? input
     : input instanceof URL
-    ? input.toString()
-    : input.url;
+      ? input.toString()
+      : input.url;
 
 /**
  * Swap globalThis.fetch for the duration of a callback, using bracket for safe restore.
@@ -762,8 +761,7 @@ export const getTestSession = async (): Promise<{
     const { getDb } = await import("#lib/db/client.ts");
     const { sessionRow } = cachedAdminSession;
     await getDb().execute({
-      sql:
-        "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
+      sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
       args: [
         sessionRow.token,
         sessionRow.csrf_token,
@@ -885,9 +883,8 @@ export const createTestEvent = (
       max_quantity: String(input.maxQuantity ?? 1),
       fields: input.fields ?? "email",
       thank_you_url: input.thankYouUrl ?? "",
-      unit_price: input.unitPrice != null
-        ? priceFormValue(input.unitPrice)
-        : "",
+      unit_price:
+        input.unitPrice != null ? priceFormValue(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
       closes_at_date: closesAtParts.date,
       closes_at_time: closesAtParts.time,
@@ -895,12 +892,10 @@ export const createTestEvent = (
       bookable_days: input.bookableDays
         ? formatBookableDaysForForm(input.bookableDays)
         : "",
-      minimum_days_before: input.minimumDaysBefore != null
-        ? String(input.minimumDaysBefore)
-        : "",
-      maximum_days_after: input.maximumDaysAfter != null
-        ? String(input.maximumDaysAfter)
-        : "",
+      minimum_days_before:
+        input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
+      maximum_days_after:
+        input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
       non_transferable: input.nonTransferable ? "1" : "",
       can_pay_more: input.canPayMore ? "1" : "",
       max_price: priceFormValue(input.maxPrice),
@@ -925,7 +920,9 @@ const formatPrice = (
   update: number | undefined,
   existing: number,
 ): string =>
-  update !== undefined ? priceFormValue(update) : priceFormValue(existing);
+  update !== undefined
+    ? priceFormValue(update)
+    : priceFormValue(existing);
 
 /** Format optional string field for form submission */
 const formatOptional = (update: string | undefined, existing: string): string =>
@@ -991,12 +988,13 @@ export const updateTestEvent = async (
       maximum_days_after: String(
         updates.maximumDaysAfter ?? existing.maximum_days_after,
       ),
-      non_transferable: (updates.nonTransferable ?? existing.non_transferable)
-        ? "1"
-        : "",
-      can_pay_more: (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
+      non_transferable:
+        (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
+      can_pay_more:
+        (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
       max_price: priceFormValue(updates.maxPrice ?? existing.max_price),
-      hidden: (updates.hidden ?? existing.hidden) ? "1" : "",
+      hidden:
+        (updates.hidden ?? existing.hidden) ? "1" : "",
     },
     async () => (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
@@ -1097,7 +1095,8 @@ import { expect } from "@std/expect";
 
 /** Assert a Response has the given status code. Returns the response for chaining. */
 export const expectStatus =
-  (status: number) => (response: Response): Response => {
+  (status: number) =>
+  (response: Response): Response => {
     expect(response.status).toBe(status);
     return response;
   };
@@ -1121,7 +1120,8 @@ export const expectHtmlResponse = async (
 
 /** Assert a Response is a redirect (302) to the given location. */
 export const expectRedirect =
-  (location: string) => (response: Response): Response => {
+  (location: string) =>
+  (response: Response): Response => {
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe(location);
     return response;
@@ -1177,8 +1177,10 @@ export const successResponse =
     new Response(body ?? null, { status });
 
 /** Error response factory: creates a callback taking an error string. */
-export const errorResponse = (status: number) => (error: string): Response =>
-  new Response(error, { status });
+export const errorResponse =
+  (status: number) =>
+  (error: string): Response =>
+    new Response(error, { status });
 
 // ---------------------------------------------------------------------------
 // Test data factories
@@ -1389,11 +1391,7 @@ export const submitMultiTicketForm = async (
   const getResponse = await handleRequest(mockRequest(path));
   const csrfToken = extractCsrfToken(await getResponse.text())!;
   return handleRequest(
-    mockFormRequest(
-      path,
-      { ...data, csrf_token: csrfToken },
-      `csrf_token=${csrfToken}`,
-    ),
+    mockFormRequest(path, { ...data, csrf_token: csrfToken }, `csrf_token=${csrfToken}`),
   );
 };
 
@@ -1518,8 +1516,8 @@ export const updateTestGroup = async (
     {
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
-      terms_and_conditions: updates.termsAndConditions ??
-        existing.terms_and_conditions,
+      terms_and_conditions:
+        updates.termsAndConditions ?? existing.terms_and_conditions,
     },
     async () => {
       const updated = await groupsTable.findById(groupId);
@@ -1889,8 +1887,7 @@ export const createTestManagerSession = async (
     "user-key-placeholder",
   );
   await getDb().execute({
-    sql:
-      `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
           VALUES (?, ?, ?, ?, ?)`,
     args: [
       await enc(username),
@@ -1926,11 +1923,7 @@ export const createTestManagerSession = async (
  * Returns the stub (call `.restore()` in a `finally` block).
  */
 export const stubWebhookVerify = async (
-  eventData: {
-    id: string;
-    type: string;
-    data: { object: Record<string, unknown> };
-  },
+  eventData: { id: string; type: string; data: { object: Record<string, unknown> } },
 ) => {
   const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
   return stub(
@@ -1968,9 +1961,7 @@ const _testCerts: SigningCredentials = (() => {
   caCert.serialNumber = "01";
   caCert.validity.notBefore = new Date();
   caCert.validity.notAfter = new Date();
-  caCert.validity.notAfter.setFullYear(
-    caCert.validity.notAfter.getFullYear() + 1,
-  );
+  caCert.validity.notAfter.setFullYear(caCert.validity.notAfter.getFullYear() + 1);
   const caAttrs = [{ name: "commonName", value: "Test WWDR CA" }];
   caCert.setSubject(caAttrs);
   caCert.setIssuer(caAttrs);
@@ -1984,9 +1975,7 @@ const _testCerts: SigningCredentials = (() => {
   signingCert.serialNumber = "02";
   signingCert.validity.notBefore = new Date();
   signingCert.validity.notAfter = new Date();
-  signingCert.validity.notAfter.setFullYear(
-    signingCert.validity.notAfter.getFullYear() + 1,
-  );
+  signingCert.validity.notAfter.setFullYear(signingCert.validity.notAfter.getFullYear() + 1);
   signingCert.setSubject([{ name: "commonName", value: "Test Pass Signing" }]);
   signingCert.setIssuer(caAttrs);
   signingCert.sign(keys.privateKey, forge.md.sha256.create());

@@ -12,9 +12,7 @@ interface AdminNavProps {
 }
 
 const navLink = (href: string, label: string, active: string): JSX.Element => (
-  <li>
-    <a href={href} class={href === active ? "active" : undefined}>{label}</a>
-  </li>
+  <li><a href={href} class={href === active ? "active" : undefined}>{label}</a></li>
 );
 
 /**
@@ -26,19 +24,13 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
     <ul>
       {navLink("/admin/", "Events", active)}
       {navLink("/admin/calendar", "Calendar", active)}
-      {session.adminLevel === "owner" &&
-        navLink("/admin/users", "Users", active)}
-      {session.adminLevel === "owner" && getShowPublicSiteCached() &&
-        navLink("/admin/site", "Site", active)}
-      {session.adminLevel === "owner" &&
-        navLink("/admin/settings", "Settings", active)}
+      {session.adminLevel === "owner" && navLink("/admin/users", "Users", active)}
+      {session.adminLevel === "owner" && getShowPublicSiteCached() && navLink("/admin/site", "Site", active)}
+      {session.adminLevel === "owner" && navLink("/admin/settings", "Settings", active)}
       {session.adminLevel === "owner" && navLink("/admin/log", "Log", active)}
-      {session.adminLevel === "owner" &&
-        navLink("/admin/groups", "Groups", active)}
-      {session.adminLevel === "owner" &&
-        navLink("/admin/holidays", "Holidays", active)}
-      {session.adminLevel === "owner" &&
-        navLink("/admin/sessions", "Sessions", active)}
+      {session.adminLevel === "owner" && navLink("/admin/groups", "Groups", active)}
+      {session.adminLevel === "owner" && navLink("/admin/holidays", "Holidays", active)}
+      {session.adminLevel === "owner" && navLink("/admin/sessions", "Sessions", active)}
       {navLink("/admin/guide", "Guide", active)}
       <li>
         <CsrfForm action="/admin/logout" class="inline">
@@ -58,7 +50,5 @@ interface BreadcrumbProps {
  * Breadcrumb link for sub-pages
  */
 export const Breadcrumb = ({ href, label }: BreadcrumbProps): JSX.Element => (
-  <p>
-    <a href={href}>&larr; {label}</a>
-  </p>
+  <p><a href={href}>&larr; {label}</a></p>
 );

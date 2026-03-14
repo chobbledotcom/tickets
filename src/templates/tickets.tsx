@@ -26,9 +26,7 @@ const ticketCount = (count: number): string =>
 
 /** Render an "Add to Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
 const renderWalletLink = (token: string): string =>
-  `<a href="/wallet/${
-    escapeHtml(token)
-  }.pkpass" class="wallet-link">Add to Apple Wallet</a>`;
+  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">Add to Apple Wallet</a>`;
 
 /** Render a single ticket card */
 const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
@@ -36,9 +34,7 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
   const { event, attendee } = entry;
   const imageHtml = renderEventImage(event, "ticket-card-image");
   const eventDateHtml = event.date
-    ? `<div class="ticket-card-date">${
-      escapeHtml(formatDatetimeLabel(event.date))
-    }</div>`
+    ? `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(event.date))}</div>`
     : "";
 
   const locationHtml = event.location
@@ -46,22 +42,16 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
     : "";
 
   const descriptionHtml = event.description
-    ? `<div class="ticket-card-description">${
-      escapeHtml(event.description)
-    }</div>`
+    ? `<div class="ticket-card-description">${escapeHtml(event.description)}</div>`
     : "";
 
   const attendeeDateHtml = attendee.date
-    ? `<div class="ticket-card-date">Booking Date: ${
-      escapeHtml(formatDateLabel(attendee.date))
-    }</div>`
+    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(formatDateLabel(attendee.date))}</div>`
     : "";
 
   const pricePaid = Number(attendee.price_paid);
   const priceHtml = pricePaid > 0
-    ? `<div class="ticket-card-price">Price: ${
-      escapeHtml(formatCurrency(pricePaid))
-    }</div>`
+    ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
     : "";
 
   const nonTransferableHtml = event.non_transferable
@@ -92,10 +82,7 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
  * Ticket view page - shows individual cards for each ticket with its own QR code
  * The QR code encodes the /checkin/:token URL for admin scanning
  */
-export const ticketViewPage = (
-  cards: TicketCard[],
-  walletEnabled = false,
-): string => {
+export const ticketViewPage = (cards: TicketCard[], walletEnabled = false): string => {
   const cardHtml = pipe(
     map((card: TicketCard) => renderTicketCard(card, walletEnabled)),
     (c: string[]) => c.join(""),
@@ -107,6 +94,6 @@ export const ticketViewPage = (
       <div class="ticket-slider">
         <Raw html={cardHtml} />
       </div>
-    </Layout>,
+    </Layout>
   );
 };

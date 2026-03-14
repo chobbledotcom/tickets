@@ -2,7 +2,7 @@
  * Admin attendee page templates
  */
 
-import { map, pipe, unique } from "#fp";
+import { pipe, unique, map } from "#fp";
 import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -22,60 +22,40 @@ export const adminDeleteAttendeePage = (
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+        {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong>{" "}
-            This will permanently remove this attendee from the event and delete
-            any associated payment records.
-          </p>
-        </aside>
-      </article>
+        <article>
+          <aside>
+            <p><strong>Warning:</strong> This will permanently remove this attendee from the event and delete any associated payment records.</p>
+          </aside>
+        </article>
 
-      <article>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
-        </p>
-      </article>
+        <article>
+          <h2>Attendee Details</h2>
+          <p><strong>Name:</strong> {attendee.name}</p>
+          <p><strong>Email:</strong> {attendee.email}</p>
+          <p><strong>Quantity:</strong> {attendee.quantity}</p>
+          <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>
+        </article>
 
-      <p>
-        To delete this attendee, you must type their name "{attendee.name}" into
-        the box below:
-      </p>
+        <p>To delete this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-      <CsrfForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
-      >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_name">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_name"
-          name="confirm_name"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Delete Attendee
-        </button>
-      </CsrfForm>
-    </Layout>,
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}>
+          {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
+          <label for="confirm_name">Attendee name</label>
+          <input
+            type="text"
+            id="confirm_name"
+            name="confirm_name"
+            placeholder={attendee.name}
+            autocomplete="off"
+            required
+          />
+          <button type="submit" class="danger">
+            Delete Attendee
+          </button>
+        </CsrfForm>
+    </Layout>
   );
 
 /**
@@ -90,65 +70,43 @@ export const adminRefundAttendeePage = (
   String(
     <Layout title={`Refund Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+        {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong>{" "}
-            This will issue a full refund for this attendee's payment. The
-            attendee will remain registered.
-          </p>
-        </aside>
-      </article>
+        <article>
+          <aside>
+            <p><strong>Warning:</strong> This will issue a full refund for this attendee's payment. The attendee will remain registered.</p>
+          </aside>
+        </article>
 
-      <article>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        {Number.parseInt(attendee.price_paid, 10) > 0 && (
-          <p>
-            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
-          </p>
-        )}
-        <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
-        </p>
-      </article>
+        <article>
+          <h2>Attendee Details</h2>
+          <p><strong>Name:</strong> {attendee.name}</p>
+          <p><strong>Email:</strong> {attendee.email}</p>
+          <p><strong>Quantity:</strong> {attendee.quantity}</p>
+          {Number.parseInt(attendee.price_paid, 10) > 0 && (
+            <p><strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}</p>
+          )}
+          <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>
+        </article>
 
-      <p>
-        To refund this attendee, you must type their name "{attendee.name}" into
-        the box below:
-      </p>
+        <p>To refund this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-      <CsrfForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
-      >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_name">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_name"
-          name="confirm_name"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Refund Attendee
-        </button>
-      </CsrfForm>
-    </Layout>,
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}>
+          {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
+          <label for="confirm_name">Attendee name</label>
+          <input
+            type="text"
+            id="confirm_name"
+            name="confirm_name"
+            placeholder={attendee.name}
+            autocomplete="off"
+            required
+          />
+          <button type="submit" class="danger">
+            Refund Attendee
+          </button>
+        </CsrfForm>
+    </Layout>
   );
 
 /**
@@ -163,38 +121,31 @@ export const adminRefundAllAttendeesPage = (
   String(
     <Layout title={`Refund All: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+        {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will issue a full refund for all{" "}
-            {refundableCount}{" "}
-            attendee(s) with payments. Attendees will remain registered.
-          </p>
-        </aside>
-      </article>
+        <article>
+          <aside>
+            <p><strong>Warning:</strong> This will issue a full refund for all {refundableCount} attendee(s) with payments. Attendees will remain registered.</p>
+          </aside>
+        </article>
 
-      <p>
-        To refund all attendees, you must type the event name "{event.name}"
-        into the box below:
-      </p>
+        <p>To refund all attendees, you must type the event name "{event.name}" into the box below:</p>
 
-      <CsrfForm action={`/admin/event/${event.id}/refund-all`}>
-        <label for="confirm_name">Event name</label>
-        <input
-          type="text"
-          id="confirm_name"
-          name="confirm_name"
-          placeholder={event.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Refund All Attendees
-        </button>
-      </CsrfForm>
-    </Layout>,
+        <CsrfForm action={`/admin/event/${event.id}/refund-all`}>
+          <label for="confirm_name">Event name</label>
+          <input
+            type="text"
+            id="confirm_name"
+            name="confirm_name"
+            placeholder={event.name}
+            autocomplete="off"
+            required
+          />
+          <button type="submit" class="danger">
+            Refund All Attendees
+          </button>
+        </CsrfForm>
+    </Layout>
   );
 
 /** Render event selector for edit attendee page */
@@ -213,9 +164,7 @@ const renderEventSelector = (
     .map((id) => {
       const event = allEvents.find((e) => e.id === id)!;
       const selected = id === currentEventId ? " selected" : "";
-      return `<option value="${id}"${selected}>${event.name}${
-        !event.active ? " (inactive)" : ""
-      }</option>`;
+      return `<option value="${id}"${selected}>${event.name}${!event.active ? " (inactive)" : ""}</option>`;
     })
     .join("");
 
@@ -231,13 +180,9 @@ const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
   return String(
     <article>
       <h3>Payment Details</h3>
-      <p>
-        <strong>Payment ID:</strong> {attendee.payment_id}
-      </p>
+      <p><strong>Payment ID:</strong> {attendee.payment_id}</p>
       {pricePaid > 0 && (
-        <p>
-          <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
-        </p>
+        <p><strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}</p>
       )}
       <p>
         <strong>Refund Status:</strong>{" "}
@@ -251,7 +196,7 @@ const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
       >
         <button type="submit">Refresh payment status</button>
       </CsrfForm>
-    </article>,
+    </article>
   );
 };
 
@@ -259,11 +204,7 @@ const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
  * Admin edit attendee page
  */
 export const adminEditAttendeePage = (
-  { event, attendee, allEvents }: {
-    event: EventWithCount;
-    attendee: Attendee;
-    allEvents: EventWithCount[];
-  },
+  { event, attendee, allEvents }: { event: EventWithCount; attendee: Attendee; allEvents: EventWithCount[] },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
@@ -272,90 +213,84 @@ export const adminEditAttendeePage = (
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
-      {success && <div class="success">{success}</div>}
+        {error && <div class="error">{error}</div>}
+        {success && <div class="success">{success}</div>}
 
-      <h2>Edit Attendee</h2>
+        <h2>Edit Attendee</h2>
 
-      <Raw html={PaymentDetails({ attendee })} />
+        <Raw html={PaymentDetails({ attendee })} />
 
-      <CsrfForm action={`/admin/attendees/${attendee.id}`}>
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
+        <CsrfForm action={`/admin/attendees/${attendee.id}`}>
+          {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
 
-        <label for="name">
-          Name
-          <input
-            type="text"
-            id="name"
-            name="name"
-            value={attendee.name}
-            required
-            autofocus
-          />
-        </label>
+          <label for="name">
+            Name
+            <input
+              type="text"
+              id="name"
+              name="name"
+              value={attendee.name}
+              required
+              autofocus
+            />
+          </label>
 
-        <label for="email">
-          Email
-          <input
-            type="email"
-            id="email"
-            name="email"
-            value={attendee.email || ""}
-          />
-        </label>
+          <label for="email">
+            Email
+            <input
+              type="email"
+              id="email"
+              name="email"
+              value={attendee.email || ""}
+            />
+          </label>
 
-        <label for="phone">
-          Phone
-          <input
-            type="text"
-            id="phone"
-            name="phone"
-            value={attendee.phone || ""}
-          />
-        </label>
+          <label for="phone">
+            Phone
+            <input
+              type="text"
+              id="phone"
+              name="phone"
+              value={attendee.phone || ""}
+            />
+          </label>
 
-        <label for="address">
-          Address
-          <textarea
-            id="address"
-            name="address"
-            rows={3}
-          >
-            {attendee.address || ""}
-          </textarea>
-        </label>
+          <label for="address">
+            Address
+            <textarea
+              id="address"
+              name="address"
+              rows={3}
+            >{attendee.address || ""}</textarea>
+          </label>
 
-        <label for="special_instructions">
-          Special Instructions
-          <textarea
-            id="special_instructions"
-            name="special_instructions"
-            rows={3}
-          >
-            {attendee.special_instructions || ""}
-          </textarea>
-        </label>
+          <label for="special_instructions">
+            Special Instructions
+            <textarea
+              id="special_instructions"
+              name="special_instructions"
+              rows={3}
+            >{attendee.special_instructions || ""}</textarea>
+          </label>
 
-        <label for="quantity">
-          Quantity
-          <input
-            type="number"
-            id="quantity"
-            name="quantity"
-            value={String(attendee.quantity)}
-            min="1"
-            max={String(event.max_quantity)}
-            required
-          />
-        </label>
+          <label for="quantity">
+            Quantity
+            <input
+              type="number"
+              id="quantity"
+              name="quantity"
+              value={String(attendee.quantity)}
+              min="1"
+              max={String(event.max_quantity)}
+              required
+            />
+          </label>
 
-        <Raw html={renderEventSelector(event.id, allEvents)} />
+          <Raw html={renderEventSelector(event.id, allEvents)} />
 
-        <button type="submit">Save Changes</button>
-      </CsrfForm>
-    </Layout>,
+          <button type="submit">Save Changes</button>
+        </CsrfForm>
+    </Layout>
   );
 
 /**
@@ -370,62 +305,41 @@ export const adminResendNotificationPage = (
   String(
     <Layout title={`Re-send Notification: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+        {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Note:</strong>{" "}
-            This will re-send the registration notification for this attendee.
-          </p>
-        </aside>
-      </article>
+        <article>
+          <aside>
+            <p><strong>Note:</strong> This will re-send the registration notification for this attendee.</p>
+          </aside>
+        </article>
 
-      <article>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        {Number.parseInt(attendee.price_paid, 10) > 0 && (
-          <p>
-            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
-          </p>
-        )}
-        <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
-        </p>
-      </article>
+        <article>
+          <h2>Attendee Details</h2>
+          <p><strong>Name:</strong> {attendee.name}</p>
+          <p><strong>Email:</strong> {attendee.email}</p>
+          <p><strong>Quantity:</strong> {attendee.quantity}</p>
+          {Number.parseInt(attendee.price_paid, 10) > 0 && (
+            <p><strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}</p>
+          )}
+          <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>
+        </article>
 
-      <p>
-        To re-send the notification for this attendee, you must type their name
-        "{attendee.name}" into the box below:
-      </p>
+        <p>To re-send the notification for this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-      <CsrfForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}
-      >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_name">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_name"
-          name="confirm_name"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit">
-          Re-send Notification
-        </button>
-      </CsrfForm>
-    </Layout>,
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}>
+          {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
+          <label for="confirm_name">Attendee name</label>
+          <input
+            type="text"
+            id="confirm_name"
+            name="confirm_name"
+            placeholder={attendee.name}
+            autocomplete="off"
+            required
+          />
+          <button type="submit">
+            Re-send Notification
+          </button>
+        </CsrfForm>
+    </Layout>
   );

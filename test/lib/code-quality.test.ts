@@ -197,9 +197,7 @@ describe("code quality", () => {
           // Only check module-level let (not indented)
           if (line.match(/^(export\s+)?let\s+/)) {
             violations.push(
-              `${relativePath}:${lineNum}: ${
-                line.slice(0, 50)
-              }... (use const with once()/lazyRef())`,
+              `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`,
             );
           }
         }
@@ -226,9 +224,7 @@ describe("code quality", () => {
           if (THEN_PATTERN.test(line)) {
             THEN_PATTERN.lastIndex = 0;
             violations.push(
-              `${relativePath}:${lineNum}: ${
-                line.trim().slice(0, 50)
-              }... (use async/await instead)`,
+              `${relativePath}:${lineNum}: ${line.trim().slice(0, 50)}... (use async/await instead)`,
             );
           }
         }
@@ -455,7 +451,7 @@ describe("code quality", () => {
       const lines = content.split("\n");
       const exportLines = lines.filter((l) => l.startsWith("export"));
       const reExportLines = lines.filter((l) =>
-        /^export\s+\{[^}]+\}\s+from\s+['"]/.test(l)
+        /^export\s+\{[^}]+\}\s+from\s+['"]/.test(l),
       );
       return reExportLines.length > exportLines.length / 2;
     };

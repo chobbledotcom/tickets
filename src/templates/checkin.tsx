@@ -8,10 +8,7 @@ import { map, pipe } from "#fp";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
-import {
-  AttendeeTable,
-  type AttendeeTableRow,
-} from "#templates/attendee-table.tsx";
+import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Re-export for backwards compatibility */
@@ -50,18 +47,16 @@ export const checkinAdminPage = (
         <button type="submit" class={buttonClass}>{buttonLabel}</button>
       </CsrfForm>
       <div class="table-scroll">
-        <Raw
-          html={AttendeeTable({
-            rows: tableRows,
-            allowedDomain,
-            showEvent: true,
-            showDate,
-            returnUrl: checkinPath,
-            phonePrefix,
-          })}
-        />
+        <Raw html={AttendeeTable({
+          rows: tableRows,
+          allowedDomain,
+          showEvent: true,
+          showDate,
+          returnUrl: checkinPath,
+          phonePrefix,
+        })} />
       </div>
-    </Layout>,
+    </Layout>
   );
 };
 
@@ -73,5 +68,5 @@ export const checkinPublicPage = (): string =>
     <Layout title="Check-in">
       <h1>Check-in</h1>
       <p>Please show this QR code to an event administrator to check in.</p>
-    </Layout>,
+    </Layout>
   );

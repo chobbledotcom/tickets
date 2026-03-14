@@ -1,37 +1,22 @@
 import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { enableQueryLog, runWithQueryLogContext } from "#lib/db/query-log.ts";
-import {
-  debugFooterHtml,
-  renderDebugFooter,
-} from "#templates/admin/footer.tsx";
+import { debugFooterHtml, renderDebugFooter } from "#templates/admin/footer.tsx";
 
 describe("debugFooterHtml", () => {
   test("renders summary with render time", () => {
-    const html = debugFooterHtml({
-      renderTimeMs: 42.7,
-      queries: [],
-      cacheStats: [],
-    });
+    const html = debugFooterHtml({ renderTimeMs: 42.7, queries: [], cacheStats: [] });
     expect(html).toContain("43ms");
   });
 
   test("links to the GitHub repo", () => {
-    const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
-      cacheStats: [],
-    });
+    const html = debugFooterHtml({ renderTimeMs: 10, queries: [], cacheStats: [] });
     expect(html).toContain('href="https://github.com/chobbledotcom/tickets"');
     expect(html).toContain("Chobble Tickets</a>");
   });
 
   test("wraps content in a details/summary element", () => {
-    const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
-      cacheStats: [],
-    });
+    const html = debugFooterHtml({ renderTimeMs: 10, queries: [], cacheStats: [] });
     expect(html).toContain("<details>");
     expect(html).toContain("<summary>");
     expect(html).toContain("</summary>");
@@ -39,21 +24,13 @@ describe("debugFooterHtml", () => {
   });
 
   test("renders inside a footer element", () => {
-    const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
-      cacheStats: [],
-    });
+    const html = debugFooterHtml({ renderTimeMs: 10, queries: [], cacheStats: [] });
     expect(html).toContain("<footer");
     expect(html).toContain("</footer>");
   });
 
   test("uses the debug-footer CSS class", () => {
-    const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
-      cacheStats: [],
-    });
+    const html = debugFooterHtml({ renderTimeMs: 10, queries: [], cacheStats: [] });
     expect(html).toContain('class="debug-footer"');
   });
 
@@ -83,11 +60,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("renders empty query list gracefully", () => {
-    const html = debugFooterHtml({
-      renderTimeMs: 5,
-      queries: [],
-      cacheStats: [],
-    });
+    const html = debugFooterHtml({ renderTimeMs: 5, queries: [], cacheStats: [] });
     expect(html).toContain("0 queries");
     expect(html).not.toContain("SQL queries");
   });
@@ -170,6 +143,7 @@ describe("debugFooterHtml", () => {
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
   });
+
 });
 
 describe("renderDebugFooter", () => {

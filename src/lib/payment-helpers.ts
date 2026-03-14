@@ -51,13 +51,13 @@ export const safeAsync = async <T>(
 export const createWithClient = <Client>(
   getClient: () => Promise<Client | null>,
 ) =>
-async <T>(
-  op: (client: Client) => Promise<T>,
-  errorCode: ErrorCodeType,
-): Promise<T | null> => {
-  const client = await getClient();
-  return client ? safeAsync(() => op(client), errorCode) : null;
-};
+  async <T>(
+    op: (client: Client) => Promise<T>,
+    errorCode: ErrorCodeType,
+  ): Promise<T | null> => {
+    const client = await getClient();
+    return client ? safeAsync(() => op(client), errorCode) : null;
+  };
 
 /** Serialize multi-ticket items for metadata storage (compact JSON) */
 export const serializeMultiItems = (
@@ -78,16 +78,10 @@ export const serializeMultiItems = (
  * are converted to metadata entries. Falsy values are excluded entirely — they
  * will become "" when extractSessionMetadata normalizes the metadata back.
  */
-const optionalFields = (
-  intent:
-    & Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">>
-    & { date?: string | null },
-): Record<string, string> => ({
+const optionalFields = (intent: Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & { date?: string | null }): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
-  ...(intent.special_instructions
-    ? { special_instructions: intent.special_instructions }
-    : {}),
+  ...(intent.special_instructions ? { special_instructions: intent.special_instructions } : {}),
   ...(intent.date ? { date: intent.date } : {}),
 });
 

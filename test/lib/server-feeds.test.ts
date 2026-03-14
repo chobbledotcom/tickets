@@ -12,7 +12,10 @@ import {
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
-import { updateShowPublicSite, updateWebsiteTitle } from "#lib/db/settings.ts";
+import {
+  updateShowPublicSite,
+  updateWebsiteTitle,
+} from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
 
@@ -37,9 +40,7 @@ describe("feeds", () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe(
-        "text/calendar; charset=utf-8",
-      );
+      expect(response.headers.get("content-type")).toBe("text/calendar; charset=utf-8");
     });
 
     test("returns valid VCALENDAR wrapper with no events", async () => {
@@ -70,10 +71,7 @@ describe("feeds", () => {
 
     test("includes VEVENT for active events", async () => {
       await updateShowPublicSite(true);
-      const event = await createTestEvent({
-        name: "Concert",
-        maxAttendees: 100,
-      });
+      const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
       expect(body).toContain("BEGIN:VEVENT");
@@ -129,10 +127,7 @@ describe("feeds", () => {
 
     test("excludes inactive events", async () => {
       await updateShowPublicSite(true);
-      const event = await createTestEvent({
-        name: "Hidden",
-        maxAttendees: 100,
-      });
+      const event = await createTestEvent({ name: "Hidden", maxAttendees: 100 });
       await deactivateTestEvent(event.id);
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
@@ -156,11 +151,7 @@ describe("feeds", () => {
 
     test("excludes hidden events", async () => {
       await updateShowPublicSite(true);
-      await createTestEvent({
-        name: "Secret Event",
-        maxAttendees: 100,
-        hidden: true,
-      });
+      await createTestEvent({ name: "Secret Event", maxAttendees: 100, hidden: true });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
       expect(body).not.toContain("Secret Event");
@@ -194,9 +185,7 @@ describe("feeds", () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe(
-        "application/rss+xml; charset=utf-8",
-      );
+      expect(response.headers.get("content-type")).toBe("application/rss+xml; charset=utf-8");
     });
 
     test("returns valid RSS wrapper with no events", async () => {
@@ -217,9 +206,7 @@ describe("feeds", () => {
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).toContain("<title>My Events</title>");
-      expect(body).toContain(
-        "<description>Events from My Events</description>",
-      );
+      expect(body).toContain("<description>Events from My Events</description>");
     });
 
     test("defaults title to Events when no title set", async () => {
@@ -231,10 +218,7 @@ describe("feeds", () => {
 
     test("includes items for active events", async () => {
       await updateShowPublicSite(true);
-      const event = await createTestEvent({
-        name: "Concert",
-        maxAttendees: 100,
-      });
+      const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).toContain("<item>");
@@ -308,10 +292,7 @@ describe("feeds", () => {
 
     test("excludes inactive events", async () => {
       await updateShowPublicSite(true);
-      const event = await createTestEvent({
-        name: "Hidden",
-        maxAttendees: 100,
-      });
+      const event = await createTestEvent({ name: "Hidden", maxAttendees: 100 });
       await deactivateTestEvent(event.id);
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
@@ -335,11 +316,7 @@ describe("feeds", () => {
 
     test("excludes hidden events", async () => {
       await updateShowPublicSite(true);
-      await createTestEvent({
-        name: "Secret Event",
-        maxAttendees: 100,
-        hidden: true,
-      });
+      await createTestEvent({ name: "Secret Event", maxAttendees: 100, hidden: true });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).not.toContain("Secret Event");
@@ -392,11 +369,11 @@ describe("feeds", () => {
     });
 
     test("escapes quotes", () => {
-      expect(escapeXml("\"hello'")).toBe("&quot;hello&apos;");
+      expect(escapeXml('"hello\'')).toBe("&quot;hello&apos;");
     });
 
     test("handles multiple special characters", () => {
-      expect(escapeXml("a&b<c>\"d'e")).toBe("a&amp;b&lt;c&gt;&quot;d&apos;e");
+      expect(escapeXml('a&b<c>"d\'e')).toBe("a&amp;b&lt;c&gt;&quot;d&apos;e");
     });
   });
 });

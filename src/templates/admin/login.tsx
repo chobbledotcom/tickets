@@ -24,5 +24,5 @@ export const adminLoginPage = (error?: string): string =>
           <a href="/demo/reset">Reset database</a>
         </p>
       )}
-    </Layout>,
+    </Layout>
   );
