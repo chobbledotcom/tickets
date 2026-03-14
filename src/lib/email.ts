@@ -126,7 +126,7 @@ const mailgun = (host: string) =>
   provider(
     (config) =>
       `https://${host}/v3/${config.fromAddress.split("@")[1]}/messages`,
-    (apiKey) => ({ Authorization: `Basic ${btoa("api:" + apiKey)}` }),
+    (apiKey) => ({ Authorization: `Basic ${btoa(`api:${apiKey}`)}` }),
     mailgunBody,
   );
 
@@ -294,7 +294,7 @@ export const sendRegistrationEmails = async (
   entries: EmailEntry[],
   currency: string,
 ): Promise<void> => {
-  const attendeeEmail = entries[0]!.attendee.email;
+  const attendeeEmail = entries[0]?.attendee.email;
   if (!attendeeEmail) return;
 
   const config = (await getEmailConfig()) ?? getHostEmailConfig();

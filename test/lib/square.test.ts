@@ -151,7 +151,7 @@ describe("square", () => {
     });
 
     test("returns null when non-truncatable value exceeds limit", () => {
-      const longItems = "[" + "{e:1,q:1},".repeat(50) + "]";
+      const longItems = `[${"{e:1,q:1},".repeat(50)}]`;
       const metadata = {
         multi: "1",
         name: "John",
@@ -162,7 +162,7 @@ describe("square", () => {
     });
 
     test("returns null when email exceeds limit", () => {
-      const longEmail = "a".repeat(300) + "@example.com";
+      const longEmail = `${"a".repeat(300)}@example.com`;
       const metadata = {
         event_id: "1",
         name: "John",
@@ -636,7 +636,7 @@ describe("square", () => {
           const intent = {
             eventId: 1,
             name: "John",
-            email: "a".repeat(300) + "@example.com",
+            email: `${"a".repeat(300)}@example.com`,
             phone: "",
             address: "",
             special_instructions: "",

@@ -403,9 +403,14 @@ export const verifyPassword = async (
     return false;
   }
 
-  const iterations = Number.parseInt(parts[1]!, 10);
-  const salt = fromBase64(parts[2]!);
-  const expectedHash = fromBase64(parts[3]!);
+  const iterStr = parts[1];
+  const saltStr = parts[2];
+  const hashStr = parts[3];
+  if (!iterStr || !saltStr || !hashStr) return false;
+
+  const iterations = Number.parseInt(iterStr, 10);
+  const salt = fromBase64(saltStr);
+  const expectedHash = fromBase64(hashStr);
 
   if (expectedHash.length !== PBKDF2_HASH_LENGTH) {
     return false;
@@ -769,11 +774,13 @@ export const hybridDecrypt = async (
     );
   }
 
+  const [encryptedKey, iv, ciphertext] = parts as [string, string, string];
+
   // Decrypt the AES key with RSA
   const rawAesKey = await crypto.subtle.decrypt(
     { name: "RSA-OAEP" },
     privateKey,
-    fromBase64(parts[0]!) as BufferSource,
+    fromBase64(encryptedKey) as BufferSource,
   );
 
   // Import the AES key and decrypt the data
@@ -785,8 +792,8 @@ export const hybridDecrypt = async (
     ["decrypt"],
   );
   const plaintext = await aesGcmDecryptRaw(
-    fromBase64(parts[1]!),
-    fromBase64(parts[2]!),
+    fromBase64(iv),
+    fromBase64(ciphertext),
     aesKey,
   );
 

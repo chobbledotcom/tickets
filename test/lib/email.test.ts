@@ -116,7 +116,7 @@ describe("email", () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://api.resend.com/emails");
-      expect((opts.headers as Record<string, string>)["Authorization"]).toBe(
+      expect((opts.headers as Record<string, string>).Authorization).toBe(
         "Bearer re_test_key",
       );
       const body = JSON.parse(opts.body as string);
@@ -166,7 +166,7 @@ describe("email", () => {
 
       const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://api.sendgrid.com/v3/mail/send");
-      expect((opts.headers as Record<string, string>)["Authorization"]).toBe(
+      expect((opts.headers as Record<string, string>).Authorization).toBe(
         "Bearer re_test_key",
       );
       const body = JSON.parse(opts.body as string);
@@ -214,7 +214,7 @@ describe("email", () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://api.mailgun.net/v3/example.com/messages");
-      expect((opts.headers as Record<string, string>)["Authorization"]).toBe(
+      expect((opts.headers as Record<string, string>).Authorization).toBe(
         `Basic ${btoa("api:re_test_key")}`,
       );
       expect(opts.headers as Record<string, string>).not.toHaveProperty(
@@ -243,7 +243,7 @@ describe("email", () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://api.eu.mailgun.net/v3/example.com/messages");
-      expect((opts.headers as Record<string, string>)["Authorization"]).toBe(
+      expect((opts.headers as Record<string, string>).Authorization).toBe(
         `Basic ${btoa("api:re_test_key")}`,
       );
       const body = opts.body as FormData;

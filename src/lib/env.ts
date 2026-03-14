@@ -19,13 +19,14 @@ declare const process: { env: Record<string, string | undefined> } | undefined;
  */
 export function getEnv(key: string): string | undefined {
   // Try process.env first (available in Bunny Edge via node:process)
-  if (typeof process !== "undefined" && process?.env && key in process.env) {
+  if (process?.env && key in process.env) {
     return process.env[key];
   }
 
   // Fall back to Deno.env for local development
   // In Bunny Edge production, process.env is always available (handled above)
-  return Deno!.env.get(key);
+  if (!Deno) throw new Error("Neither process.env nor Deno.env is available");
+  return Deno.env.get(key);
 }
 
 /**

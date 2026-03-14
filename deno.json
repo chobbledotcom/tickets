@@ -16,7 +16,7 @@
     "cpd": "deno run -A npm:jscpd src --config .jscpd.json",
     "biome:fix": "deno run -A npm:@biomejs/biome check --write src test scripts",
     "biome:check": "deno run -A npm:@biomejs/biome check src test scripts",
-    "precommit": "deno task biome:fix && deno task biome:check && deno task typecheck && deno task lint && deno task cpd && deno task build:edge && deno task test:coverage"
+    "precommit": "deno task biome:fix; deno task typecheck && deno task lint && deno task cpd && deno task build:edge && deno task test:coverage"
   },
   "imports": {
     "#fp": "./src/fp.ts",

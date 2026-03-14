@@ -17,8 +17,8 @@ const requestIdStorage = new AsyncLocalStorage<string>();
 
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
-  const n = crypto.getRandomValues(new Uint8Array(2));
-  return ((n[0]! << 8) | n[1]!).toString(16).padStart(4, "0");
+  const buf = crypto.getRandomValues(new Uint8Array(2));
+  return new DataView(buf.buffer).getUint16(0).toString(16).padStart(4, "0");
 };
 
 /** Get the current request ID prefix, or empty string if outside request context */

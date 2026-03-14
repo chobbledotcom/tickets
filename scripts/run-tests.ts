@@ -197,7 +197,7 @@ const main = async (): Promise<void> => {
     for (const record of records) {
       const sfMatch = record.match(/SF:(.*)/);
       if (!sfMatch) continue;
-      const file = sfMatch[1].replace(projectRoot + "/", "");
+      const file = sfMatch[1].replace(`${projectRoot}/`, "");
 
       // Skip excluded files
       if (coverageExclusions.some((exclusion) => file.includes(exclusion))) {
@@ -208,8 +208,8 @@ const main = async (): Promise<void> => {
       const lhMatch = record.match(/LH:(\d+)/);
       const lfMatch = record.match(/LF:(\d+)/);
       if (lhMatch && lfMatch) {
-        const hit = parseInt(lhMatch[1]);
-        const found = parseInt(lfMatch[1]);
+        const hit = parseInt(lhMatch[1], 10);
+        const found = parseInt(lfMatch[1], 10);
         if (hit < found) {
           lineFailures.push(`${file}: ${hit}/${found} lines covered`);
         }
@@ -219,8 +219,8 @@ const main = async (): Promise<void> => {
       const brhMatch = record.match(/BRH:(\d+)/);
       const brfMatch = record.match(/BRF:(\d+)/);
       if (brhMatch && brfMatch) {
-        const hit = parseInt(brhMatch[1]);
-        const found = parseInt(brfMatch[1]);
+        const hit = parseInt(brhMatch[1], 10);
+        const found = parseInt(brfMatch[1], 10);
         if (hit < found) {
           branchFailures.push(`${file}: ${hit}/${found} branches covered`);
         }
