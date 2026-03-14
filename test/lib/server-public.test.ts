@@ -3913,14 +3913,21 @@ describe("server (public routes)", () => {
 
     test("admin edit page shows can_pay_more checked for enabled event", async () => {
       const event = await payMoreEvent();
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie: await testCookie() });
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more" value="1" checked');
     });
 
     test("admin edit page shows can_pay_more unchecked for disabled event", async () => {
-      const event = await createTestEvent({ unitPrice: 1000, maxAttendees: 50 });
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie: await testCookie() });
+      const event = await createTestEvent({
+        unitPrice: 1000,
+        maxAttendees: 50,
+      });
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more"');
       expect(html).not.toContain('name="can_pay_more" value="1" checked');

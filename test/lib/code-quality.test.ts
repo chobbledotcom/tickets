@@ -87,9 +87,7 @@ const getRelativePath = (fullPath: string): string =>
   fullPath.replace(`${SRC_DIR}/`, "");
 
 /** Read all files once and cache contents in a Map keyed by path */
-const readAllFiles = async (
-  files: string[],
-): Promise<Map<string, string>> => {
+const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
   const entries = await Promise.all(
     files.map(async (f) => [f, await Deno.readTextFile(f)] as const),
   );

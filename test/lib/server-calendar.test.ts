@@ -32,20 +32,26 @@ describe("admin calendar", () => {
     });
 
     test("renders calendar page when authenticated", async () => {
-      const response = await awaitTestRequest("/admin/calendar", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/calendar", {
+        cookie: await testCookie(),
+      });
       await expectHtmlResponse(response, 200, "Calendar", "Attendees by Date");
     });
 
     test("shows empty dropdown when no daily events exist", async () => {
       await createTestEvent({ name: "Standard Event" });
-      const response = await awaitTestRequest("/admin/calendar", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/calendar", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).toContain("Select a date");
     });
 
     test("shows available dates from daily events", async () => {
       await createDailyTestEvent();
-      const response = await awaitTestRequest("/admin/calendar", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/calendar", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       // Should contain at least one date option
       expect(html).toContain("disabled");
@@ -59,7 +65,9 @@ describe("admin calendar", () => {
         email: "a@test.com",
         date: validDate,
       });
-      const response = await awaitTestRequest("/admin/calendar", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/calendar", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       // The date with a booking should be selectable (not disabled)
       expect(html).toContain(`date=${validDate}`);
@@ -175,14 +183,18 @@ describe("admin calendar", () => {
 
     test("excludes standard events without a date", async () => {
       await createTestEvent({ name: "Standard Event" });
-      const response = await awaitTestRequest("/admin/calendar", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/calendar", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).not.toContain("Standard Event");
     });
 
     test("shows standard event date in dropdown", async () => {
       await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
-      const response = await awaitTestRequest("/admin/calendar", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/calendar", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       // Standard event date appears as a formatted label in the dropdown
       expect(html).toContain("Monday 15 June 2026");
@@ -264,7 +276,9 @@ describe("admin calendar", () => {
         email: "fan@test.com",
       });
 
-      const response = await awaitTestRequest("/admin/calendar", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/calendar", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       // Date with bookings should be a clickable link (not disabled)
       expect(html).toContain("date=2026-06-15");
@@ -321,7 +335,9 @@ describe("admin calendar", () => {
     test("standard event date without attendees shows as disabled", async () => {
       await createTestEvent({ name: "Empty Event", date: "2026-06-15T14:00" });
 
-      const response = await awaitTestRequest("/admin/calendar", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/calendar", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       // The date should appear as a disabled option (no bookings)
       expect(html).toContain("<option disabled>Monday 15 June 2026</option>");

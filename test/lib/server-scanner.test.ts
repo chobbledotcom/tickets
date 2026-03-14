@@ -51,7 +51,11 @@ const setupScanTest = async (
     email,
     eventOverrides,
   );
-  return { event, token, session: { cookie: await testCookie(), csrfToken: await testCsrfToken() } };
+  return {
+    event,
+    token,
+    session: { cookie: await testCookie(), csrfToken: await testCsrfToken() },
+  };
 };
 
 describe("QR Scanner", () => {

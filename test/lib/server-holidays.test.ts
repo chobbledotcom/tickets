@@ -44,11 +44,15 @@ describe("server (admin holidays)", () => {
       // Create a manager user and login
       // Create a manager invite
       const inviteResponse = await handleRequest(
-        mockFormRequest("/admin/users", {
-          username: "manager1",
-          admin_level: "manager",
-          csrf_token: await testCsrfToken(),
-        }, await testCookie()),
+        mockFormRequest(
+          "/admin/users",
+          {
+            username: "manager1",
+            admin_level: "manager",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
       );
       expect(inviteResponse.status).toBe(302);
       const inviteUrl = inviteResponse.headers.get("location") ?? "";
@@ -78,9 +82,13 @@ describe("server (admin holidays)", () => {
 
       // Owner activates the manager
       const activateResponse = await handleRequest(
-        mockFormRequest("/admin/users/2/activate", {
-          csrf_token: await testCsrfToken(),
-        }, await testCookie()),
+        mockFormRequest(
+          "/admin/users/2/activate",
+          {
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
       );
       expect(activateResponse.status).toBe(302);
 
@@ -401,7 +409,9 @@ describe("server (admin holidays)", () => {
         },
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/holidays?success=Holiday+deleted");
+      expect(response.headers.get("location")).toBe(
+        "/admin/holidays?success=Holiday+deleted",
+      );
     });
 
     test("returns 404 for non-existent holiday", async () => {
