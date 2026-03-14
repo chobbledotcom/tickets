@@ -44,7 +44,6 @@ describe("demo", () => {
   describe("isDemoMode", () => {
     afterEach(() => {
       Deno.env.delete("DEMO_MODE");
-      setDemoModeForTest(false);
     });
 
     test("returns false when DEMO_MODE is not set", () => {
