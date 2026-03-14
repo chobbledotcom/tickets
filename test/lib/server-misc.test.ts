@@ -15,7 +15,6 @@ import {
   createTestEvent,
   expectHtmlResponse,
   testCookie,
-  testCsrfToken,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
