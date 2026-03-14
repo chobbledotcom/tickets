@@ -2554,8 +2554,8 @@ describe("db", () => {
       // Single-word columns like "name" should map to themselves
       // This exercises the ?? dbCol fallback since toCamelCase("name") === "name"
       const map = buildInputKeyMap(["name", "max_attendees"]);
-      expect(map["name"]).toBe("name");
-      expect(map["max_attendees"]).toBe("maxAttendees");
+      expect(map.name).toBe("name");
+      expect(map.max_attendees).toBe("maxAttendees");
     });
 
     test("getProvidedColumns uses inputKeyMap fallback for single-word keys", async () => {

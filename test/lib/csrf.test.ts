@@ -67,7 +67,7 @@ describe("verifySignedCsrfToken", () => {
 
   test("rejects a token with tampered HMAC", async () => {
     const token = await signCsrfToken();
-    const tampered = token.slice(0, -4) + "XXXX";
+    const tampered = `${token.slice(0, -4)}XXXX`;
     expect(await verifySignedCsrfToken(tampered)).toBe(false);
   });
 
