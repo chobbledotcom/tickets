@@ -8,7 +8,6 @@ import {
   invalidateSettingsCache,
   updateEmailTemplate,
 } from "#lib/db/settings.ts";
-import type { EmailEntry, EmailEvent } from "#lib/email.ts";
 import type { TemplateData } from "#lib/email-renderer.ts";
 import {
   buildTemplateData,
@@ -17,47 +16,13 @@ import {
   resetEngine,
   validateTemplate,
 } from "#lib/email-renderer.ts";
-import type { WebhookAttendee } from "#lib/webhook.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils";
-
-const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
-  id: 1,
-  name: "Test Event",
-  slug: "test-event",
-  webhook_url: "",
-  max_attendees: 100,
-  attendee_count: 10,
-  unit_price: 0,
-  can_pay_more: false,
-  date: "",
-  location: "",
-  ...overrides,
-});
-
-const makeAttendee = (
-  overrides: Partial<WebhookAttendee> = {},
-): WebhookAttendee => ({
-  id: 42,
-  quantity: 1,
-  name: "Jane Doe",
-  email: "jane@example.com",
-  phone: "555-1234",
-  address: "",
-  special_instructions: "",
-  payment_id: "",
-  price_paid: "0",
-  ticket_token: "AABB001122",
-  date: null,
-  ...overrides,
-});
-
-const makeEntry = (
-  eventOverrides?: Partial<EmailEvent>,
-  attendeeOverrides?: Partial<WebhookAttendee>,
-): EmailEntry => ({
-  event: makeEvent(eventOverrides),
-  attendee: makeAttendee(attendeeOverrides),
-});
+import {
+  createTestDbWithSetup,
+  makeTestAttendee as makeAttendee,
+  makeTestEntry as makeEntry,
+  makeTestEvent as makeEvent,
+  resetDb,
+} from "#test-utils";
 
 describe("email-renderer", () => {
   beforeEach(async () => {

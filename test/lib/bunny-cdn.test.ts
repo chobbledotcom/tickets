@@ -15,14 +15,70 @@ import {
 } from "#lib/db/settings.ts";
 import { createTestDb, resetDb, withMocks } from "#test-utils";
 
+/** Save and restore an env var around tests */
+const withEnvVar = (name: string) => {
+  const orig = Deno.env.get(name);
+  return {
+    restore() {
+      if (orig) Deno.env.set(name, orig);
+      else Deno.env.delete(name);
+    },
+  };
+};
+
+/** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
+const withMockValidate = async <T>(
+  mockResult: T,
+  fn: () => Promise<void>,
+): Promise<void> => {
+  const original = bunnyCdnApi.validateCustomDomain;
+  bunnyCdnApi.validateCustomDomain = () => Promise.resolve(mockResult);
+  try {
+    await fn();
+  } finally {
+    bunnyCdnApi.validateCustomDomain = original;
+  }
+};
+
+/** Stub fetch to return a JSON response with given body */
+const stubFetchJson = (body: unknown) =>
+  stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response(JSON.stringify(body))),
+  );
+
+/** Stub fetch that records calls and returns a fixed response */
+const stubFetchWithRecorder = (
+  calls: { url: string; init: RequestInit | undefined }[],
+  responseInit?: ResponseInit,
+) =>
+  stub(
+    globalThis,
+    "fetch",
+    (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init });
+      return Promise.resolve(
+        new Response(null, { status: 204, ...responseInit }),
+      );
+    },
+  );
+
+/** Build a pull zone Items response */
+const pullZoneResponse = (
+  items: { Id: number; hostname: string }[],
+  hasMore = false,
+) => ({
+  Items: items.map(({ Id, hostname }) => ({
+    Id,
+    Hostnames: [{ Value: hostname }],
+  })),
+  HasMoreItems: hasMore,
+});
+
 describe("bunny-cdn", () => {
   describe("isBunnyCdnEnabled", () => {
-    const origApiKey = Deno.env.get("BUNNY_API_KEY");
+    const envApiKey = withEnvVar("BUNNY_API_KEY");
 
-    afterEach(() => {
-      if (origApiKey) Deno.env.set("BUNNY_API_KEY", origApiKey);
-      else Deno.env.delete("BUNNY_API_KEY");
-    });
+    afterEach(() => envApiKey.restore());
 
     test("returns false when BUNNY_API_KEY is not set", () => {
       Deno.env.delete("BUNNY_API_KEY");
@@ -36,11 +92,9 @@ describe("bunny-cdn", () => {
   });
 
   describe("getCdnHostname", () => {
-    const origDomain = Deno.env.get("ALLOWED_DOMAIN");
+    const envDomain = withEnvVar("ALLOWED_DOMAIN");
 
-    afterEach(() => {
-      if (origDomain) Deno.env.set("ALLOWED_DOMAIN", origDomain);
-    });
+    afterEach(() => envDomain.restore());
 
     test("replaces .bunny.run with .b-cdn.net", () => {
       Deno.env.set("ALLOWED_DOMAIN", "mysite.bunny.run");
@@ -56,36 +110,25 @@ describe("bunny-cdn", () => {
   describe("validateCustomDomain", () => {
     test("delegates to bunnyCdnApi.validateCustomDomain", async () => {
       const mockResult = { ok: true as const };
-      const original = bunnyCdnApi.validateCustomDomain;
-      bunnyCdnApi.validateCustomDomain = () => Promise.resolve(mockResult);
-      try {
+      await withMockValidate(mockResult, async () => {
         const result = await validateCustomDomain("test.example.com");
         expect(result).toEqual(mockResult);
-      } finally {
-        bunnyCdnApi.validateCustomDomain = original;
-      }
+      });
     });
 
     test("returns error from bunnyCdnApi", async () => {
       const mockResult = { ok: false as const, error: "test error" };
-      const original = bunnyCdnApi.validateCustomDomain;
-      bunnyCdnApi.validateCustomDomain = () => Promise.resolve(mockResult);
-      try {
+      await withMockValidate(mockResult, async () => {
         const result = await validateCustomDomain("test.example.com");
         expect(result).toEqual(mockResult);
-      } finally {
-        bunnyCdnApi.validateCustomDomain = original;
-      }
+      });
     });
   });
 
   describe("getBunnyApiKey", () => {
-    const origApiKey = Deno.env.get("BUNNY_API_KEY");
+    const envApiKey = withEnvVar("BUNNY_API_KEY");
 
-    afterEach(() => {
-      if (origApiKey) Deno.env.set("BUNNY_API_KEY", origApiKey);
-      else Deno.env.delete("BUNNY_API_KEY");
-    });
+    afterEach(() => envApiKey.restore());
 
     test("getBunnyApiKey returns the env var value", () => {
       Deno.env.set("BUNNY_API_KEY", "my-api-key");
