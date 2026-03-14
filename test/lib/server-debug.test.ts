@@ -49,6 +49,15 @@ describe("server (admin debug)", () => {
       expect(html).toContain("Pass Type ID");
     });
 
+    test("shows Apple Wallet cert validation status", async () => {
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Signing certificate");
+      expect(html).toContain("Signing key");
+      expect(html).toContain("WWDR certificate");
+      expect(html).toContain("Not set");
+    });
+
     test("shows Payments section", async () => {
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();

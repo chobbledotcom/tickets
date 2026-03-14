@@ -4,11 +4,16 @@
  */
 
 import {
+  isValidPemCertificate,
+  isValidPemPrivateKey,
+} from "#lib/apple-wallet.ts";
+import {
   getAllowedDomain,
   getCdnHostname,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
 import {
+  getAppleWalletConfig,
   getAppleWalletPassTypeIdFromDb,
   getCustomDomainFromDb,
   getEmailFromAddressFromDb,
@@ -33,6 +38,37 @@ import {
   type DebugPageState,
 } from "#templates/admin/debug.tsx";
 
+type CertValidation = {
+  signingCert: string;
+  signingKey: string;
+  wwdrCert: string;
+};
+
+/** Validate Apple Wallet PEM certs/key, returning "Valid", "Invalid", or "Not set" for each */
+const validateAppleWalletCerts = (
+  config: Awaited<ReturnType<typeof getAppleWalletConfig>>,
+): CertValidation => {
+  if (!config) return { signingCert: "Not set", signingKey: "Not set", wwdrCert: "Not set" };
+
+  const check = (
+    value: string | undefined,
+    validator: (pem: string) => boolean,
+  ): string => {
+    if (!value) return "Not set";
+    try {
+      return validator(value) ? "Valid" : "Invalid PEM";
+    } catch {
+      return "Invalid PEM";
+    }
+  };
+
+  return {
+    signingCert: check(config.signingCert, isValidPemCertificate),
+    signingKey: check(config.signingKey, isValidPemPrivateKey),
+    wwdrCert: check(config.wwdrCert, isValidPemCertificate),
+  };
+};
+
 /** Gather debug state concurrently */
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
@@ -40,6 +76,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   const [
     appleWalletDbConfigured,
     appleWalletPassTypeId,
+    appleWalletConfig,
     paymentProvider,
     stripeKeyConfigured,
     squareTokenConfigured,
@@ -53,6 +90,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   ] = await Promise.all([
     hasAppleWalletDbConfig(),
     getAppleWalletPassTypeIdFromDb(),
+    getAppleWalletConfig(),
     getPaymentProviderFromDb(),
     hasStripeKey(),
     hasSquareToken(),
@@ -94,12 +132,15 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       ? (getHostAppleWalletConfig()?.passTypeId ?? "")
       : "";
 
+  const certValidation = validateAppleWalletCerts(appleWalletConfig);
+
   return {
     appleWallet: {
       dbConfigured: appleWalletDbConfigured,
       envConfigured: appleWalletEnvConfigured,
       passTypeId: appleWalletPassTypeIdDisplay,
       source: appleWalletSource,
+      certValidation,
     },
     payment: {
       provider: paymentProvider ?? "",

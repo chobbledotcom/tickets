@@ -12,6 +12,11 @@ export type DebugPageState = {
     envConfigured: boolean;
     passTypeId: string;
     source: string;
+    certValidation: {
+      signingCert: string;
+      signingKey: string;
+      wwdrCert: string;
+    };
   };
   payment: {
     provider: string;
@@ -90,6 +95,18 @@ export const adminDebugPage = (
             <tr>
               <td>Pass Type ID</td>
               <td>{s.appleWallet.passTypeId || "—"}</td>
+            </tr>
+            <tr>
+              <td>Signing certificate</td>
+              <td>{s.appleWallet.certValidation.signingCert}</td>
+            </tr>
+            <tr>
+              <td>Signing key</td>
+              <td>{s.appleWallet.certValidation.signingKey}</td>
+            </tr>
+            <tr>
+              <td>WWDR certificate</td>
+              <td>{s.appleWallet.certValidation.wwdrCert}</td>
             </tr>
           </tbody>
         </table>
