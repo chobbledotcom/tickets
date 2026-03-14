@@ -40,7 +40,7 @@ const loginAsManager = async (): Promise<string> => {
   );
   const inviteUrl = inviteResponse.headers.get("location") ?? "";
   const inviteLink = decodeURIComponent(
-    inviteUrl.match(/invite=([^&]+)/)?.[1] as string,
+    inviteUrl.match(/invite=([^&]+)/)![1] as string,
   );
   const inviteToken = inviteLink.split("/join/")[1];
 
@@ -286,9 +286,9 @@ describe("server (admin seeds)", () => {
       );
 
       const events = await getAllEvents();
-      expect(events[0]?.active).toBe(true);
+      expect(events[0]!.active).toBe(true);
       // With 0 attendees, max_attendees is 0 (sum of quantities)
-      expect(events[0]?.max_attendees).toBe(0);
+      expect(events[0]!.max_attendees).toBe(0);
     });
 
     test("returns 500 when seed creation fails", async () => {

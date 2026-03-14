@@ -114,7 +114,7 @@ describe("stripe", () => {
         async (retrieveSpy) => {
           const result = await retrieveCheckoutSession("cs_test_123");
           expect(result).toBeNull();
-          expect(retrieveSpy.calls[0]?.args).toEqual(["cs_test_123"]);
+          expect(retrieveSpy.calls[0]!.args).toEqual(["cs_test_123"]);
         },
       );
     });
@@ -1222,7 +1222,7 @@ describe("stripe", () => {
         if (!result.success) {
           // Stripe SDK wraps connection errors with retry info
           expect(typeof result.error).toBe("string");
-          expect(result.error?.length > 0).toBe(true);
+          expect(result.error!.length > 0).toBe(true);
         }
       });
     });
@@ -1274,7 +1274,7 @@ describe("stripe", () => {
         if (!result.success) {
           // Stripe SDK wraps connection errors with retry info
           expect(typeof result.error).toBe("string");
-          expect(result.error?.length > 0).toBe(true);
+          expect(result.error!.length > 0).toBe(true);
         }
       });
     });
@@ -1295,7 +1295,7 @@ describe("stripe", () => {
         if (!result.success) {
           // Stripe SDK wraps thrown values, so error message comes from SDK wrapper
           expect(typeof result.error).toBe("string");
-          expect(result.error?.length > 0).toBe(true);
+          expect(result.error!.length > 0).toBe(true);
         }
       });
     });
@@ -1414,7 +1414,7 @@ describe("stripe", () => {
       const errorSpy = spy(console, "error");
       try {
         await verifyWebhookSignature('{"test": true}', "v1=abc123");
-        const callArg = errorSpy.calls[0]?.args[0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid header: missing timestamp"');
       } finally {
         errorSpy.restore();
@@ -1425,7 +1425,7 @@ describe("stripe", () => {
       const errorSpy = spy(console, "error");
       try {
         await verifyWebhookSignature('{"test": true}', "t=1234");
-        const callArg = errorSpy.calls[0]?.args[0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid header: missing signature"');
       } finally {
         errorSpy.restore();
@@ -1436,7 +1436,7 @@ describe("stripe", () => {
       const errorSpy = spy(console, "error");
       try {
         await verifyWebhookSignature('{"test": true}', "invalid-header");
-        const callArg = errorSpy.calls[0]?.args[0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain(
           'detail="invalid header: missing timestamp and signature"',
         );
@@ -1470,7 +1470,7 @@ describe("stripe", () => {
 
       try {
         await verifyWebhookSignature(payload, `t=${oldTimestamp},v1=${sigHex}`);
-        const callArg = errorSpy.calls[0]?.args[0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain("timestamp out of tolerance delta=");
         expect(callArg).toContain("tolerance=300s");
       } finally {
@@ -1503,7 +1503,7 @@ describe("stripe", () => {
 
       try {
         await verifyWebhookSignature(payload, `t=${timestamp},v1=${sigHex}`);
-        const callArg = errorSpy.calls[0]?.args[0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid JSON:');
       } finally {
         errorSpy.restore();

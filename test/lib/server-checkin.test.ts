@@ -388,7 +388,7 @@ describe("check-in (/checkin/:tokens)", () => {
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]?.id);
+      await markRefunded(attendees[0]!.id);
 
       const response = await handleRequest(
         mockFormRequest(
@@ -413,7 +413,7 @@ describe("check-in (/checkin/:tokens)", () => {
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]?.id);
+      await markRefunded(attendees[0]!.id);
 
       const response = await handleRequest(
         mockFormRequest(

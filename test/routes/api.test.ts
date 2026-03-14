@@ -70,8 +70,8 @@ describe("Public API", () => {
       const body = await jsonBody(response);
       const events = body.events as Record<string, unknown>[];
       expect(events.length).toBe(1);
-      expect(events[0]?.name).toBe("Public Event");
-      expect(events[0]?.slug).toBe(event.slug);
+      expect(events[0]!.name).toBe("Public Event");
+      expect(events[0]!.slug).toBe(event.slug);
     });
 
     test("filters hidden events from listing", async () => {
@@ -81,7 +81,7 @@ describe("Public API", () => {
       const body = await jsonBody(response);
       const events = body.events as Record<string, unknown>[];
       expect(events.length).toBe(1);
-      expect(events[0]?.name).toBe("Visible");
+      expect(events[0]!.name).toBe("Visible");
     });
 
     test("does not expose internal fields", async () => {
@@ -115,8 +115,8 @@ describe("Public API", () => {
       const response = await handleRequest(apiRequest("/api/events"));
       const body = await jsonBody(response);
       const events = body.events as Record<string, unknown>[];
-      expect(events[0]?.isSoldOut).toBe(true);
-      expect(events[0]?.maxPurchasable).toBe(0);
+      expect(events[0]!.isSoldOut).toBe(true);
+      expect(events[0]!.maxPurchasable).toBe(0);
     });
   });
 

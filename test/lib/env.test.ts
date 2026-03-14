@@ -38,6 +38,27 @@ describe("env", () => {
     test("returns undefined when not set in either", () => {
       expect(getEnv("TEST_ENV_VAR")).toBeUndefined();
     });
+
+    test("throws when neither process.env nor Deno.env is available", () => {
+      const origDeno = globalThis.Deno;
+      Object.defineProperty(globalThis, "Deno", {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+      try {
+        delete process.env.TEST_ENV_VAR;
+        expect(() => getEnv("TEST_ENV_VAR")).toThrow(
+          "Neither process.env nor Deno.env is available",
+        );
+      } finally {
+        Object.defineProperty(globalThis, "Deno", {
+          value: origDeno,
+          writable: false,
+          configurable: true,
+        });
+      }
+    });
   });
 
   describe("requireEnv", () => {

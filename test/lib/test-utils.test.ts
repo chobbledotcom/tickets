@@ -620,7 +620,7 @@ describe("test-utils", () => {
       await deactivateTestEvent(event.id);
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
-      expect(updated?.active).toBe(false);
+      expect(updated!.active).toBe(false);
     });
   });
 
@@ -1097,7 +1097,7 @@ describe("test-compat", () => {
       const obj = { greet: (name: string) => `Hello, ${name}` };
       const greetSpy = spy(obj, "greet");
       obj.greet("world");
-      expect(greetSpy.calls[0]?.args).toEqual(["world"]);
+      expect(greetSpy.calls[0]!.args).toEqual(["world"]);
       greetSpy.restore();
       expect(obj.greet("test")).toBe("Hello, test");
     });
@@ -1108,7 +1108,7 @@ describe("test-compat", () => {
       const obj = { greet: (name: string) => `Hello, ${name}` };
       const greetStub = stub(obj, "greet", () => "stubbed");
       expect(obj.greet("world")).toBe("stubbed");
-      expect(greetStub.calls[0]?.args).toEqual(["world"]);
+      expect(greetStub.calls[0]!.args).toEqual(["world"]);
       greetStub.restore();
       expect(obj.greet("test")).toBe("Hello, test");
     });

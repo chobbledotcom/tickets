@@ -85,9 +85,9 @@ describe("email-renderer", () => {
       expect(data.ticket_url).toBe("https://example.com/t/ABC");
       expect(data.currency).toBe("GBP");
       expect(data.entries.length).toBe(1);
-      expect(data.entries[0]?.event.name).toBe("Test Event");
-      expect(data.entries[0]?.event.slug).toBe("test-event");
-      expect(data.entries[0]?.event.is_paid).toBe(false);
+      expect(data.entries[0]!.event.name).toBe("Test Event");
+      expect(data.entries[0]!.event.slug).toBe("test-event");
+      expect(data.entries[0]!.event.is_paid).toBe(false);
       expect(data.attendee.name).toBe("Jane Doe");
       expect(data.attendee.email).toBe("jane@example.com");
     });
@@ -131,7 +131,7 @@ describe("email-renderer", () => {
         "https://example.com/t/ABC",
       );
 
-      expect(data.entries[0]?.event.is_paid).toBe(true);
+      expect(data.entries[0]!.event.is_paid).toBe(true);
     });
 
     test("marks can_pay_more events as paid", () => {
@@ -142,7 +142,7 @@ describe("email-renderer", () => {
         "https://example.com/t/ABC",
       );
 
-      expect(data.entries[0]?.event.is_paid).toBe(true);
+      expect(data.entries[0]!.event.is_paid).toBe(true);
     });
 
     test("includes attendee date when present", () => {
@@ -153,7 +153,7 @@ describe("email-renderer", () => {
         "https://example.com/t/ABC",
       );
 
-      expect(data.entries[0]?.attendee.date).toBe("2026-04-15");
+      expect(data.entries[0]!.attendee.date).toBe("2026-04-15");
     });
   });
 
@@ -226,7 +226,7 @@ describe("email-renderer", () => {
         entries: [
           {
             ...sampleData.entries[0]!,
-            attendee: { ...sampleData.entries[0]?.attendee, quantity: 1 },
+            attendee: { ...sampleData.entries[0]!.attendee, quantity: 1 },
           },
         ],
       };
@@ -281,7 +281,7 @@ describe("email-renderer", () => {
           {
             ...sampleData.entries[0]!,
             attendee: {
-              ...sampleData.entries[0]?.attendee,
+              ...sampleData.entries[0]!.attendee,
               date: "2026-04-15",
             },
           },

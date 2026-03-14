@@ -156,10 +156,10 @@ describe("bunny-cdn", () => {
         async () => {
           await bunnyCdnApi.findPullZoneId();
           expect(calls).toHaveLength(1);
-          expect(calls.at(0)?.url).toBe(
+          expect(calls.at(0)!.url).toBe(
             "https://api.bunny.net/pullzone?search=mysite.b-cdn.net",
           );
-          expect(calls.at(0)?.init?.headers).toEqual({
+          expect(calls.at(0)!.init!.headers).toEqual({
             AccessKey: "test-bunny-key",
           });
         },
@@ -293,25 +293,25 @@ describe("bunny-cdn", () => {
             expect(addCall.url).toBe(
               "https://api.bunny.net/pullzone/12345/addHostname",
             );
-            expect(addCall.init?.method).toBe("POST");
-            expect(addCall.init?.headers).toEqual({
+            expect(addCall.init!.method).toBe("POST");
+            expect(addCall.init!.headers).toEqual({
               AccessKey: "test-bunny-key",
               "Content-Type": "application/json",
             });
-            expect(JSON.parse(addCall.init?.body as string)).toEqual({
+            expect(JSON.parse(addCall.init!.body as string)).toEqual({
               Hostname: "cdn.example.com",
             });
             expect(certCall.url).toBe(
               "https://api.bunny.net/pullzone/loadFreeCertificate?hostname=cdn.example.com",
             );
-            expect(certCall.init?.method).toBe("GET");
-            expect(certCall.init?.headers).toEqual({
+            expect(certCall.init!.method).toBe("GET");
+            expect(certCall.init!.headers).toEqual({
               AccessKey: "test-bunny-key",
             });
             expect(sslCall.url).toBe(
               "https://api.bunny.net/pullzone/12345/setForceSSL",
             );
-            expect(JSON.parse(sslCall.init?.body as string)).toEqual({
+            expect(JSON.parse(sslCall.init!.body as string)).toEqual({
               Hostname: "cdn.example.com",
               ForceSSL: true,
             });

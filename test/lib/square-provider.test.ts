@@ -65,9 +65,9 @@ describe("square-provider", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_completed");
           expect(result).not.toBeNull();
-          expect(result?.paymentStatus).toBe("paid");
-          expect(result?.paymentReference).toBe("pay_1");
-          expect(mocks.payment.calls[0]?.args).toEqual(["pay_1"]);
+          expect(result!.paymentStatus).toBe("paid");
+          expect(result!.paymentReference).toBe("pay_1");
+          expect(mocks.payment.calls[0]!.args).toEqual(["pay_1"]);
         },
       );
     });
@@ -100,9 +100,9 @@ describe("square-provider", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
-          expect(result?.paymentStatus).toBe("paid");
-          expect(result?.paymentReference).toBe("pay_2");
-          expect(mocks.payment.calls[0]?.args).toEqual(["pay_2"]);
+          expect(result!.paymentStatus).toBe("paid");
+          expect(result!.paymentReference).toBe("pay_2");
+          expect(mocks.payment.calls[0]!.args).toEqual(["pay_2"]);
         },
       );
     });
@@ -135,7 +135,7 @@ describe("square-provider", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
-          expect(result?.paymentStatus).toBe("unpaid");
+          expect(result!.paymentStatus).toBe("unpaid");
         },
       );
     });
@@ -160,7 +160,7 @@ describe("square-provider", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_no_tenders");
           expect(result).not.toBeNull();
-          expect(result?.paymentStatus).toBe("unpaid");
+          expect(result!.paymentStatus).toBe("unpaid");
         },
       );
     });

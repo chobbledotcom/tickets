@@ -67,7 +67,7 @@ describe("verifySignedCsrfToken", () => {
 
   test("rejects a token with tampered HMAC", async () => {
     const token = await signCsrfToken();
-    const tampered = `${token.slice(0, -4)}XXXX`;
+    const tampered = token.slice(0, -4) + "XXXX";
     expect(await verifySignedCsrfToken(tampered)).toBe(false);
   });
 
@@ -102,6 +102,10 @@ describe("verifySignedCsrfToken", () => {
   test("rejects a token with wrong number of parts", async () => {
     expect(await verifySignedCsrfToken("s1.only-two-parts")).toBe(false);
     expect(await verifySignedCsrfToken("s1.a.b.c.d.extra")).toBe(false);
+  });
+
+  test("rejects a token with empty parts", async () => {
+    expect(await verifySignedCsrfToken("s1..nonce.hmac")).toBe(false);
   });
 
   test("rejects a token with non-numeric timestamp", async () => {

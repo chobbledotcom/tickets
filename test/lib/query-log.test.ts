@@ -33,10 +33,10 @@ describe("query-log", () => {
         addQueryLogEntry("SELECT 2", 2.3);
         const log = getQueryLog();
         expect(log).toHaveLength(2);
-        expect(log[0]?.sql).toBe("SELECT 1");
-        expect(log[0]?.durationMs).toBe(1.5);
-        expect(log[1]?.sql).toBe("SELECT 2");
-        expect(log[1]?.durationMs).toBe(2.3);
+        expect(log[0]!.sql).toBe("SELECT 1");
+        expect(log[0]!.durationMs).toBe(1.5);
+        expect(log[1]!.sql).toBe("SELECT 2");
+        expect(log[1]!.durationMs).toBe(2.3);
       });
     });
 

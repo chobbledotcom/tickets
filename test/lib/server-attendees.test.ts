@@ -810,7 +810,7 @@ describe("server (admin attendees)", () => {
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
-      expect(attendees[0]?.quantity).toBe(2);
+      expect(attendees[0]!.quantity).toBe(2);
     });
 
     test("redirects with error on validation failure", async () => {
@@ -933,7 +933,7 @@ describe("server (admin attendees)", () => {
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
-      expect(attendees[0]?.date).toBe(futureDate);
+      expect(attendees[0]!.date).toBe(futureDate);
     });
 
     test("event page shows add attendee form", async () => {
@@ -1388,7 +1388,7 @@ describe("server (admin attendees)", () => {
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
       expect(updated).not.toBeNull();
-      expect(updated?.event_id).toBe(event2.id);
+      expect(updated!.event_id).toBe(event2.id);
     });
 
     test("event page shows edit success message", async () => {
@@ -1600,7 +1600,7 @@ describe("server (admin attendees)", () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated?.quantity).toBe(3);
+      expect(updated!.quantity).toBe(3);
     });
 
     test("shows quantity field on edit form", async () => {
@@ -1652,7 +1652,7 @@ describe("server (admin attendees)", () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated?.quantity).toBe(3);
+      expect(updated!.quantity).toBe(3);
     });
 
     test("rejects quantity increase when not enough spots", async () => {
@@ -1714,7 +1714,7 @@ describe("server (admin attendees)", () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated?.quantity).toBe(1);
+      expect(updated!.quantity).toBe(1);
     });
 
     test("rejects non-existent event_id on quantity update", async () => {
@@ -1778,7 +1778,7 @@ describe("server (admin attendees)", () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated?.quantity).toBe(1);
+      expect(updated!.quantity).toBe(1);
     });
 
     test("defaults missing quantity to 1", async () => {
@@ -1811,7 +1811,7 @@ describe("server (admin attendees)", () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated?.quantity).toBe(1);
+      expect(updated!.quantity).toBe(1);
     });
   });
 
@@ -2238,7 +2238,7 @@ describe("server (admin attendees)", () => {
             );
             expect(response.headers.get("location")).toContain("success=");
             expect(response.headers.get("location")).toContain("refunded");
-            expect(mockRefunded.calls[0]?.args).toEqual(["pi_refresh_refund"]);
+            expect(mockRefunded.calls[0]!.args).toEqual(["pi_refresh_refund"]);
           } finally {
             mockRefunded.restore();
           }

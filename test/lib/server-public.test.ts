@@ -894,7 +894,7 @@ describe("server (public routes)", () => {
       const html = await getResponse.text();
       const match = html.match(/name="csrf_token" value="([^"]+)"/);
       expect(match).not.toBe(null);
-      const signedToken = match?.[1]!;
+      const signedToken = match![1]!;
       expect(signedToken.startsWith("s1.")).toBe(true);
 
       // POST without any cookie - signed tokens are the only CSRF mechanism
@@ -1438,7 +1438,7 @@ describe("server (public routes)", () => {
       const html = await getResponse.text();
       const match = html.match(/name="csrf_token" value="([^"]+)"/);
       expect(match).not.toBe(null);
-      const signedToken = match?.[1]!;
+      const signedToken = match![1]!;
 
       const response = await handleRequest(
         mockFormRequest(`${path}?iframe=true`, {

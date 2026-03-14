@@ -60,10 +60,10 @@ describe("session-context", () => {
         runWithSessionContext(() => {
           expect(getCachedSession()).toBeUndefined();
           setCachedSession(inner);
-          expect(getCachedSession()?.token).toBe("inner");
+          expect(getCachedSession()!.token).toBe("inner");
         });
 
-        expect(getCachedSession()?.token).toBe("outer");
+        expect(getCachedSession()!.token).toBe("outer");
       });
     });
 

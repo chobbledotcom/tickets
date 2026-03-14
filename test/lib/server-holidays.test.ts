@@ -58,7 +58,7 @@ describe("server (admin holidays)", () => {
       const inviteUrl = inviteResponse.headers.get("location") ?? "";
       const inviteMatch = inviteUrl.match(/invite=([^&]+)/);
       expect(inviteMatch).not.toBeNull();
-      const inviteLink = decodeURIComponent(inviteMatch?.[1] as string);
+      const inviteLink = decodeURIComponent(inviteMatch![1] as string);
       // Extract token from invite link
       const inviteToken = inviteLink.split("/join/")[1];
       expect(inviteToken).toBeTruthy();
@@ -476,7 +476,7 @@ describe("server (admin holidays)", () => {
       const { getActiveHolidays } = await import("#lib/db/holidays.ts");
       const active = await getActiveHolidays();
       expect(active.length).toBe(1);
-      expect(active[0]?.name).toBe("Future Holiday");
+      expect(active[0]!.name).toBe("Future Holiday");
     });
   });
 

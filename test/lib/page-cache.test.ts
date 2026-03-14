@@ -226,12 +226,12 @@ describe("page content cache", () => {
       await loadAllSettings();
 
       const before = getAllCacheStats().find((s) => s.name === "settings");
-      expect(before?.entries).toBeGreaterThan(0);
+      expect(before!.entries).toBeGreaterThan(0);
 
       invalidateSettingsCache();
 
       const after = getAllCacheStats().find((s) => s.name === "settings");
-      expect(after?.entries).toBe(0);
+      expect(after!.entries).toBe(0);
     });
   });
 

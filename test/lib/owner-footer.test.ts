@@ -96,7 +96,7 @@ describe("admin debug footer", () => {
     );
     const inviteUrl = inviteResponse.headers.get("location") ?? "";
     const inviteMatch = inviteUrl.match(/invite=([^&]+)/);
-    const inviteLink = decodeURIComponent(inviteMatch?.[1] as string);
+    const inviteLink = decodeURIComponent(inviteMatch![1] as string);
     const inviteToken = inviteLink.split("/join/")[1]!;
 
     // Set password for manager

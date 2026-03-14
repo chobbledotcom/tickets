@@ -110,8 +110,8 @@ export const writeClosesAt = (v: string | null): Promise<string | null> =>
 
 /** Decrypt closes_at from DB storage (encrypted empty → null) */
 const readClosesAt = async (v: string | null): Promise<string | null> => {
-  if (v === null) return null;
-  const result = await decryptDatetime(v);
+  // DB column is NOT NULL (writeClosesAt always encrypts), so v is always a string
+  const result = await decryptDatetime(v!);
   return result === "" ? null : result;
 };
 

@@ -19,14 +19,14 @@ describe("cache-registry", () => {
     registerCache(() => ({ name: "test", entries: 5 }));
     const stats = getAllCacheStats();
     expect(stats).toHaveLength(1);
-    expect(stats[0]?.name).toBe("test");
-    expect(stats[0]?.entries).toBe(5);
+    expect(stats[0]!.name).toBe("test");
+    expect(stats[0]!.entries).toBe(5);
   });
 
   test("supports capacity field", () => {
     registerCache(() => ({ name: "lru", entries: 100, capacity: 10000 }));
     const stats = getAllCacheStats();
-    expect(stats[0]?.capacity).toBe(10000);
+    expect(stats[0]!.capacity).toBe(10000);
   });
 
   test("collects stats from multiple caches", () => {
@@ -40,8 +40,8 @@ describe("cache-registry", () => {
   test("calls providers each time to get fresh stats", () => {
     let count = 0;
     registerCache(() => ({ name: "dynamic", entries: ++count }));
-    expect(getAllCacheStats()[0]?.entries).toBe(1);
-    expect(getAllCacheStats()[0]?.entries).toBe(2);
+    expect(getAllCacheStats()[0]!.entries).toBe(1);
+    expect(getAllCacheStats()[0]!.entries).toBe(2);
   });
 
   test("resetCacheRegistry clears all providers", () => {

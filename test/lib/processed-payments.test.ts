@@ -211,7 +211,7 @@ describe("processed-payments", () => {
       expect(record).not.toBeNull();
       expect(record?.processed_at).toBeDefined();
       // Timestamp should be a valid ISO string close to current time
-      const processedMs = new Date(record?.processed_at).getTime();
+      const processedMs = new Date(record!.processed_at).getTime();
       expect(Math.abs(processedMs - Date.now())).toBeLessThan(5000);
     });
   });
