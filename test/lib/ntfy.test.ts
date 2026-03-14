@@ -44,7 +44,7 @@ describe("ntfy", () => {
 
       const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
-      expect(headers["Title"]).toBe("localhost error");
+      expect(headers.Title).toBe("localhost error");
     });
 
     test("includes warning tag in headers", () => {
@@ -54,7 +54,7 @@ describe("ntfy", () => {
 
       const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
-      expect(headers["Tags"]).toBe("warning");
+      expect(headers.Tags).toBe("warning");
     });
 
     test("logs error when fetch fails", async () => {

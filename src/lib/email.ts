@@ -126,7 +126,7 @@ const mailgun = (host: string) =>
   provider(
     (config) =>
       `https://${host}/v3/${config.fromAddress.split("@")[1]}/messages`,
-    (apiKey) => ({ Authorization: `Basic ${btoa("api:" + apiKey)}` }),
+    (apiKey) => ({ Authorization: `Basic ${btoa(`api:${apiKey}`)}` }),
     mailgunBody,
   );
 
