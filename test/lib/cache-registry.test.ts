@@ -1,5 +1,5 @@
-import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllCacheStats,
   registerCache,

@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getDb } from "#lib/db/client.ts";
 import {
   deleteAllStaleReservations,
   deleteStaleReservation,
@@ -11,7 +12,6 @@ import {
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#lib/db/processed-payments.ts";
-import { getDb } from "#lib/db/client.ts";
 import {
   createTestAttendee,
   createTestDbWithSetup,
@@ -21,7 +21,10 @@ import {
 } from "#test-utils";
 
 /** Helper to simulate the old markSessionProcessed behavior using two-phase locking */
-const processSession = async (sessionId: string, attendeeId: number): Promise<boolean> => {
+const processSession = async (
+  sessionId: string,
+  attendeeId: number,
+): Promise<boolean> => {
   const result = await reserveSession(sessionId);
   if (!result.reserved) {
     return false;
@@ -40,9 +43,24 @@ describe("processed-payments", () => {
     await createTestDbWithSetup();
     // Create test event and attendees to satisfy foreign key constraints
     const event = await createTestEvent();
-    const attendee1 = await createTestAttendee(event.id, event.slug, "Test User 1", "test1@example.com");
-    const attendee2 = await createTestAttendee(event.id, event.slug, "Test User 2", "test2@example.com");
-    const attendee3 = await createTestAttendee(event.id, event.slug, "Test User 3", "test3@example.com");
+    const attendee1 = await createTestAttendee(
+      event.id,
+      event.slug,
+      "Test User 1",
+      "test1@example.com",
+    );
+    const attendee2 = await createTestAttendee(
+      event.id,
+      event.slug,
+      "Test User 2",
+      "test2@example.com",
+    );
+    const attendee3 = await createTestAttendee(
+      event.id,
+      event.slug,
+      "Test User 3",
+      "test3@example.com",
+    );
     testAttendeeId = attendee1.id;
     testAttendeeId2 = attendee2.id;
     testAttendeeId3 = attendee3.id;
@@ -156,17 +174,26 @@ describe("processed-payments", () => {
 
   describe("two-phase session processing", () => {
     test("returns true for first processing", async () => {
-      const result = await processSession("cs_new_session_process", testAttendeeId);
+      const result = await processSession(
+        "cs_new_session_process",
+        testAttendeeId,
+      );
       expect(result).toBe(true);
     });
 
     test("returns false for duplicate processing", async () => {
       // First attempt should succeed
-      const first = await processSession("cs_duplicate_process", testAttendeeId);
+      const first = await processSession(
+        "cs_duplicate_process",
+        testAttendeeId,
+      );
       expect(first).toBe(true);
 
       // Second attempt with same session ID should fail
-      const second = await processSession("cs_duplicate_process", testAttendeeId2);
+      const second = await processSession(
+        "cs_duplicate_process",
+        testAttendeeId2,
+      );
       expect(second).toBe(false);
     });
 
@@ -272,12 +299,16 @@ describe("processed-payments", () => {
     });
 
     test("returns false for timestamp just under threshold", () => {
-      const justUnder = new Date(Date.now() - STALE_RESERVATION_MS + 1000).toISOString();
+      const justUnder = new Date(
+        Date.now() - STALE_RESERVATION_MS + 1000,
+      ).toISOString();
       expect(isReservationStale(justUnder)).toBe(false);
     });
 
     test("returns true for timestamp over threshold", () => {
-      const stale = new Date(Date.now() - STALE_RESERVATION_MS - 1000).toISOString();
+      const stale = new Date(
+        Date.now() - STALE_RESERVATION_MS - 1000,
+      ).toISOString();
       expect(isReservationStale(stale)).toBe(true);
     });
 
@@ -324,7 +355,9 @@ describe("processed-payments", () => {
 
   describe("deleteAllStaleReservations", () => {
     test("deletes all stale unfinalized reservations", async () => {
-      const staleTime = new Date(Date.now() - STALE_RESERVATION_MS - 1000).toISOString();
+      const staleTime = new Date(
+        Date.now() - STALE_RESERVATION_MS - 1000,
+      ).toISOString();
 
       // Insert two stale reservations directly
       await getDb().execute({
@@ -353,7 +386,9 @@ describe("processed-payments", () => {
     });
 
     test("does not delete finalized reservations regardless of age", async () => {
-      const staleTime = new Date(Date.now() - STALE_RESERVATION_MS - 1000).toISOString();
+      const staleTime = new Date(
+        Date.now() - STALE_RESERVATION_MS - 1000,
+      ).toISOString();
 
       // Insert a stale but finalized reservation
       await getDb().execute({
@@ -433,7 +468,8 @@ describe("processed-payments", () => {
 
       // Delete the record right after it causes a UNIQUE error but before isSessionProcessed runs
       const executeSpy = stub(getDb(), "execute", async (stmt: unknown) => {
-        const sql = typeof stmt === "string" ? stmt : (stmt as { sql: string }).sql;
+        const sql =
+          typeof stmt === "string" ? stmt : (stmt as { sql: string }).sql;
 
         if (sql.includes("INSERT INTO processed_payments") && callCount === 0) {
           callCount++;
@@ -443,7 +479,9 @@ describe("processed-payments", () => {
             args: [sessionId],
           });
           // Now throw UNIQUE constraint error (simulating the original INSERT that failed)
-          throw new Error("UNIQUE constraint failed: processed_payments.payment_session_id");
+          throw new Error(
+            "UNIQUE constraint failed: processed_payments.payment_session_id",
+          );
         }
 
         // For all other calls, use the original

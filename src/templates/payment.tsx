@@ -91,7 +91,7 @@ export const successPage = ({
         ) : null}
         {ticketUrl ? (
           <p>
-            <a href={ticketUrl} target="_blank">
+            <a href={ticketUrl} target="_blank" rel="noopener">
               Click here to view your tickets
             </a>
           </p>
@@ -155,14 +155,19 @@ export const checkoutPopupPage = (checkoutUrl: string): string =>
       <div data-checkout-popup={escapeHtml(checkoutUrl)} data-scroll-into-view>
         <p>Payment is processed in a new window.</p>
         <p>
-          <a href={checkoutUrl} target="_blank" data-open-checkout>
+          <a
+            href={checkoutUrl}
+            target="_blank"
+            data-open-checkout
+            rel="noopener"
+          >
             <b>Pay Now</b>
           </a>
         </p>
         <div data-checkout-waiting hidden>
           <p>Completing payment in the other window...</p>
           <p>
-            <a href={checkoutUrl} target="_blank">
+            <a href={checkoutUrl} target="_blank" rel="noopener">
               <small>Click here if the payment window didn't open</small>
             </a>
           </p>

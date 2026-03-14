@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi, validateCustomDomain } from "#lib/bunny-cdn.ts";
 import {
@@ -123,7 +123,8 @@ describe("bunny-cdn", () => {
                   HasMoreItems: false,
                 }),
               ),
-            )),
+            ),
+          ),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
           expect(result).toEqual({ ok: true, id: 222 });
@@ -178,7 +179,8 @@ describe("bunny-cdn", () => {
                   HasMoreItems: false,
                 }),
               ),
-            )),
+            ),
+          ),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
           expect(result).toEqual({
@@ -193,9 +195,8 @@ describe("bunny-cdn", () => {
       await withMocks(
         () =>
           stub(globalThis, "fetch", () =>
-            Promise.resolve(
-              new Response("Unauthorized", { status: 401 }),
-            )),
+            Promise.resolve(new Response("Unauthorized", { status: 401 })),
+          ),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
           expect(result).toEqual({
@@ -214,9 +215,8 @@ describe("bunny-cdn", () => {
       await withMocks(
         () =>
           stub(globalThis, "fetch", () =>
-            Promise.resolve(
-              new Response(jsonBody, { status: 429 }),
-            )),
+            Promise.resolve(new Response(jsonBody, { status: 429 })),
+          ),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
           expect(result).toEqual({
@@ -246,9 +246,7 @@ describe("bunny-cdn", () => {
     });
 
     /** Helper: stub findPullZoneId to return a fixed ID */
-    const withFixedPullZoneId = (
-      fn: () => Promise<void>,
-    ): Promise<void> => {
+    const withFixedPullZoneId = (fn: () => Promise<void>): Promise<void> => {
       const original = bunnyCdnApi.findPullZoneId;
       bunnyCdnApi.findPullZoneId = () =>
         Promise.resolve({ ok: true as const, id: 12345 });
@@ -262,11 +260,11 @@ describe("bunny-cdn", () => {
         await withMocks(
           () =>
             stub(globalThis, "fetch", () =>
-              Promise.resolve(new Response(null, { status: 204 }))),
+              Promise.resolve(new Response(null, { status: 204 })),
+            ),
           async () => {
-            const result = await bunnyCdnApi.validateCustomDomain(
-              "cdn.example.com",
-            );
+            const result =
+              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({ ok: true });
           },
         );
@@ -330,9 +328,8 @@ describe("bunny-cdn", () => {
           error: "No pull zone found with hostname mysite.b-cdn.net",
         });
       try {
-        const result = await bunnyCdnApi.validateCustomDomain(
-          "cdn.example.com",
-        );
+        const result =
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com");
         expect(result).toEqual({
           ok: false,
           error: "No pull zone found with hostname mysite.b-cdn.net",
@@ -349,11 +346,11 @@ describe("bunny-cdn", () => {
             stub(globalThis, "fetch", () =>
               Promise.resolve(
                 new Response("Hostname already exists", { status: 400 }),
-              )),
+              ),
+            ),
           async () => {
-            const result = await bunnyCdnApi.validateCustomDomain(
-              "cdn.example.com",
-            );
+            const result =
+              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({
               ok: false,
               error: "Add hostname failed (400): Hostname already exists",
@@ -373,17 +370,14 @@ describe("bunny-cdn", () => {
         await withMocks(
           () =>
             stub(globalThis, "fetch", () =>
-              Promise.resolve(
-                new Response(jsonBody, { status: 400 }),
-              )),
+              Promise.resolve(new Response(jsonBody, { status: 400 })),
+            ),
           async () => {
-            const result = await bunnyCdnApi.validateCustomDomain(
-              "cdn.example.com",
-            );
+            const result =
+              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({
               ok: false,
-              error:
-                "Add hostname failed (400): Something went wrong.",
+              error: "Add hostname failed (400): Something went wrong.",
               errorKey: "pullzone.some_other_error",
             });
           },
@@ -404,16 +398,13 @@ describe("bunny-cdn", () => {
             stub(globalThis, "fetch", () => {
               callCount++;
               if (callCount === 1) {
-                return Promise.resolve(
-                  new Response(jsonBody, { status: 400 }),
-                );
+                return Promise.resolve(new Response(jsonBody, { status: 400 }));
               }
               return Promise.resolve(new Response(null, { status: 204 }));
             }),
           async () => {
-            const result = await bunnyCdnApi.validateCustomDomain(
-              "cdn.example.com",
-            );
+            const result =
+              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({ ok: true });
             expect(callCount).toBe(3);
           },
@@ -455,13 +446,11 @@ describe("bunny-cdn", () => {
               );
             }),
           async () => {
-            const result = await bunnyCdnApi.validateCustomDomain(
-              "cdn.example.com",
-            );
+            const result =
+              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({
               ok: false,
-              error:
-                "Load free certificate failed (400): Certificate error",
+              error: "Load free certificate failed (400): Certificate error",
             });
             expect(callCount).toBe(2);
           },
@@ -506,9 +495,8 @@ describe("bunny-cdn", () => {
               );
             }),
           async () => {
-            const result = await bunnyCdnApi.validateCustomDomain(
-              "cdn.example.com",
-            );
+            const result =
+              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({
               ok: false,
               error: "Set force SSL failed (500): SSL error",

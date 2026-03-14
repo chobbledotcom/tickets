@@ -1,6 +1,10 @@
-import { describe, it as test, afterEach } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { appendIframeParam, detectIframeMode, getIframeMode } from "#lib/iframe.ts";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
+import {
+  appendIframeParam,
+  detectIframeMode,
+  getIframeMode,
+} from "#lib/iframe.ts";
 
 describe("iframe", () => {
   afterEach(() => {
@@ -32,7 +36,9 @@ describe("iframe", () => {
   describe("appendIframeParam", () => {
     test("appends ?iframe=true when in iframe mode and no existing query", () => {
       detectIframeMode("https://example.com/?iframe=true");
-      expect(appendIframeParam("/ticket/test")).toBe("/ticket/test?iframe=true");
+      expect(appendIframeParam("/ticket/test")).toBe(
+        "/ticket/test?iframe=true",
+      );
     });
 
     test("appends &iframe=true when in iframe mode and query exists", () => {

@@ -1592,7 +1592,10 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event with max_price", () => {
     test("creates event with max_price", async () => {
-      const event = await createTestEvent({ canPayMore: true, maxPrice: 50000 });
+      const event = await createTestEvent({
+        canPayMore: true,
+        maxPrice: 50000,
+      });
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.max_price).toBe(50000);
@@ -1643,7 +1646,10 @@ describe("server (admin events)", () => {
     });
 
     test("updates max_price via edit", async () => {
-      const event = await createTestEvent({ canPayMore: true, unitPrice: 1000 });
+      const event = await createTestEvent({
+        canPayMore: true,
+        unitPrice: 1000,
+      });
       await updateTestEvent(event.id, { maxPrice: 25000 });
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);

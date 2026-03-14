@@ -177,7 +177,9 @@ const main = async (): Promise<void> => {
     const lcov = new TextDecoder().decode(lcovResult.stdout);
 
     // Parse lcov records: enforce 100% line coverage, report branch coverage
-    const records = lcov.split("end_of_record").filter((r) => r.includes("SF:"));
+    const records = lcov
+      .split("end_of_record")
+      .filter((r) => r.includes("SF:"));
     if (records.length === 0) {
       console.error("No coverage data found");
       Deno.exit(1);
@@ -187,9 +189,7 @@ const main = async (): Promise<void> => {
     const branchFailures: string[] = [];
 
     // Files excluded from coverage enforcement
-    const coverageExclusions = [
-      "src/lib/db/migrations.ts",
-    ];
+    const coverageExclusions = ["src/lib/db/migrations.ts"];
 
     for (const record of records) {
       const sfMatch = record.match(/SF:(.*)/);
@@ -197,7 +197,7 @@ const main = async (): Promise<void> => {
       const file = sfMatch[1].replace(projectRoot + "/", "");
 
       // Skip excluded files
-      if (coverageExclusions.some(exclusion => file.includes(exclusion))) {
+      if (coverageExclusions.some((exclusion) => file.includes(exclusion))) {
         continue;
       }
 

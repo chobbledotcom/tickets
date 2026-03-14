@@ -1,6 +1,6 @@
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
@@ -63,7 +63,9 @@ describe("server (admin auth)", () => {
 
       const response = await awaitTestRequest("/admin/login", { cookie });
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin?success=Already+logged+in");
+      expect(response.headers.get("location")).toBe(
+        "/admin?success=Already+logged+in",
+      );
     });
   });
 
@@ -91,9 +93,7 @@ describe("server (admin auth)", () => {
         await mockAdminLoginRequest({ username: "testadmin", password }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin?success=Logged+in",
-      );
+      expect(response.headers.get("location")).toBe("/admin?success=Logged+in");
       expect(response.headers.get("set-cookie")).toContain(
         `${getSessionCookieName()}=`,
       );
@@ -317,17 +317,11 @@ describe("server (admin auth)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
-        mockFormRequest(
-          "/admin/sessions",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toContain(
-        "success=Logged+out+of+all+other+sessions",
-      );
+      expect(location).toContain("success=Logged+out+of+all+other+sessions");
 
       // Verify other sessions are deleted
       const other1 = await getSession("other1");
@@ -348,11 +342,7 @@ describe("server (admin auth)", () => {
       const sessionToken = sessionMatch?.[1];
 
       await handleRequest(
-        mockFormRequest(
-          "/admin/sessions",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
       );
 
       // Verify current session still exists
@@ -461,9 +451,7 @@ describe("server (admin auth)", () => {
       );
       const elapsed = Date.now() - start;
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin?success=Logged+in",
-      );
+      expect(response.headers.get("location")).toBe("/admin?success=Logged+in");
       expect(elapsed).toBeGreaterThanOrEqual(100);
       Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1");
     });

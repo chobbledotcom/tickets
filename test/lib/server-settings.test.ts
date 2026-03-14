@@ -118,7 +118,6 @@ describe("server (admin settings)", () => {
       expect(html).toContain('href="/admin/settings-advanced"');
       expect(html).toContain("advanced settings");
     });
-
   });
 
   describe("POST /admin/settings", () => {
@@ -359,8 +358,12 @@ describe("server (admin settings)", () => {
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
           expect(location).toContain("/admin/settings?success=");
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Stripe key updated");
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("webhook configured");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+            "Stripe key updated",
+          );
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+            "webhook configured",
+          );
         },
       );
     });
@@ -805,7 +808,6 @@ describe("server (admin settings)", () => {
     });
   });
 
-
   describe("POST /admin/settings/payment-provider", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
@@ -907,7 +909,6 @@ describe("server (admin settings)", () => {
       }
     });
   });
-
 
   describe("admin/settings.ts (form.get fallbacks)", () => {
     test("payment provider POST without payment_provider field uses empty fallback", async () => {
@@ -1142,7 +1143,6 @@ describe("server (admin settings)", () => {
     });
   });
 
-
   describe("POST /admin/settings/business-email", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
@@ -1186,7 +1186,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Business email updated");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Business email updated",
+      );
 
       const saved = await getBusinessEmailFromDb();
       expect(saved).toBe("contact@example.com");
@@ -1216,7 +1218,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Business email cleared");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Business email cleared",
+      );
 
       const saved = await getBusinessEmailFromDb();
       expect(saved).toBe("");
@@ -1551,7 +1555,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Theme updated to dark");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Theme updated to dark",
+      );
     });
 
     test("updates theme to light successfully", async () => {
@@ -1570,7 +1576,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Theme updated to light");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Theme updated to light",
+      );
     });
 
     test("theme setting persists in database", async () => {
@@ -1654,7 +1662,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public site enabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Public site enabled",
+      );
     });
 
     test("disables public site", async () => {
@@ -1673,7 +1683,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public site disabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Public site disabled",
+      );
     });
 
     test("setting persists in database", async () => {
@@ -1710,7 +1722,6 @@ describe("server (admin settings)", () => {
       );
     });
   });
-
 
   describe("POST /admin/settings/phone-prefix", () => {
     test("redirects to login when not authenticated", async () => {
@@ -1859,9 +1870,6 @@ describe("server (admin settings)", () => {
     });
   });
 
-
-
-
   describe("sensitive field masking", () => {
     test("shows mask sentinel for configured Stripe key", async () => {
       const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
@@ -1883,13 +1891,18 @@ describe("server (admin settings)", () => {
           await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              { stripe_secret_key: "sk_test_real_secret", csrf_token: csrfToken },
+              {
+                stripe_secret_key: "sk_test_real_secret",
+                csrf_token: csrfToken,
+              },
               cookie,
             ),
           );
 
           // Settings page should show sentinel, not the actual key
-          const response = await awaitTestRequest("/admin/settings", { cookie });
+          const response = await awaitTestRequest("/admin/settings", {
+            cookie,
+          });
           const html = await response.text();
           expect(html).toContain(MASK_SENTINEL);
           expect(html).not.toContain("sk_test_real_secret");
@@ -1922,20 +1935,26 @@ describe("server (admin settings)", () => {
     });
 
     test("shows mask sentinel for configured email API key", async () => {
-      const { MASK_SENTINEL, settingsApi } = await import("#lib/db/settings.ts");
+      const { MASK_SENTINEL, settingsApi } = await import(
+        "#lib/db/settings.ts"
+      );
       const { cookie } = await loginAsAdmin();
 
       await settingsApi.updateEmailProvider("resend");
       await settingsApi.updateEmailApiKey("re_real_secret_key");
 
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
       const html = await response.text();
       expect(html).toContain(MASK_SENTINEL);
       expect(html).not.toContain("re_real_secret_key");
     });
 
     test("submitting sentinel for Stripe key does not overwrite existing key", async () => {
-      const { MASK_SENTINEL, getStripeSecretKeyFromDb } = await import("#lib/db/settings.ts");
+      const { MASK_SENTINEL, getStripeSecretKeyFromDb } = await import(
+        "#lib/db/settings.ts"
+      );
       await setPaymentProvider("stripe");
 
       await withMocks(
@@ -1969,14 +1988,22 @@ describe("server (admin settings)", () => {
           );
 
           expect(response.status).toBe(302);
-          expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
+          expect(
+            decodeURIComponent(
+              response.headers.get("location")!.replaceAll("+", " "),
+            ),
+          ).toContain("unchanged");
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_original");
         },
       );
     });
 
     test("submitting sentinel for Square token preserves token but updates location", async () => {
-      const { MASK_SENTINEL, getSquareAccessTokenFromDb, getSquareLocationIdFromDb } = await import("#lib/db/settings.ts");
+      const {
+        MASK_SENTINEL,
+        getSquareAccessTokenFromDb,
+        getSquareLocationIdFromDb,
+      } = await import("#lib/db/settings.ts");
       await setPaymentProvider("square");
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -2019,7 +2046,10 @@ describe("server (admin settings)", () => {
       await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
-          { square_webhook_signature_key: "sig_original", csrf_token: csrfToken },
+          {
+            square_webhook_signature_key: "sig_original",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
@@ -2028,17 +2058,26 @@ describe("server (admin settings)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
-          { square_webhook_signature_key: MASK_SENTINEL, csrf_token: csrfToken },
+          {
+            square_webhook_signature_key: MASK_SENTINEL,
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
 
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
+      expect(
+        decodeURIComponent(
+          response.headers.get("location")!.replaceAll("+", " "),
+        ),
+      ).toContain("unchanged");
     });
 
     test("submitting sentinel for email API key does not overwrite existing key", async () => {
-      const { MASK_SENTINEL, getEmailApiKeyFromDb } = await import("#lib/db/settings.ts");
+      const { MASK_SENTINEL, getEmailApiKeyFromDb } = await import(
+        "#lib/db/settings.ts"
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       // Configure email with API key
@@ -2146,7 +2185,11 @@ describe("server (admin settings)", () => {
           );
 
           expect(response.status).toBe(302);
-          expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
+          expect(
+            decodeURIComponent(
+              response.headers.get("location")!.replaceAll("+", " "),
+            ),
+          ).toContain("unchanged");
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_keep_me");
         },
       );
@@ -2257,5 +2300,4 @@ describe("server (admin settings)", () => {
       );
     });
   });
-
 });

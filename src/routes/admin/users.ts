@@ -254,11 +254,7 @@ const handleUserDeletePost: TypedRouteHandler<
 
     // Cannot delete your own account
     if (user.id === session.userId) {
-      return usersErrorResponse(
-        session,
-        "Cannot delete your own account",
-        400,
-      );
+      return usersErrorResponse(session, "Cannot delete your own account", 400);
     }
 
     const username = await decryptUsername(user);

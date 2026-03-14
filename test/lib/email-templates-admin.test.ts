@@ -1,12 +1,14 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
 import {
-  getSetting,
+  CONFIG_KEYS,
   getEmailTemplateSet,
+  getSetting,
   invalidateSettingsCache,
   updateEmailTemplate,
-  CONFIG_KEYS,
 } from "#lib/db/settings.ts";
+import { resetEngine } from "#lib/email-renderer.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -18,8 +20,6 @@ import {
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
-import { resetEngine } from "#lib/email-renderer.ts";
-import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
 
 describe("admin email templates", () => {
   let cookie: string;
@@ -43,25 +43,40 @@ describe("admin email templates", () => {
 
   describe("settings page", () => {
     test("shows email template sections", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
-      await expectHtmlResponse(response, 200, "Confirmation Email Template", "Admin Notification Email Template");
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Confirmation Email Template",
+        "Admin Notification Email Template",
+      );
     });
 
     test("shows default templates as placeholders", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
       const html = await response.text();
       expect(html).toContain("Your tickets for");
       expect(html).toContain("New registration");
     });
 
     test("uses 'Leave blank' placeholder for html/text bodies", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
       const html = await response.text();
-      expect(html).toContain('placeholder="Leave blank to use default template"');
+      expect(html).toContain(
+        'placeholder="Leave blank to use default template"',
+      );
     });
 
     test("shows edit default template links for html/text bodies", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
       const html = await response.text();
       expect(html).toContain('data-fill-default="confirmation_html"');
       expect(html).toContain('data-fill-default="confirmation_text"');
@@ -71,7 +86,9 @@ describe("admin email templates", () => {
     });
 
     test("includes default templates as data attributes", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
       const html = await response.text();
       expect(html).toContain("data-default-tpl=");
     });
@@ -80,19 +97,25 @@ describe("admin email templates", () => {
   describe("POST /admin/settings/email-templates/confirmation", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation", { subject: "test" }),
+        mockFormRequest("/admin/settings/email-templates/confirmation", {
+          subject: "test",
+        }),
       );
       expectAdminRedirect(response);
     });
 
     test("saves custom confirmation template", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation", {
-          subject: "Custom: {{ event_names }}",
-          html: "<b>{{ attendee.name }}</b>",
-          text: "Hi {{ attendee.name }}",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/confirmation",
+          {
+            subject: "Custom: {{ event_names }}",
+            html: "<b>{{ attendee.name }}</b>",
+            text: "Hi {{ attendee.name }}",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(302);
@@ -104,16 +127,22 @@ describe("admin email templates", () => {
 
     test("stores templates encrypted at rest", async () => {
       await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation", {
-          subject: "Custom: {{ event_names }}",
-          html: "<b>{{ attendee.name }}</b>",
-          text: "Hi {{ attendee.name }}",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/confirmation",
+          {
+            subject: "Custom: {{ event_names }}",
+            html: "<b>{{ attendee.name }}</b>",
+            text: "Hi {{ attendee.name }}",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       // Raw DB values should be encrypted, not plaintext
-      const rawSubject = await getSetting(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT);
+      const rawSubject = await getSetting(
+        CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
+      );
       expect(rawSubject).not.toBeNull();
       expect(rawSubject!.startsWith("enc:1:")).toBe(true);
       expect(rawSubject).not.toContain("event_names");
@@ -136,12 +165,16 @@ describe("admin email templates", () => {
       invalidateSettingsCache();
 
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation", {
-          subject: "",
-          html: "",
-          text: "",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/confirmation",
+          {
+            subject: "",
+            html: "",
+            text: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(302);
@@ -153,12 +186,16 @@ describe("admin email templates", () => {
 
     test("rejects invalid Liquid syntax", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation", {
-          subject: "{% for x in items %}unclosed",
-          html: "",
-          text: "",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/confirmation",
+          {
+            subject: "{% for x in items %}unclosed",
+            html: "",
+            text: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(400);
@@ -168,9 +205,13 @@ describe("admin email templates", () => {
 
     test("defaults missing form fields to empty strings", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation", {
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/confirmation",
+          {
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(302);
@@ -182,12 +223,16 @@ describe("admin email templates", () => {
 
     test("rejects template exceeding max length", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation", {
-          subject: "",
-          html: "x".repeat(51_201),
-          text: "",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/confirmation",
+          {
+            subject: "",
+            html: "x".repeat(51_201),
+            text: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(400);
@@ -199,12 +244,16 @@ describe("admin email templates", () => {
   describe("POST /admin/settings/email-templates/admin", () => {
     test("saves custom admin template", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/admin", {
-          subject: "New: {{ attendee.name }}",
-          html: "<p>Admin HTML</p>",
-          text: "Admin text",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/admin",
+          {
+            subject: "New: {{ attendee.name }}",
+            html: "<p>Admin HTML</p>",
+            text: "Admin text",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(302);
@@ -216,12 +265,16 @@ describe("admin email templates", () => {
   describe("POST /admin/settings/email-templates/preview", () => {
     test("renders template preview with sample data", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/preview", {
-          type: "confirmation",
-          template: "Hello {{ attendee.name }}",
-          format: "text",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/preview",
+          {
+            type: "confirmation",
+            template: "Hello {{ attendee.name }}",
+            format: "text",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(200);
@@ -231,12 +284,16 @@ describe("admin email templates", () => {
 
     test("returns error for invalid template syntax", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/preview", {
-          type: "confirmation",
-          template: "{% invalid %}",
-          format: "text",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/preview",
+          {
+            type: "confirmation",
+            template: "{% invalid %}",
+            format: "text",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(400);
@@ -246,12 +303,16 @@ describe("admin email templates", () => {
 
     test("returns error for invalid template type", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/preview", {
-          type: "invalid",
-          template: "test",
-          format: "text",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/preview",
+          {
+            type: "invalid",
+            template: "test",
+            format: "text",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(400);
@@ -261,9 +322,13 @@ describe("admin email templates", () => {
 
     test("defaults missing preview fields to empty and rejects invalid type", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/preview", {
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/preview",
+          {
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(400);
@@ -273,12 +338,16 @@ describe("admin email templates", () => {
 
     test("returns error when template render throws", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/preview", {
-          type: "confirmation",
-          template: '{% render "nonexistent" %}',
-          format: "text",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/preview",
+          {
+            type: "confirmation",
+            template: '{% render "nonexistent" %}',
+            format: "text",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(400);
@@ -288,12 +357,17 @@ describe("admin email templates", () => {
 
     test("renders currency filter in preview", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/preview", {
-          type: "confirmation",
-          template: "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
-          format: "html",
-          csrf_token: csrfToken,
-        }, cookie),
+        mockFormRequest(
+          "/admin/settings/email-templates/preview",
+          {
+            type: "confirmation",
+            template:
+              "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
+            format: "html",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(200);

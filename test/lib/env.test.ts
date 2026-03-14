@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { expect } from "@std/expect";
-import { getEnv, requireEnv } from "#lib/env.ts";
 import process from "node:process";
+import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { getEnv, requireEnv } from "#lib/env.ts";
 
 describe("env", () => {
   const originalEnv = { ...process.env };
@@ -38,7 +38,6 @@ describe("env", () => {
     test("returns undefined when not set in either", () => {
       expect(getEnv("TEST_ENV_VAR")).toBeUndefined();
     });
-
   });
 
   describe("requireEnv", () => {

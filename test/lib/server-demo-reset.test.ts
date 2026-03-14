@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { handleRequest } from "#routes";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resetDemoMode } from "#lib/demo.ts";
+import { handleRequest } from "#routes";
 import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
@@ -161,7 +161,6 @@ describe("server (demo reset)", () => {
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
       invalidateTestDbCache();
     });
-
   });
 
   describe("login page demo reset link", () => {
@@ -184,7 +183,9 @@ describe("server (demo reset)", () => {
   describe("shared form component", () => {
     test("admin settings page uses shared reset form", async () => {
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(RESET_DATABASE_PHRASE);
       expect(html).toContain("confirm_phrase");

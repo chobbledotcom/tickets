@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
@@ -82,7 +82,8 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
@@ -112,7 +113,8 @@ describe("server (payment flow)", () => {
               metadata: {}, // Missing required fields
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
@@ -155,13 +157,13 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
-            Promise.resolve(
-              { id: "re_test" } as unknown as Awaited<
-                ReturnType<typeof stripeApi.refundPayment>
-              >,
-            )),
+            Promise.resolve({ id: "re_test" } as unknown as Awaited<
+              ReturnType<typeof stripeApi.refundPayment>
+            >),
+          ),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -216,13 +218,13 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
-            Promise.resolve(
-              { id: "re_test" } as unknown as Awaited<
-                ReturnType<typeof stripeApi.refundPayment>
-              >,
-            )),
+            Promise.resolve({ id: "re_test" } as unknown as Awaited<
+              ReturnType<typeof stripeApi.refundPayment>
+            >),
+          ),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -257,7 +259,8 @@ describe("server (payment flow)", () => {
       await withMocks(
         () =>
           stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve(null)),
+            Promise.resolve(null),
+          ),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_invalid"),
@@ -282,7 +285,8 @@ describe("server (payment flow)", () => {
               metadata: {}, // Missing required fields
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel"),
@@ -315,7 +319,8 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel"),
@@ -351,7 +356,8 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel"),
@@ -423,11 +429,15 @@ describe("server (payment flow)", () => {
 
       // Mock createCheckoutSession to return a validation error result
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
-        Promise.resolve({
-          error:
-            "The payment processor rejected the phone number as invalid. Please correct it and try again.",
-        }));
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        () =>
+          Promise.resolve({
+            error:
+              "The payment processor rejected the phone number as invalid. Please correct it and try again.",
+          }),
+      );
 
       try {
         const response = await submitTicketForm(event.slug, {
@@ -525,7 +535,8 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
           mockRefund: spy(stripeApi, "refundPayment"),
         }),
         async ({ mockRefund }) => {
@@ -568,7 +579,8 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
         async () => {
           const redirectResponse = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test_paid"),
@@ -638,7 +650,8 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test_paid"),
@@ -683,7 +696,8 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
         async () => {
           const redirectResponse = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test_paid"),
@@ -761,18 +775,19 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >)),
+            >),
+          ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
-            Promise.resolve(
-              { id: "re_test" } as unknown as Awaited<
-                ReturnType<typeof stripeApi.refundPayment>
-              >,
-            )),
+            Promise.resolve({ id: "re_test" } as unknown as Awaited<
+              ReturnType<typeof stripeApi.refundPayment>
+            >),
+          ),
           mockAtomic: stub(attendeesApi, "createAttendeeAtomic", () =>
             Promise.resolve({
               success: false,
               reason: "encryption_error",
-            })),
+            }),
+          ),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -829,7 +844,8 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -878,7 +894,8 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       try {
         const response = await handleRequest(
@@ -910,7 +927,8 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       const mockRefund = spy(stripeApi, "refundPayment");
 
@@ -950,12 +968,14 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
         Promise.resolve({ id: "re_test" } as unknown as Awaited<
           ReturnType<typeof stripeApi.refundPayment>
-        >));
+        >),
+      );
 
       try {
         const response = await handleRequest(
@@ -1003,11 +1023,13 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       // Mock refund to fail
       const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve(null));
+        Promise.resolve(null),
+      );
 
       try {
         const response = await handleRequest(
@@ -1059,12 +1081,14 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
         Promise.resolve({ id: "re_test" } as unknown as Awaited<
           ReturnType<typeof stripeApi.refundPayment>
-        >));
+        >),
+      );
 
       try {
         const response = await handleRequest(
@@ -1105,7 +1129,8 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       try {
         const redirectResponse = await handleRequest(
@@ -1147,7 +1172,8 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       try {
         // First request should redirect with tokens
@@ -1208,7 +1234,8 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       try {
         // First request should redirect with tokens
@@ -1257,9 +1284,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when no session_id or tokens param", async () => {
-      const response = await handleRequest(
-        mockRequest("/payment/success"),
-      );
+      const response = await handleRequest(mockRequest("/payment/success"));
       expect(response.status).toBe(400);
     });
 
@@ -1286,7 +1311,8 @@ describe("server (payment flow)", () => {
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >));
+        >),
+      );
 
       try {
         // Process payment to get redirect with token
@@ -1339,7 +1365,9 @@ describe("server (payment flow)", () => {
 
       try {
         const response = await handleRequest(
-          mockRequest(`/payment/success?tokens=${encodeURIComponent(result.attendee.ticket_token)}`),
+          mockRequest(
+            `/payment/success?tokens=${encodeURIComponent(result.attendee.ticket_token)}`,
+          ),
         );
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");
         expect(html).toContain("noreply@tickets.com");

@@ -1,7 +1,7 @@
-import { describe, it as test } from "@std/testing/bdd";
-import { expect } from "@std/expect";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = join(currentDir, "../../src");
