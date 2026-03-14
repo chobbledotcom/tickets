@@ -66,6 +66,13 @@ describe("webhook", () => {
     fetchSpy = stub(globalThis, "fetch", impl);
   };
 
+  /** Drain floating async logError promises, then reset and recreate the test DB */
+  const drainAndResetDb = async (): Promise<void> => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    resetDb();
+    await createTestDbWithSetup();
+  };
+
   /** Restub fetch, send a webhook with default payload, return collected error logs */
   const sendAndCollectErrors = (
     fetchImpl: () => Promise<Response>,
@@ -314,10 +321,7 @@ describe("webhook", () => {
     });
 
     test("logs activity on non-2xx response", async () => {
-      // Drain floating promises from earlier logError calls, then reset DB
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      resetDb();
-      await createTestDbWithSetup();
+      await drainAndResetDb();
 
       await withErrorSpy(async () => {
         restubFetch(() =>
@@ -339,10 +343,7 @@ describe("webhook", () => {
     });
 
     test("does not log activity on successful response", async () => {
-      // Drain and reset to avoid contamination from prior error tests
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      resetDb();
-      await createTestDbWithSetup();
+      await drainAndResetDb();
 
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");
       await sendWebhook("https://example.com/webhook", payload);
@@ -356,10 +357,7 @@ describe("webhook", () => {
     });
 
     test("logs comma-separated event names for multi-event payload", async () => {
-      // Drain and reset to avoid contamination from prior error tests
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      resetDb();
-      await createTestDbWithSetup();
+      await drainAndResetDb();
 
       await withErrorSpy(async () => {
         restubFetch(() =>

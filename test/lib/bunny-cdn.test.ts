@@ -62,6 +62,22 @@ const stubFetchWithRecorder = (
     },
   );
 
+/** Set up BUNNY_API_KEY and ALLOWED_DOMAIN env vars for a describe block */
+const useBunnyEnv = () => {
+  const envApiKey = withEnvVar("BUNNY_API_KEY");
+  const envDomain = withEnvVar("ALLOWED_DOMAIN");
+
+  beforeEach(() => {
+    Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
+    Deno.env.set("ALLOWED_DOMAIN", "mysite.bunny.run");
+  });
+
+  afterEach(() => {
+    envApiKey.restore();
+    envDomain.restore();
+  });
+};
+
 /** Build a pull zone Items response */
 const pullZoneResponse = (
   items: { Id: number; hostname: string }[],
@@ -137,36 +153,16 @@ describe("bunny-cdn", () => {
   });
 
   describe("findPullZoneId", () => {
-    const origApiKey = Deno.env.get("BUNNY_API_KEY");
-    const origDomain = Deno.env.get("ALLOWED_DOMAIN");
-
-    beforeEach(() => {
-      Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
-      Deno.env.set("ALLOWED_DOMAIN", "mysite.bunny.run");
-    });
-
-    afterEach(() => {
-      if (origApiKey) Deno.env.set("BUNNY_API_KEY", origApiKey);
-      else Deno.env.delete("BUNNY_API_KEY");
-      if (origDomain) Deno.env.set("ALLOWED_DOMAIN", origDomain);
-      else Deno.env.delete("ALLOWED_DOMAIN");
-    });
+    useBunnyEnv();
 
     test("returns pull zone ID when matching hostname is found", async () => {
       await withMocks(
         () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  Items: [
-                    { Id: 111, Hostnames: [{ Value: "other.b-cdn.net" }] },
-                    { Id: 222, Hostnames: [{ Value: "mysite.b-cdn.net" }] },
-                  ],
-                  HasMoreItems: false,
-                }),
-              ),
-            ),
+          stubFetchJson(
+            pullZoneResponse([
+              { Id: 111, hostname: "other.b-cdn.net" },
+              { Id: 222, hostname: "mysite.b-cdn.net" },
+            ]),
           ),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
@@ -177,6 +173,9 @@ describe("bunny-cdn", () => {
 
     test("sends correct request to Bunny API", async () => {
       const calls: { url: string; init: RequestInit | undefined }[] = [];
+      const response = pullZoneResponse([
+        { Id: 42, hostname: "mysite.b-cdn.net" },
+      ]);
       await withMocks(
         () =>
           stub(
@@ -184,16 +183,7 @@ describe("bunny-cdn", () => {
             "fetch",
             (input: string | URL | Request, init?: RequestInit) => {
               calls.push({ url: String(input), init });
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    Items: [
-                      { Id: 42, Hostnames: [{ Value: "mysite.b-cdn.net" }] },
-                    ],
-                    HasMoreItems: false,
-                  }),
-                ),
-              );
+              return Promise.resolve(new Response(JSON.stringify(response)));
             },
           ),
         async () => {
@@ -212,17 +202,8 @@ describe("bunny-cdn", () => {
     test("returns error when no matching pull zone is found", async () => {
       await withMocks(
         () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  Items: [
-                    { Id: 111, Hostnames: [{ Value: "other.b-cdn.net" }] },
-                  ],
-                  HasMoreItems: false,
-                }),
-              ),
-            ),
+          stubFetchJson(
+            pullZoneResponse([{ Id: 111, hostname: "other.b-cdn.net" }]),
           ),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
@@ -273,20 +254,7 @@ describe("bunny-cdn", () => {
   });
 
   describe("validateCustomDomain (real implementation)", () => {
-    const origApiKey = Deno.env.get("BUNNY_API_KEY");
-    const origDomain = Deno.env.get("ALLOWED_DOMAIN");
-
-    beforeEach(() => {
-      Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
-      Deno.env.set("ALLOWED_DOMAIN", "mysite.bunny.run");
-    });
-
-    afterEach(() => {
-      if (origApiKey) Deno.env.set("BUNNY_API_KEY", origApiKey);
-      else Deno.env.delete("BUNNY_API_KEY");
-      if (origDomain) Deno.env.set("ALLOWED_DOMAIN", origDomain);
-      else Deno.env.delete("ALLOWED_DOMAIN");
-    });
+    useBunnyEnv();
 
     /** Helper: stub findPullZoneId to return a fixed ID */
     const withFixedPullZoneId = (fn: () => Promise<void>): Promise<void> => {
@@ -318,15 +286,7 @@ describe("bunny-cdn", () => {
       await withFixedPullZoneId(async () => {
         const calls: { url: string; init: RequestInit | undefined }[] = [];
         await withMocks(
-          () =>
-            stub(
-              globalThis,
-              "fetch",
-              (input: string | URL | Request, init?: RequestInit) => {
-                calls.push({ url: String(input), init });
-                return Promise.resolve(new Response(null, { status: 204 }));
-              },
-            ),
+          () => stubFetchWithRecorder(calls),
           async () => {
             await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(calls).toHaveLength(3);

@@ -36,6 +36,40 @@ describe("server (misc)", () => {
     resetDb();
   });
 
+  /** Create an embeddable test event and return its ticket page response */
+  async function getTicketPageResponse(): Promise<Response> {
+    const event = await createTestEvent({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    return handleRequest(mockRequest(`/ticket/${event.slug}`));
+  }
+
+  /** Create two embeddable test events and return the multi-slug ticket page response */
+  async function getMultiSlugTicketPageResponse(): Promise<Response> {
+    const event1 = await createTestEvent({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    const event2 = await createTestEvent({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    return handleRequest(mockRequest(`/ticket/${event1.slug}+${event2.slug}`));
+  }
+
+  /** Run a request to an invalid domain and return the [Domain] debug log line */
+  async function getDomainDebugLog(
+    request: Request,
+  ): Promise<{ debugSpy: ReturnType<typeof spy>; domainLog: string }> {
+    const debugSpy = spy(console, "debug");
+    await handleRequest(request);
+    const calls = debugSpy.calls.map((c) => c.args[0] as string);
+    const domainLog = calls.find((c) => c.includes("[Domain]"))!;
+    expect(domainLog).toBeDefined();
+    return { debugSpy, domainLog };
+  }
+
   describe("security headers", () => {
     describe("X-Frame-Options", () => {
       test("home page has X-Frame-Options: DENY", async () => {
@@ -49,28 +83,12 @@ describe("server (misc)", () => {
       });
 
       test("ticket page does NOT have X-Frame-Options (embeddable)", async () => {
-        const event = await createTestEvent({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com",
-        });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${event.slug}`),
-        );
+        const response = await getTicketPageResponse();
         expect(response.headers.get("x-frame-options")).toBeNull();
       });
 
       test("multi-slug ticket page does NOT have X-Frame-Options (embeddable)", async () => {
-        const event1 = await createTestEvent({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com",
-        });
-        const event2 = await createTestEvent({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com",
-        });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-        );
+        const response = await getMultiSlugTicketPageResponse();
         expect(response.headers.get("x-frame-options")).toBeNull();
       });
 
@@ -99,28 +117,12 @@ describe("server (misc)", () => {
       });
 
       test("ticket page has CSP but allows embedding (no frame-ancestors)", async () => {
-        const event = await createTestEvent({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com",
-        });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${event.slug}`),
-        );
+        const response = await getTicketPageResponse();
         expect(response.headers.get("content-security-policy")).toBe(baseCsp);
       });
 
       test("multi-slug ticket page allows embedding (no frame-ancestors)", async () => {
-        const event1 = await createTestEvent({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com",
-        });
-        const event2 = await createTestEvent({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com",
-        });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-        );
+        const response = await getMultiSlugTicketPageResponse();
         expect(response.headers.get("content-security-policy")).toBe(baseCsp);
       });
     });
@@ -144,13 +146,7 @@ describe("server (misc)", () => {
       });
 
       test("ticket pages also have base security headers", async () => {
-        const event = await createTestEvent({
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com",
-        });
-        const response = await handleRequest(
-          mockRequest(`/ticket/${event.slug}`),
-        );
+        const response = await getTicketPageResponse();
         expect(response.headers.get("x-content-type-options")).toBe("nosniff");
         expect(response.headers.get("referrer-policy")).toBe(
           "strict-origin-when-cross-origin",
@@ -493,26 +489,18 @@ describe("server (misc)", () => {
     });
 
     test("logs debug message with host details on domain redirect", async () => {
-      const debugSpy = spy(console, "debug");
-
-      await handleRequest(mockRequestWithHost("/", "evil.com"));
-
-      const calls = debugSpy.calls.map((c) => c.args[0] as string);
-      const domainLog = calls.find((c) => c.includes("[Domain]"));
-      expect(domainLog).toBeDefined();
+      const { debugSpy, domainLog } = await getDomainDebugLog(
+        mockRequestWithHost("/", "evil.com"),
+      );
       expect(domainLog).toContain("host=evil.com");
       expect(domainLog).toContain("Redirecting to");
       debugSpy.restore();
     });
 
     test("logs missing host header in domain redirect debug message", async () => {
-      const debugSpy = spy(console, "debug");
-
-      await handleRequest(new Request("http://evil.com/", {}));
-
-      const calls = debugSpy.calls.map((c) => c.args[0] as string);
-      const domainLog = calls.find((c) => c.includes("[Domain]"));
-      expect(domainLog).toBeDefined();
+      const { debugSpy, domainLog } = await getDomainDebugLog(
+        new Request("http://evil.com/", {}),
+      );
       expect(domainLog).toContain("host=missing");
       expect(domainLog).toContain("url=evil.com");
       debugSpy.restore();

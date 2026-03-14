@@ -178,15 +178,12 @@ describe("email", () => {
     });
 
     test("sends via Postmark with correct URL, headers, and body", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "postmark" };
-      const msg: EmailMessage = {
+      await sendWithProvider("postmark", {
         to: "user@test.com",
         subject: "Test",
         html: "<p>Hi</p>",
         text: "Hi",
-      };
-
-      await sendEmail(config, msg);
+      });
 
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.postmarkapp.com/email");
@@ -351,10 +348,7 @@ describe("email", () => {
     });
 
     test("Postmark includes Attachments with Name, Content, ContentType", async () => {
-      await sendEmail(
-        { ...testConfig, provider: "postmark" },
-        msgWithAttachment,
-      );
+      await sendWithProvider("postmark", msgWithAttachment);
 
       expect(getFetchJsonBody().Attachments).toEqual([
         {
@@ -366,15 +360,9 @@ describe("email", () => {
     });
 
     test("SendGrid includes attachments with content, filename, type, disposition", async () => {
-      await sendEmail(
-        { ...testConfig, provider: "sendgrid" },
-        msgWithAttachment,
-      );
+      await sendWithProvider("sendgrid", msgWithAttachment);
 
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
-      expect(body.attachments).toEqual([
+      expect(getFetchJsonBody().attachments).toEqual([
         {
           content: attachment.content,
           filename: "ticket.svg",
@@ -385,13 +373,9 @@ describe("email", () => {
     });
 
     test("Mailgun appends attachment as Blob to FormData", async () => {
-      await sendEmail(
-        { ...testConfig, provider: "mailgun-us" },
-        msgWithAttachment,
-      );
+      await sendWithProvider("mailgun-us", msgWithAttachment);
 
-      const body = (fetchStub.calls[0].args as [string, RequestInit])[1]
-        .body as FormData;
+      const body = getFetchFormBody();
       const file = body.get("attachment") as File;
       expect(file).toBeInstanceOf(File);
       expect(file.name).toBe("ticket.svg");
@@ -399,18 +383,9 @@ describe("email", () => {
     });
 
     test("omits attachments field when no attachments provided", async () => {
-      const msg: EmailMessage = {
-        to: "user@test.com",
-        subject: "Test",
-        html: "h",
-        text: "t",
-      };
-      await sendEmail(testConfig, msg);
+      await sendEmail(testConfig, minimalMsg);
 
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
-      expect(body.attachments).toBeUndefined();
+      expect(getFetchJsonBody().attachments).toBeUndefined();
     });
   });
 
@@ -611,12 +586,7 @@ describe("email", () => {
     });
 
     test("skips when attendee has no email address", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
-
-      await sendRegistrationEmails([makeEntry({}, { email: "" })], "GBP");
+      await setupAndSendRegistration({}, [makeEntry({}, { email: "" })]);
       expect(fetchStub.calls.length).toBe(0);
     });
 
@@ -642,12 +612,7 @@ describe("email", () => {
       Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-us");
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
-
-      await sendRegistrationEmails([makeEntry()], "GBP");
+      await setupAndSendRegistration();
 
       expect(fetchStub.calls.length).toBe(1);
       const [url] = fetchStub.calls[0].args as [string, RequestInit];
@@ -655,94 +620,43 @@ describe("email", () => {
     });
 
     test("sends confirmation email to attendee", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
-
-      await sendRegistrationEmails([makeEntry()], "GBP");
+      await setupAndSendRegistration();
 
       expect(fetchStub.calls.length).toBe(1);
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
+      const body = getFetchJsonBody();
       expect(body.to).toEqual(["jane@example.com"]);
       expect(body.subject).toContain("Test Event");
     });
 
     test("sends both confirmation and admin notification when business email set", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      await updateBusinessEmail("admin@business.com");
-      invalidateSettingsCache();
-
-      await sendRegistrationEmails([makeEntry()], "GBP");
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
       expect(fetchStub.calls.length).toBe(2);
       const recipients = fetchStub.calls.map(
-        (c: { args: unknown[] }) =>
-          JSON.parse((c.args as [string, RequestInit])[1].body as string).to,
+        (c: { args: unknown[] }) => getCallJsonBody(c).to,
       );
       expect(recipients).toContainEqual(["jane@example.com"]);
       expect(recipients).toContainEqual(["admin@business.com"]);
     });
 
     test("uses business email as reply-to on confirmation", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      await updateBusinessEmail("admin@business.com");
-      invalidateSettingsCache();
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
-
-      const confirmationCall = fetchStub.calls.find(
-        (c: { args: unknown[] }) => {
-          const body = JSON.parse(
-            (c.args as [string, RequestInit])[1].body as string,
-          );
-          return body.to[0] === "jane@example.com";
-        },
-      );
-      const body = JSON.parse(
-        (confirmationCall.args as [string, RequestInit])[1].body as string,
-      );
+      const body = findCallBodyByRecipient("jane@example.com");
       expect(body.reply_to).toBe("admin@business.com");
     });
 
     test("uses attendee email as reply-to on admin notification", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      await updateBusinessEmail("admin@business.com");
-      invalidateSettingsCache();
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
-
-      const adminCall = fetchStub.calls.find((c: { args: unknown[] }) => {
-        const body = JSON.parse(
-          (c.args as [string, RequestInit])[1].body as string,
-        );
-        return body.to[0] === "admin@business.com";
-      });
-      const body = JSON.parse(
-        (adminCall.args as [string, RequestInit])[1].body as string,
-      );
+      const body = findCallBodyByRecipient("admin@business.com");
       expect(body.reply_to).toBe("jane@example.com");
     });
 
     test("attaches SVG ticket to confirmation email", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
+      await setupAndSendRegistration();
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
-
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
+      const body = getFetchJsonBody();
       expect(body.attachments).toHaveLength(1);
       expect(body.attachments[0].filename).toBe("ticket.svg");
       const decoded = atob(body.attachments[0].content);
@@ -750,41 +664,20 @@ describe("email", () => {
     });
 
     test("does not attach tickets to admin notification", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      await updateBusinessEmail("admin@business.com");
-      invalidateSettingsCache();
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
-
-      const adminCall = fetchStub.calls.find((c: { args: unknown[] }) => {
-        const body = JSON.parse(
-          (c.args as [string, RequestInit])[1].body as string,
-        );
-        return body.to[0] === "admin@business.com";
-      });
-      const body = JSON.parse(
-        (adminCall.args as [string, RequestInit])[1].body as string,
-      );
+      const body = findCallBodyByRecipient("admin@business.com");
       expect(body.attachments).toBeUndefined();
     });
 
     test("attaches numbered tickets for multi-event registration", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
-
       const entries = [
         makeEntry({ name: "Event A" }, { ticket_token: "tok1" }),
         makeEntry({ name: "Event B" }, { ticket_token: "tok2" }),
       ];
-      await sendRegistrationEmails(entries, "GBP");
+      await setupAndSendRegistration({}, entries);
 
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
+      const body = getFetchJsonBody();
       expect(body.attachments).toHaveLength(2);
       expect(body.attachments[0].filename).toBe("ticket-1.svg");
       expect(body.attachments[1].filename).toBe("ticket-2.svg");
@@ -797,9 +690,7 @@ describe("email", () => {
 
       expect(status).toBe(200);
       expect(fetchStub.calls.length).toBe(1);
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
+      const body = getFetchJsonBody();
       expect(body.to).toEqual(["admin@test.com"]);
       expect(body.subject).toContain("Test email");
     });

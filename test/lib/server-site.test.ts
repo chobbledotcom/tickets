@@ -25,6 +25,15 @@ import {
   testCsrfToken,
 } from "#test-utils";
 
+/** Assert a 302 redirect whose decoded location contains the given text */
+const expectRedirectContaining = (response: Response, text: string) => {
+  expect(response.status).toBe(302);
+  const decoded = decodeURIComponent(
+    response.headers.get("location")!.replaceAll("+", " "),
+  );
+  expect(decoded).toContain(text);
+};
+
 describe("server (admin site)", () => {
   beforeEach(async () => {
     resetTestSlugCounter();
@@ -110,12 +119,7 @@ describe("server (admin site)", () => {
           await testCookie(),
         ),
       );
-      expect(response.status).toBe(302);
-      expect(
-        decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
-        ),
-      ).toContain("Homepage updated");
+      expectRedirectContaining(response, "Homepage updated");
 
       expect(await getWebsiteTitleFromDb()).toBe("My Site");
       expect(await getHomepageTextFromDb()).toBe("Welcome!");
@@ -310,8 +314,9 @@ describe("server (admin site)", () => {
   });
 
   describe("site subnav", () => {
-    test("homepage shows subnav with Homepage and Contact links", async () => {
-      const response = await awaitTestRequest("/admin/site", {
+    /** Fetch a site admin page and assert it contains subnav links */
+    const expectSubnav = async (path: string) => {
+      const response = await awaitTestRequest(path, {
         cookie: await testCookie(),
       });
       const html = await response.text();
@@ -319,17 +324,14 @@ describe("server (admin site)", () => {
       expect(html).toContain('href="/admin/site/contact"');
       expect(html).toContain("Homepage");
       expect(html).toContain("Contact");
+    };
+
+    test("homepage shows subnav with Homepage and Contact links", async () => {
+      await expectSubnav("/admin/site");
     });
 
     test("contact page shows subnav with Homepage and Contact links", async () => {
-      const response = await awaitTestRequest("/admin/site/contact", {
-        cookie: await testCookie(),
-      });
-      const html = await response.text();
-      expect(html).toContain('href="/admin/site"');
-      expect(html).toContain('href="/admin/site/contact"');
-      expect(html).toContain("Homepage");
-      expect(html).toContain("Contact");
+      await expectSubnav("/admin/site/contact");
     });
   });
 

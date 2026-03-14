@@ -274,92 +274,48 @@ describe("admin email templates", () => {
     });
 
     test("returns error for invalid template syntax", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email-templates/preview",
-          {
-            type: "confirmation",
-            template: "{% invalid %}",
-            format: "text",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postPreviewForm({
+        type: "confirmation",
+        template: "{% invalid %}",
+        format: "text",
+      });
 
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toContain("Template syntax error");
+      await expectJsonError(response, 400, "Template syntax error");
     });
 
     test("returns error for invalid template type", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email-templates/preview",
-          {
-            type: "invalid",
-            template: "test",
-            format: "text",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postPreviewForm({
+        type: "invalid",
+        template: "test",
+        format: "text",
+      });
 
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toContain("Invalid template type");
+      await expectJsonError(response, 400, "Invalid template type");
     });
 
     test("defaults missing preview fields to empty and rejects invalid type", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email-templates/preview",
-          {
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postPreviewForm({});
 
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toContain("Invalid template type");
+      await expectJsonError(response, 400, "Invalid template type");
     });
 
     test("returns error when template render throws", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email-templates/preview",
-          {
-            type: "confirmation",
-            template: '{% render "nonexistent" %}',
-            format: "text",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postPreviewForm({
+        type: "confirmation",
+        template: '{% render "nonexistent" %}',
+        format: "text",
+      });
 
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toContain("nonexistent");
+      await expectJsonError(response, 400, "nonexistent");
     });
 
     test("renders currency filter in preview", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email-templates/preview",
-          {
-            type: "confirmation",
-            template:
-              "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
-            format: "html",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postPreviewForm({
+        type: "confirmation",
+        template:
+          "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
+        format: "html",
+      });
 
       expect(response.status).toBe(200);
       const json = await response.json();

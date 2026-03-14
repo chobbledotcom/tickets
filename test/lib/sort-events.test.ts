@@ -14,6 +14,17 @@ import {
 
 const today = () => todayInTz("UTC");
 
+/** Create Bravo/Alpha pair, sort, and assert Alpha comes first */
+const expectAlphaBeforeBravo = (
+  overrides: Partial<Parameters<typeof testEvent>[0]>,
+) => {
+  const b = testEvent({ id: 1, name: "Bravo", ...overrides });
+  const a = testEvent({ id: 2, name: "Alpha", ...overrides });
+  const sorted = sortEvents([b, a], []);
+  expect(sorted[0]!.name).toBe("Alpha");
+  expect(sorted[1]!.name).toBe("Bravo");
+};
+
 describe("sortEvents", () => {
   beforeEach(async () => {
     await createTestDbWithSetup();
@@ -124,22 +135,10 @@ describe("sortEvents", () => {
   });
 
   test("sorts dated standard events by name when dates are equal", () => {
-    const b = testEvent({
-      id: 1,
-      name: "Bravo",
+    expectAlphaBeforeBravo({
       event_type: "standard",
       date: "2026-06-15T14:00:00.000Z",
     });
-    const a = testEvent({
-      id: 2,
-      name: "Alpha",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
-    });
-
-    const sorted = sortEvents([b, a], []);
-    expect(sorted[0]!.name).toBe("Alpha");
-    expect(sorted[1]!.name).toBe("Bravo");
   });
 
   test("sorts daily events by next bookable date ascending", () => {
@@ -178,7 +177,6 @@ describe("sortEvents", () => {
       minimum_days_before: 1,
       maximum_days_after: 30,
     });
-
     const sorted = sortEvents([b, a], []);
     expect(sorted[0]!.name).toBe("Alpha Daily");
     expect(sorted[1]!.name).toBe("Bravo Daily");
@@ -207,22 +205,7 @@ describe("sortEvents", () => {
   });
 
   test("sorts daily events with no bookable dates by name", () => {
-    const b = testEvent({
-      id: 1,
-      name: "Bravo",
-      event_type: "daily",
-      bookable_days: [],
-    });
-    const a = testEvent({
-      id: 2,
-      name: "Alpha",
-      event_type: "daily",
-      bookable_days: [],
-    });
-
-    const sorted = sortEvents([b, a], []);
-    expect(sorted[0]!.name).toBe("Alpha");
-    expect(sorted[1]!.name).toBe("Bravo");
+    expectAlphaBeforeBravo({ event_type: "daily", bookable_days: [] });
   });
 
   test("places daily event with bookable dates before one without regardless of input order", () => {

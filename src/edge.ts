@@ -22,7 +22,10 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
     await initialize();
     return await handleRequest(request);
   } catch {
-    logError({ code: ErrorCode.CDN_REQUEST, detail: "unhandled request error" });
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: "unhandled request error",
+    });
     return new Response(
       encodeBody(
         '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="refresh" content="2"><title>Temporary Error</title></head><body><h1>Temporary Error</h1><p>Something went wrong loading this page. Retrying automatically&hellip;</p></body></html>',
