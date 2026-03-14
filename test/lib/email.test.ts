@@ -24,9 +24,7 @@ import {
 } from "#lib/email.ts";
 import {
   createTestDbWithSetup,
-  makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
-  makeTestEvent as makeEvent,
   resetDb,
 } from "#test-utils";
 
@@ -102,6 +100,19 @@ describe("email", () => {
 
   const mailgunBasicAuth = `Basic ${btoa("api:re_test_key")}`;
 
+  /** Extract string log messages from a console error spy */
+  const collectErrorLogs = (errorSpy: {
+    calls: { args: unknown[] }[];
+  }): string[] =>
+    map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+
+  /** Assert that error logs contain E_EMAIL_SEND with a specific substring */
+  const expectEmailSendLog = (logs: string[], substring: string): void => {
+    expect(
+      logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes(substring)),
+    ).toBe(true);
+  };
+
   const sendWithProvider = (
     provider: EmailConfig["provider"],
     msg: EmailMessage = minimalMsg,
@@ -128,14 +139,7 @@ describe("email", () => {
       } else {
         expect(status).toBe(expectedStatus);
       }
-      const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-        errorSpy.calls,
-      );
-      expect(
-        logs.some(
-          (l) => l.includes("E_EMAIL_SEND") && l.includes(expectedLogSubstring),
-        ),
-      ).toBe(true);
+      expectEmailSendLog(collectErrorLogs(errorSpy), expectedLogSubstring);
     });
   };
 
@@ -564,16 +568,10 @@ describe("email", () => {
       await withErrorSpy((errorSpy) => {
         const config = getHostEmailConfig();
         expect(config).toBeNull();
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
+        expectEmailSendLog(
+          collectErrorLogs(errorSpy),
+          "invalid HOST_EMAIL_PROVIDER",
         );
-        expect(
-          logs.some(
-            (l) =>
-              l.includes("E_EMAIL_SEND") &&
-              l.includes("invalid HOST_EMAIL_PROVIDER"),
-          ),
-        ).toBe(true);
       });
     });
   });

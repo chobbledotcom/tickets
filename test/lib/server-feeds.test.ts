@@ -23,10 +23,7 @@ const fetchFeedBody = async (feedPath: string): Promise<string> => {
 };
 
 /** Assert a deactivated event is excluded from a feed */
-const expectExcludesInactive = async (
-  feedPath: string,
-  absentTag: string,
-) => {
+const expectExcludesInactive = async (feedPath: string, absentTag: string) => {
   await updateShowPublicSite(true);
   const event = await createTestEvent({ name: "Hidden", maxAttendees: 100 });
   await deactivateTestEvent(event.id);
@@ -168,7 +165,10 @@ describe("feeds", () => {
     });
 
     test("excludes events with closed registration", async () => {
-      await expectExcludesClosedRegistration("/feeds/events.ics", "BEGIN:VEVENT");
+      await expectExcludesClosedRegistration(
+        "/feeds/events.ics",
+        "BEGIN:VEVENT",
+      );
     });
 
     test("excludes hidden events", async () => {

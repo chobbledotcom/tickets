@@ -2010,7 +2010,6 @@ import type { WebhookAttendee } from "#lib/webhook.ts";
 
 export type { EmailEntry, EmailEvent, WebhookAttendee };
 
-/** Build an EmailEvent with sensible defaults */
 /**
  * Create a daily event and an attendee with a booked date.
  * Returns the event, attendee, and ticket token.
@@ -2041,6 +2040,7 @@ export const createDailyTestAttendee = async (
   };
 };
 
+/** Build an EmailEvent with sensible defaults */
 export const makeTestEvent = (
   overrides: Partial<EmailEvent> = {},
 ): EmailEvent => ({

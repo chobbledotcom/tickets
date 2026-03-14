@@ -8,7 +8,6 @@ import {
   type RegistrationEntry,
   sendRegistrationWebhooks,
   sendWebhook,
-  type WebhookAttendee,
   type WebhookEvent,
   type WebhookPayload,
 } from "#lib/webhook.ts";
@@ -16,7 +15,6 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   type EmailEntry,
-  type EmailEvent,
   makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
   makeTestEvent as makeEvent,
@@ -320,26 +318,46 @@ describe("webhook", () => {
       expect(logs.some((c) => c.includes("E_WEBHOOK_SEND"))).toBe(false);
     });
 
+    /** Send a webhook with a failing fetch, flush, and return activity log entries */
+    const sendWebhookAndGetActivityLog = async (
+      status: number,
+      registrationEntries?: RegistrationEntry[],
+    ): Promise<
+      ReturnType<typeof getAllActivityLog> extends Promise<infer T> ? T : never
+    > => {
+      await withErrorSpy(async () => {
+        restubFetch(() => Promise.resolve(new Response("Error", { status })));
+        const payload = await buildWebhookPayload(
+          registrationEntries ?? defaultEntries(),
+          "GBP",
+        );
+        await sendWebhook("https://example.com/webhook", payload);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return getAllActivityLog();
+    };
+
+    const expectWebhookActivityError = async (
+      status: number,
+      expectedMessage: string,
+      registrationEntries?: RegistrationEntry[],
+    ) => {
+      const logEntries = await sendWebhookAndGetActivityLog(
+        status,
+        registrationEntries,
+      );
+      expect(
+        logEntries.find((e) => e.message === expectedMessage),
+      ).toBeDefined();
+    };
+
     test("logs activity on non-2xx response", async () => {
       await drainAndResetDb();
 
-      await withErrorSpy(async () => {
-        restubFetch(() =>
-          Promise.resolve(new Response("Bad Gateway", { status: 502 })),
-        );
-        const payload = await buildWebhookPayload(defaultEntries(), "GBP");
-        await sendWebhook("https://example.com/webhook", payload);
-      });
-      // Wait for pending logError→logActivity to flush
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      const entries = await getAllActivityLog();
-      const match = entries.find(
-        (e) =>
-          e.message ===
-          "Error: Webhook send failed (status=502 for 'Test Event')",
+      await expectWebhookActivityError(
+        502,
+        "Error: Webhook send failed (status=502 for 'Test Event')",
       );
-      expect(match).toBeDefined();
     });
 
     test("does not log activity on successful response", async () => {
@@ -359,33 +377,21 @@ describe("webhook", () => {
     test("logs comma-separated event names for multi-event payload", async () => {
       await drainAndResetDb();
 
-      await withErrorSpy(async () => {
-        restubFetch(() =>
-          Promise.resolve(new Response("Error", { status: 500 })),
-        );
-        const entries: RegistrationEntry[] = [
-          makeEntry(
-            { id: 1, name: "Event A", slug: "event-a" },
-            { ticket_token: "AA11BB22CC" },
-          ),
-          makeEntry(
-            { id: 2, name: "Event B", slug: "event-b" },
-            { ticket_token: "DD33EE44FF" },
-          ),
-        ];
-        const payload = await buildWebhookPayload(entries, "GBP");
-        await sendWebhook("https://example.com/webhook", payload);
-      });
-      // Wait for pending logError→logActivity to flush
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      const entries = await getAllActivityLog();
-      const match = entries.find(
-        (e) =>
-          e.message ===
-          "Error: Webhook send failed (status=500 for 'Event A, Event B')",
+      const multiEntries: RegistrationEntry[] = [
+        makeEntry(
+          { id: 1, name: "Event A", slug: "event-a" },
+          { ticket_token: "AA11BB22CC" },
+        ),
+        makeEntry(
+          { id: 2, name: "Event B", slug: "event-b" },
+          { ticket_token: "DD33EE44FF" },
+        ),
+      ];
+      await expectWebhookActivityError(
+        500,
+        "Error: Webhook send failed (status=500 for 'Event A, Event B')",
+        multiEntries,
       );
-      expect(match).toBeDefined();
     });
   });
 

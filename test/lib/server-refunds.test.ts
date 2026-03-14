@@ -594,20 +594,33 @@ describe("server (admin refunds)", () => {
       await expectHtmlResponse(response, 200, "/refund", "Refund All");
     });
 
+    const createAttendeeAndGetHtml = async (
+      event: Awaited<ReturnType<typeof createTestEvent>>,
+      name: string,
+      email: string,
+    ) => {
+      await createTestAttendee(event.id, event.slug, name, email);
+      return getEventPageHtml(event.id);
+    };
+
     test("does not show Refund link for free events", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Free User", "free@example.com");
-
-      const html = await getEventPageHtml(event.id);
+      const html = await createAttendeeAndGetHtml(
+        event,
+        "Free User",
+        "free@example.com",
+      );
       expect(html).not.toContain("Refund All");
     });
 
     test("does not show Refund link for attendees without payment_id on paid events", async () => {
       const event = await createPaidEvent();
       // Create a free attendee on a paid event (no payment_id)
-      await createTestAttendee(event.id, event.slug, "No Payment User", "nopay@example.com");
-
-      const html = await getEventPageHtml(event.id);
+      const html = await createAttendeeAndGetHtml(
+        event,
+        "No Payment User",
+        "nopay@example.com",
+      );
       // The event nav should still show Refund All (because it's a paid event)
       expect(html).toContain("Refund All");
       // But the attendee row should NOT show an individual refund link

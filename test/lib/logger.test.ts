@@ -142,27 +142,34 @@ describe("logger", () => {
     });
   });
 
-  describe("logError", () => {
+  const setupErrorSpy = () => {
     let errorSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
-
     beforeEach(() => {
       errorSpy = spy(console, "error");
     });
-
     afterEach(() => {
       errorSpy.restore();
     });
+    return {
+      get calls() {
+        return errorSpy.calls;
+      },
+    };
+  };
+
+  describe("logError", () => {
+    const spyRef = setupErrorSpy();
 
     test("logs error code only", () => {
       logError({ code: ErrorCode.DB_CONNECTION });
 
-      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
+      expect(spyRef.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
     });
 
     test("logs error with event ID", () => {
       logError({ code: ErrorCode.CAPACITY_EXCEEDED, eventId: 42 });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(spyRef.calls[0]!.args).toEqual([
         "[Error] E_CAPACITY_EXCEEDED event=42",
       ]);
     });
@@ -170,7 +177,7 @@ describe("logger", () => {
     test("logs error with attendee ID", () => {
       logError({ code: ErrorCode.WEBHOOK_SEND, attendeeId: 99 });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(spyRef.calls[0]!.args).toEqual([
         "[Error] E_WEBHOOK_SEND attendee=99",
       ]);
     });
@@ -178,7 +185,7 @@ describe("logger", () => {
     test("logs error with detail", () => {
       logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(spyRef.calls[0]!.args).toEqual([
         '[Error] E_STRIPE_SIGNATURE detail="mismatch"',
       ]);
     });
@@ -191,7 +198,7 @@ describe("logger", () => {
         detail: "inactive",
       });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(spyRef.calls[0]!.args).toEqual([
         '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
       ]);
     });
@@ -274,20 +281,12 @@ describe("logger", () => {
   });
 
   describe("logErrorLocal", () => {
-    let errorSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
-
-    beforeEach(() => {
-      errorSpy = spy(console, "error");
-    });
-
-    afterEach(() => {
-      errorSpy.restore();
-    });
+    const localSpyRef = setupErrorSpy();
 
     test("logs error to console", () => {
       logErrorLocal({ code: ErrorCode.DB_CONNECTION });
 
-      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
+      expect(localSpyRef.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
     });
 
     test("logs error with all context", () => {
@@ -297,7 +296,7 @@ describe("logger", () => {
         detail: "ntfy send failed",
       });
 
-      expect(errorSpy.calls[0]!.args).toEqual([
+      expect(localSpyRef.calls[0]!.args).toEqual([
         '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',
       ]);
     });

@@ -18,9 +18,7 @@ import {
 } from "#lib/email-renderer.ts";
 import {
   createTestDbWithSetup,
-  makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
-  makeTestEvent as makeEvent,
   resetDb,
 } from "#test-utils";
 

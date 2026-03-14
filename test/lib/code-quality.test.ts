@@ -148,30 +148,43 @@ describe("code quality", () => {
     });
   });
 
+  /**
+   * Scan non-utility source files line by line, collecting violations via a callback.
+   * Returns the combined violation list.
+   */
+  const scanSourceLines = async (
+    check: (ctx: {
+      relativePath: string;
+      line: string;
+      lineNum: number;
+    }) => string | null,
+  ): Promise<string[]> => {
+    await ensureLoaded();
+    const violations: string[] = [];
+    for (const file of srcFiles) {
+      const relativePath = getRelativePath(file);
+      if (TEST_UTILITY_FILES.includes(relativePath)) continue;
+      const lines = srcContents.get(file)!.split("\n");
+      let lineNum = 0;
+      for (const line of lines) {
+        lineNum++;
+        const v = check({ relativePath, line, lineNum });
+        if (v) violations.push(v);
+      }
+    }
+    return violations;
+  };
+
   describe("no aliasing", () => {
     test("should not alias functions or variables at module level", async () => {
-      await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        const relativePath = getRelativePath(file);
-        if (TEST_UTILITY_FILES.includes(relativePath)) continue;
-        const content = srcContents.get(file)!;
-        const lines = content.split("\n");
-
-        let lineNum = 0;
-        for (const line of lines) {
-          lineNum++;
+      const violations = await scanSourceLines(
+        ({ relativePath, line, lineNum }) => {
           const match = line.match(ALIASING_PATTERN);
-
-          if (match) {
-            const [, varName, value] = match;
-            violations.push(
-              `${relativePath}:${lineNum}: const ${varName} = ${value} (use import { ${value} as ${varName} } instead)`,
-            );
-          }
-        }
-      }
+          if (!match) return null;
+          const [, varName, value] = match;
+          return `${relativePath}:${lineNum}: const ${varName} = ${value} (use import { ${value} as ${varName} } instead)`;
+        },
+      );
 
       expect(violations).toEqual([]);
     });
@@ -179,27 +192,12 @@ describe("code quality", () => {
 
   describe("no module-level let", () => {
     test("should use const with once()/lazyRef() instead of let", async () => {
-      await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        const relativePath = getRelativePath(file);
-        if (TEST_UTILITY_FILES.includes(relativePath)) continue;
-        const content = srcContents.get(file)!;
-        const lines = content.split("\n");
-
-        let lineNum = 0;
-        for (const line of lines) {
-          lineNum++;
-
-          // Only check module-level let (not indented)
-          if (line.match(/^(export\s+)?let\s+/)) {
-            violations.push(
-              `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`,
-            );
-          }
-        }
-      }
+      const violations = await scanSourceLines(
+        ({ relativePath, line, lineNum }) => {
+          if (!line.match(/^(export\s+)?let\s+/)) return null;
+          return `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`;
+        },
+      );
 
       expect(violations).toEqual([]);
     });
