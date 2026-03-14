@@ -6,10 +6,9 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
-  mockAdminLoginRequest,
+  createTestManagerSession,
   mockFormRequest,
   mockRequest,
-  requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
   testCookie,
@@ -81,93 +80,43 @@ describe("admin debug footer", () => {
     expect(html).not.toContain("Chobble Tickets");
   });
 
-  test("manager sees footer", async () => {
-    // Create and activate a manager user
-    const inviteResponse = await handleRequest(
-      mockFormRequest(
-        "/admin/users",
-        {
-          username: "manager1",
-          admin_level: "manager",
-          csrf_token: await testCsrfToken(),
-        },
-        await testCookie(),
-      ),
-    );
-    const inviteUrl = inviteResponse.headers.get("location") ?? "";
-    const inviteMatch = inviteUrl.match(/invite=([^&]+)/);
-    const inviteLink = decodeURIComponent(inviteMatch![1] as string);
-    const inviteToken = inviteLink.split("/join/")[1]!;
-
-    // Set password for manager
-    const joinPageResponse = await handleRequest(
-      mockRequest(`/join/${inviteToken}`),
-    );
-    const joinHtml = await joinPageResponse.text();
-    const joinCsrf = requireJoinCsrfToken(joinHtml);
-    await handleRequest(
-      mockFormRequest(`/join/${inviteToken}`, {
-        password: "managerpass123",
-        password_confirm: "managerpass123",
-        csrf_token: joinCsrf,
-      }),
-    );
-
-    // Activate the manager
-    await handleRequest(
-      mockFormRequest(
-        "/admin/users/2/activate",
-        {
-          csrf_token: await testCsrfToken(),
-        },
-        await testCookie(),
-      ),
-    );
-
-    // Login as manager
-    const loginResponse = await handleRequest(
-      await mockAdminLoginRequest({
-        username: "manager1",
-        password: "managerpass123",
-      }),
-    );
-    const managerCookie = loginResponse.headers.get("set-cookie") ?? "";
-
-    // Manager GET should now contain the footer
-    const response = await awaitTestRequest("/admin/", {
+  test("manager sees footer with branding and debug info on dashboard", async () => {
+    const managerCookie = await createTestManagerSession();
+    const managerResponse = await awaitTestRequest("/admin/", {
       cookie: managerCookie,
     });
-    const html = await response.text();
-    expect(html).toContain("Events");
-    expect(html).toContain("Chobble Tickets");
-    expect(html).toContain("debug-footer");
+    const managerHtml = await managerResponse.text();
+    expect(managerHtml).toContain("Events");
+    expect(managerHtml).toContain("Chobble Tickets");
+    expect(managerHtml).toContain("debug-footer");
   });
 
-  test("footer not injected for POST responses", async () => {
-    // POST to logout — it returns a redirect, not HTML, so no footer
-    const response = await handleRequest(
+  test("footer not injected for POST logout redirect", async () => {
+    const logoutResponse = await handleRequest(
       mockFormRequest(
         "/admin/logout",
         { csrf_token: await testCsrfToken() },
         await testCookie(),
       ),
     );
-    const body = await response.text();
-    expect(body).not.toContain("Chobble Tickets");
+    const logoutBody = await logoutResponse.text();
+    expect(logoutBody).not.toContain("Chobble Tickets");
   });
 
-  test("owner sees footer on other admin pages", async () => {
-    const { response } = await adminGet("/admin/settings");
-    const html = await response.text();
-    expect(html).toContain("Chobble Tickets");
+  test("owner sees footer on settings page", async () => {
+    const settingsResult = await adminGet("/admin/settings");
+    const settingsHtml = await settingsResult.response.text();
+    expect(settingsHtml).toContain("Chobble Tickets");
   });
 
-  test("footer not injected for non-HTML GET responses", async () => {
+  test("footer excluded from CSV export responses", async () => {
     const event = await createTestEvent({ maxAttendees: 10 });
-    const { response } = await adminGet(`/admin/event/${event.id}/export`);
-    expect(response.headers.get("content-type")).toContain("text/csv");
-    const body = await response.text();
-    expect(body).not.toContain("Chobble Tickets");
+    const exportResult = await adminGet(`/admin/event/${event.id}/export`);
+    expect(exportResult.response.headers.get("content-type")).toContain(
+      "text/csv",
+    );
+    const exportBody = await exportResult.response.text();
+    expect(exportBody).not.toContain("Chobble Tickets");
   });
 
   test("returns null for unmatched admin GET routes", async () => {

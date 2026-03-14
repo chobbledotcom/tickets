@@ -7,13 +7,53 @@ import {
   adminGet,
   awaitTestRequest,
   createTestDbWithSetup,
-  createTestEvent,
   expectHtmlResponse,
+  getEmbeddableTicketResponse,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
+
+/** Decode redirect location from response, normalizing URL encoding */
+function decodedLocation(response: Response): string {
+  return decodeURIComponent(
+    response.headers.get("location")!.replaceAll("+", " "),
+  );
+}
+
+/** Post invalid embed hosts and assert a 400 error with expected message */
+async function postInvalidEmbedHosts(
+  hosts: string,
+  expectedError: string,
+): Promise<void> {
+  const { response } = await adminFormPost("/admin/settings/embed-hosts", {
+    embed_hosts: hosts,
+  });
+  await expectHtmlResponse(response, 400, expectedError);
+}
+
+/** Post embed hosts form and assert a 302 redirect containing the expected message */
+async function postEmbedHostsExpectRedirect(
+  fields: Record<string, string>,
+  expectedMessage: string,
+): Promise<void> {
+  const { response } = await adminFormPost(
+    "/admin/settings/embed-hosts",
+    fields,
+  );
+  expect(response.status).toBe(302);
+  expect(decodedLocation(response)).toContain(expectedMessage);
+}
+
+/** Create an embeddable event and return its ticket page CSP header */
+async function getTicketCsp(setupEmbedHosts?: string): Promise<string> {
+  if (setupEmbedHosts !== undefined) {
+    await updateEmbedHosts(setupEmbedHosts);
+  }
+  const response = await getEmbeddableTicketResponse();
+  return response.headers.get("content-security-policy")!;
+}
 
 describe("server (embed hosts)", () => {
   beforeEach(async () => {
@@ -68,13 +108,8 @@ describe("server (embed hosts)", () => {
     });
 
     test("saves valid embed hosts", async () => {
-      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "example.com, *.mysite.org",
-      });
-
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+      await postEmbedHostsExpectRedirect(
+        { embed_hosts: "example.com, *.mysite.org" },
         "Allowed embed hosts updated",
       );
     });
@@ -111,66 +146,35 @@ describe("server (embed hosts)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+      expect(decodedLocation(response)).toContain(
         "Embed host restrictions removed",
       );
     });
 
     test("rejects invalid host pattern", async () => {
-      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "example.com, *",
-      });
-
-      await expectHtmlResponse(response, 400, "Bare wildcard");
+      await postInvalidEmbedHosts("example.com, *", "Bare wildcard");
     });
 
     test("rejects host with protocol", async () => {
-      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "https://example.com",
-      });
-
-      await expectHtmlResponse(response, 400, "Invalid host pattern");
+      await postInvalidEmbedHosts(
+        "https://example.com",
+        "Invalid host pattern",
+      );
     });
 
     test("handles missing embed_hosts field gracefully", async () => {
-      const { response } = await adminFormPost(
-        "/admin/settings/embed-hosts",
-        {},
-      );
-
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Embed host restrictions removed",
-      );
+      await postEmbedHostsExpectRedirect({}, "Embed host restrictions removed");
     });
   });
 
   describe("CSP frame-ancestors with embed hosts", () => {
     test("ticket page has no frame-ancestors when no embed hosts configured", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      const csp = response.headers.get("content-security-policy")!;
+      const csp = await getTicketCsp();
       expect(csp).not.toContain("frame-ancestors");
     });
 
     test("ticket page has frame-ancestors when embed hosts configured", async () => {
-      await updateEmbedHosts("example.com, *.mysite.org");
-
-      const event = await createTestEvent({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      const csp = response.headers.get("content-security-policy")!;
+      const csp = await getTicketCsp("example.com, *.mysite.org");
       expect(csp).toContain("frame-ancestors 'self' example.com *.mysite.org");
     });
 
@@ -185,14 +189,7 @@ describe("server (embed hosts)", () => {
 
     test("ticket page has no X-Frame-Options when embed hosts configured", async () => {
       await updateEmbedHosts("example.com");
-
-      const event = await createTestEvent({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
+      const response = await getEmbeddableTicketResponse();
       expect(response.headers.get("x-frame-options")).toBeNull();
     });
   });

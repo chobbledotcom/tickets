@@ -9,7 +9,6 @@ import {
   updateEmailFromAddress,
   updateEmailProvider,
 } from "#lib/db/settings.ts";
-import type { EmailEntry, EmailEvent } from "#lib/email.ts";
 import {
   buildSvgTicketData,
   buildTicketAttachments,
@@ -23,47 +22,11 @@ import {
   sendRegistrationEmails,
   sendTestEmail,
 } from "#lib/email.ts";
-import type { WebhookAttendee } from "#lib/webhook.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils";
-
-const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
-  id: 1,
-  name: "Test Event",
-  slug: "test-event",
-  webhook_url: "",
-  max_attendees: 100,
-  attendee_count: 10,
-  unit_price: 0,
-  can_pay_more: false,
-  date: "",
-  location: "",
-  ...overrides,
-});
-
-const makeAttendee = (
-  overrides: Partial<WebhookAttendee> = {},
-): WebhookAttendee => ({
-  id: 42,
-  quantity: 1,
-  name: "Jane Doe",
-  email: "jane@example.com",
-  phone: "555-1234",
-  address: "",
-  special_instructions: "",
-  payment_id: "",
-  price_paid: "0",
-  ticket_token: "AABB001122",
-  date: null,
-  ...overrides,
-});
-
-const makeEntry = (
-  eventOverrides?: Partial<EmailEvent>,
-  attendeeOverrides?: Partial<WebhookAttendee>,
-): EmailEntry => ({
-  event: makeEvent(eventOverrides),
-  attendee: makeAttendee(attendeeOverrides),
-});
+import {
+  createTestDbWithSetup,
+  makeTestEntry as makeEntry,
+  resetDb,
+} from "#test-utils";
 
 const testConfig: EmailConfig = {
   provider: "resend",
@@ -100,6 +63,98 @@ describe("email", () => {
     fetchStub = stub(globalThis, "fetch", impl);
   };
 
+  const minimalMsg: EmailMessage = {
+    to: "a@b.com",
+    subject: "s",
+    html: "h",
+    text: "t",
+  };
+
+  const getFetchArgs = (index = 0): [string, RequestInit] =>
+    fetchStub.calls[index].args as [string, RequestInit];
+
+  const getFetchJsonBody = (index = 0) =>
+    JSON.parse(getFetchArgs(index)[1].body as string);
+
+  const getFetchFormBody = (index = 0): FormData =>
+    getFetchArgs(index)[1].body as FormData;
+
+  const getFetchHeaders = (index = 0): Record<string, string> =>
+    getFetchArgs(index)[1].headers as Record<string, string>;
+
+  const findFetchCallByRecipient = (recipient: string): { args: unknown[] } => {
+    const call = fetchStub.calls.find((c: { args: unknown[] }) => {
+      const body = JSON.parse(
+        (c.args as [string, RequestInit])[1].body as string,
+      );
+      return body.to[0] === recipient;
+    });
+    return call;
+  };
+
+  const getCallJsonBody = (call: { args: unknown[] }) =>
+    JSON.parse((call.args as [string, RequestInit])[1].body as string);
+
+  const findCallBodyByRecipient = (recipient: string) =>
+    getCallJsonBody(findFetchCallByRecipient(recipient));
+
+  const mailgunBasicAuth = `Basic ${btoa("api:re_test_key")}`;
+
+  /** Extract string log messages from a console error spy */
+  const collectErrorLogs = (errorSpy: {
+    calls: { args: unknown[] }[];
+  }): string[] =>
+    map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+
+  /** Assert that error logs contain E_EMAIL_SEND with a specific substring */
+  const expectEmailSendLog = (logs: string[], substring: string): void => {
+    expect(
+      logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes(substring)),
+    ).toBe(true);
+  };
+
+  const sendWithProvider = (
+    provider: EmailConfig["provider"],
+    msg: EmailMessage = minimalMsg,
+  ) => sendEmail({ ...testConfig, provider }, msg);
+
+  const setupAndSendRegistration = async (
+    opts: { businessEmail?: string } = {},
+    entries?: ReturnType<typeof makeEntry>[],
+  ) => {
+    await setupDbEmailConfig(opts);
+    await sendRegistrationEmails(entries ?? [makeEntry()], "GBP");
+  };
+
+  const sendEmailExpectingError = async (
+    config: EmailConfig,
+    msg: EmailMessage,
+    expectedStatus: number | undefined,
+    expectedLogSubstring: string,
+  ): Promise<void> => {
+    await withErrorSpy(async (errorSpy) => {
+      const status = await sendEmail(config, msg);
+      if (expectedStatus === undefined) {
+        expect(status).toBeUndefined();
+      } else {
+        expect(status).toBe(expectedStatus);
+      }
+      expectEmailSendLog(collectErrorLogs(errorSpy), expectedLogSubstring);
+    });
+  };
+
+  const setupDbEmailConfig = async (
+    opts: { businessEmail?: string } = {},
+  ): Promise<void> => {
+    await updateEmailProvider("resend");
+    await updateEmailApiKey("test-key");
+    await updateEmailFromAddress("from@test.com");
+    if (opts.businessEmail) {
+      await updateBusinessEmail(opts.businessEmail);
+    }
+    invalidateSettingsCache();
+  };
+
   describe("sendEmail", () => {
     test("sends via Resend with correct URL, headers, and body", async () => {
       const msg: EmailMessage = {
@@ -114,12 +169,10 @@ describe("email", () => {
 
       expect(status).toBe(200);
       expect(fetchStub.calls.length).toBe(1);
-      const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
+      const [url] = getFetchArgs();
       expect(url).toBe("https://api.resend.com/emails");
-      expect((opts.headers as Record<string, string>).Authorization).toBe(
-        "Bearer re_test_key",
-      );
-      const body = JSON.parse(opts.body as string);
+      expect(getFetchHeaders()["Authorization"]).toBe("Bearer re_test_key");
+      const body = getFetchJsonBody();
       expect(body.from).toBe("tickets@example.com");
       expect(body.to).toEqual(["user@test.com"]);
       expect(body.reply_to).toBe("reply@test.com");
@@ -129,22 +182,17 @@ describe("email", () => {
     });
 
     test("sends via Postmark with correct URL, headers, and body", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "postmark" };
-      const msg: EmailMessage = {
+      await sendWithProvider("postmark", {
         to: "user@test.com",
         subject: "Test",
         html: "<p>Hi</p>",
         text: "Hi",
-      };
+      });
 
-      await sendEmail(config, msg);
-
-      const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
+      const [url] = getFetchArgs();
       expect(url).toBe("https://api.postmarkapp.com/email");
-      expect(
-        (opts.headers as Record<string, string>)["X-Postmark-Server-Token"],
-      ).toBe("re_test_key");
-      const body = JSON.parse(opts.body as string);
+      expect(getFetchHeaders()["X-Postmark-Server-Token"]).toBe("re_test_key");
+      const body = getFetchJsonBody();
       expect(body.From).toBe("tickets@example.com");
       expect(body.To).toBe("user@test.com");
       expect(body.Subject).toBe("Test");
@@ -153,7 +201,6 @@ describe("email", () => {
     });
 
     test("sends via SendGrid with correct URL, headers, and body", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "sendgrid" };
       const msg: EmailMessage = {
         to: "user@test.com",
         subject: "Test",
@@ -162,14 +209,12 @@ describe("email", () => {
         replyTo: "reply@test.com",
       };
 
-      await sendEmail(config, msg);
+      await sendWithProvider("sendgrid", msg);
 
-      const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
+      const [url] = getFetchArgs();
       expect(url).toBe("https://api.sendgrid.com/v3/mail/send");
-      expect((opts.headers as Record<string, string>).Authorization).toBe(
-        "Bearer re_test_key",
-      );
-      const body = JSON.parse(opts.body as string);
+      expect(getFetchHeaders()["Authorization"]).toBe("Bearer re_test_key");
+      const body = getFetchJsonBody();
       expect(body.personalizations).toEqual([
         { to: [{ email: "user@test.com" }] },
       ]);
@@ -183,44 +228,31 @@ describe("email", () => {
     });
 
     test("sends via SendGrid without reply_to when not provided", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "sendgrid" };
-      const msg: EmailMessage = {
+      await sendWithProvider("sendgrid", {
         to: "user@test.com",
         subject: "Test",
         html: "<p>Hi</p>",
         text: "Hi",
-      };
+      });
 
-      await sendEmail(config, msg);
-
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
-      expect(body.reply_to).toBeUndefined();
+      expect(getFetchJsonBody().reply_to).toBeUndefined();
     });
 
     test("sends via Mailgun (US) with correct URL, headers, and FormData body", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "mailgun-us" };
-      const msg: EmailMessage = {
+      await sendWithProvider("mailgun-us", {
         to: "user@test.com",
         subject: "Test",
         html: "<p>Hi</p>",
         text: "Hi",
         replyTo: "reply@test.com",
-      };
-
-      await sendEmail(config, msg);
+      });
 
       expect(fetchStub.calls.length).toBe(1);
-      const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
+      const [url] = getFetchArgs();
       expect(url).toBe("https://api.mailgun.net/v3/example.com/messages");
-      expect((opts.headers as Record<string, string>).Authorization).toBe(
-        `Basic ${btoa("api:re_test_key")}`,
-      );
-      expect(opts.headers as Record<string, string>).not.toHaveProperty(
-        "Content-Type",
-      );
-      const body = opts.body as FormData;
+      expect(getFetchHeaders()["Authorization"]).toBe(mailgunBasicAuth);
+      expect(getFetchHeaders()).not.toHaveProperty("Content-Type");
+      const body = getFetchFormBody();
       expect(body.get("from")).toBe("tickets@example.com");
       expect(body.get("to")).toBe("user@test.com");
       expect(body.get("subject")).toBe("Test");
@@ -230,41 +262,31 @@ describe("email", () => {
     });
 
     test("sends via Mailgun (EU) with EU API endpoint", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "mailgun-eu" };
-      const msg: EmailMessage = {
+      await sendWithProvider("mailgun-eu", {
         to: "user@test.com",
         subject: "Test",
         html: "<p>Hi</p>",
         text: "Hi",
-      };
-
-      await sendEmail(config, msg);
+      });
 
       expect(fetchStub.calls.length).toBe(1);
-      const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
+      const [url] = getFetchArgs();
       expect(url).toBe("https://api.eu.mailgun.net/v3/example.com/messages");
-      expect((opts.headers as Record<string, string>).Authorization).toBe(
-        `Basic ${btoa("api:re_test_key")}`,
-      );
-      const body = opts.body as FormData;
+      expect(getFetchHeaders()["Authorization"]).toBe(mailgunBasicAuth);
+      const body = getFetchFormBody();
       expect(body.get("from")).toBe("tickets@example.com");
       expect(body.get("to")).toBe("user@test.com");
     });
 
     test("sends via Mailgun without h:Reply-To when not provided", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "mailgun-us" };
-      const msg: EmailMessage = {
+      await sendWithProvider("mailgun-us", {
         to: "user@test.com",
         subject: "Test",
         html: "<p>Hi</p>",
         text: "Hi",
-      };
+      });
 
-      await sendEmail(config, msg);
-
-      const body = (fetchStub.calls[0].args as [string, RequestInit])[1]
-        .body as FormData;
-      expect(body.get("h:Reply-To")).toBeNull();
+      expect(getFetchFormBody().get("h:Reply-To")).toBeNull();
     });
 
     test("returns status code on non-OK response", async () => {
@@ -272,85 +294,38 @@ describe("email", () => {
         Promise.resolve(new Response("Error", { status: 500 })),
       );
 
-      await withErrorSpy(async (errorSpy) => {
-        const status = await sendEmail(testConfig, {
-          to: "a@b.com",
-          subject: "s",
-          html: "h",
-          text: "t",
-        });
-        expect(status).toBe(500);
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
-        );
-        expect(
-          logs.some(
-            (l) => l.includes("E_EMAIL_SEND") && l.includes("status=500"),
-          ),
-        ).toBe(true);
-      });
+      await sendEmailExpectingError(testConfig, minimalMsg, 500, "status=500");
     });
 
     test("returns undefined on fetch failure", async () => {
       restubFetch(() => Promise.reject(new Error("Network error")));
 
-      await withErrorSpy(async (errorSpy) => {
-        const status = await sendEmail(testConfig, {
-          to: "a@b.com",
-          subject: "s",
-          html: "h",
-          text: "t",
-        });
-        expect(status).toBeUndefined();
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
-        );
-        expect(
-          logs.some(
-            (l) => l.includes("E_EMAIL_SEND") && l.includes("Network error"),
-          ),
-        ).toBe(true);
-      });
+      await sendEmailExpectingError(
+        testConfig,
+        minimalMsg,
+        undefined,
+        "Network error",
+      );
     });
 
     test("returns undefined for non-Error thrown values", async () => {
       restubFetch(() => Promise.reject("string error"));
 
-      await withErrorSpy(async (errorSpy) => {
-        const status = await sendEmail(testConfig, {
-          to: "a@b.com",
-          subject: "s",
-          html: "h",
-          text: "t",
-        });
-        expect(status).toBeUndefined();
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
-        );
-        expect(
-          logs.some(
-            (l) => l.includes("E_EMAIL_SEND") && l.includes("string error"),
-          ),
-        ).toBe(true);
-      });
+      await sendEmailExpectingError(
+        testConfig,
+        minimalMsg,
+        undefined,
+        "string error",
+      );
     });
 
     test("returns undefined for unknown provider", async () => {
-      await withErrorSpy(async (errorSpy) => {
-        const status = await sendEmail(
-          { ...testConfig, provider: "invalid" as never },
-          { to: "a@b.com", subject: "s", html: "h", text: "t" },
-        );
-        expect(status).toBeUndefined();
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
-        );
-        expect(
-          logs.some(
-            (l) => l.includes("E_EMAIL_SEND") && l.includes("unknown provider"),
-          ),
-        ).toBe(true);
-      });
+      await sendEmailExpectingError(
+        { ...testConfig, provider: "invalid" as never },
+        minimalMsg,
+        undefined,
+        "unknown provider",
+      );
     });
   });
 
@@ -371,24 +346,15 @@ describe("email", () => {
     test("Resend includes attachments with filename and content", async () => {
       await sendEmail(testConfig, msgWithAttachment);
 
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
-      expect(body.attachments).toEqual([
+      expect(getFetchJsonBody().attachments).toEqual([
         { filename: "ticket.svg", content: attachment.content },
       ]);
     });
 
     test("Postmark includes Attachments with Name, Content, ContentType", async () => {
-      await sendEmail(
-        { ...testConfig, provider: "postmark" },
-        msgWithAttachment,
-      );
+      await sendWithProvider("postmark", msgWithAttachment);
 
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
-      expect(body.Attachments).toEqual([
+      expect(getFetchJsonBody().Attachments).toEqual([
         {
           Name: "ticket.svg",
           Content: attachment.content,
@@ -398,15 +364,9 @@ describe("email", () => {
     });
 
     test("SendGrid includes attachments with content, filename, type, disposition", async () => {
-      await sendEmail(
-        { ...testConfig, provider: "sendgrid" },
-        msgWithAttachment,
-      );
+      await sendWithProvider("sendgrid", msgWithAttachment);
 
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
-      expect(body.attachments).toEqual([
+      expect(getFetchJsonBody().attachments).toEqual([
         {
           content: attachment.content,
           filename: "ticket.svg",
@@ -417,13 +377,9 @@ describe("email", () => {
     });
 
     test("Mailgun appends attachment as Blob to FormData", async () => {
-      await sendEmail(
-        { ...testConfig, provider: "mailgun-us" },
-        msgWithAttachment,
-      );
+      await sendWithProvider("mailgun-us", msgWithAttachment);
 
-      const body = (fetchStub.calls[0].args as [string, RequestInit])[1]
-        .body as FormData;
+      const body = getFetchFormBody();
       const file = body.get("attachment") as File;
       expect(file).toBeInstanceOf(File);
       expect(file.name).toBe("ticket.svg");
@@ -431,18 +387,9 @@ describe("email", () => {
     });
 
     test("omits attachments field when no attachments provided", async () => {
-      const msg: EmailMessage = {
-        to: "user@test.com",
-        subject: "Test",
-        html: "h",
-        text: "t",
-      };
-      await sendEmail(testConfig, msg);
+      await sendEmail(testConfig, minimalMsg);
 
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
-      expect(body.attachments).toBeUndefined();
+      expect(getFetchJsonBody().attachments).toBeUndefined();
     });
   });
 
@@ -621,16 +568,10 @@ describe("email", () => {
       await withErrorSpy((errorSpy) => {
         const config = getHostEmailConfig();
         expect(config).toBeNull();
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
+        expectEmailSendLog(
+          collectErrorLogs(errorSpy),
+          "invalid HOST_EMAIL_PROVIDER",
         );
-        expect(
-          logs.some(
-            (l) =>
-              l.includes("E_EMAIL_SEND") &&
-              l.includes("invalid HOST_EMAIL_PROVIDER"),
-          ),
-        ).toBe(true);
       });
     });
   });
@@ -643,12 +584,7 @@ describe("email", () => {
     });
 
     test("skips when attendee has no email address", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
-
-      await sendRegistrationEmails([makeEntry({}, { email: "" })], "GBP");
+      await setupAndSendRegistration({}, [makeEntry({}, { email: "" })]);
       expect(fetchStub.calls.length).toBe(0);
     });
 
@@ -674,12 +610,7 @@ describe("email", () => {
       Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-us");
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
-
-      await sendRegistrationEmails([makeEntry()], "GBP");
+      await setupAndSendRegistration();
 
       expect(fetchStub.calls.length).toBe(1);
       const [url] = fetchStub.calls[0].args as [string, RequestInit];
@@ -687,94 +618,43 @@ describe("email", () => {
     });
 
     test("sends confirmation email to attendee", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
-
-      await sendRegistrationEmails([makeEntry()], "GBP");
+      await setupAndSendRegistration();
 
       expect(fetchStub.calls.length).toBe(1);
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
+      const body = getFetchJsonBody();
       expect(body.to).toEqual(["jane@example.com"]);
       expect(body.subject).toContain("Test Event");
     });
 
     test("sends both confirmation and admin notification when business email set", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      await updateBusinessEmail("admin@business.com");
-      invalidateSettingsCache();
-
-      await sendRegistrationEmails([makeEntry()], "GBP");
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
       expect(fetchStub.calls.length).toBe(2);
       const recipients = fetchStub.calls.map(
-        (c: { args: unknown[] }) =>
-          JSON.parse((c.args as [string, RequestInit])[1].body as string).to,
+        (c: { args: unknown[] }) => getCallJsonBody(c).to,
       );
       expect(recipients).toContainEqual(["jane@example.com"]);
       expect(recipients).toContainEqual(["admin@business.com"]);
     });
 
     test("uses business email as reply-to on confirmation", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      await updateBusinessEmail("admin@business.com");
-      invalidateSettingsCache();
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
-
-      const confirmationCall = fetchStub.calls.find(
-        (c: { args: unknown[] }) => {
-          const body = JSON.parse(
-            (c.args as [string, RequestInit])[1].body as string,
-          );
-          return body.to[0] === "jane@example.com";
-        },
-      );
-      const body = JSON.parse(
-        (confirmationCall.args as [string, RequestInit])[1].body as string,
-      );
+      const body = findCallBodyByRecipient("jane@example.com");
       expect(body.reply_to).toBe("admin@business.com");
     });
 
     test("uses attendee email as reply-to on admin notification", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      await updateBusinessEmail("admin@business.com");
-      invalidateSettingsCache();
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
-
-      const adminCall = fetchStub.calls.find((c: { args: unknown[] }) => {
-        const body = JSON.parse(
-          (c.args as [string, RequestInit])[1].body as string,
-        );
-        return body.to[0] === "admin@business.com";
-      });
-      const body = JSON.parse(
-        (adminCall.args as [string, RequestInit])[1].body as string,
-      );
+      const body = findCallBodyByRecipient("admin@business.com");
       expect(body.reply_to).toBe("jane@example.com");
     });
 
     test("attaches SVG ticket to confirmation email", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
+      await setupAndSendRegistration();
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
-
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
+      const body = getFetchJsonBody();
       expect(body.attachments).toHaveLength(1);
       expect(body.attachments[0].filename).toBe("ticket.svg");
       const decoded = atob(body.attachments[0].content);
@@ -782,41 +662,20 @@ describe("email", () => {
     });
 
     test("does not attach tickets to admin notification", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      await updateBusinessEmail("admin@business.com");
-      invalidateSettingsCache();
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
-      await sendRegistrationEmails([makeEntry()], "GBP");
-
-      const adminCall = fetchStub.calls.find((c: { args: unknown[] }) => {
-        const body = JSON.parse(
-          (c.args as [string, RequestInit])[1].body as string,
-        );
-        return body.to[0] === "admin@business.com";
-      });
-      const body = JSON.parse(
-        (adminCall.args as [string, RequestInit])[1].body as string,
-      );
+      const body = findCallBodyByRecipient("admin@business.com");
       expect(body.attachments).toBeUndefined();
     });
 
     test("attaches numbered tickets for multi-event registration", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
-
       const entries = [
         makeEntry({ name: "Event A" }, { ticket_token: "tok1" }),
         makeEntry({ name: "Event B" }, { ticket_token: "tok2" }),
       ];
-      await sendRegistrationEmails(entries, "GBP");
+      await setupAndSendRegistration({}, entries);
 
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
+      const body = getFetchJsonBody();
       expect(body.attachments).toHaveLength(2);
       expect(body.attachments[0].filename).toBe("ticket-1.svg");
       expect(body.attachments[1].filename).toBe("ticket-2.svg");
@@ -829,9 +688,7 @@ describe("email", () => {
 
       expect(status).toBe(200);
       expect(fetchStub.calls.length).toBe(1);
-      const body = JSON.parse(
-        (fetchStub.calls[0].args as [string, RequestInit])[1].body as string,
-      );
+      const body = getFetchJsonBody();
       expect(body.to).toEqual(["admin@test.com"]);
       expect(body.subject).toContain("Test email");
     });

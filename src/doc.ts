@@ -43,14 +43,14 @@
  * @module
  */
 
-export * from "./docs/database.ts";
-export * from "./docs/crypto.ts";
-export * from "./docs/payments.ts";
-export * from "./docs/email.ts";
-export * from "./docs/tickets.ts";
-export * from "./docs/events.ts";
 export * from "./docs/config.ts";
-export * from "./docs/utilities.ts";
-export * from "./docs/embed.ts";
-export * from "./docs/webhooks.ts";
+export * from "./docs/crypto.ts";
+export * from "./docs/database.ts";
 export * from "./docs/demo.ts";
+export * from "./docs/email.ts";
+export * from "./docs/embed.ts";
+export * from "./docs/events.ts";
+export * from "./docs/payments.ts";
+export * from "./docs/tickets.ts";
+export * from "./docs/utilities.ts";
+export * from "./docs/webhooks.ts";

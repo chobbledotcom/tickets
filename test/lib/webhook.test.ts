@@ -3,59 +3,23 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import type { EmailEntry, EmailEvent } from "#lib/email.ts";
 import {
   buildWebhookPayload,
   type RegistrationEntry,
   sendRegistrationWebhooks,
   sendWebhook,
-  type WebhookAttendee,
   type WebhookEvent,
   type WebhookPayload,
 } from "#lib/webhook.ts";
-import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
-
-/** Helper to build an EmailEvent with sensible defaults */
-const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
-  id: 1,
-  name: "Test Event",
-  slug: "test-event",
-  webhook_url: "https://example.com/webhook",
-  max_attendees: 100,
-  attendee_count: 10,
-  unit_price: 0,
-  can_pay_more: false,
-  date: "",
-  location: "",
-  ...overrides,
-});
-
-/** Helper to build a WebhookAttendee with sensible defaults */
-const makeAttendee = (
-  overrides: Partial<WebhookAttendee> = {},
-): WebhookAttendee => ({
-  id: 42,
-  quantity: 1,
-  name: "Jane Doe",
-  email: "jane@example.com",
-  phone: "555-1234",
-  address: "",
-  special_instructions: "",
-  payment_id: "",
-  price_paid: "0",
-  ticket_token: "AABB001122",
-  date: null,
-  ...overrides,
-});
-
-/** Build an EmailEntry from event/attendee overrides */
-const makeEntry = (
-  eventOverrides?: Partial<EmailEvent>,
-  attendeeOverrides?: Partial<WebhookAttendee>,
-): EmailEntry => ({
-  event: makeEvent(eventOverrides),
-  attendee: makeAttendee(attendeeOverrides),
-});
+import {
+  createTestDbWithSetup,
+  createTestEvent,
+  type EmailEntry,
+  makeTestAttendee as makeAttendee,
+  makeTestEntry as makeEntry,
+  makeTestEvent as makeEvent,
+  resetDb,
+} from "#test-utils";
 
 /** Default single-entry registration (free event, default attendee) */
 const defaultEntries = (): EmailEntry[] => [makeEntry()];
@@ -98,6 +62,13 @@ describe("webhook", () => {
   const restubFetch = (impl: () => Promise<Response>): void => {
     fetchSpy.restore();
     fetchSpy = stub(globalThis, "fetch", impl);
+  };
+
+  /** Drain floating async logError promises, then reset and recreate the test DB */
+  const drainAndResetDb = async (): Promise<void> => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    resetDb();
+    await createTestDbWithSetup();
   };
 
   /** Restub fetch, send a webhook with default payload, return collected error logs */
@@ -347,36 +318,50 @@ describe("webhook", () => {
       expect(logs.some((c) => c.includes("E_WEBHOOK_SEND"))).toBe(false);
     });
 
-    test("logs activity on non-2xx response", async () => {
-      // Drain floating promises from earlier logError calls, then reset DB
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      resetDb();
-      await createTestDbWithSetup();
-
+    /** Send a webhook with a failing fetch, flush, and return activity log entries */
+    const sendWebhookAndGetActivityLog = async (
+      status: number,
+      registrationEntries?: RegistrationEntry[],
+    ): Promise<
+      ReturnType<typeof getAllActivityLog> extends Promise<infer T> ? T : never
+    > => {
       await withErrorSpy(async () => {
-        restubFetch(() =>
-          Promise.resolve(new Response("Bad Gateway", { status: 502 })),
+        restubFetch(() => Promise.resolve(new Response("Error", { status })));
+        const payload = await buildWebhookPayload(
+          registrationEntries ?? defaultEntries(),
+          "GBP",
         );
-        const payload = await buildWebhookPayload(defaultEntries(), "GBP");
         await sendWebhook("https://example.com/webhook", payload);
       });
-      // Wait for pending logError→logActivity to flush
       await new Promise((resolve) => setTimeout(resolve, 50));
+      return getAllActivityLog();
+    };
 
-      const entries = await getAllActivityLog();
-      const match = entries.find(
-        (e) =>
-          e.message ===
-          "Error: Webhook send failed (status=502 for 'Test Event')",
+    const expectWebhookActivityError = async (
+      status: number,
+      expectedMessage: string,
+      registrationEntries?: RegistrationEntry[],
+    ) => {
+      const logEntries = await sendWebhookAndGetActivityLog(
+        status,
+        registrationEntries,
       );
-      expect(match).toBeDefined();
+      expect(
+        logEntries.find((e) => e.message === expectedMessage),
+      ).toBeDefined();
+    };
+
+    test("logs activity on non-2xx response", async () => {
+      await drainAndResetDb();
+
+      await expectWebhookActivityError(
+        502,
+        "Error: Webhook send failed (status=502 for 'Test Event')",
+      );
     });
 
     test("does not log activity on successful response", async () => {
-      // Drain and reset to avoid contamination from prior error tests
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      resetDb();
-      await createTestDbWithSetup();
+      await drainAndResetDb();
 
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");
       await sendWebhook("https://example.com/webhook", payload);
@@ -390,38 +375,23 @@ describe("webhook", () => {
     });
 
     test("logs comma-separated event names for multi-event payload", async () => {
-      // Drain and reset to avoid contamination from prior error tests
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      resetDb();
-      await createTestDbWithSetup();
+      await drainAndResetDb();
 
-      await withErrorSpy(async () => {
-        restubFetch(() =>
-          Promise.resolve(new Response("Error", { status: 500 })),
-        );
-        const entries: RegistrationEntry[] = [
-          makeEntry(
-            { id: 1, name: "Event A", slug: "event-a" },
-            { ticket_token: "AA11BB22CC" },
-          ),
-          makeEntry(
-            { id: 2, name: "Event B", slug: "event-b" },
-            { ticket_token: "DD33EE44FF" },
-          ),
-        ];
-        const payload = await buildWebhookPayload(entries, "GBP");
-        await sendWebhook("https://example.com/webhook", payload);
-      });
-      // Wait for pending logError→logActivity to flush
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      const entries = await getAllActivityLog();
-      const match = entries.find(
-        (e) =>
-          e.message ===
-          "Error: Webhook send failed (status=500 for 'Event A, Event B')",
+      const multiEntries: RegistrationEntry[] = [
+        makeEntry(
+          { id: 1, name: "Event A", slug: "event-a" },
+          { ticket_token: "AA11BB22CC" },
+        ),
+        makeEntry(
+          { id: 2, name: "Event B", slug: "event-b" },
+          { ticket_token: "DD33EE44FF" },
+        ),
+      ];
+      await expectWebhookActivityError(
+        500,
+        "Error: Webhook send failed (status=500 for 'Event A, Event B')",
+        multiEntries,
       );
-      expect(match).toBeDefined();
     });
   });
 
