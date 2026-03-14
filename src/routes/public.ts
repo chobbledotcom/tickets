@@ -508,13 +508,9 @@ const withActiveMultiEvents = async (
   slugs: string[],
   handler: AsyncHandler<[MultiTicketEvent[]]>,
 ): Promise<Response> => {
-  const [events, holidays] = await Promise.all([
-    getEventsBySlugsBatch(slugs),
-    getActiveHolidays(),
-  ]);
+  const events = await getEventsBySlugsBatch(slugs);
   const active = compact(events).filter((e) => e.active);
-  const sorted = sortEvents(active, holidays);
-  const activeEvents = sorted.map((e) =>
+  const activeEvents = active.map((e) =>
     buildMultiTicketEvent(e, isRegistrationClosed(e)),
   );
   return activeEvents.length === 0 ? notFoundResponse() : handler(activeEvents);
