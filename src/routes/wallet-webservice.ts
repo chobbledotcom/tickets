@@ -12,11 +12,20 @@
  * so devices re-download the pass on every manual refresh.
  */
 
+import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { getAppleWalletConfig } from "#lib/db/settings.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet.ts";
 
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
+
+/** Load config and verify the passType matches. Returns null on mismatch. */
+const verifyPassType = async (
+  passType: string,
+): Promise<SigningCredentials | null> => {
+  const config = await getAppleWalletConfig();
+  return config && passType === config.passTypeId ? config : null;
+};
 
 /** Stub: accept device registration */
 const handleRegister = () => new Response(null, { status: 201 });
@@ -29,10 +38,8 @@ const handleGetTokens = async (
   request: Request,
   params: { _device: string; passType: string },
 ) => {
-  const config = await getAppleWalletConfig();
-  if (!config || params.passType !== config.passTypeId) {
-    return new Response(null, { status: 204 });
-  }
+  const config = await verifyPassType(params.passType);
+  if (!config) return new Response(null, { status: 204 });
 
   const authHeader = request.headers.get("Authorization") ?? "";
   const token = authHeader.replace(/^ApplePass\s+/i, "");
@@ -53,10 +60,8 @@ const handleGetPass = async (
   _request: Request,
   params: { passType: string; token: string },
 ) => {
-  const config = await getAppleWalletConfig();
-  if (!config || params.passType !== config.passTypeId) {
-    return new Response(null, { status: 404 });
-  }
+  const config = await verifyPassType(params.passType);
+  if (!config) return new Response(null, { status: 404 });
 
   return buildPkpassForToken(params.token, config);
 };
