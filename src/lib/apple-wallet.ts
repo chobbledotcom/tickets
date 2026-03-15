@@ -80,15 +80,14 @@ export const generatePassJson = (
         messageEncoding: "iso-8859-1",
       },
     ],
+    webServiceURL: data.webServiceURL,
+    authenticationToken: data.serialNumber,
     eventTicket: buildEventTicketFields(data),
   };
 
   if (data.eventDate) {
     pass.relevantDate = data.eventDate;
   }
-
-  pass.webServiceURL = data.webServiceURL;
-  pass.authenticationToken = data.serialNumber;
 
   return pass;
 };
