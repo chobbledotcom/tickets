@@ -36,6 +36,7 @@ const makePassData = (overrides: Partial<PassData> = {}): PassData => ({
   pricePaid: 0,
   currencyCode: "GBP",
   checkinUrl: "https://example.com/checkin/ABC123",
+  webServiceURL: "https://example.com",
   ...overrides,
 });
 
@@ -179,19 +180,10 @@ describe("apple-wallet", () => {
       expect(pass.labelColor).toBe("rgb(0, 255, 0)");
     });
 
-    test("includes webServiceURL and authenticationToken when webServiceURL is set", () => {
-      const pass = generatePassJson(
-        makePassData({ webServiceURL: "https://example.com" }),
-        creds,
-      );
+    test("includes webServiceURL and authenticationToken for auto-updates", () => {
+      const pass = generatePassJson(makePassData(), creds);
       expect(pass.webServiceURL).toBe("https://example.com");
       expect(pass.authenticationToken).toBe("ABC123");
-    });
-
-    test("omits webServiceURL and authenticationToken when webServiceURL is not set", () => {
-      const pass = generatePassJson(makePassData(), creds);
-      expect(pass.webServiceURL).toBeUndefined();
-      expect(pass.authenticationToken).toBeUndefined();
     });
   });
 
