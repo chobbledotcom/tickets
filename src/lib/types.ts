@@ -75,6 +75,8 @@ export interface Event {
   minimum_days_before: number;
   maximum_days_after: number;
   image_url: string;
+  attachment_url: string;
+  attachment_name: string;
   non_transferable: boolean;
   can_pay_more: boolean;
   max_price: number;
@@ -93,6 +95,7 @@ export interface Attendee extends ContactInfo {
   ticket_token: string;
   ticket_token_index: string;
   date: string | null;
+  attachment_downloads: number;
 }
 
 export interface Settings {

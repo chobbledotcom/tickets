@@ -2,11 +2,15 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import {
+  ATTACHMENT_ERROR_MESSAGES,
   detectImageType,
+  generateAttachmentFilename,
   generateImageFilename,
   getImageProxyUrl,
   getMimeTypeFromFilename,
   isStorageEnabled,
+  MAX_ATTACHMENT_SIZE,
+  validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
 
@@ -217,6 +221,77 @@ describe("storage", () => {
       const jpeg = new Uint8Array([0xff, 0xd8, 0xff]);
       expect(validateImage(jpeg, "image/svg+xml").valid).toBe(false);
       expect(validateImage(jpeg, "application/pdf").valid).toBe(false);
+    });
+  });
+
+  describe("validateAttachment", () => {
+    test("accepts file under 25MB", () => {
+      const data = new Uint8Array(1024);
+      const result = validateAttachment(data);
+      expect(result.valid).toBe(true);
+    });
+
+    test("accepts file exactly at 25MB limit", () => {
+      const data = new Uint8Array(MAX_ATTACHMENT_SIZE);
+      const result = validateAttachment(data);
+      expect(result.valid).toBe(true);
+    });
+
+    test("rejects file exceeding 25MB", () => {
+      const data = new Uint8Array(MAX_ATTACHMENT_SIZE + 1);
+      const result = validateAttachment(data);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("too_large");
+      }
+    });
+
+    test("accepts any file type (not just images)", () => {
+      // PDF magic bytes - not a valid image, but attachments accept any type
+      const data = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+      const result = validateAttachment(data);
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("ATTACHMENT_ERROR_MESSAGES", () => {
+    test("has message for too_large error", () => {
+      expect(ATTACHMENT_ERROR_MESSAGES.too_large).toBe(
+        "Attachment exceeds the 25MB size limit",
+      );
+    });
+  });
+
+  describe("generateAttachmentFilename", () => {
+    test("generates filename with UUID prefix and original name", () => {
+      const filename = generateAttachmentFilename("report.pdf");
+      expect(filename).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-report\.pdf$/,
+      );
+    });
+
+    test("sanitizes special characters in filename", () => {
+      const filename = generateAttachmentFilename("my file (1).pdf");
+      // Spaces and parens should be replaced with underscores
+      expect(filename).toMatch(/-my_file__1_\.pdf$/);
+    });
+
+    test("handles path separators in filename", () => {
+      const filename = generateAttachmentFilename("/path/to/file.txt");
+      // Only the basename should remain
+      expect(filename).toMatch(/-file\.txt$/);
+      expect(filename).not.toContain("/path");
+    });
+
+    test("generates unique filenames for same input", () => {
+      const a = generateAttachmentFilename("doc.pdf");
+      const b = generateAttachmentFilename("doc.pdf");
+      expect(a).not.toBe(b);
+    });
+
+    test("preserves file extension", () => {
+      const filename = generateAttachmentFilename("archive.tar.gz");
+      expect(filename).toMatch(/\.tar\.gz$/);
     });
   });
 

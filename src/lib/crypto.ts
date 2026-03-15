@@ -46,14 +46,17 @@ const toBase64 = (bytes: Uint8Array): string => {
 };
 
 /**
+ * Convert standard base64 to base64url (no padding).
+ * Works on both strings and Uint8Array (bytes are first encoded to base64).
+ */
+export const base64ToBase64Url = (b64: string): string =>
+  b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+
+/**
  * Convert Uint8Array to base64url string (no padding)
  */
-const toBase64Url = (bytes: Uint8Array): string => {
-  return toBase64(bytes)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-};
+const toBase64Url = (bytes: Uint8Array): string =>
+  base64ToBase64Url(toBase64(bytes));
 
 /**
  * Convert base64 string to Uint8Array

@@ -56,6 +56,8 @@ export type EventInput = {
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
   imageUrl?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
   nonTransferable?: boolean;
   canPayMore?: boolean;
   maxPrice: number;
@@ -159,6 +161,8 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   minimum_days_before: col.withDefault(() => 1),
   maximum_days_after: col.withDefault(() => 90),
   image_url: { default: () => "", write: encrypt, read: decrypt },
+  attachment_url: { default: () => "", write: encrypt, read: decrypt },
+  attachment_name: { default: () => "", write: encrypt, read: decrypt },
   non_transferable: col.boolean(false),
   can_pay_more: col.boolean(false),
   max_price: col.withDefault(() => 0),
