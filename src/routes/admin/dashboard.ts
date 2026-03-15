@@ -4,7 +4,11 @@
 
 import { signCsrfToken } from "#lib/csrf.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { decryptAttendees, getNewestAttendeesRaw } from "#lib/db/attendees.ts";
+import {
+  decryptAttendees,
+  getActiveEventStats,
+  getNewestAttendeesRaw,
+} from "#lib/db/attendees.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { sortEvents } from "#lib/sort-events.ts";
@@ -45,6 +49,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       ]);
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedEvents = sortEvents(events, holidays);
+      const stats = await getActiveEventStats(sortedEvents);
       return htmlResponse(
         adminDashboardPage(
           sortedEvents,
@@ -52,6 +57,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           imageError,
           newestAttendees,
           successMessage,
+          stats,
         ),
       );
     },

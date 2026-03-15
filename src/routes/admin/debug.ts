@@ -63,9 +63,7 @@ const validateAppleWalletCerts = (
     signingKey: isValidPemPrivateKey(config.signingKey)
       ? "Valid"
       : "Invalid PEM",
-    wwdrCert: isValidPemCertificate(config.wwdrCert)
-      ? "Valid"
-      : "Invalid PEM",
+    wwdrCert: isValidPemCertificate(config.wwdrCert) ? "Valid" : "Invalid PEM",
   };
 };
 
