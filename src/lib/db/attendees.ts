@@ -184,7 +184,7 @@ export const getActiveEventStats = async (
     map((r: { price_paid: string }) => decrypt(r.price_paid))(rows),
   );
   const income = reduce(
-    (sum: number, v: string) => sum + Number.parseInt(v, 10),
+    (sum: number, v: string) => sum + (Number.parseInt(v, 10) || 0),
     0,
   )(decrypted);
   return { income, tickets: rows.length, attendees };
