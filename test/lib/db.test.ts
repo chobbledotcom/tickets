@@ -990,6 +990,25 @@ describe("db", () => {
       expect(stats.attendees).toBe(1);
     });
 
+    test("getActiveEventStats treats non-numeric price_paid as zero", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 0,
+      });
+      await createPaidTestAttendee(
+        event.id,
+        "Free Alice",
+        "free@example.com",
+        "",
+        0,
+      );
+      const events = await getAllEvents();
+      const stats = await getActiveEventStats(events);
+      expect(stats.tickets).toBe(1);
+      expect(stats.income).toBe(0);
+      expect(stats.attendees).toBe(1);
+    });
+
     test("attendee count reflects in getEventWithCount", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
