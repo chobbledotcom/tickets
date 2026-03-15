@@ -405,5 +405,9 @@ export const adminSettingsPage = (
         templates, mail provider, timezone, custom domain, and database reset,{" "}
         <a href="/admin/settings-advanced">click here</a>.
       </p>
+
+      <p>
+        For nerdy debug info <a href="/admin/debug">click here</a>.
+      </p>
     </Layout>,
   );

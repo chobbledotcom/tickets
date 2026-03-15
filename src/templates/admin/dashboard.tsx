@@ -4,6 +4,8 @@
 
 import { filter, map, pipe, reduce } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { formatCurrency } from "#lib/currency.ts";
+import type { ActiveEventStats } from "#lib/db/attendees.ts";
 import { renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
@@ -96,6 +98,25 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
   );
 };
 
+/** Active event statistics section */
+export const activeEventStatsSection = (stats: ActiveEventStats): string =>
+  String(
+    <details>
+      <summary>Active Event Statistics</summary>
+      <ul>
+        <li>
+          <strong>Income:</strong> {formatCurrency(stats.income)}
+        </li>
+        <li>
+          <strong>Tickets:</strong> {stats.tickets}
+        </li>
+        <li>
+          <strong>Attendees:</strong> {stats.attendees}
+        </li>
+      </ul>
+    </details>,
+  );
+
 /** Build the newest attendees section with a details/summary wrapper */
 const newestAttendeesSection = (
   attendees: Attendee[],
@@ -148,6 +169,7 @@ export const adminDashboardPage = (
   imageError?: string | null,
   newestAttendees: Attendee[] = [],
   successMessage?: string | null,
+  stats?: ActiveEventStats | null,
 ): string => {
   const eventRows =
     events.length > 0
@@ -187,6 +209,8 @@ export const adminDashboardPage = (
           </tbody>
         </table>
       </div>
+
+      {stats && <Raw html={activeEventStatsSection(stats)} />}
 
       {activeEvents.length >= 2 && (
         <Raw html={multiBookingSection(activeEvents)} />

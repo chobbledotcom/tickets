@@ -27,7 +27,39 @@ jobs:
           deno-version: v2.x
 
       - name: Generate docs
-        run: deno doc --html --name="Chobble Tickets" --output=docs-output src/doc.ts
+        run: >-
+          deno doc --html --name="Chobble Tickets" --output=docs-output
+          src/doc.ts
+          src/docs/database.ts
+          src/docs/crypto.ts
+          src/docs/payments.ts
+          src/docs/email.ts
+          src/docs/tickets.ts
+          src/docs/events.ts
+          src/docs/config.ts
+          src/docs/utilities.ts
+          src/docs/embed.ts
+          src/docs/webhooks.ts
+          src/docs/demo.ts
+
+      - name: Disable Jekyll processing
+        run: touch docs-output/.nojekyll
+
+      - name: Add root redirect to overview page
+        run: |
+          cat > docs-output/index.html << 'HTMLEOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta http-equiv="refresh" content="0; url=doc.ts/index.html">
+            <title>Chobble Tickets Documentation</title>
+          </head>
+          <body>
+            <p>Redirecting to <a href="doc.ts/index.html">documentation</a>...</p>
+          </body>
+          </html>
+          HTMLEOF
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

@@ -62,6 +62,18 @@ describe("server (demo reset)", () => {
     });
   });
 
+  /** Get CSRF token from demo reset page and post form with given fields */
+  async function submitDemoResetForm(
+    fields: Record<string, string>,
+  ): Promise<Response> {
+    const getResponse = await handleRequest(mockRequest("/demo/reset"));
+    const html = await getResponse.text();
+    const csrfToken = extractCsrfToken(html)!;
+    return handleRequest(
+      mockFormRequest("/demo/reset", { ...fields, csrf_token: csrfToken }),
+    );
+  }
+
   describe("POST /demo/reset", () => {
     test("returns 404 when demo mode is off", async () => {
       const response = await handleRequest(
@@ -109,50 +121,23 @@ describe("server (demo reset)", () => {
 
     test("rejects wrong confirmation phrase", async () => {
       setDemoModeForTest(true);
-
-      // Get valid CSRF token
-      const getResponse = await handleRequest(mockRequest("/demo/reset"));
-      const html = await getResponse.text();
-      const csrfToken = extractCsrfToken(html)!;
-
-      const response = await handleRequest(
-        mockFormRequest("/demo/reset", {
-          confirm_phrase: "wrong phrase",
-          csrf_token: csrfToken,
-        }),
-      );
+      const response = await submitDemoResetForm({
+        confirm_phrase: "wrong phrase",
+      });
       await expectHtmlResponse(response, 400, RESET_PHRASE_MISMATCH_ERROR);
     });
 
     test("rejects empty confirmation phrase", async () => {
       setDemoModeForTest(true);
-
-      const getResponse = await handleRequest(mockRequest("/demo/reset"));
-      const html = await getResponse.text();
-      const csrfToken = extractCsrfToken(html)!;
-
-      const response = await handleRequest(
-        mockFormRequest("/demo/reset", {
-          confirm_phrase: "",
-          csrf_token: csrfToken,
-        }),
-      );
+      const response = await submitDemoResetForm({ confirm_phrase: "" });
       await expectHtmlResponse(response, 400, RESET_PHRASE_MISMATCH_ERROR);
     });
 
     test("resets database and redirects to setup in demo mode", async () => {
       setDemoModeForTest(true);
-
-      const getResponse = await handleRequest(mockRequest("/demo/reset"));
-      const html = await getResponse.text();
-      const csrfToken = extractCsrfToken(html)!;
-
-      const response = await handleRequest(
-        mockFormRequest("/demo/reset", {
-          confirm_phrase: RESET_DATABASE_PHRASE,
-          csrf_token: csrfToken,
-        }),
-      );
+      const response = await submitDemoResetForm({
+        confirm_phrase: RESET_DATABASE_PHRASE,
+      });
 
       expectRedirect("/setup/?success=Database+reset")(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");

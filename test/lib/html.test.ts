@@ -17,7 +17,10 @@ import {
   adminCalendarPage,
   type CalendarAttendeeRow,
 } from "#templates/admin/calendar.tsx";
-import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
+import {
+  activeEventStatsSection,
+  adminDashboardPage,
+} from "#templates/admin/dashboard.tsx";
 import {
   adminDuplicateEventPage,
   adminEventEditPage,
@@ -1590,6 +1593,63 @@ describe("html", () => {
       const html = adminDashboardPage(events, TEST_SESSION);
       expect(html).toContain("inactive-row");
       expect(html).toContain("Inactive");
+    });
+  });
+
+  describe("activeEventStatsSection", () => {
+    test("renders income, tickets, and attendees", () => {
+      const html = activeEventStatsSection({
+        income: 5000,
+        tickets: 30,
+        attendees: 52,
+      });
+      expect(html).toContain("Active Event Statistics");
+      expect(html).toContain("<strong>Income:</strong>");
+      expect(html).toContain("<strong>Tickets:</strong>");
+      expect(html).toContain("<strong>Attendees:</strong>");
+      expect(html).toContain("30");
+      expect(html).toContain("52");
+    });
+
+    test("renders zero values", () => {
+      const html = activeEventStatsSection({
+        income: 0,
+        tickets: 0,
+        attendees: 0,
+      });
+      expect(html).toContain("<strong>Tickets:</strong> 0");
+      expect(html).toContain("<strong>Attendees:</strong> 0");
+    });
+
+    test("renders as closed details element", () => {
+      const html = activeEventStatsSection({
+        income: 0,
+        tickets: 0,
+        attendees: 0,
+      });
+      expect(html).toContain("<details>");
+      expect(html).not.toContain("<details open");
+    });
+  });
+
+  describe("adminDashboardPage active event statistics", () => {
+    test("shows stats section when stats provided", () => {
+      const html = adminDashboardPage([], TEST_SESSION, null, [], null, {
+        income: 1000,
+        tickets: 5,
+        attendees: 10,
+      });
+      expect(html).toContain("Active Event Statistics");
+    });
+
+    test("does not show stats section when stats is null", () => {
+      const html = adminDashboardPage([], TEST_SESSION, null, [], null, null);
+      expect(html).not.toContain("Active Event Statistics");
+    });
+
+    test("does not show stats section when stats not provided", () => {
+      const html = adminDashboardPage([], TEST_SESSION);
+      expect(html).not.toContain("Active Event Statistics");
     });
   });
 

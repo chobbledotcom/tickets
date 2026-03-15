@@ -18,6 +18,22 @@
  * - ICS/RSS calendar feeds
  * - Embeddable widget via iframe
  *
+ * ## Modules
+ *
+ * | Module | Description |
+ * |--------|-------------|
+ * | [Database](../docs/database.ts) | ORM, table abstractions, and entity CRUD |
+ * | [Crypto](../docs/crypto.ts) | Encryption, hashing, and CSRF |
+ * | [Payments](../docs/payments.ts) | Stripe and Square integration |
+ * | [Email](../docs/email.ts) | Email sending and templates |
+ * | [Tickets](../docs/tickets.ts) | QR codes, SVG tickets, Apple Wallet |
+ * | [Events](../docs/events.ts) | Event fields, sorting, availability |
+ * | [Config](../docs/config.ts) | Settings, environment, sessions |
+ * | [Utilities](../docs/utilities.ts) | FP helpers, formatting, caching |
+ * | [Embed](../docs/embed.ts) | Widget embedding and CDN |
+ * | [Webhooks](../docs/webhooks.ts) | Webhook delivery and API examples |
+ * | [Demo](../docs/demo.ts) | Demo mode and seed data |
+ *
  * ## Deployment Options
  *
  * - Bunny Edge Scripting (edge-deployed)
@@ -27,75 +43,14 @@
  * @module
  */
 
-export * from "#fp";
-export * from "#lib/api-example.ts";
-export * from "#lib/apple-wallet.ts";
-export * from "#lib/booking.ts";
-export * from "#lib/bunny-cdn.ts";
-export * from "#lib/business-email.ts";
-export * from "#lib/cache-registry.ts";
-export * from "#lib/config.ts";
-export * from "#lib/cookies.ts";
-export * from "#lib/crypto.ts";
-export * from "#lib/csrf.ts";
-export * from "#lib/currency.ts";
-export * from "#lib/dates.ts";
-export * from "#lib/db/activityLog.ts";
-export * from "#lib/db/attendees.ts";
-export * from "#lib/db/client.ts";
-export * from "#lib/db/common-schema.ts";
-export * from "#lib/db/define-id-table.ts";
-export * from "#lib/db/events.ts";
-export * from "#lib/db/groups.ts";
-export * from "#lib/db/holidays.ts";
-export * from "#lib/db/login-attempts.ts";
-export * from "#lib/db/migrations.ts";
-export * from "#lib/db/processed-payments.ts";
-export * from "#lib/db/query.ts";
-export * from "#lib/db/query-log.ts";
-export * from "#lib/db/sessions.ts";
-export * from "#lib/db/settings.ts";
-export * from "#lib/db/table.ts";
-export * from "#lib/db/users.ts";
-export * from "#lib/demo.ts";
-export * from "#lib/email.ts";
-export * from "#lib/email-renderer.ts";
-export * from "#lib/embed.ts";
-export * from "#lib/embed-hosts.ts";
-export * from "#lib/env.ts";
-export * from "#lib/event-fields.ts";
-export * from "#lib/iframe.ts";
-export * from "#lib/logger.ts";
-export * from "#lib/markdown.ts";
-export * from "#lib/now.ts";
-export * from "#lib/ntfy.ts";
-export * from "#lib/payment-crypto.ts";
-export * from "#lib/payment-helpers.ts";
-export * from "#lib/payments.ts";
-export * from "#lib/pending-work.ts";
-export * from "#lib/phone.ts";
-export * from "#lib/qr.ts";
-export * from "#lib/seeds.ts";
-export * from "#lib/session-context.ts";
-export * from "#lib/slug.ts";
-export * from "#lib/sort-events.ts";
-export * from "#lib/storage.ts";
-export * from "#lib/svg-ticket.ts";
-export * from "#lib/theme.ts";
-export * from "#lib/ticket-url.ts";
-export * from "#lib/timezone.ts";
-export * from "#lib/types.ts";
-export * from "#lib/wallet-icons.ts";
-export {
-  buildWebhookPayload,
-  logAndNotifyMultiRegistration,
-  logAndNotifyRegistration,
-  type RegistrationEntry,
-  sendRegistrationWebhooks,
-  sendWebhook,
-  type WebhookAttendee,
-  type WebhookEvent as WebhookPayloadEvent,
-  type WebhookPayload,
-  type WebhookTicket,
-} from "#lib/webhook.ts";
-export * from "#lib/webhook-example.ts";
+export * from "./docs/config.ts";
+export * from "./docs/crypto.ts";
+export * from "./docs/database.ts";
+export * from "./docs/demo.ts";
+export * from "./docs/email.ts";
+export * from "./docs/embed.ts";
+export * from "./docs/events.ts";
+export * from "./docs/payments.ts";
+export * from "./docs/tickets.ts";
+export * from "./docs/utilities.ts";
+export * from "./docs/webhooks.ts";
