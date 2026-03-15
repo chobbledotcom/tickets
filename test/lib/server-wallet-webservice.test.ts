@@ -40,7 +40,14 @@ const walletRequest = (
       method: options.method ?? "GET",
       headers: { host: "localhost", ...options.headers },
       ...(options.method === "POST"
-        ? { body: "{}", headers: { host: "localhost", "content-type": "application/json", ...options.headers } }
+        ? {
+            body: "{}",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              ...options.headers,
+            },
+          }
         : {}),
     }),
   );
