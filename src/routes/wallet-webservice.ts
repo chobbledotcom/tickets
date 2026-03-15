@@ -19,13 +19,16 @@ import { buildPkpassForToken } from "#routes/wallet.ts";
 
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 
-/** Load config and verify the passType matches. Returns null on mismatch. */
-const verifyPassType = async (
-  passType: string,
-): Promise<SigningCredentials | null> => {
-  const config = await getAppleWalletConfig();
-  return config && passType === config.passTypeId ? config : null;
-};
+/** Verify passType matches config, then run handler. Returns failure status on mismatch. */
+const withVerifiedPass =
+  (failStatus: number) =>
+  (handler: (config: SigningCredentials) => Response | Promise<Response>) =>
+  async (passType: string): Promise<Response> => {
+    const config = await getAppleWalletConfig();
+    return config && passType === config.passTypeId
+      ? handler(config)
+      : new Response(null, { status: failStatus });
+  };
 
 /** Stub: accept device registration */
 const handleRegister = () => new Response(null, { status: 201 });
@@ -37,34 +40,30 @@ const handleUnregister = () => new Response(null, { status: 200 });
 const handleGetTokens = async (
   request: Request,
   params: { _device: string; passType: string },
-) => {
-  const config = await verifyPassType(params.passType);
-  if (!config) return new Response(null, { status: 204 });
+) =>
+  withVerifiedPass(204)((_config) => {
+    const authHeader = request.headers.get("Authorization") ?? "";
+    const token = authHeader.replace(/^ApplePass\s+/i, "");
+    if (!token) return new Response(null, { status: 401 });
 
-  const authHeader = request.headers.get("Authorization") ?? "";
-  const token = authHeader.replace(/^ApplePass\s+/i, "");
-  if (!token) return new Response(null, { status: 401 });
-
-  // Ignore passesUpdatedSince — always return the token as updated
-  return new Response(
-    JSON.stringify({
-      serialNumbers: [token],
-      lastUpdated: String(Date.now()),
-    }),
-    { status: 200, headers: JSON_HEADERS },
-  );
-};
+    // Ignore passesUpdatedSince — always return the token as updated
+    return new Response(
+      JSON.stringify({
+        serialNumbers: [token],
+        lastUpdated: String(Date.now()),
+      }),
+      { status: 200, headers: JSON_HEADERS },
+    );
+  })(params.passType);
 
 /** Serve a fresh .pkpass for the given token */
 const handleGetPass = async (
   _request: Request,
   params: { passType: string; token: string },
-) => {
-  const config = await verifyPassType(params.passType);
-  if (!config) return new Response(null, { status: 404 });
-
-  return buildPkpassForToken(params.token, config);
-};
+) =>
+  withVerifiedPass(404)((config) => buildPkpassForToken(params.token, config))(
+    params.passType,
+  );
 
 /** Stub: accept log messages from devices */
 const handleLog = () => new Response(null, { status: 200 });
