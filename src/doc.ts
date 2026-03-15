@@ -22,17 +22,17 @@
  *
  * | Module | Description |
  * |--------|-------------|
- * | [Database](./docs/database.ts) | ORM, table abstractions, and entity CRUD |
- * | [Crypto](./docs/crypto.ts) | Encryption, hashing, and CSRF |
- * | [Payments](./docs/payments.ts) | Stripe and Square integration |
- * | [Email](./docs/email.ts) | Email sending and templates |
- * | [Tickets](./docs/tickets.ts) | QR codes, SVG tickets, Apple Wallet |
- * | [Events](./docs/events.ts) | Event fields, sorting, availability |
- * | [Config](./docs/config.ts) | Settings, environment, sessions |
- * | [Utilities](./docs/utilities.ts) | FP helpers, formatting, caching |
- * | [Embed](./docs/embed.ts) | Widget embedding and CDN |
- * | [Webhooks](./docs/webhooks.ts) | Webhook delivery and API examples |
- * | [Demo](./docs/demo.ts) | Demo mode and seed data |
+ * | [Database](../docs/database.ts) | ORM, table abstractions, and entity CRUD |
+ * | [Crypto](../docs/crypto.ts) | Encryption, hashing, and CSRF |
+ * | [Payments](../docs/payments.ts) | Stripe and Square integration |
+ * | [Email](../docs/email.ts) | Email sending and templates |
+ * | [Tickets](../docs/tickets.ts) | QR codes, SVG tickets, Apple Wallet |
+ * | [Events](../docs/events.ts) | Event fields, sorting, availability |
+ * | [Config](../docs/config.ts) | Settings, environment, sessions |
+ * | [Utilities](../docs/utilities.ts) | FP helpers, formatting, caching |
+ * | [Embed](../docs/embed.ts) | Widget embedding and CDN |
+ * | [Webhooks](../docs/webhooks.ts) | Webhook delivery and API examples |
+ * | [Demo](../docs/demo.ts) | Demo mode and seed data |
  *
  * ## Deployment Options
  *
