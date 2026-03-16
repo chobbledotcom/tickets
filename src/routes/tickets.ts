@@ -1,12 +1,14 @@
 /**
- * Public ticket view routes - /t/:tokens
- * Displays ticket information for attendees using their ticket tokens
- * Includes an inline SVG QR code for each ticket encoding the /checkin/:token URL
+ * Public ticket view routes - /t/:tokens and /t/:token/svg
+ * Displays ticket information for attendees using their ticket tokens.
+ * The SVG endpoint serves individual QR codes for CDN caching.
  */
 
+import { compact } from "#fp";
 import { signAttachmentUrl } from "#lib/attachment-url.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import { decrypt } from "#lib/crypto.ts";
+import { getAttendeesByTokens } from "#lib/db/attendees.ts";
 import { hasAppleWalletConfig } from "#lib/db/settings.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import {
@@ -15,14 +17,14 @@ import {
   resolveEntries,
   type TokenEntry,
 } from "#routes/token-utils.ts";
-import { htmlResponse } from "#routes/utils.ts";
+import { htmlResponse, notFoundResponse } from "#routes/utils.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 
 /** Build the check-in URL for a single token */
-const buildCheckinUrl = (token: string): string =>
+export const buildCheckinUrl = (token: string): string =>
   `https://${getAllowedDomain()}/checkin/${token}`;
 
-/** Build a ticket card with QR code for a single token/entry pair */
+/** Build a ticket card for a single token/entry pair */
 const buildTicketCard = async (
   entry: TokenEntry,
   token: string,
@@ -33,7 +35,6 @@ const buildTicketCard = async (
     : undefined;
   return {
     entry,
-    qrSvg: await generateQrSvg(buildCheckinUrl(token)),
     token,
     attachmentUrl,
   };
@@ -60,5 +61,42 @@ const handleTicketView = async (
   return htmlResponse(ticketViewPage(cards, walletEnabled));
 };
 
-/** Route ticket view requests */
-export const routeTicketView = createTokenRoute("t", { GET: handleTicketView });
+/** One year in seconds — SVG tickets never change so cache aggressively */
+const ONE_YEAR = 365 * 24 * 60 * 60;
+
+/** Handle GET /t/:token/svg — serve QR code SVG for CDN caching */
+const handleTicketSvg = async (token: string): Promise<Response> => {
+  const attendees = await getAttendeesByTokens([token]);
+  const valid = compact(attendees);
+  if (valid.length === 0) return notFoundResponse();
+
+  const svg = await generateQrSvg(buildCheckinUrl(token));
+  return new Response(svg, {
+    headers: {
+      "content-type": "image/svg+xml",
+      "cache-control": `public, max-age=${ONE_YEAR}, immutable`,
+    },
+  });
+};
+
+/** Match /t/:token/svg path, returning the token if matched */
+const matchSvgPath = (path: string): string | null => {
+  const match = path.match(/^\/t\/([^/+]+)\/svg$/);
+  return match?.[1] ?? null;
+};
+
+/** Token-based route for the regular ticket view */
+const tokenRoute = createTokenRoute("t", { GET: handleTicketView });
+
+/** Route ticket view and SVG requests */
+export const routeTicketView = (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response | null> => {
+  if (method === "GET") {
+    const svgToken = matchSvgPath(path);
+    if (svgToken) return Promise.resolve(handleTicketSvg(svgToken));
+  }
+  return tokenRoute(request, path, method);
+};
