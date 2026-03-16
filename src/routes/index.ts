@@ -131,6 +131,14 @@ const loadWalletRoutes = once(async () => {
   return routeWallet;
 });
 
+/** Lazy-load Apple Wallet web service routes (v1 API for pass updates) */
+const loadWalletWebserviceRoutes = once(async () => {
+  const { routeWalletWebservice } = await import(
+    "#routes/wallet-webservice.ts"
+  );
+  return routeWalletWebservice;
+});
+
 /** Lazy-load public API routes */
 const loadApiRoutes = once(async () => {
   const { routeApi } = await import("#routes/api.ts");
@@ -195,6 +203,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   join: lazyRoute(loadJoinRoutes),
   feeds: lazyRoute(loadFeedRoutes),
   wallet: lazyRoute(loadWalletRoutes),
+  v1: lazyRoute(loadWalletWebserviceRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
   api: async (request, path, method, server) =>
     (await getShowPublicApiFromDb())

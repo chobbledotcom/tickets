@@ -129,12 +129,17 @@ export const isWebhookPath = (path: string): boolean =>
 /** Pattern for public API paths */
 const API_PATH_PATTERN = /^\/api\//;
 
+/** Pattern for Apple Wallet web service paths (PassKit protocol) */
+const WALLET_WEBSERVICE_PATTERN = /^\/v1\//;
+
 /**
  * Check if path is a JSON API endpoint.
  * Patterns are exported from their respective route modules.
  */
 export const isJsonApiPath = (path: string): boolean =>
-  SCAN_API_PATTERN.test(path) || API_PATH_PATTERN.test(path);
+  SCAN_API_PATTERN.test(path) ||
+  API_PATH_PATTERN.test(path) ||
+  WALLET_WEBSERVICE_PATTERN.test(path);
 
 /**
  * Validate Content-Type for POST requests
