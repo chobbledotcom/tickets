@@ -1236,6 +1236,8 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   minimum_days_before: 0,
   maximum_days_after: 0,
   image_url: "",
+  attachment_url: "",
+  attachment_name: "",
   non_transferable: false,
   can_pay_more: false,
   max_price: 0,
@@ -1270,6 +1272,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ticket_token: "test-token-1",
   ticket_token_index: "test-token-index-1",
   date: null,
+  attachment_downloads: 0,
   ...overrides,
 });
 

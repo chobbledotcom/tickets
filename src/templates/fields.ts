@@ -496,6 +496,13 @@ export const imageField: Field = {
   accept: "image/jpeg,image/png,image/gif,image/webp",
 };
 
+/** Attachment upload field for event forms (appended when storage is enabled) */
+export const attachmentField: Field = {
+  name: "attachment",
+  label: "Attachment (any file \u2014 max 25MB)",
+  type: "file",
+};
+
 /** Slug field for event/group edit pages */
 export const slugField: Field = {
   name: "slug",

@@ -15,7 +15,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add max_price column to events";
+export const LATEST_UPDATE = "add attachment columns to events and attendees";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -53,6 +53,19 @@ const backfillEncryptedColumn = async (
   whereClause: string,
 ): Promise<void> =>
   backfillColumn(table, column, whereClause, await encrypt(""));
+
+/** Add encrypted TEXT columns to a table with backfill */
+const addEncryptedTextColumns = async (
+  table: string,
+  columns: string[],
+): Promise<void> => {
+  for (const col of columns) {
+    await runMigration(
+      `ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`,
+    );
+    await backfillEncryptedColumn(table, col, `${col} = ''`);
+  }
+};
 
 /** Backfill a column with a hybrid-encrypted empty string */
 const backfillHybridEncryptedColumn = async (
@@ -128,6 +141,8 @@ export const initDb = async (): Promise<void> => {
       date TEXT NOT NULL DEFAULT '',
       location TEXT NOT NULL DEFAULT '',
       image_url TEXT NOT NULL DEFAULT '',
+      attachment_url TEXT NOT NULL DEFAULT '',
+      attachment_name TEXT NOT NULL DEFAULT '',
       non_transferable INTEGER NOT NULL DEFAULT 0,
       can_pay_more INTEGER NOT NULL DEFAULT 0,
       hidden INTEGER NOT NULL DEFAULT 0,
@@ -160,6 +175,7 @@ export const initDb = async (): Promise<void> => {
       special_instructions TEXT NOT NULL DEFAULT '',
       ticket_token_index TEXT,
       refunded TEXT NOT NULL DEFAULT '',
+      attachment_downloads INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
@@ -424,12 +440,7 @@ export const initDb = async (): Promise<void> => {
   );
 
   // Migration: add date and location columns to events (encrypted, empty string = not set)
-  for (const col of ["date", "location"]) {
-    await runMigration(
-      `ALTER TABLE events ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`,
-    );
-    await backfillEncryptedColumn("events", col, `${col} = ''`);
-  }
+  await addEncryptedTextColumns("events", ["date", "location"]);
 
   // Migration: add special_instructions column to attendees (hybrid encrypted like address)
   await runMigration(
@@ -613,6 +624,17 @@ export const initDb = async (): Promise<void> => {
   // Migration: add max_price column to events (integer in minor units, 0 = use default)
   await runMigration(
     "ALTER TABLE events ADD COLUMN max_price INTEGER NOT NULL DEFAULT 0",
+  );
+
+  // Migration: add attachment columns to events (encrypted, empty string = no attachment)
+  await addEncryptedTextColumns("events", [
+    "attachment_url",
+    "attachment_name",
+  ]);
+
+  // Migration: add attachment_downloads column to attendees (plaintext integer counter)
+  await runMigration(
+    "ALTER TABLE attendees ADD COLUMN attachment_downloads INTEGER NOT NULL DEFAULT 0",
   );
 
   // Update the version marker

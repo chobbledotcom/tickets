@@ -18,6 +18,7 @@ export type TicketCard = {
   entry: TokenEntry;
   qrSvg: string;
   token: string;
+  attachmentUrl?: string;
 };
 
 /** Pluralize ticket count */
@@ -30,7 +31,7 @@ const renderWalletLink = (token: string): string =>
 
 /** Render a single ticket card */
 const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
-  const { entry, qrSvg, token } = card;
+  const { entry, qrSvg, token, attachmentUrl } = card;
   const { event, attendee } = entry;
   const imageHtml = renderEventImage(event, "ticket-card-image");
   const eventDateHtml = event.date
@@ -61,6 +62,10 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
 
   const walletHtml = walletEnabled ? renderWalletLink(token) : "";
 
+  const attachmentHtml = attachmentUrl
+    ? `<a href="${escapeHtml(attachmentUrl)}" class="attachment-link">Download: ${escapeHtml(event.attachment_name)}</a>`
+    : "";
+
   return `
     <div class="ticket-card">
       ${imageHtml}
@@ -72,6 +77,7 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
       ${attendeeDateHtml}
       <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
       ${priceHtml}
+      ${attachmentHtml}
       <div class="ticket-card-qr">${qrSvg}</div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>
       ${walletHtml}
