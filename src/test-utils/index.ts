@@ -13,7 +13,10 @@ import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
-import { clearEncryptionKeyCache } from "#lib/crypto.ts";
+import {
+  clearEncryptionKeyCache,
+  setEncryptionKeyForTest,
+} from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import {
   resetCurrencyCode,
@@ -62,6 +65,7 @@ export const TEST_ENCRYPTION_KEY =
  * Also enables fast PBKDF2 hashing for tests
  */
 export const setupTestEncryptionKey = (): void => {
+  setEncryptionKeyForTest(TEST_ENCRYPTION_KEY);
   Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
   Deno.env.set("TEST_PBKDF2_ITERATIONS", "1"); // Enable fast password hashing for tests
   Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
@@ -74,6 +78,7 @@ export const setupTestEncryptionKey = (): void => {
  * Clear test encryption key from environment
  */
 export const clearTestEncryptionKey = (): void => {
+  setEncryptionKeyForTest(null);
   Deno.env.delete("DB_ENCRYPTION_KEY");
   Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");

@@ -273,6 +273,8 @@ describe("code quality", () => {
       "lib/db/client.ts:setDb",
       // Reset cached encryption key between tests
       "lib/crypto.ts:clearEncryptionKeyCache",
+      // Set encryption key directly to avoid env var races between parallel tests
+      "lib/crypto.ts:setEncryptionKeyForTest",
       // Reset cached Stripe client between tests
       "lib/stripe.ts:resetStripeClient",
       // Reset cached setup complete status between tests

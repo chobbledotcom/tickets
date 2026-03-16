@@ -124,11 +124,29 @@ const [getHmacKeyCache, setHmacKeyCache] = lazyRef<HmacKeyCache>(() => {
 });
 
 /**
+ * Module-level override for the encryption key string.
+ * Bypasses Deno.env to avoid races between parallel test workers.
+ * When set to a string, that value is used instead of reading Deno.env.
+ * Setting to null reverts to reading from the environment.
+ */
+const [getEncryptionKeyOverride, setEncryptionKeyOverride] = lazyRef<
+  string | null
+>(() => null);
+
+/**
+ * Explicitly set or clear the encryption key for testing.
+ * Bypasses Deno.env to avoid races between parallel test workers.
+ */
+export const setEncryptionKeyForTest = (key: string | null): void => {
+  setEncryptionKeyOverride(key);
+};
+
+/**
  * Get the encryption key bytes from environment variable (sync validation only)
  * Expects DB_ENCRYPTION_KEY to be a base64-encoded 256-bit (32 byte) key
  */
 const getEncryptionKeyString = (): string => {
-  const keyString = getEnv("DB_ENCRYPTION_KEY");
+  const keyString = getEncryptionKeyOverride() ?? getEnv("DB_ENCRYPTION_KEY");
 
   if (!keyString) {
     throw new Error(
