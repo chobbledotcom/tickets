@@ -24,6 +24,7 @@ export type ProcessedPayment = {
   payment_session_id: string;
   attendee_id: number | null;
   processed_at: string;
+  ticket_tokens: string;
 };
 
 /** Result of session reservation attempt */
@@ -38,7 +39,7 @@ export const isSessionProcessed = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at FROM processed_payments WHERE payment_session_id = ?",
+    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens FROM processed_payments WHERE payment_session_id = ?",
     [sessionId],
   );
 
@@ -128,10 +129,11 @@ export const reserveSession = async (
 export const finalizeSession = async (
   sessionId: string,
   attendeeId: number,
+  ticketTokens: string[] = [],
 ): Promise<void> => {
   await getDb().execute({
-    sql: "UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ?",
-    args: [attendeeId, sessionId],
+    sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
+    args: [attendeeId, ticketTokens.join("+"), sessionId],
   });
 };
 

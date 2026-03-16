@@ -28,7 +28,11 @@ import {
   getAttendeesByTokens,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
-import { finalizeSession, reserveSession } from "#lib/db/processed-payments.ts";
+import {
+  type ProcessedPayment,
+  finalizeSession,
+  reserveSession,
+} from "#lib/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   extractSessionMetadata,
@@ -366,15 +370,18 @@ const formatPostPaymentError = formatCreationError(
 /** Return success result for an already-processed session */
 const alreadyProcessedResult = async (
   eventId: number,
-  attendeeId: number,
+  existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
   const event = await getEventWithCount(eventId);
   if (!event) return { success: false, error: "Event not found", status: 404 };
+  const ticketTokens = existing.ticket_tokens
+    ? existing.ticket_tokens.split("+")
+    : [];
   return {
     success: true,
-    attendee: { id: attendeeId },
+    attendee: { id: existing.attendee_id! },
     event,
-    ticketTokens: [],
+    ticketTokens,
   };
 };
 
@@ -467,7 +474,7 @@ const processMultiPaymentSession = async (
     const { existing } = reservation;
 
     if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.items[0]!.e, existing.attendee_id);
+      return alreadyProcessedResult(intent.items[0]!.e, existing);
     }
 
     // Still being processed by another request
@@ -594,7 +601,11 @@ const processMultiPaymentSession = async (
   // is validated non-empty) and if any creation fails we return early above.
   const firstAttendee = createdAttendees[0]!;
 
-  await finalizeSession(sessionId, firstAttendee.attendee.id);
+  const ticketTokens: string[] = map(
+    ({ attendee }: { attendee: Attendee }) => attendee.ticket_token,
+  )(createdAttendees);
+
+  await finalizeSession(sessionId, firstAttendee.attendee.id, ticketTokens);
 
   // Log and send consolidated webhook for all created attendees
   await logAndNotifyMultiRegistration(
@@ -606,9 +617,7 @@ const processMultiPaymentSession = async (
     success: true,
     attendee: firstAttendee.attendee,
     event: firstAttendee.event,
-    ticketTokens: map(
-      ({ attendee }: { attendee: Attendee }) => attendee.ticket_token,
-    )(createdAttendees),
+    ticketTokens,
   };
 };
 
@@ -632,7 +641,7 @@ const processPaymentSession = async (
     const { existing } = reservation;
 
     if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.eventId, existing.attendee_id);
+      return alreadyProcessedResult(intent.eventId, existing);
     }
 
     // Session reserved but not finalized - another request is processing
@@ -682,8 +691,9 @@ const processPaymentSession = async (
     return refundAndFail(session, formatPostPaymentError(result.reason));
   }
 
-  // Phase 3: Finalize the session with the attendee ID
-  await finalizeSession(sessionId, result.attendee.id);
+  // Phase 3: Finalize the session with the attendee ID and token
+  const ticketTokens = [result.attendee.ticket_token];
+  await finalizeSession(sessionId, result.attendee.id, ticketTokens);
 
   await logAndNotifyRegistration(
     event,
@@ -694,7 +704,7 @@ const processPaymentSession = async (
     success: true,
     attendee: result.attendee,
     event,
-    ticketTokens: [result.attendee.ticket_token],
+    ticketTokens,
   };
 };
 

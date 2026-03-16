@@ -1182,17 +1182,20 @@ describe("server (payment flow)", () => {
         );
         expect(response1.status).toBe(302);
 
-        // Second request (replay) should render directly (no tokens available)
+        // Second request (replay) should redirect with stored tokens
         const response2 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_dupe_session"),
         );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
+        expect(response2.status).toBe(302);
+
+        // Follow the redirect to verify the ticket link renders
+        const response3 = await followRedirect(response2, handleRequest);
+        const html = await response3.text();
         expect(html).toContain("Payment Successful");
         // Already-processed single-ticket should include thank_you_url
         expect(html).toContain("https://example.com/replay-thanks");
-        // But no ticket link (no tokens available for already-processed)
-        expect(html).not.toContain("view your ticket");
+        // Ticket link should be present (tokens stored during finalize)
+        expect(html).toContain("view your ticket");
 
         // Should still only have one attendee
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1244,13 +1247,17 @@ describe("server (payment flow)", () => {
         );
         expect(response1.status).toBe(302);
 
-        // Second request (replay) should render directly (no tokens)
+        // Second request (replay) should redirect with stored tokens
         const response2 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_dupe"),
         );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
+        expect(response2.status).toBe(302);
+
+        // Follow the redirect to verify the ticket link renders
+        const response3 = await followRedirect(response2, handleRequest);
+        const html = await response3.text();
         expect(html).toContain("Payment Successful");
+        expect(html).toContain("view your tickets");
         // Multi-ticket already-processed has no thank_you_url redirect
         expect(html).not.toContain("redirected");
       } finally {
