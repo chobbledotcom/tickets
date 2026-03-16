@@ -224,8 +224,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I add a file attachment to an event?">
           <p>
-            When creating or editing an event, use the attachment upload field to
-            attach a file. This can be any type of file &mdash; PDFs, Word
+            When creating or editing an event, use the attachment upload field
+            to attach a file. This can be any type of file &mdash; PDFs, Word
             documents, spreadsheets, images, audio, video, zip archives, you
             name it. The maximum file size is 25&nbsp;MB.
           </p>
