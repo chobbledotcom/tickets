@@ -181,7 +181,7 @@ const getSettingsPageState = async () => {
     squareSandbox,
     squareWebhookConfigured: squareWebhookKey !== null,
     webhookUrl: getWebhookUrl(),
-    bookingFee: bookingFeeRaw ?? "0",
+    bookingFee: bookingFeeRaw!,
     embedHosts: embedHosts ?? "",
     termsAndConditions: termsAndConditions ?? "",
     businessEmail,

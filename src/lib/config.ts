@@ -107,10 +107,8 @@ export const getSquareSandbox = (): Promise<boolean> =>
  * Get booking fee percentage from database.
  * Returns 0 if not set.
  */
-export const getBookingFee = async (): Promise<number> => {
-  const raw = await getBookingFeeFromDb();
-  return Number.parseFloat(raw) || 0;
-};
+export const getBookingFee = async (): Promise<number> =>
+  Number.parseFloat((await getBookingFeeFromDb())!) || 0;
 
 /**
  * Get currency code from database

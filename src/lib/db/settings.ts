@@ -263,9 +263,12 @@ const encryptedSetting = (key: string) => ({
   update: (value: string): Promise<void> => updateEncryptedSetting(key, value),
 });
 
-/** Optional plaintext setting: get returns null if unset, update clears on empty. */
-const optionalTextSetting = (key: string) => ({
-  get: (): Promise<string | null> => getSetting(key),
+/** Optional plaintext setting: get returns defaultValue/null if unset, update clears on empty. */
+const optionalTextSetting = (key: string, defaultValue?: string) => ({
+  get: async (): Promise<string | null> => {
+    const value = await getSetting(key);
+    return value ?? defaultValue ?? null;
+  },
   update: (value: string): Promise<void> => setOrDeleteSetting(key, value),
 });
 
@@ -532,7 +535,7 @@ export const { get: getSquareSandboxFromDb, update: updateSquareSandbox } =
   booleanSetting(CONFIG_KEYS.SQUARE_SANDBOX);
 
 export const { get: getBookingFeeFromDb, update: updateBookingFee } =
-  optionalTextSetting(CONFIG_KEYS.BOOKING_FEE);
+  optionalTextSetting(CONFIG_KEYS.BOOKING_FEE, "0");
 
 /**
  * Get allowed embed hosts from database (decrypted)
