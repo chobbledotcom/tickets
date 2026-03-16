@@ -2,7 +2,7 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
-import type { AdminSession } from "#lib/types.ts";
+import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -44,7 +44,7 @@ export type DebugPageState = {
     hostConfigured: boolean;
   };
   domain: string;
-  theme: string;
+  theme: Theme;
 };
 
 const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>

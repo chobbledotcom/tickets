@@ -22,7 +22,7 @@ import { createUser, invalidateUsersCache } from "#lib/db/users.ts";
 import { getEnv } from "#lib/env.ts";
 import { nowMs } from "#lib/now.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
-import type { Settings } from "#lib/types.ts";
+import type { PaymentProviderType, Settings, Theme } from "#lib/types.ts";
 
 /**
  * Setting keys for configuration
@@ -385,7 +385,9 @@ export const getPaymentProviderFromDb = (): Promise<string | null> =>
 /**
  * Set the active payment provider type
  */
-export const setPaymentProvider = async (provider: string): Promise<void> => {
+export const setPaymentProvider = async (
+  provider: PaymentProviderType,
+): Promise<void> => {
   await setSetting(CONFIG_KEYS.PAYMENT_PROVIDER, provider);
 };
 
@@ -630,7 +632,7 @@ export const updateTimezone = async (tz: string): Promise<void> => {
  * Get the configured theme from database.
  * Returns "light" or "dark", defaulting to "light".
  */
-export const getThemeFromDb = async (): Promise<string> => {
+export const getThemeFromDb = async (): Promise<Theme> => {
   const value = await getSetting(CONFIG_KEYS.THEME);
   return value === "dark" ? "dark" : "light";
 };
@@ -638,9 +640,8 @@ export const getThemeFromDb = async (): Promise<string> => {
 /**
  * Update the configured theme.
  */
-export const updateTheme = async (theme: string): Promise<void> => {
-  const validTheme = theme === "dark" ? "dark" : "light";
-  await setSetting(CONFIG_KEYS.THEME, validTheme);
+export const updateTheme = async (theme: Theme): Promise<void> => {
+  await setSetting(CONFIG_KEYS.THEME, theme);
 };
 
 export const { get: getShowPublicSiteFromDb, update: updateShowPublicSite } =
