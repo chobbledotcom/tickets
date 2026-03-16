@@ -313,10 +313,7 @@ const BINARY_HEADER_SIZE = BINARY_MAGIC.length + 1 + 12; // magic + version + IV
  */
 export const encryptBytes = async (data: Uint8Array): Promise<Uint8Array> => {
   const key = await importEncryptionKey();
-  const { iv, ciphertext } = await aesGcmEncryptRaw(
-    data as BufferSource,
-    key,
-  );
+  const { iv, ciphertext } = await aesGcmEncryptRaw(data as BufferSource, key);
   const result = new Uint8Array(BINARY_HEADER_SIZE + ciphertext.length);
   result.set(BINARY_MAGIC, 0);
   result[BINARY_MAGIC.length] = BINARY_VERSION;
