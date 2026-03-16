@@ -37,7 +37,7 @@ const handleRegister = () => new Response(null, { status: 201 });
 const handleUnregister = () => new Response(null, { status: 200 });
 
 /** Return all tokens for this pass type — always says "updated" */
-const handleGetTokens = async (
+const handleGetTokens = (
   request: Request,
   params: { _device: string; passType: string },
 ) =>
@@ -57,7 +57,7 @@ const handleGetTokens = async (
   })(params.passType);
 
 /** Serve a fresh .pkpass for the given token */
-const handleGetPass = async (
+const handleGetPass = (
   _request: Request,
   params: { passType: string; token: string },
 ) =>
