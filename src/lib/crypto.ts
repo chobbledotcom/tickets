@@ -335,26 +335,23 @@ const isBinaryFormat = (data: Uint8Array): boolean =>
 
 /**
  * Decrypt binary data encrypted with encryptBytes().
- * Supports both the new binary format (ENCB header) and
- * the legacy text format (enc:1: prefix) for backward compatibility.
+ * Expects ENCB binary format: magic + version + IV + ciphertext.
  */
 export const decryptBytes = async (
   encrypted: Uint8Array,
 ): Promise<Uint8Array> => {
-  if (isBinaryFormat(encrypted)) {
-    const version = encrypted[BINARY_MAGIC.length];
-    if (version !== BINARY_VERSION) {
-      throw new Error(`Unsupported binary encryption version: ${version}`);
-    }
-    const iv = encrypted.slice(BINARY_MAGIC.length + 1, BINARY_HEADER_SIZE);
-    const ciphertext = encrypted.slice(BINARY_HEADER_SIZE);
-    const key = await importEncryptionKey();
-    const plaintext = await aesGcmDecryptRaw(iv, ciphertext, key);
-    return new Uint8Array(plaintext);
+  if (!isBinaryFormat(encrypted)) {
+    throw new Error("Invalid binary encryption format");
   }
-  // Legacy text format: enc:1:base64iv:base64(AES-GCM(base64(rawbytes)))
-  const decrypted = await decrypt(new TextDecoder().decode(encrypted));
-  return fromBase64(decrypted);
+  const version = encrypted[BINARY_MAGIC.length];
+  if (version !== BINARY_VERSION) {
+    throw new Error(`Unsupported binary encryption version: ${version}`);
+  }
+  const iv = encrypted.slice(BINARY_MAGIC.length + 1, BINARY_HEADER_SIZE);
+  const ciphertext = encrypted.slice(BINARY_HEADER_SIZE);
+  const key = await importEncryptionKey();
+  const plaintext = await aesGcmDecryptRaw(iv, ciphertext, key);
+  return new Uint8Array(plaintext);
 };
 
 /**
