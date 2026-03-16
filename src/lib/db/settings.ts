@@ -265,10 +265,10 @@ const encryptedSetting = (key: string) => ({
 
 /** Plaintext setting: get returns defaultValue/null if unset, update clears on empty. */
 const textSetting = (key: string, defaultValue?: string) => ({
-  get: async (): Promise<string | null> => {
-    const value = await getSetting(key);
-    return value ?? defaultValue ?? null;
-  },
+  get: async (): Promise<string | null> =>
+    defaultValue !== undefined
+      ? (await getSetting(key)) ?? defaultValue
+      : getSetting(key),
   update: (value: string): Promise<void> => setOrDeleteSetting(key, value),
 });
 
