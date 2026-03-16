@@ -220,6 +220,17 @@ describe("wallet route (/wallet/:token)", () => {
     expect(passJson.eventTicket.primaryFields[0].value).toBe(event.name);
   });
 
+  test("pass.json includes webServiceURL and authenticationToken for auto-updates", async () => {
+    await configureAppleWallet();
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
+    const passJson = await parsePkpassJson(token);
+    expect(passJson.webServiceURL).toBe("https://localhost");
+    expect(passJson.authenticationToken).toBe(token);
+  });
+
   test("returns null for non-GET methods", async () => {
     const { routeWallet } = await import("#routes/wallet.ts");
     const request = new Request("http://localhost/wallet/some-token", {

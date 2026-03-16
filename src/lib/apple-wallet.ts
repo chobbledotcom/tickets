@@ -41,6 +41,8 @@ export type PassData = {
   currencyCode: string;
   /** Full URL encoded in the QR barcode */
   checkinUrl: string;
+  /** Base URL for Apple Wallet web service (e.g. https://example.com) */
+  webServiceURL: string;
   /** Optional pass colors (CSS rgb() format) */
   foregroundColor?: string;
   backgroundColor?: string;
@@ -78,6 +80,8 @@ export const generatePassJson = (
         messageEncoding: "iso-8859-1",
       },
     ],
+    webServiceURL: data.webServiceURL,
+    authenticationToken: data.serialNumber,
     eventTicket: buildEventTicketFields(data),
   };
 
