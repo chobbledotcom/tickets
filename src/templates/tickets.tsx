@@ -13,10 +13,9 @@ import { renderEventImage } from "#templates/public.tsx";
 /** Re-export for backwards compatibility */
 export type { TokenEntry as TicketEntry };
 
-/** Ticket card with individual QR code */
+/** Ticket card data for rendering */
 export type TicketCard = {
   entry: TokenEntry;
-  qrSvg: string;
   token: string;
   attachmentUrl?: string;
 };
@@ -31,7 +30,7 @@ const renderWalletLink = (token: string): string =>
 
 /** Render a single ticket card */
 const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
-  const { entry, qrSvg, token, attachmentUrl } = card;
+  const { entry, token, attachmentUrl } = card;
   const { event, attendee } = entry;
   const imageHtml = renderEventImage(event, "ticket-card-image");
   const eventDateHtml = event.date
@@ -78,7 +77,7 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
       <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
       ${priceHtml}
       ${attachmentHtml}
-      <div class="ticket-card-qr">${qrSvg}</div>
+      <div class="ticket-card-qr"><img src="/t/${escapeHtml(token)}/svg" alt="QR code" /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>
       ${walletHtml}
     </div>

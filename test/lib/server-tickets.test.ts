@@ -131,13 +131,32 @@ describe("ticket view (/t/:tokens)", () => {
     expect(attendees[0]!.ticket_token).not.toBe(attendees[1]!.ticket_token);
   });
 
-  test("includes inline SVG QR code in ticket view", async () => {
+  test("references SVG endpoint for QR code instead of inline SVG", async () => {
     const { token } = await createTestAttendeeWithToken("Eve", "eve@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
+    expect(body).toContain(`/t/${token}/svg`);
+    expect(body).toContain("<img");
+  });
+
+  test("serves QR code SVG at /t/:token/svg with cache headers", async () => {
+    const { token } = await createTestAttendeeWithToken("Eve", "eve@test.com");
+
+    const response = await awaitTestRequest(`/t/${token}/svg`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/svg+xml");
+    expect(response.headers.get("cache-control")).toContain("immutable");
+    expect(response.headers.get("cache-control")).toContain("public");
+
+    const body = await response.text();
     expect(body).toContain("<svg");
     expect(body).toContain("</svg>");
+  });
+
+  test("returns 404 for /t/:token/svg with invalid token", async () => {
+    const response = await awaitTestRequest("/t/nonexistent-token/svg");
+    expect(response.status).toBe(404);
   });
 
   test("displays booked date for daily event tickets", async () => {

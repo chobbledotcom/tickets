@@ -3399,7 +3399,6 @@ describe("html", () => {
   });
 
   describe("ticketViewPage event date and location", () => {
-    const qrSvg = "<svg>test</svg>";
     const token = "AABB0011CCDDEEFF";
 
     test("shows event date when entry has non-empty event date", () => {
@@ -3409,7 +3408,6 @@ describe("html", () => {
             event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z" }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3424,7 +3422,6 @@ describe("html", () => {
             event: testEventWithCount({ date: "" }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3439,7 +3436,6 @@ describe("html", () => {
             event: testEventWithCount({ location: "Village Hall" }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3454,7 +3450,6 @@ describe("html", () => {
             event: testEventWithCount({ location: "" }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3472,7 +3467,6 @@ describe("html", () => {
             }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3481,7 +3475,7 @@ describe("html", () => {
       expect(html).toContain("Town Centre");
     });
 
-    test("shows each ticket as separate card with individual QR code", () => {
+    test("shows each ticket as separate card with SVG endpoint reference", () => {
       const cards = [
         {
           entry: {
@@ -3491,7 +3485,6 @@ describe("html", () => {
             }),
             attendee: testAttendee({ id: 1 }),
           },
-          qrSvg: "<svg>qr1</svg>",
           token: "AABB0011CCDDEEF1",
         },
         {
@@ -3499,13 +3492,12 @@ describe("html", () => {
             event: testEventWithCount({ id: 2, date: "" }),
             attendee: testAttendee({ id: 2 }),
           },
-          qrSvg: "<svg>qr2</svg>",
           token: "AABB0011CCDDEEF2",
         },
       ];
       const html = ticketViewPage(cards);
-      expect(html).toContain("<svg>qr1</svg>");
-      expect(html).toContain("<svg>qr2</svg>");
+      expect(html).toContain("/t/AABB0011CCDDEEF1/svg");
+      expect(html).toContain("/t/AABB0011CCDDEEF2/svg");
       expect(html).toContain("2 Tickets");
     });
   });
@@ -3621,7 +3613,6 @@ describe("html", () => {
     });
 
     describe("ticketViewPage ticket count", () => {
-      const qrSvg = '<svg class="qr"><rect/></svg>';
       const token = "AABB0011CCDDEEFF";
 
       test("shows '1 Ticket' for single ticket", () => {
@@ -3632,7 +3623,6 @@ describe("html", () => {
               event: testEventWithCount({ id: 1 }),
               attendee: testAttendee({ id: 1 }),
             },
-            qrSvg,
             token,
           },
         ];
@@ -3649,7 +3639,6 @@ describe("html", () => {
               event: testEventWithCount({ id: 1 }),
               attendee: testAttendee({ id: 1 }),
             },
-            qrSvg,
             token: "AABB0011CCDDEEF1",
           },
           {
@@ -3657,7 +3646,6 @@ describe("html", () => {
               event: testEventWithCount({ id: 2 }),
               attendee: testAttendee({ id: 2 }),
             },
-            qrSvg,
             token: "AABB0011CCDDEEF2",
           },
         ];
@@ -3668,7 +3656,6 @@ describe("html", () => {
     });
 
     describe("ticketViewPage with image", () => {
-      const qrSvg = '<svg class="qr"><rect/></svg>';
       const token = "AABB0011CCDDEEFF";
 
       test("shows image when event has image_url", () => {
@@ -3679,7 +3666,6 @@ describe("html", () => {
               event: testEventWithCount({ image_url: "ticket-img.jpg" }),
               attendee: testAttendee(),
             },
-            qrSvg,
             token,
           },
         ];
@@ -3697,7 +3683,6 @@ describe("html", () => {
               event: testEventWithCount({ image_url: "" }),
               attendee: testAttendee(),
             },
-            qrSvg,
             token,
           },
         ];
