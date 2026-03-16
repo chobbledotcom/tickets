@@ -345,9 +345,7 @@ describe("storage", () => {
     });
 
     test("skips events with no image or attachment", async () => {
-      const events = [
-        { id: 1, image_url: "", attachment_url: "" },
-      ];
+      const events = [{ id: 1, image_url: "", attachment_url: "" }];
 
       await withFetchMock(async (originalFetch) => {
         const deletedUrls: string[] = [];
