@@ -30,7 +30,6 @@ import {
 import {
   clearTestEncryptionKey,
   setupTestEncryptionKey,
-  TEST_ENCRYPTION_KEY,
 } from "#test-utils";
 
 describe("constantTimeEqual", () => {
