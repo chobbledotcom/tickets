@@ -436,9 +436,7 @@ export const multiTicketPage = (
   const fields: Field[] = getTicketFields(fieldsSetting);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
 
-  const availableEvents = events.filter(
-    (e) => !e.isSoldOut && !e.isClosed,
-  );
+  const availableEvents = events.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =
     availableEvents.length === 1 && availableEvents[0].maxPurchasable === 1;
 
