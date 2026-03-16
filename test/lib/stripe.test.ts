@@ -372,9 +372,13 @@ describe("stripe", () => {
           "http://localhost:3000",
         );
 
-        const params = createSpy.calls[0]!.args[0]!;
-        const lineItems =
-          params.line_items as { price_data: { product_data: { name: string }; unit_amount: number }; quantity: number }[];
+        const params = createSpy.calls[0]!.args[0] as unknown as {
+          line_items: {
+            price_data: { product_data: { name: string }; unit_amount: number };
+            quantity: number;
+          }[];
+        };
+        const lineItems = params.line_items;
         const feeItem = lineItems.find(
           (li) => li.price_data.product_data.name === "Booking fee",
         );
