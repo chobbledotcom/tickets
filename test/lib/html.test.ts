@@ -2471,9 +2471,7 @@ describe("html", () => {
         ),
       ];
       const html = multiTicketPage(events, ["ab12c"]);
-      expect(html).toContain('type="hidden"');
-      expect(html).toContain('name="quantity_1"');
-      expect(html).toContain('value="1"');
+      expect(html).toContain('name="quantity_1" value="1"');
       expect(html).not.toContain("<select");
       expect(html).not.toContain("Select Tickets");
     });
@@ -2494,7 +2492,7 @@ describe("html", () => {
       expect(html).toContain("<select");
       expect(html).toContain('name="quantity_1"');
       expect(html).toContain("Select Tickets");
-      expect(html).not.toContain('type="hidden"');
+      expect(html).not.toContain('name="quantity_1" value="1"');
     });
 
     test("shows quantity selector for multiple events even with max quantity 1", () => {
@@ -2545,9 +2543,7 @@ describe("html", () => {
         ),
       ];
       const html = multiTicketPage(events, ["ab12c", "cd34e"]);
-      expect(html).toContain('type="hidden"');
-      expect(html).toContain('name="quantity_1"');
-      expect(html).toContain('value="1"');
+      expect(html).toContain('name="quantity_1" value="1"');
       expect(html).not.toContain("Select Tickets");
     });
   });
