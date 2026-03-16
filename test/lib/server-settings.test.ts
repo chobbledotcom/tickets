@@ -1858,6 +1858,24 @@ describe("server (admin settings)", () => {
       expect(html).not.toContain('id="settings-booking-fee"');
     });
 
+    test("rejects missing booking_fee field", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/booking-fee",
+          {
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Booking fee must be a number between 0 and 10",
+      );
+    });
+
     test("logs activity when booking fee is changed", async () => {
       await handleRequest(
         mockFormRequest(

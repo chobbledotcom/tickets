@@ -338,6 +338,54 @@ describe("stripe", () => {
       );
       expect(result).toBeNull();
     });
+
+    test("includes booking fee line item when fee is set", async () => {
+      const { updateBookingFee } = await import("#lib/db/settings.ts");
+      await updateBookingFee("5");
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const createSpy = stub(client.checkout.sessions, "create", () =>
+        Promise.resolve({
+          id: "cs_fee",
+          url: "https://checkout.stripe.com/fee",
+          object: "checkout.session",
+        } as never),
+      );
+
+      try {
+        const event = testEvent({ unit_price: 1000 });
+        const intent = {
+          eventId: 1,
+          name: "Jane",
+          email: "jane@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          quantity: 1,
+        };
+
+        await createCheckoutSessionWithIntent(
+          event,
+          intent,
+          "http://localhost:3000",
+        );
+
+        const params = createSpy.calls[0]!.args[0]!;
+        const lineItems =
+          params.line_items as { price_data: { product_data: { name: string }; unit_amount: number }; quantity: number }[];
+        const feeItem = lineItems.find(
+          (li) => li.price_data.product_data.name === "Booking fee",
+        );
+        expect(feeItem).toBeDefined();
+        // 5% of 1000 = 50
+        expect(feeItem!.price_data.unit_amount).toBe(50);
+        expect(feeItem!.quantity).toBe(1);
+      } finally {
+        createSpy.restore();
+      }
+    });
   });
 
   describe("refundPayment", () => {
