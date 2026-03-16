@@ -120,7 +120,7 @@ const extractCommonFields = (values: EventFormValues) => {
     unitPrice,
     maxQuantity: values.max_quantity,
     webhookUrl,
-    fields: values.fields || "email",
+    fields: values.fields || "",
     closesAt,
     eventType: values.event_type || undefined,
     bookableDays: parseBookableDays(values.bookable_days),

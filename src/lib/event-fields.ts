@@ -24,7 +24,7 @@ export const parseEventFields = (fields: EventFields): ContactField[] =>
  * Returns the union of all field settings, sorted by canonical CONTACT_FIELDS order.
  */
 export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
-  if (fieldSettings.length === 0) return "email";
+  if (fieldSettings.length === 0) return "";
   const allFields = new Set<string>();
   for (const setting of fieldSettings) {
     for (const f of parseEventFields(setting)) {
