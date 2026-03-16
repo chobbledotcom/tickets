@@ -5,8 +5,10 @@
 
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
+import { getAllEvents } from "#lib/db/events.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import { isDemoMode } from "#lib/demo.ts";
+import { deleteAllEventStorageFiles, isStorageEnabled } from "#lib/storage.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
@@ -55,6 +57,9 @@ const handleDemoResetPost = (request: Request): Response | Promise<Response> =>
       const phraseError = validateResetPhrase(form);
       if (phraseError) return resetPageError(phraseError, 400);
 
+      if (isStorageEnabled()) {
+        await deleteAllEventStorageFiles(await getAllEvents());
+      }
       await resetDatabase();
       return redirect("/setup/", "Database reset", true, {
         cookie: clearSessionCookie(),

@@ -646,6 +646,12 @@ const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {
   const attendeeCount = event.attendee_count;
+  if (event.image_url) {
+    await tryDeleteImage(event.image_url, event.id, "event deletion");
+  }
+  if (event.attachment_url) {
+    await tryDeleteImage(event.attachment_url, event.id, "event deletion");
+  }
   await deleteEvent(event.id);
   await logActivity(
     `Event '${event.name}' deleted (${attendeeCount} attendee(s) removed)`,

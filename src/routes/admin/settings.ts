@@ -21,6 +21,7 @@ import {
 } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { getAllEvents } from "#lib/db/events.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   clearPaymentProvider,
@@ -105,6 +106,7 @@ import {
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
+  deleteAllEventStorageFiles,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
   tryDeleteImage,
@@ -1332,6 +1334,9 @@ const handleResetDatabasePost = advancedSettingsRoute(
       return errorPage(phraseError, 400, "settings-reset-database");
 
     await logActivity("Database reset initiated");
+    if (isStorageEnabled()) {
+      await deleteAllEventStorageFiles(await getAllEvents());
+    }
     await resetDatabase();
 
     // Redirect to setup page since the database is now empty

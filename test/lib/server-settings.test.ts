@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
+import { eventsTable } from "#lib/db/events.ts";
 import {
   getEmbedHostsFromDb,
   setPaymentProvider,
@@ -14,9 +15,12 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
+  createTestEvent,
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
+  installUrlHandler,
+  invalidateTestDbCache,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -25,6 +29,7 @@ import {
   TEST_ADMIN_PASSWORD,
   testCookie,
   testCsrfToken,
+  withFetchMock,
   withMocks,
 } from "#test-utils";
 
@@ -1377,6 +1382,55 @@ describe("server (admin settings)", () => {
       // Instead, verify the reset succeeded (redirects to /setup/)
       // The logActivity call happens before resetDatabase() so it was logged
       // but the table is then dropped. This test verifies no error is thrown.
+    });
+
+    test("deletes storage files for all events during admin reset", async () => {
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await eventsTable.update(event.id, {
+        imageUrl: "admin-reset-image.jpg",
+        attachmentUrl: "admin-reset-attachment.pdf",
+        attachmentName: "doc.pdf",
+      });
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        const response = await handleRequest(
+          mockFormRequest(
+            "/admin/settings/reset-database",
+            {
+              confirm_phrase:
+                "The site will be fully reset and all data will be lost.",
+              csrf_token: await testCsrfToken(),
+            },
+            await testCookie(),
+          ),
+        );
+
+        expectRedirect("/setup/?success=Database+reset")(response);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
+        ).toBe(true);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),
+        ).toBe(true);
+      });
+
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
+      invalidateTestDbCache();
     });
   });
 

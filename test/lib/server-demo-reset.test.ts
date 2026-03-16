@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { eventsTable } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
 import {
@@ -9,9 +10,11 @@ import {
 import {
   awaitTestRequest,
   createTestDbWithSetup,
+  createTestEvent,
   expectHtmlResponse,
   expectRedirect,
   extractCsrfToken,
+  installUrlHandler,
   invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
@@ -19,6 +22,7 @@ import {
   resetTestSlugCounter,
   testCookie,
   testCsrfToken,
+  withFetchMock,
 } from "#test-utils";
 
 describe("server (demo reset)", () => {
@@ -141,6 +145,48 @@ describe("server (demo reset)", () => {
 
       expectRedirect("/setup/?success=Database+reset")(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+      invalidateTestDbCache();
+    });
+
+    test("deletes storage files for all events during reset", async () => {
+      setDemoModeForTest(true);
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await eventsTable.update(event.id, {
+        imageUrl: "reset-image.jpg",
+        attachmentUrl: "reset-attachment.pdf",
+        attachmentName: "doc.pdf",
+      });
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        const response = await submitDemoResetForm({
+          confirm_phrase: RESET_DATABASE_PHRASE,
+        });
+
+        expectRedirect("/setup/?success=Database+reset")(response);
+        expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
+          true,
+        );
+        expect(
+          deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
+        ).toBe(true);
+      });
+
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
       invalidateTestDbCache();
     });
   });

@@ -117,6 +117,20 @@ export const tryDeleteImage = async (
   }
 };
 
+/** Delete all storage files (images and attachments) for a list of events */
+export const deleteAllEventStorageFiles = async (
+  events: ReadonlyArray<{ id: number; image_url: string; attachment_url: string }>,
+): Promise<void> => {
+  for (const event of events) {
+    if (event.image_url) {
+      await tryDeleteImage(event.image_url, event.id, "database reset");
+    }
+    if (event.attachment_url) {
+      await tryDeleteImage(event.attachment_url, event.id, "database reset");
+    }
+  }
+};
+
 /** Generate a random filename with the correct extension */
 export const generateImageFilename = (detectedType: string): string => {
   const ext = MIME_TO_EXT[detectedType];
