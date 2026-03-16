@@ -438,8 +438,7 @@ export const multiTicketPage = (
 
   const availableEvents = events.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =
-    availableEvents.length === 1 &&
-    availableEvents[0]?.maxPurchasable === 1;
+    availableEvents.length === 1 && availableEvents[0]?.maxPurchasable === 1;
 
   const eventRows = events
     .map((e) => renderMultiEventRow(e, hideQuantity))
