@@ -85,6 +85,8 @@ export const CONFIG_KEYS = {
   CUSTOM_DOMAIN: "custom_domain",
   // Custom domain last validated timestamp (plaintext - ISO 8601 UTC)
   CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
+  // Booking fee percentage (plaintext - "0" to "10", e.g. "1.5" for 1.5%)
+  BOOKING_FEE: "booking_fee",
   // Apple Wallet configuration
   APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
   APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
@@ -261,9 +263,12 @@ const encryptedSetting = (key: string) => ({
   update: (value: string): Promise<void> => updateEncryptedSetting(key, value),
 });
 
-/** Optional plaintext setting: get returns null if unset, update clears on empty. */
-const optionalTextSetting = (key: string) => ({
-  get: (): Promise<string | null> => getSetting(key),
+/** Plaintext setting: get returns defaultValue/null if unset, update clears on empty. */
+const textSetting = (key: string, defaultValue?: string) => ({
+  get: async (): Promise<string | null> =>
+    defaultValue !== undefined
+      ? ((await getSetting(key)) ?? defaultValue)
+      : getSetting(key),
   update: (value: string): Promise<void> => setOrDeleteSetting(key, value),
 });
 
@@ -531,6 +536,9 @@ export const updateSquareLocationId = async (
 export const { get: getSquareSandboxFromDb, update: updateSquareSandbox } =
   booleanSetting(CONFIG_KEYS.SQUARE_SANDBOX);
 
+export const { get: getBookingFeeFromDb, update: updateBookingFee } =
+  textSetting(CONFIG_KEYS.BOOKING_FEE, "0");
+
 /**
  * Get allowed embed hosts from database (decrypted)
  * Returns null if not configured (embedding allowed from anywhere)
@@ -723,7 +731,7 @@ export const { get: getHeaderImageUrlFromDb, update: updateHeaderImageUrl } =
   encryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL);
 
 export const { get: getEmailProviderFromDb, update: updateEmailProvider } =
-  optionalTextSetting(CONFIG_KEYS.EMAIL_PROVIDER);
+  textSetting(CONFIG_KEYS.EMAIL_PROVIDER);
 
 /** Check if an email API key has been configured in the database */
 export const hasEmailApiKey = async (): Promise<boolean> => {
@@ -796,7 +804,7 @@ export const getEmailTemplateSet = async (
 };
 
 export const { get: getCustomDomainFromDb, update: updateCustomDomain } =
-  optionalTextSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
+  textSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
 
 /** Get the custom domain last validated timestamp. Returns null if never validated. */
 export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
@@ -856,12 +864,12 @@ export const hasAppleWalletConfig = async (): Promise<boolean> =>
 export const {
   get: getAppleWalletPassTypeIdFromDb,
   update: updateAppleWalletPassTypeId,
-} = optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
+} = textSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
 
 export const {
   get: getAppleWalletTeamIdFromDb,
   update: updateAppleWalletTeamId,
-} = optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
+} = textSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
 
 export const {
   get: getAppleWalletSigningCertFromDb,
@@ -933,6 +941,8 @@ export const settingsApi = {
   updateSquareLocationId,
   getSquareSandboxFromDb,
   updateSquareSandbox,
+  getBookingFeeFromDb,
+  updateBookingFee,
   getEmbedHostsFromDb,
   updateEmbedHosts,
   getTermsAndConditionsFromDb,

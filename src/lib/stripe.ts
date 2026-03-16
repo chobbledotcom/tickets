@@ -5,6 +5,7 @@
 
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
+import { getBookingFeeAmount, itemsSubtotal } from "#lib/booking-fee.ts";
 import {
   getCurrencyCode,
   getStripeSecretKey,
@@ -136,27 +137,53 @@ type SessionConfig = {
   unitPriceOverride?: number;
 };
 
+/** Build a Stripe fee line item array (empty when fee is zero). */
+const stripeFeeItems = async (
+  subtotal: number,
+  currency: string,
+): Promise<Stripe.Checkout.SessionCreateParams.LineItem[]> => {
+  const amount = await getBookingFeeAmount(subtotal);
+  if (amount <= 0) return [];
+  return [
+    {
+      price_data: {
+        currency,
+        product_data: { name: "Booking fee" },
+        unit_amount: amount,
+      },
+      quantity: 1,
+    },
+  ];
+};
+
 const buildSessionParams = async (
   cfg: SessionConfig,
 ): Promise<Stripe.Checkout.SessionCreateParams> => {
   const unitAmount = cfg.unitPriceOverride ?? cfg.event.unit_price;
   const currency = (await getCurrencyCode()).toLowerCase();
   const label = cfg.quantity > 1 ? `${cfg.quantity} Tickets` : "Ticket";
+
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+    {
+      price_data: {
+        currency,
+        product_data: {
+          name: `Ticket: ${cfg.event.name}`,
+          description: label,
+        },
+        unit_amount: unitAmount,
+      },
+      quantity: cfg.quantity,
+    },
+  ];
+
+  lineItems.push(
+    ...(await stripeFeeItems(unitAmount * cfg.quantity, currency)),
+  );
+
   return {
     payment_method_types: ["card"],
-    line_items: [
-      {
-        price_data: {
-          currency,
-          product_data: {
-            name: `Ticket: ${cfg.event.name}`,
-            description: label,
-          },
-          unit_amount: unitAmount,
-        },
-        quantity: cfg.quantity,
-      },
-    ],
+    line_items: lineItems,
     mode: "payment",
     success_url: cfg.successUrl,
     cancel_url: cfg.cancelUrl,
@@ -345,6 +372,10 @@ export const stripeApi: {
         },
         quantity: item.quantity,
       }));
+
+    lineItems.push(
+      ...(await stripeFeeItems(itemsSubtotal(intent.items), currency)),
+    );
 
     const params: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ["card"],

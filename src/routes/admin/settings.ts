@@ -28,6 +28,7 @@ import {
   type EmailTemplateType,
   getAppleWalletPassTypeIdFromDb,
   getAppleWalletTeamIdFromDb,
+  getBookingFeeFromDb,
   getCustomDomainFromDb,
   getCustomDomainLastValidatedFromDb,
   getEmailFromAddressFromDb,
@@ -59,6 +60,7 @@ import {
   updateAppleWalletSigningKey,
   updateAppleWalletTeamId,
   updateAppleWalletWwdrCert,
+  updateBookingFee,
   updateCustomDomain,
   updateCustomDomainLastValidated,
   updateEmailApiKey,
@@ -151,6 +153,7 @@ const getSettingsPageState = async () => {
     squareTokenConfigured,
     squareSandbox,
     squareWebhookKey,
+    bookingFeeRaw,
     embedHosts,
     termsAndConditions,
     businessEmail,
@@ -164,6 +167,7 @@ const getSettingsPageState = async () => {
     hasSquareToken(),
     getSquareSandboxFromDb(),
     getSquareWebhookSignatureKey(),
+    getBookingFeeFromDb(),
     getEmbedHostsFromDb(),
     getTermsAndConditionsFromDb(),
     getBusinessEmailFromDb(),
@@ -179,6 +183,7 @@ const getSettingsPageState = async () => {
     squareSandbox,
     squareWebhookConfigured: squareWebhookKey !== null,
     webhookUrl: getWebhookUrl(),
+    bookingFee: bookingFeeRaw!,
     embedHosts: embedHosts ?? "",
     termsAndConditions: termsAndConditions ?? "",
     businessEmail,
@@ -835,6 +840,29 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
 /** Handle POST /admin/settings/phone-prefix - owner only */
 const handlePhonePrefixPost = settingsRoute(processPhonePrefixForm);
 
+/** Validate and save booking fee from form submission */
+const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
+  const raw = (form.get("booking_fee") ?? "").trim();
+  const value = Number.parseFloat(raw);
+
+  if (!Number.isFinite(value) || value < 0 || value > 10) {
+    return errorPage(
+      "Booking fee must be a number between 0 and 10",
+      400,
+      "settings-booking-fee",
+    );
+  }
+
+  await updateBookingFee(String(value));
+  await logActivity(`Booking fee set to ${value}%`);
+  return redirect("/admin/settings", `Booking fee updated to ${value}%`, true, {
+    formId: "settings-booking-fee",
+  });
+};
+
+/** Handle POST /admin/settings/booking-fee - owner only */
+const handleBookingFeePost = settingsRoute(processBookingFeeForm);
+
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
   withOwnerAuthMultipartForm(request, async (session, formData) => {
@@ -1364,6 +1392,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
   "POST /admin/settings/show-public-api": handleShowPublicApiPost,
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
+  "POST /admin/settings/booking-fee": handleBookingFeePost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/email": handleEmailPost,

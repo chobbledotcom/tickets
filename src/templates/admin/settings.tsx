@@ -24,6 +24,7 @@ export type SettingsPageState = {
   squareSandbox: boolean;
   squareWebhookConfigured: boolean;
   webhookUrl: string;
+  bookingFee: string;
   embedHosts: string;
   termsAndConditions: string;
   businessEmail: string;
@@ -286,6 +287,32 @@ export const adminSettingsPage = (
             )}
           />
           <button type="submit">Update Webhook Key</button>
+        </CsrfForm>
+      )}
+
+      {s.paymentProvider && (
+        <CsrfForm
+          action="/admin/settings/booking-fee"
+          id="settings-booking-fee"
+        >
+          <h2>Booking Fee</h2>
+          <p>
+            Percentage fee added at checkout (e.g. 1.5 for 1.5%). Set to 0 to
+            disable. Max 10.
+          </p>
+          <label>
+            Booking Fee (%)
+            <input
+              type="number"
+              name="booking_fee"
+              step="0.1"
+              min="0"
+              max="10"
+              value={s.bookingFee}
+              required
+            />
+          </label>
+          <button type="submit">Save Booking Fee</button>
         </CsrfForm>
       )}
 

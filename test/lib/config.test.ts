@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllowedDomain,
+  getBookingFee,
   getCurrencyCode,
   getPaymentProvider,
   getSquareAccessToken,
@@ -18,6 +19,7 @@ import {
   completeSetup,
   setPaymentProvider,
   setSetting,
+  updateBookingFee,
   updateSquareAccessToken,
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
@@ -198,6 +200,22 @@ describe("config", () => {
     test("returns null when key is whitespace only", () => {
       process.env.STRIPE_PUBLISHABLE_KEY = "   ";
       expect(getStripePublishableKey()).toBeNull();
+    });
+  });
+
+  describe("getBookingFee", () => {
+    test("returns 0 when not set", async () => {
+      expect(await getBookingFee()).toBe(0);
+    });
+
+    test("returns parsed value when set", async () => {
+      await updateBookingFee("1.5");
+      expect(await getBookingFee()).toBe(1.5);
+    });
+
+    test("returns 0 for unparseable value", async () => {
+      await updateBookingFee("abc");
+      expect(await getBookingFee()).toBe(0);
     });
   });
 });

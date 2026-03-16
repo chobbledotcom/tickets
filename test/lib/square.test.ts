@@ -408,6 +408,52 @@ describe("square", () => {
       );
     });
 
+    test("includes booking fee line item when fee is set", async () => {
+      const { updateBookingFee } = await import("#lib/db/settings.ts");
+      await updateBookingFee("2.5");
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_loc_456");
+      const { client, checkoutCreate } = createMockClient({
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: {
+              orderId: "order_fee",
+              url: "https://square.link/fee",
+            },
+          }),
+      });
+
+      await withMocks(
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+        async () => {
+          const event = testEvent({ unit_price: 1000 });
+          const intent = {
+            eventId: 1,
+            name: "Jane",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            quantity: 2,
+          };
+
+          await squareApi.createPaymentLink(
+            event,
+            intent,
+            "https://tickets.example.com",
+          );
+
+          const args = checkoutCreate.calls[0]!
+            .args[0] as CreatePaymentLinkInput;
+          expect(args.order.lineItems).toHaveLength(2);
+          const feeItem = args.order.lineItems[1]!;
+          expect(feeItem.name).toBe("Booking fee");
+          // 2.5% of 2000 (2 × 1000) = 50
+          expect(feeItem.basePriceMoney.amount).toBe(BigInt(50));
+        },
+      );
+    });
+
     test("omits phone from pre-populated data when empty", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");

@@ -2557,6 +2557,7 @@ describe("html", () => {
         squareSandbox: false,
         squareWebhookConfigured: false,
         webhookUrl: "https://example.com/payment/webhook",
+        bookingFee: "0",
         embedHosts: "",
         termsAndConditions: "",
         businessEmail: "",
