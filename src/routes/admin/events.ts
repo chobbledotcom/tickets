@@ -23,10 +23,12 @@ import {
   EVENT_DEMO_FIELDS,
   isDemoMode,
 } from "#lib/demo.ts";
+import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
+  deleteImage,
   generateAttachmentFilename,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
@@ -192,7 +194,15 @@ const processFormFile = async (opts: {
 }): Promise<string | null> => {
   if (!isStorageEnabled()) return null;
   const entry = opts.formData.get(opts.fieldName);
-  if (!(entry instanceof File) || entry.size === 0) return null;
+  if (!(entry instanceof File) || entry.size === 0) {
+    if (entry !== null && !(entry instanceof File)) {
+      logDebug(
+        "Storage",
+        `${opts.label} field "${opts.fieldName}" is ${typeof entry}, not File`,
+      );
+    }
+    return null;
+  }
 
   const data = new Uint8Array(await entry.arrayBuffer());
   const error = opts.validate(data, entry);
@@ -206,10 +216,15 @@ const processFormFile = async (opts: {
     );
   }
 
-  const fields = await opts.upload(data, entry);
-  await eventsTable.update(opts.eventId, fields);
-  await logActivity(`${opts.label} uploaded for event`, opts.eventId);
-  return null;
+  const [uploadResult] = await Promise.allSettled([opts.upload(data, entry)]);
+  if (uploadResult.status === "fulfilled") {
+    await eventsTable.update(opts.eventId, uploadResult.value);
+    await logActivity(`${opts.label} uploaded for event`, opts.eventId);
+    return null;
+  }
+  const detail = `${opts.label} upload failed: ${String(uploadResult.reason)}`;
+  logError({ code: ErrorCode.STORAGE_UPLOAD, detail, eventId: opts.eventId });
+  return detail;
 };
 
 /** Process image from multipart form and attach to event. Returns error message if validation fails. */
@@ -687,9 +702,23 @@ const handleFileDelete =
       orNotFound(getEventWithCount(id), async (event) => {
         const url = getUrl(event);
         if (url) {
-          await tryDeleteImage(url, event.id, `${label} removal`);
-          await eventsTable.update(id, clearFields);
-          await logActivity(`${label} removed for '${event.name}'`, event);
+          const [deleteResult] = await Promise.allSettled([deleteImage(url)]);
+          if (deleteResult.status === "fulfilled") {
+            await eventsTable.update(id, clearFields);
+            await logActivity(`${label} removed for '${event.name}'`, event);
+            return redirect(`/admin/event/${id}`, `${label} removed`, true);
+          }
+          const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
+          logError({
+            code: ErrorCode.STORAGE_DELETE,
+            detail,
+            eventId: event.id,
+          });
+          return redirect(
+            `/admin/event/${id}`,
+            `${label} removal failed`,
+            false,
+          );
         }
         return redirect(`/admin/event/${id}`, `${label} removed`, true);
       }),

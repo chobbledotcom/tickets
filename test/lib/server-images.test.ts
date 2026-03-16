@@ -476,7 +476,7 @@ describe("server (event images)", () => {
       expect(response.status).toBe(404);
     });
 
-    test("succeeds even when storage delete throws", async () => {
+    test("reports error when storage delete throws", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
       await eventsTable.update(event.id, { imageUrl: "failing.jpg" });
 
@@ -487,8 +487,15 @@ describe("server (event images)", () => {
 
         const response = await submitImageDelete(event.id, cookie, csrfToken);
         expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("error=");
+        expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
+          "removal failed",
+        );
+
+        // DB record should NOT be cleared when CDN delete fails
         const updated = await getEventWithCount(event.id);
-        expect(updated?.image_url).toBe("");
+        expect(updated?.image_url).toBe("failing.jpg");
       });
     });
   });
@@ -564,6 +571,24 @@ describe("server (event images)", () => {
   });
 
   describe("POST /admin/event/:id/edit (attachment upload via edit form)", () => {
+    test("logs diagnostic when attachment field is not a File", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      await withStorageMock(async () => {
+        const fields = await editFormData(event.id, csrfToken);
+        // Add attachment as a text field instead of a file
+        fields.attachment = "not-a-file";
+        const response = await handleRequest(
+          mockMultipartRequest(`/admin/event/${event.id}/edit`, fields, cookie),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toContain("success=");
+
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.attachment_url).toBe("");
+      });
+    });
+
     test("ignores attachment when storage is not configured", async () => {
       Deno.env.delete("STORAGE_ZONE_NAME");
       Deno.env.delete("STORAGE_ZONE_KEY");
@@ -665,6 +690,42 @@ describe("server (event images)", () => {
           url.includes("old-file.pdf"),
         );
         expect(deleteCall).not.toBeUndefined();
+      });
+    });
+
+    test("reports error when attachment upload fails", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      await withFetchMock(async (originalFetch) => {
+        Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+        Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+        installUrlHandler(originalFetch, () =>
+          Promise.reject(new Error("CDN unreachable")),
+        );
+
+        const fields = await editFormData(event.id, csrfToken);
+        const response = await handleRequest(
+          mockMultipartRequest(
+            `/admin/event/${event.id}/edit`,
+            fields,
+            cookie,
+            {
+              fieldName: "attachment",
+              name: "guide.pdf",
+              data: PDF_BYTES,
+              contentType: "application/pdf",
+            },
+          ),
+        );
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("error=");
+        expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
+          "upload failed",
+        );
+
+        Deno.env.delete("STORAGE_ZONE_NAME");
+        Deno.env.delete("STORAGE_ZONE_KEY");
       });
     });
   });

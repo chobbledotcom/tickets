@@ -100,6 +100,7 @@ const ERROR_DEFS = {
 
   // Storage errors
   STORAGE_DELETE: ["E_STORAGE_DELETE", "Storage delete failed"],
+  STORAGE_UPLOAD: ["E_STORAGE_UPLOAD", "Storage upload failed"],
 
   // Webhook errors
   WEBHOOK_SEND: ["E_WEBHOOK_SEND", "Webhook send failed"],
@@ -269,7 +270,8 @@ export type LogCategory =
   | "Stripe"
   | "Square"
   | "Domain"
-  | "Email";
+  | "Email"
+  | "Storage";
 
 /**
  * Log a debug message with category prefix
