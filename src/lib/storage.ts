@@ -1,8 +1,8 @@
 /**
- * Bunny CDN storage integration for event images.
- * Uses @bunny.net/storage-sdk to upload/delete images.
+ * Bunny CDN storage integration for event images and attachments.
+ * Uses @bunny.net/storage-sdk to upload/delete files.
  * Only enabled when STORAGE_ZONE_NAME and STORAGE_ZONE_KEY env vars are set.
- * Images are encrypted with DB_ENCRYPTION_KEY before upload.
+ * Files are encrypted with DB_ENCRYPTION_KEY before upload.
  */
 
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
@@ -134,16 +134,11 @@ const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
   );
 };
 
-/**
- * Upload an image to Bunny storage.
- * Encrypts the image bytes before uploading.
- * Returns the filename (without path) on success.
- */
-export const uploadImage = async (
+/** Encrypt and upload bytes to Bunny storage, returning the filename */
+const encryptAndUpload = async (
   data: Uint8Array,
-  detectedType: string,
+  filename: string,
 ): Promise<string> => {
-  const filename = generateImageFilename(detectedType);
   const encrypted = await encryptBytes(data);
   const sz = connectZone();
   const stream = new ReadableStream<Uint8Array>({
@@ -157,6 +152,17 @@ export const uploadImage = async (
   });
   return filename;
 };
+
+/**
+ * Upload an image to Bunny storage.
+ * Encrypts the image bytes before uploading.
+ * Returns the filename (without path) on success.
+ */
+export const uploadImage = (
+  data: Uint8Array,
+  detectedType: string,
+): Promise<string> =>
+  encryptAndUpload(data, generateImageFilename(detectedType));
 
 /**
  * Collect a ReadableStream into a single Uint8Array.
@@ -213,3 +219,59 @@ export const deleteImage = async (filename: string): Promise<void> => {
   const sz = connectZone();
   await BunnyStorageSDK.file.remove(sz, `/${filename}`);
 };
+
+// ---------------------------------------------------------------------------
+// Attachment storage (any file type, up to 25MB)
+// ---------------------------------------------------------------------------
+
+/** Maximum attachment file size in bytes (25MB) */
+export const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+
+/** Attachment validation error */
+export type AttachmentValidationError = "too_large";
+
+/** Attachment validation result */
+export type AttachmentValidationResult =
+  | { valid: true }
+  | { valid: false; error: AttachmentValidationError };
+
+/**
+ * Validate an attachment file: check size only (any file type allowed).
+ */
+export const validateAttachment = (
+  data: Uint8Array,
+): AttachmentValidationResult =>
+  data.byteLength > MAX_ATTACHMENT_SIZE
+    ? { valid: false, error: "too_large" }
+    : { valid: true };
+
+/** User-facing messages for attachment validation errors */
+export const ATTACHMENT_ERROR_MESSAGES: Record<
+  AttachmentValidationError,
+  string
+> = {
+  too_large: "Attachment exceeds the 25MB size limit",
+};
+
+/** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */
+const sanitizeFilename = (name: string): string => {
+  // Take only the basename (no path separators)
+  const basename = name.split(/[/\\]/).pop() ?? "file";
+  // Replace non-alphanumeric (except dot, hyphen, underscore) with underscore
+  return basename.replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
+};
+
+/** Generate a random CDN filename preserving the original name for readability */
+export const generateAttachmentFilename = (originalName: string): string =>
+  `${crypto.randomUUID()}-${sanitizeFilename(originalName)}`;
+
+/**
+ * Upload an attachment to Bunny storage.
+ * Encrypts the file bytes before uploading.
+ * Uses the provided filename (caller generates via generateAttachmentFilename).
+ * Returns the filename on success.
+ */
+export const uploadAttachment = (
+  data: Uint8Array,
+  filename: string,
+): Promise<string> => encryptAndUpload(data, filename);

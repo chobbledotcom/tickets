@@ -46,14 +46,17 @@ const toBase64 = (bytes: Uint8Array): string => {
 };
 
 /**
+ * Convert standard base64 to base64url (no padding).
+ * Works on both strings and Uint8Array (bytes are first encoded to base64).
+ */
+export const base64ToBase64Url = (b64: string): string =>
+  b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+
+/**
  * Convert Uint8Array to base64url string (no padding)
  */
-const toBase64Url = (bytes: Uint8Array): string => {
-  return toBase64(bytes)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-};
+const toBase64Url = (bytes: Uint8Array): string =>
+  base64ToBase64Url(toBase64(bytes));
 
 /**
  * Convert base64 string to Uint8Array
@@ -294,23 +297,58 @@ export const decrypt = async (encrypted: string): Promise<string> => {
 };
 
 /**
- * Encrypt binary data with AES-256-GCM.
- * Delegates to encrypt() via base64 encoding for maximum code reuse.
- * Used for encrypting image files before CDN storage.
+ * Binary encryption format for files (no base64 overhead).
+ * Layout: ENCB (4 bytes) + version (1 byte) + IV (12 bytes) + ciphertext
+ * This replaces the legacy text-based format which double-base64-encoded
+ * data, inflating a 25MB file to ~44MB on disk and ~100MB peak in memory.
+ */
+const BINARY_MAGIC = new Uint8Array([0x45, 0x4e, 0x43, 0x42]); // "ENCB"
+const BINARY_VERSION = 0x01;
+const BINARY_HEADER_SIZE = BINARY_MAGIC.length + 1 + 12; // magic + version + IV
+
+/**
+ * Encrypt binary data with AES-256-GCM using compact binary format.
+ * Output: ENCB + version byte + 12-byte IV + ciphertext (with GCM auth tag).
+ * Overhead is only 33 bytes (vs ~76% bloat in the legacy text format).
  */
 export const encryptBytes = async (data: Uint8Array): Promise<Uint8Array> => {
-  const encrypted = await encrypt(toBase64(data));
-  return new TextEncoder().encode(encrypted);
+  const key = await importEncryptionKey();
+  const { iv, ciphertext } = await aesGcmEncryptRaw(data as BufferSource, key);
+  const result = new Uint8Array(BINARY_HEADER_SIZE + ciphertext.length);
+  result.set(BINARY_MAGIC, 0);
+  result[BINARY_MAGIC.length] = BINARY_VERSION;
+  result.set(iv, BINARY_MAGIC.length + 1);
+  result.set(ciphertext, BINARY_HEADER_SIZE);
+  return result;
 };
+
+/** Check if encrypted bytes use the binary ENCB format */
+const isBinaryFormat = (data: Uint8Array): boolean =>
+  data.length >= BINARY_HEADER_SIZE &&
+  data[0] === BINARY_MAGIC[0] &&
+  data[1] === BINARY_MAGIC[1] &&
+  data[2] === BINARY_MAGIC[2] &&
+  data[3] === BINARY_MAGIC[3];
 
 /**
  * Decrypt binary data encrypted with encryptBytes().
+ * Expects ENCB binary format: magic + version + IV + ciphertext.
  */
 export const decryptBytes = async (
   encrypted: Uint8Array,
 ): Promise<Uint8Array> => {
-  const decrypted = await decrypt(new TextDecoder().decode(encrypted));
-  return fromBase64(decrypted);
+  if (!isBinaryFormat(encrypted)) {
+    throw new Error("Invalid binary encryption format");
+  }
+  const version = encrypted[BINARY_MAGIC.length];
+  if (version !== BINARY_VERSION) {
+    throw new Error(`Unsupported binary encryption version: ${version}`);
+  }
+  const iv = encrypted.slice(BINARY_MAGIC.length + 1, BINARY_HEADER_SIZE);
+  const ciphertext = encrypted.slice(BINARY_HEADER_SIZE);
+  const key = await importEncryptionKey();
+  const plaintext = await aesGcmDecryptRaw(iv, ciphertext, key);
+  return new Uint8Array(plaintext);
 };
 
 /**

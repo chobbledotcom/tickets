@@ -4,6 +4,7 @@
  * Includes an inline SVG QR code for each ticket encoding the /checkin/:token URL
  */
 
+import { signAttachmentUrl } from "#lib/attachment-url.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import { decrypt } from "#lib/crypto.ts";
 import { hasAppleWalletConfig } from "#lib/db/settings.ts";
@@ -25,11 +26,18 @@ const buildCheckinUrl = (token: string): string =>
 const buildTicketCard = async (
   entry: TokenEntry,
   token: string,
-): Promise<TicketCard> => ({
-  entry,
-  qrSvg: await generateQrSvg(buildCheckinUrl(token)),
-  token,
-});
+): Promise<TicketCard> => {
+  const { event, attendee } = entry;
+  const attachmentUrl = event.attachment_url
+    ? await signAttachmentUrl(event.id, attendee.id)
+    : undefined;
+  return {
+    entry,
+    qrSvg: await generateQrSvg(buildCheckinUrl(token)),
+    token,
+    attachmentUrl,
+  };
+};
 
 /** Handle GET /t/:tokens */
 const handleTicketView = async (

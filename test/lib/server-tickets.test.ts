@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
+import { eventsTable } from "#lib/db/events.ts";
 import {
   awaitTestRequest,
   createDailyTestAttendee,
@@ -299,5 +300,36 @@ describe("ticket view (/t/:tokens)", () => {
     const body = await response.text();
     expect(body).not.toContain("ticket-card-notice");
     expect(body).not.toContain("Non-transferable");
+  });
+
+  test("shows attachment download link when event has attachment", async () => {
+    const { event, token } = await createTestAttendeeWithToken(
+      "Alice Smith",
+      "alice@test.com",
+    );
+    await eventsTable.update(event.id, {
+      attachmentUrl: "abc-guide.pdf",
+      attachmentName: "Event Guide.pdf",
+    });
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("attachment-link");
+    expect(body).toContain("Download: Event Guide.pdf");
+    expect(body).toContain("/attachment/");
+  });
+
+  test("does not show attachment link when event has no attachment", async () => {
+    const { token } = await createTestAttendeeWithToken(
+      "Bob Jones",
+      "bob@test.com",
+    );
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("attachment-link");
+    expect(body).not.toContain("Download:");
   });
 });

@@ -129,6 +129,7 @@ const decryptAttendeeFields = async (
     checked_in: checked_in === "true",
     refunded: refundedStr === "true",
     ticket_token,
+    attachment_downloads: row.attachment_downloads,
   };
 };
 
@@ -330,6 +331,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
   date: input.date,
+  attachment_downloads: 0,
 });
 
 /**
@@ -623,6 +625,19 @@ export type UpdateAttendeeInput = {
   special_instructions: string;
   event_id: number;
   quantity: number;
+};
+
+/**
+ * Increment the attachment download counter for an attendee.
+ * Uses atomic SQL increment to avoid race conditions.
+ */
+export const incrementAttachmentDownloads = async (
+  attendeeId: number,
+): Promise<void> => {
+  await getDb().execute({
+    sql: "UPDATE attendees SET attachment_downloads = attachment_downloads + 1 WHERE id = ?",
+    args: [attendeeId],
+  });
 };
 
 /**

@@ -35,6 +35,8 @@ export const API_EXAMPLE_EVENT: EventWithCount = {
   minimum_days_before: 1,
   maximum_days_after: 30,
   image_url: "",
+  attachment_url: "",
+  attachment_name: "",
   non_transferable: false,
   can_pay_more: false,
   max_price: EXAMPLE_EVENT.unit_price,

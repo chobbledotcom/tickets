@@ -321,6 +321,8 @@ describe("code quality", () => {
       "lib/email-renderer.ts:resetEngine",
       // Skip login delay in tests without env var races
       "routes/admin/auth.ts:setSkipLoginDelayForTest",
+      // Attachment size constant used in production (validateAttachment) but test pattern doesn't detect same-file usage
+      "lib/storage.ts:MAX_ATTACHMENT_SIZE",
     ];
 
     /**
