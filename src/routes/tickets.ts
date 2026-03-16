@@ -16,6 +16,7 @@ import {
   lookupAttendees,
   resolveEntries,
   type TokenEntry,
+  type TokenRouteFn,
 } from "#routes/token-utils.ts";
 import { htmlResponse, notFoundResponse } from "#routes/utils.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
@@ -89,11 +90,7 @@ const matchSvgPath = (path: string): string | null => {
 const tokenRoute = createTokenRoute("t", { GET: handleTicketView });
 
 /** Route ticket view and SVG requests */
-export const routeTicketView = (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> => {
+export const routeTicketView: TokenRouteFn = (request, path, method) => {
   if (method === "GET") {
     const svgToken = matchSvgPath(path);
     if (svgToken) return Promise.resolve(handleTicketSvg(svgToken));
