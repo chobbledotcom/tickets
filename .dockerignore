@@ -12,3 +12,9 @@ tsconfig.json
 .jscpd.json
 .dockerignore
 Dockerfile
+.env
+.env.*
+*.pem
+*.key
+*.cert
+CLAUDE.md
