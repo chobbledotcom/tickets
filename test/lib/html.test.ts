@@ -2457,6 +2457,99 @@ describe("html", () => {
       expect(html).not.toContain("?iframe=true");
       expect(html).not.toContain('class="iframe"');
     });
+
+    test("hides quantity selector for single event with max quantity 1", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+            max_quantity: 1,
+          }),
+        ),
+      ];
+      const html = multiTicketPage(events, ["ab12c"]);
+      expect(html).toContain('type="hidden"');
+      expect(html).toContain('name="quantity_1"');
+      expect(html).toContain('value="1"');
+      expect(html).not.toContain("<select");
+      expect(html).not.toContain("Select Tickets");
+    });
+
+    test("shows quantity selector for single event with max quantity above 1", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+            max_quantity: 3,
+          }),
+        ),
+      ];
+      const html = multiTicketPage(events, ["ab12c"]);
+      expect(html).toContain("<select");
+      expect(html).toContain('name="quantity_1"');
+      expect(html).toContain("Select Tickets");
+      expect(html).not.toContain('type="hidden"');
+    });
+
+    test("shows quantity selector for multiple events even with max quantity 1", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+            max_quantity: 1,
+          }),
+        ),
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 2,
+            slug: "cd34e",
+            name: "Event B",
+            attendee_count: 0,
+            max_quantity: 1,
+          }),
+        ),
+      ];
+      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      expect(html).toContain("<select");
+      expect(html).toContain("Select Tickets");
+    });
+
+    test("hides quantity selector when one event available and one sold out", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+            max_quantity: 1,
+          }),
+        ),
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 2,
+            slug: "cd34e",
+            name: "Event B",
+            attendee_count: 50,
+            max_attendees: 50,
+          }),
+        ),
+      ];
+      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      expect(html).toContain('type="hidden"');
+      expect(html).toContain('name="quantity_1"');
+      expect(html).toContain('value="1"');
+      expect(html).not.toContain("Select Tickets");
+    });
   });
 
   describe("adminSettingsPage", () => {
