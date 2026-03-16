@@ -4,8 +4,8 @@
  * All testable logic is in stripe-mock.ts
  */
 
-import { setupTestEncryptionKey } from "#test-utils";
 import { setAllowedDomainForTest } from "#lib/config.ts";
+import { setupTestEncryptionKey } from "#test-utils";
 import {
   STRIPE_MOCK_PORT,
   StripeMockManager,

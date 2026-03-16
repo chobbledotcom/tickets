@@ -4,6 +4,7 @@
  * Payment provider and keys are configured via admin settings (stored encrypted in DB)
  */
 
+import { lazyRef } from "#fp";
 import {
   getBookingFeeFromDb,
   getCurrencyCodeFromDb,
@@ -20,7 +21,6 @@ import {
   hasStripeKey,
   isSetupComplete,
 } from "#lib/db/settings.ts";
-import { lazyRef } from "#fp";
 import { getEnv, requireEnv } from "#lib/env.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 
@@ -123,8 +123,8 @@ export const getCurrencyCode = (): Promise<string> => {
  * Get allowed domain for security validation (runtime config via Bunny secrets)
  * This is a required configuration that hardens origin validation
  */
-const [getAllowedDomainCached, setAllowedDomainCached] = lazyRef(
-  () => requireEnv("ALLOWED_DOMAIN"),
+const [getAllowedDomainCached, setAllowedDomainCached] = lazyRef(() =>
+  requireEnv("ALLOWED_DOMAIN"),
 );
 
 export const getAllowedDomain = (): string => getAllowedDomainCached();

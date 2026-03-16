@@ -3,8 +3,6 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllowedDomain,
-  resetAllowedDomain,
-  setAllowedDomainForTest,
   getBookingFee,
   getCurrencyCode,
   getPaymentProvider,
@@ -16,6 +14,8 @@ import {
   getTz,
   isPaymentsEnabled,
   isSetupComplete,
+  resetAllowedDomain,
+  setAllowedDomainForTest,
 } from "#lib/config.ts";
 import {
   completeSetup,

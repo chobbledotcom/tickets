@@ -8,6 +8,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { setAllowedDomainForTest } from "#lib/config.ts";
 import { buildWebhookPayload, type RegistrationEntry } from "#lib/webhook.ts";
 import {
   EXAMPLE_ATTENDEE,
@@ -17,7 +18,6 @@ import {
   WEBHOOK_EXAMPLE_JSON,
   WEBHOOK_EXAMPLE_PAYLOAD,
 } from "#lib/webhook-example.ts";
-import { setAllowedDomainForTest } from "#lib/config.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
 
 /** Extract the domain from the example ticket_url (e.g. "https://x.com/t/..." → "x.com") */

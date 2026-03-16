@@ -12,6 +12,7 @@ import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
+import { setAllowedDomainForTest } from "#lib/config.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import {
   clearEncryptionKeyCache,
@@ -40,7 +41,6 @@ import {
   updateTimezone,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
-import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
