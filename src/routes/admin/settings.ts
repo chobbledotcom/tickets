@@ -452,11 +452,9 @@ const handleAdminSettingsPost = settingsRoute(
   },
 );
 
-/** Valid payment provider values from the form */
-const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([
-  "stripe",
-  "square",
-]);
+/** Type guard: check if a string is a valid payment provider */
+const isPaymentProvider = (s: string): s is PaymentProviderType =>
+  s === "stripe" || s === "square";
 
 /**
  * Handle POST /admin/settings/payment-provider - owner only
@@ -472,7 +470,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
     });
   }
 
-  if (!VALID_PROVIDERS.has(provider)) {
+  if (!isPaymentProvider(provider)) {
     return errorPage(
       "Invalid payment provider",
       400,

@@ -6,7 +6,7 @@ import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
-import type { AdminSession } from "#lib/types.ts";
+import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   changePasswordFields,
@@ -27,7 +27,7 @@ export type SettingsPageState = {
   embedHosts: string;
   termsAndConditions: string;
   businessEmail: string;
-  theme: string;
+  theme: Theme;
   showPublicSite: boolean;
   phonePrefix: string;
   headerImageUrl: string;

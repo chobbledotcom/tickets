@@ -37,6 +37,12 @@ export type ContactInfo = {
 export type ContactFields = Pick<ContactInfo, "name" | "email"> &
   Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">>;
 
+/** UI theme */
+export type Theme = "light" | "dark";
+
+/** Supported payment provider identifiers */
+export type PaymentProviderType = "stripe" | "square";
+
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
 

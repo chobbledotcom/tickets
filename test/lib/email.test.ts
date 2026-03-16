@@ -40,6 +40,7 @@ const withErrorSpy = bracket(
 );
 
 describe("email", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: Deno's fetch stub type is incompatible with Stub generics
   // deno-lint-ignore no-explicit-any
   let fetchStub: any;
   let originalFetch: typeof fetch;

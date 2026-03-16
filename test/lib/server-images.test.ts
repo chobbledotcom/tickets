@@ -499,6 +499,7 @@ describe("server (event images)", () => {
       const encrypted = await encryptBytes(imageData);
 
       await withCdnProxy(
+        // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BodyInit in Deno's TS
         // deno-lint-ignore no-explicit-any
         () => new Response(encrypted as any, { status: 200 }),
         async () => {
