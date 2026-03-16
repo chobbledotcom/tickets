@@ -22,12 +22,25 @@ fi
 # Create volume if it doesn't exist
 podman volume exists "$VOLUME" 2>/dev/null || podman volume create "$VOLUME"
 
+# Require DB_ENCRYPTION_KEY to be set explicitly to prevent accidental key generation
+if [ -z "${DB_ENCRYPTION_KEY:-}" ]; then
+  echo "ERROR: DB_ENCRYPTION_KEY is not set."
+  echo "Generate one with: openssl rand -base64 32"
+  echo "Then export it: export DB_ENCRYPTION_KEY='<your-key>'"
+  exit 1
+fi
+
 echo "Starting $CONTAINER on port $PORT..."
 podman run -d \
   --name "$CONTAINER" \
-  -p "$PORT:3000" \
+  -p "127.0.0.1:$PORT:3000" \
   -v "$VOLUME:/data" \
-  -e DB_ENCRYPTION_KEY="${DB_ENCRYPTION_KEY:-$(openssl rand -base64 32)}" \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --tmpfs /deno-dir:rw,noexec,nosuid,size=128m \
+  --cap-drop=ALL \
+  --security-opt=no-new-privileges \
+  -e DB_ENCRYPTION_KEY="${DB_ENCRYPTION_KEY}" \
   "$IMAGE"
 
 echo "Container running: http://localhost:$PORT"
