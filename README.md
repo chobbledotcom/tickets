@@ -2,6 +2,8 @@
 
 A self-hosted ticket reservation system built by [Chobble CIC](https://chobble.com), a community interest company. Runs on any Deno environment (or Bunny Edge Scripting) with libsql (Turso). Encrypts all PII at rest. Handles free and paid events with Stripe or Square.
 
+**Website**: [tickets.chobble.com](https://tickets.chobble.com)
+
 This is not "open core" — every feature is available under **AGPLv3** with no proprietary add-ons. Hosted instances available at [tix.chobble.com](https://tix.chobble.com/ticket/register) for £50/year, no tiers.
 
 ## Deploy
@@ -150,20 +152,7 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DB_URL` | Yes | libsql database URL |
-| `DB_TOKEN` | Yes* | Database auth token (*remote databases) |
-| `DB_ENCRYPTION_KEY` | Yes | 32-byte base64-encoded AES-256 key |
-| `ALLOWED_DOMAIN` | Yes | Domain for security validation |
-| `PORT` | No | Local dev server port (default: 3000) |
-| `STORAGE_ZONE_NAME` | No | Bunny CDN storage zone name (required for image uploads) |
-| `STORAGE_ZONE_KEY` | No | Bunny CDN storage zone access key (required for image uploads) |
-| `BUNNY_API_KEY` | No | Bunny CDN API key (required for custom domain settings) |
-| `HOST_EMAIL_PROVIDER` | No | Host-level email provider (resend, postmark, sendgrid, mailgun-us, mailgun-eu) |
-| `HOST_EMAIL_API_KEY` | No | Host-level email API key |
-| `HOST_EMAIL_FROM_ADDRESS` | No | Host-level email sender address |
-| `NTFY_URL` | No | Ntfy endpoint for error notifications (sends domain + error code only) |
+See the full list of configuration keys in the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html).
 
 ## Deployment
 
