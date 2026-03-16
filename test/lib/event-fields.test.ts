@@ -32,8 +32,12 @@ describe("event-fields", () => {
   });
 
   describe("mergeEventFields", () => {
-    test("returns email for empty array", () => {
-      expect(mergeEventFields([])).toBe("email");
+    test("returns empty string for empty array", () => {
+      expect(mergeEventFields([])).toBe("");
+    });
+
+    test("returns empty string when all events have empty fields", () => {
+      expect(mergeEventFields(["", ""])).toBe("");
     });
 
     test("returns union of fields in canonical order", () => {
