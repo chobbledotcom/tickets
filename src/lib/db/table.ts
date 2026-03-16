@@ -407,11 +407,10 @@ export const col = {
   }),
 
   /** Boolean column stored as INTEGER 0/1 in the database */
-  boolean: (defaultValue: boolean): ColumnDef<boolean> => ({
-    default: () => defaultValue,
-    write: ((v: boolean) => (v ? 1 : 0)) as unknown as (v: boolean) => boolean,
-    read: ((v: unknown) => Number(v) === 1) as unknown as (
-      v: boolean,
-    ) => boolean,
-  }),
+  boolean: (defaultValue: boolean): ColumnDef<boolean> =>
+    col.converted<boolean>({
+      default: () => defaultValue,
+      write: (v: boolean) => (v ? 1 : 0),
+      read: (raw: InValue) => Number(raw) === 1,
+    }),
 };

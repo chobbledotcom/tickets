@@ -12,6 +12,7 @@ import { DEMO_BANNER, isDemoMode } from "#lib/demo.ts";
 import { getHeaderImageUrl } from "#lib/header-image.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import { getTheme } from "#lib/theme.ts";
+import type { Theme } from "#lib/types.ts";
 import { renderDebugFooter } from "#templates/admin/footer.tsx";
 
 export const escapeHtml = (str: string): string =>
@@ -26,7 +27,7 @@ interface LayoutProps {
   bodyClass?: string;
   headExtra?: string;
   children?: Child;
-  theme?: string;
+  theme?: Theme;
 }
 
 /**

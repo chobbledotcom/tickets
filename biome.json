@@ -72,6 +72,16 @@
       }
     },
     {
+      "includes": ["src/fp.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["src/index.ts", "src/lib/logger.ts"],
       "linter": {
         "rules": {

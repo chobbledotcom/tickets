@@ -2,7 +2,12 @@
  * Test utilities for the ticket reservation system
  */
 
-import { type Client, createClient } from "@libsql/client";
+import {
+  type Client,
+  createClient,
+  type InValue,
+  type Row,
+} from "@libsql/client";
 import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
@@ -95,8 +100,7 @@ let cachedClient: Client | null = null;
 let cachedSetupSettings: Array<{ key: string; value: string }> | null = null;
 
 /** Snapshot of users rows after completeSetup */
-// deno-lint-ignore no-explicit-any
-let cachedSetupUsers: Array<Record<string, any>> | null = null;
+let cachedSetupUsers: Row[] | null = null;
 
 /** Cached admin session (avoids re-doing login + key wrapping per test) */
 let cachedAdminSession: {
@@ -206,14 +210,14 @@ export const createTestDbWithSetup = async (
         await cachedClient!.execute({
           sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
           args: [
-            row.id,
-            row.username_hash,
-            row.username_index,
-            row.password_hash,
-            row.wrapped_data_key,
-            row.admin_level,
-            row.invite_code_hash,
-            row.invite_expiry,
+            row.id as InValue,
+            row.username_hash as InValue,
+            row.username_index as InValue,
+            row.password_hash as InValue,
+            row.wrapped_data_key as InValue,
+            row.admin_level as InValue,
+            row.invite_code_hash as InValue,
+            row.invite_expiry as InValue,
           ],
         });
       }
@@ -362,6 +366,7 @@ export const mockMultipartRequest = (
     formData.append(key, value);
   }
   if (file) {
+    // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BlobPart in Deno's TS
     // deno-lint-ignore no-explicit-any
     const blob = new Blob([file.data as any], { type: file.contentType });
     formData.append(file.fieldName, blob, file.name);
