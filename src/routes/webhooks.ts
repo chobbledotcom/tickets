@@ -15,7 +15,12 @@
  */
 
 import { map, unique } from "#fp";
-import { getAllowedDomain, getCurrencyCode } from "#lib/config.ts";
+import { calculateBookingFee } from "#lib/booking-fee.ts";
+import {
+  getAllowedDomain,
+  getBookingFee,
+  getCurrencyCode,
+} from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -331,16 +336,25 @@ const validateAndPrice = async (
   return { ok: true, event, expectedPrice };
 };
 
-/** Check if the amount charged matches the current event price.
+/** Check if the amount charged matches the current event price (including booking fee).
  * For pay-more events, the amount must be >= the expected minimum price and <= the max cap. */
 const hasPriceMismatch = (
   amountTotal: number,
   expectedPrice: number,
   event: Pick<EventWithCount, "can_pay_more" | "max_price">,
-): boolean =>
-  event.can_pay_more
-    ? amountTotal < expectedPrice || amountTotal > event.max_price
-    : amountTotal !== expectedPrice;
+  bookingFeePercent = 0,
+): boolean => {
+  if (event.can_pay_more) {
+    const minWithFee =
+      expectedPrice + calculateBookingFee(expectedPrice, bookingFeePercent);
+    const maxWithFee =
+      event.max_price + calculateBookingFee(event.max_price, bookingFeePercent);
+    return amountTotal < minWithFee || amountTotal > maxWithFee;
+  }
+  const expectedWithFee =
+    expectedPrice + calculateBookingFee(expectedPrice, bookingFeePercent);
+  return amountTotal !== expectedWithFee;
+};
 
 /** Format error for post-payment attendee creation failure */
 const formatPostPaymentError = formatCreationError(
@@ -489,8 +503,10 @@ const processMultiPaymentSession = async (
 
   // When items have per-item prices, validate each against the event's rules
   const hasPerItemPrices = intent.items.some((item) => item.p > 0);
+  const bookingFeePercent = await getBookingFee();
 
   if (hasPerItemPrices) {
+    // Per-item prices are ticket-only (no fee), so validate without booking fee
     for (const { item, event, expectedPrice } of validatedItems) {
       if (hasPriceMismatch(item.p, expectedPrice, event)) {
         return priceMismatchRefund(
@@ -501,24 +517,28 @@ const processMultiPaymentSession = async (
       }
     }
 
-    // Cart total must equal the sum of per-item prices
+    // Cart total must equal the sum of per-item prices + booking fee
     const metadataTotal = validatedItems.reduce(
       (sum, { item }) => sum + item.p,
       0,
     );
-    if (session.amountTotal !== metadataTotal) {
+    const expectedCartTotal =
+      metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
+    if (session.amountTotal !== expectedCartTotal) {
       return priceMismatchRefund(
         session,
-        `Multi-ticket total mismatch: provider charged ${session.amountTotal} but sum(p) = ${metadataTotal}`,
+        `Multi-ticket total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
         validatedItems[0]?.event.id,
       );
     }
   } else {
-    // No per-item prices: validate that provider charged at least the expected total
-    if (session.amountTotal < expectedTotal) {
+    // No per-item prices: validate that provider charged at least the expected total + fee
+    const expectedWithFee =
+      expectedTotal + calculateBookingFee(expectedTotal, bookingFeePercent);
+    if (session.amountTotal < expectedWithFee) {
       return priceMismatchRefund(
         session,
-        `Multi-ticket total mismatch: provider charged ${session.amountTotal} but expected at least ${expectedTotal}`,
+        `Multi-ticket total mismatch: provider charged ${session.amountTotal} but expected at least ${expectedWithFee}`,
         validatedItems[0]?.event.id,
       );
     }
@@ -630,10 +650,18 @@ const processPaymentSession = async (
   if (!vp.ok) return validationFailure(session, vp);
 
   const { event, expectedPrice } = vp;
+  const bookingFeePercent = await getBookingFee();
 
   // Reject if event price changed since checkout was created
   // For pay-more events, the amount charged may be >= the minimum price
-  if (hasPriceMismatch(session.amountTotal, expectedPrice, event)) {
+  if (
+    hasPriceMismatch(
+      session.amountTotal,
+      expectedPrice,
+      event,
+      bookingFeePercent,
+    )
+  ) {
     return priceMismatchRefund(
       session,
       `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
@@ -641,7 +669,7 @@ const processPaymentSession = async (
     );
   }
 
-  // Use the actual amount charged as price_paid (covers pay-more)
+  // Use the actual amount charged as price_paid (covers pay-more and booking fee)
   const pricePaid = event.can_pay_more ? session.amountTotal : expectedPrice;
 
   const result = await createAttendeeAtomic({

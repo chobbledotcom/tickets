@@ -85,6 +85,8 @@ export const CONFIG_KEYS = {
   CUSTOM_DOMAIN: "custom_domain",
   // Custom domain last validated timestamp (plaintext - ISO 8601 UTC)
   CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
+  // Booking fee percentage (plaintext - "0" to "10", e.g. "1.5" for 1.5%)
+  BOOKING_FEE: "booking_fee",
   // Apple Wallet configuration
   APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
   APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
@@ -529,6 +531,9 @@ export const updateSquareLocationId = async (
 export const { get: getSquareSandboxFromDb, update: updateSquareSandbox } =
   booleanSetting(CONFIG_KEYS.SQUARE_SANDBOX);
 
+export const { get: getBookingFeeFromDb, update: updateBookingFee } =
+  optionalTextSetting(CONFIG_KEYS.BOOKING_FEE);
+
 /**
  * Get allowed embed hosts from database (decrypted)
  * Returns null if not configured (embedding allowed from anywhere)
@@ -932,6 +937,8 @@ export const settingsApi = {
   updateSquareLocationId,
   getSquareSandboxFromDb,
   updateSquareSandbox,
+  getBookingFeeFromDb,
+  updateBookingFee,
   getEmbedHostsFromDb,
   updateEmbedHosts,
   getTermsAndConditionsFromDb,

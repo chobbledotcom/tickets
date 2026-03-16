@@ -5,6 +5,7 @@
  */
 
 import {
+  getBookingFeeFromDb,
   getCurrencyCodeFromDb,
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
@@ -101,6 +102,17 @@ export const getSquareLocationId = (): Promise<string | null> =>
  */
 export const getSquareSandbox = (): Promise<boolean> =>
   getSquareSandboxFromDb();
+
+/**
+ * Get booking fee percentage from database.
+ * Returns 0 if not set or invalid. Valid range: 0-10.
+ */
+export const getBookingFee = async (): Promise<number> => {
+  const raw = await getBookingFeeFromDb();
+  if (!raw) return 0;
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) && value >= 0 && value <= 10 ? value : 0;
+};
 
 /**
  * Get currency code from database

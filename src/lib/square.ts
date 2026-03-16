@@ -11,6 +11,7 @@
  */
 
 import { lazyRef, map } from "#fp";
+import { getBookingFeeAmount, itemsSubtotal } from "#lib/booking-fee.ts";
 import {
   getCurrencyCode,
   getSquareAccessToken,
@@ -511,6 +512,53 @@ const normalizeCheckoutPhone = async (
   return normalizePhone(phone, prefix);
 };
 
+/** Build a Square fee line item array (empty when fee is zero). */
+const squareFeeItems = async (
+  subtotal: number,
+  currency: string,
+): Promise<SquareLineItem[]> => {
+  const amt = await getBookingFeeAmount(subtotal);
+  return amt > 0
+    ? [
+        {
+          name: "Booking fee",
+          quantity: "1",
+          note: "Booking fee",
+          basePriceMoney: { amount: BigInt(amt), currency },
+        },
+      ]
+    : [];
+};
+
+type PreparedLink = {
+  config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>;
+  metadata: Record<string, string>;
+};
+
+/** Append booking fee, submit the payment link, and log the result. */
+const submitPaymentLink = async (
+  prep: PreparedLink,
+  lineItems: SquareLineItem[],
+  feeSubtotal: number,
+  intent: { email: string; phone?: string },
+  baseUrl: string,
+  label: string,
+): Promise<PaymentLinkResult> => {
+  lineItems.push(...(await squareFeeItems(feeSubtotal, prep.config.currency)));
+  const result = await createPaymentLinkImpl({
+    ...prep.config,
+    lineItems,
+    ...(await buildCheckoutOptions(intent, prep.metadata, baseUrl, label)),
+  });
+  logDebug(
+    "Square",
+    result
+      ? `${label} created orderId=${result.orderId}`
+      : `${label} creation failed`,
+  );
+  return result;
+};
+
 /** Build common payment link options from intent */
 const buildCheckoutOptions = async (
   intent: { email: string; phone?: string },
@@ -529,10 +577,7 @@ const buildCheckoutOptions = async (
 const preparePaymentLink = async (
   rawMetadata: Record<string, string>,
   label: string,
-): Promise<{
-  config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>;
-  metadata: Record<string, string>;
-} | null> => {
+): Promise<PreparedLink | null> => {
   const config = await getPaymentLinkConfig();
   if (!config) return null;
 
@@ -582,34 +627,27 @@ export const squareApi: {
     );
     if (!prep) return null;
 
-    const result = await createPaymentLinkImpl({
-      ...prep.config,
-      lineItems: [
-        {
-          name: `Ticket: ${event.name}`,
-          quantity: String(intent.quantity),
-          note: intent.quantity > 1 ? `${intent.quantity} Tickets` : "Ticket",
-          basePriceMoney: {
-            amount: BigInt(intent.customUnitPrice ?? event.unit_price),
-            currency: prep.config.currency,
-          },
+    const unitPrice = intent.customUnitPrice ?? event.unit_price;
+    const lineItems: SquareLineItem[] = [
+      {
+        name: `Ticket: ${event.name}`,
+        quantity: String(intent.quantity),
+        note: intent.quantity > 1 ? `${intent.quantity} Tickets` : "Ticket",
+        basePriceMoney: {
+          amount: BigInt(unitPrice),
+          currency: prep.config.currency,
         },
-      ],
-      ...(await buildCheckoutOptions(
-        intent,
-        prep.metadata,
-        baseUrl,
-        "Payment link",
-      )),
-    });
+      },
+    ];
 
-    logDebug(
-      "Square",
-      result
-        ? `Payment link created orderId=${result.orderId}`
-        : "Payment link creation failed",
+    return submitPaymentLink(
+      prep,
+      lineItems,
+      unitPrice * intent.quantity,
+      intent,
+      baseUrl,
+      "Payment link",
     );
-    return result;
   },
 
   /** Create a payment link for multi-event registration */
@@ -623,34 +661,26 @@ export const squareApi: {
     );
     if (!prep) return null;
 
-    const lineItems = map((item: MultiRegistrationIntent["items"][number]) => ({
-      name: `Ticket: ${item.name}`,
-      quantity: String(item.quantity),
-      note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
-      basePriceMoney: {
-        amount: BigInt(item.unitPrice),
-        currency: prep.config.currency,
-      },
-    }))(intent.items);
+    const lineItems: SquareLineItem[] = map(
+      (item: MultiRegistrationIntent["items"][number]) => ({
+        name: `Ticket: ${item.name}`,
+        quantity: String(item.quantity),
+        note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
+        basePriceMoney: {
+          amount: BigInt(item.unitPrice),
+          currency: prep.config.currency,
+        },
+      }),
+    )(intent.items);
 
-    const result = await createPaymentLinkImpl({
-      ...prep.config,
+    return submitPaymentLink(
+      prep,
       lineItems,
-      ...(await buildCheckoutOptions(
-        intent,
-        prep.metadata,
-        baseUrl,
-        "Multi payment link",
-      )),
-    });
-
-    logDebug(
-      "Square",
-      result
-        ? `Multi payment link created orderId=${result.orderId}`
-        : "Multi payment link creation failed",
+      itemsSubtotal(intent.items),
+      intent,
+      baseUrl,
+      "Multi payment link",
     );
-    return result;
   },
 
   /** Retrieve an order by ID */
