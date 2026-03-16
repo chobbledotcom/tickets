@@ -222,6 +222,25 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="How do I add a file attachment to an event?">
+          <p>
+            When creating or editing an event, use the attachment upload field to
+            attach a file. This can be any type of file &mdash; PDFs, Word
+            documents, spreadsheets, images, audio, video, zip archives, you
+            name it. The maximum file size is 25&nbsp;MB.
+          </p>
+          <p>
+            Attendees see a download link on their ticket page. The link is
+            time-limited and unique to each attendee, so it can't be shared or
+            reused by others. Each time an attendee visits their ticket page,
+            they get a fresh link that works for a short window.
+          </p>
+          <p>
+            To remove an attachment, open the event and click{" "}
+            <strong>Delete</strong> next to the current file name.
+          </p>
+        </Q>
+
         <Q q="Where can I find the event QR code?">
           <p>
             On the admin event page, click the <strong>QR code</strong> link
