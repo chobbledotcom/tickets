@@ -228,12 +228,12 @@ const processFormImage = (
       return v.valid ? null : IMAGE_ERROR_MESSAGES[v.error];
     },
     upload: async (data, file) => {
-      const v = validateImage(data, file.type);
-      const filename = await uploadImage(
-        data,
-        v.valid ? v.detectedType : file.type,
-      );
-      return { imageUrl: filename };
+      const v = validateImage(data, file.type) as {
+        valid: true;
+        detectedType: string;
+      };
+      const imageUrl = await uploadImage(data, v.detectedType);
+      return { imageUrl };
     },
     label: "Image",
   });

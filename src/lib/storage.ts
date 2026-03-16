@@ -255,9 +255,7 @@ export const ATTACHMENT_ERROR_MESSAGES: Record<
 
 /** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */
 const sanitizeFilename = (name: string): string => {
-  // Take only the basename (no path separators)
-  const basename = name.split(/[/\\]/).pop() ?? "file";
-  // Replace non-alphanumeric (except dot, hyphen, underscore) with underscore
+  const basename = name.split(/[/\\]/).pop() as string; // split always returns ≥1 element
   return basename.replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
 };
 

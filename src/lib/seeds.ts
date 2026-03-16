@@ -68,31 +68,29 @@ const prepareEvent = async (
   const location = DEMO_EVENT_LOCATIONS[index % DEMO_EVENT_LOCATIONS.length]!;
   const created = nowIso();
 
+  const encryptBatch = <const T extends readonly string[]>(...values: T) =>
+    Promise.all(map(encrypt)(values as unknown as string[])) as Promise<{
+      [K in keyof T]: string;
+    }>;
+  const [encName, encSlug, encDesc, encLoc] = await encryptBatch(
+    name,
+    slug,
+    description,
+    location,
+  );
   const [
-    encName,
-    encSlug,
-    encDesc,
-    encLoc,
     encDate,
     encThankYou,
     encWebhook,
     encClosesAt,
     encImageUrl,
-  ] = await Promise.all([
-    encrypt(name),
-    encrypt(slug),
-    encrypt(description),
-    encrypt(location),
-    encrypt(""),
-    encrypt(""),
-    encrypt(""),
-    encrypt(""),
-    encrypt(""),
-  ]);
+    encAttachmentUrl,
+    encAttachmentName,
+  ] = await encryptBatch("", "", "", "", "", "", "");
 
   return {
-    sql: `INSERT INTO events (name, slug, slug_index, description, date, location, group_id, created, max_attendees, thank_you_url, unit_price, max_quantity, webhook_url, active, fields, closes_at, event_type, bookable_days, minimum_days_before, maximum_days_after, image_url, non_transferable)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO events (name, slug, slug_index, description, date, location, group_id, created, max_attendees, thank_you_url, unit_price, max_quantity, webhook_url, active, fields, closes_at, event_type, bookable_days, minimum_days_before, maximum_days_after, image_url, attachment_url, attachment_name, non_transferable)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       encName,
       encSlug,
@@ -123,6 +121,8 @@ const prepareEvent = async (
       1,
       90,
       encImageUrl,
+      encAttachmentUrl,
+      encAttachmentName,
       0,
     ],
   };

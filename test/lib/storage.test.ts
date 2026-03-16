@@ -283,6 +283,17 @@ describe("storage", () => {
       expect(filename).not.toContain("/path");
     });
 
+    test("handles backslash path separators", () => {
+      const filename = generateAttachmentFilename("C:\\Users\\docs\\file.txt");
+      expect(filename).toMatch(/-file\.txt$/);
+      expect(filename).not.toContain("Users");
+    });
+
+    test("falls back to 'file' when basename is empty", () => {
+      const filename = generateAttachmentFilename("/");
+      expect(filename).toMatch(/-file$/);
+    });
+
     test("generates unique filenames for same input", () => {
       const a = generateAttachmentFilename("doc.pdf");
       const b = generateAttachmentFilename("doc.pdf");
@@ -318,6 +329,23 @@ describe("storage", () => {
       // But both decrypt to the same value
       expect(await decryptBytes(a)).toEqual(data);
       expect(await decryptBytes(b)).toEqual(data);
+    });
+
+    test("throws on invalid binary format", async () => {
+      const invalidData = new Uint8Array([0x00, 0x00, 0x00, 0x00, 0x01]);
+      await expect(decryptBytes(invalidData)).rejects.toThrow(
+        "Invalid binary encryption format",
+      );
+    });
+
+    test("throws on unsupported binary version", async () => {
+      // Valid ENCB magic but wrong version (0xFF instead of 0x01)
+      const data = new Uint8Array(17); // BINARY_HEADER_SIZE = 17
+      data.set([0x45, 0x4e, 0x43, 0x42], 0); // "ENCB" magic
+      data[4] = 0xff; // Invalid version
+      await expect(decryptBytes(data)).rejects.toThrow(
+        "Unsupported binary encryption version: 255",
+      );
     });
   });
 });
