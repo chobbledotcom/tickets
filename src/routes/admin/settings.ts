@@ -106,9 +106,11 @@ import {
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
+import { ErrorCode, logError } from "#lib/logger.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
   deleteAllEventStorageFiles,
+  deleteImage,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
   tryDeleteImage,
@@ -886,7 +888,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
       return htmlResponse(await renderSettingsPage(session), 400);
     }
 
-    // Delete old header image if one exists
+    // Delete old header image if one exists (best-effort, don't block new upload)
     const existingUrl = await getHeaderImageUrlFromDb();
     if (existingUrl) {
       await tryDeleteImage(
@@ -896,10 +898,19 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
       );
     }
 
-    const filename = await uploadImage(data, validation.detectedType);
-    await updateHeaderImageUrl(filename);
-    await logActivity("Header image uploaded");
-    return redirect("/admin/settings", "Header image uploaded", true, {
+    const [uploadResult] = await Promise.allSettled([
+      uploadImage(data, validation.detectedType),
+    ]);
+    if (uploadResult.status === "fulfilled") {
+      await updateHeaderImageUrl(uploadResult.value);
+      await logActivity("Header image uploaded");
+      return redirect("/admin/settings", "Header image uploaded", true, {
+        formId: "settings-header-image",
+      });
+    }
+    const uploadDetail = `Header image upload failed: ${String(uploadResult.reason)}`;
+    logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
+    return redirect("/admin/settings", "Header image upload failed", false, {
       formId: "settings-header-image",
     });
   });
@@ -911,10 +922,17 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
     return htmlResponse("No header image to remove", 400);
   }
 
-  await tryDeleteImage(existingUrl, undefined, `header image: ${existingUrl}`);
-  await updateHeaderImageUrl("");
-  await logActivity("Header image removed");
-  return redirect("/admin/settings", "Header image removed", true, {
+  const [deleteResult] = await Promise.allSettled([deleteImage(existingUrl)]);
+  if (deleteResult.status === "fulfilled") {
+    await updateHeaderImageUrl("");
+    await logActivity("Header image removed");
+    return redirect("/admin/settings", "Header image removed", true, {
+      formId: "settings-header-image-delete",
+    });
+  }
+  const deleteDetail = `Header image removal failed: ${String(deleteResult.reason)}`;
+  logError({ code: ErrorCode.STORAGE_DELETE, detail: deleteDetail });
+  return redirect("/admin/settings", "Header image removal failed", false, {
     formId: "settings-header-image-delete",
   });
 });

@@ -350,6 +350,29 @@ describe("server (header image settings)", () => {
       });
     });
 
+    test("reports error when upload fails", async () => {
+      const originalFetch = globalThis.fetch;
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+      globalThis.fetch = (): Promise<Response> => {
+        return Promise.reject(new Error("CDN unreachable"));
+      };
+
+      try {
+        const response = await submitHeaderJpeg("logo.jpg");
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("error=");
+        expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
+          "upload failed",
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+        Deno.env.delete("STORAGE_ZONE_NAME");
+        Deno.env.delete("STORAGE_ZONE_KEY");
+      }
+    });
+
     test("rejects mismatched magic bytes", async () => {
       await withStorageMock(async () => {
         const response = await submitHeaderImage({
@@ -380,7 +403,7 @@ describe("server (header image settings)", () => {
       await expectHtmlResponse(response, 400, "No header image to remove");
     });
 
-    test("succeeds even when storage delete throws", async () => {
+    test("reports error when storage delete throws", async () => {
       await updateHeaderImageUrl("failing.jpg");
 
       const originalFetch = globalThis.fetch;
@@ -390,10 +413,16 @@ describe("server (header image settings)", () => {
 
       try {
         const response = await submitHeaderImageDelete();
-        expectSettingsRedirect(response);
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("error=");
+        expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
+          "removal failed",
+        );
 
+        // DB record should NOT be cleared when CDN delete fails
         const url = await getHeaderImageUrlFromDb();
-        expect(url).toBeNull();
+        expect(url).toBe("failing.jpg");
       } finally {
         globalThis.fetch = originalFetch;
       }
