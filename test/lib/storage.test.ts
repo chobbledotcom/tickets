@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
+  deleteAllEventStorageFiles,
   detectImageType,
   generateAttachmentFilename,
   generateImageFilename,
@@ -13,6 +14,7 @@ import {
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
+import { installUrlHandler, withFetchMock } from "#test-utils";
 
 describe("storage", () => {
   beforeEach(() => {
@@ -303,6 +305,97 @@ describe("storage", () => {
     test("preserves file extension", () => {
       const filename = generateAttachmentFilename("archive.tar.gz");
       expect(filename).toMatch(/\.tar\.gz$/);
+    });
+  });
+
+  describe("deleteAllEventStorageFiles", () => {
+    beforeEach(() => {
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+    });
+
+    test("deletes images and attachments for all events", async () => {
+      const events = [
+        { id: 1, image_url: "img1.jpg", attachment_url: "att1.pdf" },
+        { id: 2, image_url: "img2.png", attachment_url: "" },
+        { id: 3, image_url: "", attachment_url: "att3.pdf" },
+      ];
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        await deleteAllEventStorageFiles(events);
+
+        expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(true);
+        expect(deletedUrls.some((u) => u.includes("att1.pdf"))).toBe(true);
+        expect(deletedUrls.some((u) => u.includes("img2.png"))).toBe(true);
+        expect(deletedUrls.some((u) => u.includes("att3.pdf"))).toBe(true);
+        // Empty URLs should not trigger delete calls
+        expect(deletedUrls).toHaveLength(4);
+      });
+    });
+
+    test("skips events with no image or attachment", async () => {
+      const events = [
+        { id: 1, image_url: "", attachment_url: "" },
+      ];
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        await deleteAllEventStorageFiles(events);
+
+        expect(deletedUrls).toHaveLength(0);
+      });
+    });
+
+    test("handles empty events array", async () => {
+      await deleteAllEventStorageFiles([]);
+    });
+
+    test("continues deleting when individual file delete fails", async () => {
+      const events = [
+        { id: 1, image_url: "fail.jpg", attachment_url: "" },
+        { id: 2, image_url: "succeed.jpg", attachment_url: "" },
+      ];
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("fail.jpg")) {
+            return Promise.reject(new Error("CDN error"));
+          }
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        await deleteAllEventStorageFiles(events);
+
+        expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(true);
+      });
     });
   });
 
