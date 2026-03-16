@@ -95,7 +95,7 @@ const handleAttachmentDownload: TypedRouteHandler<
     headers: {
       "content-type": contentType,
       "content-disposition": `attachment; filename="${event.attachment_name.replace(/"/g, '\\"')}"`,
-      "cache-control": "private, no-store",
+      "cache-control": "public, max-age=3600",
     },
   });
 };

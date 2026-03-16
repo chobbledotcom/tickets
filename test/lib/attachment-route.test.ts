@@ -215,7 +215,7 @@ describe("GET /attachment/:id", () => {
     });
   });
 
-  test("returns no-store cache control", async () => {
+  test("returns public cache control for CDN caching", async () => {
     enableStorage();
     const { eventId, attendeeId } = await setupAttachment();
     const path = await signUrl(eventId, attendeeId);
@@ -223,7 +223,9 @@ describe("GET /attachment/:id", () => {
 
     await withCdnMock(fileContent, async () => {
       const response = await handleRequest(mockRequest(path));
-      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=3600",
+      );
     });
   });
 });
