@@ -105,13 +105,11 @@ export const getSquareSandbox = (): Promise<boolean> =>
 
 /**
  * Get booking fee percentage from database.
- * Returns 0 if not set or invalid. Valid range: 0-10.
+ * Returns 0 if not set.
  */
 export const getBookingFee = async (): Promise<number> => {
   const raw = await getBookingFeeFromDb();
-  if (!raw) return 0;
-  const value = Number.parseFloat(raw);
-  return Number.isFinite(value) && value >= 0 && value <= 10 ? value : 0;
+  return Number.parseFloat(raw) || 0;
 };
 
 /**

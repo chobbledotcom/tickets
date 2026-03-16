@@ -213,24 +213,9 @@ describe("config", () => {
       expect(await getBookingFee()).toBe(1.5);
     });
 
-    test("returns 0 for invalid value", async () => {
+    test("returns 0 for unparseable value", async () => {
       await updateBookingFee("abc");
       expect(await getBookingFee()).toBe(0);
-    });
-
-    test("returns 0 for negative value", async () => {
-      await updateBookingFee("-1");
-      expect(await getBookingFee()).toBe(0);
-    });
-
-    test("returns 0 for value exceeding 10", async () => {
-      await updateBookingFee("15");
-      expect(await getBookingFee()).toBe(0);
-    });
-
-    test("returns 10 for maximum valid value", async () => {
-      await updateBookingFee("10");
-      expect(await getBookingFee()).toBe(10);
     });
   });
 });
