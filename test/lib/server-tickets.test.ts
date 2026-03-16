@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import {
   awaitTestRequest,
