@@ -361,7 +361,10 @@ const renderMultiEventDescription = (description: string): string =>
     : "";
 
 /** Render quantity selector for a single event in multi-ticket form */
-const renderMultiEventRow = (info: MultiTicketEvent): string => {
+const renderMultiEventRow = (
+  info: MultiTicketEvent,
+  hideQuantity = false,
+): string => {
   const { event, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
   const imageHtml = renderEventImage(event);
@@ -387,9 +390,14 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
     `;
   }
 
-  const options = Array.from({ length: maxPurchasable + 1 }, (_, i) => i)
-    .map((n) => `<option value="${n}">${n}</option>`)
-    .join("");
+  const quantityHtml = hideQuantity
+    ? `<input type="hidden" name="${fieldName}" value="1" />`
+    : (() => {
+        const options = Array.from({ length: maxPurchasable + 1 }, (_, i) => i)
+          .map((n) => `<option value="${n}">${n}</option>`)
+          .join("");
+        return `<select name="${fieldName}" id="${fieldName}">${options}</select>`;
+      })();
 
   const showPayMore = event.can_pay_more;
   const priceFieldName = `custom_price_${event.id}`;
@@ -399,9 +407,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
       ${imageHtml}
       <label for="${fieldName}">${escapeHtml(event.name)}</label>
       ${renderMultiEventDescription(event.description)}
-      <select name="${fieldName}" id="${fieldName}">
-        ${options}
-      </select>
+      ${quantityHtml}
       ${showPayMore ? renderPayMoreInput(event, priceFieldName) : ""}
     </div>
   `;
@@ -430,9 +436,14 @@ export const multiTicketPage = (
   const fields: Field[] = getTicketFields(fieldsSetting);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
 
-  const eventRows = pipe(map(renderMultiEventRow), (rows: string[]) =>
-    rows.join(""),
-  )(events);
+  const availableEvents = events.filter((e) => !e.isSoldOut && !e.isClosed);
+  const hideQuantity =
+    availableEvents.length === 1 &&
+    availableEvents[0]?.maxPurchasable === 1;
+
+  const eventRows = events
+    .map((e) => renderMultiEventRow(e, hideQuantity))
+    .join("");
 
   return String(
     <Layout title="Reserve Tickets" bodyClass={inIframe ? "iframe" : undefined}>
@@ -451,10 +462,14 @@ export const multiTicketPage = (
             <Raw html={renderDateSelector(availableDates)} />
           )}
 
-          <fieldset class="multi-ticket-events">
-            <legend>Select Tickets</legend>
+          {hideQuantity ? (
             <Raw html={eventRows} />
-          </fieldset>
+          ) : (
+            <fieldset class="multi-ticket-events">
+              <legend>Select Tickets</legend>
+              <Raw html={eventRows} />
+            </fieldset>
+          )}
 
           {termsAndConditions && (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
