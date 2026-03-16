@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { setAllowedDomainForTest } from "#lib/config.ts";
+import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   getCleanUrl,
@@ -521,7 +521,7 @@ describe("server (misc)", () => {
           "https://example.com/ticket/my-event",
         );
       } finally {
-        setAllowedDomainForTest("localhost");
+        resetAllowedDomain();
       }
     });
   });

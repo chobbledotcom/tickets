@@ -123,21 +123,22 @@ export const getCurrencyCode = (): Promise<string> => {
  * Get allowed domain for security validation (runtime config via Bunny secrets)
  * This is a required configuration that hardens origin validation
  */
-const [getAllowedDomainCached, setAllowedDomainCached] = lazyRef(() =>
-  requireEnv("ALLOWED_DOMAIN"),
-);
+const [getAllowedDomainOverride, setAllowedDomainOverride] = lazyRef<
+  string | null
+>(() => null);
 
-export const getAllowedDomain = (): string => getAllowedDomainCached();
+export const getAllowedDomain = (): string =>
+  getAllowedDomainOverride() ?? requireEnv("ALLOWED_DOMAIN");
 
 /** Reset cached allowed domain value (for testing and cache invalidation) */
-export const resetAllowedDomain = (): void => setAllowedDomainCached(null);
+export const resetAllowedDomain = (): void => setAllowedDomainOverride(null);
 
 /**
  * Explicitly set allowed domain (for testing).
  * Bypasses Deno.env to avoid races between parallel test workers.
  */
 export const setAllowedDomainForTest = (domain: string): void =>
-  setAllowedDomainCached(domain);
+  setAllowedDomainOverride(domain);
 
 /**
  * Get allowed embed hosts from database (encrypted, parsed to array)

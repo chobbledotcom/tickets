@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { setAllowedDomainForTest } from "#lib/config.ts";
+import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import {
   buildSessionCookie,
   clearSessionCookie,
@@ -25,7 +25,7 @@ const expectSecureCookieAttributes = (cookie: string) => {
 };
 
 describe("isSecureMode", () => {
-  afterEach(() => setAllowedDomainForTest("localhost"));
+  afterEach(() => resetAllowedDomain());
 
   test("returns true for non-localhost domains", () => {
     setAllowedDomainForTest("example.com");
@@ -39,7 +39,7 @@ describe("isSecureMode", () => {
 });
 
 describe("getSessionCookieName", () => {
-  afterEach(() => setAllowedDomainForTest("localhost"));
+  afterEach(() => resetAllowedDomain());
 
   test("returns __Host-session in secure mode", () => {
     setAllowedDomainForTest("example.com");
@@ -53,7 +53,7 @@ describe("getSessionCookieName", () => {
 });
 
 describe("buildSessionCookie", () => {
-  afterEach(() => setAllowedDomainForTest("localhost"));
+  afterEach(() => resetAllowedDomain());
 
   test("includes __Host-session in secure mode with all required attributes", () => {
     setAllowedDomainForTest("example.com");
@@ -79,7 +79,7 @@ describe("buildSessionCookie", () => {
 });
 
 describe("clearSessionCookie", () => {
-  afterEach(() => setAllowedDomainForTest("localhost"));
+  afterEach(() => resetAllowedDomain());
 
   test("includes __Host-session in secure mode with Max-Age=0", () => {
     setAllowedDomainForTest("example.com");

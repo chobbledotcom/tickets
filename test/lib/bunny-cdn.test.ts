@@ -6,6 +6,7 @@ import {
   getBunnyApiKey,
   getCdnHostname,
   isBunnyCdnEnabled,
+  resetAllowedDomain,
   setAllowedDomainForTest,
 } from "#lib/config.ts";
 import {
@@ -74,7 +75,7 @@ const useBunnyEnv = () => {
 
   afterEach(() => {
     envApiKey.restore();
-    setAllowedDomainForTest("localhost");
+    resetAllowedDomain();
   });
 };
 
@@ -108,7 +109,7 @@ describe("bunny-cdn", () => {
   });
 
   describe("getCdnHostname", () => {
-    afterEach(() => setAllowedDomainForTest("localhost"));
+    afterEach(() => resetAllowedDomain());
 
     test("replaces .bunny.run with .b-cdn.net", () => {
       setAllowedDomainForTest("mysite.bunny.run");

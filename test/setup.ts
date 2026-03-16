@@ -4,7 +4,6 @@
  * All testable logic is in stripe-mock.ts
  */
 
-import { setAllowedDomainForTest } from "#lib/config.ts";
 import { setupTestEncryptionKey } from "#test-utils";
 import {
   STRIPE_MOCK_PORT,
@@ -17,7 +16,9 @@ const manager = new StripeMockManager();
 setupTestEncryptionKey();
 
 // Configure allowed domain for tests (security middleware)
-setAllowedDomainForTest("localhost");
+// Set via env var (not override) so it's the default for all tests.
+// Tests that need a different domain use setAllowedDomainForTest().
+Deno.env.set("ALLOWED_DOMAIN", "localhost");
 
 // Configure stripe-mock env vars
 Deno.env.set("STRIPE_MOCK_HOST", "localhost");

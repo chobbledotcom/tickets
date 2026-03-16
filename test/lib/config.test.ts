@@ -177,7 +177,10 @@ describe("config", () => {
   });
 
   describe("getAllowedDomain", () => {
-    afterEach(() => setAllowedDomainForTest("localhost"));
+    afterEach(() => {
+      Deno.env.set("ALLOWED_DOMAIN", "localhost");
+      resetAllowedDomain();
+    });
 
     test("returns set value from environment", () => {
       Deno.env.set("ALLOWED_DOMAIN", "example.com");
