@@ -37,6 +37,7 @@ podman run -d \
   -v "$VOLUME:/data" \
   --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --tmpfs /deno-dir:rw,noexec,nosuid,size=128m \
   --cap-drop=ALL \
   --security-opt=no-new-privileges \
   -e DB_ENCRYPTION_KEY="${DB_ENCRYPTION_KEY}" \

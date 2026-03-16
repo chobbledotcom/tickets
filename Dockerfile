@@ -1,11 +1,11 @@
-FROM denoland/deno:alpine-2.3.3 AS build
+FROM denoland/deno:alpine-2.7.5 AS build
 WORKDIR /app
 COPY deno.json deno.lock ./
 COPY src/ src/
 COPY scripts/ scripts/
 RUN deno install && deno task build:static
 
-FROM denoland/deno:alpine-2.3.3
+FROM denoland/deno:alpine-2.7.5
 WORKDIR /app
 
 # Create non-root user for running the application
