@@ -6,6 +6,7 @@ import {
   getBunnyApiKey,
   getCdnHostname,
   isBunnyCdnEnabled,
+  setAllowedDomainForTest,
 } from "#lib/config.ts";
 import {
   getCustomDomainFromDb,
@@ -65,16 +66,15 @@ const stubFetchWithRecorder = (
 /** Set up BUNNY_API_KEY and ALLOWED_DOMAIN env vars for a describe block */
 const useBunnyEnv = () => {
   const envApiKey = withEnvVar("BUNNY_API_KEY");
-  const envDomain = withEnvVar("ALLOWED_DOMAIN");
 
   beforeEach(() => {
     Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
-    Deno.env.set("ALLOWED_DOMAIN", "mysite.bunny.run");
+    setAllowedDomainForTest("mysite.bunny.run");
   });
 
   afterEach(() => {
     envApiKey.restore();
-    envDomain.restore();
+    setAllowedDomainForTest("localhost");
   });
 };
 
@@ -108,17 +108,15 @@ describe("bunny-cdn", () => {
   });
 
   describe("getCdnHostname", () => {
-    const envDomain = withEnvVar("ALLOWED_DOMAIN");
-
-    afterEach(() => envDomain.restore());
+    afterEach(() => setAllowedDomainForTest("localhost"));
 
     test("replaces .bunny.run with .b-cdn.net", () => {
-      Deno.env.set("ALLOWED_DOMAIN", "mysite.bunny.run");
+      setAllowedDomainForTest("mysite.bunny.run");
       expect(getCdnHostname()).toBe("mysite.b-cdn.net");
     });
 
     test("returns domain unchanged when not .bunny.run", () => {
-      Deno.env.set("ALLOWED_DOMAIN", "example.com");
+      setAllowedDomainForTest("example.com");
       expect(getCdnHostname()).toBe("example.com");
     });
   });

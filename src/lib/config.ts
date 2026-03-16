@@ -20,6 +20,7 @@ import {
   hasStripeKey,
   isSetupComplete,
 } from "#lib/db/settings.ts";
+import { lazyRef } from "#fp";
 import { getEnv, requireEnv } from "#lib/env.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 
@@ -122,9 +123,21 @@ export const getCurrencyCode = (): Promise<string> => {
  * Get allowed domain for security validation (runtime config via Bunny secrets)
  * This is a required configuration that hardens origin validation
  */
-export const getAllowedDomain = (): string => {
-  return requireEnv("ALLOWED_DOMAIN");
-};
+const [getAllowedDomainCached, setAllowedDomainCached] = lazyRef(
+  () => requireEnv("ALLOWED_DOMAIN"),
+);
+
+export const getAllowedDomain = (): string => getAllowedDomainCached();
+
+/** Reset cached allowed domain value (for testing and cache invalidation) */
+export const resetAllowedDomain = (): void => setAllowedDomainCached(null);
+
+/**
+ * Explicitly set allowed domain (for testing).
+ * Bypasses Deno.env to avoid races between parallel test workers.
+ */
+export const setAllowedDomainForTest = (domain: string): void =>
+  setAllowedDomainCached(domain);
 
 /**
  * Get allowed embed hosts from database (encrypted, parsed to array)

@@ -3,6 +3,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllowedDomain,
+  resetAllowedDomain,
+  setAllowedDomainForTest,
   getBookingFee,
   getCurrencyCode,
   getPaymentProvider,
@@ -175,13 +177,16 @@ describe("config", () => {
   });
 
   describe("getAllowedDomain", () => {
+    afterEach(() => setAllowedDomainForTest("localhost"));
+
     test("returns set value from environment", () => {
       Deno.env.set("ALLOWED_DOMAIN", "example.com");
+      resetAllowedDomain();
       expect(getAllowedDomain()).toBe("example.com");
     });
 
     test("returns localhost when set for testing", () => {
-      Deno.env.set("ALLOWED_DOMAIN", "localhost");
+      setAllowedDomainForTest("localhost");
       expect(getAllowedDomain()).toBe("localhost");
     });
   });

@@ -4,17 +4,17 @@ import { stub } from "@std/testing/mock";
 import { PaymentUserError } from "#lib/payment-helpers.ts";
 import { squareApi } from "#lib/square.ts";
 import { squarePaymentProvider } from "#lib/square-provider.ts";
+import { setAllowedDomainForTest } from "#lib/config.ts";
 import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
 
 describe("square-provider", () => {
   beforeEach(async () => {
     await createTestDb();
-    Deno.env.set("ALLOWED_DOMAIN", "example.com");
+    setAllowedDomainForTest("example.com");
   });
 
   afterEach(() => {
     resetDb();
-    Deno.env.set("ALLOWED_DOMAIN", "localhost");
   });
 
   describe("retrieveSession", () => {

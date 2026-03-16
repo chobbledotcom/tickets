@@ -5,6 +5,7 @@
  */
 
 import { setupTestEncryptionKey } from "#test-utils";
+import { setAllowedDomainForTest } from "#lib/config.ts";
 import {
   STRIPE_MOCK_PORT,
   StripeMockManager,
@@ -16,7 +17,7 @@ const manager = new StripeMockManager();
 setupTestEncryptionKey();
 
 // Configure allowed domain for tests (security middleware)
-Deno.env.set("ALLOWED_DOMAIN", "localhost");
+setAllowedDomainForTest("localhost");
 
 // Configure stripe-mock env vars
 Deno.env.set("STRIPE_MOCK_HOST", "localhost");

@@ -17,6 +17,7 @@ import {
   WEBHOOK_EXAMPLE_JSON,
   WEBHOOK_EXAMPLE_PAYLOAD,
 } from "#lib/webhook-example.ts";
+import { setAllowedDomainForTest } from "#lib/config.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
 
 /** Extract the domain from the example ticket_url (e.g. "https://x.com/t/..." → "x.com") */
@@ -37,10 +38,10 @@ describe("webhook example", () => {
     const { updateBusinessEmail } = await import("#lib/business-email.ts");
     await updateBusinessEmail(EXAMPLE_BUSINESS_EMAIL);
 
-    // Stub ALLOWED_DOMAIN to match the example domain
-    Deno.env.set("ALLOWED_DOMAIN", exampleDomain);
+    // Set ALLOWED_DOMAIN to match the example domain
+    setAllowedDomainForTest(exampleDomain);
     domainStub = {
-      restore: () => Deno.env.set("ALLOWED_DOMAIN", "localhost"),
+      restore: () => setAllowedDomainForTest("localhost"),
     };
 
     // Fix time to match the example timestamp
