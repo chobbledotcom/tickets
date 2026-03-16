@@ -1610,7 +1610,7 @@ describe("server (public routes)", () => {
     test("shows reservation success page", async () => {
       const response = await handleRequest(mockRequest("/ticket/reserved"));
       const html = await expectHtmlResponse(response, 200, "success");
-      expect(html).not.toContain("view your tickets");
+      expect(html).not.toContain("view your ticket");
     });
 
     test("shows ticket link when tokens are provided", async () => {

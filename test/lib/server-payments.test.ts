@@ -601,7 +601,7 @@ describe("server (payment flow)", () => {
             200,
             "Payment Successful",
             "https://example.com/thanks",
-            "Click here to view your tickets",
+            "Click here to view your ticket",
             'target="_blank"',
           );
 
@@ -1142,7 +1142,7 @@ describe("server (payment flow)", () => {
           response,
           200,
           "https://example.com/single-thanks",
-          "Click here to view your tickets",
+          "Click here to view your ticket",
         );
       } finally {
         mockRetrieve.restore();
@@ -1192,7 +1192,7 @@ describe("server (payment flow)", () => {
         // Already-processed single-ticket should include thank_you_url
         expect(html).toContain("https://example.com/replay-thanks");
         // But no ticket link (no tokens available for already-processed)
-        expect(html).not.toContain("view your tickets");
+        expect(html).not.toContain("view your ticket");
 
         // Should still only have one attendee
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1328,7 +1328,7 @@ describe("server (payment flow)", () => {
         const html = await response.text();
 
         // Should have ticket link with verified token
-        expect(html).toContain("Click here to view your tickets");
+        expect(html).toContain("Click here to view your ticket");
         expect(html).toContain('target="_blank"');
         expect(html).toContain("/t/");
 
