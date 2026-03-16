@@ -1350,7 +1350,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             Absolutely. This is open-source software, so you have full control.
             You can{" "}
-            <a href="https://github.com/chobble-mirror/tickets">
+            <a href="https://github.com/chobbledotcom/tickets">
               grab the code from GitHub
             </a>{" "}
             and host it yourself on Bunny Edge Scripting or any compatible
