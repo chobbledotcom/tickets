@@ -27,10 +27,7 @@ import {
   wrapKey,
   wrapKeyWithToken,
 } from "#lib/crypto.ts";
-import {
-  clearTestEncryptionKey,
-  setupTestEncryptionKey,
-} from "#test-utils";
+import { clearTestEncryptionKey, setupTestEncryptionKey } from "#test-utils";
 
 describe("constantTimeEqual", () => {
   it("returns true for equal strings", () => {
