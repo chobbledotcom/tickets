@@ -152,7 +152,14 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 
 ## Environment Variables
 
-See the full list of configuration keys in the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html).
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DB_URL` | Yes | libsql database URL |
+| `DB_TOKEN` | Yes* | Database auth token (*remote databases) |
+| `DB_ENCRYPTION_KEY` | Yes | 32-byte base64-encoded AES-256 key |
+| `ALLOWED_DOMAIN` | Yes | Domain for security validation |
+
+There are additional optional variables covering emails, Apple Wallet, image uploads, and more — see the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for the full list.
 
 ## Deployment
 
