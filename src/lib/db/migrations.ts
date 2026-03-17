@@ -637,6 +637,12 @@ export const initDb = async (): Promise<void> => {
     "ALTER TABLE attendees ADD COLUMN attachment_downloads INTEGER NOT NULL DEFAULT 0",
   );
 
+  // Migration: add ticket_tokens column to processed_payments
+  // Stores plaintext tokens so already-processed sessions can still show ticket links
+  await runMigration(
+    "ALTER TABLE processed_payments ADD COLUMN ticket_tokens TEXT NOT NULL DEFAULT ''",
+  );
+
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",

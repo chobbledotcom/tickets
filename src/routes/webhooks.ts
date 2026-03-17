@@ -28,7 +28,13 @@ import {
   getAttendeesByTokens,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
-import { finalizeSession, reserveSession } from "#lib/db/processed-payments.ts";
+import {
+  clearSessionTokens,
+  decryptSessionTokens,
+  finalizeSession,
+  type ProcessedPayment,
+  reserveSession,
+} from "#lib/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   extractSessionMetadata,
@@ -366,15 +372,17 @@ const formatPostPaymentError = formatCreationError(
 /** Return success result for an already-processed session */
 const alreadyProcessedResult = async (
   eventId: number,
-  attendeeId: number,
+  existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
   const event = await getEventWithCount(eventId);
   if (!event) return { success: false, error: "Event not found", status: 404 };
+  const decrypted = await decryptSessionTokens(existing.ticket_tokens);
+  const ticketTokens = decrypted ? decrypted.split("+") : [];
   return {
     success: true,
-    attendee: { id: attendeeId },
+    attendee: { id: existing.attendee_id! },
     event,
-    ticketTokens: [],
+    ticketTokens,
   };
 };
 
@@ -458,6 +466,7 @@ const priceMismatchRefund = async (
 const processMultiPaymentSession = async (
   sessionId: string,
   data: { session: ValidatedPaymentSession; intent: MultiIntent },
+  options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
   // Phase 1: Reserve the session
@@ -467,7 +476,7 @@ const processMultiPaymentSession = async (
     const { existing } = reservation;
 
     if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.items[0]!.e, existing.attendee_id);
+      return alreadyProcessedResult(intent.items[0]!.e, existing);
     }
 
     // Still being processed by another request
@@ -594,7 +603,15 @@ const processMultiPaymentSession = async (
   // is validated non-empty) and if any creation fails we return early above.
   const firstAttendee = createdAttendees[0]!;
 
-  await finalizeSession(sessionId, firstAttendee.attendee.id);
+  const ticketTokens: string[] = map(
+    ({ attendee }: { attendee: Attendee }) => attendee.ticket_token,
+  )(createdAttendees);
+
+  await finalizeSession(
+    sessionId,
+    firstAttendee.attendee.id,
+    options?.storeTokens === false ? [] : ticketTokens,
+  );
 
   // Log and send consolidated webhook for all created attendees
   await logAndNotifyMultiRegistration(
@@ -606,9 +623,7 @@ const processMultiPaymentSession = async (
     success: true,
     attendee: firstAttendee.attendee,
     event: firstAttendee.event,
-    ticketTokens: map(
-      ({ attendee }: { attendee: Attendee }) => attendee.ticket_token,
-    )(createdAttendees),
+    ticketTokens,
   };
 };
 
@@ -622,6 +637,7 @@ const processMultiPaymentSession = async (
 const processPaymentSession = async (
   sessionId: string,
   data: { session: ValidatedPaymentSession; intent: RegistrationIntent },
+  options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
   // Phase 1: Try to reserve the session (claim the lock)
@@ -632,7 +648,7 @@ const processPaymentSession = async (
     const { existing } = reservation;
 
     if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.eventId, existing.attendee_id);
+      return alreadyProcessedResult(intent.eventId, existing);
     }
 
     // Session reserved but not finalized - another request is processing
@@ -682,8 +698,14 @@ const processPaymentSession = async (
     return refundAndFail(session, formatPostPaymentError(result.reason));
   }
 
-  // Phase 3: Finalize the session with the attendee ID
-  await finalizeSession(sessionId, result.attendee.id);
+  // Phase 3: Finalize the session with the attendee ID and token
+  // Skip storing tokens when called from redirect (caller already has them in memory)
+  const ticketTokens = [result.attendee.ticket_token];
+  await finalizeSession(
+    sessionId,
+    result.attendee.id,
+    options?.storeTokens === false ? [] : ticketTokens,
+  );
 
   await logAndNotifyRegistration(
     event,
@@ -694,7 +716,7 @@ const processPaymentSession = async (
     success: true,
     attendee: result.attendee,
     event,
-    ticketTokens: [result.attendee.ticket_token],
+    ticketTokens,
   };
 };
 
@@ -723,10 +745,13 @@ const processSessionAndRedirect = async (
   if (!validation.ok) return validation.response;
 
   const { data } = validation;
+  // Skip persisting tokens — the redirect has them in memory and will put them in the URL.
+  // This avoids tokens sitting in the DB forever when the redirect wins the race.
+  const noStore = { storeTokens: false } as const;
   const result =
     data.type === "multi"
-      ? await processMultiPaymentSession(sessionId, data)
-      : await processPaymentSession(sessionId, data);
+      ? await processMultiPaymentSession(sessionId, data, noStore)
+      : await processPaymentSession(sessionId, data, noStore);
 
   if (!result.success) {
     // Log once at the redirect boundary
@@ -738,6 +763,11 @@ const processSessionAndRedirect = async (
       detail: `[redirect] ${result.detail ?? result.error}`,
     });
     return paymentErrorResponse(formatPaymentError(result), result.status);
+  }
+
+  // Clear any tokens stored by a webhook that won the race (consumed now via redirect URL)
+  if (result.ticketTokens.length > 0) {
+    await clearSessionTokens(sessionId);
   }
 
   // Redirect to success page with verified tokens in URL

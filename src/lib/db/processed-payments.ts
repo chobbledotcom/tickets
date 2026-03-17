@@ -13,6 +13,7 @@
  *   - Fresh → return conflict error (still being processed)
  */
 
+import { decrypt, encrypt } from "#lib/crypto.ts";
 import { getDb, queryOne } from "#lib/db/client.ts";
 import { nowIso, nowMs } from "#lib/now.ts";
 
@@ -24,6 +25,7 @@ export type ProcessedPayment = {
   payment_session_id: string;
   attendee_id: number | null;
   processed_at: string;
+  ticket_tokens: string;
 };
 
 /** Result of session reservation attempt */
@@ -38,7 +40,7 @@ export const isSessionProcessed = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at FROM processed_payments WHERE payment_session_id = ?",
+    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens FROM processed_payments WHERE payment_session_id = ?",
     [sessionId],
   );
 
@@ -128,10 +130,34 @@ export const reserveSession = async (
 export const finalizeSession = async (
   sessionId: string,
   attendeeId: number,
+  ticketTokens: string[] = [],
 ): Promise<void> => {
+  const joined = ticketTokens.join("+");
+  const encryptedTokens = joined ? await encrypt(joined) : "";
   await getDb().execute({
-    sql: "UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ?",
-    args: [attendeeId, sessionId],
+    sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
+    args: [attendeeId, encryptedTokens, sessionId],
+  });
+};
+
+/**
+ * Decrypt the ticket_tokens field from a processed payment record.
+ * Returns the plaintext token string (e.g. "tok1+tok2") or empty string.
+ */
+export const decryptSessionTokens = async (
+  encryptedTokens: string,
+): Promise<string> => {
+  if (!encryptedTokens) return "";
+  return await decrypt(encryptedTokens);
+};
+
+/**
+ * Clear stored ticket tokens for a session (after redirect has consumed them)
+ */
+export const clearSessionTokens = async (sessionId: string): Promise<void> => {
+  await getDb().execute({
+    sql: "UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ?",
+    args: [sessionId],
   });
 };
 
