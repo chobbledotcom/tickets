@@ -832,6 +832,14 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
     );
   }
 
+  if (raw.length > 3) {
+    return errorPage(
+      "Phone prefix must be 1-3 digits",
+      400,
+      "settings-phone-prefix",
+    );
+  }
+
   await updatePhonePrefix(raw);
   await logActivity(`Phone prefix set to ${raw}`);
   return redirect("/admin/settings", `Phone prefix updated to ${raw}`, true, {

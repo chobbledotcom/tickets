@@ -1730,6 +1730,44 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 400, "Phone prefix must be a number");
     });
 
+    test("rejects prefix longer than 3 digits", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "1234",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+
+      await expectHtmlResponse(
+        response,
+        400,
+        "Phone prefix must be 1-3 digits",
+      );
+    });
+
+    test("accepts 3-digit prefix", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "886",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Phone prefix updated to 886",
+      );
+    });
+
     test("rejects when phone_prefix field is missing", async () => {
       const response = await handleRequest(
         mockFormRequest(
