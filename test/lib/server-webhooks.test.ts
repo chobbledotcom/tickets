@@ -247,6 +247,13 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.payment_id).not.toBeNull();
+
+        // Verify tokens ARE persisted in DB (webhook stores them for redirect to consume)
+        const { isSessionProcessed } = await import(
+          "#lib/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_webhook_test");
+        expect(record?.ticket_tokens).not.toBe("");
       } finally {
         mockVerify.restore();
       }
@@ -1215,7 +1222,9 @@ describe("server (webhooks)", () => {
         finalizeSession: finalizeSessionFn,
       } = await import("#lib/db/processed-payments.ts");
       await reserveSessionFn("cs_multi_already_done");
-      await finalizeSessionFn("cs_multi_already_done", attendee.id);
+      await finalizeSessionFn("cs_multi_already_done", attendee.id, [
+        attendee.ticket_token,
+      ]);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = stub(

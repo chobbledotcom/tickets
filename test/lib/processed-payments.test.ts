@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#lib/db/client.ts";
 import {
+  clearSessionTokens,
   deleteAllStaleReservations,
   deleteStaleReservation,
   finalizeSession,
@@ -168,6 +169,63 @@ describe("processed-payments", () => {
 
       // Verify attendee_id is set
       record = await isSessionProcessed("cs_to_finalize");
+      expect(record?.attendee_id).toBe(testAttendeeId);
+    });
+
+    test("stores ticket tokens when provided", async () => {
+      await reserveSession("cs_with_tokens");
+      await finalizeSession("cs_with_tokens", testAttendeeId, [
+        "tok_abc",
+        "tok_def",
+      ]);
+
+      const record = await isSessionProcessed("cs_with_tokens");
+      expect(record?.ticket_tokens).toBe("tok_abc+tok_def");
+    });
+
+    test("stores empty string when no tokens provided", async () => {
+      await reserveSession("cs_no_tokens");
+      await finalizeSession("cs_no_tokens", testAttendeeId);
+
+      const record = await isSessionProcessed("cs_no_tokens");
+      expect(record?.ticket_tokens).toBe("");
+    });
+
+    test("stores empty string when empty array provided", async () => {
+      await reserveSession("cs_empty_tokens");
+      await finalizeSession("cs_empty_tokens", testAttendeeId, []);
+
+      const record = await isSessionProcessed("cs_empty_tokens");
+      expect(record?.ticket_tokens).toBe("");
+    });
+  });
+
+  describe("clearSessionTokens", () => {
+    test("clears stored tokens from a finalized session", async () => {
+      await reserveSession("cs_clear_test");
+      await finalizeSession("cs_clear_test", testAttendeeId, ["tok_xyz"]);
+
+      // Tokens stored
+      let record = await isSessionProcessed("cs_clear_test");
+      expect(record?.ticket_tokens).toBe("tok_xyz");
+
+      // Clear them
+      await clearSessionTokens("cs_clear_test");
+
+      // Tokens gone, attendee_id preserved
+      record = await isSessionProcessed("cs_clear_test");
+      expect(record?.ticket_tokens).toBe("");
+      expect(record?.attendee_id).toBe(testAttendeeId);
+    });
+
+    test("is a no-op when tokens are already empty", async () => {
+      await reserveSession("cs_clear_noop");
+      await finalizeSession("cs_clear_noop", testAttendeeId);
+
+      await clearSessionTokens("cs_clear_noop");
+
+      const record = await isSessionProcessed("cs_clear_noop");
+      expect(record?.ticket_tokens).toBe("");
       expect(record?.attendee_id).toBe(testAttendeeId);
     });
   });

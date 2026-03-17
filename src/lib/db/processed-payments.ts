@@ -138,6 +138,16 @@ export const finalizeSession = async (
 };
 
 /**
+ * Clear stored ticket tokens for a session (after redirect has consumed them)
+ */
+export const clearSessionTokens = async (sessionId: string): Promise<void> => {
+  await getDb().execute({
+    sql: "UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ?",
+    args: [sessionId],
+  });
+};
+
+/**
  * Get the attendee ID for an already-processed session
  * Used to return success for idempotent webhook retries
  */

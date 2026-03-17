@@ -29,8 +29,9 @@ import {
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
-  type ProcessedPayment,
+  clearSessionTokens,
   finalizeSession,
+  type ProcessedPayment,
   reserveSession,
 } from "#lib/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
@@ -465,6 +466,7 @@ const priceMismatchRefund = async (
 const processMultiPaymentSession = async (
   sessionId: string,
   data: { session: ValidatedPaymentSession; intent: MultiIntent },
+  options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
   // Phase 1: Reserve the session
@@ -605,7 +607,11 @@ const processMultiPaymentSession = async (
     ({ attendee }: { attendee: Attendee }) => attendee.ticket_token,
   )(createdAttendees);
 
-  await finalizeSession(sessionId, firstAttendee.attendee.id, ticketTokens);
+  await finalizeSession(
+    sessionId,
+    firstAttendee.attendee.id,
+    options?.storeTokens === false ? [] : ticketTokens,
+  );
 
   // Log and send consolidated webhook for all created attendees
   await logAndNotifyMultiRegistration(
@@ -631,6 +637,7 @@ const processMultiPaymentSession = async (
 const processPaymentSession = async (
   sessionId: string,
   data: { session: ValidatedPaymentSession; intent: RegistrationIntent },
+  options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
   // Phase 1: Try to reserve the session (claim the lock)
@@ -692,8 +699,13 @@ const processPaymentSession = async (
   }
 
   // Phase 3: Finalize the session with the attendee ID and token
+  // Skip storing tokens when called from redirect (caller already has them in memory)
   const ticketTokens = [result.attendee.ticket_token];
-  await finalizeSession(sessionId, result.attendee.id, ticketTokens);
+  await finalizeSession(
+    sessionId,
+    result.attendee.id,
+    options?.storeTokens === false ? [] : ticketTokens,
+  );
 
   await logAndNotifyRegistration(
     event,
@@ -733,10 +745,13 @@ const processSessionAndRedirect = async (
   if (!validation.ok) return validation.response;
 
   const { data } = validation;
+  // Skip persisting tokens — the redirect has them in memory and will put them in the URL.
+  // This avoids tokens sitting in the DB forever when the redirect wins the race.
+  const noStore = { storeTokens: false } as const;
   const result =
     data.type === "multi"
-      ? await processMultiPaymentSession(sessionId, data)
-      : await processPaymentSession(sessionId, data);
+      ? await processMultiPaymentSession(sessionId, data, noStore)
+      : await processPaymentSession(sessionId, data, noStore);
 
   if (!result.success) {
     // Log once at the redirect boundary
@@ -748,6 +763,11 @@ const processSessionAndRedirect = async (
       detail: `[redirect] ${result.detail ?? result.error}`,
     });
     return paymentErrorResponse(formatPaymentError(result), result.status);
+  }
+
+  // Clear any tokens stored by a webhook that won the race (consumed now via redirect URL)
+  if (result.ticketTokens.length > 0) {
+    await clearSessionTokens(sessionId);
   }
 
   // Redirect to success page with verified tokens in URL

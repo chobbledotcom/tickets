@@ -610,6 +610,13 @@ describe("server (payment flow)", () => {
           const attendees = await getAttendeesRaw(event.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.payment_id).not.toBeNull();
+
+          // Verify tokens are NOT persisted in DB (redirect has them in URL, no need to store)
+          const { isSessionProcessed } = await import(
+            "#lib/db/processed-payments.ts"
+          );
+          const record = await isSessionProcessed("cs_test_paid");
+          expect(record?.ticket_tokens).toBe("");
         },
       );
     });
@@ -1182,20 +1189,14 @@ describe("server (payment flow)", () => {
         );
         expect(response1.status).toBe(302);
 
-        // Second request (replay) should redirect with stored tokens
+        // Second request (replay) renders directly — redirect path doesn't store tokens,
+        // so replay has no tokens to redirect with
         const response2 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_dupe_session"),
         );
-        expect(response2.status).toBe(302);
-
-        // Follow the redirect to verify the ticket link renders
-        const response3 = await followRedirect(response2, handleRequest);
-        const html = await response3.text();
+        expect(response2.status).toBe(200);
+        const html = await response2.text();
         expect(html).toContain("Payment Successful");
-        // Already-processed single-ticket should include thank_you_url
-        expect(html).toContain("https://example.com/replay-thanks");
-        // Ticket link should be present (tokens stored during finalize)
-        expect(html).toContain("view your ticket");
 
         // Should still only have one attendee
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1247,19 +1248,14 @@ describe("server (payment flow)", () => {
         );
         expect(response1.status).toBe(302);
 
-        // Second request (replay) should redirect with stored tokens
+        // Second request (replay) renders directly — redirect path doesn't store tokens,
+        // so replay has no tokens to redirect with
         const response2 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_dupe"),
         );
-        expect(response2.status).toBe(302);
-
-        // Follow the redirect to verify the ticket link renders
-        const response3 = await followRedirect(response2, handleRequest);
-        const html = await response3.text();
+        expect(response2.status).toBe(200);
+        const html = await response2.text();
         expect(html).toContain("Payment Successful");
-        expect(html).toContain("view your tickets");
-        // Multi-ticket already-processed has no thank_you_url redirect
-        expect(html).not.toContain("redirected");
       } finally {
         mockRetrieve.restore();
       }
