@@ -194,7 +194,7 @@ describe("server (admin guide)", () => {
       );
     });
 
-    test("shows host email config when configured", async () => {
+    test("shows host email config and setup instructions when configured", async () => {
       setHostEmailConfigForTest({
         provider: "resend",
         apiKey: "re_test_key",
@@ -208,9 +208,7 @@ describe("server (admin guide)", () => {
         );
         expect(html).toContain("Resend");
         expect(html).toContain("tickets@example.com");
-        expect(html).not.toContain(
-          "Choose your email provider from the dropdown",
-        );
+        expect(html).toContain("Choose your email provider from the dropdown");
       } finally {
         resetHostEmailConfig();
       }
@@ -225,7 +223,7 @@ describe("server (admin guide)", () => {
       );
     });
 
-    test("shows host wallet config when configured", async () => {
+    test("shows host wallet config and setup instructions when configured", async () => {
       setHostAppleWalletConfigForTest({
         passTypeId: "pass.com.host.tickets",
         teamId: "HOSTTEAM01",
@@ -240,7 +238,7 @@ describe("server (admin guide)", () => {
           "already configured by your server administrator using pass type",
         );
         expect(html).toContain("pass.com.host.tickets");
-        expect(html).not.toContain("You need five values from");
+        expect(html).toContain("You need five values from");
       } finally {
         resetHostAppleWalletConfig();
       }
