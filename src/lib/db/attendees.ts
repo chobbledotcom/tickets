@@ -548,33 +548,32 @@ export const attendeesApi = {
       : "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?";
     const capacityArgs = date ? [eventId, date] : [eventId];
 
-    // Group capacity check: skip if event has no group (group_id=0) or group has no limit (max_attendees=0)
-    // For date-aware counting: standard events always count, daily events only count matching date
+    // Group capacity check via single CASE expression — one event+group lookup.
+    // Skips when group_id=0 (no group) or max_attendees=0 (no limit).
+    // Date-aware: standard events always count, daily events only count matching date.
     const groupCapacityCheck = `
             AND (
-              (SELECT ev1.group_id FROM events ev1 WHERE ev1.id = ?) = 0
-              OR (SELECT COALESCE(g1.max_attendees, 0) FROM events ev2 LEFT JOIN groups g1 ON g1.id = ev2.group_id WHERE ev2.id = ?) = 0
-              OR (
-                (SELECT COALESCE(SUM(a2.quantity), 0)
-                 FROM attendees a2
-                 JOIN events e2 ON e2.id = a2.event_id
-                 WHERE e2.group_id = (SELECT group_id FROM events WHERE id = ?)
-                   AND (? IS NULL OR e2.event_type != 'daily' OR a2.date = ?)
-                ) + ? <= (
-                  SELECT g2.max_attendees
-                  FROM events ev3 JOIN groups g2 ON g2.id = ev3.group_id
-                  WHERE ev3.id = ?
-                )
-              )
-            )`;
+              SELECT CASE
+                WHEN ev.group_id = 0 THEN 1
+                WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
+                WHEN (
+                  SELECT COALESCE(SUM(a2.quantity), 0)
+                  FROM attendees a2
+                  JOIN events e2 ON e2.id = a2.event_id
+                  WHERE e2.group_id = ev.group_id
+                    AND (? IS NULL OR e2.event_type != 'daily' OR a2.date = ?)
+                ) + ? <= g.max_attendees THEN 1
+                ELSE 0
+              END
+              FROM events ev
+              LEFT JOIN groups g ON g.id = ev.group_id
+              WHERE ev.id = ?
+            ) = 1`;
     const groupCapacityArgs = [
-      eventId, // group_id check
-      eventId, // max_attendees check
-      eventId, // group_id subquery for SUM
       date, // date IS NULL check
       date, // date match
       qty, // quantity to add
-      eventId, // event for group join
+      eventId, // event lookup
     ];
 
     // Atomic check-and-insert: only inserts if capacity allows

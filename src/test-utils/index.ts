@@ -1503,17 +1503,13 @@ export const createTestGroup = async (
     maxAttendees: overrides.maxAttendees ?? 0,
   };
 
-  const formData: Record<string, string> = {
-    name: input.name,
-    terms_and_conditions: input.termsAndConditions,
-  };
-  if (input.maxAttendees > 0) {
-    formData.max_attendees = String(input.maxAttendees);
-  }
-
   const group = await authenticatedFormRequest(
     "/admin/group",
-    formData,
+    {
+      name: input.name,
+      terms_and_conditions: input.termsAndConditions,
+      max_attendees: String(input.maxAttendees),
+    },
     async () => {
       const { getAllGroups } = await import("#lib/db/groups.ts");
       const groups = await getAllGroups();
@@ -1544,20 +1540,15 @@ export const updateTestGroup = async (
   const { groupsTable } = await import("#lib/db/groups.ts");
   const existing = (await groupsTable.findById(groupId)) as Group;
 
-  const maxAttendees = updates.maxAttendees ?? existing.max_attendees;
-  const formData: Record<string, string> = {
-    name: updates.name ?? existing.name,
-    slug: updates.slug ?? existing.slug,
-    terms_and_conditions:
-      updates.termsAndConditions ?? existing.terms_and_conditions,
-  };
-  if (maxAttendees > 0) {
-    formData.max_attendees = String(maxAttendees);
-  }
-
   return authenticatedFormRequest(
     `/admin/group/${groupId}/edit`,
-    formData,
+    {
+      name: updates.name ?? existing.name,
+      slug: updates.slug ?? existing.slug,
+      terms_and_conditions:
+        updates.termsAndConditions ?? existing.terms_and_conditions,
+      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
+    },
     async () => {
       const updated = await groupsTable.findById(groupId);
       return updated as Group;
