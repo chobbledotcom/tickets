@@ -15,7 +15,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add attachment columns to events and attendees";
+export const LATEST_UPDATE = "add ticket_tokens column to processed_payments";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
