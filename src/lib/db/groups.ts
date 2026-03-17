@@ -13,6 +13,7 @@ import {
 } from "#lib/db/common-schema.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { queryAndMap } from "#lib/db/query.ts";
+import { col } from "#lib/db/table.ts";
 import type { Event, EventWithCount, Group } from "#lib/types.ts";
 
 /** Group input fields for create/update (camelCase) */
@@ -21,6 +22,7 @@ export type GroupInput = {
   slugIndex: string;
   name: string;
   termsAndConditions: string;
+  maxAttendees: number;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -39,6 +41,7 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...encryptedNameSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   terms_and_conditions: { default: () => "", write: encrypt, read: decrypt },
+  max_attendees: col.simple<number>(),
 });
 
 /** Execute a query and decrypt the resulting group rows */

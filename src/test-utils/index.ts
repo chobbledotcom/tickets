@@ -1485,6 +1485,7 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   slug: "test-group",
   slug_index: "test-group-index",
   terms_and_conditions: "",
+  max_attendees: 0,
   ...overrides,
 });
 
@@ -1499,14 +1500,20 @@ export const createTestGroup = async (
   const input = {
     name: overrides.name ?? "Test Group",
     termsAndConditions: overrides.termsAndConditions ?? "",
+    maxAttendees: overrides.maxAttendees ?? 0,
   };
+
+  const formData: Record<string, string> = {
+    name: input.name,
+    terms_and_conditions: input.termsAndConditions,
+  };
+  if (input.maxAttendees > 0) {
+    formData.max_attendees = String(input.maxAttendees);
+  }
 
   const group = await authenticatedFormRequest(
     "/admin/group",
-    {
-      name: input.name,
-      terms_and_conditions: input.termsAndConditions,
-    },
+    formData,
     async () => {
       const { getAllGroups } = await import("#lib/db/groups.ts");
       const groups = await getAllGroups();
@@ -1520,6 +1527,7 @@ export const createTestGroup = async (
       name: group.name,
       slug: overrides.slug,
       termsAndConditions: group.terms_and_conditions,
+      maxAttendees: group.max_attendees,
     });
   }
 
@@ -1536,14 +1544,20 @@ export const updateTestGroup = async (
   const { groupsTable } = await import("#lib/db/groups.ts");
   const existing = (await groupsTable.findById(groupId)) as Group;
 
+  const maxAttendees = updates.maxAttendees ?? existing.max_attendees;
+  const formData: Record<string, string> = {
+    name: updates.name ?? existing.name,
+    slug: updates.slug ?? existing.slug,
+    terms_and_conditions:
+      updates.termsAndConditions ?? existing.terms_and_conditions,
+  };
+  if (maxAttendees > 0) {
+    formData.max_attendees = String(maxAttendees);
+  }
+
   return authenticatedFormRequest(
     `/admin/group/${groupId}/edit`,
-    {
-      name: updates.name ?? existing.name,
-      slug: updates.slug ?? existing.slug,
-      terms_and_conditions:
-        updates.termsAndConditions ?? existing.terms_and_conditions,
-    },
+    formData,
     async () => {
       const updated = await groupsTable.findById(groupId);
       return updated as Group;

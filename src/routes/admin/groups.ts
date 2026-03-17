@@ -66,6 +66,7 @@ const extractGroupCreateInput = async (
     slug,
     slugIndex,
     termsAndConditions: values.terms_and_conditions,
+    maxAttendees: values.max_attendees ?? 0,
   };
 };
 
@@ -79,6 +80,7 @@ const extractGroupEditInput = async (
     slug,
     slugIndex: await computeGroupSlugIndex(slug),
     termsAndConditions: values.terms_and_conditions,
+    maxAttendees: values.max_attendees ?? 0,
   };
 };
 

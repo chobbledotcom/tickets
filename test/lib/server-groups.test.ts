@@ -748,6 +748,74 @@ describe("server (admin groups)", () => {
     });
   });
 
+  describe("group max_attendees", () => {
+    test("creates group with max_attendees", async () => {
+      const group = await createTestGroup({
+        name: "Capped",
+        slug: "capped",
+        maxAttendees: 50,
+      });
+      expect(group.max_attendees).toBe(50);
+    });
+
+    test("creates group without max_attendees defaults to 0", async () => {
+      const group = await createTestGroup({
+        name: "Uncapped",
+        slug: "uncapped",
+      });
+      expect(group.max_attendees).toBe(0);
+    });
+
+    test("edit form shows max_attendees field", async () => {
+      const group = await createTestGroup({
+        name: "Edit Max",
+        slug: "edit-max",
+        maxAttendees: 25,
+      });
+
+      const { response } = await adminGet(`/admin/group/${group.id}/edit`);
+      const html = await response.text();
+      expect(html).toContain("max_attendees");
+      expect(html).toContain("25");
+    });
+
+    test("updates max_attendees via edit", async () => {
+      const group = await createTestGroup({
+        name: "Update Max",
+        slug: "update-max",
+        maxAttendees: 10,
+      });
+
+      const updated = await updateTestGroup(group.id, { maxAttendees: 30 });
+      expect(updated.max_attendees).toBe(30);
+    });
+
+    test("detail page shows attendees with max when set", async () => {
+      const group = await createTestGroup({
+        name: "Detail Max",
+        slug: "detail-max",
+        maxAttendees: 100,
+      });
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const html = await response.text();
+      expect(html).toContain("0 / 100");
+    });
+
+    test("detail page shows plain attendee count when no group max set", async () => {
+      const group = await createTestGroup({
+        name: "Detail No Max",
+        slug: "detail-no-max",
+      });
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const html = await response.text();
+      // Attendees row should show just "0" not "0 / X"
+      expect(html).toContain("<th>Attendees</th>");
+      expect(html).toContain("<td>0</td>");
+    });
+  });
+
   describe("nav link", () => {
     test("groups link visible to owners", async () => {
       const { response } = await adminGet("/admin/groups");

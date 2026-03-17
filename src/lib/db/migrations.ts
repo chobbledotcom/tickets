@@ -643,6 +643,11 @@ export const initDb = async (): Promise<void> => {
     "ALTER TABLE processed_payments ADD COLUMN ticket_tokens TEXT NOT NULL DEFAULT ''",
   );
 
+  // Migration: add max_attendees column to groups (0 = no group-wide limit)
+  await runMigration(
+    "ALTER TABLE groups ADD COLUMN max_attendees INTEGER NOT NULL DEFAULT 0",
+  );
+
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",

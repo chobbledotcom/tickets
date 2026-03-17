@@ -153,6 +153,7 @@ export interface Group {
   slug_index: string;
   name: string;
   terms_and_conditions: string;
+  max_attendees: number;
 }
 
 export interface EventWithCount extends Event {

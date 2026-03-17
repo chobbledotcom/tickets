@@ -99,6 +99,7 @@ import {
   createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
+  createTestGroup,
   invalidateTestDbCache,
   resetDb,
   resetTestSlugCounter,
@@ -3332,19 +3333,15 @@ describe("db", () => {
 
   describe("groups", () => {
     test("groupsTable CRUD works", async () => {
-      const slug = "db-group";
-      const slugIndex = await computeGroupSlugIndex(slug);
-      const created = await groupsTable.insert({
+      const created = await createTestGroup({
         name: "DB Group",
-        slug,
-        slugIndex,
-        termsAndConditions: "",
+        slug: "db-group",
       });
 
       const fetched = await groupsTable.findById(created.id);
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("DB Group");
-      expect(fetched?.slug).toBe(slug);
+      expect(fetched?.slug).toBe("db-group");
 
       const updated = await groupsTable.update(created.id, {
         name: "DB Group Updated",
@@ -3358,18 +3355,8 @@ describe("db", () => {
     });
 
     test("getAllGroups returns decrypted groups ordered by id", async () => {
-      const g1 = await groupsTable.insert({
-        name: "Group A",
-        slug: "group-a",
-        slugIndex: await computeGroupSlugIndex("group-a"),
-        termsAndConditions: "",
-      });
-      const g2 = await groupsTable.insert({
-        name: "Group B",
-        slug: "group-b",
-        slugIndex: await computeGroupSlugIndex("group-b"),
-        termsAndConditions: "",
-      });
+      const g1 = await createTestGroup({ name: "Group A", slug: "group-a" });
+      const g2 = await createTestGroup({ name: "Group B", slug: "group-b" });
       const groups = await getAllGroups();
       expect(groups.length).toBe(2);
       expect(groups[0]?.id).toBe(g1.id);
@@ -3379,27 +3366,23 @@ describe("db", () => {
     });
 
     test("getGroupBySlugIndex returns group or null", async () => {
-      const slug = "idx-group";
-      const slugIndex = await computeGroupSlugIndex(slug);
-      await groupsTable.insert({
+      const group = await createTestGroup({
         name: "Index Group",
-        slug,
-        slugIndex,
-        termsAndConditions: "",
+        slug: "idx-group",
       });
 
-      const found = await getGroupBySlugIndex(slugIndex);
-      expect(found?.slug).toBe(slug);
+      const found = await getGroupBySlugIndex(
+        await computeGroupSlugIndex("idx-group"),
+      );
+      expect(found?.slug).toBe(group.slug);
       expect(await getGroupBySlugIndex("missing")).toBeNull();
     });
 
     test("isGroupSlugTaken checks both groups and events", async () => {
       const groupSlug = "taken-by-group";
-      const created = await groupsTable.insert({
+      const created = await createTestGroup({
         name: "Taken",
         slug: groupSlug,
-        slugIndex: await computeGroupSlugIndex(groupSlug),
-        termsAndConditions: "",
       });
 
       expect(await isGroupSlugTaken(groupSlug)).toBe(true);
@@ -3410,11 +3393,9 @@ describe("db", () => {
     });
 
     test("getActiveEventsByGroupId returns active events with attendee counts", async () => {
-      const group = await groupsTable.insert({
+      const group = await createTestGroup({
         name: "Events Group",
         slug: "events-group",
-        slugIndex: await computeGroupSlugIndex("events-group"),
-        termsAndConditions: "",
       });
 
       const e1 = await createTestEvent({
@@ -3447,11 +3428,9 @@ describe("db", () => {
     });
 
     test("resetGroupEvents sets group_id to 0", async () => {
-      const group = await groupsTable.insert({
+      const group = await createTestGroup({
         name: "Reset Group",
         slug: "reset-group",
-        slugIndex: await computeGroupSlugIndex("reset-group"),
-        termsAndConditions: "",
       });
       const event = await createTestEvent({
         name: "Reset Event",
@@ -3460,6 +3439,254 @@ describe("db", () => {
       });
       await resetGroupEvents(group.id);
       expect((await getEvent(event.id))?.group_id).toBe(0);
+    });
+
+    test("createAttendeeAtomic enforces group max_attendees across events", async () => {
+      const group = await createTestGroup({
+        name: "Capped Group",
+        slug: "capped-group",
+        maxAttendees: 5,
+      });
+      const e1 = await createTestEvent({
+        name: "Event A",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+      const e2 = await createTestEvent({
+        name: "Event B",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+
+      // Book 3 on event A — should succeed (group total: 3/5)
+      const r1 = await createAttendeeAtomic({
+        eventId: e1.id,
+        name: "A",
+        email: "a@example.com",
+        quantity: 3,
+      });
+      expect(r1.success).toBe(true);
+
+      // Book 3 on event B — should fail (group total would be 6/5)
+      const r2 = await createAttendeeAtomic({
+        eventId: e2.id,
+        name: "B",
+        email: "b@example.com",
+        quantity: 3,
+      });
+      expect(r2.success).toBe(false);
+      if (!r2.success) expect(r2.reason).toBe("capacity_exceeded");
+
+      // Book 2 on event B — should succeed (group total: 5/5)
+      const r3 = await createAttendeeAtomic({
+        eventId: e2.id,
+        name: "C",
+        email: "c@example.com",
+        quantity: 2,
+      });
+      expect(r3.success).toBe(true);
+    });
+
+    test("createAttendeeAtomic allows booking when group has no max (0)", async () => {
+      const group = await createTestGroup({
+        name: "Unlimited Group",
+        slug: "unlimited-group",
+      });
+      const event = await createTestEvent({
+        name: "Unlimited Event",
+        maxAttendees: 100,
+        groupId: group.id,
+      });
+
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "A",
+        email: "a@example.com",
+        quantity: 50,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("hasAvailableSpots checks group capacity", async () => {
+      const { hasAvailableSpots } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({
+        name: "Spot Check Group",
+        slug: "spot-check-group",
+        maxAttendees: 3,
+      });
+      const e1 = await createTestEvent({
+        name: "Spot Event A",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+      const e2 = await createTestEvent({
+        name: "Spot Event B",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+
+      await createAttendeeAtomic({
+        eventId: e1.id,
+        name: "A",
+        email: "a@example.com",
+        quantity: 2,
+      });
+
+      // Event B has plenty of room, but group is almost full
+      expect(await hasAvailableSpots(e2.id, 1)).toBe(true);
+      expect(await hasAvailableSpots(e2.id, 2)).toBe(false);
+    });
+
+    test("checkBatchAvailability checks group capacity", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({
+        name: "Batch Group",
+        slug: "batch-group",
+        maxAttendees: 4,
+      });
+      const e1 = await createTestEvent({
+        name: "Batch Event A",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+      const e2 = await createTestEvent({
+        name: "Batch Event B",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+
+      // Both within event limits but combined exceeds group limit
+      const available = await checkBatchAvailability([
+        { eventId: e1.id, quantity: 3 },
+        { eventId: e2.id, quantity: 2 },
+      ]);
+      expect(available).toBe(false);
+
+      // Both within event and group limits
+      const available2 = await checkBatchAvailability([
+        { eventId: e1.id, quantity: 2 },
+        { eventId: e2.id, quantity: 2 },
+      ]);
+      expect(available2).toBe(true);
+    });
+
+    test("checkBatchAvailability skips group check when group has no limit", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({
+        name: "No Limit Batch",
+        slug: "no-limit-batch",
+      });
+      const e1 = await createTestEvent({
+        name: "No Limit Event A",
+        maxAttendees: 100,
+        groupId: group.id,
+      });
+      const ungroupedEvent = await createTestEvent({
+        name: "Ungrouped Event",
+        maxAttendees: 100,
+      });
+
+      // Mix of grouped (no limit) and ungrouped events
+      const available = await checkBatchAvailability([
+        { eventId: e1.id, quantity: 50 },
+        { eventId: ungroupedEvent.id, quantity: 50 },
+      ]);
+      expect(available).toBe(true);
+    });
+
+    test("checkBatchAvailability handles events from multiple groups", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const groupA = await createTestGroup({
+        name: "Multi Group A",
+        slug: "multi-group-a",
+        maxAttendees: 3,
+      });
+      const groupB = await createTestGroup({
+        name: "Multi Group B",
+        slug: "multi-group-b",
+        maxAttendees: 3,
+      });
+      const eA = await createTestEvent({
+        name: "Multi Event A",
+        maxAttendees: 10,
+        groupId: groupA.id,
+      });
+      const eB = await createTestEvent({
+        name: "Multi Event B",
+        maxAttendees: 10,
+        groupId: groupB.id,
+      });
+
+      // Each group can hold 3, so 2+2 across different groups is fine
+      const available = await checkBatchAvailability([
+        { eventId: eA.id, quantity: 2 },
+        { eventId: eB.id, quantity: 2 },
+      ]);
+      expect(available).toBe(true);
+    });
+
+    test("group capacity check handles deleted group gracefully", async () => {
+      const { hasAvailableSpots } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({
+        name: "Delete Me",
+        slug: "delete-me",
+        maxAttendees: 5,
+      });
+      const event = await createTestEvent({
+        name: "Orphan Event",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+      // Delete the group but leave event pointing to it
+      const { groupsTable } = await import("#lib/db/groups.ts");
+      await groupsTable.deleteById(group.id);
+
+      // Should still work — getGroupMaxAttendees returns 0 for missing group
+      expect(await hasAvailableSpots(event.id, 1)).toBe(true);
+    });
+
+    test("group max_attendees is per-date for daily events", async () => {
+      const group = await createTestGroup({
+        name: "Daily Group",
+        slug: "daily-group",
+        maxAttendees: 3,
+      });
+      const event = await createTestEvent({
+        name: "Daily Event",
+        maxAttendees: 10,
+        groupId: group.id,
+        eventType: "daily",
+      });
+
+      // Book 3 for date A — fills group for that date
+      const r1 = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "A",
+        email: "a@example.com",
+        quantity: 3,
+        date: "2026-07-01",
+      });
+      expect(r1.success).toBe(true);
+
+      // Book 1 for date A — should fail (group full for date A)
+      const r2 = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "B",
+        email: "b@example.com",
+        quantity: 1,
+        date: "2026-07-01",
+      });
+      expect(r2.success).toBe(false);
+
+      // Book 3 for date B — should succeed (different date)
+      const r3 = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "C",
+        email: "c@example.com",
+        quantity: 3,
+        date: "2026-07-02",
+      });
+      expect(r3.success).toBe(true);
     });
   });
 
