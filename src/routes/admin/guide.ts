@@ -2,6 +2,8 @@
  * Admin guide route
  */
 
+import { getHostAppleWalletConfig } from "#lib/db/settings.ts";
+import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#lib/email.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { htmlResponse, requireSessionOr } from "#routes/utils.ts";
 import { adminGuidePage } from "#templates/admin/guide.tsx";
@@ -10,7 +12,19 @@ import { adminGuidePage } from "#templates/admin/guide.tsx";
  * Handle GET /admin/guide
  */
 const handleAdminGuideGet = (request: Request): Promise<Response> =>
-  requireSessionOr(request, (session) => htmlResponse(adminGuidePage(session)));
+  requireSessionOr(request, (session) => {
+    const hostEmail = getHostEmailConfig();
+    const hostWallet = getHostAppleWalletConfig();
+    return htmlResponse(
+      adminGuidePage(session, {
+        hostEmailProvider: hostEmail
+          ? EMAIL_PROVIDER_LABELS[hostEmail.provider]
+          : null,
+        hostEmailFromAddress: hostEmail?.fromAddress ?? null,
+        hostAppleWalletPassTypeId: hostWallet?.passTypeId ?? null,
+      }),
+    );
+  });
 
 /** Guide routes */
 export const guideRoutes = defineRoutes({

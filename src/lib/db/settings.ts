@@ -830,7 +830,7 @@ const toCredentials = (
     : null;
 
 /** Read Apple Wallet config from environment variables. Returns null if not fully configured. */
-export const getHostAppleWalletConfig = (): SigningCredentials | null =>
+const getHostAppleWalletConfigFromEnv = (): SigningCredentials | null =>
   toCredentials(
     getEnv("APPLE_WALLET_PASS_TYPE_ID"),
     getEnv("APPLE_WALLET_TEAM_ID"),
@@ -838,6 +838,25 @@ export const getHostAppleWalletConfig = (): SigningCredentials | null =>
     getEnv("APPLE_WALLET_SIGNING_KEY"),
     getEnv("APPLE_WALLET_WWDR_CERT"),
   );
+
+const [getHostWalletOverride, setHostWalletOverride] = lazyRef<
+  SigningCredentials | null | undefined
+>(() => undefined);
+
+/** Get host-level Apple Wallet config. Uses test override if set, otherwise reads env vars. */
+export const getHostAppleWalletConfig = (): SigningCredentials | null => {
+  const override = getHostWalletOverride();
+  return override !== undefined ? override : getHostAppleWalletConfigFromEnv();
+};
+
+/** For testing: set host Apple Wallet config directly. Bypasses env vars to avoid races. */
+export const setHostAppleWalletConfigForTest = (
+  config: SigningCredentials | null,
+): void => setHostWalletOverride(config);
+
+/** For testing: reset host Apple Wallet config to read from env vars. */
+export const resetHostAppleWalletConfig = (): void =>
+  setHostWalletOverride(undefined);
 
 /** Check if Apple Wallet DB settings are fully configured (all 5 settings present). */
 export const hasAppleWalletDbConfig = async (): Promise<boolean> => {

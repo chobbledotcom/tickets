@@ -3,7 +3,7 @@
  * Sends registration emails via HTTP email APIs (Resend, Postmark, SendGrid, Mailgun)
  */
 
-import { map } from "#fp";
+import { lazyRef, map } from "#fp";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import {
@@ -66,7 +66,7 @@ export const getEmailConfig = async (): Promise<EmailConfig | null> => {
 };
 
 /** Read host-level email config from environment variables. Returns null if not fully configured. */
-export const getHostEmailConfig = (): EmailConfig | null => {
+const getHostEmailConfigFromEnv = (): EmailConfig | null => {
   const provider = getEnv("HOST_EMAIL_PROVIDER");
   const apiKey = getEnv("HOST_EMAIL_API_KEY");
   const fromAddress = getEnv("HOST_EMAIL_FROM_ADDRESS");
@@ -80,6 +80,23 @@ export const getHostEmailConfig = (): EmailConfig | null => {
   }
   return { provider, apiKey, fromAddress };
 };
+
+const [getHostEmailOverride, setHostEmailOverride] = lazyRef<
+  EmailConfig | null | undefined
+>(() => undefined);
+
+/** Get host-level email config. Uses test override if set, otherwise reads env vars. */
+export const getHostEmailConfig = (): EmailConfig | null => {
+  const override = getHostEmailOverride();
+  return override !== undefined ? override : getHostEmailConfigFromEnv();
+};
+
+/** For testing: set host email config directly. Bypasses env vars to avoid races. */
+export const setHostEmailConfigForTest = (config: EmailConfig | null): void =>
+  setHostEmailOverride(config);
+
+/** For testing: reset host email config to read from env vars. */
+export const resetHostEmailConfig = (): void => setHostEmailOverride(undefined);
 
 type Headers = Record<string, string>;
 type ProviderRequest = (
