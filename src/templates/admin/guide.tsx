@@ -56,9 +56,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             From the <strong>Events</strong> page, fill in the form at the
             bottom. Give your event a name, set the capacity, and choose which
             contact details to collect (any combination of email, phone, postal
-            address, and special instructions). You can leave the price blank
-            for free events. Once created, share the booking link with your
-            attendees.
+            address, and special instructions &mdash; or none at all for
+            name-only registration). You can leave the price blank for free
+            events. Once created, share the booking link with your attendees.
           </p>
         </Q>
 
@@ -68,6 +68,19 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             payment provider. Paste in your API key and save. For Stripe, the
             webhook is configured automatically. For Square, you'll need to copy
             the webhook URL shown and add it in your Square Developer Dashboard.
+          </p>
+        </Q>
+      </Section>
+
+      <Section title="Dashboard">
+        <Q q="What is the dashboard?">
+          <p>
+            The <strong>Events</strong> page is your dashboard. It lists all
+            your events with attendee counts, booking links, and quick actions.
+            At the top, the <strong>Active Event Statistics</strong> section
+            shows totals across all active events: total income, number of
+            ticket rows, and total attendee quantity. Click the heading to
+            expand or collapse it.
           </p>
         </Q>
       </Section>
@@ -426,6 +439,22 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             See the <strong>Refunds</strong> section below for full details on
             automatic refunds, admin-issued refunds, and bulk refunds.
+          </p>
+        </Q>
+
+        <Q q="What is the booking fee?">
+          <p>
+            The booking fee is an optional percentage-based charge added to
+            ticket prices at checkout. For example, if you set a 2% booking fee
+            on a {formatCurrency(1000)} ticket, the attendee pays{" "}
+            {formatCurrency(1020)} in total.
+          </p>
+          <p>
+            Configure it in <a href="/admin/settings">Settings</a> under{" "}
+            <strong>Booking Fee</strong> (only visible when a payment provider
+            is set up). Enter a percentage between 0 and 10. Set it to 0 or
+            leave it blank to disable. The fee is calculated on the subtotal and
+            added automatically during checkout.
           </p>
         </Q>
       </Section>
@@ -799,13 +828,72 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section title="Apple Wallet">
+        <Q q="What is Apple Wallet integration?">
+          <p>
+            When configured, attendees see an{" "}
+            <strong>Add to Apple Wallet</strong> button on their ticket page.
+            Tapping it downloads a <code>.pkpass</code> file that adds the
+            ticket to their iPhone Wallet and Apple Watch. The pass shows the
+            event name, date, location, ticket quantity, price paid, and a QR
+            code for check-in.
+          </p>
+        </Q>
+
+        <Q q="How do I set up Apple Wallet?">
+          <p>
+            Go to <a href="/admin/settings">Settings</a>, click{" "}
+            <strong>Advanced Settings</strong>, and find the{" "}
+            <strong>Apple Wallet</strong> section. You need five values from
+            your Apple Developer account:
+          </p>
+          <ol>
+            <li>
+              <strong>Pass Type ID</strong> &mdash; e.g.{" "}
+              <code>pass.com.example.tickets</code>
+            </li>
+            <li>
+              <strong>Team ID</strong> &mdash; your Apple Developer Team ID
+            </li>
+            <li>
+              <strong>Signing Certificate</strong> &mdash; PEM-encoded
+              certificate for your Pass Type ID
+            </li>
+            <li>
+              <strong>Signing Key</strong> &mdash; PEM-encoded private key for
+              the certificate
+            </li>
+            <li>
+              <strong>WWDR Certificate</strong> &mdash; Apple's intermediate
+              certificate (download from the Apple Developer portal)
+            </li>
+          </ol>
+          <p>
+            All five fields are required. Once saved, the Add to Apple Wallet
+            button appears automatically on all ticket pages. If none are
+            configured, the feature is simply hidden.
+          </p>
+        </Q>
+
+        <Q q="Do wallet passes update automatically?">
+          <p>
+            Yes. If an attendee's details change (e.g. they are moved to a
+            different event or their check-in status changes), Apple Wallet
+            automatically fetches the updated pass. This uses the Apple Wallet
+            web service API built into the system &mdash; no extra setup is
+            needed beyond the initial configuration.
+          </p>
+        </Q>
+      </Section>
+
       <Section id="user-classes" title="Users &amp; Permissions">
         <Q q="What's the difference between an owner and a manager?">
           <p>
             <strong>Owners</strong> have full access: events, calendar, users,
             settings, holidays, sessions, and the activity log.{" "}
-            <strong>Managers</strong> can only see events and the calendar. They
-            cannot change settings, manage users, or view the activity log.
+            <strong>Managers</strong> can see events, the calendar, and the
+            activity log. They cannot change settings, manage users, or view
+            sessions.
           </p>
         </Q>
 
@@ -937,10 +1025,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Activity Log">
         <Q q="What is the activity log?">
           <p>
-            The <strong>Log</strong> page (owners only) shows a chronological
-            list of admin actions such as event creation, attendee changes, and
-            settings updates. Each event also has its own log, accessible from
-            the event page, showing only actions related to that event.
+            The <strong>Log</strong> page shows a chronological list of admin
+            actions such as event creation, attendee changes, and settings
+            updates. Both owners and managers can view the log. Each event also
+            has its own log, accessible from the event page, showing only
+            actions related to that event.
           </p>
         </Q>
       </Section>
@@ -1150,10 +1239,6 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
           <ul>
             <li>
-              <strong>Timezone</strong> &mdash; all dates and times use this
-              timezone
-            </li>
-            <li>
               <strong>Phone prefix</strong> &mdash; country calling code (e.g.
               44 for UK, 1 for US) used to normalise phone numbers
             </li>
@@ -1165,16 +1250,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               <strong>Payment provider</strong> &mdash; Stripe, Square, or none
             </li>
             <li>
-              <strong>Email provider</strong> &mdash; Resend, Postmark,
-              SendGrid, or Mailgun for automatic registration emails
-            </li>
-            <li>
-              <strong>Email templates</strong> &mdash; customise confirmation
-              and admin notification emails using Liquid syntax
-            </li>
-            <li>
-              <strong>Custom domain</strong> &mdash; set up a custom domain for
-              your site (Bunny CDN only)
+              <strong>Booking fee</strong> &mdash; percentage-based fee added to
+              ticket prices (requires a payment provider)
             </li>
             <li>
               <strong>Embed hosts</strong> &mdash; restrict which websites can
@@ -1185,13 +1262,64 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
               before booking
             </li>
             <li>
+              <strong>Site theme</strong> &mdash; light or dark
+            </li>
+            <li>
+              <strong>Admin password</strong> &mdash; change your login password
+            </li>
+          </ul>
+        </Q>
+
+        <Q q="What are Advanced Settings?">
+          <p>
+            The main Settings page has a link to{" "}
+            <strong>Advanced Settings</strong> for less common configuration.
+            Advanced settings include:
+          </p>
+          <ul>
+            <li>
+              <strong>Public API</strong> &mdash; enable the JSON API for
+              external integrations
+            </li>
+            <li>
+              <strong>Apple Wallet</strong> &mdash; configure pass signing
+              certificates for Add to Apple Wallet
+            </li>
+            <li>
+              <strong>Email provider</strong> &mdash; choose and configure your
+              email sending service
+            </li>
+            <li>
+              <strong>Email templates</strong> &mdash; customise confirmation
+              and admin notification emails using Liquid syntax
+            </li>
+            <li>
+              <strong>Timezone</strong> &mdash; all dates and times use this
+              timezone
+            </li>
+            <li>
+              <strong>Custom domain</strong> &mdash; set up a custom domain for
+              your site (Bunny CDN only)
+            </li>
+            <li>
               <strong>Public site</strong> &mdash; enable or disable the public
               website
             </li>
             <li>
-              <strong>Site theme</strong> &mdash; light or dark
+              <strong>Database reset</strong> &mdash; permanently delete all
+              data
             </li>
           </ul>
+        </Q>
+
+        <Q q="What is the debug page?">
+          <p>
+            The debug page at <code>/admin/debug</code> shows the configuration
+            status of all integrated services (payments, email, Apple Wallet,
+            storage, CDN, notifications) without revealing any secrets or API
+            keys. It's useful for troubleshooting setup issues &mdash; you can
+            quickly see which services are configured and which are missing.
+          </p>
         </Q>
       </Section>
 
