@@ -18,6 +18,13 @@ import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
+/** Host-level configuration info passed from the route */
+export type GuideHostConfig = {
+  hostEmailProvider: string | null;
+  hostEmailFromAddress: string | null;
+  hostAppleWalletPassTypeId: string | null;
+};
+
 const Section = ({
   id,
   title,
@@ -43,7 +50,10 @@ const Q = ({ q, children }: { q: string; children?: Child }): JSX.Element => (
 /**
  * Admin guide page
  */
-export const adminGuidePage = (adminSession: AdminSession): string =>
+export const adminGuidePage = (
+  adminSession: AdminSession,
+  hostConfig?: GuideHostConfig,
+): string =>
   String(
     <Layout title="Guide" bodyClass="guide">
       <AdminNav session={adminSession} active="/admin/guide" />
@@ -841,38 +851,51 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
 
         <Q q="How do I set up Apple Wallet?">
-          <p>
-            Go to <a href="/admin/settings">Settings</a>, click{" "}
-            <strong>Advanced Settings</strong>, and find the{" "}
-            <strong>Apple Wallet</strong> section. You need five values from
-            your Apple Developer account:
-          </p>
-          <ol>
-            <li>
-              <strong>Pass Type ID</strong> &mdash; e.g.{" "}
-              <code>pass.com.example.tickets</code>
-            </li>
-            <li>
-              <strong>Team ID</strong> &mdash; your Apple Developer Team ID
-            </li>
-            <li>
-              <strong>Signing Certificate</strong> &mdash; PEM-encoded
-              certificate for your Pass Type ID
-            </li>
-            <li>
-              <strong>Signing Key</strong> &mdash; PEM-encoded private key for
-              the certificate
-            </li>
-            <li>
-              <strong>WWDR Certificate</strong> &mdash; Apple's intermediate
-              certificate (download from the Apple Developer portal)
-            </li>
-          </ol>
-          <p>
-            All five fields are required. Once saved, the Add to Apple Wallet
-            button appears automatically on all ticket pages. If none are
-            configured, the feature is simply hidden.
-          </p>
+          {hostConfig?.hostAppleWalletPassTypeId ? (
+            <p>
+              Apple Wallet is already configured by your server administrator
+              using pass type{" "}
+              <code>{hostConfig.hostAppleWalletPassTypeId}</code>. The Add to
+              Apple Wallet button should appear automatically on all ticket
+              pages. You can override this by entering your own credentials in{" "}
+              <a href="/admin/settings">Settings</a>.
+            </p>
+          ) : (
+            <>
+              <p>
+                Go to <a href="/admin/settings">Settings</a>, click{" "}
+                <strong>Advanced Settings</strong>, and find the{" "}
+                <strong>Apple Wallet</strong> section. You need five values from
+                your Apple Developer account:
+              </p>
+              <ol>
+                <li>
+                  <strong>Pass Type ID</strong> &mdash; e.g.{" "}
+                  <code>pass.com.example.tickets</code>
+                </li>
+                <li>
+                  <strong>Team ID</strong> &mdash; your Apple Developer Team ID
+                </li>
+                <li>
+                  <strong>Signing Certificate</strong> &mdash; PEM-encoded
+                  certificate for your Pass Type ID
+                </li>
+                <li>
+                  <strong>Signing Key</strong> &mdash; PEM-encoded private key
+                  for the certificate
+                </li>
+                <li>
+                  <strong>WWDR Certificate</strong> &mdash; Apple's intermediate
+                  certificate (download from the Apple Developer portal)
+                </li>
+              </ol>
+              <p>
+                All five fields are required. Once saved, the Add to Apple
+                Wallet button appears automatically on all ticket pages. If none
+                are configured, the feature is simply hidden.
+              </p>
+            </>
+          )}
         </Q>
 
         <Q q="Do wallet passes update automatically?">
@@ -1077,28 +1100,47 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
 
         <Q q="How do I set up email?">
-          <ol>
-            <li>
-              Go to <a href="/admin/settings">Settings</a> and find the{" "}
-              <strong>Email</strong> section
-            </li>
-            <li>Choose your email provider from the dropdown</li>
-            <li>
-              Paste your provider's API key into the <strong>API Key</strong>{" "}
-              field
-            </li>
-            <li>
-              Enter a <strong>From Address</strong> &mdash; this is the sender
-              address that appears on outgoing emails. If left blank, the
-              business email address is used instead
-            </li>
-            <li>Save the settings</li>
-          </ol>
-          <p>
-            The from address must be a verified sender in your email provider's
-            account, otherwise emails will be rejected. Check your provider's
-            documentation for how to verify a sender domain or address.
-          </p>
+          {hostConfig?.hostEmailProvider ? (
+            <>
+              <p>
+                Email is already configured by your server administrator using{" "}
+                <strong>{hostConfig.hostEmailProvider}</strong> with from
+                address <code>{hostConfig.hostEmailFromAddress}</code>. You can
+                override this by entering your own provider and API key in{" "}
+                <a href="/admin/settings">Settings</a>.
+              </p>
+              <p>
+                If you provide your own settings, they take priority over the
+                server configuration.
+              </p>
+            </>
+          ) : (
+            <>
+              <ol>
+                <li>
+                  Go to <a href="/admin/settings">Settings</a> and find the{" "}
+                  <strong>Email</strong> section
+                </li>
+                <li>Choose your email provider from the dropdown</li>
+                <li>
+                  Paste your provider's API key into the{" "}
+                  <strong>API Key</strong> field
+                </li>
+                <li>
+                  Enter a <strong>From Address</strong> &mdash; this is the
+                  sender address that appears on outgoing emails. If left blank,
+                  the business email address is used instead
+                </li>
+                <li>Save the settings</li>
+              </ol>
+              <p>
+                The from address must be a verified sender in your email
+                provider's account, otherwise emails will be rejected. Check
+                your provider's documentation for how to verify a sender domain
+                or address.
+              </p>
+            </>
+          )}
         </Q>
 
         <Q q="How do I test that email is working?">

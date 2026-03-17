@@ -326,6 +326,12 @@ describe("code quality", () => {
       "lib/email-renderer.ts:resetEngine",
       // Skip login delay in tests without env var races
       "routes/admin/auth.ts:setSkipLoginDelayForTest",
+      // Reset/set host email config between tests without env var races
+      "lib/email.ts:setHostEmailConfigForTest",
+      "lib/email.ts:resetHostEmailConfig",
+      // Reset/set host Apple Wallet config between tests without env var races
+      "lib/db/settings.ts:setHostAppleWalletConfigForTest",
+      "lib/db/settings.ts:resetHostAppleWalletConfig",
       // Attachment size constant used in production (validateAttachment) but test pattern doesn't detect same-file usage
       "lib/storage.ts:MAX_ATTACHMENT_SIZE",
     ];

@@ -38,10 +38,12 @@ import {
   clearSetupCompleteCache,
   completeSetup,
   invalidateSettingsCache,
+  resetHostAppleWalletConfig,
   updateTimezone,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
+import { resetHostEmailConfig } from "#lib/email.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
@@ -282,6 +284,8 @@ export const resetDb = (): void => {
   resetCurrencyCode();
   setDemoModeForTest(false);
   resetAllowedDomain();
+  resetHostEmailConfig();
+  resetHostAppleWalletConfig();
 };
 
 /**
