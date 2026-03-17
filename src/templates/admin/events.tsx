@@ -768,10 +768,6 @@ export const adminDuplicateEventPage = (
   groups: Group[],
   session: AdminSession,
 ): string => {
-  const storageEnabled = isStorageEnabled();
-  const fields = storageEnabled
-    ? [...eventFieldsWithAutofocus, imageField, attachmentField]
-    : eventFieldsWithAutofocus;
   const values = eventToFieldValues(event);
   values.name = "";
 
@@ -783,7 +779,7 @@ export const adminDuplicateEventPage = (
         Creating a new event based on <strong>{event.name}</strong>.
       </p>
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
-        <Raw html={renderFields(fields, values)} />
+        <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
         <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
         <button type="submit">Create Event</button>
       </CsrfForm>
