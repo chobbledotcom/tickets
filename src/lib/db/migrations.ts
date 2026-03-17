@@ -15,7 +15,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add ticket_tokens column to processed_payments";
+export const LATEST_UPDATE = "add max_attendees column to groups";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -410,7 +410,8 @@ export const initDb = async (): Promise<void> => {
       slug TEXT NOT NULL,
       slug_index TEXT NOT NULL,
       name TEXT NOT NULL,
-      terms_and_conditions TEXT NOT NULL DEFAULT ''
+      terms_and_conditions TEXT NOT NULL DEFAULT '',
+      max_attendees INTEGER NOT NULL DEFAULT 0
     )
   `);
 
