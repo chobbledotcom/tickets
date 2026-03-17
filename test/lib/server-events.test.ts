@@ -173,6 +173,38 @@ describe("server (admin events)", () => {
       expect(match).toBeUndefined();
     });
 
+    test("rejects event type mismatch with group on create", async () => {
+      const group = await createTestGroup({
+        name: "Standard Group",
+        slug: "standard-group",
+      });
+      await createTestEvent({
+        name: "Standard Event",
+        maxAttendees: 50,
+        groupId: group.id,
+        eventType: "standard",
+      });
+
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "Daily Mismatch",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com/thanks",
+            group_id: String(group.id),
+            event_type: "daily",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expectStatus(400)(response);
+      const body = await response.clone().text();
+      expect(body).toContain("already contains standard events");
+    });
+
     test("rejects invalid CSRF token", async () => {
       const response = await handleRequest(
         mockMultipartRequest(
@@ -827,6 +859,76 @@ describe("server (admin events)", () => {
         ),
       );
       await expectHtmlResponse(response, 400, "Selected group does not exist");
+    });
+
+    test("rejects event type mismatch with group on edit", async () => {
+      const group = await createTestGroup({
+        name: "Daily Group",
+        slug: "daily-group",
+      });
+      await createTestEvent({
+        name: "Daily Event",
+        maxAttendees: 50,
+        groupId: group.id,
+        eventType: "daily",
+      });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        name: "Standard Event",
+        maxAttendees: 50,
+        eventType: "standard",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            group_id: String(group.id),
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      await expectHtmlResponse(response, 400, "already contains daily events");
+    });
+
+    test("allows same event type in group on edit", async () => {
+      const group = await createTestGroup({
+        name: "Same Type Group",
+        slug: "same-type-group",
+      });
+      await createTestEvent({
+        name: "Standard A",
+        maxAttendees: 50,
+        groupId: group.id,
+        eventType: "standard",
+      });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        name: "Standard B",
+        maxAttendees: 50,
+        eventType: "standard",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            group_id: String(group.id),
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
+        response,
+      );
     });
 
     test("updates event slug", async () => {

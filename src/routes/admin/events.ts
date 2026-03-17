@@ -15,7 +15,11 @@ import {
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
-import { getAllGroups, groupsTable } from "#lib/db/groups.ts";
+import {
+  getAllGroups,
+  getEventsByGroupId,
+  groupsTable,
+} from "#lib/db/groups.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import {
@@ -122,7 +126,7 @@ const extractCommonFields = (values: EventFormValues) => {
     webhookUrl,
     fields: values.fields || "",
     closesAt,
-    eventType: values.event_type || undefined,
+    eventType: values.event_type || "standard",
     bookableDays: parseBookableDays(values.bookable_days),
     minimumDaysBefore: values.minimum_days_before ?? 1,
     maximumDaysAfter: values.maximum_days_after ?? 90,
@@ -161,6 +165,7 @@ const validateMaxPrice = (input: EventInput): string | null => {
 
 const validateEventInput = async (
   input: EventInput,
+  existingId?: Parameters<typeof eventsTable.findById>[0],
 ): Promise<string | null> => {
   if (input.canPayMore) {
     const maxPriceError = validateMaxPrice(input);
@@ -169,6 +174,13 @@ const validateEventInput = async (
   if (input.groupId && input.groupId !== 0) {
     const group = await groupsTable.findById(input.groupId);
     if (!group) return "Selected group does not exist";
+    const siblings = await getEventsByGroupId(input.groupId);
+    const other = siblings.find(
+      (e) => e.id !== Number(existingId) && e.event_type !== input.eventType,
+    );
+    if (other) {
+      return `This group already contains ${other.event_type} events — all events in a group must be the same type`;
+    }
   }
   return null;
 };
