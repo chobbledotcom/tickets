@@ -17,8 +17,8 @@ import {
 } from "#lib/db/events.ts";
 import {
   getAllGroups,
-  getEventsByGroupId,
   groupsTable,
+  validateGroupEventType,
 } from "#lib/db/groups.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
@@ -174,13 +174,12 @@ const validateEventInput = async (
   if (input.groupId && input.groupId !== 0) {
     const group = await groupsTable.findById(input.groupId);
     if (!group) return "Selected group does not exist";
-    const siblings = await getEventsByGroupId(input.groupId);
-    const other = siblings.find(
-      (e) => e.id !== Number(existingId) && e.event_type !== input.eventType,
+    const typeError = await validateGroupEventType(
+      input.groupId,
+      input.eventType!,
+      Number(existingId),
     );
-    if (other) {
-      return `This group already contains ${other.event_type} events — all events in a group must be the same type`;
-    }
+    if (typeError) return typeError;
   }
   return null;
 };

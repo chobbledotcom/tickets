@@ -700,6 +700,44 @@ describe("server (admin groups)", () => {
         `/admin/group/${group.id}?success=Events+added+to+group`,
       );
     });
+
+    test("rejects adding event with mismatched type", async () => {
+      const group = await createTestGroup({
+        name: "Type Check",
+        slug: "type-check",
+      });
+      await createTestEvent({
+        name: "Standard In Group",
+        groupId: group.id,
+        eventType: "standard",
+      });
+      const dailyEvent = await createTestEvent({
+        name: "Daily Ungrouped",
+        eventType: "daily",
+      });
+
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/group/${group.id}/add-events`,
+          {
+            event_ids: String(dailyEvent.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location") ?? "";
+      expect(location).toContain("error=");
+      expect(location).toContain("already+contains+standard+events");
+
+      // Verify event was NOT assigned
+      const { getEvent } = await import("#lib/db/events.ts");
+      const unchanged = await getEvent(dailyEvent.id);
+      expect(unchanged?.group_id).toBe(0);
+    });
   });
 
   describe("redirect after create/edit", () => {
