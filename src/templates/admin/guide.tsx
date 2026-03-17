@@ -877,11 +877,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="Do wallet passes update automatically?">
           <p>
-            Yes. If an attendee's details change (e.g. they are moved to a
-            different event or their check-in status changes), Apple Wallet
-            automatically fetches the updated pass. This uses the Apple Wallet
-            web service API built into the system &mdash; no extra setup is
-            needed beyond the initial configuration.
+            Yes. Apple Wallet periodically polls the server (roughly once a day)
+            and re-downloads the pass with the latest details. There are no push
+            notifications &mdash; updates arrive on Apple's polling schedule.
+            Attendees can also pull down on the pass in Wallet to force an
+            immediate refresh.
           </p>
         </Q>
       </Section>
