@@ -246,7 +246,6 @@ describe("demo", () => {
   describe("layout banner integration", () => {
     beforeAll(async () => {
       setupTestEncryptionKey();
-      Deno.env.set("ALLOWED_DOMAIN", "localhost");
       await createTestDbWithSetup();
     });
 

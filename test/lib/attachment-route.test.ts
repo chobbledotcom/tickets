@@ -51,7 +51,6 @@ describe("getMimeType", () => {
 describe("GET /attachment/:id", () => {
   beforeEach(async () => {
     setupTestEncryptionKey();
-    Deno.env.set("ALLOWED_DOMAIN", "localhost");
     resetTestSlugCounter();
     await createTestDbWithSetup();
   });

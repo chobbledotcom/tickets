@@ -14,6 +14,8 @@ import {
   getTz,
   isPaymentsEnabled,
   isSetupComplete,
+  resetAllowedDomain,
+  setAllowedDomainForTest,
 } from "#lib/config.ts";
 import {
   completeSetup,
@@ -175,13 +177,19 @@ describe("config", () => {
   });
 
   describe("getAllowedDomain", () => {
+    afterEach(() => {
+      Deno.env.set("ALLOWED_DOMAIN", "localhost");
+      resetAllowedDomain();
+    });
+
     test("returns set value from environment", () => {
       Deno.env.set("ALLOWED_DOMAIN", "example.com");
+      resetAllowedDomain();
       expect(getAllowedDomain()).toBe("example.com");
     });
 
     test("returns localhost when set for testing", () => {
-      Deno.env.set("ALLOWED_DOMAIN", "localhost");
+      setAllowedDomainForTest("localhost");
       expect(getAllowedDomain()).toBe("localhost");
     });
   });

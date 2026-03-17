@@ -8,6 +8,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import { buildWebhookPayload, type RegistrationEntry } from "#lib/webhook.ts";
 import {
   EXAMPLE_ATTENDEE,
@@ -37,10 +38,10 @@ describe("webhook example", () => {
     const { updateBusinessEmail } = await import("#lib/business-email.ts");
     await updateBusinessEmail(EXAMPLE_BUSINESS_EMAIL);
 
-    // Stub ALLOWED_DOMAIN to match the example domain
-    Deno.env.set("ALLOWED_DOMAIN", exampleDomain);
+    // Set ALLOWED_DOMAIN to match the example domain
+    setAllowedDomainForTest(exampleDomain);
     domainStub = {
-      restore: () => Deno.env.set("ALLOWED_DOMAIN", "localhost"),
+      restore: () => resetAllowedDomain(),
     };
 
     // Fix time to match the example timestamp

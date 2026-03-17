@@ -316,6 +316,9 @@ describe("code quality", () => {
       "routes/utils.ts:withCookie",
       // Reset cache registry between tests
       "lib/cache-registry.ts:resetCacheRegistry",
+      // Reset cached allowed domain between tests
+      "lib/config.ts:resetAllowedDomain",
+      "lib/config.ts:setAllowedDomainForTest",
       // Reset cached demo mode between tests
       "lib/demo.ts:resetDemoMode",
       "lib/demo.ts:setDemoModeForTest",

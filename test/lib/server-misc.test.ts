@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   getCleanUrl,
@@ -510,7 +511,7 @@ describe("server (misc)", () => {
     });
 
     test("uses https scheme when allowed domain is not localhost", async () => {
-      Deno.env.set("ALLOWED_DOMAIN", "example.com");
+      setAllowedDomainForTest("example.com");
       try {
         const response = await handleRequest(
           mockRequestWithHost("/ticket/my-event", "evil.com"),
@@ -520,7 +521,7 @@ describe("server (misc)", () => {
           "https://example.com/ticket/my-event",
         );
       } finally {
-        Deno.env.set("ALLOWED_DOMAIN", "localhost");
+        resetAllowedDomain();
       }
     });
   });
