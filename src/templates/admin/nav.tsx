@@ -35,7 +35,7 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
         navLink("/admin/site", "Site", active)}
       {session.adminLevel === "owner" &&
         navLink("/admin/settings", "Settings", active)}
-      {session.adminLevel === "owner" && navLink("/admin/log", "Log", active)}
+      {navLink("/admin/log", "Log", active)}
       {session.adminLevel === "owner" &&
         navLink("/admin/groups", "Groups", active)}
       {session.adminLevel === "owner" &&

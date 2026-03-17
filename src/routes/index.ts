@@ -33,7 +33,7 @@ import {
   isValidContentType,
   isValidDomain,
 } from "#routes/middleware.ts";
-import type { createRouter } from "#routes/router.ts";
+import { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
@@ -125,6 +125,12 @@ const loadDemoResetRoutes = once(async () => {
   return routeDatabaseReset;
 });
 
+/** Lazy-load attachment download routes */
+const loadAttachmentRoutes = once(async () => {
+  const { attachmentRoutes } = await import("#routes/attachments.ts");
+  return createRouter(attachmentRoutes);
+});
+
 /** Lazy-load Apple Wallet pass routes */
 const loadWalletRoutes = once(async () => {
   const { routeWallet } = await import("#routes/wallet.ts");
@@ -135,6 +141,14 @@ const loadWalletRoutes = once(async () => {
 const loadGoogleWalletRoutes = once(async () => {
   const { routeGoogleWallet } = await import("#routes/google-wallet.ts");
   return routeGoogleWallet;
+});
+
+/** Lazy-load Apple Wallet web service routes (v1 API for pass updates) */
+const loadWalletWebserviceRoutes = once(async () => {
+  const { routeWalletWebservice } = await import(
+    "#routes/wallet-webservice.ts"
+  );
+  return routeWalletWebservice;
 });
 
 /** Lazy-load public API routes */
@@ -197,11 +211,13 @@ const prefixHandlers: Record<string, RouterFn> = {
   t: lazyRoute(loadTicketViewRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   image: lazyRoute(loadImageRoutes),
+  attachment: lazyRoute(loadAttachmentRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   join: lazyRoute(loadJoinRoutes),
   feeds: lazyRoute(loadFeedRoutes),
   wallet: lazyRoute(loadWalletRoutes),
   gwallet: lazyRoute(loadGoogleWalletRoutes),
+  v1: lazyRoute(loadWalletWebserviceRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
   api: async (request, path, method, server) =>
     (await getShowPublicApiFromDb())

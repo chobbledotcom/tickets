@@ -19,6 +19,7 @@ import {
   hybridEncrypt,
   importPrivateKey,
   importPublicKey,
+  setEncryptionKeyForTest,
   unwrapKey,
   unwrapKeyWithToken,
   validateEncryptionKey,
@@ -26,11 +27,7 @@ import {
   wrapKey,
   wrapKeyWithToken,
 } from "#lib/crypto.ts";
-import {
-  clearTestEncryptionKey,
-  setupTestEncryptionKey,
-  TEST_ENCRYPTION_KEY,
-} from "#test-utils";
+import { clearTestEncryptionKey, setupTestEncryptionKey } from "#test-utils";
 
 describe("constantTimeEqual", () => {
   it("returns true for equal strings", () => {
@@ -137,7 +134,7 @@ describe("encryption", () => {
     });
 
     it("throws when key is wrong length", () => {
-      Deno.env.set("DB_ENCRYPTION_KEY", btoa("tooshort"));
+      setEncryptionKeyForTest(btoa("tooshort"));
       clearEncryptionKeyCache();
       expect(() => validateEncryptionKey()).toThrow(
         "DB_ENCRYPTION_KEY must be 32 bytes",
@@ -221,15 +218,14 @@ describe("encryption", () => {
 
       // Generate a different valid 32-byte key
       const newKey = btoa("abcdefghijklmnopqrstuvwxyz012345");
-      Deno.env.set("DB_ENCRYPTION_KEY", newKey);
+      setEncryptionKeyForTest(newKey);
       clearEncryptionKeyCache();
 
       // Decryption with new key should fail
       await expect(decrypt(encrypted)).rejects.toThrow();
 
       // Restore original key
-      Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
-      clearEncryptionKeyCache();
+      setupTestEncryptionKey();
 
       // Now decryption should work again
       const decrypted = await decrypt(encrypted);
@@ -279,6 +275,11 @@ describe("password hashing", () => {
 
     it("returns false for malformed hash (wrong number of parts)", async () => {
       const result = await verifyPassword("password", "pbkdf2:100000:salt");
+      expect(result).toBe(false);
+    });
+
+    it("returns false for hash with empty parts", async () => {
+      const result = await verifyPassword("password", "pbkdf2:::");
       expect(result).toBe(false);
     });
 
@@ -346,18 +347,15 @@ describe("hmacHash", () => {
     const ip = "192.168.1.1";
     const hash1 = await hmacHash(ip);
 
-    // Change the encryption key
-    clearTestEncryptionKey();
-    Deno.env.set(
-      "DB_ENCRYPTION_KEY",
-      "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=",
-    );
+    // Change the encryption key via module override (avoids env var races)
+    const altKey = "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=";
+    setEncryptionKeyForTest(altKey);
+    clearEncryptionKeyCache();
 
     const hash2 = await hmacHash(ip);
     expect(hash1).not.toBe(hash2);
 
     // Restore original key
-    clearTestEncryptionKey();
     setupTestEncryptionKey();
   });
 

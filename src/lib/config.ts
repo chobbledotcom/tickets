@@ -4,7 +4,9 @@
  * Payment provider and keys are configured via admin settings (stored encrypted in DB)
  */
 
+import { lazyRef } from "#fp";
 import {
+  getBookingFeeFromDb,
   getCurrencyCodeFromDb,
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
@@ -103,6 +105,13 @@ export const getSquareSandbox = (): Promise<boolean> =>
   getSquareSandboxFromDb();
 
 /**
+ * Get booking fee percentage from database.
+ * Returns 0 if not set.
+ */
+export const getBookingFee = async (): Promise<number> =>
+  Number.parseFloat((await getBookingFeeFromDb())!) || 0;
+
+/**
  * Get currency code from database
  * Defaults to GBP if not set
  */
@@ -114,9 +123,22 @@ export const getCurrencyCode = (): Promise<string> => {
  * Get allowed domain for security validation (runtime config via Bunny secrets)
  * This is a required configuration that hardens origin validation
  */
-export const getAllowedDomain = (): string => {
-  return requireEnv("ALLOWED_DOMAIN");
-};
+const [getAllowedDomainOverride, setAllowedDomainOverride] = lazyRef<
+  string | null
+>(() => null);
+
+export const getAllowedDomain = (): string =>
+  getAllowedDomainOverride() ?? requireEnv("ALLOWED_DOMAIN");
+
+/** Reset cached allowed domain value (for testing and cache invalidation) */
+export const resetAllowedDomain = (): void => setAllowedDomainOverride(null);
+
+/**
+ * Explicitly set allowed domain (for testing).
+ * Bypasses Deno.env to avoid races between parallel test workers.
+ */
+export const setAllowedDomainForTest = (domain: string): void =>
+  setAllowedDomainOverride(domain);
 
 /**
  * Get allowed embed hosts from database (encrypted, parsed to array)

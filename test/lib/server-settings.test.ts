@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
+import { eventsTable } from "#lib/db/events.ts";
 import {
   getEmbedHostsFromDb,
   setPaymentProvider,
@@ -14,9 +15,12 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
+  createTestEvent,
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
+  installUrlHandler,
+  invalidateTestDbCache,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -25,6 +29,7 @@ import {
   TEST_ADMIN_PASSWORD,
   testCookie,
   testCsrfToken,
+  withFetchMock,
   withMocks,
 } from "#test-utils";
 
@@ -1378,6 +1383,55 @@ describe("server (admin settings)", () => {
       // The logActivity call happens before resetDatabase() so it was logged
       // but the table is then dropped. This test verifies no error is thrown.
     });
+
+    test("deletes storage files for all events during admin reset", async () => {
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await eventsTable.update(event.id, {
+        imageUrl: "admin-reset-image.jpg",
+        attachmentUrl: "admin-reset-attachment.pdf",
+        attachmentName: "doc.pdf",
+      });
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        const response = await handleRequest(
+          mockFormRequest(
+            "/admin/settings/reset-database",
+            {
+              confirm_phrase:
+                "The site will be fully reset and all data will be lost.",
+              csrf_token: await testCsrfToken(),
+            },
+            await testCookie(),
+          ),
+        );
+
+        expectRedirect("/setup/?success=Database+reset")(response);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
+        ).toBe(true);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),
+        ).toBe(true);
+      });
+
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
+      invalidateTestDbCache();
+    });
   });
 
   describe("POST /admin/settings/theme", () => {
@@ -1676,6 +1730,44 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 400, "Phone prefix must be a number");
     });
 
+    test("rejects prefix longer than 3 digits", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "1234",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+
+      await expectHtmlResponse(
+        response,
+        400,
+        "Phone prefix must be 1-3 digits",
+      );
+    });
+
+    test("accepts 3-digit prefix", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "886",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Phone prefix updated to 886",
+      );
+    });
+
     test("rejects when phone_prefix field is missing", async () => {
       const response = await handleRequest(
         mockFormRequest(
@@ -1736,6 +1828,165 @@ describe("server (admin settings)", () => {
       ).toBe(true);
     });
   });
+  describe("POST /admin/settings/booking-fee", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/booking-fee", {
+          booking_fee: "1.5",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("saves valid booking fee", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/booking-fee",
+          {
+            booking_fee: "1.5",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Booking fee updated to 1.5%",
+      );
+
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      expect(await settingsApi.getBookingFeeFromDb()).toBe("1.5");
+    });
+
+    test("saves zero booking fee", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/booking-fee",
+          {
+            booking_fee: "0",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Booking fee updated to 0%",
+      );
+    });
+
+    test("rejects value exceeding 10", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/booking-fee",
+          {
+            booking_fee: "15",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Booking fee must be a number between 0 and 10",
+      );
+    });
+
+    test("rejects negative value", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/booking-fee",
+          {
+            booking_fee: "-1",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Booking fee must be a number between 0 and 10",
+      );
+    });
+
+    test("rejects non-numeric value", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/booking-fee",
+          {
+            booking_fee: "abc",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Booking fee must be a number between 0 and 10",
+      );
+    });
+
+    test("settings page displays booking fee form when payment provider is set", async () => {
+      await setPaymentProvider("stripe");
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(response, 200, "Booking Fee", "booking_fee");
+    });
+
+    test("settings page hides booking fee form when no payment provider", async () => {
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).not.toContain('id="settings-booking-fee"');
+    });
+
+    test("rejects missing booking_fee field", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/booking-fee",
+          {
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Booking fee must be a number between 0 and 10",
+      );
+    });
+
+    test("logs activity when booking fee is changed", async () => {
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/booking-fee",
+          {
+            booking_fee: "2.5",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(
+        logs.some((l) => l.message.includes("Booking fee set to 2.5%")),
+      ).toBe(true);
+    });
+  });
+
   describe("sensitive field masking", () => {
     test("shows mask sentinel for configured Stripe key", async () => {
       const { MASK_SENTINEL } = await import("#lib/db/settings.ts");

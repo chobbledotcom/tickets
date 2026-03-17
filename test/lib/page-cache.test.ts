@@ -122,7 +122,8 @@ describe("page content cache", () => {
   });
 
   describe("TTL expiry", () => {
-    test("serves stale cached value when DB changes within TTL", async () => {
+    /** Seed cache, sneak a raw DB write, return startTime for fakeTime.now manipulation */
+    const seedAndBypassCache = async (): Promise<number> => {
       const startTime = Date.now();
       fakeTime = new FakeTime(startTime);
 
@@ -134,27 +135,22 @@ describe("page content cache", () => {
         sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
         args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Changed"],
       });
+      return startTime;
+    };
+
+    test("serves stale cached value when DB changes within TTL", async () => {
+      const startTime = await seedAndBypassCache();
 
       // Advance to just before TTL boundary — cache still valid
-      fakeTime.now = startTime + PAGE_CACHE_TTL_MS - 1;
+      fakeTime!.now = startTime + PAGE_CACHE_TTL_MS - 1;
       expect(await getTermsAndConditionsFromDb()).toBe("Original");
     });
 
     test("re-fetches from DB after TTL expires", async () => {
-      const startTime = Date.now();
-      fakeTime = new FakeTime(startTime);
-
-      await updateTermsAndConditions("Original");
-      expect(await getTermsAndConditionsFromDb()).toBe("Original");
-
-      // Write directly to DB, bypassing page cache invalidation
-      await getDb().execute({
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Changed"],
-      });
+      const startTime = await seedAndBypassCache();
 
       // Advance past TTL
-      fakeTime.now = startTime + PAGE_CACHE_TTL_MS + 1;
+      fakeTime!.now = startTime + PAGE_CACHE_TTL_MS + 1;
       // Cache expired — re-fetches from DB and picks up new value
       expect(await getTermsAndConditionsFromDb()).toBe("Changed");
     });
@@ -180,6 +176,14 @@ describe("page content cache", () => {
   });
 
   describe("invalidatePageCache", () => {
+    /** Assert all four page getters return the seeded values */
+    const expectAllPages = async () => {
+      expect(await getWebsiteTitleFromDb()).toBe("Title");
+      expect(await getHomepageTextFromDb()).toBe("Homepage");
+      expect(await getContactPageTextFromDb()).toBe("Contact");
+      expect(await getTermsAndConditionsFromDb()).toBe("Terms");
+    };
+
     test("clears all cached page entries", async () => {
       await updateWebsiteTitle("Title");
       await updateHomepageText("Homepage");
@@ -187,19 +191,13 @@ describe("page content cache", () => {
       await updateTermsAndConditions("Terms");
 
       // Populate all caches
-      expect(await getWebsiteTitleFromDb()).toBe("Title");
-      expect(await getHomepageTextFromDb()).toBe("Homepage");
-      expect(await getContactPageTextFromDb()).toBe("Contact");
-      expect(await getTermsAndConditionsFromDb()).toBe("Terms");
+      await expectAllPages();
 
       // Clear all
       invalidatePageCache();
 
       // Values should still be correct (re-fetched from DB)
-      expect(await getWebsiteTitleFromDb()).toBe("Title");
-      expect(await getHomepageTextFromDb()).toBe("Homepage");
-      expect(await getContactPageTextFromDb()).toBe("Contact");
-      expect(await getTermsAndConditionsFromDb()).toBe("Terms");
+      await expectAllPages();
     });
   });
 

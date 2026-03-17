@@ -175,16 +175,57 @@ const exists = (path: string): boolean => {
 const resolveFile = (path: string): string =>
   [path, `${path}.js`, `${path}.json`, `${path}/index.js`].find(exists) ?? path;
 
-/** Resolve a bare npm specifier (e.g. "@libsql/client" or "@libsql/core/api") */
-const resolveNpmSpecifier = (specifier: string): string | null => {
-  // Split into package name and subpath (scoped packages have 2 segments)
+/** Split a bare specifier into package name and subpath */
+const parseSpecifier = (
+  specifier: string,
+): { pkgName: string; subpath: string } => {
   const nameSegments = specifier.startsWith("@") ? 2 : 1;
   const idx = specifier.split("/", nameSegments).join("/").length;
-  const pkgName = specifier.slice(
-    0,
-    idx === specifier.length ? undefined : idx,
-  );
-  const subpath = idx < specifier.length ? specifier.slice(idx + 1) : "";
+  return {
+    pkgName: specifier.slice(0, idx === specifier.length ? undefined : idx),
+    subpath: idx < specifier.length ? specifier.slice(idx + 1) : "",
+  };
+};
+
+/** Try to resolve via the package.json exports map */
+const resolveViaExports = (
+  pkgDir: string,
+  pkgJson: Record<string, unknown>,
+  subpath: string,
+): string | null => {
+  if (!pkgJson.exports) return null;
+  const key = subpath ? `./${subpath}` : ".";
+  // Handle both subpath exports ({ ".": { ... } }) and top-level condition
+  // exports ({ "browser": { ... }, "default": { ... } }) used by packages like stripe
+  const exportEntry =
+    pkgJson.exports[key] ??
+    (!subpath && !("." in pkgJson.exports) ? pkgJson.exports : undefined);
+  if (!exportEntry) return null;
+  const resolved = resolveExport(exportEntry);
+  return resolved ? resolveFile(`${pkgDir}/${resolved}`) : null;
+};
+
+/** Fallback resolution: browser → module → main → index.js */
+const resolveViaFallback = (
+  pkgDir: string,
+  pkgJson: Record<string, unknown>,
+): string => {
+  if (typeof pkgJson.browser === "string") {
+    return resolveFile(`${pkgDir}/${pkgJson.browser}`);
+  }
+  const entry = pkgJson.module ?? pkgJson.main;
+  if (!entry) return resolveFile(`${pkgDir}/index`);
+  // When browser is an object it's a module replacement map
+  if (typeof pkgJson.browser === "object" && pkgJson.browser !== null) {
+    const mapped = pkgJson.browser[entry];
+    if (typeof mapped === "string") return resolveFile(`${pkgDir}/${mapped}`);
+  }
+  return resolveFile(`${pkgDir}/${entry}`);
+};
+
+/** Resolve a bare npm specifier (e.g. "@libsql/client" or "@libsql/core/api") */
+const resolveNpmSpecifier = (specifier: string): string | null => {
+  const { pkgName, subpath } = parseSpecifier(specifier);
 
   let pkgDir: string;
   try {
@@ -195,40 +236,10 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
 
   const pkgJson = JSON.parse(Deno.readTextFileSync(`${pkgDir}/package.json`));
 
-  // Try exports map first
-  if (pkgJson.exports) {
-    const key = subpath ? `./${subpath}` : ".";
-    // Handle both subpath exports ({ ".": { ... } }) and top-level condition
-    // exports ({ "browser": { ... }, "default": { ... } }) used by packages like stripe
-    const exportEntry =
-      pkgJson.exports[key] ??
-      (!subpath && !("." in pkgJson.exports) ? pkgJson.exports : undefined);
-    if (exportEntry) {
-      const resolved = resolveExport(exportEntry);
-      if (resolved) return resolveFile(`${pkgDir}/${resolved}`);
-    }
-  }
+  const fromExports = resolveViaExports(pkgDir, pkgJson, subpath);
+  if (fromExports) return fromExports;
 
-  // Fallback: browser → module → main → index.js
-  if (!subpath) {
-    if (typeof pkgJson.browser === "string") {
-      return resolveFile(`${pkgDir}/${pkgJson.browser}`);
-    }
-    const entry = pkgJson.module ?? pkgJson.main;
-    if (entry) {
-      // When browser is an object it's a module replacement map
-      // e.g. { "./lib/index.js": "./lib/browser.js", "fs": false }
-      if (typeof pkgJson.browser === "object" && pkgJson.browser !== null) {
-        const mapped = pkgJson.browser[entry];
-        if (typeof mapped === "string")
-          return resolveFile(`${pkgDir}/${mapped}`);
-      }
-      return resolveFile(`${pkgDir}/${entry}`);
-    }
-    return resolveFile(`${pkgDir}/index`);
-  }
-
-  return null;
+  return subpath ? null : resolveViaFallback(pkgDir, pkgJson);
 };
 
 /** Plugin to resolve npm packages from Deno's npm cache */

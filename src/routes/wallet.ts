@@ -4,7 +4,8 @@
  * CDN-cacheable — passes are deterministic for a given token + settings.
  */
 
-import { buildPkpass } from "#lib/apple-wallet.ts";
+import { buildPkpass, type SigningCredentials } from "#lib/apple-wallet.ts";
+import { getAllowedDomain } from "#lib/config.ts";
 import { getAppleWalletConfig } from "#lib/db/settings.ts";
 import {
   createTokenRoute,
@@ -34,13 +35,25 @@ const handleWalletGet = async (
   const config = await getAppleWalletConfig();
   if (!config) return notFoundResponse();
 
-  // Apple needs the token without .pkpass extension for lookup
+  return buildPkpassForToken(token, config);
+};
+
+/**
+ * Build and return a .pkpass Response for a token.
+ * Shared by the download route and the web service "get latest pass" endpoint.
+ */
+export const buildPkpassForToken = async (
+  token: string,
+  config: SigningCredentials,
+): Promise<Response> => {
   const result = await lookupSingleTokenPassData([token]);
   if (!result.ok) return result.response;
 
+  const domain = getAllowedDomain();
   const passData = {
     ...result.passData,
     description: `Ticket for ${result.passData.eventName}`,
+    webServiceURL: `https://${domain}`,
   };
   const pkpass = buildPkpass(passData, config);
   const body = pkpass as Uint8Array<ArrayBuffer>;

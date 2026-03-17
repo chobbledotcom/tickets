@@ -21,12 +21,14 @@ import {
 } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { getAllEvents } from "#lib/db/events.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   clearPaymentProvider,
   type EmailTemplateType,
   getAppleWalletPassTypeIdFromDb,
   getAppleWalletTeamIdFromDb,
+  getBookingFeeFromDb,
   getCustomDomainFromDb,
   getCustomDomainLastValidatedFromDb,
   getEmailFromAddressFromDb,
@@ -62,6 +64,7 @@ import {
   updateAppleWalletSigningKey,
   updateAppleWalletTeamId,
   updateAppleWalletWwdrCert,
+  updateBookingFee,
   updateCustomDomain,
   updateCustomDomainLastValidated,
   updateEmailApiKey,
@@ -111,8 +114,11 @@ import {
 } from "#lib/embed-hosts.ts";
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
+  deleteAllEventStorageFiles,
+  deleteImage,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
   tryDeleteImage,
@@ -157,6 +163,7 @@ const getSettingsPageState = async () => {
     squareTokenConfigured,
     squareSandbox,
     squareWebhookKey,
+    bookingFeeRaw,
     embedHosts,
     termsAndConditions,
     businessEmail,
@@ -170,6 +177,7 @@ const getSettingsPageState = async () => {
     hasSquareToken(),
     getSquareSandboxFromDb(),
     getSquareWebhookSignatureKey(),
+    getBookingFeeFromDb(),
     getEmbedHostsFromDb(),
     getTermsAndConditionsFromDb(),
     getBusinessEmailFromDb(),
@@ -185,6 +193,7 @@ const getSettingsPageState = async () => {
     squareSandbox,
     squareWebhookConfigured: squareWebhookKey !== null,
     webhookUrl: getWebhookUrl(),
+    bookingFee: bookingFeeRaw!,
     embedHosts: embedHosts ?? "",
     termsAndConditions: termsAndConditions ?? "",
     businessEmail,
@@ -474,11 +483,9 @@ const handleAdminSettingsPost = settingsRoute(
   },
 );
 
-/** Valid payment provider values from the form */
-const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([
-  "stripe",
-  "square",
-]);
+/** Type guard: check if a string is a valid payment provider */
+const isPaymentProvider = (s: string): s is PaymentProviderType =>
+  s === "stripe" || s === "square";
 
 /**
  * Handle POST /admin/settings/payment-provider - owner only
@@ -494,7 +501,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
     });
   }
 
-  if (!VALID_PROVIDERS.has(provider)) {
+  if (!isPaymentProvider(provider)) {
     return errorPage(
       "Invalid payment provider",
       400,
@@ -847,6 +854,14 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
     );
   }
 
+  if (raw.length > 3) {
+    return errorPage(
+      "Phone prefix must be 1-3 digits",
+      400,
+      "settings-phone-prefix",
+    );
+  }
+
   await updatePhonePrefix(raw);
   await logActivity(`Phone prefix set to ${raw}`);
   return redirect("/admin/settings", `Phone prefix updated to ${raw}`, true, {
@@ -856,6 +871,29 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
 
 /** Handle POST /admin/settings/phone-prefix - owner only */
 const handlePhonePrefixPost = settingsRoute(processPhonePrefixForm);
+
+/** Validate and save booking fee from form submission */
+const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
+  const raw = (form.get("booking_fee") ?? "").trim();
+  const value = Number.parseFloat(raw);
+
+  if (!Number.isFinite(value) || value < 0 || value > 10) {
+    return errorPage(
+      "Booking fee must be a number between 0 and 10",
+      400,
+      "settings-booking-fee",
+    );
+  }
+
+  await updateBookingFee(String(value));
+  await logActivity(`Booking fee set to ${value}%`);
+  return redirect("/admin/settings", `Booking fee updated to ${value}%`, true, {
+    formId: "settings-booking-fee",
+  });
+};
+
+/** Handle POST /admin/settings/booking-fee - owner only */
+const handleBookingFeePost = settingsRoute(processBookingFeeForm);
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
@@ -880,7 +918,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
       return htmlResponse(await renderSettingsPage(session), 400);
     }
 
-    // Delete old header image if one exists
+    // Delete old header image if one exists (best-effort, don't block new upload)
     const existingUrl = await getHeaderImageUrlFromDb();
     if (existingUrl) {
       await tryDeleteImage(
@@ -890,10 +928,19 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
       );
     }
 
-    const filename = await uploadImage(data, validation.detectedType);
-    await updateHeaderImageUrl(filename);
-    await logActivity("Header image uploaded");
-    return redirect("/admin/settings", "Header image uploaded", true, {
+    const [uploadResult] = await Promise.allSettled([
+      uploadImage(data, validation.detectedType),
+    ]);
+    if (uploadResult.status === "fulfilled") {
+      await updateHeaderImageUrl(uploadResult.value);
+      await logActivity("Header image uploaded");
+      return redirect("/admin/settings", "Header image uploaded", true, {
+        formId: "settings-header-image",
+      });
+    }
+    const uploadDetail = `Header image upload failed: ${String(uploadResult.reason)}`;
+    logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
+    return redirect("/admin/settings", "Header image upload failed", false, {
       formId: "settings-header-image",
     });
   });
@@ -905,10 +952,17 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
     return htmlResponse("No header image to remove", 400);
   }
 
-  await tryDeleteImage(existingUrl, undefined, `header image: ${existingUrl}`);
-  await updateHeaderImageUrl("");
-  await logActivity("Header image removed");
-  return redirect("/admin/settings", "Header image removed", true, {
+  const [deleteResult] = await Promise.allSettled([deleteImage(existingUrl)]);
+  if (deleteResult.status === "fulfilled") {
+    await updateHeaderImageUrl("");
+    await logActivity("Header image removed");
+    return redirect("/admin/settings", "Header image removed", true, {
+      formId: "settings-header-image-delete",
+    });
+  }
+  const deleteDetail = `Header image removal failed: ${String(deleteResult.reason)}`;
+  logError({ code: ErrorCode.STORAGE_DELETE, detail: deleteDetail });
+  return redirect("/admin/settings", "Header image removal failed", false, {
     formId: "settings-header-image-delete",
   });
 });
@@ -1433,6 +1487,9 @@ const handleResetDatabasePost = advancedSettingsRoute(
       return errorPage(phraseError, 400, "settings-reset-database");
 
     await logActivity("Database reset initiated");
+    if (isStorageEnabled()) {
+      await deleteAllEventStorageFiles(await getAllEvents());
+    }
     await resetDatabase();
 
     // Redirect to setup page since the database is now empty
@@ -1460,6 +1517,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
   "POST /admin/settings/show-public-api": handleShowPublicApiPost,
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
+  "POST /admin/settings/booking-fee": handleBookingFeePost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/email": handleEmailPost,

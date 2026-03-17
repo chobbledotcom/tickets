@@ -11,70 +11,17 @@ import {
   adminGet,
   awaitTestRequest,
   createTestDbWithSetup,
+  createTestManagerSession,
   expectAdminRedirect,
   expectHtmlResponse,
   extractCsrfToken,
-  mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
-  requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
-
-/** Create a manager user and return their session cookie */
-const loginAsManager = async (): Promise<string> => {
-  // Create a manager invite
-  const inviteResponse = await handleRequest(
-    mockFormRequest(
-      "/admin/users",
-      {
-        username: "manager1",
-        admin_level: "manager",
-        csrf_token: await testCsrfToken(),
-      },
-      await testCookie(),
-    ),
-  );
-  const inviteUrl = inviteResponse.headers.get("location") ?? "";
-  const inviteLink = decodeURIComponent(
-    inviteUrl.match(/invite=([^&]+)/)![1] as string,
-  );
-  const inviteToken = inviteLink.split("/join/")[1];
-
-  // Set password for manager
-  const joinHtml = await (
-    await handleRequest(mockRequest(`/join/${inviteToken}`))
-  ).text();
-  const joinCsrf = requireJoinCsrfToken(joinHtml);
-  await handleRequest(
-    mockFormRequest(`/join/${inviteToken}`, {
-      password: "managerpass123",
-      password_confirm: "managerpass123",
-      csrf_token: joinCsrf,
-    }),
-  );
-
-  // Activate the manager
-  await handleRequest(
-    mockFormRequest(
-      "/admin/users/2/activate",
-      { csrf_token: await testCsrfToken() },
-      await testCookie(),
-    ),
-  );
-
-  // Login as manager
-  const loginResponse = await handleRequest(
-    await mockAdminLoginRequest({
-      username: "manager1",
-      password: "managerpass123",
-    }),
-  );
-  return loginResponse.headers.get("set-cookie") ?? "";
-};
 
 describe("server (admin seeds)", () => {
   beforeEach(async () => {
@@ -93,7 +40,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("returns 403 for non-owner", async () => {
-      const managerCookie = await loginAsManager();
+      const managerCookie = await createTestManagerSession();
       const response = await awaitTestRequest("/admin/seeds", {
         cookie: managerCookie,
       });
@@ -132,7 +79,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("returns 403 for non-owner", async () => {
-      const managerCookie = await loginAsManager();
+      const managerCookie = await createTestManagerSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",

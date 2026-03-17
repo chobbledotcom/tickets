@@ -6,7 +6,7 @@ import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
-import type { AdminSession } from "#lib/types.ts";
+import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   changePasswordFields,
@@ -24,10 +24,11 @@ export type SettingsPageState = {
   squareSandbox: boolean;
   squareWebhookConfigured: boolean;
   webhookUrl: string;
+  bookingFee: string;
   embedHosts: string;
   termsAndConditions: string;
   businessEmail: string;
-  theme: string;
+  theme: Theme;
   showPublicSite: boolean;
   phonePrefix: string;
   headerImageUrl: string;
@@ -101,6 +102,7 @@ export const adminSettingsPage = (
             name="phone_prefix"
             step="1"
             min="1"
+            max="999"
             value={s.phonePrefix}
             required
           />
@@ -289,6 +291,32 @@ export const adminSettingsPage = (
         </CsrfForm>
       )}
 
+      {s.paymentProvider && (
+        <CsrfForm
+          action="/admin/settings/booking-fee"
+          id="settings-booking-fee"
+        >
+          <h2>Booking Fee</h2>
+          <p>
+            Percentage fee added at checkout (e.g. 1.5 for 1.5%). Set to 0 to
+            disable. Max 10.
+          </p>
+          <label>
+            Booking Fee (%)
+            <input
+              type="number"
+              name="booking_fee"
+              step="0.1"
+              min="0"
+              max="10"
+              value={s.bookingFee}
+              required
+            />
+          </label>
+          <button type="submit">Save Booking Fee</button>
+        </CsrfForm>
+      )}
+
       <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts">
         <h2>Only allow embedding on these hosts</h2>
         <p>
@@ -404,6 +432,10 @@ export const adminSettingsPage = (
         For advanced settings including public API, Apple Wallet, custom email
         templates, mail provider, timezone, custom domain, and database reset,{" "}
         <a href="/admin/settings-advanced">click here</a>.
+      </p>
+
+      <p>
+        For nerdy debug info <a href="/admin/debug">click here</a>.
       </p>
     </Layout>,
   );

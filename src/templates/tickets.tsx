@@ -13,11 +13,11 @@ import { renderEventImage } from "#templates/public.tsx";
 /** Re-export for backwards compatibility */
 export type { TokenEntry as TicketEntry };
 
-/** Ticket card with individual QR code */
+/** Ticket card data for rendering */
 export type TicketCard = {
   entry: TokenEntry;
-  qrSvg: string;
   token: string;
+  attachmentUrl?: string;
 };
 
 /** Pluralize ticket count */
@@ -38,7 +38,7 @@ const renderTicketCard = (
   appleWalletEnabled: boolean,
   googleWalletEnabled: boolean,
 ): string => {
-  const { entry, qrSvg, token } = card;
+  const { entry, token, attachmentUrl } = card;
   const { event, attendee } = entry;
   const imageHtml = renderEventImage(event, "ticket-card-image");
   const eventDateHtml = event.date
@@ -74,6 +74,10 @@ const renderTicketCard = (
     ? renderGoogleWalletLink(token)
     : "";
 
+  const attachmentHtml = attachmentUrl
+    ? `<a href="${escapeHtml(attachmentUrl)}" class="attachment-link">Download: ${escapeHtml(event.attachment_name)}</a>`
+    : "";
+
   return `
     <div class="ticket-card">
       ${imageHtml}
@@ -85,7 +89,8 @@ const renderTicketCard = (
       ${attendeeDateHtml}
       <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
       ${priceHtml}
-      <div class="ticket-card-qr">${qrSvg}</div>
+      ${attachmentHtml}
+      <div class="ticket-card-qr"><img src="/t/${escapeHtml(token)}/svg" alt="QR code" /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>
       ${appleWalletHtml}
       ${googleWalletHtml}

@@ -151,7 +151,7 @@ describe("square", () => {
     });
 
     test("returns null when non-truncatable value exceeds limit", () => {
-      const longItems = "[" + "{e:1,q:1},".repeat(50) + "]";
+      const longItems = `[${"{e:1,q:1},".repeat(50)}]`;
       const metadata = {
         multi: "1",
         name: "John",
@@ -162,7 +162,7 @@ describe("square", () => {
     });
 
     test("returns null when email exceeds limit", () => {
-      const longEmail = "a".repeat(300) + "@example.com";
+      const longEmail = `${"a".repeat(300)}@example.com`;
       const metadata = {
         event_id: "1",
         name: "John",
@@ -217,6 +217,8 @@ describe("square", () => {
         minimum_days_before: 1,
         maximum_days_after: 90,
         image_url: "",
+        attachment_url: "",
+        attachment_name: "",
         non_transferable: false,
         can_pay_more: false,
         max_price: 0,
@@ -273,6 +275,8 @@ describe("square", () => {
         minimum_days_before: 1,
         maximum_days_after: 90,
         image_url: "",
+        attachment_url: "",
+        attachment_name: "",
         non_transferable: false,
         can_pay_more: false,
         max_price: 0,
@@ -342,6 +346,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            attachment_url: "",
+            attachment_name: "",
             non_transferable: false,
             can_pay_more: false,
             max_price: 0,
@@ -402,6 +408,52 @@ describe("square", () => {
       );
     });
 
+    test("includes booking fee line item when fee is set", async () => {
+      const { updateBookingFee } = await import("#lib/db/settings.ts");
+      await updateBookingFee("2.5");
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_loc_456");
+      const { client, checkoutCreate } = createMockClient({
+        checkoutCreate: () =>
+          Promise.resolve({
+            paymentLink: {
+              orderId: "order_fee",
+              url: "https://square.link/fee",
+            },
+          }),
+      });
+
+      await withMocks(
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+        async () => {
+          const event = testEvent({ unit_price: 1000 });
+          const intent = {
+            eventId: 1,
+            name: "Jane",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            quantity: 2,
+          };
+
+          await squareApi.createPaymentLink(
+            event,
+            intent,
+            "https://tickets.example.com",
+          );
+
+          const args = checkoutCreate.calls[0]!
+            .args[0] as CreatePaymentLinkInput;
+          expect(args.order.lineItems).toHaveLength(2);
+          const feeItem = args.order.lineItems[1]!;
+          expect(feeItem.name).toBe("Booking fee");
+          // 2.5% of 2000 (2 × 1000) = 50
+          expect(feeItem.basePriceMoney.amount).toBe(BigInt(50));
+        },
+      );
+    });
+
     test("omits phone from pre-populated data when empty", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
@@ -449,6 +501,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            attachment_url: "",
+            attachment_name: "",
             non_transferable: false,
             can_pay_more: false,
             max_price: 0,
@@ -519,6 +573,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            attachment_url: "",
+            attachment_name: "",
             non_transferable: false,
             can_pay_more: false,
             max_price: 0,
@@ -591,6 +647,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            attachment_url: "",
+            attachment_name: "",
             non_transferable: false,
             can_pay_more: false,
             max_price: 0,
@@ -636,7 +694,7 @@ describe("square", () => {
           const intent = {
             eventId: 1,
             name: "John",
-            email: "a".repeat(300) + "@example.com",
+            email: `${"a".repeat(300)}@example.com`,
             phone: "",
             address: "",
             special_instructions: "",
@@ -2088,6 +2146,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            attachment_url: "",
+            attachment_name: "",
             non_transferable: false,
             can_pay_more: false,
             max_price: 0,

@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
+import { eventsTable } from "#lib/db/events.ts";
 import {
   awaitTestRequest,
-  createDailyTestEvent,
+  createDailyTestAttendee,
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeWithToken,
@@ -16,6 +16,12 @@ import {
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
+
+/** Fetch a ticket page and return the response body text */
+const fetchTicketBody = async (tokenPath: string): Promise<string> => {
+  const response = await awaitTestRequest(`/t/${tokenPath}`);
+  return response.text();
+};
 
 describe("ticket view (/t/:tokens)", () => {
   beforeEach(async () => {
@@ -53,10 +59,7 @@ describe("ticket view (/t/:tokens)", () => {
       2,
     );
 
-    const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
-    expect(response.status).toBe(200);
-
-    const body = await response.text();
+    const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
     expect(body).toContain(eventA.name);
     expect(body).toContain(eventB.name);
   });
@@ -128,32 +131,43 @@ describe("ticket view (/t/:tokens)", () => {
     expect(attendees[0]!.ticket_token).not.toBe(attendees[1]!.ticket_token);
   });
 
-  test("includes inline SVG QR code in ticket view", async () => {
+  test("references SVG endpoint for QR code instead of inline SVG", async () => {
     const { token } = await createTestAttendeeWithToken("Eve", "eve@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).toContain(`/t/${token}/svg`);
+    expect(body).toContain("<img");
+  });
+
+  test("serves QR code SVG at /t/:token/svg with cache headers", async () => {
+    const { token } = await createTestAttendeeWithToken("Eve", "eve@test.com");
+
+    const response = await awaitTestRequest(`/t/${token}/svg`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/svg+xml");
+    expect(response.headers.get("cache-control")).toContain("immutable");
+    expect(response.headers.get("cache-control")).toContain("public");
+
     const body = await response.text();
     expect(body).toContain("<svg");
     expect(body).toContain("</svg>");
   });
 
-  test("displays booked date for daily event tickets", async () => {
-    const event = await createDailyTestEvent({
-      maxAttendees: 10,
-      maximumDaysAfter: 30,
-    });
-    const date = "2026-02-15";
-    const result = await createAttendeeAtomic({
-      eventId: event.id,
-      name: "Zara",
-      email: "zara@test.com",
-      date,
-    });
-    if (!result.success) throw new Error("Failed to create attendee");
+  test("returns 404 for /t/:token/svg with invalid token", async () => {
+    const response = await awaitTestRequest("/t/nonexistent-token/svg");
+    expect(response.status).toBe(404);
+  });
 
-    const response = await awaitTestRequest(
-      `/t/${result.attendee.ticket_token}`,
+  test("displays booked date for daily event tickets", async () => {
+    const date = "2026-02-15";
+    const { token } = await createDailyTestAttendee(
+      "Zara",
+      "zara@test.com",
+      date,
     );
+
+    const response = await awaitTestRequest(`/t/${token}`);
     expect(response.status).toBe(200);
 
     const body = await response.text();
@@ -162,34 +176,14 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("shows date for daily event and shows standard event without date on same ticket page", async () => {
-    const dailyEvent = await createTestEvent({
-      maxAttendees: 10,
-      eventType: "daily",
-      bookableDays: [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-      ],
-      minimumDaysBefore: 0,
-      maximumDaysAfter: 30,
-    });
+    const date = "2026-02-15";
+    const { event: dailyEvent, token: tokenA } = await createDailyTestAttendee(
+      "Mixed",
+      "mixed@test.com",
+      date,
+    );
     const { event: standardEvent, token: tokenB } =
       await createTestAttendeeWithToken("Mixed", "mixed@test.com");
-    const date = "2026-02-15";
-    const dailyResult = await createAttendeeAtomic({
-      eventId: dailyEvent.id,
-      name: "Mixed",
-      email: "mixed@test.com",
-      date,
-    });
-    if (!dailyResult.success) {
-      throw new Error("Failed to create daily attendee");
-    }
-    const tokenA = dailyResult.attendee.ticket_token;
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
     expect(response.status).toBe(200);
@@ -208,8 +202,7 @@ describe("ticket view (/t/:tokens)", () => {
       "alice@test.com",
     );
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchTicketBody(token);
     expect(body).not.toContain("Booking Date");
   });
 
@@ -261,8 +254,7 @@ describe("ticket view (/t/:tokens)", () => {
   test("does not show description when empty", async () => {
     const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchTicketBody(token);
     expect(body).not.toContain("ticket-card-description");
   });
 
@@ -285,8 +277,7 @@ describe("ticket view (/t/:tokens)", () => {
   test("does not show price for free tickets", async () => {
     const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
 
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
+    const body = await fetchTicketBody(token);
     expect(body).not.toContain("ticket-card-price");
   });
 
@@ -328,5 +319,36 @@ describe("ticket view (/t/:tokens)", () => {
     const body = await response.text();
     expect(body).not.toContain("ticket-card-notice");
     expect(body).not.toContain("Non-transferable");
+  });
+
+  test("shows attachment download link when event has attachment", async () => {
+    const { event, token } = await createTestAttendeeWithToken(
+      "Alice Smith",
+      "alice@test.com",
+    );
+    await eventsTable.update(event.id, {
+      attachmentUrl: "abc-guide.pdf",
+      attachmentName: "Event Guide.pdf",
+    });
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("attachment-link");
+    expect(body).toContain("Download: Event Guide.pdf");
+    expect(body).toContain("/attachment/");
+  });
+
+  test("does not show attachment link when event has no attachment", async () => {
+    const { token } = await createTestAttendeeWithToken(
+      "Bob Jones",
+      "bob@test.com",
+    );
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("attachment-link");
+    expect(body).not.toContain("Download:");
   });
 });

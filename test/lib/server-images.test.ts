@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#lib/crypto.ts";
 import { toMajorUnits } from "#lib/currency.ts";
-import { eventsTable, getEventWithCount } from "#lib/db/events.ts";
+import { eventsTable, getEvent, getEventWithCount } from "#lib/db/events.ts";
 import { handleRequest } from "#routes";
 import {
   createTestDbWithSetup,
@@ -441,16 +441,20 @@ describe("server (event images)", () => {
   });
 
   describe("POST /admin/event/:id/image/delete", () => {
+    const expectImageDeleteRedirect = (response: Response, eventId: number) => {
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        `/admin/event/${eventId}?success=Image+removed`,
+      );
+    };
+
     test("removes image from event and storage", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
       await eventsTable.update(event.id, { imageUrl: "to-delete.jpg" });
 
       await withStorageMock(async () => {
         const response = await submitImageDelete(event.id, cookie, csrfToken);
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}?success=Image+removed`,
-        );
+        expectImageDeleteRedirect(response, event.id);
 
         const updated = await getEventWithCount(event.id);
         expect(updated?.image_url).toBe("");
@@ -461,10 +465,7 @@ describe("server (event images)", () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
 
       const response = await submitImageDelete(event.id, cookie, csrfToken);
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?success=Image+removed`,
-      );
+      expectImageDeleteRedirect(response, event.id);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -475,7 +476,7 @@ describe("server (event images)", () => {
       expect(response.status).toBe(404);
     });
 
-    test("succeeds even when storage delete throws", async () => {
+    test("reports error when storage delete throws", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
       await eventsTable.update(event.id, { imageUrl: "failing.jpg" });
 
@@ -486,8 +487,15 @@ describe("server (event images)", () => {
 
         const response = await submitImageDelete(event.id, cookie, csrfToken);
         expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("error=");
+        expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
+          "removal failed",
+        );
+
+        // DB record should NOT be cleared when CDN delete fails
         const updated = await getEventWithCount(event.id);
-        expect(updated?.image_url).toBe("");
+        expect(updated?.image_url).toBe("failing.jpg");
       });
     });
   });
@@ -498,6 +506,7 @@ describe("server (event images)", () => {
       const encrypted = await encryptBytes(imageData);
 
       await withCdnProxy(
+        // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BodyInit in Deno's TS
         // deno-lint-ignore no-explicit-any
         () => new Response(encrypted as any, { status: 200 }),
         async () => {
@@ -558,6 +567,386 @@ describe("server (event images)", () => {
     test("returns 404 for filename without extension", async () => {
       const response = await handleRequest(mockRequest("/image/abcdef123456"));
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /admin/event/:id/edit (attachment upload via edit form)", () => {
+    test("logs diagnostic when attachment field is not a File", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      await withStorageMock(async () => {
+        const fields = await editFormData(event.id, csrfToken);
+        // Add attachment as a text field instead of a file
+        fields.attachment = "not-a-file";
+        const response = await handleRequest(
+          mockMultipartRequest(`/admin/event/${event.id}/edit`, fields, cookie),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toContain("success=");
+
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.attachment_url).toBe("");
+      });
+    });
+
+    test("ignores attachment when storage is not configured", async () => {
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      const fields = await editFormData(event.id, csrfToken);
+      const response = await handleRequest(
+        mockMultipartRequest(`/admin/event/${event.id}/edit`, fields, cookie, {
+          fieldName: "attachment",
+          name: "guide.pdf",
+          data: PDF_BYTES,
+          contentType: "application/pdf",
+        }),
+      );
+      expect(response.status).toBe(302);
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.attachment_url).toBe("");
+    });
+
+    test("uploads attachment and updates event", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      await withStorageMock(async () => {
+        const fields = await editFormData(event.id, csrfToken);
+        const response = await handleRequest(
+          mockMultipartRequest(
+            `/admin/event/${event.id}/edit`,
+            fields,
+            cookie,
+            {
+              fieldName: "attachment",
+              name: "guide.pdf",
+              data: PDF_BYTES,
+              contentType: "application/pdf",
+            },
+          ),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(
+          `/admin/event/${event.id}?success=Event+updated`,
+        );
+
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.attachment_url).toMatch(/guide\.pdf$/);
+        expect(updated?.attachment_name).toBe("guide.pdf");
+      });
+    });
+
+    test("rejects oversized attachment", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      const oversized = new Uint8Array(25 * 1024 * 1024 + 1);
+      await withStorageMock(async () => {
+        const fields = await editFormData(event.id, csrfToken);
+        const response = await handleRequest(
+          mockMultipartRequest(
+            `/admin/event/${event.id}/edit`,
+            fields,
+            cookie,
+            {
+              fieldName: "attachment",
+              name: "huge.zip",
+              data: oversized,
+              contentType: "application/zip",
+            },
+          ),
+        );
+        expectImageErrorRedirect(response, "25MB");
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.attachment_url).toBe("");
+      });
+    });
+
+    test("deletes old attachment when uploading new one", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+      await eventsTable.update(event.id, {
+        attachmentUrl: "old-file.pdf",
+        attachmentName: "old.pdf",
+      });
+
+      await withStorageMock(async (fetchCalls) => {
+        const fields = await editFormData(event.id, csrfToken);
+        const response = await handleRequest(
+          mockMultipartRequest(
+            `/admin/event/${event.id}/edit`,
+            fields,
+            cookie,
+            {
+              fieldName: "attachment",
+              name: "new.pdf",
+              data: PDF_BYTES,
+              contentType: "application/pdf",
+            },
+          ),
+        );
+        expect(response.status).toBe(302);
+
+        const deleteCall = fetchCalls.find((url) =>
+          url.includes("old-file.pdf"),
+        );
+        expect(deleteCall).not.toBeUndefined();
+      });
+    });
+
+    test("reports error when attachment upload fails", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      await withFetchMock(async (originalFetch) => {
+        Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+        Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+        installUrlHandler(originalFetch, () =>
+          Promise.reject(new Error("CDN unreachable")),
+        );
+
+        const fields = await editFormData(event.id, csrfToken);
+        const response = await handleRequest(
+          mockMultipartRequest(
+            `/admin/event/${event.id}/edit`,
+            fields,
+            cookie,
+            {
+              fieldName: "attachment",
+              name: "guide.pdf",
+              data: PDF_BYTES,
+              contentType: "application/pdf",
+            },
+          ),
+        );
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("error=");
+        expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
+          "upload failed",
+        );
+
+        Deno.env.delete("STORAGE_ZONE_NAME");
+        Deno.env.delete("STORAGE_ZONE_KEY");
+      });
+    });
+  });
+
+  describe("POST /admin/event (attachment upload via create form)", () => {
+    test("uploads attachment when creating a new event", async () => {
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      await withStorageMock(async () => {
+        const response = await handleRequest(
+          mockMultipartRequest(
+            "/admin/event",
+            newEventFormFields(csrfToken, "Attachment Event"),
+            cookie,
+            {
+              fieldName: "attachment",
+              name: "info.pdf",
+              data: PDF_BYTES,
+              contentType: "application/pdf",
+            },
+          ),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(
+          "/admin?success=Event+created",
+        );
+
+        const events = await import("#lib/db/events.ts").then((m) =>
+          m.getAllEvents(),
+        );
+        const created = events.find((e) => e.name === "Attachment Event");
+        expect(created?.attachment_url).toMatch(/info\.pdf$/);
+        expect(created?.attachment_name).toBe("info.pdf");
+      });
+    });
+  });
+
+  describe("POST /admin/event/:id/attachment/delete", () => {
+    test("removes attachment from event and storage", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+      await eventsTable.update(event.id, {
+        attachmentUrl: "to-delete.pdf",
+        attachmentName: "file.pdf",
+      });
+
+      await withStorageMock(async () => {
+        const response = await handleRequest(
+          mockFormRequest(
+            `/admin/event/${event.id}/attachment/delete`,
+            { csrf_token: csrfToken },
+            cookie,
+          ),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(
+          `/admin/event/${event.id}?success=Attachment+removed`,
+        );
+
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.attachment_url).toBe("");
+        expect(updated?.attachment_name).toBe("");
+      });
+    });
+
+    test("redirects when event has no attachment", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attachment/delete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        `/admin/event/${event.id}?success=Attachment+removed`,
+      );
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/9999/attachment/delete",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("event deletion cleans up storage files", () => {
+    test("deletes image from storage when event is deleted", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+      await eventsTable.update(event.id, { imageUrl: "event-image.jpg" });
+
+      await withStorageMock(async (fetchCalls) => {
+        const response = await handleRequest(
+          mockFormRequest(
+            `/admin/event/${event.id}/delete`,
+            { csrf_token: csrfToken, confirm_identifier: event.name },
+            cookie,
+          ),
+        );
+        expect(response.status).toBe(302);
+
+        const deleteCall = fetchCalls.find((url) =>
+          url.includes("event-image.jpg"),
+        );
+        expect(deleteCall).not.toBeUndefined();
+
+        const deleted = await getEvent(event.id);
+        expect(deleted).toBeNull();
+      });
+    });
+
+    test("deletes attachment from storage when event is deleted", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+      await eventsTable.update(event.id, {
+        attachmentUrl: "event-attachment.pdf",
+        attachmentName: "doc.pdf",
+      });
+
+      await withStorageMock(async (fetchCalls) => {
+        const response = await handleRequest(
+          mockFormRequest(
+            `/admin/event/${event.id}/delete`,
+            { csrf_token: csrfToken, confirm_identifier: event.name },
+            cookie,
+          ),
+        );
+        expect(response.status).toBe(302);
+
+        const deleteCall = fetchCalls.find((url) =>
+          url.includes("event-attachment.pdf"),
+        );
+        expect(deleteCall).not.toBeUndefined();
+      });
+    });
+
+    test("deletes both image and attachment from storage when event is deleted", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+      await eventsTable.update(event.id, {
+        imageUrl: "both-image.jpg",
+        attachmentUrl: "both-attachment.pdf",
+        attachmentName: "both.pdf",
+      });
+
+      await withStorageMock(async (fetchCalls) => {
+        const response = await handleRequest(
+          mockFormRequest(
+            `/admin/event/${event.id}/delete`,
+            { csrf_token: csrfToken, confirm_identifier: event.name },
+            cookie,
+          ),
+        );
+        expect(response.status).toBe(302);
+
+        const imageCall = fetchCalls.find((url) =>
+          url.includes("both-image.jpg"),
+        );
+        const attachmentCall = fetchCalls.find((url) =>
+          url.includes("both-attachment.pdf"),
+        );
+        expect(imageCall).not.toBeUndefined();
+        expect(attachmentCall).not.toBeUndefined();
+      });
+    });
+
+    test("succeeds even when storage delete fails during event deletion", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+      await eventsTable.update(event.id, { imageUrl: "failing-image.jpg" });
+
+      await withFetchMock(async (originalFetch) => {
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("failing-image.jpg")) {
+            return Promise.reject(new Error("CDN delete failed"));
+          }
+          if (url.includes("storage.bunnycdn.com")) {
+            return Promise.resolve(cdnOkResponse());
+          }
+          return null;
+        });
+
+        const response = await handleRequest(
+          mockFormRequest(
+            `/admin/event/${event.id}/delete`,
+            { csrf_token: csrfToken, confirm_identifier: event.name },
+            cookie,
+          ),
+        );
+        expect(response.status).toBe(302);
+
+        const deleted = await getEvent(event.id);
+        expect(deleted).toBeNull();
+      });
+    });
+
+    test("skips storage cleanup when event has no image or attachment", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
+
+      await withStorageMock(async (fetchCalls) => {
+        const response = await handleRequest(
+          mockFormRequest(
+            `/admin/event/${event.id}/delete`,
+            { csrf_token: csrfToken, confirm_identifier: event.name },
+            cookie,
+          ),
+        );
+        expect(response.status).toBe(302);
+
+        const storageCalls = fetchCalls.filter((url) =>
+          url.includes("storage.bunnycdn.com"),
+        );
+        expect(storageCalls).toHaveLength(0);
+      });
     });
   });
 });

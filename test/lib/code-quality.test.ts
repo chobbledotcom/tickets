@@ -148,30 +148,43 @@ describe("code quality", () => {
     });
   });
 
+  /**
+   * Scan non-utility source files line by line, collecting violations via a callback.
+   * Returns the combined violation list.
+   */
+  const scanSourceLines = async (
+    check: (ctx: {
+      relativePath: string;
+      line: string;
+      lineNum: number;
+    }) => string | null,
+  ): Promise<string[]> => {
+    await ensureLoaded();
+    const violations: string[] = [];
+    for (const file of srcFiles) {
+      const relativePath = getRelativePath(file);
+      if (TEST_UTILITY_FILES.includes(relativePath)) continue;
+      const lines = srcContents.get(file)!.split("\n");
+      let lineNum = 0;
+      for (const line of lines) {
+        lineNum++;
+        const v = check({ relativePath, line, lineNum });
+        if (v) violations.push(v);
+      }
+    }
+    return violations;
+  };
+
   describe("no aliasing", () => {
     test("should not alias functions or variables at module level", async () => {
-      await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        const relativePath = getRelativePath(file);
-        if (TEST_UTILITY_FILES.includes(relativePath)) continue;
-        const content = srcContents.get(file)!;
-        const lines = content.split("\n");
-
-        let lineNum = 0;
-        for (const line of lines) {
-          lineNum++;
+      const violations = await scanSourceLines(
+        ({ relativePath, line, lineNum }) => {
           const match = line.match(ALIASING_PATTERN);
-
-          if (match) {
-            const [, varName, value] = match;
-            violations.push(
-              `${relativePath}:${lineNum}: const ${varName} = ${value} (use import { ${value} as ${varName} } instead)`,
-            );
-          }
-        }
-      }
+          if (!match) return null;
+          const [, varName, value] = match;
+          return `${relativePath}:${lineNum}: const ${varName} = ${value} (use import { ${value} as ${varName} } instead)`;
+        },
+      );
 
       expect(violations).toEqual([]);
     });
@@ -179,27 +192,12 @@ describe("code quality", () => {
 
   describe("no module-level let", () => {
     test("should use const with once()/lazyRef() instead of let", async () => {
-      await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        const relativePath = getRelativePath(file);
-        if (TEST_UTILITY_FILES.includes(relativePath)) continue;
-        const content = srcContents.get(file)!;
-        const lines = content.split("\n");
-
-        let lineNum = 0;
-        for (const line of lines) {
-          lineNum++;
-
-          // Only check module-level let (not indented)
-          if (line.match(/^(export\s+)?let\s+/)) {
-            violations.push(
-              `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`,
-            );
-          }
-        }
-      }
+      const violations = await scanSourceLines(
+        ({ relativePath, line, lineNum }) => {
+          if (!line.match(/^(export\s+)?let\s+/)) return null;
+          return `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`;
+        },
+      );
 
       expect(violations).toEqual([]);
     });
@@ -275,6 +273,8 @@ describe("code quality", () => {
       "lib/db/client.ts:setDb",
       // Reset cached encryption key between tests
       "lib/crypto.ts:clearEncryptionKeyCache",
+      // Set encryption key directly to avoid env var races between parallel tests
+      "lib/crypto.ts:setEncryptionKeyForTest",
       // Reset cached Stripe client between tests
       "lib/stripe.ts:resetStripeClient",
       // Reset cached setup complete status between tests
@@ -316,6 +316,9 @@ describe("code quality", () => {
       "routes/utils.ts:withCookie",
       // Reset cache registry between tests
       "lib/cache-registry.ts:resetCacheRegistry",
+      // Reset cached allowed domain between tests
+      "lib/config.ts:resetAllowedDomain",
+      "lib/config.ts:setAllowedDomainForTest",
       // Reset cached demo mode between tests
       "lib/demo.ts:resetDemoMode",
       "lib/demo.ts:setDemoModeForTest",
@@ -323,6 +326,14 @@ describe("code quality", () => {
       "lib/email-renderer.ts:resetEngine",
       // Skip login delay in tests without env var races
       "routes/admin/auth.ts:setSkipLoginDelayForTest",
+      // Reset/set host email config between tests without env var races
+      "lib/email.ts:setHostEmailConfigForTest",
+      "lib/email.ts:resetHostEmailConfig",
+      // Reset/set host Apple Wallet config between tests without env var races
+      "lib/db/settings.ts:setHostAppleWalletConfigForTest",
+      "lib/db/settings.ts:resetHostAppleWalletConfig",
+      // Attachment size constant used in production (validateAttachment) but test pattern doesn't detect same-file usage
+      "lib/storage.ts:MAX_ATTACHMENT_SIZE",
     ];
 
     /**

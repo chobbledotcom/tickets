@@ -34,6 +34,7 @@ import {
   type AttendeeTableRow,
 } from "#templates/attendee-table.tsx";
 import {
+  attachmentField,
   eventFields,
   getAddAttendeeFields,
   imageField,
@@ -741,7 +742,9 @@ export const adminEventNewPage = (
   error?: string,
 ): string => {
   const storageEnabled = isStorageEnabled();
-  const fields = storageEnabled ? [...eventFields, imageField] : eventFields;
+  const fields = storageEnabled
+    ? [...eventFields, imageField, attachmentField]
+    : eventFields;
   return String(
     <Layout title="Add Event">
       <AdminNav session={session} active="/admin/" />
@@ -765,10 +768,6 @@ export const adminDuplicateEventPage = (
   groups: Group[],
   session: AdminSession,
 ): string => {
-  const storageEnabled = isStorageEnabled();
-  const fields = storageEnabled
-    ? [...eventFieldsWithAutofocus, imageField]
-    : eventFieldsWithAutofocus;
   const values = eventToFieldValues(event);
   values.name = "";
 
@@ -780,7 +779,7 @@ export const adminDuplicateEventPage = (
         Creating a new event based on <strong>{event.name}</strong>.
       </p>
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
-        <Raw html={renderFields(fields, values)} />
+        <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
         <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
         <button type="submit">Create Event</button>
       </CsrfForm>
@@ -798,7 +797,9 @@ export const adminEventEditPage = (
   error?: string,
 ): string => {
   const storageEnabled = isStorageEnabled();
-  const fields = storageEnabled ? [...eventFields, imageField] : eventFields;
+  const fields = storageEnabled
+    ? [...eventFields, imageField, attachmentField]
+    : eventFields;
   return String(
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
@@ -821,6 +822,18 @@ export const adminEventEditPage = (
             Remove Image
           </button>
         </CsrfForm>
+      )}
+      {storageEnabled && event.attachment_name && (
+        <div class="attachment-info">
+          <p>
+            Current attachment: <strong>{event.attachment_name}</strong>
+          </p>
+          <CsrfForm action={`/admin/event/${event.id}/attachment/delete`}>
+            <button type="submit" class="secondary">
+              Remove Attachment
+            </button>
+          </CsrfForm>
+        </div>
       )}
     </Layout>,
   );

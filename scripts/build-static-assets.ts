@@ -40,23 +40,36 @@ const denoNpmResolvePlugin: Plugin = {
   },
 };
 
+/** Match a single import map entry against a specifier */
+const matchImportEntry = (
+  specifier: string,
+  key: string,
+  value: unknown,
+): string | undefined => {
+  if (typeof value !== "string" || !value.startsWith("./")) return undefined;
+  if (key.endsWith("/") && specifier.startsWith(key)) {
+    return projectRoot + value.slice(2) + specifier.slice(key.length);
+  }
+  if (specifier === key) return projectRoot + value.slice(2);
+  return undefined;
+};
+
+/** Resolve a #-prefixed specifier using the deno.json import map */
+const resolveImportMap = (specifier: string): string | undefined => {
+  for (const [key, value] of Object.entries(denoImports)) {
+    const resolved = matchImportEntry(specifier, key, value);
+    if (resolved) return resolved;
+  }
+  return undefined;
+};
+
 /** Resolve #-prefixed imports using the deno.json import map */
 const denoImportMapPlugin: Plugin = {
   name: "deno-import-map",
   setup(build) {
     build.onResolve({ filter: /^#/ }, (args) => {
-      for (const [key, value] of Object.entries(denoImports)) {
-        if (typeof value !== "string" || !value.startsWith("./")) continue;
-        if (key.endsWith("/") && args.path.startsWith(key)) {
-          return {
-            path: projectRoot + value.slice(2) + args.path.slice(key.length),
-          };
-        }
-        if (args.path === key) {
-          return { path: projectRoot + value.slice(2) };
-        }
-      }
-      return undefined;
+      const resolved = resolveImportMap(args.path);
+      return resolved ? { path: resolved } : undefined;
     });
   },
 };

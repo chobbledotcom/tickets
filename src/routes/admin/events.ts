@@ -2,7 +2,7 @@
  * Admin event management routes
  */
 
-import { filter } from "#fp";
+import { compact, filter } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { formatCurrency, toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
@@ -23,13 +23,19 @@ import {
   EVENT_DEMO_FIELDS,
   isDemoMode,
 } from "#lib/demo.ts";
+import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import {
+  ATTACHMENT_ERROR_MESSAGES,
+  deleteImage,
+  generateAttachmentFilename,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
   tryDeleteImage,
+  uploadAttachment,
   uploadImage,
+  validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
 import type {
@@ -114,7 +120,7 @@ const extractCommonFields = (values: EventFormValues) => {
     unitPrice,
     maxQuantity: values.max_quantity,
     webhookUrl,
-    fields: values.fields || "email",
+    fields: values.fields || "",
     closesAt,
     eventType: values.event_type || undefined,
     bookableDays: parseBookableDays(values.bookable_days),
@@ -176,29 +182,128 @@ const eventsResource = defineResource({
   validate: validateEventInput,
 });
 
+/** Generic form file processor: extract, validate, replace old, upload, update event */
+const processFormFile = async (opts: {
+  formData: FormData;
+  fieldName: string;
+  eventId: number;
+  existingUrl?: string;
+  validate: (data: Uint8Array, file: File) => string | null;
+  upload: (data: Uint8Array, file: File) => Promise<Partial<EventInput>>;
+  label: string;
+}): Promise<string | null> => {
+  if (!isStorageEnabled()) return null;
+  const entry = opts.formData.get(opts.fieldName);
+  if (!(entry instanceof File) || entry.size === 0) {
+    if (entry !== null && !(entry instanceof File)) {
+      logDebug(
+        "Storage",
+        `${opts.label} field "${opts.fieldName}" is ${typeof entry}, not File`,
+      );
+    }
+    return null;
+  }
+
+  const data = new Uint8Array(await entry.arrayBuffer());
+  const error = opts.validate(data, entry);
+  if (error) return error;
+
+  if (opts.existingUrl) {
+    await tryDeleteImage(
+      opts.existingUrl,
+      opts.eventId,
+      `old ${opts.label} cleanup`,
+    );
+  }
+
+  const [uploadResult] = await Promise.allSettled([opts.upload(data, entry)]);
+  if (uploadResult.status === "fulfilled") {
+    await eventsTable.update(opts.eventId, uploadResult.value);
+    await logActivity(`${opts.label} uploaded for event`, opts.eventId);
+    return null;
+  }
+  const detail = `${opts.label} upload failed: ${String(uploadResult.reason)}`;
+  logError({ code: ErrorCode.STORAGE_UPLOAD, detail, eventId: opts.eventId });
+  return detail;
+};
+
 /** Process image from multipart form and attach to event. Returns error message if validation fails. */
-const processFormImage = async (
+const processFormImage = (
   formData: FormData,
   eventId: number,
   existingImageUrl?: string,
-): Promise<string | null> => {
-  if (!isStorageEnabled()) return null;
-  const entry = formData.get("image");
-  if (!(entry instanceof File) || entry.size === 0) return null;
-  const file = entry;
+): Promise<string | null> =>
+  processFormFile({
+    formData,
+    fieldName: "image",
+    eventId,
+    existingUrl: existingImageUrl,
+    validate: (data, file) => {
+      const v = validateImage(data, file.type);
+      return v.valid ? null : IMAGE_ERROR_MESSAGES[v.error];
+    },
+    upload: async (data, file) => {
+      const v = validateImage(data, file.type) as {
+        valid: true;
+        detectedType: string;
+      };
+      const imageUrl = await uploadImage(data, v.detectedType);
+      return { imageUrl };
+    },
+    label: "Image",
+  });
 
-  const data = new Uint8Array(await file.arrayBuffer());
-  const validation = validateImage(data, file.type);
-  if (!validation.valid) return IMAGE_ERROR_MESSAGES[validation.error];
+/** Process attachment from multipart form and attach to event. Returns error message if validation fails. */
+const processFormAttachment = (
+  formData: FormData,
+  eventId: number,
+  existingAttachmentUrl?: string,
+): Promise<string | null> =>
+  processFormFile({
+    formData,
+    fieldName: "attachment",
+    eventId,
+    existingUrl: existingAttachmentUrl,
+    validate: (data) => {
+      const v = validateAttachment(data);
+      return v.valid ? null : ATTACHMENT_ERROR_MESSAGES[v.error];
+    },
+    upload: async (data, file) => {
+      const filename = generateAttachmentFilename(file.name);
+      await uploadAttachment(data, filename);
+      return { attachmentUrl: filename, attachmentName: file.name };
+    },
+    label: "Attachment",
+  });
 
-  if (existingImageUrl) {
-    await tryDeleteImage(existingImageUrl, eventId, "old image cleanup");
+/** Process image + attachment uploads and redirect, reporting any upload errors */
+const processUploadsAndRedirect = async (
+  formData: FormData,
+  eventId: number,
+  redirectUrl: string,
+  successMessage: string,
+  existingImageUrl?: string,
+  existingAttachmentUrl?: string,
+): Promise<Response> => {
+  const imageError = await processFormImage(
+    formData,
+    eventId,
+    existingImageUrl,
+  );
+  const attachmentError = await processFormAttachment(
+    formData,
+    eventId,
+    existingAttachmentUrl,
+  );
+  const errors = compact([imageError, attachmentError]);
+  if (errors.length > 0) {
+    return redirect(
+      redirectUrl,
+      `${successMessage} but: ${errors.join("; ")}`,
+      false,
+    );
   }
-
-  const filename = await uploadImage(data, validation.detectedType);
-  await eventsTable.update(eventId, { imageUrl: filename });
-  await logActivity("Image uploaded for event", eventId);
-  return null;
+  return redirect(redirectUrl, successMessage, true);
 };
 
 /** Handle event with attendees - auth, fetch, then apply handler fn */
@@ -246,15 +351,12 @@ const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
       );
     }
     await logActivity(`Event '${result.row.name}' created`, result.row);
-    const errorMessage = await processFormImage(formData, result.row.id);
-    if (errorMessage) {
-      return redirect(
-        "/admin",
-        `Event created but image was not saved: ${errorMessage}`,
-        false,
-      );
-    }
-    return redirect("/admin", "Event created", true);
+    return processUploadsAndRedirect(
+      formData,
+      result.row.id,
+      "/admin",
+      "Event created",
+    );
   });
 
 /** Extract check-in message params from request URL */
@@ -424,19 +526,14 @@ const handleAdminEventEditPost: TypedRouteHandler<
     const result = await updateResource.update(id, form);
     if (result.ok) {
       await logActivity(`Event '${result.row.name}' updated`, result.row);
-      const errorMessage = await processFormImage(
+      return processUploadsAndRedirect(
         formData,
         id,
+        `/admin/event/${result.row.id}`,
+        "Event updated",
         existing.image_url,
+        existing.attachment_url,
       );
-      if (errorMessage) {
-        return redirect(
-          `/admin/event/${result.row.id}`,
-          `Event updated but image was not saved: ${errorMessage}`,
-          false,
-        );
-      }
-      return redirect(`/admin/event/${result.row.id}`, "Event updated", true);
     }
     if ("notFound" in result) return notFoundResponse();
 
@@ -564,6 +661,12 @@ const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {
   const attendeeCount = event.attendee_count;
+  if (event.image_url) {
+    await tryDeleteImage(event.image_url, event.id, "event deletion");
+  }
+  if (event.attachment_url) {
+    await tryDeleteImage(event.attachment_url, event.id, "event deletion");
+  }
   await deleteEvent(event.id);
   await logActivity(
     `Event '${event.name}' deleted (${attendeeCount} attendee(s) removed)`,
@@ -587,20 +690,51 @@ const handleAdminEventDelete: TypedRouteHandler<
         orNotFound(getEventWithCount(id), performDelete),
       );
 
+/** Generic handler for deleting an event's uploaded file (image or attachment) */
+const handleFileDelete =
+  (
+    label: string,
+    getUrl: (e: EventWithCount) => string,
+    clearFields: Partial<EventInput>,
+  ): TypedRouteHandler<`POST /admin/event/:id/${string}/delete`> =>
+  (request, { id }) =>
+    withAuthForm(request, () =>
+      orNotFound(getEventWithCount(id), async (event) => {
+        const url = getUrl(event);
+        if (url) {
+          const [deleteResult] = await Promise.allSettled([deleteImage(url)]);
+          if (deleteResult.status === "fulfilled") {
+            await eventsTable.update(id, clearFields);
+            await logActivity(`${label} removed for '${event.name}'`, event);
+            return redirect(`/admin/event/${id}`, `${label} removed`, true);
+          }
+          const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
+          logError({
+            code: ErrorCode.STORAGE_DELETE,
+            detail,
+            eventId: event.id,
+          });
+          return redirect(
+            `/admin/event/${id}`,
+            `${label} removal failed`,
+            false,
+          );
+        }
+        return redirect(`/admin/event/${id}`, `${label} removed`, true);
+      }),
+    );
+
 /** Handle POST /admin/event/:id/image/delete (delete event image) */
-const handleImageDelete: TypedRouteHandler<
-  "POST /admin/event/:id/image/delete"
-> = (request, { id }) =>
-  withAuthForm(request, () =>
-    orNotFound(getEventWithCount(id), async (event) => {
-      if (event.image_url) {
-        await tryDeleteImage(event.image_url, event.id, "image removal");
-        await eventsTable.update(id, { imageUrl: "" });
-        await logActivity(`Image removed for '${event.name}'`, event);
-      }
-      return redirect(`/admin/event/${id}`, "Image removed", true);
-    }),
-  );
+const handleImageDelete = handleFileDelete("Image", (e) => e.image_url, {
+  imageUrl: "",
+});
+
+/** Handle POST /admin/event/:id/attachment/delete (delete event attachment) */
+const handleAttachmentDelete = handleFileDelete(
+  "Attachment",
+  (e) => e.attachment_url,
+  { attachmentUrl: "", attachmentName: "" },
+);
 
 /** Create a handler that renders the event page with a specific attendee filter */
 const eventPageHandler =
@@ -630,6 +764,7 @@ export const eventsRoutes = defineRoutes({
   "GET /admin/event/:id/export": handleAdminEventExport,
   "GET /admin/event/:id/log": handleAdminEventLog,
   "POST /admin/event/:id/image/delete": handleImageDelete,
+  "POST /admin/event/:id/attachment/delete": handleAttachmentDelete,
   "GET /admin/event/:id/deactivate": handleAdminEventDeactivateGet,
   "POST /admin/event/:id/deactivate": handleAdminEventDeactivatePost,
   "GET /admin/event/:id/reactivate": handleAdminEventReactivateGet,

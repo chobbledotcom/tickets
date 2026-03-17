@@ -23,7 +23,7 @@ import { getEnv } from "#lib/env.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { nowMs } from "#lib/now.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
-import type { Settings } from "#lib/types.ts";
+import type { PaymentProviderType, Settings, Theme } from "#lib/types.ts";
 
 /**
  * Setting keys for configuration
@@ -86,6 +86,8 @@ export const CONFIG_KEYS = {
   CUSTOM_DOMAIN: "custom_domain",
   // Custom domain last validated timestamp (plaintext - ISO 8601 UTC)
   CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
+  // Booking fee percentage (plaintext - "0" to "10", e.g. "1.5" for 1.5%)
+  BOOKING_FEE: "booking_fee",
   // Apple Wallet configuration
   APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
   APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
@@ -266,9 +268,12 @@ const encryptedSetting = (key: string) => ({
   update: (value: string): Promise<void> => updateEncryptedSetting(key, value),
 });
 
-/** Optional plaintext setting: get returns null if unset, update clears on empty. */
-const optionalTextSetting = (key: string) => ({
-  get: (): Promise<string | null> => getSetting(key),
+/** Plaintext setting: get returns defaultValue/null if unset, update clears on empty. */
+const textSetting = (key: string, defaultValue?: string) => ({
+  get: async (): Promise<string | null> =>
+    defaultValue !== undefined
+      ? ((await getSetting(key)) ?? defaultValue)
+      : getSetting(key),
   update: (value: string): Promise<void> => setOrDeleteSetting(key, value),
 });
 
@@ -390,7 +395,9 @@ export const getPaymentProviderFromDb = (): Promise<string | null> =>
 /**
  * Set the active payment provider type
  */
-export const setPaymentProvider = async (provider: string): Promise<void> => {
+export const setPaymentProvider = async (
+  provider: PaymentProviderType,
+): Promise<void> => {
   await setSetting(CONFIG_KEYS.PAYMENT_PROVIDER, provider);
 };
 
@@ -534,6 +541,9 @@ export const updateSquareLocationId = async (
 export const { get: getSquareSandboxFromDb, update: updateSquareSandbox } =
   booleanSetting(CONFIG_KEYS.SQUARE_SANDBOX);
 
+export const { get: getBookingFeeFromDb, update: updateBookingFee } =
+  textSetting(CONFIG_KEYS.BOOKING_FEE, "0");
+
 /**
  * Get allowed embed hosts from database (decrypted)
  * Returns null if not configured (embedding allowed from anywhere)
@@ -635,7 +645,7 @@ export const updateTimezone = async (tz: string): Promise<void> => {
  * Get the configured theme from database.
  * Returns "light" or "dark", defaulting to "light".
  */
-export const getThemeFromDb = async (): Promise<string> => {
+export const getThemeFromDb = async (): Promise<Theme> => {
   const value = await getSetting(CONFIG_KEYS.THEME);
   return value === "dark" ? "dark" : "light";
 };
@@ -643,9 +653,8 @@ export const getThemeFromDb = async (): Promise<string> => {
 /**
  * Update the configured theme.
  */
-export const updateTheme = async (theme: string): Promise<void> => {
-  const validTheme = theme === "dark" ? "dark" : "light";
-  await setSetting(CONFIG_KEYS.THEME, validTheme);
+export const updateTheme = async (theme: Theme): Promise<void> => {
+  await setSetting(CONFIG_KEYS.THEME, theme);
 };
 
 export const { get: getShowPublicSiteFromDb, update: updateShowPublicSite } =
@@ -727,7 +736,7 @@ export const { get: getHeaderImageUrlFromDb, update: updateHeaderImageUrl } =
   encryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL);
 
 export const { get: getEmailProviderFromDb, update: updateEmailProvider } =
-  optionalTextSetting(CONFIG_KEYS.EMAIL_PROVIDER);
+  textSetting(CONFIG_KEYS.EMAIL_PROVIDER);
 
 /** Check if an email API key has been configured in the database */
 export const hasEmailApiKey = async (): Promise<boolean> => {
@@ -800,7 +809,7 @@ export const getEmailTemplateSet = async (
 };
 
 export const { get: getCustomDomainFromDb, update: updateCustomDomain } =
-  optionalTextSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
+  textSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
 
 /** Get the custom domain last validated timestamp. Returns null if never validated. */
 export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
@@ -826,7 +835,7 @@ const toCredentials = (
     : null;
 
 /** Read Apple Wallet config from environment variables. Returns null if not fully configured. */
-export const getHostAppleWalletConfig = (): SigningCredentials | null =>
+const getHostAppleWalletConfigFromEnv = (): SigningCredentials | null =>
   toCredentials(
     getEnv("APPLE_WALLET_PASS_TYPE_ID"),
     getEnv("APPLE_WALLET_TEAM_ID"),
@@ -834,6 +843,25 @@ export const getHostAppleWalletConfig = (): SigningCredentials | null =>
     getEnv("APPLE_WALLET_SIGNING_KEY"),
     getEnv("APPLE_WALLET_WWDR_CERT"),
   );
+
+const [getHostWalletOverride, setHostWalletOverride] = lazyRef<
+  SigningCredentials | null | undefined
+>(() => undefined);
+
+/** Get host-level Apple Wallet config. Uses test override if set, otherwise reads env vars. */
+export const getHostAppleWalletConfig = (): SigningCredentials | null => {
+  const override = getHostWalletOverride();
+  return override !== undefined ? override : getHostAppleWalletConfigFromEnv();
+};
+
+/** For testing: set host Apple Wallet config directly. Bypasses env vars to avoid races. */
+export const setHostAppleWalletConfigForTest = (
+  config: SigningCredentials | null,
+): void => setHostWalletOverride(config);
+
+/** For testing: reset host Apple Wallet config to read from env vars. */
+export const resetHostAppleWalletConfig = (): void =>
+  setHostWalletOverride(undefined);
 
 /** Check if Apple Wallet DB settings are fully configured (all 5 settings present). */
 export const hasAppleWalletDbConfig = async (): Promise<boolean> => {
@@ -860,12 +888,12 @@ export const hasAppleWalletConfig = async (): Promise<boolean> =>
 export const {
   get: getAppleWalletPassTypeIdFromDb,
   update: updateAppleWalletPassTypeId,
-} = optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
+} = textSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
 
 export const {
   get: getAppleWalletTeamIdFromDb,
   update: updateAppleWalletTeamId,
-} = optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
+} = textSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
 
 export const {
   get: getAppleWalletSigningCertFromDb,
@@ -940,12 +968,12 @@ export const hasGoogleWalletConfig = async (): Promise<boolean> =>
 export const {
   get: getGoogleWalletIssuerIdFromDb,
   update: updateGoogleWalletIssuerId,
-} = optionalTextSetting(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID);
+} = textSetting(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID);
 
 export const {
   get: getGoogleWalletServiceAccountEmailFromDb,
   update: updateGoogleWalletServiceAccountEmail,
-} = optionalTextSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL);
+} = textSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL);
 
 export const {
   get: getGoogleWalletServiceAccountKeyFromDb,
@@ -1009,6 +1037,8 @@ export const settingsApi = {
   updateSquareLocationId,
   getSquareSandboxFromDb,
   updateSquareSandbox,
+  getBookingFeeFromDb,
+  updateBookingFee,
   getEmbedHostsFromDb,
   updateEmbedHosts,
   getTermsAndConditionsFromDb,

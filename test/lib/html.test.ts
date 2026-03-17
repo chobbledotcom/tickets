@@ -17,7 +17,10 @@ import {
   adminCalendarPage,
   type CalendarAttendeeRow,
 } from "#templates/admin/calendar.tsx";
-import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
+import {
+  activeEventStatsSection,
+  adminDashboardPage,
+} from "#templates/admin/dashboard.tsx";
 import {
   adminDuplicateEventPage,
   adminEventEditPage,
@@ -1010,11 +1013,18 @@ describe("html", () => {
       expect(html).not.toContain("redirected");
     });
 
-    test("renders ticket link when ticketUrl is provided", () => {
+    test("renders ticket link with plural text for multiple tickets", () => {
       const html = successPage({ ticketUrl: "/t/abc123+def456", paid: true });
       expect(html).toContain('href="/t/abc123+def456"');
       expect(html).toContain('target="_blank"');
       expect(html).toContain("Click here to view your tickets");
+    });
+
+    test("renders ticket link with singular text for single ticket", () => {
+      const html = successPage({ ticketUrl: "/t/abc123", paid: true });
+      expect(html).toContain('href="/t/abc123"');
+      expect(html).toContain("Click here to view your ticket");
+      expect(html).not.toContain("Click here to view your tickets");
     });
 
     test("renders both ticket link and redirect when both provided", () => {
@@ -1024,14 +1034,14 @@ describe("html", () => {
         paid: true,
       });
       expect(html).toContain('href="/t/abc123"');
-      expect(html).toContain("Click here to view your tickets");
+      expect(html).toContain("Click here to view your ticket");
       expect(html).toContain("https://example.com/thanks");
       expect(html).toContain('http-equiv="refresh"');
     });
 
     test("does not render ticket link when ticketUrl is null", () => {
       const html = successPage({ ticketUrl: null, paid: true });
-      expect(html).not.toContain("view your tickets");
+      expect(html).not.toContain("view your ticket");
     });
 
     test("includes iframe-resizer child script in iframe mode", () => {
@@ -1590,6 +1600,63 @@ describe("html", () => {
       const html = adminDashboardPage(events, TEST_SESSION);
       expect(html).toContain("inactive-row");
       expect(html).toContain("Inactive");
+    });
+  });
+
+  describe("activeEventStatsSection", () => {
+    test("renders income, tickets, and attendees", () => {
+      const html = activeEventStatsSection({
+        income: 5000,
+        tickets: 30,
+        attendees: 52,
+      });
+      expect(html).toContain("Active Event Statistics");
+      expect(html).toContain("<strong>Income:</strong>");
+      expect(html).toContain("<strong>Tickets:</strong>");
+      expect(html).toContain("<strong>Attendees:</strong>");
+      expect(html).toContain("30");
+      expect(html).toContain("52");
+    });
+
+    test("renders zero values", () => {
+      const html = activeEventStatsSection({
+        income: 0,
+        tickets: 0,
+        attendees: 0,
+      });
+      expect(html).toContain("<strong>Tickets:</strong> 0");
+      expect(html).toContain("<strong>Attendees:</strong> 0");
+    });
+
+    test("renders as closed details element", () => {
+      const html = activeEventStatsSection({
+        income: 0,
+        tickets: 0,
+        attendees: 0,
+      });
+      expect(html).toContain("<details>");
+      expect(html).not.toContain("<details open");
+    });
+  });
+
+  describe("adminDashboardPage active event statistics", () => {
+    test("shows stats section when stats provided", () => {
+      const html = adminDashboardPage([], TEST_SESSION, null, [], null, {
+        income: 1000,
+        tickets: 5,
+        attendees: 10,
+      });
+      expect(html).toContain("Active Event Statistics");
+    });
+
+    test("does not show stats section when stats is null", () => {
+      const html = adminDashboardPage([], TEST_SESSION, null, [], null, null);
+      expect(html).not.toContain("Active Event Statistics");
+    });
+
+    test("does not show stats section when stats not provided", () => {
+      const html = adminDashboardPage([], TEST_SESSION);
+      expect(html).not.toContain("Active Event Statistics");
     });
   });
 
@@ -2397,6 +2464,95 @@ describe("html", () => {
       expect(html).not.toContain("?iframe=true");
       expect(html).not.toContain('class="iframe"');
     });
+
+    test("hides quantity selector for single event with max quantity 1", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+            max_quantity: 1,
+          }),
+        ),
+      ];
+      const html = multiTicketPage(events, ["ab12c"]);
+      expect(html).toContain('name="quantity_1" value="1"');
+      expect(html).not.toContain("<select");
+      expect(html).not.toContain("Select Tickets");
+    });
+
+    test("shows quantity selector for single event with max quantity above 1", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+            max_quantity: 3,
+          }),
+        ),
+      ];
+      const html = multiTicketPage(events, ["ab12c"]);
+      expect(html).toContain("<select");
+      expect(html).toContain('name="quantity_1"');
+      expect(html).toContain("Select Tickets");
+      expect(html).not.toContain('name="quantity_1" value="1"');
+    });
+
+    test("shows quantity selector for multiple events even with max quantity 1", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+            max_quantity: 1,
+          }),
+        ),
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 2,
+            slug: "cd34e",
+            name: "Event B",
+            attendee_count: 0,
+            max_quantity: 1,
+          }),
+        ),
+      ];
+      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      expect(html).toContain("<select");
+      expect(html).toContain("Select Tickets");
+    });
+
+    test("hides quantity selector when one event available and one sold out", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+            max_quantity: 1,
+          }),
+        ),
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 2,
+            slug: "cd34e",
+            name: "Event B",
+            attendee_count: 50,
+            max_attendees: 50,
+          }),
+        ),
+      ];
+      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      expect(html).toContain('name="quantity_1" value="1"');
+      expect(html).not.toContain("Select Tickets");
+    });
   });
 
   describe("adminSettingsPage", () => {
@@ -2408,6 +2564,7 @@ describe("html", () => {
         squareSandbox: false,
         squareWebhookConfigured: false,
         webhookUrl: "https://example.com/payment/webhook",
+        bookingFee: "0",
         embedHosts: "",
         termsAndConditions: "",
         businessEmail: "",
@@ -3254,7 +3411,6 @@ describe("html", () => {
   });
 
   describe("ticketViewPage event date and location", () => {
-    const qrSvg = "<svg>test</svg>";
     const token = "AABB0011CCDDEEFF";
 
     test("shows event date when entry has non-empty event date", () => {
@@ -3264,7 +3420,6 @@ describe("html", () => {
             event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z" }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3279,7 +3434,6 @@ describe("html", () => {
             event: testEventWithCount({ date: "" }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3294,7 +3448,6 @@ describe("html", () => {
             event: testEventWithCount({ location: "Village Hall" }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3309,7 +3462,6 @@ describe("html", () => {
             event: testEventWithCount({ location: "" }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3327,7 +3479,6 @@ describe("html", () => {
             }),
             attendee: testAttendee(),
           },
-          qrSvg,
           token,
         },
       ];
@@ -3336,7 +3487,7 @@ describe("html", () => {
       expect(html).toContain("Town Centre");
     });
 
-    test("shows each ticket as separate card with individual QR code", () => {
+    test("shows each ticket as separate card with SVG endpoint reference", () => {
       const cards = [
         {
           entry: {
@@ -3346,7 +3497,6 @@ describe("html", () => {
             }),
             attendee: testAttendee({ id: 1 }),
           },
-          qrSvg: "<svg>qr1</svg>",
           token: "AABB0011CCDDEEF1",
         },
         {
@@ -3354,13 +3504,12 @@ describe("html", () => {
             event: testEventWithCount({ id: 2, date: "" }),
             attendee: testAttendee({ id: 2 }),
           },
-          qrSvg: "<svg>qr2</svg>",
           token: "AABB0011CCDDEEF2",
         },
       ];
       const html = ticketViewPage(cards);
-      expect(html).toContain("<svg>qr1</svg>");
-      expect(html).toContain("<svg>qr2</svg>");
+      expect(html).toContain("/t/AABB0011CCDDEEF1/svg");
+      expect(html).toContain("/t/AABB0011CCDDEEF2/svg");
       expect(html).toContain("2 Tickets");
     });
   });
@@ -3476,7 +3625,6 @@ describe("html", () => {
     });
 
     describe("ticketViewPage ticket count", () => {
-      const qrSvg = '<svg class="qr"><rect/></svg>';
       const token = "AABB0011CCDDEEFF";
 
       test("shows '1 Ticket' for single ticket", () => {
@@ -3487,7 +3635,6 @@ describe("html", () => {
               event: testEventWithCount({ id: 1 }),
               attendee: testAttendee({ id: 1 }),
             },
-            qrSvg,
             token,
           },
         ];
@@ -3504,7 +3651,6 @@ describe("html", () => {
               event: testEventWithCount({ id: 1 }),
               attendee: testAttendee({ id: 1 }),
             },
-            qrSvg,
             token: "AABB0011CCDDEEF1",
           },
           {
@@ -3512,7 +3658,6 @@ describe("html", () => {
               event: testEventWithCount({ id: 2 }),
               attendee: testAttendee({ id: 2 }),
             },
-            qrSvg,
             token: "AABB0011CCDDEEF2",
           },
         ];
@@ -3523,7 +3668,6 @@ describe("html", () => {
     });
 
     describe("ticketViewPage with image", () => {
-      const qrSvg = '<svg class="qr"><rect/></svg>';
       const token = "AABB0011CCDDEEFF";
 
       test("shows image when event has image_url", () => {
@@ -3534,7 +3678,6 @@ describe("html", () => {
               event: testEventWithCount({ image_url: "ticket-img.jpg" }),
               attendee: testAttendee(),
             },
-            qrSvg,
             token,
           },
         ];
@@ -3552,7 +3695,6 @@ describe("html", () => {
               event: testEventWithCount({ image_url: "" }),
               attendee: testAttendee(),
             },
-            qrSvg,
             token,
           },
         ];
@@ -3637,12 +3779,12 @@ describe("html", () => {
     });
 
     describe("adminDuplicateEventPage image section", () => {
-      test("shows image upload field when storage enabled", () => {
+      test("does not show image upload field even when storage enabled", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = adminDuplicateEventPage(event, [], TEST_SESSION);
-        expect(html).toContain('type="file"');
-        expect(html).toContain('name="image"');
+        expect(html).not.toContain('type="file"');
+        expect(html).not.toContain('name="image"');
         expect(html).toContain("multipart/form-data");
         cleanupStorage();
       });

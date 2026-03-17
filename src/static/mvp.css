@@ -1101,9 +1101,10 @@ button.secondary:hover {
   text-align: center;
 }
 
-.ticket-card-qr svg {
+.ticket-card-qr img {
   max-width: 100%;
   height: auto;
+  aspect-ratio: 1;
 }
 
 [data-theme="dark"] .ticket-card {
@@ -1337,7 +1338,7 @@ button.secondary:hover {
     color: #666;
   }
 
-  .ticket-card-qr svg {
+  .ticket-card-qr img {
     max-width: 8rem;
   }
 

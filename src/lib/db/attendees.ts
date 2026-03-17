@@ -6,7 +6,7 @@
  * - Decryption requires the private key (only available to authenticated sessions)
  */
 
-import { map } from "#fp";
+import { filter, map, reduce } from "#fp";
 import {
   computeTicketTokenIndex,
   decrypt,
@@ -31,6 +31,7 @@ import type {
   ContactField,
   ContactFields,
   ContactInfo,
+  EventWithCount,
 } from "#lib/types.ts";
 
 /** Encrypt all contact fields in parallel, returning a keyed record */
@@ -128,6 +129,7 @@ const decryptAttendeeFields = async (
     checked_in: checked_in === "true",
     refunded: refundedStr === "true",
     ticket_token,
+    attachment_downloads: row.attachment_downloads,
   };
 };
 
@@ -149,6 +151,45 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
   queryAll<Attendee>("SELECT * FROM attendees ORDER BY created DESC LIMIT ?", [
     limit,
   ]);
+
+/** Aggregated statistics for active events */
+export type ActiveEventStats = {
+  income: number;
+  tickets: number;
+  attendees: number;
+};
+
+/**
+ * Get aggregated statistics for active events.
+ * Filters active events from the provided list, computes attendees
+ * (sum of quantities) from cached EventWithCount data, and queries
+ * ticket count (rows) and income (sum of decrypted price_paid).
+ */
+export const getActiveEventStats = async (
+  events: EventWithCount[],
+): Promise<ActiveEventStats> => {
+  const active = filter((e: EventWithCount) => e.active)(events);
+  if (active.length === 0) {
+    return { income: 0, tickets: 0, attendees: 0 };
+  }
+  const activeIds = map((e: EventWithCount) => e.id)(active);
+  const attendees = reduce(
+    (sum: number, e: EventWithCount) => sum + e.attendee_count,
+    0,
+  )(active);
+  const rows = await queryAll<{ price_paid: string }>(
+    `SELECT price_paid FROM attendees WHERE event_id IN (${inPlaceholders(activeIds)})`,
+    activeIds,
+  );
+  const decrypted = await Promise.all(
+    map((r: { price_paid: string }) => decrypt(r.price_paid))(rows),
+  );
+  const income = reduce(
+    (sum: number, v: string) => sum + (Number.parseInt(v, 10) || 0),
+    0,
+  )(decrypted);
+  return { income, tickets: rows.length, attendees };
+};
 
 /**
  * Decrypt a list of raw attendees (all fields).
@@ -290,6 +331,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
   date: input.date,
+  attachment_downloads: 0,
 });
 
 /**
@@ -583,6 +625,19 @@ export type UpdateAttendeeInput = {
   special_instructions: string;
   event_id: number;
   quantity: number;
+};
+
+/**
+ * Increment the attachment download counter for an attendee.
+ * Uses atomic SQL increment to avoid race conditions.
+ */
+export const incrementAttachmentDownloads = async (
+  attendeeId: number,
+): Promise<void> => {
+  await getDb().execute({
+    sql: "UPDATE attendees SET attachment_downloads = attachment_downloads + 1 WHERE id = ?",
+    args: [attendeeId],
+  });
 };
 
 /**

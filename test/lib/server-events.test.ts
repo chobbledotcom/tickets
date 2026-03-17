@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
-import { invalidateEventsCache } from "#lib/db/events.ts";
+import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { nowMs } from "#lib/now.ts";
 import { todayInTz } from "#lib/timezone.ts";
@@ -17,6 +17,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
+  createTestManagerSession,
   deactivateTestEvent,
   expectAdminRedirect,
   expectHtmlResponse,
@@ -1613,6 +1614,14 @@ describe("server (admin events)", () => {
       await expectHtmlResponse(response, 200, "Log");
     });
 
+    test("shows log page for manager", async () => {
+      const managerCookie = await createTestManagerSession();
+      const response = await awaitTestRequest("/admin/log", {
+        cookie: managerCookie,
+      });
+      await expectHtmlResponse(response, 200, "Log");
+    });
+
     test("shows truncation message when more than 200 entries", async () => {
       // Create 201 log entries to trigger truncation
       for (let i = 0; i < 201; i++) {
@@ -3141,6 +3150,43 @@ describe("server (admin events)", () => {
       });
       const html = await response.text();
       expect(html).toContain("hidden");
+    });
+
+    test("admin event edit page shows attachment info when event has attachment", async () => {
+      const { event, cookie } = await setupEventAndLogin();
+      await eventsTable.update(event.id, {
+        attachmentUrl: "uuid-guide.pdf",
+        attachmentName: "Event Guide.pdf",
+      });
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("attachment-info");
+      expect(html).toContain("Event Guide.pdf");
+      expect(html).toContain("Remove Attachment");
+
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
+    });
+
+    test("admin event edit page does not show attachment info when empty", async () => {
+      const { event, cookie } = await setupEventAndLogin();
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).not.toContain("attachment-info");
+      expect(html).not.toContain("Remove Attachment");
+
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
     });
   });
 });

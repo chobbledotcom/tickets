@@ -8,6 +8,7 @@
  */
 
 import {
+  base64ToBase64Url,
   constantTimeEqual,
   generateSecureToken,
   hmacHash,
@@ -24,10 +25,6 @@ const _tokenStore = { value: "" };
 export const CSRF_INVALID_FORM_MESSAGE =
   "Invalid or expired form. Please try again.";
 
-/** Convert standard base64 to base64url (no padding) */
-const toBase64Url = (b64: string): string =>
-  b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-
 /** Build the HMAC message from timestamp and nonce */
 const buildMessage = (timestamp: number, nonce: string): string =>
   `${SIGNED_PREFIX}${timestamp}.${nonce}`;
@@ -37,7 +34,7 @@ export const signCsrfToken = async (): Promise<string> => {
   const timestamp = Math.floor(nowMs() / 1000);
   const nonce = generateSecureToken();
   const message = buildMessage(timestamp, nonce);
-  const hmac = toBase64Url(await hmacHash(message));
+  const hmac = base64ToBase64Url(await hmacHash(message));
   _tokenStore.value = `${message}.${hmac}`;
   return _tokenStore.value;
 };
@@ -60,8 +57,12 @@ export const verifySignedCsrfToken = async (
   const parts = withoutPrefix.split(".");
   if (parts.length !== 3) return false;
 
-  const [timestampStr, nonce, providedHmac] = parts;
-  const timestamp = Number.parseInt(timestampStr!, 10);
+  const timestampStr = parts[0];
+  const nonce = parts[1];
+  const providedHmac = parts[2];
+  if (!timestampStr || !nonce || !providedHmac) return false;
+
+  const timestamp = Number.parseInt(timestampStr, 10);
   if (Number.isNaN(timestamp)) return false;
 
   // Check expiry
@@ -71,7 +72,7 @@ export const verifySignedCsrfToken = async (
   if (timestamp - nowS > 60) return false;
 
   // Recompute HMAC and compare
-  const message = buildMessage(timestamp, nonce!);
-  const expectedHmac = toBase64Url(await hmacHash(message));
-  return constantTimeEqual(expectedHmac, providedHmac!);
+  const message = buildMessage(timestamp, nonce);
+  const expectedHmac = base64ToBase64Url(await hmacHash(message));
+  return constantTimeEqual(expectedHmac, providedHmac);
 };

@@ -27,6 +27,29 @@ describe("server (setup)", () => {
     resetDb();
   });
 
+  /** Get CSRF token from setup page and submit setup form with given fields */
+  async function submitSetupForm(
+    fields: Record<string, string>,
+  ): Promise<Response> {
+    const getResponse = await handleRequest(mockRequest("/setup/"));
+    const csrfToken = getSetupCsrfToken(await getResponse.text());
+    expect(csrfToken).not.toBeNull();
+    return handleRequest(mockSetupFormRequest(fields, csrfToken as string));
+  }
+
+  /** Get CSRF token from setup page and submit with standard valid credentials + overrides */
+  function submitSetupFormWithDefaults(
+    overrides: Record<string, string> = {},
+  ): Promise<Response> {
+    return submitSetupForm({
+      admin_username: "testadmin",
+      admin_password: "mypassword123",
+      admin_password_confirm: "mypassword123",
+      currency_code: "GBP",
+      ...overrides,
+    });
+  }
+
   describe("setup routes", () => {
     describe("when setup not complete", () => {
       beforeEach(async () => {
@@ -70,22 +93,9 @@ describe("server (setup)", () => {
       });
 
       test("POST /setup/ with valid data completes setup", async () => {
-        // First get CSRF token from GET request
-        const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-        expect(csrfToken).not.toBeNull();
-
-        const response = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_username: "testadmin",
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              currency_code: "USD",
-            },
-            csrfToken as string,
-          ),
-        );
+        const response = await submitSetupFormWithDefaults({
+          currency_code: "USD",
+        });
         expectRedirect("/setup/complete")(response);
       });
 
@@ -117,74 +127,32 @@ describe("server (setup)", () => {
       });
 
       test("POST /setup/ with empty password shows validation error", async () => {
-        const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-
-        const response = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_username: "testadmin",
-              admin_password: "",
-              admin_password_confirm: "",
-              currency_code: "GBP",
-            },
-            csrfToken as string,
-          ),
-        );
+        const response = await submitSetupFormWithDefaults({
+          admin_password: "",
+          admin_password_confirm: "",
+        });
         await expectHtmlResponse(response, 400, "Admin Password * is required");
       });
 
       test("POST /setup/ with mismatched passwords shows error", async () => {
-        const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-
-        const response = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_username: "testadmin",
-              admin_password: "mypassword123",
-              admin_password_confirm: "different",
-              currency_code: "GBP",
-            },
-            csrfToken as string,
-          ),
-        );
+        const response = await submitSetupFormWithDefaults({
+          admin_password_confirm: "different",
+        });
         await expectHtmlResponse(response, 400, "Passwords do not match");
       });
 
       test("POST /setup/ with short password shows error", async () => {
-        const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-
-        const response = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_username: "testadmin",
-              admin_password: "short",
-              admin_password_confirm: "short",
-              currency_code: "GBP",
-            },
-            csrfToken as string,
-          ),
-        );
+        const response = await submitSetupFormWithDefaults({
+          admin_password: "short",
+          admin_password_confirm: "short",
+        });
         await expectHtmlResponse(response, 400, "at least 8 characters");
       });
 
       test("POST /setup/ with invalid currency shows error", async () => {
-        const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-
-        const response = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_username: "testadmin",
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              currency_code: "INVALID",
-            },
-            csrfToken as string,
-          ),
-        );
+        const response = await submitSetupFormWithDefaults({
+          currency_code: "INVALID",
+        });
         await expectHtmlResponse(
           response,
           400,
@@ -193,21 +161,9 @@ describe("server (setup)", () => {
       });
 
       test("POST /setup/ without accepting agreement shows error", async () => {
-        const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-
-        const response = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_username: "testadmin",
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              currency_code: "GBP",
-              accept_agreement: "", // Explicitly not accepting
-            },
-            csrfToken as string,
-          ),
-        );
+        const response = await submitSetupFormWithDefaults({
+          accept_agreement: "", // Explicitly not accepting
+        });
         await expectHtmlResponse(
           response,
           400,
@@ -216,20 +172,9 @@ describe("server (setup)", () => {
       });
 
       test("POST /setup/ normalizes lowercase currency to uppercase", async () => {
-        const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-
-        const response = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_username: "testadmin",
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              currency_code: "usd",
-            },
-            csrfToken as string,
-          ),
-        );
+        const response = await submitSetupFormWithDefaults({
+          currency_code: "usd",
+        });
         expectRedirect("/setup/complete")(response);
       });
 
@@ -397,21 +342,9 @@ describe("server (setup)", () => {
       resetDb();
       await createTestDb();
 
-      const getResponse = await handleRequest(mockRequest("/setup/"));
-      const csrfToken = getSetupCsrfToken(await getResponse.text());
-      expect(csrfToken).not.toBeNull();
-
-      const response = await handleRequest(
-        mockSetupFormRequest(
-          {
-            admin_username: "testadmin",
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            currency_code: "", // Empty defaults to GBP
-          },
-          csrfToken as string,
-        ),
-      );
+      const response = await submitSetupFormWithDefaults({
+        currency_code: "", // Empty defaults to GBP
+      });
       expectRedirect("/setup/complete")(response);
     });
   });

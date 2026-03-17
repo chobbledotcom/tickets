@@ -44,7 +44,7 @@ describe("ntfy", () => {
 
       const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
-      expect(headers["Title"]).toBe("localhost error");
+      expect(headers.Title).toBe("localhost error");
     });
 
     test("includes warning tag in headers", () => {
@@ -54,10 +54,10 @@ describe("ntfy", () => {
 
       const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
-      expect(headers["Tags"]).toBe("warning");
+      expect(headers.Tags).toBe("warning");
     });
 
-    test("logs error when fetch fails", async () => {
+    test("logs error locally when fetch fails", async () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/my-topic");
       fetchStub.restore();
       fetchStub = stub(globalThis, "fetch", () =>
@@ -71,7 +71,9 @@ describe("ntfy", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(fetchStub.calls.length).toBe(1);
-      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_NTFY_SEND"]);
+      expect(errorSpy.calls.length).toBe(1);
+      expect(errorSpy.calls[0]!.args[0]).toContain("[Error] E_CDN_REQUEST");
+      expect(errorSpy.calls[0]!.args[0]).toContain("ntfy send failed");
       errorSpy.restore();
     });
   });

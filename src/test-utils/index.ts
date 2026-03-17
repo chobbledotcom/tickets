@@ -2,13 +2,22 @@
  * Test utilities for the ticket reservation system
  */
 
-import { type Client, createClient } from "@libsql/client";
+import {
+  type Client,
+  createClient,
+  type InValue,
+  type Row,
+} from "@libsql/client";
 import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
+import { resetAllowedDomain } from "#lib/config.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
-import { clearEncryptionKeyCache } from "#lib/crypto.ts";
+import {
+  clearEncryptionKeyCache,
+  setEncryptionKeyForTest,
+} from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import {
   resetCurrencyCode,
@@ -29,10 +38,12 @@ import {
   clearSetupCompleteCache,
   completeSetup,
   invalidateSettingsCache,
+  resetHostAppleWalletConfig,
   updateTimezone,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
+import { resetHostEmailConfig } from "#lib/email.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
@@ -58,6 +69,7 @@ export const TEST_ENCRYPTION_KEY =
  * Also enables fast PBKDF2 hashing for tests
  */
 export const setupTestEncryptionKey = (): void => {
+  setEncryptionKeyForTest(TEST_ENCRYPTION_KEY);
   Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
   Deno.env.set("TEST_PBKDF2_ITERATIONS", "1"); // Enable fast password hashing for tests
   Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
@@ -70,6 +82,7 @@ export const setupTestEncryptionKey = (): void => {
  * Clear test encryption key from environment
  */
 export const clearTestEncryptionKey = (): void => {
+  setEncryptionKeyForTest(null);
   Deno.env.delete("DB_ENCRYPTION_KEY");
   Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
@@ -91,8 +104,7 @@ let cachedClient: Client | null = null;
 let cachedSetupSettings: Array<{ key: string; value: string }> | null = null;
 
 /** Snapshot of users rows after completeSetup */
-// deno-lint-ignore no-explicit-any
-let cachedSetupUsers: Array<Record<string, any>> | null = null;
+let cachedSetupUsers: Row[] | null = null;
 
 /** Cached admin session (avoids re-doing login + key wrapping per test) */
 let cachedAdminSession: {
@@ -202,14 +214,14 @@ export const createTestDbWithSetup = async (
         await cachedClient!.execute({
           sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
           args: [
-            row.id,
-            row.username_hash,
-            row.username_index,
-            row.password_hash,
-            row.wrapped_data_key,
-            row.admin_level,
-            row.invite_code_hash,
-            row.invite_expiry,
+            row.id as InValue,
+            row.username_hash as InValue,
+            row.username_index as InValue,
+            row.password_hash as InValue,
+            row.wrapped_data_key as InValue,
+            row.admin_level as InValue,
+            row.invite_code_hash as InValue,
+            row.invite_expiry as InValue,
           ],
         });
       }
@@ -272,6 +284,9 @@ export const resetDb = (): void => {
   resetTestSession();
   resetCurrencyCode();
   setDemoModeForTest(false);
+  resetAllowedDomain();
+  resetHostEmailConfig();
+  resetHostAppleWalletConfig();
 };
 
 /**
@@ -358,6 +373,7 @@ export const mockMultipartRequest = (
     formData.append(key, value);
   }
   if (file) {
+    // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BlobPart in Deno's TS
     // deno-lint-ignore no-explicit-any
     const blob = new Blob([file.data as any], { type: file.contentType });
     formData.append(file.fieldName, blob, file.name);
@@ -912,6 +928,19 @@ export const createTestEvent = (
   );
 };
 
+/**
+ * Create an embeddable test event and return its ticket page response.
+ * Useful for testing security headers, CSP, and embed behavior on ticket pages.
+ */
+export const getEmbeddableTicketResponse = async (): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const event = await createTestEvent({
+    maxAttendees: 50,
+    thankYouUrl: "https://example.com",
+  });
+  return handleRequest(mockRequest(`/ticket/${event.slug}`));
+};
+
 /** Convert a price in minor units to the form value in major units */
 export const priceFormValue = (minorUnits: number): string =>
   toMajorUnits(minorUnits);
@@ -1214,6 +1243,8 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   minimum_days_before: 0,
   maximum_days_after: 0,
   image_url: "",
+  attachment_url: "",
+  attachment_name: "",
   non_transferable: false,
   can_pay_more: false,
   max_price: 0,
@@ -1248,6 +1279,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ticket_token: "test-token-1",
   ticket_token_index: "test-token-index-1",
   date: null,
+  attachment_downloads: 0,
   ...overrides,
 });
 
@@ -2016,3 +2048,82 @@ export const generateGoogleTestCreds =
     };
     return _googleTestCreds;
   };
+
+// ---------------------------------------------------------------------------
+// Email / Webhook test factories
+// ---------------------------------------------------------------------------
+
+import type { EmailEntry, EmailEvent } from "#lib/email.ts";
+import type { WebhookAttendee } from "#lib/webhook.ts";
+
+export type { EmailEntry, EmailEvent, WebhookAttendee };
+
+/**
+ * Create a daily event and an attendee with a booked date.
+ * Returns the event, attendee, and ticket token.
+ */
+export const createDailyTestAttendee = async (
+  name: string,
+  email: string,
+  date: string,
+  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+): Promise<{ event: Event; attendee: Attendee; token: string }> => {
+  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+  const event = await createDailyTestEvent({
+    maxAttendees: 10,
+    maximumDaysAfter: 30,
+    ...eventOverrides,
+  });
+  const result = await createAttendeeAtomic({
+    eventId: event.id,
+    name,
+    email,
+    date,
+  });
+  const { attendee } = result as Extract<typeof result, { success: true }>;
+  return { event, attendee, token: attendee.ticket_token };
+};
+
+/** Build an EmailEvent with sensible defaults */
+export const makeTestEvent = (
+  overrides: Partial<EmailEvent> = {},
+): EmailEvent => ({
+  id: 1,
+  name: "Test Event",
+  slug: "test-event",
+  webhook_url: "",
+  max_attendees: 100,
+  attendee_count: 10,
+  unit_price: 0,
+  can_pay_more: false,
+  date: "",
+  location: "",
+  ...overrides,
+});
+
+/** Build a WebhookAttendee with sensible defaults */
+export const makeTestAttendee = (
+  overrides: Partial<WebhookAttendee> = {},
+): WebhookAttendee => ({
+  id: 42,
+  quantity: 1,
+  name: "Jane Doe",
+  email: "jane@example.com",
+  phone: "555-1234",
+  address: "",
+  special_instructions: "",
+  payment_id: "",
+  price_paid: "0",
+  ticket_token: "AABB001122",
+  date: null,
+  ...overrides,
+});
+
+/** Build an EmailEntry from event/attendee overrides */
+export const makeTestEntry = (
+  eventOverrides?: Partial<EmailEvent>,
+  attendeeOverrides?: Partial<WebhookAttendee>,
+): EmailEntry => ({
+  event: makeTestEvent(eventOverrides),
+  attendee: makeTestAttendee(attendeeOverrides),
+});

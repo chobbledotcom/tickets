@@ -15,8 +15,10 @@ export const paymentsApi = {
   getConfiguredProvider,
 };
 
-/** Supported payment provider identifiers */
-export type PaymentProviderType = "stripe" | "square";
+import type { PaymentProviderType } from "#lib/types.ts";
+
+/** Re-export from types.ts (canonical definition) */
+export type { PaymentProviderType };
 
 /** Registration intent for a single event checkout */
 export type RegistrationIntent = ContactInfo & {

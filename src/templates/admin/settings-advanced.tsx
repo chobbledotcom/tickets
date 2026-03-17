@@ -5,7 +5,7 @@
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm } from "#lib/forms.tsx";
-import type { AdminSession } from "#lib/types.ts";
+import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
@@ -41,7 +41,7 @@ export type AdvancedSettingsPageState = {
   googleWalletIssuerId: string;
   googleWalletServiceAccountEmail: string;
   hostGoogleWalletLabel: string;
-  theme: string;
+  theme: Theme;
 };
 
 /**

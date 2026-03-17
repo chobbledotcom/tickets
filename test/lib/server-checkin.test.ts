@@ -6,7 +6,7 @@ import { handleRequest } from "#routes";
 import {
   adminGet,
   awaitTestRequest,
-  createDailyTestEvent,
+  createDailyTestAttendee,
   createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
@@ -38,6 +38,20 @@ const setupCheckinTest = async (
     session: { cookie: await testCookie(), csrfToken: await testCsrfToken() },
   };
 };
+
+/** Submit a check-in or check-out POST for a given token and session */
+const postCheckin = (
+  token: string,
+  session: { cookie: string; csrfToken: string },
+  checkIn: "true" | "false",
+) =>
+  handleRequest(
+    mockFormRequest(
+      `/checkin/${token}`,
+      { csrf_token: session.csrfToken, check_in: checkIn },
+      session.cookie,
+    ),
+  );
 
 describe("check-in (/checkin/:tokens)", () => {
   beforeEach(async () => {
@@ -161,25 +175,16 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("displays booked date for daily event in admin view", async () => {
-      const event = await createDailyTestEvent({
-        maxAttendees: 10,
-        maximumDaysAfter: 30,
-      });
       const date = "2026-02-15";
-      const result = await createAttendeeAtomic({
-        eventId: event.id,
-        name: "Zara",
-        email: "zara@test.com",
+      const { token } = await createDailyTestAttendee(
+        "Zara",
+        "zara@test.com",
         date,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
-
-      const response = await awaitTestRequest(
-        `/checkin/${result.attendee.ticket_token}`,
-        {
-          cookie: await testCookie(),
-        },
       );
+
+      const response = await awaitTestRequest(`/checkin/${token}`, {
+        cookie: await testCookie(),
+      });
       expect(response.status).toBe(200);
 
       const body = await response.text();
@@ -188,34 +193,16 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("shows empty date cell for standard event when combined with daily event", async () => {
-      const dailyEvent = await createTestEvent({
-        maxAttendees: 10,
-        eventType: "daily",
-        bookableDays: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 30,
-      });
+      const date = "2026-02-15";
+      const { token: tokenA } = await createDailyTestAttendee(
+        "Zara",
+        "zara@test.com",
+        date,
+      );
       const { token: tokenB } = await createTestAttendeeWithToken(
         "Alice",
         "alice@test.com",
       );
-      const date = "2026-02-15";
-      const dailyResult = await createAttendeeAtomic({
-        eventId: dailyEvent.id,
-        name: "Zara",
-        email: "zara@test.com",
-        date,
-      });
-      if (!dailyResult.success) throw new Error("Failed to create attendee");
-      const tokenA = dailyResult.attendee.ticket_token;
 
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
         cookie: await testCookie(),
@@ -259,13 +246,7 @@ describe("check-in (/checkin/:tokens)", () => {
   describe("POST /checkin/:tokens", () => {
     test("checks in attendee with check_in=true and shows success", async () => {
       const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
-      const response = await handleRequest(
-        mockFormRequest(
-          `/checkin/${token}`,
-          { csrf_token: session.csrfToken, check_in: "true" },
-          session.cookie,
-        ),
-      );
+      const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         `/checkin/${token}?message=Checked%20in%201%20ticket`,
@@ -291,22 +272,10 @@ describe("check-in (/checkin/:tokens)", () => {
       const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
 
       // First check in
-      await handleRequest(
-        mockFormRequest(
-          `/checkin/${token}`,
-          { csrf_token: session.csrfToken, check_in: "true" },
-          session.cookie,
-        ),
-      );
+      await postCheckin(token, session, "true");
 
       // Then check out
-      const response = await handleRequest(
-        mockFormRequest(
-          `/checkin/${token}`,
-          { csrf_token: session.csrfToken, check_in: "false" },
-          session.cookie,
-        ),
-      );
+      const response = await postCheckin(token, session, "false");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         `/checkin/${token}?message=Checked%20out`,
@@ -328,20 +297,8 @@ describe("check-in (/checkin/:tokens)", () => {
       const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
 
       // Check in twice (simulates two tabs)
-      await handleRequest(
-        mockFormRequest(
-          `/checkin/${token}`,
-          { csrf_token: session.csrfToken, check_in: "true" },
-          session.cookie,
-        ),
-      );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/checkin/${token}`,
-          { csrf_token: session.csrfToken, check_in: "true" },
-          session.cookie,
-        ),
-      );
+      await postCheckin(token, session, "true");
+      const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         `/checkin/${token}?message=Already%20checked%20in%201%20ticket`,
@@ -365,13 +322,7 @@ describe("check-in (/checkin/:tokens)", () => {
         3,
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/checkin/${token}`,
-          { csrf_token: session.csrfToken, check_in: "true" },
-          session.cookie,
-        ),
-      );
+      const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         `/checkin/${token}?message=Checked%20in%203%20tickets`,
@@ -390,13 +341,7 @@ describe("check-in (/checkin/:tokens)", () => {
       const attendees = await getAttendeesByTokens([token]);
       await markRefunded(attendees[0]!.id);
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/checkin/${token}`,
-          { csrf_token: session.csrfToken, check_in: "true" },
-          session.cookie,
-        ),
-      );
+      const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         `/checkin/${token}?message=Cannot%20check%20in%20refunded%20tickets`,
@@ -415,13 +360,7 @@ describe("check-in (/checkin/:tokens)", () => {
       const attendees = await getAttendeesByTokens([token]);
       await markRefunded(attendees[0]!.id);
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/checkin/${token}`,
-          { csrf_token: session.csrfToken, check_in: "false" },
-          session.cookie,
-        ),
-      );
+      const response = await postCheckin(token, session, "false");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         `/checkin/${token}?message=Cannot%20check%20in%20refunded%20tickets`,

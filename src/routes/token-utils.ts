@@ -79,6 +79,13 @@ export const lookupSingleTokenPassData = async (
   return { ok: true, passData };
 };
 
+/** Route function signature for token-based routes */
+export type TokenRouteFn = (
+  request: Request,
+  path: string,
+  method: string,
+) => Promise<Response | null>;
+
 /** Handler type for token-based route methods */
 type TokenMethodHandler = (
   request: Request,
@@ -133,12 +140,8 @@ export const lookupAttendees = async (
  * Extracts tokens from the path, dispatches to method handlers.
  */
 export const createTokenRoute =
-  (prefix: string, methods: TokenMethodMap) =>
-  (
-    request: Request,
-    path: string,
-    method: string,
-  ): Promise<Response | null> => {
+  (prefix: string, methods: TokenMethodMap): TokenRouteFn =>
+  (request, path, method) => {
     const tokensStr = extractTokenSegment(prefix, path);
     if (!tokensStr) return Promise.resolve(null);
 

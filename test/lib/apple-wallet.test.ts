@@ -36,6 +36,7 @@ const makePassData = (overrides: Partial<PassData> = {}): PassData => ({
   pricePaid: 0,
   currencyCode: "GBP",
   checkinUrl: "https://example.com/checkin/ABC123",
+  webServiceURL: "https://example.com",
   ...overrides,
 });
 
@@ -178,6 +179,12 @@ describe("apple-wallet", () => {
       expect(pass.backgroundColor).toBe("rgb(0, 0, 255)");
       expect(pass.labelColor).toBe("rgb(0, 255, 0)");
     });
+
+    test("includes webServiceURL and authenticationToken for auto-updates", () => {
+      const pass = generatePassJson(makePassData(), creds);
+      expect(pass.webServiceURL).toBe("https://example.com");
+      expect(pass.authenticationToken).toBe("ABC123");
+    });
   });
 
   describe("sha1Hex", () => {
@@ -255,7 +262,7 @@ describe("apple-wallet", () => {
       expect(files["icon@2x.png"]).toBeDefined();
       expect(files["icon@3x.png"]).toBeDefined();
       expect(files["manifest.json"]).toBeDefined();
-      expect(files["signature"]).toBeDefined();
+      expect(files.signature).toBeDefined();
 
       // pass.json matches generatePassJson
       const passJson = JSON.parse(

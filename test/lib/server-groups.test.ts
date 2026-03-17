@@ -537,33 +537,42 @@ describe("server (admin groups)", () => {
       expect(html).toContain("Total Revenue");
     });
 
-    test("hides total revenue for free events", async () => {
-      const group = await createTestGroup({
-        name: "Free Group",
-        slug: "free-group",
-      });
-      await createTestEvent({
-        name: "Free Event",
+    const createGroupWithEvent = async (
+      groupName: string,
+      groupSlug: string,
+      eventName: string,
+    ) => {
+      const group = await createTestGroup({ name: groupName, slug: groupSlug });
+      const event = await createTestEvent({
+        name: eventName,
         groupId: group.id,
         maxAttendees: 10,
       });
+      return { group, event };
+    };
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+    const getGroupPageHtml = async (groupId: number): Promise<string> => {
+      const { response } = await adminGet(`/admin/group/${groupId}`);
       expectStatus(200)(response);
-      const html = await response.text();
+      return response.text();
+    };
+
+    test("hides total revenue for free events", async () => {
+      const { group } = await createGroupWithEvent(
+        "Free Group",
+        "free-group",
+        "Free Event",
+      );
+      const html = await getGroupPageHtml(group.id);
       expect(html).not.toContain("Total Revenue");
     });
 
     test("shows attendees from multiple events in group", async () => {
-      const group = await createTestGroup({
-        name: "Multi Group",
-        slug: "multi-group",
-      });
-      const event1 = await createTestEvent({
-        name: "Event Alpha",
-        groupId: group.id,
-        maxAttendees: 10,
-      });
+      const { group, event: event1 } = await createGroupWithEvent(
+        "Multi Group",
+        "multi-group",
+        "Event Alpha",
+      );
       const event2 = await createTestEvent({
         name: "Event Beta",
         groupId: group.id,
@@ -582,9 +591,7 @@ describe("server (admin groups)", () => {
         "bob@test.com",
       );
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
-      expectStatus(200)(response);
-      const html = await response.text();
+      const html = await getGroupPageHtml(group.id);
       expect(html).toContain("Alice Alpha");
       expect(html).toContain("Bob Beta");
       expect(html).toContain("Event Alpha");
@@ -592,19 +599,12 @@ describe("server (admin groups)", () => {
     });
 
     test("shows no attendees message for group with events but no registrations", async () => {
-      const group = await createTestGroup({
-        name: "No Reg Group",
-        slug: "no-reg-group",
-      });
-      await createTestEvent({
-        name: "Empty Event",
-        groupId: group.id,
-        maxAttendees: 10,
-      });
-
-      const { response } = await adminGet(`/admin/group/${group.id}`);
-      expectStatus(200)(response);
-      const html = await response.text();
+      const { group } = await createGroupWithEvent(
+        "No Reg Group",
+        "no-reg-group",
+        "Empty Event",
+      );
+      const html = await getGroupPageHtml(group.id);
       expect(html).toContain("No attendees yet");
     });
   });

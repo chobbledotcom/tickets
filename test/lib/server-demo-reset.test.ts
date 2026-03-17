@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { eventsTable } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
 import {
@@ -9,9 +10,11 @@ import {
 import {
   awaitTestRequest,
   createTestDbWithSetup,
+  createTestEvent,
   expectHtmlResponse,
   expectRedirect,
   extractCsrfToken,
+  installUrlHandler,
   invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
@@ -19,6 +22,7 @@ import {
   resetTestSlugCounter,
   testCookie,
   testCsrfToken,
+  withFetchMock,
 } from "#test-utils";
 
 describe("server (demo reset)", () => {
@@ -61,6 +65,18 @@ describe("server (demo reset)", () => {
       expect(html).toContain('href="/admin"');
     });
   });
+
+  /** Get CSRF token from demo reset page and post form with given fields */
+  async function submitDemoResetForm(
+    fields: Record<string, string>,
+  ): Promise<Response> {
+    const getResponse = await handleRequest(mockRequest("/demo/reset"));
+    const html = await getResponse.text();
+    const csrfToken = extractCsrfToken(html)!;
+    return handleRequest(
+      mockFormRequest("/demo/reset", { ...fields, csrf_token: csrfToken }),
+    );
+  }
 
   describe("POST /demo/reset", () => {
     test("returns 404 when demo mode is off", async () => {
@@ -109,53 +125,68 @@ describe("server (demo reset)", () => {
 
     test("rejects wrong confirmation phrase", async () => {
       setDemoModeForTest(true);
-
-      // Get valid CSRF token
-      const getResponse = await handleRequest(mockRequest("/demo/reset"));
-      const html = await getResponse.text();
-      const csrfToken = extractCsrfToken(html)!;
-
-      const response = await handleRequest(
-        mockFormRequest("/demo/reset", {
-          confirm_phrase: "wrong phrase",
-          csrf_token: csrfToken,
-        }),
-      );
+      const response = await submitDemoResetForm({
+        confirm_phrase: "wrong phrase",
+      });
       await expectHtmlResponse(response, 400, RESET_PHRASE_MISMATCH_ERROR);
     });
 
     test("rejects empty confirmation phrase", async () => {
       setDemoModeForTest(true);
-
-      const getResponse = await handleRequest(mockRequest("/demo/reset"));
-      const html = await getResponse.text();
-      const csrfToken = extractCsrfToken(html)!;
-
-      const response = await handleRequest(
-        mockFormRequest("/demo/reset", {
-          confirm_phrase: "",
-          csrf_token: csrfToken,
-        }),
-      );
+      const response = await submitDemoResetForm({ confirm_phrase: "" });
       await expectHtmlResponse(response, 400, RESET_PHRASE_MISMATCH_ERROR);
     });
 
     test("resets database and redirects to setup in demo mode", async () => {
       setDemoModeForTest(true);
-
-      const getResponse = await handleRequest(mockRequest("/demo/reset"));
-      const html = await getResponse.text();
-      const csrfToken = extractCsrfToken(html)!;
-
-      const response = await handleRequest(
-        mockFormRequest("/demo/reset", {
-          confirm_phrase: RESET_DATABASE_PHRASE,
-          csrf_token: csrfToken,
-        }),
-      );
+      const response = await submitDemoResetForm({
+        confirm_phrase: RESET_DATABASE_PHRASE,
+      });
 
       expectRedirect("/setup/?success=Database+reset")(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+      invalidateTestDbCache();
+    });
+
+    test("deletes storage files for all events during reset", async () => {
+      setDemoModeForTest(true);
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await eventsTable.update(event.id, {
+        imageUrl: "reset-image.jpg",
+        attachmentUrl: "reset-attachment.pdf",
+        attachmentName: "doc.pdf",
+      });
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        const response = await submitDemoResetForm({
+          confirm_phrase: RESET_DATABASE_PHRASE,
+        });
+
+        expectRedirect("/setup/?success=Database+reset")(response);
+        expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
+          true,
+        );
+        expect(
+          deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
+        ).toBe(true);
+      });
+
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
       invalidateTestDbCache();
     });
   });

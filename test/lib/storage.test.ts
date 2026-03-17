@@ -2,13 +2,19 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import {
+  ATTACHMENT_ERROR_MESSAGES,
+  deleteAllEventStorageFiles,
   detectImageType,
+  generateAttachmentFilename,
   generateImageFilename,
   getImageProxyUrl,
   getMimeTypeFromFilename,
   isStorageEnabled,
+  MAX_ATTACHMENT_SIZE,
+  validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
+import { installUrlHandler, withFetchMock } from "#test-utils";
 
 describe("storage", () => {
   beforeEach(() => {
@@ -220,6 +226,177 @@ describe("storage", () => {
     });
   });
 
+  describe("validateAttachment", () => {
+    test("accepts file under 25MB", () => {
+      const data = new Uint8Array(1024);
+      const result = validateAttachment(data);
+      expect(result.valid).toBe(true);
+    });
+
+    test("accepts file exactly at 25MB limit", () => {
+      const data = new Uint8Array(MAX_ATTACHMENT_SIZE);
+      const result = validateAttachment(data);
+      expect(result.valid).toBe(true);
+    });
+
+    test("rejects file exceeding 25MB", () => {
+      const data = new Uint8Array(MAX_ATTACHMENT_SIZE + 1);
+      const result = validateAttachment(data);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("too_large");
+      }
+    });
+
+    test("accepts any file type (not just images)", () => {
+      // PDF magic bytes - not a valid image, but attachments accept any type
+      const data = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+      const result = validateAttachment(data);
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("ATTACHMENT_ERROR_MESSAGES", () => {
+    test("has message for too_large error", () => {
+      expect(ATTACHMENT_ERROR_MESSAGES.too_large).toBe(
+        "Attachment exceeds the 25MB size limit",
+      );
+    });
+  });
+
+  describe("generateAttachmentFilename", () => {
+    test("generates filename with UUID prefix and original name", () => {
+      const filename = generateAttachmentFilename("report.pdf");
+      expect(filename).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-report\.pdf$/,
+      );
+    });
+
+    test("sanitizes special characters in filename", () => {
+      const filename = generateAttachmentFilename("my file (1).pdf");
+      // Spaces and parens should be replaced with underscores
+      expect(filename).toMatch(/-my_file__1_\.pdf$/);
+    });
+
+    test("handles path separators in filename", () => {
+      const filename = generateAttachmentFilename("/path/to/file.txt");
+      // Only the basename should remain
+      expect(filename).toMatch(/-file\.txt$/);
+      expect(filename).not.toContain("/path");
+    });
+
+    test("handles backslash path separators", () => {
+      const filename = generateAttachmentFilename("C:\\Users\\docs\\file.txt");
+      expect(filename).toMatch(/-file\.txt$/);
+      expect(filename).not.toContain("Users");
+    });
+
+    test("falls back to 'file' when basename is empty", () => {
+      const filename = generateAttachmentFilename("/");
+      expect(filename).toMatch(/-file$/);
+    });
+
+    test("generates unique filenames for same input", () => {
+      const a = generateAttachmentFilename("doc.pdf");
+      const b = generateAttachmentFilename("doc.pdf");
+      expect(a).not.toBe(b);
+    });
+
+    test("preserves file extension", () => {
+      const filename = generateAttachmentFilename("archive.tar.gz");
+      expect(filename).toMatch(/\.tar\.gz$/);
+    });
+  });
+
+  describe("deleteAllEventStorageFiles", () => {
+    beforeEach(() => {
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+    });
+
+    test("deletes images and attachments for all events", async () => {
+      const events = [
+        { id: 1, image_url: "img1.jpg", attachment_url: "att1.pdf" },
+        { id: 2, image_url: "img2.png", attachment_url: "" },
+        { id: 3, image_url: "", attachment_url: "att3.pdf" },
+      ];
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        await deleteAllEventStorageFiles(events);
+
+        expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(true);
+        expect(deletedUrls.some((u) => u.includes("att1.pdf"))).toBe(true);
+        expect(deletedUrls.some((u) => u.includes("img2.png"))).toBe(true);
+        expect(deletedUrls.some((u) => u.includes("att3.pdf"))).toBe(true);
+        // Empty URLs should not trigger delete calls
+        expect(deletedUrls).toHaveLength(4);
+      });
+    });
+
+    test("skips events with no image or attachment", async () => {
+      const events = [{ id: 1, image_url: "", attachment_url: "" }];
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        await deleteAllEventStorageFiles(events);
+
+        expect(deletedUrls).toHaveLength(0);
+      });
+    });
+
+    test("handles empty events array", async () => {
+      await deleteAllEventStorageFiles([]);
+    });
+
+    test("continues deleting when individual file delete fails", async () => {
+      const events = [
+        { id: 1, image_url: "fail.jpg", attachment_url: "" },
+        { id: 2, image_url: "succeed.jpg", attachment_url: "" },
+      ];
+
+      await withFetchMock(async (originalFetch) => {
+        const deletedUrls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          if (url.includes("fail.jpg")) {
+            return Promise.reject(new Error("CDN error"));
+          }
+          if (url.includes("storage.bunnycdn.com")) {
+            deletedUrls.push(url);
+            return Promise.resolve(
+              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+            );
+          }
+          return null;
+        });
+
+        await deleteAllEventStorageFiles(events);
+
+        expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(true);
+      });
+    });
+  });
+
   describe("encryptBytes / decryptBytes", () => {
     test("round-trips binary data through encrypt then decrypt", async () => {
       const original = new Uint8Array([
@@ -243,6 +420,23 @@ describe("storage", () => {
       // But both decrypt to the same value
       expect(await decryptBytes(a)).toEqual(data);
       expect(await decryptBytes(b)).toEqual(data);
+    });
+
+    test("throws on invalid binary format", async () => {
+      const invalidData = new Uint8Array([0x00, 0x00, 0x00, 0x00, 0x01]);
+      await expect(decryptBytes(invalidData)).rejects.toThrow(
+        "Invalid binary encryption format",
+      );
+    });
+
+    test("throws on unsupported binary version", async () => {
+      // Valid ENCB magic but wrong version (0xFF instead of 0x01)
+      const data = new Uint8Array(17); // BINARY_HEADER_SIZE = 17
+      data.set([0x45, 0x4e, 0x43, 0x42], 0); // "ENCB" magic
+      data[4] = 0xff; // Invalid version
+      await expect(decryptBytes(data)).rejects.toThrow(
+        "Unsupported binary encryption version: 255",
+      );
     });
   });
 });
