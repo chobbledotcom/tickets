@@ -689,6 +689,16 @@ describe("server (multi-user admin)", () => {
       expect(html).not.toContain("Sessions");
       expect(html).not.toContain("Users");
     });
+
+    test("manager sees log nav link", async () => {
+      const cookie = await createTestManagerSession(
+        "navmgr-log-session",
+        "navmanagerlog",
+      );
+      const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
+      const html = await dashboardResponse.text();
+      expect(html).toContain("/admin/log");
+    });
   });
 
   describe("setup page", () => {

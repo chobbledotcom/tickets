@@ -17,6 +17,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
+  createTestManagerSession,
   deactivateTestEvent,
   expectAdminRedirect,
   expectHtmlResponse,
@@ -1609,6 +1610,14 @@ describe("server (admin events)", () => {
 
       const response = await awaitTestRequest("/admin/log", {
         cookie: await testCookie(),
+      });
+      await expectHtmlResponse(response, 200, "Log");
+    });
+
+    test("shows log page for manager", async () => {
+      const managerCookie = await createTestManagerSession();
+      const response = await awaitTestRequest("/admin/log", {
+        cookie: managerCookie,
       });
       await expectHtmlResponse(response, 200, "Log");
     });
