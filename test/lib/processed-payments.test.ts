@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { getDb } from "#lib/db/client.ts";
 import {
   clearSessionTokens,
+  decryptSessionTokens,
   deleteAllStaleReservations,
   deleteStaleReservation,
   finalizeSession,
@@ -172,7 +173,7 @@ describe("processed-payments", () => {
       expect(record?.attendee_id).toBe(testAttendeeId);
     });
 
-    test("stores ticket tokens when provided", async () => {
+    test("stores ticket tokens encrypted when provided", async () => {
       await reserveSession("cs_with_tokens");
       await finalizeSession("cs_with_tokens", testAttendeeId, [
         "tok_abc",
@@ -180,7 +181,11 @@ describe("processed-payments", () => {
       ]);
 
       const record = await isSessionProcessed("cs_with_tokens");
-      expect(record?.ticket_tokens).toBe("tok_abc+tok_def");
+      // Raw value in DB is encrypted (enc:1: prefix)
+      expect(record?.ticket_tokens).toMatch(/^enc:1:/);
+      // Decrypts to the original joined tokens
+      const decrypted = await decryptSessionTokens(record!.ticket_tokens);
+      expect(decrypted).toBe("tok_abc+tok_def");
     });
 
     test("stores empty string when no tokens provided", async () => {
@@ -205,9 +210,9 @@ describe("processed-payments", () => {
       await reserveSession("cs_clear_test");
       await finalizeSession("cs_clear_test", testAttendeeId, ["tok_xyz"]);
 
-      // Tokens stored
+      // Tokens stored (encrypted)
       let record = await isSessionProcessed("cs_clear_test");
-      expect(record?.ticket_tokens).toBe("tok_xyz");
+      expect(record?.ticket_tokens).toMatch(/^enc:1:/);
 
       // Clear them
       await clearSessionTokens("cs_clear_test");

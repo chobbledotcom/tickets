@@ -13,6 +13,7 @@
  *   - Fresh → return conflict error (still being processed)
  */
 
+import { decrypt, encrypt } from "#lib/crypto.ts";
 import { getDb, queryOne } from "#lib/db/client.ts";
 import { nowIso, nowMs } from "#lib/now.ts";
 
@@ -131,10 +132,23 @@ export const finalizeSession = async (
   attendeeId: number,
   ticketTokens: string[] = [],
 ): Promise<void> => {
+  const joined = ticketTokens.join("+");
+  const encryptedTokens = joined ? await encrypt(joined) : "";
   await getDb().execute({
     sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
-    args: [attendeeId, ticketTokens.join("+"), sessionId],
+    args: [attendeeId, encryptedTokens, sessionId],
   });
+};
+
+/**
+ * Decrypt the ticket_tokens field from a processed payment record.
+ * Returns the plaintext token string (e.g. "tok1+tok2") or empty string.
+ */
+export const decryptSessionTokens = async (
+  encryptedTokens: string,
+): Promise<string> => {
+  if (!encryptedTokens) return "";
+  return await decrypt(encryptedTokens);
 };
 
 /**

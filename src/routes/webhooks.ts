@@ -30,6 +30,7 @@ import {
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   clearSessionTokens,
+  decryptSessionTokens,
   finalizeSession,
   type ProcessedPayment,
   reserveSession,
@@ -375,9 +376,8 @@ const alreadyProcessedResult = async (
 ): Promise<PaymentResult> => {
   const event = await getEventWithCount(eventId);
   if (!event) return { success: false, error: "Event not found", status: 404 };
-  const ticketTokens = existing.ticket_tokens
-    ? existing.ticket_tokens.split("+")
-    : [];
+  const decrypted = await decryptSessionTokens(existing.ticket_tokens);
+  const ticketTokens = decrypted ? decrypted.split("+") : [];
   return {
     success: true,
     attendee: { id: existing.attendee_id! },
