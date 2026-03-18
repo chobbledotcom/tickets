@@ -1023,8 +1023,8 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
   advancedSettingsRoute(async (form, errorPage) => {
     const formId = `settings-email-tpl-${type}`;
     const subject = getString(form, "subject");
-    const html = form.get("html") ?? "";
-    const text = form.get("text") ?? "";
+    const html = getString(form, "html");
+    const text = getString(form, "text");
 
     // Validate lengths
     for (const [name, value] of [
@@ -1141,7 +1141,7 @@ const PREVIEW_TICKET_URL = "https://example.com/t/SAMPLE123+SAMPLE456";
 const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (_session, form) => {
     const type = getString(form, "type");
-    const template = form.get("template") ?? "";
+    const template = getString(form, "template");
     const format = form.get("format") ?? "html";
 
     if (!isEmailTemplateType(type)) {
