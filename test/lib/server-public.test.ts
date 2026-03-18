@@ -1104,6 +1104,72 @@ describe("server (public routes)", () => {
       expect(attendees2[0]?.quantity).toBe(2);
     });
 
+    test("rejects group registration when group capacity exceeded", async () => {
+      const group = await createTestGroup({
+        name: "Cap Group",
+        slug: "cap-group",
+        maxAttendees: 3,
+      });
+      const event1 = await createTestEvent({
+        name: "Cap Event 1",
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Cap Event 2",
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+
+      // First booking: 2 on event1 — should succeed (group: 2/3)
+      const getResponse1 = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      const csrfToken1 = getTicketCsrfToken(await getResponse1.text());
+      if (!csrfToken1) throw new Error("Failed to get CSRF token");
+      const r1 = await handleRequest(
+        mockFormRequest(
+          `/ticket/${group.slug}`,
+          {
+            name: "First User",
+            email: "first@example.com",
+            [`quantity_${event1.id}`]: "2",
+            [`quantity_${event2.id}`]: "0",
+            csrf_token: csrfToken1,
+          },
+          `csrf_token=${csrfToken1}`,
+        ),
+      );
+      expectReservedRedirectWithTokens(r1);
+
+      // Second booking: 1 on event1 + 1 on event2 — should fail (group: 2+2=4 > 3)
+      const getResponse2 = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      const csrfToken2 = getTicketCsrfToken(await getResponse2.text());
+      if (!csrfToken2) throw new Error("Failed to get CSRF token");
+      const r2 = await handleRequest(
+        mockFormRequest(
+          `/ticket/${group.slug}`,
+          {
+            name: "Second User",
+            email: "second@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken2,
+          },
+          `csrf_token=${csrfToken2}`,
+        ),
+      );
+      // The first atomic insert (event1 qty=1) succeeds (group: 3/3),
+      // but the second (event2 qty=1) fails because group is now full
+      const html = await r2.text();
+      expect(r2.status).toBe(400);
+      expect(html).toContain("no longer has enough spots available");
+    });
+
     test("returns 404 for inactive event", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,

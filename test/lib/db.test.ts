@@ -3611,6 +3611,156 @@ describe("db", () => {
       // Book 3 for date B — should succeed (different date)
       expect((await book(event.id, 3, "2026-07-02")).success).toBe(true);
     });
+
+    test("daily group cap counts across multiple events for same date", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(4, "daily-multi", {
+        eventType: "daily",
+      });
+
+      // Book 2 on event A for date X (group total: 2/4)
+      expect((await book(e1.id, 2, "2026-07-01")).success).toBe(true);
+
+      // Book 2 on event B for same date X (group total: 4/4)
+      expect((await book(e2.id, 2, "2026-07-01")).success).toBe(true);
+
+      // Book 1 more on event B for same date — should fail (group full for this date)
+      expect((await book(e2.id, 1, "2026-07-01")).success).toBe(false);
+
+      // Book on event B for different date — should succeed (separate date budget)
+      expect((await book(e2.id, 3, "2026-07-02")).success).toBe(true);
+    });
+
+    test("hasAvailableSpots checks group capacity for daily events with date", async () => {
+      const { hasAvailableSpots } = await import("#lib/db/attendees.ts");
+      const { e1, e2 } = await createCappedGroupWithEvents(3, "daily-spots", {
+        eventType: "daily",
+      });
+
+      // Book 2 on event A for a specific date
+      await book(e1.id, 2, "2026-08-01");
+
+      // Event B has its own capacity (10), but group only has 1 spot left for this date
+      expect(await hasAvailableSpots(e2.id, 1, "2026-08-01")).toBe(true);
+      expect(await hasAvailableSpots(e2.id, 2, "2026-08-01")).toBe(false);
+
+      // Different date should have full group budget available
+      expect(await hasAvailableSpots(e2.id, 3, "2026-08-02")).toBe(true);
+    });
+
+    test("checkBatchAvailability checks group capacity with date for daily events", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const { e1, e2 } = await createCappedGroupWithEvents(
+        5,
+        "daily-batch",
+        { eventType: "daily" },
+      );
+
+      // Both events in same group — combined quantity exceeds group cap for this date
+      expect(
+        await checkBatchAvailability(
+          [
+            { eventId: e1.id, quantity: 3 },
+            { eventId: e2.id, quantity: 3 },
+          ],
+          "2026-09-01",
+        ),
+      ).toBe(false);
+
+      // Within group cap for this date
+      expect(
+        await checkBatchAvailability(
+          [
+            { eventId: e1.id, quantity: 2 },
+            { eventId: e2.id, quantity: 3 },
+          ],
+          "2026-09-01",
+        ),
+      ).toBe(true);
+    });
+
+    test("checkBatchAvailability considers pre-existing attendees in group", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const { e1, e2 } = await createCappedGroupWithEvents(5, "pre-exist");
+
+      // Book 3 on event A first
+      await book(e1.id, 3);
+
+      // Batch check: 3 more would exceed group cap (3+3=6 > 5)
+      expect(
+        await checkBatchAvailability([{ eventId: e2.id, quantity: 3 }]),
+      ).toBe(false);
+
+      // 2 more fits exactly (3+2=5)
+      expect(
+        await checkBatchAvailability([{ eventId: e2.id, quantity: 2 }]),
+      ).toBe(true);
+    });
+
+    test("event-level cap rejects even when group has room", async () => {
+      const group = await createTestGroup({
+        name: "big-group",
+        slug: "big-group",
+        maxAttendees: 100,
+      });
+      const event = await createTestEvent({
+        name: "small-event",
+        maxAttendees: 2,
+        groupId: group.id,
+      });
+
+      // Event max is 2, group max is 100 — event cap should be the constraint
+      expect((await book(event.id, 2)).success).toBe(true);
+      const r = await book(event.id, 1);
+      expect(r.success).toBe(false);
+      if (!r.success) expect(r.reason).toBe("capacity_exceeded");
+    });
+
+    test("hasAvailableSpots respects event cap even when group has room", async () => {
+      const { hasAvailableSpots } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({
+        name: "big-group2",
+        slug: "big-group2",
+        maxAttendees: 100,
+      });
+      const event = await createTestEvent({
+        name: "tiny-event",
+        maxAttendees: 1,
+        groupId: group.id,
+      });
+
+      await book(event.id, 1);
+      expect(await hasAvailableSpots(event.id, 1)).toBe(false);
+    });
+
+    test("checkBatchAvailability rejects when one group is full and another has room", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const { e1: fullGroupEvent } = await createCappedGroupWithEvents(
+        2,
+        "full-grp",
+      );
+      const { e1: openGroupEvent } = await createCappedGroupWithEvents(
+        10,
+        "open-grp",
+      );
+
+      // Fill the first group
+      await book(fullGroupEvent.id, 2);
+
+      // Batch with one event from full group + one from open group
+      expect(
+        await checkBatchAvailability([
+          { eventId: fullGroupEvent.id, quantity: 1 },
+          { eventId: openGroupEvent.id, quantity: 1 },
+        ]),
+      ).toBe(false);
+
+      // Just the open group event should work
+      expect(
+        await checkBatchAvailability([
+          { eventId: openGroupEvent.id, quantity: 1 },
+        ]),
+      ).toBe(true);
+    });
   });
 
   describe("multi-user admin migration", () => {
