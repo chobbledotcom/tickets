@@ -149,7 +149,7 @@ describe("ticket view google wallet link", () => {
     );
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
-    expect(body).not.toContain("Add to Google Wallet");
+    expect(body).not.toContain("Google Wallet");
   });
 
   test("shows google wallet link when configured", async () => {
@@ -160,7 +160,7 @@ describe("ticket view google wallet link", () => {
     );
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
-    expect(body).toContain("Add to Google Wallet");
+    expect(body).toContain("Google Wallet");
     expect(body).toContain(`/gwallet/${token}`);
   });
 });
@@ -450,7 +450,7 @@ describe("Google Wallet env var fallback", () => {
     );
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
-    expect(body).toContain("Add to Google Wallet");
+    expect(body).toContain("Google Wallet");
   });
 
   test("settings page shows host Google Wallet label when env vars configured", async () => {

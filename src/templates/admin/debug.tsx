@@ -18,6 +18,13 @@ export type DebugPageState = {
       wwdrCert: string;
     };
   };
+  googleWallet: {
+    dbConfigured: boolean;
+    envConfigured: boolean;
+    issuerId: string;
+    source: string;
+    privateKeyValid: string;
+  };
   payment: {
     provider: string;
     keyConfigured: boolean;
@@ -107,6 +114,38 @@ export const adminDebugPage = (
             <tr>
               <td>WWDR certificate</td>
               <td>{s.appleWallet.certValidation.wwdrCert}</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article>
+        <h2>Google Wallet</h2>
+        <table>
+          <tbody>
+            <tr>
+              <td>DB config</td>
+              <td>
+                <StatusBadge ok={s.googleWallet.dbConfigured} />
+              </td>
+            </tr>
+            <tr>
+              <td>Env var config</td>
+              <td>
+                <StatusBadge ok={s.googleWallet.envConfigured} />
+              </td>
+            </tr>
+            <tr>
+              <td>Active source</td>
+              <td>{s.googleWallet.source || "None"}</td>
+            </tr>
+            <tr>
+              <td>Issuer ID</td>
+              <td>{s.googleWallet.issuerId || "—"}</td>
+            </tr>
+            <tr>
+              <td>Private key</td>
+              <td>{s.googleWallet.privateKeyValid}</td>
             </tr>
           </tbody>
         </table>

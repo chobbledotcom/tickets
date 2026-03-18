@@ -97,6 +97,12 @@ export const buildEventTicketClass = (
               value: data.eventLocation,
             },
           },
+          address: {
+            defaultValue: {
+              language: "en-US",
+              value: data.eventLocation,
+            },
+          },
         },
       }
     : {}),

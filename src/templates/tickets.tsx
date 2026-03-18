@@ -24,13 +24,13 @@ export type TicketCard = {
 const ticketCount = (count: number): string =>
   count === 1 ? "1 Ticket" : `${count} Tickets`;
 
-/** Render an "Add to Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
+/** Render an "Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
 const renderAppleWalletLink = (token: string): string =>
-  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">Add to Apple Wallet</a>`;
+  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">Apple Wallet</a>`;
 
-/** Render an "Add to Google Wallet" link for a token */
+/** Render a "Google Wallet" link for a token */
 const renderGoogleWalletLink = (token: string): string =>
-  `<a href="/gwallet/${escapeHtml(token)}" class="wallet-link">Add to Google Wallet</a>`;
+  `<a href="/gwallet/${escapeHtml(token)}" class="wallet-link">Google Wallet</a>`;
 
 /** Render a single ticket card */
 const renderTicketCard = (
@@ -67,11 +67,14 @@ const renderTicketCard = (
     ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
     : "";
 
-  const appleWalletHtml = appleWalletEnabled
-    ? renderAppleWalletLink(token)
-    : "";
-  const googleWalletHtml = googleWalletEnabled
-    ? renderGoogleWalletLink(token)
+  const walletLinks = [
+    appleWalletEnabled ? renderAppleWalletLink(token) : "",
+    googleWalletEnabled ? renderGoogleWalletLink(token) : "",
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const walletHtml = walletLinks
+    ? `<div class="ticket-card-wallet">Add to: ${walletLinks}</div>`
     : "";
 
   const attachmentHtml = attachmentUrl
@@ -92,8 +95,7 @@ const renderTicketCard = (
       ${attachmentHtml}
       <div class="ticket-card-qr"><img src="/t/${escapeHtml(token)}/svg" alt="QR code" /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>
-      ${appleWalletHtml}
-      ${googleWalletHtml}
+      ${walletHtml}
     </div>
   `;
 };

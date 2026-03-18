@@ -8,6 +8,9 @@ import {
   updateAppleWalletSigningKey,
   updateAppleWalletTeamId,
   updateAppleWalletWwdrCert,
+  updateGoogleWalletIssuerId,
+  updateGoogleWalletServiceAccountEmail,
+  updateGoogleWalletServiceAccountKey,
   updateSquareWebhookSignatureKey,
   updateStripeKey,
 } from "#lib/db/settings.ts";
@@ -17,6 +20,7 @@ import {
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
+  generateGoogleTestCreds,
   generateTestCerts,
   mockRequest,
   resetDb,
@@ -257,6 +261,80 @@ describe("server (admin debug)", () => {
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("resend");
+    });
+  });
+
+  describe("GET /admin/debug with Google Wallet section", () => {
+    test("shows Google Wallet section when unconfigured", async () => {
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Google Wallet");
+      expect(html).toContain("Issuer ID");
+      expect(html).toContain("Private key");
+      expect(html).toContain("Not set");
+    });
+  });
+
+  describe("GET /admin/debug with Google Wallet DB config", () => {
+    test("shows Database as source with valid key status", async () => {
+      const creds = await generateGoogleTestCreds();
+      await Promise.all([
+        updateGoogleWalletIssuerId(creds.issuerId),
+        updateGoogleWalletServiceAccountEmail(creds.serviceAccountEmail),
+        updateGoogleWalletServiceAccountKey(creds.serviceAccountKey),
+      ]);
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Database");
+      expect(html).toContain(creds.issuerId);
+      expect(html).toContain("Valid");
+    });
+
+    test("shows Invalid key for bad private key data", async () => {
+      await Promise.all([
+        updateGoogleWalletIssuerId("1234567890"),
+        updateGoogleWalletServiceAccountEmail(
+          "test@test.iam.gserviceaccount.com",
+        ),
+        updateGoogleWalletServiceAccountKey("not-a-valid-key"),
+      ]);
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Invalid key");
+    });
+  });
+
+  describe("GET /admin/debug with Google Wallet env vars", () => {
+    const envKeys = [
+      "GOOGLE_WALLET_ISSUER_ID",
+      "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
+      "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
+    ] as const;
+
+    const origValues = envKeys.map((k) => [k, Deno.env.get(k)] as const);
+
+    afterEach(() => {
+      for (const [key, val] of origValues) {
+        if (val) Deno.env.set(key, val);
+        else Deno.env.delete(key);
+      }
+    });
+
+    test("shows Environment variables as source when env configured", async () => {
+      const creds = await generateGoogleTestCreds();
+      Deno.env.set("GOOGLE_WALLET_ISSUER_ID", "9876543210");
+      Deno.env.set(
+        "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
+        "env@test.iam.gserviceaccount.com",
+      );
+      Deno.env.set(
+        "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
+        creds.serviceAccountKey,
+      );
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Environment variables");
+      expect(html).toContain("9876543210");
     });
   });
 
