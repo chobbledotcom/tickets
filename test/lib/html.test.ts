@@ -2570,7 +2570,7 @@ describe("html", () => {
         businessEmail: "",
         theme: "light",
         showPublicSite: false,
-        phonePrefix: "44",
+        country: "GB",
         headerImageUrl: "",
         storageEnabled: false,
       };
@@ -2617,7 +2617,6 @@ describe("html", () => {
   describe("adminAdvancedSettingsPage", () => {
     const advancedDefaultState: import("#templates/admin/settings-advanced.tsx").AdvancedSettingsPageState =
       {
-        timezone: "Europe/London",
         showPublicApi: false,
         emailProvider: "",
         emailApiKeyConfigured: false,
