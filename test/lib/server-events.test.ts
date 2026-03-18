@@ -614,10 +614,21 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
 
-      // Create question, answers, and assign to event
-      const { questionsTable, answersTable, setEventQuestions } = await import(
-        "#lib/db/questions.ts"
+      // Create attendee BEFORE assigning questions (avoids form validation)
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "CSV Q User",
+        "csvq@test.com",
       );
+
+      // Create question, answers, and assign to event
+      const {
+        questionsTable,
+        answersTable,
+        setEventQuestions,
+        saveAttendeeAnswers,
+      } = await import("#lib/db/questions.ts");
       const q = await questionsTable.insert({ text: "Shirt Size" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -630,15 +641,6 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         sortOrder: 1,
       });
       await setEventQuestions(event.id, [q.id]);
-
-      // Create an attendee with an answer
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "CSV Q User",
-        "csvq@test.com",
-      );
-      const { saveAttendeeAnswers } = await import("#lib/db/questions.ts");
       await saveAttendeeAnswers(attendee.id, [a1.id]);
 
       const response = await awaitTestRequest(
