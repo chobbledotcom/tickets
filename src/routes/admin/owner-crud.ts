@@ -5,6 +5,7 @@ import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
 import {
   htmlResponse,
+  type IdRouteHandler,
   notFoundResponse,
   orNotFound,
   redirect,
@@ -70,11 +71,6 @@ const createCrudHandlersWithAuth = <Row, Input>(
     (request: Request): Promise<Response> =>
       withFormAuth(request, handler);
 
-  const authFormForId =
-    (mkHandler: (id: number) => FormHandler) =>
-    (request: Request, id: number): Promise<Response> =>
-      authForm(mkHandler(id))(request);
-
   const authHtml =
     (render: (session: AdminSession) => string | Promise<string>) =>
     (request: Request): Promise<Response> =>
@@ -83,8 +79,8 @@ const createCrudHandlersWithAuth = <Row, Input>(
       );
 
   const authRowHtml =
-    (render: (row: Row, session: AdminSession) => string) =>
-    (request: Request, id: number): Promise<Response> =>
+    (render: (row: Row, session: AdminSession) => string): IdRouteHandler =>
+    (request, { id }) =>
       requireAuth(request, (session) =>
         orNotFound(cfg.resource.table.findById(id), (row) =>
           htmlResponse(render(row, session)),
@@ -124,9 +120,8 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const editGet = authRowHtml(cfg.renderEdit);
 
-  const editHandler =
-    (id: number) =>
-    async (session: AdminSession, form: FormParams): Promise<Response> => {
+  const editPost: IdRouteHandler = (request, { id }) =>
+    withFormAuth(request, async (session, form) => {
       const result = await cfg.resource.update(id, form);
       if (result.ok) {
         return logAndRedirect(
@@ -139,15 +134,12 @@ const createCrudHandlersWithAuth = <Row, Input>(
       return orNotFound(cfg.resource.table.findById(id), (row) =>
         htmlResponse(cfg.renderEdit(row, session, result.error), 400),
       );
-    };
-
-  const editPost = authFormForId(editHandler);
+    });
 
   const deleteGet = authRowHtml(cfg.renderDelete);
 
-  const deleteHandler =
-    (id: number) =>
-    (session: AdminSession, form: FormParams): Promise<Response> =>
+  const deletePost: IdRouteHandler = (request, { id }) =>
+    withFormAuth(request, (session, form) =>
       orNotFound(cfg.resource.table.findById(id), async (row) => {
         const confirm = String(form.get("confirm_identifier"));
         const nameMatches = cfg.resource.verifyName(row, confirm);
@@ -163,9 +155,8 @@ const createCrudHandlersWithAuth = <Row, Input>(
         if ("notFound" in result) return notFoundResponse();
         await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
         return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
-      });
-
-  const deletePost = authFormForId(deleteHandler);
+      }),
+    );
 
   return {
     listGet,
