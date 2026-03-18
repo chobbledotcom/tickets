@@ -81,7 +81,9 @@ export const setupTestEncryptionKey = (): void => {
  * Clear test encryption key from environment
  */
 export const clearTestEncryptionKey = (): void => {
-  setEncryptionKeyForTest(null);
+  // Use empty string (not null) so the override stays active and doesn't
+  // fall through to Deno.env, avoiding races with parallel test workers.
+  setEncryptionKeyForTest("");
   Deno.env.delete("DB_ENCRYPTION_KEY");
   Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
