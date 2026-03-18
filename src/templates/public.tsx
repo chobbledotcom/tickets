@@ -5,7 +5,7 @@
 import { map, pipe } from "#fp";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import type { QuestionEventMap, QuestionWithAnswers } from "#lib/db/questions.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
@@ -231,8 +231,13 @@ const renderTermsAndCheckbox = (terms: string): string =>
   `<div class="terms">${renderMarkdown(terms)}</div>` +
   `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
 
-/** Render custom multiple-choice question fields (radio buttons) */
-export const renderQuestions = (questions: QuestionWithAnswers[]): string => {
+/** Render custom multiple-choice question fields (radio buttons).
+ * When questionEventMap is provided (multi-ticket), adds data-event-ids
+ * so JS can show/hide questions based on selected event quantities. */
+export const renderQuestions = (
+  questions: QuestionWithAnswers[],
+  questionEventMap?: QuestionEventMap,
+): string => {
   if (questions.length === 0) return "";
   return questions
     .map((q) => {
@@ -242,7 +247,11 @@ export const renderQuestions = (questions: QuestionWithAnswers[]): string => {
             `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(a.text)}</label>`,
         )
         .join("");
-      return `<fieldset class="custom-question"><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+      const eventIds = questionEventMap?.get(q.id);
+      const eventAttr = eventIds
+        ? ` data-event-ids="${eventIds.join(" ")}"`
+        : "";
+      return `<fieldset class="custom-question"${eventAttr}><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
     })
     .join("");
 };
@@ -451,6 +460,7 @@ export type MultiTicketPageOptions = {
   dates?: string[];
   terms?: string | null;
   questions?: QuestionWithAnswers[];
+  questionEventMap?: QuestionEventMap;
 };
 
 /**
@@ -463,6 +473,7 @@ export const multiTicketPage = ({
   dates,
   terms,
   questions,
+  questionEventMap,
 }: MultiTicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
@@ -507,7 +518,7 @@ export const multiTicketPage = ({
           )}
 
           {questions && questions.length > 0 && (
-            <Raw html={renderQuestions(questions)} />
+            <Raw html={renderQuestions(questions, questionEventMap)} />
           )}
           {terms && (
             <Raw html={renderTermsAndCheckbox(terms)} />

@@ -67,4 +67,42 @@ describe("renderQuestions", () => {
     expect(html).toContain("S&amp;M");
     expect(html).not.toContain("<b>size</b>");
   });
+
+  test("adds data-event-ids when questionEventMap is provided", () => {
+    const questions: QuestionWithAnswers[] = [
+      {
+        id: 1,
+        text: "Q1",
+        answers: [{ id: 10, question_id: 1, text: "A1", sort_order: 0 }],
+      },
+      {
+        id: 2,
+        text: "Q2",
+        answers: [{ id: 20, question_id: 2, text: "A2", sort_order: 0 }],
+      },
+    ];
+    const eventMap = new Map([
+      [1, [100, 200]],
+      [2, [200]],
+    ]);
+
+    const html = renderQuestions(questions, eventMap);
+
+    expect(html).toContain('data-event-ids="100 200"');
+    expect(html).toContain('data-event-ids="200"');
+  });
+
+  test("omits data-event-ids when no map provided", () => {
+    const questions: QuestionWithAnswers[] = [
+      {
+        id: 1,
+        text: "Q1",
+        answers: [{ id: 10, question_id: 1, text: "A1", sort_order: 0 }],
+      },
+    ];
+
+    const html = renderQuestions(questions);
+
+    expect(html).not.toContain("data-event-ids");
+  });
 });

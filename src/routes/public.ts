@@ -29,7 +29,8 @@ import {
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import {
   getQuestionsForEvent,
-  getQuestionsForEvents,
+  getQuestionsWithEventIds,
+  type QuestionEventMap,
   type QuestionWithAnswers,
   saveAttendeeAnswers,
   saveAttendeeAnswersBatch,
@@ -513,6 +514,7 @@ type MultiTicketCtx = {
   dates: string[];
   terms: string;
   questions: QuestionWithAnswers[];
+  questionEventMap: QuestionEventMap;
 };
 
 /** Multi-ticket form error response (after CSRF passed) */
@@ -555,6 +557,7 @@ type MultiTicketSharedContext = {
   dates: string[];
   terms: string;
   questions: QuestionWithAnswers[];
+  questionEventMap: QuestionEventMap;
 };
 
 /** Fetch shared context for multi-ticket pages: dates, terms, questions */
@@ -562,12 +565,12 @@ const getMultiTicketContext = async (
   activeEvents: MultiTicketEvent[],
 ): Promise<MultiTicketSharedContext> => {
   const eventIds = activeEvents.map((e) => e.event.id);
-  const [dates, terms, questions] = await Promise.all([
+  const [dates, terms, questionsResult] = await Promise.all([
     computeSharedDates(activeEvents),
     getTermsAndConditionsFromDb(),
-    getQuestionsForEvents(eventIds),
+    getQuestionsWithEventIds(eventIds),
   ]);
-  return { dates, terms: terms ?? "", questions };
+  return { dates, terms: terms ?? "", ...questionsResult };
 };
 
 /** Shared context provider for multi-ticket pages */
@@ -611,25 +614,6 @@ const submitMultiTicket = (
         return errorResponse("You must agree to the terms and conditions");
       }
 
-      // Validate custom question answers
-      const answersResult = parseQuestionAnswers(form, ctx.questions);
-      if (!answersResult.ok) {
-        return errorResponse(answersResult.error);
-      }
-
-      const contact = extractContact(values);
-
-      // For daily events, validate the submitted date
-      let date: string | null = null;
-      if (dates.length > 0) {
-        date = validateSubmittedDate(form, dates);
-        if (!date) {
-          return multiTicketFormErrorResponse(ctx)(
-            "Please select a valid date",
-          );
-        }
-      }
-
       // Check if any event the user selected is now closed
       for (const { event, isClosed } of ctx.events) {
         const selectedQty = Number.parseInt(
@@ -655,6 +639,30 @@ const submitMultiTicket = (
         return multiTicketFormErrorResponse(ctx)(
           "Please select at least one ticket",
         );
+      }
+
+      // Validate custom question answers (only for selected events)
+      const selectedEventIds = new Set(quantities.keys());
+      const activeQuestions = ctx.questions.filter((q) => {
+        const eventIds = ctx.questionEventMap.get(q.id);
+        return !eventIds || eventIds.some((eid) => selectedEventIds.has(eid));
+      });
+      const answersResult = parseQuestionAnswers(form, activeQuestions);
+      if (!answersResult.ok) {
+        return errorResponse(answersResult.error);
+      }
+
+      const contact = extractContact(values);
+
+      // For daily events, validate the submitted date
+      let date: string | null = null;
+      if (dates.length > 0) {
+        date = validateSubmittedDate(form, dates);
+        if (!date) {
+          return multiTicketFormErrorResponse(ctx)(
+            "Please select a valid date",
+          );
+        }
       }
 
       // Parse custom prices for pay-more events
@@ -893,13 +901,13 @@ const getGroupMultiTicketContext =
   (group: Group): MultiTicketContextProvider =>
   async (events) => {
     const eventIds = events.map((e) => e.event.id);
-    const [dates, globalTerms, questions] = await Promise.all([
+    const [dates, globalTerms, questionsResult] = await Promise.all([
       computeSharedDates(events),
       getTermsAndConditionsFromDb(),
-      getQuestionsForEvents(eventIds),
+      getQuestionsWithEventIds(eventIds),
     ]);
     const terms = group.terms_and_conditions || globalTerms || "";
-    return { dates, terms, questions };
+    return { dates, terms, ...questionsResult };
   };
 
 /** Load group by slug and its active events, return 404 if empty */
