@@ -332,33 +332,21 @@ export const orNotFound = async <T>(
   return data ? handler(data) : notFoundResponse();
 };
 
-/** Handler function that takes an event and returns a Response */
-type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
-
-/** Load event by ID or return 404 */
-export const withEvent = (
-  eventId: number,
-  handler: EventHandler,
-): Promise<Response> => orNotFound(getEventWithCount(eventId), handler);
-
-/**
- * Curried event page GET handler: renderPage -> (request, { id }) -> Response.
- * Combines session auth + event fetch + HTML rendering.
- */
 /** Route handler that takes request + { id } params */
 export type IdRouteHandler = (
   request: Request,
   params: { id: number },
 ) => Promise<Response>;
 
-export const withEventPage =
-  (
-    renderPage: (event: EventWithCount, session: AdminSession) => string,
-  ): IdRouteHandler =>
-  (request, { id }) =>
-    requireSessionOr(request, (session) =>
-      withEvent(id, (event) => htmlResponse(renderPage(event, session))),
-    );
+export const withEventPage = (
+  renderPage: (event: EventWithCount, session: AdminSession) => string,
+): IdRouteHandler =>
+  authenticatedGetById(null)(getEventWithCount, (event, session) =>
+    htmlResponse(renderPage(event, session)),
+  );
+
+/** Handler function that takes an event and returns a Response */
+type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
 
 /** Load event by slug or return 404 */
 export const withEventBySlug = (
@@ -553,39 +541,59 @@ export const requireOwnerOr = (
 ): Promise<Response> =>
   requireSessionOr(request, (session) => requireOwnerRole(session, handler));
 
-/**
- * Owner GET-by-ID route handler factory.
- * load(id) → entity | null, render(entity, session) → Response.
- * Returns a typed `(request, { id }) => Promise<Response>` route handler.
- */
-export const ownerGetById = <T>(
-  load: (id: number) => Promise<T | null>,
-  render: (entity: T, session: AuthSession) => Response | Promise<Response>,
-): IdRouteHandler =>
-(request, { id }) =>
-  requireOwnerOr(request, (session) =>
-    orNotFound(load(id), (entity) => render(entity, session)),
-  );
-
-/**
- * Owner POST-by-ID route handler factory.
- * Extracts `id` from params, validates CSRF + owner role, calls handler(id, session, form).
- */
-export const ownerFormById = (
-  handler: (
-    id: number,
-    session: AuthSession,
-    form: URLSearchParams,
-  ) => Response | Promise<Response>,
-): IdRouteHandler =>
-(request, { id }) =>
-  withOwnerAuthForm(request, (session, form) => handler(id, session, form));
-
 /** Handle request with owner auth form - requires owner role + CSRF validation */
 export const withOwnerAuthForm = (
   request: Request,
   handler: FormHandler,
 ): Promise<Response> => handleAuthForm(request, "owner", handler);
+
+/** Auth level for ID route helpers: "owner" requires owner role, null allows any authenticated user */
+type IdRouteAuth = AdminLevel | null;
+
+const authRequireFor = (level: IdRouteAuth) =>
+  level === "owner" ? requireOwnerOr : requireSessionOr;
+
+const authFormFor = (level: IdRouteAuth) =>
+  level === "owner" ? withOwnerAuthForm : withAuthForm;
+
+/**
+ * Authenticated GET-by-ID route handler factory.
+ * Loads entity by ID, returns 404 if missing, renders with session context.
+ * @param level - "owner" requires owner role, null allows any authenticated user
+ */
+export const authenticatedGetById =
+  (level: IdRouteAuth) =>
+  <T>(
+    load: (id: number) => Promise<T | null>,
+    render: (entity: T, session: AuthSession) => Response | Promise<Response>,
+  ): IdRouteHandler =>
+  (request, { id }) =>
+    authRequireFor(level)(request, (session) =>
+      orNotFound(load(id), (entity) => render(entity, session)),
+    );
+
+/**
+ * Authenticated POST-by-ID route handler factory.
+ * Validates CSRF, extracts ID from params, calls handler(id, session, form).
+ * @param level - "owner" requires owner role, null allows any authenticated user
+ */
+export const authenticatedFormById =
+  (level: IdRouteAuth) =>
+  (
+    handler: (
+      id: number,
+      session: AuthSession,
+      form: URLSearchParams,
+    ) => Response | Promise<Response>,
+  ): IdRouteHandler =>
+  (request, { id }) =>
+    authFormFor(level)(request, (session, form) => handler(id, session, form));
+
+/** Shorthand: owner GET-by-ID */
+export const ownerGetById = authenticatedGetById("owner");
+
+/** Shorthand: owner POST-by-ID + CSRF */
+export const ownerFormById = authenticatedFormById("owner");
 
 /** Handler function that receives session and multipart FormData */
 type MultipartFormHandler = (

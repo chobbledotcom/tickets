@@ -34,9 +34,9 @@ import {
   getSearchParam,
   htmlResponse,
   orNotFound,
+  ownerFormById,
   redirect,
   requireOwnerOr,
-  withOwnerAuthForm,
 } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
@@ -192,24 +192,21 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
   );
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
-const handleAddEventsToGroup: TypedRouteHandler<
-  "POST /admin/group/:id/add-events"
-> = (request, { id }) =>
-  withOwnerAuthForm(request, (_session, form) =>
-    withGroup(id, async (group) => {
-      const eventIds = form
-        .getAll("event_ids")
-        .map(Number)
-        .filter((n) => n > 0);
-      if (eventIds.length > 0) {
-        await assignEventsToGroup(eventIds, id);
-        await logActivity(
-          `${eventIds.length} event(s) added to group '${group.name}'`,
-        );
-      }
-      return redirect(`/admin/group/${id}`, "Events added to group", true);
-    }),
-  );
+const handleAddEventsToGroup = ownerFormById((id, _session, form) =>
+  withGroup(id, async (group) => {
+    const eventIds = form
+      .getAll("event_ids")
+      .map(Number)
+      .filter((n) => n > 0);
+    if (eventIds.length > 0) {
+      await assignEventsToGroup(eventIds, id);
+      await logActivity(
+        `${eventIds.length} event(s) added to group '${group.name}'`,
+      );
+    }
+    return redirect(`/admin/group/${id}`, "Events added to group", true);
+  }),
+);
 
 /** Group routes */
 export const groupsRoutes = defineRoutes({

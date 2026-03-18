@@ -58,6 +58,7 @@ import {
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  authenticatedGetById,
   formDataToParams,
   getSearchParam,
   htmlResponse,
@@ -665,17 +666,13 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
  * Handle GET /admin/event/:id/log
  * Uses batched query to fetch event + activity log in a single DB round-trip.
  */
-const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (
-  request,
-  { id },
-) =>
-  requireSessionOr(request, (session) =>
-    orNotFound(getEventWithActivityLog(id), (result) =>
-      htmlResponse(
-        adminEventActivityLogPage(result.event, result.entries, session),
-      ),
+const handleAdminEventLog = authenticatedGetById(null)(
+  getEventWithActivityLog,
+  (result, session) =>
+    htmlResponse(
+      adminEventActivityLogPage(result.event, result.entries, session),
     ),
-  );
+);
 
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {

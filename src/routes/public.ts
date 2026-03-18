@@ -495,14 +495,7 @@ const getActiveMultiEvents = (
 
 /** Render multi-ticket HTML (CSRF token auto-embedded by CsrfForm) */
 const renderMultiTicketPage = (ctx: MultiTicketCtx, error?: string) =>
-  multiTicketPage({
-    events: ctx.events,
-    slugs: ctx.slugs,
-    error,
-    availableDates: ctx.dates,
-    termsAndConditions: ctx.terms,
-    questions: ctx.questions,
-  });
+  multiTicketPage({ ...ctx, error });
 
 /** Multi-ticket response builder */
 const multiTicketResponse =
@@ -544,9 +537,9 @@ const withActiveMultiEvents = async (
 /** Compute shared available dates across all daily events (intersection) */
 const computeSharedDates = async (
   events: MultiTicketEvent[],
-): Promise<string[] | undefined> => {
+): Promise<string[]> => {
   const dailyEvents = events.filter((e) => e.event.event_type === "daily");
-  if (dailyEvents.length === 0) return undefined;
+  if (dailyEvents.length === 0) return [];
   const holidays = await getActiveHolidays();
   const dateSets = dailyEvents.map(
     (e) => new Set(getAvailableDates(e.event, holidays)),
@@ -571,7 +564,7 @@ const getMultiTicketContext = async (
     getTermsAndConditionsFromDb(),
     getQuestionsForEvents(eventIds),
   ]);
-  return { dates: dates ?? [], terms: terms ?? "", questions };
+  return { dates, terms: terms ?? "", questions };
 };
 
 /** Shared context provider for multi-ticket pages */
@@ -901,7 +894,7 @@ const getGroupMultiTicketContext =
       getQuestionsForEvents(eventIds),
     ]);
     const terms = group.terms_and_conditions || globalTerms || "";
-    return { dates: dates ?? [], terms, questions };
+    return { dates, terms, questions };
   };
 
 /** Load group by slug and its active events, return 404 if empty */
