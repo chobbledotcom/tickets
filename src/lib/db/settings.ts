@@ -30,7 +30,6 @@ import type { PaymentProviderType, Settings, Theme } from "#lib/types.ts";
  */
 export const CONFIG_KEYS = {
   COUNTRY: "country",
-  CURRENCY_CODE: "currency_code",
   SETUP_COMPLETE: "setup_complete",
   // Encryption key hierarchy
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
@@ -50,8 +49,6 @@ export const CONFIG_KEYS = {
   EMBED_HOSTS: "embed_hosts",
   // Terms and conditions (plaintext - displayed publicly)
   TERMS_AND_CONDITIONS: "terms_and_conditions",
-  // Timezone — legacy key, now derived from COUNTRY
-  TIMEZONE: "timezone",
   // Business email (encrypted)
   BUSINESS_EMAIL: "business_email",
   // Theme setting (plaintext - light or dark)
@@ -64,8 +61,6 @@ export const CONFIG_KEYS = {
   HOMEPAGE_TEXT: "homepage_text",
   // Contact page text (encrypted - shown on public site contact page)
   CONTACT_PAGE_TEXT: "contact_page_text",
-  // Phone prefix — legacy key, now derived from COUNTRY
-  PHONE_PREFIX: "phone_prefix",
   // Header image (encrypted - Bunny CDN filename)
   HEADER_IMAGE_URL: "header_image_url",
   // Show public API (plaintext - "true" or "false")
@@ -395,14 +390,10 @@ export const updateCountry = async (country: string): Promise<void> => {
 
 /**
  * Get currency code derived from country setting.
- * Falls back to legacy currency_code setting, then to GBP.
  */
 export const getCurrencyCodeFromDb = async (): Promise<string> => {
-  const country = await getSetting(CONFIG_KEYS.COUNTRY);
-  if (country) return getCountry(country).currency;
-  // Legacy fallback
-  const value = await getSetting(CONFIG_KEYS.CURRENCY_CODE);
-  return value || "GBP";
+  const country = await getCountryFromDb();
+  return getCountry(country).currency;
 };
 
 /**
@@ -626,7 +617,6 @@ const [getTzTestOverride, setTzTestOverride] = lazyRef<string | null>(
 
 /**
  * Get the configured timezone derived from country setting.
- * Falls back to legacy timezone setting, then to Europe/London.
  * Also populates the permanent timezone cache for sync access via getTimezoneCached().
  */
 export const getTimezoneFromDb = async (): Promise<string> => {
@@ -634,23 +624,15 @@ export const getTimezoneFromDb = async (): Promise<string> => {
   if (testOverride !== null) return testOverride;
   const cached = getTzCache();
   if (cached !== null) return cached;
-  const country = await getSetting(CONFIG_KEYS.COUNTRY);
-  let tz: string;
-  if (country) {
-    tz = getCountry(country).timezone;
-  } else {
-    // Legacy fallback
-    const value = await getSetting(CONFIG_KEYS.TIMEZONE);
-    tz = value || DEFAULT_TIMEZONE;
-  }
+  const country = await getCountryFromDb();
+  const tz = getCountry(country).timezone;
   setTzCache(tz);
   return tz;
 };
 
 /**
  * Get the configured timezone synchronously.
- * Derives from country setting, falling back to legacy timezone setting,
- * then to the default timezone. Safe to call from synchronous template code
+ * Derives from country setting. Safe to call from synchronous template code
  * because the middleware populates the settings cache on every request.
  */
 export const getTimezoneCached = (): string => {
@@ -660,10 +642,8 @@ export const getTimezoneCached = (): string => {
   if (cached !== null) return cached;
   const state = getSettingsCacheState();
   if (state.entries !== null) {
-    const country = state.entries.get(CONFIG_KEYS.COUNTRY);
-    const value = country
-      ? getCountry(country).timezone
-      : state.entries.get(CONFIG_KEYS.TIMEZONE) || DEFAULT_TIMEZONE;
+    const country = state.entries.get(CONFIG_KEYS.COUNTRY) || DEFAULT_COUNTRY;
+    const value = getCountry(country).timezone;
     setTzCache(value);
     return value;
   }
@@ -761,14 +741,10 @@ export const { get: getContactPageTextFromDb, update: updateContactPageText } =
 
 /**
  * Get the configured phone prefix derived from country setting.
- * Falls back to legacy phone_prefix setting, then to "44" (UK).
  */
 export const getPhonePrefixFromDb = async (): Promise<string> => {
-  const country = await getSetting(CONFIG_KEYS.COUNTRY);
-  if (country) return getCountry(country).phonePrefix;
-  // Legacy fallback
-  const value = await getSetting(CONFIG_KEYS.PHONE_PREFIX);
-  return value || "44";
+  const country = await getCountryFromDb();
+  return getCountry(country).phonePrefix;
 };
 
 export const { get: getHeaderImageUrlFromDb, update: updateHeaderImageUrl } =

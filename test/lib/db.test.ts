@@ -289,7 +289,7 @@ describe("db", () => {
     });
 
     test("CONFIG_KEYS contains expected keys", () => {
-      expect(CONFIG_KEYS.CURRENCY_CODE).toBe("currency_code");
+      expect(CONFIG_KEYS.COUNTRY).toBe("country");
       expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
       expect(CONFIG_KEYS.WRAPPED_PRIVATE_KEY).toBe("wrapped_private_key");
       expect(CONFIG_KEYS.PUBLIC_KEY).toBe("public_key");
