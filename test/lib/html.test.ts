@@ -838,6 +838,30 @@ describe("html", () => {
       expect(html).not.toContain('name="agree_terms"');
     });
 
+    test("renders custom questions when provided", () => {
+      const questions = [
+        {
+          id: 1,
+          text: "Size?",
+          answers: [
+            { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+            { id: 11, question_id: 1, text: "Large", sort_order: 1 },
+          ],
+        },
+      ];
+      const html = ticketPage(
+        event,
+        undefined,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        questions,
+      );
+      expect(html).toContain("Size?");
+      expect(html).toContain('name="question_1"');
+    });
+
     test("includes OpenGraph tags when baseUrl is provided", () => {
       const ev = testEventWithCount({
         name: "Birthday Party",
@@ -2440,6 +2464,38 @@ describe("html", () => {
       expect(html).toContain("<p>Rule one</p>");
       expect(html).toContain("<p>Rule two</p>");
       expect(html).toContain('name="agree_terms"');
+    });
+
+    test("renders custom questions with event IDs", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+          }),
+        ),
+      ];
+      const questions = [
+        {
+          id: 5,
+          text: "Size?",
+          answers: [
+            { id: 10, question_id: 5, text: "Small", sort_order: 0 },
+          ],
+        },
+      ];
+      const questionEventMap = new Map([[5, [1]]]);
+      const html = multiTicketPage({
+        events,
+        slugs: ["ab12c"],
+        questions,
+        questionEventMap,
+      });
+      expect(html).toContain("Size?");
+      expect(html).toContain('name="question_5"');
+      expect(html).toContain('data-event-ids="1"');
     });
 
     test("appends ?iframe=true to form action in iframe mode", () => {
