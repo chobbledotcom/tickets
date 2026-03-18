@@ -139,6 +139,23 @@ describe("server (misc)", () => {
         expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
       });
 
+      test("omits Strict-Transport-Security on localhost", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.headers.has("strict-transport-security")).toBe(false);
+      });
+
+      test("includes Strict-Transport-Security on non-localhost domains", async () => {
+        setAllowedDomainForTest("example.com");
+        try {
+          const response = await handleRequest(mockRequest("/"));
+          expect(response.headers.get("strict-transport-security")).toBe(
+            "max-age=63072000; includeSubDomains; preload",
+          );
+        } finally {
+          resetAllowedDomain();
+        }
+      });
+
       test("ticket pages also have base security headers", async () => {
         const response = await getTicketPageResponse();
         expect(response.headers.get("x-content-type-options")).toBe("nosniff");

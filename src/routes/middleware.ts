@@ -45,6 +45,9 @@ export const getSecurityHeaders = (
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
   ...(embeddable && { "x-robots-tag": "index, follow" }),
+  ...(getAllowedDomain() !== "localhost" && {
+    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+  }),
   "content-security-policy": buildCspHeader(embeddable),
 });
 
