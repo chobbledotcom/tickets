@@ -2030,21 +2030,13 @@ const _testCerts: SigningCredentials = (() => {
 /** Return pre-built test certificates for Apple Wallet signing */
 export const generateTestCerts = (): SigningCredentials => _testCerts;
 
-/** Pre-generate Google Wallet test credentials (PKCS8 RSA key) */
-const _googleTestCreds: Promise<GoogleWalletCredentials> = (async () => {
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: "SHA-256",
-    },
-    true,
-    ["sign", "verify"],
+/** Pre-generate Google Wallet test credentials (PKCS8 RSA key, synchronous) */
+const _googleTestCreds: GoogleWalletCredentials = (() => {
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+  const pkcs8Asn1 = forge.pki.wrapRsaPrivateKey(
+    forge.pki.privateKeyToAsn1(keys.privateKey),
   );
-  const pkcs8 = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
-  const b64 = btoa(String.fromCharCode(...new Uint8Array(pkcs8)));
-  const pem = `-----BEGIN PRIVATE KEY-----\n${b64.match(/.{1,64}/g)!.join("\n")}\n-----END PRIVATE KEY-----`;
+  const pem = forge.pki.privateKeyInfoToPem(pkcs8Asn1);
   return {
     issuerId: "1234567890",
     serviceAccountEmail: "test@test-project.iam.gserviceaccount.com",
@@ -2053,7 +2045,7 @@ const _googleTestCreds: Promise<GoogleWalletCredentials> = (async () => {
 })();
 
 /** Return pre-built Google Wallet test credentials */
-export const generateGoogleTestCreds = (): Promise<GoogleWalletCredentials> =>
+export const generateGoogleTestCreds = (): GoogleWalletCredentials =>
   _googleTestCreds;
 
 // ---------------------------------------------------------------------------
