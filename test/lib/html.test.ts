@@ -2559,6 +2559,7 @@ describe("html", () => {
     const defaultState: import("#templates/admin/settings.tsx").SettingsPageState =
       {
         stripeKeyConfigured: false,
+        stripeKeyMode: null,
         paymentProvider: "",
         squareTokenConfigured: false,
         squareSandbox: false,

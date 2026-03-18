@@ -43,6 +43,7 @@ import {
   getShowPublicApiFromDb,
   getShowPublicSiteFromDb,
   getSquareSandboxFromDb,
+  getStripeKeyModeFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
   getThemeFromDb,
@@ -77,6 +78,7 @@ import {
   updateSquareSandbox,
   updateSquareWebhookSignatureKey,
   updateStripeKey,
+  updateStripeKeyMode,
   updateTermsAndConditions,
   updateTheme,
   updateUserPassword,
@@ -117,7 +119,11 @@ import {
   uploadImage,
   validateImage,
 } from "#lib/storage.ts";
-import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
+import {
+  detectStripeKeyMode,
+  setupWebhookEndpoint,
+  testStripeConnection,
+} from "#lib/stripe.ts";
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -150,6 +156,7 @@ const getWebhookUrl = (): string => {
 const getSettingsPageState = async () => {
   const [
     stripeKeyConfigured,
+    stripeKeyMode,
     paymentProvider,
     squareTokenConfigured,
     squareSandbox,
@@ -164,6 +171,7 @@ const getSettingsPageState = async () => {
     headerImageUrl,
   ] = await Promise.all([
     hasStripeKey(),
+    getStripeKeyModeFromDb(),
     getPaymentProviderFromDb(),
     hasSquareToken(),
     getSquareSandboxFromDb(),
@@ -177,8 +185,10 @@ const getSettingsPageState = async () => {
     getCountryFromDb(),
     getHeaderImageUrlFromDb(),
   ]);
+
   return {
     stripeKeyConfigured,
+    stripeKeyMode,
     paymentProvider: paymentProvider ?? "",
     squareTokenConfigured,
     squareSandbox,
@@ -525,6 +535,16 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     });
   }
 
+  // Validate key format — must start with sk_test_ or sk_live_
+  const keyMode = detectStripeKeyMode(field.value);
+  if (!keyMode) {
+    return errorPage(
+      "Invalid Stripe key format. Keys must start with sk_test_ (test mode) or sk_live_ (live mode).",
+      400,
+      "settings-stripe",
+    );
+  }
+
   // Set up webhook endpoint automatically
   const webhookUrl = getWebhookUrl();
   const existingEndpointId = await getStripeWebhookEndpointId();
@@ -543,9 +563,10 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  // Store both the Stripe key and webhook config
+  // Store the Stripe key, webhook config, and key mode
   await updateStripeKey(field.value);
   await setStripeWebhookConfig(webhookResult);
+  await updateStripeKeyMode(keyMode);
 
   // Auto-set payment provider to stripe when key is configured
   await setPaymentProvider("stripe");

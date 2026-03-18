@@ -6,6 +6,7 @@ import {
   constructTestWebhookEvent,
   createCheckoutSessionWithIntent,
   createMultiCheckoutSession,
+  detectStripeKeyMode,
   getStripeClient,
   refundPayment,
   resetStripeClient,
@@ -889,6 +890,23 @@ describe("stripe", () => {
       const err = new Error("something");
       // Plain Error: err.name is "Error", parts is empty, so returns err.name || "Error"
       expect(sanitizeErrorDetail(err)).toBe("Error");
+    });
+  });
+
+  describe("detectStripeKeyMode", () => {
+    test("returns 'test' for sk_test_ keys", () => {
+      expect(detectStripeKeyMode("sk_test_abc123")).toBe("test");
+    });
+
+    test("returns 'live' for sk_live_ keys", () => {
+      expect(detectStripeKeyMode("sk_live_abc123")).toBe("live");
+    });
+
+    test("returns null for invalid prefixes", () => {
+      expect(detectStripeKeyMode("sk_invalid_abc")).toBeNull();
+      expect(detectStripeKeyMode("rk_test_abc")).toBeNull();
+      expect(detectStripeKeyMode("")).toBeNull();
+      expect(detectStripeKeyMode("random_string")).toBeNull();
     });
   });
 

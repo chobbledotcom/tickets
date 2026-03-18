@@ -313,6 +313,42 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 400, "required");
     });
 
+    test("rejects invalid stripe key format", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "invalid_key_123",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Invalid Stripe key format",
+        "sk_test_",
+        "sk_live_",
+      );
+    });
+
+    test("rejects restricted key format", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "rk_test_abc123",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(response, 400, "Invalid Stripe key format");
+    });
+
     test("updates Stripe key successfully", async () => {
       await withMocks(
         () =>
@@ -394,6 +430,70 @@ describe("server (admin settings)", () => {
           expect(html).toContain("A Stripe secret key is currently configured");
           expect(html).toContain("stripe-test-btn");
           expect(html).toContain("Test Connection");
+        },
+      );
+    });
+
+    test("settings page shows test mode badge for sk_test_ key", async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            }),
+          ),
+        async () => {
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              {
+                stripe_secret_key: "sk_test_mode_check",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+
+          const response = await awaitTestRequest("/admin/settings", {
+            cookie: await testCookie(),
+          });
+          const html = await response.text();
+          expect(html).toContain("Test mode:");
+          expect(html).toContain("No real charges will be made");
+        },
+      );
+    });
+
+    test("settings page shows live mode badge for sk_live_ key", async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_live_123",
+              secret: "whsec_live_secret",
+            }),
+          ),
+        async () => {
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              {
+                stripe_secret_key: "sk_live_mode_check",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+
+          const response = await awaitTestRequest("/admin/settings", {
+            cookie: await testCookie(),
+          });
+          const html = await response.text();
+          expect(html).toContain("Live mode:");
+          expect(html).toContain("Payments will be charged for real");
         },
       );
     });
