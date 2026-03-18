@@ -1285,8 +1285,8 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
  * Handle POST /admin/settings/apple-wallet - owner only
  */
 const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
-  const passTypeId = `${form.get("apple_wallet_pass_type_id")}`.trim();
-  const teamId = `${form.get("apple_wallet_team_id")}`.trim();
+  const passTypeId = (form.get("apple_wallet_pass_type_id") as string).trim();
+  const teamId = (form.get("apple_wallet_team_id") as string).trim();
   const certField = processSecretField(form, "apple_wallet_signing_cert");
   const keyField = processSecretField(form, "apple_wallet_signing_key");
   const wwdrField = processSecretField(form, "apple_wallet_wwdr_cert");
@@ -1401,8 +1401,10 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
  */
 const handleGoogleWalletPost = advancedSettingsRoute(
   async (form, errorPage) => {
-    const issuerId = `${form.get("google_wallet_issuer_id")}`.trim();
-    const email = `${form.get("google_wallet_service_account_email")}`.trim();
+    const issuerId = (form.get("google_wallet_issuer_id") as string).trim();
+    const email = (
+      form.get("google_wallet_service_account_email") as string
+    ).trim();
     const keyField = processSecretField(
       form,
       "google_wallet_service_account_key",
