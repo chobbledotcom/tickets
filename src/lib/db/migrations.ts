@@ -15,7 +15,8 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add custom questions tables";
+export const LATEST_UPDATE =
+  "add question table indexes and unique constraints";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -722,6 +723,28 @@ export const initDb = async (): Promise<void> => {
       FOREIGN KEY (answer_id) REFERENCES answers(id)
     )
   `);
+
+  // Migration: add indexes on question-related foreign key columns
+  await runMigration(
+    "CREATE INDEX idx_answers_question_id ON answers(question_id)",
+  );
+  await runMigration(
+    "CREATE INDEX idx_event_questions_event_id ON event_questions(event_id)",
+  );
+  await runMigration(
+    "CREATE INDEX idx_attendee_answers_attendee_id ON attendee_answers(attendee_id)",
+  );
+  await runMigration(
+    "CREATE INDEX idx_attendee_answers_answer_id ON attendee_answers(answer_id)",
+  );
+
+  // Migration: add unique constraints to prevent duplicate mappings
+  await runMigration(
+    "CREATE UNIQUE INDEX idx_event_questions_unique ON event_questions(event_id, question_id)",
+  );
+  await runMigration(
+    "CREATE UNIQUE INDEX idx_attendee_answers_unique ON attendee_answers(attendee_id, answer_id)",
+  );
 
   // Update the version marker
   await getDb().execute({

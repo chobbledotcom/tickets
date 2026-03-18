@@ -114,6 +114,27 @@ export const attendeeAnswersTable = defineTable<
 // Queries
 // ---------------------------------------------------------------------------
 
+/** Group answers by question_id */
+const groupAnswersByQuestion = (answers: Answer[]): Map<number, Answer[]> => {
+  const result = new Map<number, Answer[]>();
+  for (const a of answers) {
+    const list = result.get(a.question_id) ?? [];
+    list.push(a);
+    result.set(a.question_id, list);
+  }
+  return result;
+};
+
+/** Attach grouped answers to questions */
+const attachAnswers = (
+  questions: Question[],
+  answerMap: Map<number, Answer[]>,
+): QuestionWithAnswers[] =>
+  map((q: Question) => ({
+    ...q,
+    answers: answerMap.get(q.id) ?? [],
+  }))(questions);
+
 /** Get all questions with their answers (sorted by sort_order), decrypted */
 export const getAllQuestionsWithAnswers = async (): Promise<
   QuestionWithAnswers[]
@@ -121,34 +142,47 @@ export const getAllQuestionsWithAnswers = async (): Promise<
   const questions = await questionsTable.findAll();
   const answers = await answersTable.findAll();
 
-  const answersByQuestion = new Map<number, Answer[]>();
-  for (const a of answers) {
-    const list = answersByQuestion.get(a.question_id) ?? [];
-    list.push(a);
-    answersByQuestion.set(a.question_id, list);
-  }
-
   // Sort answers by sort_order within each question
-  for (const list of answersByQuestion.values()) {
+  const grouped = groupAnswersByQuestion(answers);
+  for (const list of grouped.values()) {
     list.sort((a, b) => a.sort_order - b.sort_order);
   }
 
-  return map((q: Question) => ({
-    ...q,
-    answers: answersByQuestion.get(q.id) ?? [],
-  }))(questions);
+  return attachAnswers(questions, grouped);
 };
 
-/** Resolve event-question links to ordered, deduped QuestionWithAnswers */
+/** Resolve event-question links to ordered, deduped QuestionWithAnswers.
+ * Only fetches the specific questions/answers needed (not the full corpus). */
 const resolveLinkedQuestions = async (
   links: EventQuestion[],
 ): Promise<QuestionWithAnswers[]> => {
   if (links.length === 0) return [];
-  const all = await getAllQuestionsWithAnswers();
-  const byId = new Map(
-    map((q: QuestionWithAnswers) => [q.id, q] as const)(all),
-  );
   const questionIds = unique(map((l: EventQuestion) => l.question_id)(links));
+
+  const [rawQuestions, rawAnswers] = await Promise.all([
+    queryAll<Question>(
+      `SELECT * FROM questions WHERE id IN (${inPlaceholders(questionIds)})`,
+      questionIds,
+    ),
+    queryAll<Answer>(
+      `SELECT * FROM answers WHERE question_id IN (${inPlaceholders(questionIds)}) ORDER BY sort_order`,
+      questionIds,
+    ),
+  ]);
+
+  const questions = await Promise.all(
+    map((q: Question) => questionsTable.fromDb(q))(rawQuestions),
+  );
+  const answers = await Promise.all(
+    map((a: Answer) => answersTable.fromDb(a))(rawAnswers),
+  );
+
+  const withAnswers = attachAnswers(questions, groupAnswersByQuestion(answers));
+  const byId = new Map(
+    map((q: QuestionWithAnswers) => [q.id, q] as const)(withAnswers),
+  );
+
+  // Preserve link ordering (deduped)
   const result: QuestionWithAnswers[] = [];
   for (const qid of questionIds) {
     const q = byId.get(qid);
@@ -268,31 +302,21 @@ export const getAttendeeAnswersBatch = async (
   return result;
 };
 
-/** Delete a question and all related data in a single batch */
+/** Delete a question and all related data in a single batch.
+ * Uses a subquery for attendee_answers so the entire cascade is atomic. */
 export const deleteQuestion = async (questionId: number): Promise<void> => {
-  const answers = await queryAll<{ id: number }>(
-    "SELECT id FROM answers WHERE question_id = ?",
-    [questionId],
-  );
-  const answerIds = map((a: { id: number }) => a.id)(answers);
-
-  const statements = [
-    ...(answerIds.length > 0
-      ? [
-          {
-            sql: `DELETE FROM attendee_answers WHERE answer_id IN (${inPlaceholders(answerIds)})`,
-            args: answerIds,
-          },
-        ]
-      : []),
+  await executeBatch([
+    {
+      sql: "DELETE FROM attendee_answers WHERE answer_id IN (SELECT id FROM answers WHERE question_id = ?)",
+      args: [questionId],
+    },
     { sql: "DELETE FROM answers WHERE question_id = ?", args: [questionId] },
     {
       sql: "DELETE FROM event_questions WHERE question_id = ?",
       args: [questionId],
     },
     { sql: "DELETE FROM questions WHERE id = ?", args: [questionId] },
-  ];
-  await executeBatch(statements);
+  ]);
 };
 
 /** Delete an answer and all related attendee answers in a single batch */
