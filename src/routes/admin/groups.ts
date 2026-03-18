@@ -2,11 +2,11 @@
  * Admin group management routes - accessible to owners and managers
  */
 
-import { compact, map } from "#fp";
+import { map } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendeesForTable } from "#lib/db/attendees.ts";
-import { getAttendeesByEventIds, getEvent } from "#lib/db/events.ts";
+import { getAttendeesByEventIds } from "#lib/db/events.ts";
 import {
   assignEventsToGroup,
   computeGroupSlugIndex,
@@ -17,7 +17,6 @@ import {
   groupsTable,
   isGroupSlugTaken,
   resetGroupEvents,
-  validateGroupEventType,
 } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
@@ -34,9 +33,9 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   htmlResponse,
   orNotFound,
+  ownerFormById,
   redirect,
   requireSessionOr,
-  withAuthForm,
 } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
@@ -194,32 +193,21 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
   );
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
-const handleAddEventsToGroup: TypedRouteHandler<
-  "POST /admin/group/:id/add-events"
-> = (request, { id }) =>
-  withAuthForm(request, (_session, form) =>
-    withGroup(id, async (group) => {
-      const eventIds = form
-        .getAll("event_ids")
-        .map(Number)
-        .filter((n) => n > 0);
-      if (eventIds.length > 0) {
-        // Validate all events have the same type as existing group events
-        const newEvents = compact(await Promise.all(eventIds.map(getEvent)));
-        for (const event of newEvents) {
-          const typeError = await validateGroupEventType(id, event.event_type);
-          if (typeError) {
-            return redirect(`/admin/group/${id}`, typeError, false);
-          }
-        }
-        await assignEventsToGroup(eventIds, id);
-        await logActivity(
-          `${eventIds.length} event(s) added to group '${group.name}'`,
-        );
-      }
-      return redirect(`/admin/group/${id}`, "Events added to group", true);
-    }),
-  );
+const handleAddEventsToGroup = ownerFormById((id, _session, form) =>
+  withGroup(id, async (group) => {
+    const eventIds = form
+      .getAll("event_ids")
+      .map(Number)
+      .filter((n) => n > 0);
+    if (eventIds.length > 0) {
+      await assignEventsToGroup(eventIds, id);
+      await logActivity(
+        `${eventIds.length} event(s) added to group '${group.name}'`,
+      );
+    }
+    return redirect(`/admin/group/${id}`, "Events added to group", true);
+  }),
+);
 
 /** Group routes */
 export const groupsRoutes = defineRoutes({

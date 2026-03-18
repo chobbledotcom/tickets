@@ -448,8 +448,8 @@ export type MultiTicketPageOptions = {
   events: MultiTicketEvent[];
   slugs: string[];
   error?: string;
-  availableDates?: string[];
-  termsAndConditions?: string | null;
+  dates?: string[];
+  terms?: string | null;
   questions?: QuestionWithAnswers[];
 };
 
@@ -460,8 +460,8 @@ export const multiTicketPage = ({
   events,
   slugs,
   error,
-  availableDates,
-  termsAndConditions,
+  dates,
+  terms,
   questions,
 }: MultiTicketPageOptions): string => {
   const inIframe = getIframeMode();
@@ -493,8 +493,8 @@ export const multiTicketPage = ({
       ) : (
         <CsrfForm action={`/ticket/${slugs.join("+")}`}>
           <Raw html={renderFields(fields)} />
-          {hasDaily && availableDates && (
-            <Raw html={renderDateSelector(availableDates)} />
+          {hasDaily && dates && (
+            <Raw html={renderDateSelector(dates)} />
           )}
 
           {hideQuantity ? (
@@ -509,8 +509,8 @@ export const multiTicketPage = ({
           {questions && questions.length > 0 && (
             <Raw html={renderQuestions(questions)} />
           )}
-          {termsAndConditions && (
-            <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
+          {terms && (
+            <Raw html={renderTermsAndCheckbox(terms)} />
           )}
           <button type="submit">Reserve Tickets</button>
         </CsrfForm>

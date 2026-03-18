@@ -100,27 +100,115 @@ export const adminQuestionPage = (
           {map((a: Answer) => (
             <li>
               {a.text}
-              <CsrfForm
-                action={`/admin/questions/${question.id}/answers/${a.id}/delete`}
-                class="inline-form"
+              <a
+                href={`/admin/questions/${question.id}/answers/${a.id}/delete`}
+                class="danger small"
               >
-                <button type="submit" class="danger small">
-                  Delete
-                </button>
-              </CsrfForm>
+                Delete
+              </a>
             </li>
           ))(question.answers)}
         </ul>
       )}
 
-      <h2>Delete Question</h2>
+      <p>
+        <a
+          href={`/admin/questions/${question.id}/delete`}
+          class="danger"
+        >
+          Delete Question
+        </a>
+      </p>
+    </Layout>,
+  );
+
+/** Question delete confirmation page */
+export const adminQuestionDeletePage = (
+  question: QuestionWithAnswers,
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title="Delete Question">
+      <AdminNav session={session} active="/admin/questions" />
+      <Breadcrumb href={`/admin/questions/${question.id}`} label={question.text} />
+
+      <h1>Delete Question</h1>
+      <Raw html={renderError(error)} />
+
+      <article>
+        <aside>
+          <p>
+            This will permanently delete the question, all its answers, and all
+            attendee responses.
+          </p>
+        </aside>
+      </article>
+
+      <p>
+        To delete this question, type its text "{question.text}" into the box
+        below:
+      </p>
+
       <CsrfForm action={`/admin/questions/${question.id}/delete`}>
-        <p>
-          This will delete the question, all its answers, and all attendee
-          responses.
-        </p>
+        <label for="confirm_identifier">Question text</label>
+        <input
+          type="text"
+          id="confirm_identifier"
+          name="confirm_identifier"
+          placeholder={question.text}
+          autocomplete="off"
+          required
+        />
         <button type="submit" class="danger">
           Delete Question
+        </button>
+      </CsrfForm>
+    </Layout>,
+  );
+
+/** Answer delete confirmation page */
+export const adminAnswerDeletePage = (
+  question: QuestionWithAnswers,
+  answer: Answer,
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title="Delete Answer">
+      <AdminNav session={session} active="/admin/questions" />
+      <Breadcrumb href={`/admin/questions/${question.id}`} label={question.text} />
+
+      <h1>Delete Answer</h1>
+      <Raw html={renderError(error)} />
+
+      <article>
+        <aside>
+          <p>
+            This will permanently delete the answer "{answer.text}" from the
+            question "{question.text}" and remove all attendee responses for it.
+          </p>
+        </aside>
+      </article>
+
+      <p>
+        To delete this answer, type its text "{answer.text}" into the box below:
+      </p>
+
+      <CsrfForm
+        action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
+      >
+        <label for="confirm_identifier">Answer text</label>
+        <input
+          type="text"
+          id="confirm_identifier"
+          name="confirm_identifier"
+          placeholder={answer.text}
+          autocomplete="off"
+          required
+        />
+        <button type="submit" class="danger">
+          Delete Answer
         </button>
       </CsrfForm>
     </Layout>,
