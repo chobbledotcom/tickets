@@ -4049,7 +4049,10 @@ describe("server (public routes)", () => {
     };
 
     test("saves answers when question is answered correctly", async () => {
-      const event = await createTestEvent({ maxAttendees: 50, thankYouUrl: "" });
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "",
+      });
       const { question, answer1 } = await setupQuestionForEvent(event.id);
 
       const response = await submitTicketForm(event.slug, {
