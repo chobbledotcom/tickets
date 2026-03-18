@@ -3937,6 +3937,23 @@ describe("html", () => {
       expect(html).toContain("2 answers");
     });
 
+    test("renders singular answer count for one answer", () => {
+      const html = adminQuestionsPage(
+        [
+          {
+            id: 1,
+            text: "Yes or no?",
+            answers: [
+              { id: 10, question_id: 1, text: "Yes", sort_order: 0 },
+            ],
+          },
+        ],
+        TEST_SESSION,
+      );
+      expect(html).toContain("1 answer)");
+      expect(html).not.toContain("1 answers");
+    });
+
     test("renders error message when provided", () => {
       const html = adminQuestionsPage([], TEST_SESSION, "Something went wrong");
       expect(html).toContain("Something went wrong");
@@ -4059,6 +4076,27 @@ describe("html", () => {
       expect(html).toContain("No questions created yet");
       expect(html).toContain('href="/admin/questions"');
       expect(html).toContain("Create questions");
+    });
+
+    test("shows singular option count for question with one answer", () => {
+      const event = testEventWithCount({ id: 1, name: "My Event" });
+      const questions = [
+        {
+          id: 1,
+          text: "Yes or no?",
+          answers: [
+            { id: 10, question_id: 1, text: "Yes", sort_order: 0 },
+          ],
+        },
+      ];
+      const html = adminEventQuestionsPage(
+        event,
+        questions,
+        new Set(),
+        TEST_SESSION,
+      );
+      expect(html).toContain("1 option)");
+      expect(html).not.toContain("1 options");
     });
   });
 });
