@@ -6,6 +6,7 @@ import {
   deleteAnswer,
   deleteQuestion,
   getAllQuestionsWithAnswers,
+  getAttendeeAnswers,
   getAttendeeAnswersBatch,
   getQuestion,
   getQuestionsForEvent,
@@ -290,7 +291,6 @@ describe("custom questions", () => {
       expect(batch.get(att2.id)).toEqual([a2.id]);
     });
 
-
     test("empty batch for no attendees", async () => {
       const batch = await getAttendeeAnswersBatch([]);
       expect(batch.size).toBe(0);
@@ -304,6 +304,37 @@ describe("custom questions", () => {
     test("saveAttendeeAnswersBatch does nothing for empty answerIds", async () => {
       await saveAttendeeAnswersBatch([1], []);
       // No error thrown, no rows inserted
+    });
+
+    test("getAttendeeAnswers returns answers for a single attendee", async () => {
+      const q = await questionsTable.insert({ text: "Colour?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Red",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Blue",
+        sortOrder: 1,
+      });
+
+      const event = await createTestEvent();
+      const attendee = await createAttendee(event.id);
+      await saveAttendeeAnswers(attendee.id, [a1.id, a2.id]);
+
+      const answers = await getAttendeeAnswers(attendee.id);
+      expect(answers).toHaveLength(2);
+      expect(answers.map((a) => a.answer_id).sort()).toEqual(
+        [a1.id, a2.id].sort(),
+      );
+    });
+
+    test("getAttendeeAnswers returns empty for attendee with no answers", async () => {
+      const event = await createTestEvent();
+      const attendee = await createAttendee(event.id);
+      const answers = await getAttendeeAnswers(attendee.id);
+      expect(answers).toEqual([]);
     });
   });
 
