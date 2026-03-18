@@ -614,6 +614,48 @@ describe("server (admin events)", () => {
       // Non-alphanumeric characters are replaced with underscores in filename sanitization
       expect(disposition).toContain("Test_Event_Special");
     });
+
+    test("CSV export includes question columns when event has questions", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Create question, answers, and assign to event
+      const { questionsTable, answersTable, setEventQuestions } = await import(
+        "#lib/db/questions.ts"
+      );
+      const q = await questionsTable.insert({ text: "Shirt Size" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Small",
+        sortOrder: 0,
+      });
+      await answersTable.insert({
+        questionId: q.id,
+        text: "Large",
+        sortOrder: 1,
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      // Create an attendee with an answer
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "CSV Q User",
+        "csvq@test.com",
+      );
+      const { saveAttendeeAnswers } = await import("#lib/db/questions.ts");
+      await saveAttendeeAnswers(attendee.id, [a1.id]);
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        { cookie },
+      );
+      const csv = await response.text();
+      expect(csv).toContain("Shirt Size");
+      expect(csv).toContain("Small");
+    });
   });
 
   describe("GET /admin/event/:id/edit", () => {

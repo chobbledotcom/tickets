@@ -248,15 +248,6 @@ export const saveAttendeeAnswers = (
   answerIds: number[],
 ): Promise<void> => saveAttendeeAnswersBatch([attendeeId], answerIds);
 
-/** Get answers for an attendee */
-export const getAttendeeAnswers = (
-  attendeeId: number,
-): Promise<AttendeeAnswer[]> =>
-  queryAll<AttendeeAnswer>(
-    "SELECT * FROM attendee_answers WHERE attendee_id = ?",
-    [attendeeId],
-  );
-
 /** Get answers for multiple attendees in a single query */
 export const getAttendeeAnswersBatch = async (
   attendeeIds: number[],
