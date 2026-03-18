@@ -85,9 +85,8 @@ const handleQuestionsPost = (request: Request): Promise<Response> =>
   });
 
 /** Handle GET /admin/questions/:id */
-const handleQuestionGet = ownerGetById(
-  getQuestionWithAnswers,
-  (q, session) => htmlResponse(adminQuestionPage(q, session)),
+const handleQuestionGet = ownerGetById(getQuestionWithAnswers, (q, session) =>
+  htmlResponse(adminQuestionPage(q, session)),
 );
 
 /** Shared handler for question-scoped text submit actions (edit/add answer) */
@@ -142,7 +141,11 @@ const handleDeleteQuestionPost = ownerFormById(async (id, session, form) => {
     const questionWithAnswers = await getQuestionWithAnswers(id);
     return questionWithAnswers
       ? htmlResponse(
-          adminQuestionDeletePage(questionWithAnswers, session, CONFIRM_TEXT_MSG),
+          adminQuestionDeletePage(
+            questionWithAnswers,
+            session,
+            CONFIRM_TEXT_MSG,
+          ),
           400,
         )
       : notFoundResponse();
@@ -178,7 +181,10 @@ const withAnswerAuth =
   <Extra extends unknown[]>(
     auth: (
       request: Request,
-      handler: (session: AdminSession, ...extra: Extra) => Response | Promise<Response>,
+      handler: (
+        session: AdminSession,
+        ...extra: Extra
+      ) => Response | Promise<Response>,
     ) => Promise<Response>,
   ) =>
   (handler: AnswerHandler<Extra>) =>

@@ -162,7 +162,11 @@ const renderTicketPage = (
 
 /** Ticket response builder (CSRF token auto-embedded by CsrfForm) */
 const ticketResponseWithToken =
-  (event: EventWithCount, ctx: TicketContext, opts: { isClosed?: boolean; baseUrl?: string } = {}) =>
+  (
+    event: EventWithCount,
+    ctx: TicketContext,
+    opts: { isClosed?: boolean; baseUrl?: string } = {},
+  ) =>
   (error?: string, status = 200) =>
     htmlResponse(renderTicketPage(event, ctx, { ...opts, error }), status);
 
@@ -207,7 +211,10 @@ const handleSingleTicketGet = (
     ]);
     const ctx: TicketContext = { dates, terms, questions };
     return applyHiddenNoindex(
-      ticketResponseWithToken(event, ctx, { isClosed: closed, baseUrl: getBaseUrl(request) })(),
+      ticketResponseWithToken(event, ctx, {
+        isClosed: closed,
+        baseUrl: getBaseUrl(request),
+      })(),
       event.hidden,
     );
   });
@@ -433,9 +440,10 @@ const processTicketReservation = async (
         if (!date) return showError("Please select a valid date");
       }
 
-      const date = event.event_type === "daily"
-        ? validateSubmittedDate(form, ctx.dates ?? [])
-        : null;
+      const date =
+        event.event_type === "daily"
+          ? validateSubmittedDate(form, ctx.dates ?? [])
+          : null;
       const quantity = parseQuantity(form, event);
 
       // Parse custom price for pay-more events
@@ -740,7 +748,7 @@ const handleMultiTicket = async (
   activeEvents: MultiTicketEvent[],
   getContext: MultiTicketContextProvider,
 ): Promise<Response> => {
-  const [{ dates, terms, questions }] = await Promise.all([
+  const [{ dates, terms, questions, questionEventMap }] = await Promise.all([
     loadMultiTicketMeta(activeEvents, getContext),
     signCsrfToken(),
   ]);
@@ -750,6 +758,7 @@ const handleMultiTicket = async (
     dates,
     terms,
     questions,
+    questionEventMap,
   };
   const response =
     request.method === "GET"
