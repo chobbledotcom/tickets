@@ -12,7 +12,6 @@ import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import { Layout } from "#templates/layout.tsx";
 
 export type AdvancedSettingsPageState = {
-  timezone: string;
   showPublicApi: boolean;
   emailProvider: string;
   emailApiKeyConfigured: boolean;
@@ -460,25 +459,6 @@ export const adminAdvancedSettingsPage = (
           </button>
         </CsrfForm>
       )}
-
-      <CsrfForm action="/admin/settings/timezone" id="settings-timezone">
-        <h2>Timezone</h2>
-        <p>
-          All dates and times will be interpreted and displayed in this
-          timezone.
-        </p>
-        <label>
-          IANA Timezone
-          <select name="timezone" required>
-            {Intl.supportedValuesOf("timeZone").map((tz: string) => (
-              <option value={tz} selected={tz === s.timezone}>
-                {tz}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit">Save Timezone</button>
-      </CsrfForm>
 
       {s.bunnyCdnEnabled && (
         <div>

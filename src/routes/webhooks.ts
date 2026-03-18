@@ -37,16 +37,10 @@ import {
 } from "#lib/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
-  extractSessionMetadata,
-  hasRequiredSessionMetadata,
-} from "#lib/payment-helpers.ts";
-import {
   getActivePaymentProvider,
-  isPaymentStatus,
   type RegistrationIntent,
   type SessionMetadata,
   type ValidatedPaymentSession,
-  type WebhookEvent,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import {
@@ -343,18 +337,21 @@ const validateAndPrice = async (
 };
 
 /** Check if the amount charged matches the current event price (including booking fee).
- * For pay-more events, the amount must be >= the expected minimum price and <= the max cap. */
+ * For pay-more events, the amount must be >= the expected minimum price and <= the max cap.
+ * `quantity` scales max_price so multi-ticket purchases are validated against the correct total cap. */
 const hasPriceMismatch = (
   amountTotal: number,
   expectedPrice: number,
   event: Pick<EventWithCount, "can_pay_more" | "max_price">,
-  bookingFeePercent = 0,
+  bookingFeePercent: number,
+  quantity: number,
 ): boolean => {
   if (event.can_pay_more) {
     const minWithFee =
       expectedPrice + calculateBookingFee(expectedPrice, bookingFeePercent);
+    const maxTicketTotal = event.max_price * quantity;
     const maxWithFee =
-      event.max_price + calculateBookingFee(event.max_price, bookingFeePercent);
+      maxTicketTotal + calculateBookingFee(maxTicketTotal, bookingFeePercent);
     return amountTotal < minWithFee || amountTotal > maxWithFee;
   }
   const expectedWithFee =
@@ -517,7 +514,7 @@ const processMultiPaymentSession = async (
   if (hasPerItemPrices) {
     // Per-item prices are ticket-only (no fee), so validate without booking fee
     for (const { item, event, expectedPrice } of validatedItems) {
-      if (hasPriceMismatch(item.p, expectedPrice, event)) {
+      if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
         return priceMismatchRefund(
           session,
           `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
@@ -676,6 +673,7 @@ const processPaymentSession = async (
       expectedPrice,
       event,
       bookingFeePercent,
+      intent.quantity,
     )
   ) {
     return priceMismatchRefund(
@@ -893,42 +891,6 @@ const handlePaymentCancel = withSessionId(async (sid) => {
  * Handles events directly from payment providers with signature verification.
  */
 
-/**
- * Validate webhook event data and extract session.
- * Returns null if data is invalid.
- * Supports both single-event and multi-event sessions.
- * Caller must verify event.type matches before calling.
- */
-const extractSessionFromEvent = (
-  event: WebhookEvent,
-): ValidatedPaymentSession | null => {
-  const obj = event.data.object;
-  const metadata = obj.metadata as
-    | Record<string, string | undefined>
-    | undefined;
-
-  // Validate required fields with strict type checking
-  if (
-    typeof obj.id !== "string" ||
-    typeof obj.payment_status !== "string" ||
-    typeof obj.amount_total !== "number" ||
-    !hasRequiredSessionMetadata(metadata)
-  ) {
-    return null;
-  }
-
-  return {
-    id: obj.id,
-    paymentStatus: isPaymentStatus(obj.payment_status)
-      ? obj.payment_status
-      : "unpaid",
-    paymentReference:
-      typeof obj.payment_intent === "string" ? obj.payment_intent : "",
-    amountTotal: obj.amount_total,
-    metadata: extractSessionMetadata(metadata),
-  };
-};
-
 /** JSON response acknowledging a webhook event without processing */
 const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
   jsonResponse({ received: true, ...extra });
@@ -938,15 +900,6 @@ const getWebhookSignatureHeader = (request: Request): string | null =>
   request.headers.get("stripe-signature") ??
   request.headers.get("x-square-hmacsha256-signature") ??
   null;
-
-/** Extract order/session ID from webhook event object (used for Square fallback) */
-const extractSessionIdFromObject = (
-  obj: Record<string, unknown>,
-): string | null => {
-  if (typeof obj.order_id === "string") return obj.order_id;
-  if (typeof obj.id === "string") return obj.id;
-  return null;
-};
 
 /**
  * Handle POST /payment/webhook (payment provider webhook endpoint)
@@ -960,6 +913,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
   // Cannot read body as underlying resource unavailable" errors.
   const payloadBytes = new Uint8Array(await request.arrayBuffer());
+  const payload = new TextDecoder().decode(payloadBytes);
 
   // Get signature header (sync — headers are always available)
   const signature = getWebhookSignatureHeader(request);
@@ -968,6 +922,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Webhook missing signature header",
     });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Missing signature", 400);
   }
 
@@ -977,10 +932,9 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Webhook received but payment provider not configured",
     });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Payment provider not configured", 400);
   }
-
-  const payload = new TextDecoder().decode(payloadBytes);
 
   // Use the public-facing domain for signature verification. Square signs the
   // webhook using the exact notification URL from the subscription, which is the
@@ -1000,6 +954,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SIGNATURE,
       detail: `Webhook signature verification failed: ${verification.error}`,
     });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse(verification.error, 400);
   }
 
@@ -1011,42 +966,24 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse();
   }
 
-  // Try to extract session directly from event data (works for Stripe).
-  // For providers like Square where webhook payload is a payment object
-  // (not the order with metadata), fall back to retrieveSession.
-  let session = extractSessionFromEvent(event);
+  // Delegate session extraction to the provider — each provider knows how to
+  // resolve a session from its own webhook event structure.
+  const sessionResult = await provider.resolveWebhookSession(event);
 
-  if (!session) {
-    // Attempt provider-specific retrieval using order/session ID from event data
-    const obj = event.data.object;
-    const sessionId = extractSessionIdFromObject(obj);
-
-    if (!sessionId) {
-      logError({
-        code: ErrorCode.PAYMENT_SESSION,
-        detail: "Webhook event missing session ID",
-      });
-      return plainResponse("Invalid session data", 400);
-    }
-
-    // For Square payment.updated: check payment status before retrieving order
-    if (typeof obj.status === "string" && obj.status !== "COMPLETED") {
-      logError({
-        code: ErrorCode.PAYMENT_SESSION,
-        detail: `Webhook payment not completed (status=${obj.status})`,
-      });
-      return webhookAckResponse({ status: "pending" });
-    }
-
-    session = await provider.retrieveSession(sessionId);
-    if (!session) {
-      logError({
-        code: ErrorCode.PAYMENT_SESSION,
-        detail: `Failed to retrieve session ${sessionId}`,
-      });
-      return plainResponse("Invalid session data", 400);
-    }
+  if (sessionResult === "skip") {
+    return webhookAckResponse({ status: "pending" });
   }
+
+  if (!sessionResult) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Webhook event missing session data",
+    });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
+    return plainResponse("Invalid session data", 400);
+  }
+
+  const session = sessionResult;
 
   // Verify session originated from this instance. Sessions created by a
   // different application sharing the same payment provider account will not
@@ -1056,6 +993,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Ignoring webhook for unrecognized payment session",
     });
+    logDebug("Webhook", `Ignored payload: ${payload}`);
     return webhookAckResponse();
   }
 
@@ -1065,6 +1003,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})`,
     });
+    logDebug("Webhook", `Pending payload: ${payload}`);
     return webhookAckResponse({ status: "pending" });
   }
 
@@ -1081,6 +1020,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
         code: ErrorCode.PAYMENT_SESSION,
         detail: `Invalid multi-ticket session data for ${session.id}`,
       });
+      logDebug("Webhook", `Rejected payload: ${payload}`);
       return plainResponse("Invalid multi-ticket session data", 400);
     }
     eventIdForLog = multiIntent.items[0]?.e;
@@ -1101,6 +1041,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       eventId: eventIdForLog,
       detail: result.detail ?? result.error,
     });
+    logDebug("Webhook", `Failed payload: ${payload}`);
   }
 
   return webhookAckResponse({

@@ -193,6 +193,18 @@ export interface PaymentProvider {
 
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
+
+  /**
+   * Resolve a validated session from a webhook event.
+   * Each provider knows how to extract/fetch session data from its own
+   * event structure, so the webhook handler stays provider-agnostic.
+   *
+   * @returns the session, "skip" if the event should be acknowledged
+   *          without processing (e.g. pending payment), or null on error.
+   */
+  resolveWebhookSession(
+    event: WebhookEvent,
+  ): Promise<ValidatedPaymentSession | "skip" | null>;
 }
 
 /**

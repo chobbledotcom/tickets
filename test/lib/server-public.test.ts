@@ -1104,6 +1104,72 @@ describe("server (public routes)", () => {
       expect(attendees2[0]?.quantity).toBe(2);
     });
 
+    test("rejects group registration when group capacity exceeded", async () => {
+      const group = await createTestGroup({
+        name: "Cap Group",
+        slug: "cap-group",
+        maxAttendees: 3,
+      });
+      const event1 = await createTestEvent({
+        name: "Cap Event 1",
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Cap Event 2",
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+
+      // First booking: 2 on event1 — should succeed (group: 2/3)
+      const getResponse1 = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      const csrfToken1 = getTicketCsrfToken(await getResponse1.text());
+      if (!csrfToken1) throw new Error("Failed to get CSRF token");
+      const r1 = await handleRequest(
+        mockFormRequest(
+          `/ticket/${group.slug}`,
+          {
+            name: "First User",
+            email: "first@example.com",
+            [`quantity_${event1.id}`]: "2",
+            [`quantity_${event2.id}`]: "0",
+            csrf_token: csrfToken1,
+          },
+          `csrf_token=${csrfToken1}`,
+        ),
+      );
+      expectReservedRedirectWithTokens(r1);
+
+      // Second booking: 1 on event1 + 1 on event2 — should fail (group: 2+2=4 > 3)
+      const getResponse2 = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      const csrfToken2 = getTicketCsrfToken(await getResponse2.text());
+      if (!csrfToken2) throw new Error("Failed to get CSRF token");
+      const r2 = await handleRequest(
+        mockFormRequest(
+          `/ticket/${group.slug}`,
+          {
+            name: "Second User",
+            email: "second@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken2,
+          },
+          `csrf_token=${csrfToken2}`,
+        ),
+      );
+      // The first atomic insert (event1 qty=1) succeeds (group: 3/3),
+      // but the second (event2 qty=1) fails because group is now full
+      const html = await r2.text();
+      expect(r2.status).toBe(400);
+      expect(html).toContain("no longer has enough spots available");
+    });
+
     test("returns 404 for inactive event", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -3955,6 +4021,102 @@ describe("server (public routes)", () => {
         custom_price: "45.00",
       });
       expectCheckoutRedirect(response);
+    });
+  });
+
+  describe("booking form event_id manipulation", () => {
+    test("single-ticket form ignores injected event_id field", async () => {
+      const target = await createTestEvent({
+        name: "Target Event",
+        maxAttendees: 50,
+      });
+      const other = await createTestEvent({
+        name: "Other Event",
+        maxAttendees: 50,
+      });
+
+      // Submit form to target event but inject other event's id
+      const response = await submitTicketForm(target.slug, {
+        name: "Mallory",
+        email: "mallory@example.com",
+        event_id: String(other.id),
+      });
+      // Booking succeeds (302 redirect to thank-you URL)
+      expect(response.status).toBe(302);
+
+      // Verify booking went to the URL's event, not the injected one
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const targetAttendees = await getAttendeesRaw(target.id);
+      const otherAttendees = await getAttendeesRaw(other.id);
+      expect(targetAttendees.length).toBe(1);
+      expect(otherAttendees.length).toBe(0);
+    });
+
+    test("multi-ticket form ignores quantity fields for events not in URL", async () => {
+      const event1 = await createTestEvent({
+        name: "Legit Event 1",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Legit Event 2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const secret = await createTestEvent({
+        name: "Secret Event",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+
+      // Submit multi-ticket form with only event1+event2 in URL
+      // but inject quantity for the secret event
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(path, {
+          name: "Mallory",
+          email: "mallory@example.com",
+          [`quantity_${event1.id}`]: "1",
+          [`quantity_${event2.id}`]: "0",
+          [`quantity_${secret.id}`]: "3",
+          csrf_token: csrfToken,
+        }),
+      );
+      expectReservedRedirectWithTokens(response);
+
+      // Verify only event1 was booked; secret event was not
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(event1.id);
+      const attendees2 = await getAttendeesRaw(event2.id);
+      const secretAttendees = await getAttendeesRaw(secret.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees2.length).toBe(0);
+      expect(secretAttendees.length).toBe(0);
+    });
+
+    test("multi-ticket URL cannot book inactive events", async () => {
+      const active = await createTestEvent({
+        name: "Active Event",
+        maxAttendees: 50,
+      });
+      const inactive = await createTestEvent({
+        name: "Inactive Event",
+        maxAttendees: 50,
+      });
+      await deactivateTestEvent(inactive.id);
+
+      // Try to load multi-ticket page with inactive event in URL
+      const path = `/ticket/${active.slug}+${inactive.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const html = await getResponse.text();
+
+      // Page should load but only show the active event
+      expect(html).toContain("Active Event");
+      expect(html).not.toContain("Inactive Event");
     });
   });
 });

@@ -6,7 +6,6 @@ import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import {
   getCustomDomainFromDb,
   getCustomDomainLastValidatedFromDb,
-  getTimezoneFromDb,
   updateCustomDomain,
   updateCustomDomainLastValidated,
 } from "#lib/db/settings.ts";
@@ -86,7 +85,6 @@ describe("server (admin settings-advanced)", () => {
       expect(html).toContain('id="settings-email-tpl-confirmation"');
       expect(html).toContain('id="settings-email-tpl-admin"');
       expect(html).toContain('id="settings-email"');
-      expect(html).toContain('id="settings-timezone"');
       expect(html).toContain('id="settings-reset-database"');
     });
 
@@ -110,89 +108,12 @@ describe("server (admin settings-advanced)", () => {
 
     test("displays success message on the matching form when form param is provided", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings-advanced?success=Timezone+updated&form=settings-timezone",
+        "/admin/settings-advanced?success=API+enabled&form=settings-show-public-api",
         { cookie: await testCookie() },
       );
       const html = await response.text();
-      expect(html).toContain('id="settings-timezone"');
-      expect(html).toContain("Timezone updated");
-    });
-  });
-
-  describe("POST /admin/settings/timezone", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/timezone", {
-          timezone: "America/New_York",
-        }),
-      );
-      expectAdminRedirect(response);
-    });
-
-    test("rejects invalid CSRF token", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "America/New_York", csrf_token: "invalid-csrf-token" },
-          await testCookie(),
-        ),
-      );
-      expect(response.status).toBe(403);
-    });
-
-    test("saves valid timezone", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "America/New_York", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(location).toContain("/admin/settings-advanced");
-      expect(location).toContain("form=settings-timezone");
-      expect(location).toContain("#settings-timezone");
-      const saved = await getTimezoneFromDb();
-      expect(saved).toBe("America/New_York");
-    });
-
-    test("rejects empty timezone", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
-      await expectHtmlResponse(response, 400, "Timezone is required");
-    });
-
-    test("rejects invalid timezone string", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          {
-            timezone: "Not/A/Real/Timezone",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
-      await expectHtmlResponse(response, 400, "Invalid timezone");
-    });
-
-    test("trims whitespace from timezone value", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "  Europe/London  ", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
-      expect(response.status).toBe(302);
-      const saved = await getTimezoneFromDb();
-      expect(saved).toBe("Europe/London");
+      expect(html).toContain('id="settings-show-public-api"');
+      expect(html).toContain("API enabled");
     });
   });
 

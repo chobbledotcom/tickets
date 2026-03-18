@@ -25,6 +25,7 @@ import type {
   PaymentProvider,
   RegistrationIntent,
   ValidatedPaymentSession,
+  WebhookEvent,
   WebhookSetupResult,
 } from "#lib/payments.ts";
 import {
@@ -132,5 +133,43 @@ export const squarePaymentProvider: PaymentProvider = {
       error:
         "Square webhooks must be configured manually in the Square Developer Dashboard",
     });
+  },
+
+  async resolveWebhookSession(
+    event: WebhookEvent,
+  ): Promise<ValidatedPaymentSession | "skip" | null> {
+    const obj = event.data.object;
+
+    // Square nests payment fields under data.object.payment
+    const payment =
+      typeof obj.payment === "object" && obj.payment !== null
+        ? (obj.payment as Record<string, unknown>)
+        : obj;
+
+    // Extract the order ID (Square's session equivalent)
+    const orderId =
+      typeof payment.order_id === "string"
+        ? payment.order_id
+        : typeof payment.id === "string"
+          ? payment.id
+          : null;
+
+    if (!orderId) return Promise.resolve(null);
+
+    // Skip non-completed payments to avoid unnecessary API calls
+    if (typeof payment.status === "string" && payment.status !== "COMPLETED") {
+      logDebug(
+        "Square",
+        `Skipping webhook for non-completed payment (status=${payment.status})`,
+      );
+      return Promise.resolve("skip");
+    }
+
+    // If the order has no metadata (e.g. created directly in Square
+    // dashboard/POS, not by our system), skip silently instead of treating
+    // it as an error — avoids noisy logs and 400 responses that trigger
+    // Square webhook retries.
+    const session = await this.retrieveSession(orderId);
+    return session ?? "skip";
   },
 };

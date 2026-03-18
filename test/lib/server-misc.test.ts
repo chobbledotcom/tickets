@@ -101,7 +101,7 @@ describe("server (misc)", () => {
 
     describe("Content-Security-Policy", () => {
       const baseCsp =
-        "default-src 'self'; style-src 'self'; script-src 'self' https://*.squarecdn.com https://js.squareup.com https://js.squareupsandbox.com; connect-src 'self' https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com; form-action 'self' https://checkout.stripe.com";
+        "default-src 'self'; style-src 'self'; script-src 'self' https://*.squarecdn.com https://js.squareup.com https://js.squareupsandbox.com; connect-src 'self' https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com; form-action 'self' https://checkout.stripe.com https://square.link";
 
       test("non-embeddable pages have frame-ancestors 'none' and security restrictions", async () => {
         const response = await handleRequest(mockRequest("/"));
@@ -137,6 +137,23 @@ describe("server (misc)", () => {
       test("responses have X-Robots-Tag: noindex, nofollow", async () => {
         const response = await handleRequest(mockRequest("/"));
         expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      });
+
+      test("omits Strict-Transport-Security on localhost", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.headers.has("strict-transport-security")).toBe(false);
+      });
+
+      test("includes Strict-Transport-Security on non-localhost domains", async () => {
+        setAllowedDomainForTest("example.com");
+        try {
+          const response = await handleRequest(mockRequest("/"));
+          expect(response.headers.get("strict-transport-security")).toBe(
+            "max-age=63072000; includeSubDomains; preload",
+          );
+        } finally {
+          resetAllowedDomain();
+        }
       });
 
       test("ticket pages also have base security headers", async () => {

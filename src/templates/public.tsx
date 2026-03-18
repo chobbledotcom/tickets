@@ -396,7 +396,7 @@ const renderMultiEventRow = (
         const options = Array.from({ length: maxPurchasable + 1 }, (_, i) => i)
           .map((n) => `<option value="${n}">${n}</option>`)
           .join("");
-        return `<select name="${fieldName}" id="${fieldName}">${options}</select>`;
+        return `<select name="${fieldName}">${options}</select>`;
       })();
 
   const showPayMore = event.can_pay_more;
@@ -405,9 +405,8 @@ const renderMultiEventRow = (
   return `
     <div class="multi-ticket-row">
       ${imageHtml}
-      <label for="${fieldName}">${escapeHtml(event.name)}</label>
+      <label>${escapeHtml(event.name)}${quantityHtml}</label>
       ${renderMultiEventDescription(event.description)}
-      ${quantityHtml}
       ${showPayMore ? renderPayMoreInput(event, priceFieldName) : ""}
     </div>
   `;

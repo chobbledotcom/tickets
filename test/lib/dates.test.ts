@@ -10,7 +10,7 @@ import {
   getNextBookableDate,
   normalizeDatetime,
 } from "#lib/dates.ts";
-import { updateTimezone } from "#lib/db/settings.ts";
+import { setTimezoneForTest } from "#lib/db/settings.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { createTestDbWithSetup, resetDb, testEvent } from "#test-utils";
 
@@ -30,7 +30,7 @@ const ALL_DAYS = [
 describe("dates", () => {
   beforeEach(async () => {
     await createTestDbWithSetup();
-    await updateTimezone("UTC");
+    setTimezoneForTest("UTC");
   });
 
   afterEach(() => {
@@ -307,9 +307,9 @@ describe("dates", () => {
       );
     });
 
-    test("converts datetime-local to UTC using timezone", async () => {
+    test("converts datetime-local to UTC using timezone", () => {
       // 14:30 BST (June) = 13:30 UTC
-      await updateTimezone("Europe/London");
+      setTimezoneForTest("Europe/London");
       const result = normalizeDatetime("2026-06-15T14:30", "date");
       expect(result).toBe("2026-06-15T13:30:00.000Z");
     });
@@ -322,9 +322,9 @@ describe("dates", () => {
       );
     });
 
-    test("converts UTC datetime to local date in timezone", async () => {
+    test("converts UTC datetime to local date in timezone", () => {
       // 23:30 UTC on June 15 = 00:30 BST on June 16 (Europe/London in summer)
-      await updateTimezone("Europe/London");
+      setTimezoneForTest("Europe/London");
       expect(eventDateToCalendarDate("2026-06-15T23:30:00.000Z")).toBe(
         "2026-06-16",
       );
@@ -338,8 +338,8 @@ describe("dates", () => {
       expect(eventDateToCalendarDate("not-a-date")).toBeNull();
     });
 
-    test("returns null for invalid timezone", async () => {
-      await updateTimezone("Invalid/Zone");
+    test("returns null for invalid timezone", () => {
+      setTimezoneForTest("Invalid/Zone");
       expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z")).toBeNull();
     });
 

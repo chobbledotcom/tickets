@@ -32,6 +32,7 @@ import {
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
+  isWebhookPath,
 } from "#routes/middleware.ts";
 import { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
@@ -289,16 +290,32 @@ const logAndReturn = (
 /**
  * Handle incoming requests with security headers and domain validation
  */
-export const handleRequest = (
+export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
+  // Buffer webhook body BEFORE entering async context wrappers. The Bunny Edge
+  // runtime can garbage-collect the underlying request body resource during
+  // awaits, so we must capture it while the resource is still alive.
+  const { pathname } = new URL(request.url);
+  const webhookBody =
+    request.method === "POST" && isWebhookPath(pathname)
+      ? new Uint8Array(await request.arrayBuffer())
+      : undefined;
+  const effectiveRequest = webhookBody
+    ? new Request(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: webhookBody,
+      })
+    : request;
+
   return runWithRequestId(() =>
     runWithQueryLogContext(() =>
       runWithSessionContext(async () => {
-        const { url, path, method } = parseRequest(request);
+        const { url, path, method } = parseRequest(effectiveRequest);
         const getElapsed = createRequestTimer();
-        detectIframeMode(request.url);
+        detectIframeMode(effectiveRequest.url);
 
         try {
           // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
@@ -318,11 +335,11 @@ export const handleRequest = (
           }
 
           // Domain validation: redirect requests from unauthorized domains to the allowed domain
-          if (!isValidDomain(request)) {
-            const redirectUrl = buildDomainRedirectUrl(request);
+          if (!isValidDomain(effectiveRequest)) {
+            const redirectUrl = buildDomainRedirectUrl(effectiveRequest);
             logDebug(
               "Domain",
-              `Redirecting to ${redirectUrl} (${getDomainRejectionReason(request)})`,
+              `Redirecting to ${redirectUrl} (${getDomainRejectionReason(effectiveRequest)})`,
             );
             return logAndReturn(
               domainRedirectResponse(redirectUrl),
@@ -336,7 +353,7 @@ export const handleRequest = (
 
           // Content-Type validation: reject POST requests without proper Content-Type
           // (webhook endpoints accept JSON, all others require form-urlencoded)
-          if (!isValidContentType(request, path)) {
+          if (!isValidContentType(effectiveRequest, path)) {
             return logAndReturn(
               contentTypeRejectionResponse(),
               method,
@@ -347,7 +364,7 @@ export const handleRequest = (
 
           try {
             const response = await handleRequestInternal(
-              request,
+              effectiveRequest,
               path,
               method,
               server,

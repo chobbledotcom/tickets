@@ -2074,11 +2074,9 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("webhook with checkout event but non-COMPLETED status returns pending", async () => {
+    test("webhook returns pending when resolveWebhookSession returns skip", async () => {
       await setupStripe();
 
-      // Event type matches but metadata is invalid so extractSessionFromEvent returns null
-      // data object has id (for sessionId) and status "PENDING" (covers lines 605-607)
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = stub(
         stripePaymentProvider,
@@ -2087,17 +2085,16 @@ describe("server (webhooks)", () => {
           Promise.resolve({
             valid: true,
             event: {
-              id: "evt_pending_square",
+              id: "evt_skip",
               type: "checkout.session.completed",
-              data: {
-                object: {
-                  id: "pay_pending_123",
-                  status: "PENDING",
-                  // No payment_status or metadata -> extractSessionFromEvent returns null
-                },
-              },
+              data: { object: {} },
             },
           }),
+      );
+      const mockResolve = stub(
+        stripePaymentProvider,
+        "resolveWebhookSession",
+        () => Promise.resolve("skip" as const),
       );
 
       try {
@@ -2110,14 +2107,13 @@ describe("server (webhooks)", () => {
         expect(json.status).toBe("pending");
       } finally {
         mockVerify.restore();
+        mockResolve.restore();
       }
     });
 
-    test("webhook fallback uses order_id when present in event data", async () => {
+    test("webhook returns 400 when resolveWebhookSession returns null", async () => {
       await setupStripe();
 
-      // Event with order_id instead of id triggers the order_id branch
-      // in extractSessionIdFromObject
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = stub(
         stripePaymentProvider,
@@ -2126,22 +2122,15 @@ describe("server (webhooks)", () => {
           Promise.resolve({
             valid: true,
             event: {
-              id: "evt_order_id_test",
+              id: "evt_null",
               type: "checkout.session.completed",
-              data: {
-                object: {
-                  order_id: "order_abc123",
-                  status: "COMPLETED",
-                  // No metadata -> extractSessionFromEvent returns null
-                },
-              },
+              data: { object: {} },
             },
           }),
       );
-
-      const mockRetrieveSession = stub(
+      const mockResolve = stub(
         stripePaymentProvider,
-        "retrieveSession",
+        "resolveWebhookSession",
         () => Promise.resolve(null),
       );
 
@@ -2149,13 +2138,12 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        // retrieveSession returns null -> "Invalid session data"
         expect(response.status).toBe(400);
         const text = await response.text();
         expect(text).toBe("Invalid session data");
       } finally {
         mockVerify.restore();
-        mockRetrieveSession.restore();
+        mockResolve.restore();
       }
     });
 
@@ -3733,6 +3721,124 @@ describe("server (webhooks)", () => {
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
         Promise.resolve({ id: "re_total" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
+    test("multi-ticket can_pay_more accepts total at max_price × quantity boundary", async () => {
+      await setupStripe();
+
+      // unitPrice=1000, maxPrice=10000 (default), quantity=2
+      // maxWithFee = 10000 * 2 = 20000 (no booking fee in tests)
+      // amount_total=20000 is exactly at the boundary → should be accepted
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        canPayMore: true,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_qty2_at_max",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_qty2_at_max",
+                  payment_status: "paid",
+                  payment_intent: "pi_qty2_at_max",
+                  amount_total: 20000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Boundary User",
+                    email: "boundary@example.com",
+                    quantity: "2",
+                  }),
+                },
+              },
+            },
+          }),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify one attendee record was created (quantity=2 is stored on the record)
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(2);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("multi-ticket can_pay_more rejects total above max_price × quantity", async () => {
+      await setupStripe();
+
+      // unitPrice=1000, maxPrice=10000 (default), quantity=2
+      // maxWithFee = 10000 * 2 = 20000 (no booking fee in tests)
+      // amount_total=20001 exceeds the boundary → should be refunded
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        canPayMore: true,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_qty2_over_max",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_qty2_over_max",
+                  payment_status: "paid",
+                  payment_intent: "pi_qty2_over_max",
+                  amount_total: 20001,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Overpay Qty2 User",
+                    email: "overpay-qty2@example.com",
+                    quantity: "2",
+                  }),
+                },
+              },
+            },
+          }),
+      );
+
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_qty2_over_max" } as unknown as Awaited<
           ReturnType<typeof stripeApi.refundPayment>
         >),
       );

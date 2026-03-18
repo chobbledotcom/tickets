@@ -682,4 +682,60 @@ describe("Public API", () => {
       expect(response.status).toBe(404);
     });
   });
+
+  describe("booking event_id manipulation", () => {
+    test("ignores event_id in JSON body", async () => {
+      const target = await createTestEvent({ maxAttendees: 50 });
+      const other = await createTestEvent({ maxAttendees: 50 });
+
+      const { response } = await bookEvent(target.slug, {
+        name: "Mallory",
+        email: "mallory@example.com",
+        event_id: other.id,
+      });
+      expect(response.status).toBe(200);
+
+      // Verify booking went to target (URL slug), not other (injected id)
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const targetAttendees = await getAttendeesRaw(target.id);
+      const otherAttendees = await getAttendeesRaw(other.id);
+      expect(targetAttendees.length).toBe(1);
+      expect(otherAttendees.length).toBe(0);
+    });
+
+    test("returns 404 for non-existent slug even with valid event_id in body", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+
+      const { response } = await bookEvent("nonexistent", {
+        name: "Mallory",
+        email: "mallory@example.com",
+        event_id: event.id,
+      });
+      expect(response.status).toBe(404);
+
+      // Verify no booking was created
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(0);
+    });
+
+    test("ignores slug field in JSON body", async () => {
+      const target = await createTestEvent({ maxAttendees: 50 });
+      const other = await createTestEvent({ maxAttendees: 50 });
+
+      const { response } = await bookEvent(target.slug, {
+        name: "Mallory",
+        email: "mallory@example.com",
+        slug: other.slug,
+      });
+      expect(response.status).toBe(200);
+
+      // Booking goes to URL slug, body slug is ignored
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const targetAttendees = await getAttendeesRaw(target.id);
+      const otherAttendees = await getAttendeesRaw(other.id);
+      expect(targetAttendees.length).toBe(1);
+      expect(otherAttendees.length).toBe(0);
+    });
+  });
 });

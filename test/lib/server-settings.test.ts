@@ -10,6 +10,7 @@ import {
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
+import { squareApi } from "#lib/square.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -68,30 +69,28 @@ describe("server (admin settings)", () => {
 
     test("displays success message on the matching form when form param is provided", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings?success=Phone+prefix+updated&form=settings-phone-prefix",
+        "/admin/settings?success=Country+updated&form=settings-country",
         { cookie: await testCookie() },
       );
       const html = await response.text();
-      expect(html).toContain('id="settings-phone-prefix"');
-      expect(html).toContain("Phone prefix updated");
+      expect(html).toContain('id="settings-country"');
+      expect(html).toContain("Country updated");
       // The success message should be inside the form, not as a global banner
-      const formMatch = html.match(
-        /id="settings-phone-prefix"[\s\S]*?<\/form>/,
-      );
+      const formMatch = html.match(/id="settings-country"[\s\S]*?<\/form>/);
       expect(formMatch).toBeDefined();
-      expect(formMatch![0]).toContain("Phone prefix updated");
+      expect(formMatch![0]).toContain("Country updated");
     });
 
     test("does not show success on non-matching forms", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings?success=Timezone+updated&form=settings-timezone",
+        "/admin/settings?success=Country+updated&form=settings-country",
         { cookie: await testCookie() },
       );
       const html = await response.text();
       // The theme form should not contain the success message
       const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
       expect(themeFormMatch).toBeDefined();
-      expect(themeFormMatch![0]).not.toContain("Timezone updated");
+      expect(themeFormMatch![0]).not.toContain("Country updated");
     });
 
     test("each settings form has an id attribute", async () => {
@@ -99,7 +98,7 @@ describe("server (admin settings)", () => {
         cookie: await testCookie(),
       });
       const html = await response.text();
-      expect(html).toContain('id="settings-phone-prefix"');
+      expect(html).toContain('id="settings-country"');
       expect(html).toContain('id="settings-business-email"');
       expect(html).toContain('id="settings-payment-provider"');
       expect(html).toContain('id="settings-embed-hosts"');
@@ -314,6 +313,42 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 400, "required");
     });
 
+    test("rejects invalid stripe key format", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "invalid_key_123",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Invalid Stripe key format",
+        "sk_test_",
+        "sk_live_",
+      );
+    });
+
+    test("rejects restricted key format", async () => {
+      await setPaymentProvider("stripe");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "rk_test_abc123",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(response, 400, "Invalid Stripe key format");
+    });
+
     test("updates Stripe key successfully", async () => {
       await withMocks(
         () =>
@@ -395,6 +430,70 @@ describe("server (admin settings)", () => {
           expect(html).toContain("A Stripe secret key is currently configured");
           expect(html).toContain("stripe-test-btn");
           expect(html).toContain("Test Connection");
+        },
+      );
+    });
+
+    test("settings page shows test mode badge for sk_test_ key", async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            }),
+          ),
+        async () => {
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              {
+                stripe_secret_key: "sk_test_mode_check",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+
+          const response = await awaitTestRequest("/admin/settings", {
+            cookie: await testCookie(),
+          });
+          const html = await response.text();
+          expect(html).toContain("Test mode:");
+          expect(html).toContain("No real charges will be made");
+        },
+      );
+    });
+
+    test("settings page shows live mode badge for sk_live_ key", async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_live_123",
+              secret: "whsec_live_secret",
+            }),
+          ),
+        async () => {
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              {
+                stripe_secret_key: "sk_live_mode_check",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+
+          const response = await awaitTestRequest("/admin/settings", {
+            cookie: await testCookie(),
+          });
+          const html = await response.text();
+          expect(html).toContain("Live mode:");
+          expect(html).toContain("Payments will be charged for real");
         },
       );
     });
@@ -665,12 +764,10 @@ describe("server (admin settings)", () => {
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
       });
-      await expectHtmlResponse(
-        response,
-        200,
-        "No Square access token is configured",
-        "/admin/guide#payment-setup",
-      );
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain("No Square access token is configured");
+      expect(html).not.toContain("square-test-btn");
     });
 
     test("settings page shows Square is configured after setting token", async () => {
@@ -693,6 +790,8 @@ describe("server (admin settings)", () => {
       });
       const html = await response.text();
       expect(html).toContain("A Square access token is currently configured");
+      expect(html).toContain("square-test-btn");
+      expect(html).toContain("Test Connection");
     });
   });
 
@@ -736,6 +835,130 @@ describe("server (admin settings)", () => {
       const location = response.headers.get("location")!;
       expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Square webhook signature key updated",
+      );
+    });
+  });
+
+  describe("POST /admin/settings/square/test", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/square/test", {}),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square/test",
+          { csrf_token: "invalid-csrf-token" },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
+    });
+
+    test("returns JSON result when access token is not configured", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "testSquareConnection", () =>
+            Promise.resolve({
+              ok: false,
+              accessToken: {
+                valid: false,
+                error: "No Square access token configured",
+              },
+              location: { configured: false },
+              webhook: { configured: false },
+            }),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/square/test",
+              { csrf_token: await testCsrfToken() },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(200);
+          expect(response.headers.get("content-type")).toBe(
+            "application/json; charset=utf-8",
+          );
+          const json = await response.json();
+          expect(json.ok).toBe(false);
+          expect(json.accessToken.valid).toBe(false);
+          expect(json.accessToken.error).toContain(
+            "No Square access token configured",
+          );
+        },
+      );
+    });
+
+    test("returns success when all checks pass", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "testSquareConnection", () =>
+            Promise.resolve({
+              ok: true,
+              accessToken: { valid: true, mode: "sandbox" },
+              location: {
+                configured: true,
+                locationId: "L_test_123",
+                name: "Test Location",
+                status: "ACTIVE",
+              },
+              webhook: { configured: true },
+            }),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/square/test",
+              { csrf_token: await testCsrfToken() },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(200);
+          const json = await response.json();
+          expect(json.ok).toBe(true);
+          expect(json.accessToken.valid).toBe(true);
+          expect(json.accessToken.mode).toBe("sandbox");
+          expect(json.location.configured).toBe(true);
+          expect(json.location.name).toBe("Test Location");
+          expect(json.webhook.configured).toBe(true);
+        },
+      );
+    });
+
+    test("returns partial failure when token valid but location missing", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "testSquareConnection", () =>
+            Promise.resolve({
+              ok: false,
+              accessToken: { valid: true, mode: "sandbox" },
+              location: {
+                configured: false,
+                error: "No location ID configured",
+              },
+              webhook: { configured: true },
+            }),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/square/test",
+              { csrf_token: await testCsrfToken() },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(200);
+          const json = await response.json();
+          expect(json.ok).toBe(false);
+          expect(json.accessToken.valid).toBe(true);
+          expect(json.location.configured).toBe(false);
+          expect(json.location.error).toContain("No location ID configured");
+        },
       );
     });
   });
@@ -1315,23 +1538,6 @@ describe("server (admin settings)", () => {
       ).toBe(true);
     });
 
-    test("logs activity when timezone is updated", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "America/New_York", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
-
-      const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) =>
-          l.message.includes("Timezone set to America/New_York"),
-        ),
-      ).toBe(true);
-    });
-
     test("logs activity when business email is updated", async () => {
       await handleRequest(
         mockFormRequest(
@@ -1657,11 +1863,11 @@ describe("server (admin settings)", () => {
       );
     });
   });
-  describe("POST /admin/settings/phone-prefix", () => {
+  describe("POST /admin/settings/country", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/phone-prefix", {
-          phone_prefix: "44",
+        mockFormRequest("/admin/settings/country", {
+          country: "US",
         }),
       );
       expectAdminRedirect(response);
@@ -1670,9 +1876,9 @@ describe("server (admin settings)", () => {
     test("rejects invalid CSRF token", async () => {
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/settings/phone-prefix",
+          "/admin/settings/country",
           {
-            phone_prefix: "44",
+            country: "US",
             csrf_token: "invalid-csrf-token",
           },
           await testCookie(),
@@ -1681,12 +1887,12 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
-    test("saves valid phone prefix", async () => {
+    test("saves valid country", async () => {
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/settings/phone-prefix",
+          "/admin/settings/country",
           {
-            phone_prefix: "1",
+            country: "US",
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
@@ -1696,126 +1902,76 @@ describe("server (admin settings)", () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Phone prefix updated to 1",
+        "Country updated",
       );
     });
 
-    test("rejects non-digit input", async () => {
+    test("rejects invalid country code", async () => {
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/settings/phone-prefix",
+          "/admin/settings/country",
           {
-            phone_prefix: "abc",
+            country: "XX",
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
       );
 
-      await expectHtmlResponse(response, 400, "Phone prefix must be a number");
+      await expectHtmlResponse(response, 400, "valid country");
     });
 
     test("rejects empty input", async () => {
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/settings/phone-prefix",
+          "/admin/settings/country",
           {
-            phone_prefix: "",
+            country: "",
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
       );
 
-      await expectHtmlResponse(response, 400, "Phone prefix must be a number");
+      await expectHtmlResponse(response, 400, "Country is required");
     });
 
-    test("rejects prefix longer than 3 digits", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/phone-prefix",
-          {
-            phone_prefix: "1234",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
-
-      await expectHtmlResponse(
-        response,
-        400,
-        "Phone prefix must be 1-3 digits",
-      );
-    });
-
-    test("accepts 3-digit prefix", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/phone-prefix",
-          {
-            phone_prefix: "886",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
-
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Phone prefix updated to 886",
-      );
-    });
-
-    test("rejects when phone_prefix field is missing", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/phone-prefix",
-          {
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
-
-      await expectHtmlResponse(response, 400, "Phone prefix must be a number");
-    });
-
-    test("setting persists in database", async () => {
+    test("setting persists and derives phone prefix", async () => {
       const { settingsApi } = await import("#lib/db/settings.ts");
 
-      // Default should be "44"
+      // Default should be GB → "44"
       expect(await settingsApi.getPhonePrefixFromDb()).toBe("44");
 
-      // Update it
+      // Update to US
       await handleRequest(
         mockFormRequest(
-          "/admin/settings/phone-prefix",
+          "/admin/settings/country",
           {
-            phone_prefix: "1",
+            country: "US",
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
       );
 
+      expect(await settingsApi.getCountryFromDb()).toBe("US");
       expect(await settingsApi.getPhonePrefixFromDb()).toBe("1");
+      expect(await settingsApi.getCurrencyCodeFromDb()).toBe("USD");
     });
 
-    test("settings page displays phone prefix form", async () => {
+    test("settings page displays country form", async () => {
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
       });
-      await expectHtmlResponse(response, 200, "Phone Prefix", "phone_prefix");
+      await expectHtmlResponse(response, 200, "Your Country");
     });
 
-    test("logs activity when phone prefix is changed", async () => {
+    test("logs activity when country is changed", async () => {
       await handleRequest(
         mockFormRequest(
-          "/admin/settings/phone-prefix",
+          "/admin/settings/country",
           {
-            phone_prefix: "33",
+            country: "FR",
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
@@ -1823,9 +1979,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) => l.message.includes("Phone prefix set to 33")),
-      ).toBe(true);
+      expect(logs.some((l) => l.message.includes("Country set to FR"))).toBe(
+        true,
+      );
     });
   });
   describe("POST /admin/settings/booking-fee", () => {

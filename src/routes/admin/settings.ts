@@ -20,6 +20,7 @@ import {
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
+import { isValidCountry } from "#lib/countries.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
@@ -29,6 +30,7 @@ import {
   getAppleWalletPassTypeIdFromDb,
   getAppleWalletTeamIdFromDb,
   getBookingFeeFromDb,
+  getCountryFromDb,
   getCustomDomainFromDb,
   getCustomDomainLastValidatedFromDb,
   getEmailFromAddressFromDb,
@@ -41,14 +43,13 @@ import {
   getHostAppleWalletConfig,
   getHostGoogleWalletConfig,
   getPaymentProviderFromDb,
-  getPhonePrefixFromDb,
   getShowPublicApiFromDb,
   getShowPublicSiteFromDb,
   getSquareSandboxFromDb,
+  getStripeKeyModeFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
   getThemeFromDb,
-  getTimezoneFromDb,
   hasAppleWalletDbConfig,
   hasEmailApiKey,
   hasGoogleWalletDbConfig,
@@ -65,6 +66,7 @@ import {
   updateAppleWalletTeamId,
   updateAppleWalletWwdrCert,
   updateBookingFee,
+  updateCountry,
   updateCustomDomain,
   updateCustomDomainLastValidated,
   updateEmailApiKey,
@@ -76,7 +78,6 @@ import {
   updateGoogleWalletServiceAccountEmail,
   updateGoogleWalletServiceAccountKey,
   updateHeaderImageUrl,
-  updatePhonePrefix,
   updateShowPublicApi,
   updateShowPublicSite,
   updateSquareAccessToken,
@@ -84,9 +85,9 @@ import {
   updateSquareSandbox,
   updateSquareWebhookSignatureKey,
   updateStripeKey,
+  updateStripeKeyMode,
   updateTermsAndConditions,
   updateTheme,
-  updateTimezone,
   updateUserPassword,
 } from "#lib/db/settings.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
@@ -116,6 +117,7 @@ import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
+import { testSquareConnection } from "#lib/square.ts";
 import {
   deleteAllEventStorageFiles,
   deleteImage,
@@ -125,8 +127,11 @@ import {
   uploadImage,
   validateImage,
 } from "#lib/storage.ts";
-import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
-import { isValidTimezone } from "#lib/timezone.ts";
+import {
+  detectStripeKeyMode,
+  setupWebhookEndpoint,
+  testStripeConnection,
+} from "#lib/stripe.ts";
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -159,6 +164,7 @@ const getWebhookUrl = (): string => {
 const getSettingsPageState = async () => {
   const [
     stripeKeyConfigured,
+    stripeKeyMode,
     paymentProvider,
     squareTokenConfigured,
     squareSandbox,
@@ -169,10 +175,11 @@ const getSettingsPageState = async () => {
     businessEmail,
     theme,
     showPublicSite,
-    phonePrefix,
+    country,
     headerImageUrl,
   ] = await Promise.all([
     hasStripeKey(),
+    getStripeKeyModeFromDb(),
     getPaymentProviderFromDb(),
     hasSquareToken(),
     getSquareSandboxFromDb(),
@@ -183,11 +190,13 @@ const getSettingsPageState = async () => {
     getBusinessEmailFromDb(),
     getThemeFromDb(),
     getShowPublicSiteFromDb(),
-    getPhonePrefixFromDb(),
+    getCountryFromDb(),
     getHeaderImageUrlFromDb(),
   ]);
+
   return {
     stripeKeyConfigured,
+    stripeKeyMode,
     paymentProvider: paymentProvider ?? "",
     squareTokenConfigured,
     squareSandbox,
@@ -199,7 +208,7 @@ const getSettingsPageState = async () => {
     businessEmail,
     theme,
     showPublicSite,
-    phonePrefix,
+    country,
     headerImageUrl: headerImageUrl ?? "",
     storageEnabled: isStorageEnabled(),
   };
@@ -209,7 +218,6 @@ const getSettingsPageState = async () => {
 const getAdvancedSettingsPageState = async () => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
   const [
-    timezone,
     showPublicApi,
     emailProvider,
     emailApiKeyConfigured,
@@ -227,7 +235,6 @@ const getAdvancedSettingsPageState = async () => {
     googleWalletServiceAccountEmail,
     theme,
   ] = await Promise.all([
-    getTimezoneFromDb(),
     getShowPublicApiFromDb(),
     getEmailProviderFromDb(),
     hasEmailApiKey(),
@@ -248,7 +255,6 @@ const getAdvancedSettingsPageState = async () => {
     getThemeFromDb(),
   ]);
   return {
-    timezone,
     showPublicApi,
     emailProvider: emailProvider ?? "",
     emailApiKeyConfigured,
@@ -551,6 +557,16 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     });
   }
 
+  // Validate key format — must start with sk_test_ or sk_live_
+  const keyMode = detectStripeKeyMode(field.value);
+  if (!keyMode) {
+    return errorPage(
+      "Invalid Stripe key format. Keys must start with sk_test_ (test mode) or sk_live_ (live mode).",
+      400,
+      "settings-stripe",
+    );
+  }
+
   // Set up webhook endpoint automatically
   const webhookUrl = getWebhookUrl();
   const existingEndpointId = await getStripeWebhookEndpointId();
@@ -569,9 +585,10 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  // Store both the Stripe key and webhook config
+  // Store the Stripe key, webhook config, and key mode
   await updateStripeKey(field.value);
   await setStripeWebhookConfig(webhookResult);
+  await updateStripeKeyMode(keyMode);
 
   // Auto-set payment provider to stripe when key is configured
   await setPaymentProvider("stripe");
@@ -675,6 +692,15 @@ const handleStripeTestPost = (request: Request): Promise<Response> =>
   });
 
 /**
+ * Handle POST /admin/settings/square/test - owner only
+ */
+const handleSquareTestPost = (request: Request): Promise<Response> =>
+  withOwnerAuthForm(request, async () => {
+    const result = await testSquareConnection();
+    return jsonResponse(result);
+  });
+
+/**
  * Handle POST /admin/settings/embed-hosts - owner only
  */
 const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
@@ -735,27 +761,27 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
   });
 });
 
-/** Validate and save timezone from form submission */
-const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
-  const trimmed = (form.get("timezone") || "").trim();
+/** Validate and save country from form submission */
+const processCountryForm: SettingsFormHandler = async (form, errorPage) => {
+  const trimmed = (form.get("country") || "").trim().toUpperCase();
 
   if (trimmed === "") {
-    return errorPage("Timezone is required", 400, "settings-timezone");
+    return errorPage("Country is required", 400, "settings-country");
   }
 
-  if (!isValidTimezone(trimmed)) {
-    return errorPage(`Invalid timezone: ${trimmed}`, 400, "settings-timezone");
+  if (!isValidCountry(trimmed)) {
+    return errorPage("Please select a valid country", 400, "settings-country");
   }
 
-  await updateTimezone(trimmed);
-  await logActivity(`Timezone set to ${trimmed}`);
-  return redirect("/admin/settings-advanced", "Timezone updated", true, {
-    formId: "settings-timezone",
+  await updateCountry(trimmed);
+  await logActivity(`Country set to ${trimmed}`);
+  return redirect("/admin/settings", "Country updated", true, {
+    formId: "settings-country",
   });
 };
 
-/** Handle POST /admin/settings/timezone - owner only */
-const handleTimezonePost = advancedSettingsRoute(processTimezoneForm);
+/** Handle POST /admin/settings/country - owner only */
+const handleCountryPost = settingsRoute(processCountryForm);
 
 /** Validate and save business email from form submission */
 const processBusinessEmailForm: SettingsFormHandler = async (
@@ -841,36 +867,6 @@ const processShowPublicApiForm: SettingsFormHandler = async (form) => {
 
 /** Handle POST /admin/settings/show-public-api - owner only */
 const handleShowPublicApiPost = advancedSettingsRoute(processShowPublicApiForm);
-
-/** Validate and save phone prefix from form submission */
-const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
-  const raw = (form.get("phone_prefix") ?? "").trim();
-
-  if (raw === "" || !/^\d+$/.test(raw)) {
-    return errorPage(
-      "Phone prefix must be a number (digits only)",
-      400,
-      "settings-phone-prefix",
-    );
-  }
-
-  if (raw.length > 3) {
-    return errorPage(
-      "Phone prefix must be 1-3 digits",
-      400,
-      "settings-phone-prefix",
-    );
-  }
-
-  await updatePhonePrefix(raw);
-  await logActivity(`Phone prefix set to ${raw}`);
-  return redirect("/admin/settings", `Phone prefix updated to ${raw}`, true, {
-    formId: "settings-phone-prefix",
-  });
-};
-
-/** Handle POST /admin/settings/phone-prefix - owner only */
-const handlePhonePrefixPost = settingsRoute(processPhonePrefixForm);
 
 /** Validate and save booking fee from form submission */
 const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
@@ -1509,14 +1505,14 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/square": handleAdminSquarePost,
   "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,
   "POST /admin/settings/stripe/test": handleStripeTestPost,
+  "POST /admin/settings/square/test": handleSquareTestPost,
   "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
   "POST /admin/settings/terms": handleTermsPost,
-  "POST /admin/settings/timezone": handleTimezonePost,
+  "POST /admin/settings/country": handleCountryPost,
   "POST /admin/settings/business-email": handleBusinessEmailPost,
   "POST /admin/settings/theme": handleThemePost,
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
   "POST /admin/settings/show-public-api": handleShowPublicApiPost,
-  "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
   "POST /admin/settings/booking-fee": handleBookingFeePost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,

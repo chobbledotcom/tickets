@@ -9,7 +9,6 @@ import {
   getSquareAccessToken,
   getSquareLocationId,
   getSquareWebhookSignatureKey,
-  getStripePublishableKey,
   getStripeSecretKey,
   getTz,
   isPaymentsEnabled,
@@ -19,6 +18,7 @@ import {
 } from "#lib/config.ts";
 import {
   completeSetup,
+  invalidateSettingsCache,
   setPaymentProvider,
   setSetting,
   updateBookingFee,
@@ -32,18 +32,12 @@ import { getActivePaymentProvider } from "#lib/payments.ts";
 import { createTestDb, resetDb, setupStripe } from "#test-utils";
 
 describe("config", () => {
-  const originalEnv = { ...process.env };
-
   beforeEach(async () => {
     await createTestDb();
-    // Clear Stripe env vars for clean tests
-    delete process.env.STRIPE_PUBLISHABLE_KEY;
   });
 
   afterEach(() => {
     resetDb();
-    // Restore original env
-    process.env.STRIPE_PUBLISHABLE_KEY = originalEnv.STRIPE_PUBLISHABLE_KEY;
   });
 
   describe("getPaymentProvider", () => {
@@ -75,17 +69,6 @@ describe("config", () => {
     test("returns key when set in database", async () => {
       await updateStripeKey("sk_test_123");
       expect(await getStripeSecretKey()).toBe("sk_test_123");
-    });
-  });
-
-  describe("getStripePublishableKey", () => {
-    test("returns null when not set in environment", () => {
-      expect(getStripePublishableKey()).toBeNull();
-    });
-
-    test("returns key when set in environment", () => {
-      process.env.STRIPE_PUBLISHABLE_KEY = "pk_test_123";
-      expect(getStripePublishableKey()).toBe("pk_test_123");
     });
   });
 
@@ -126,8 +109,9 @@ describe("config", () => {
       expect(await getCurrencyCode()).toBe("GBP");
     });
 
-    test("returns set value from database", async () => {
-      await setSetting("currency_code", "USD");
+    test("returns currency from country setting", async () => {
+      await setSetting("country", "US");
+      invalidateSettingsCache();
       expect(await getCurrencyCode()).toBe("USD");
     });
   });
@@ -201,13 +185,6 @@ describe("config", () => {
       await updateStripeKey("sk_test_123");
       // getPaymentProvider returns null for unknown providers, so isPaymentsEnabled returns false
       expect(await isPaymentsEnabled()).toBe(false);
-    });
-  });
-
-  describe("getStripePublishableKey - edge cases", () => {
-    test("returns null when key is whitespace only", () => {
-      process.env.STRIPE_PUBLISHABLE_KEY = "   ";
-      expect(getStripePublishableKey()).toBeNull();
     });
   });
 

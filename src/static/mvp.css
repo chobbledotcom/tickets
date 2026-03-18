@@ -531,7 +531,8 @@ label > input[type="time"] {
   width: auto;
 }
 
-label > select[name="quantity"] {
+label > select[name="quantity"],
+label > select[name^="quantity_"] {
   width: 6ch;
   flex: 0 0 auto;
 }
@@ -1290,8 +1291,9 @@ button.secondary:hover {
   font-weight: bold;
 }
 
-/* Stripe test result */
-.stripe-test-result {
+/* Stripe/Square test result */
+.stripe-test-result,
+.square-test-result {
   white-space: pre-wrap;
 }
 

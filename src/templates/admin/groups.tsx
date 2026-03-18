@@ -93,7 +93,8 @@ export const groupToFieldValues = (
   const name = group?.name ?? "";
   const slug = group?.slug ?? "";
   const terms = group?.terms_and_conditions ?? "";
-  return { name, slug, terms_and_conditions: terms };
+  const max_attendees = group?.max_attendees || null;
+  return { name, slug, terms_and_conditions: terms, max_attendees };
 };
 
 /**
@@ -259,7 +260,11 @@ export const adminGroupDetailPage = (
               </tr>
               <tr>
                 <th>Attendees</th>
-                <td>{totalCount}</td>
+                <td>
+                  {group.max_attendees > 0
+                    ? `${totalCount} / ${group.max_attendees}`
+                    : totalCount}
+                </td>
               </tr>
               {hasMultiQuantity ? (
                 <>

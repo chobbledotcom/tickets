@@ -77,6 +77,7 @@ import {
   CONFIG_KEYS,
   clearPaymentProvider,
   completeSetup,
+  getCountryFromDb,
   getCurrencyCodeFromDb,
   getPublicKey,
   getSetting,
@@ -87,10 +88,12 @@ import {
   hasStripeKey,
   invalidateSettingsCache,
   isSetupComplete,
+  resetTimezoneTestOverride,
   setPaymentProvider,
   setSetting,
+  setTimezoneForTest,
+  updateCountry,
   updateStripeKey,
-  updateTimezone,
 } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { nowMs } from "#lib/now.ts";
@@ -99,6 +102,7 @@ import {
   createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
+  createTestGroup,
   invalidateTestDbCache,
   resetDb,
   resetTestSlugCounter,
@@ -267,7 +271,7 @@ describe("db", () => {
       // Delete existing user from createTestDbWithSetup to test fresh setup
       await getDb().execute("DELETE FROM users");
       await getDb().execute("DELETE FROM settings");
-      await completeSetup("setupuser", "mypassword", "USD");
+      await completeSetup("setupuser", "mypassword", "US");
 
       expect(await isSetupComplete()).toBe(true);
       // Password is now stored on the user row, verify via user-based API
@@ -285,7 +289,7 @@ describe("db", () => {
     });
 
     test("CONFIG_KEYS contains expected keys", () => {
-      expect(CONFIG_KEYS.CURRENCY_CODE).toBe("currency_code");
+      expect(CONFIG_KEYS.COUNTRY).toBe("country");
       expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
       expect(CONFIG_KEYS.WRAPPED_PRIVATE_KEY).toBe("wrapped_private_key");
       expect(CONFIG_KEYS.PUBLIC_KEY).toBe("public_key");
@@ -294,6 +298,12 @@ describe("db", () => {
 
     test("getCurrencyCodeFromDb returns GBP by default", async () => {
       expect(await getCurrencyCodeFromDb()).toBe("GBP");
+    });
+
+    test("getCountryFromDb returns GB when no country is stored", async () => {
+      await getDb().execute("DELETE FROM settings");
+      invalidateSettingsCache();
+      expect(await getCountryFromDb()).toBe("GB");
     });
   });
 
@@ -2563,38 +2573,42 @@ describe("db", () => {
   });
 
   describe("timezone cache", () => {
+    beforeEach(() => {
+      resetTimezoneTestOverride();
+    });
+
     test("getTimezoneCached returns default when no cache exists", () => {
       invalidateSettingsCache();
       expect(getTimezoneCached()).toBe("Europe/London");
     });
 
-    test("getTimezoneFromDb returns default when no timezone is stored", async () => {
-      // Remove the timezone setting that createTestDbWithSetup inserted
+    test("getTimezoneFromDb returns default when no country is stored", async () => {
+      // Remove the country setting
       await getDb().execute({
         sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.TIMEZONE],
+        args: [CONFIG_KEYS.COUNTRY],
       });
       invalidateSettingsCache();
       const value = await getTimezoneFromDb();
       expect(value).toBe("Europe/London");
     });
 
-    test("getTimezoneCached reads default from TTL cache when no timezone is stored", async () => {
-      // Remove the timezone setting that createTestDbWithSetup inserted
+    test("getTimezoneCached reads default from TTL cache when no country is stored", async () => {
+      // Remove the country setting
       await getDb().execute({
         sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.TIMEZONE],
+        args: [CONFIG_KEYS.COUNTRY],
       });
       invalidateSettingsCache();
-      // Load the settings cache (without timezone key)
-      await getSetting(CONFIG_KEYS.TIMEZONE);
+      // Load the settings cache (without country key)
+      await getSetting(CONFIG_KEYS.COUNTRY);
       // Permanent cache should not be set, so it reads from TTL cache
-      // TTL cache has no timezone key → falls back to default
+      // TTL cache has no country key → falls back to default
       expect(getTimezoneCached()).toBe("Europe/London");
     });
 
     test("getTimezoneCached returns value after getTimezoneFromDb populates cache", async () => {
-      await updateTimezone("America/New_York");
+      await updateCountry("US");
       invalidateSettingsCache();
       const value = await getTimezoneFromDb();
       expect(value).toBe("America/New_York");
@@ -2602,16 +2616,30 @@ describe("db", () => {
     });
 
     test("getTimezoneCached reads from TTL cache when permanent cache is empty", async () => {
-      await updateTimezone("Asia/Tokyo");
+      await updateCountry("JP");
       invalidateSettingsCache();
       // Force TTL cache to load by calling getSetting
-      await getSetting(CONFIG_KEYS.TIMEZONE);
+      await getSetting(CONFIG_KEYS.COUNTRY);
       expect(getTimezoneCached()).toBe("Asia/Tokyo");
     });
 
-    test("updateTimezone updates the permanent cache immediately", async () => {
-      await updateTimezone("Pacific/Auckland");
+    test("updateCountry updates the permanent cache immediately", async () => {
+      await updateCountry("NZ");
       expect(getTimezoneCached()).toBe("Pacific/Auckland");
+    });
+
+    test("getTimezoneFromDb returns test override when set", async () => {
+      setTimezoneForTest("America/Chicago");
+      const value = await getTimezoneFromDb();
+      expect(value).toBe("America/Chicago");
+    });
+
+    test("getTimezoneFromDb returns permanent cache when set", async () => {
+      // Populate permanent cache via getTimezoneFromDb
+      const value = await getTimezoneFromDb();
+      // Now the permanent cache is set; calling again should return from cache
+      const cached = await getTimezoneFromDb();
+      expect(cached).toBe(value);
     });
   });
 
@@ -3332,19 +3360,15 @@ describe("db", () => {
 
   describe("groups", () => {
     test("groupsTable CRUD works", async () => {
-      const slug = "db-group";
-      const slugIndex = await computeGroupSlugIndex(slug);
-      const created = await groupsTable.insert({
+      const created = await createTestGroup({
         name: "DB Group",
-        slug,
-        slugIndex,
-        termsAndConditions: "",
+        slug: "db-group",
       });
 
       const fetched = await groupsTable.findById(created.id);
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("DB Group");
-      expect(fetched?.slug).toBe(slug);
+      expect(fetched?.slug).toBe("db-group");
 
       const updated = await groupsTable.update(created.id, {
         name: "DB Group Updated",
@@ -3358,18 +3382,8 @@ describe("db", () => {
     });
 
     test("getAllGroups returns decrypted groups ordered by id", async () => {
-      const g1 = await groupsTable.insert({
-        name: "Group A",
-        slug: "group-a",
-        slugIndex: await computeGroupSlugIndex("group-a"),
-        termsAndConditions: "",
-      });
-      const g2 = await groupsTable.insert({
-        name: "Group B",
-        slug: "group-b",
-        slugIndex: await computeGroupSlugIndex("group-b"),
-        termsAndConditions: "",
-      });
+      const g1 = await createTestGroup({ name: "Group A", slug: "group-a" });
+      const g2 = await createTestGroup({ name: "Group B", slug: "group-b" });
       const groups = await getAllGroups();
       expect(groups.length).toBe(2);
       expect(groups[0]?.id).toBe(g1.id);
@@ -3379,27 +3393,23 @@ describe("db", () => {
     });
 
     test("getGroupBySlugIndex returns group or null", async () => {
-      const slug = "idx-group";
-      const slugIndex = await computeGroupSlugIndex(slug);
-      await groupsTable.insert({
+      const group = await createTestGroup({
         name: "Index Group",
-        slug,
-        slugIndex,
-        termsAndConditions: "",
+        slug: "idx-group",
       });
 
-      const found = await getGroupBySlugIndex(slugIndex);
-      expect(found?.slug).toBe(slug);
+      const found = await getGroupBySlugIndex(
+        await computeGroupSlugIndex("idx-group"),
+      );
+      expect(found?.slug).toBe(group.slug);
       expect(await getGroupBySlugIndex("missing")).toBeNull();
     });
 
     test("isGroupSlugTaken checks both groups and events", async () => {
       const groupSlug = "taken-by-group";
-      const created = await groupsTable.insert({
+      const created = await createTestGroup({
         name: "Taken",
         slug: groupSlug,
-        slugIndex: await computeGroupSlugIndex(groupSlug),
-        termsAndConditions: "",
       });
 
       expect(await isGroupSlugTaken(groupSlug)).toBe(true);
@@ -3410,11 +3420,9 @@ describe("db", () => {
     });
 
     test("getActiveEventsByGroupId returns active events with attendee counts", async () => {
-      const group = await groupsTable.insert({
+      const group = await createTestGroup({
         name: "Events Group",
         slug: "events-group",
-        slugIndex: await computeGroupSlugIndex("events-group"),
-        termsAndConditions: "",
       });
 
       const e1 = await createTestEvent({
@@ -3447,11 +3455,9 @@ describe("db", () => {
     });
 
     test("resetGroupEvents sets group_id to 0", async () => {
-      const group = await groupsTable.insert({
+      const group = await createTestGroup({
         name: "Reset Group",
         slug: "reset-group",
-        slugIndex: await computeGroupSlugIndex("reset-group"),
-        termsAndConditions: "",
       });
       const event = await createTestEvent({
         name: "Reset Event",
@@ -3460,6 +3466,325 @@ describe("db", () => {
       });
       await resetGroupEvents(group.id);
       expect((await getEvent(event.id))?.group_id).toBe(0);
+    });
+
+    /** Create a capped group with two events (each with event-level max of 10) */
+    const createCappedGroupWithEvents = async (
+      groupMax: number,
+      slug: string,
+      overrides?: { eventType?: "standard" | "daily" },
+    ) => {
+      const group = await createTestGroup({
+        name: slug,
+        slug,
+        maxAttendees: groupMax,
+      });
+      const e1 = await createTestEvent({
+        name: `${slug}-a`,
+        maxAttendees: 10,
+        groupId: group.id,
+        eventType: overrides?.eventType,
+      });
+      const e2 = await createTestEvent({
+        name: `${slug}-b`,
+        maxAttendees: 10,
+        groupId: group.id,
+        eventType: overrides?.eventType,
+      });
+      return { group, e1, e2 };
+    };
+
+    /** Book attendees atomically with minimal boilerplate */
+    const book = (eventId: number, quantity: number, date?: string) =>
+      createAttendeeAtomic({
+        eventId,
+        name: `attendee-${eventId}-${quantity}`,
+        email: `a${eventId}q${quantity}@example.com`,
+        quantity,
+        date,
+      });
+
+    test("createAttendeeAtomic enforces group max_attendees across events", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(5, "capped");
+
+      // Book 3 on event A — should succeed (group total: 3/5)
+      expect((await book(e1.id, 3)).success).toBe(true);
+
+      // Book 3 on event B — should fail (group total would be 6/5)
+      const r2 = await book(e2.id, 3);
+      expect(r2.success).toBe(false);
+      if (!r2.success) expect(r2.reason).toBe("capacity_exceeded");
+
+      // Book 2 on event B — should succeed (group total: 5/5)
+      expect((await book(e2.id, 2)).success).toBe(true);
+    });
+
+    test("createAttendeeAtomic allows booking when group has no max (0)", async () => {
+      const group = await createTestGroup({
+        name: "unlimited",
+        slug: "unlimited",
+      });
+      const event = await createTestEvent({
+        name: "unlimited-event",
+        maxAttendees: 100,
+        groupId: group.id,
+      });
+
+      expect((await book(event.id, 50)).success).toBe(true);
+    });
+
+    test("hasAvailableSpots checks group capacity", async () => {
+      const { hasAvailableSpots } = await import("#lib/db/attendees.ts");
+      const { e1, e2 } = await createCappedGroupWithEvents(3, "spots");
+
+      await book(e1.id, 2);
+
+      // Event B has plenty of room, but group is almost full
+      expect(await hasAvailableSpots(e2.id, 1)).toBe(true);
+      expect(await hasAvailableSpots(e2.id, 2)).toBe(false);
+    });
+
+    test("checkBatchAvailability checks group capacity", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const { e1, e2 } = await createCappedGroupWithEvents(4, "batch");
+
+      // Both within event limits but combined exceeds group limit
+      expect(
+        await checkBatchAvailability([
+          { eventId: e1.id, quantity: 3 },
+          { eventId: e2.id, quantity: 2 },
+        ]),
+      ).toBe(false);
+
+      // Both within event and group limits
+      expect(
+        await checkBatchAvailability([
+          { eventId: e1.id, quantity: 2 },
+          { eventId: e2.id, quantity: 2 },
+        ]),
+      ).toBe(true);
+    });
+
+    test("checkBatchAvailability skips group check when group has no limit", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({
+        name: "no-limit",
+        slug: "no-limit",
+      });
+      const e1 = await createTestEvent({
+        name: "no-limit-a",
+        maxAttendees: 100,
+        groupId: group.id,
+      });
+      const ungrouped = await createTestEvent({
+        name: "ungrouped",
+        maxAttendees: 100,
+      });
+
+      // Mix of grouped (no limit) and ungrouped events
+      expect(
+        await checkBatchAvailability([
+          { eventId: e1.id, quantity: 50 },
+          { eventId: ungrouped.id, quantity: 50 },
+        ]),
+      ).toBe(true);
+    });
+
+    test("checkBatchAvailability handles events from multiple groups", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const { e1: eA } = await createCappedGroupWithEvents(3, "multi-a");
+      const { e1: eB } = await createCappedGroupWithEvents(3, "multi-b");
+
+      // Each group can hold 3, so 2+2 across different groups is fine
+      expect(
+        await checkBatchAvailability([
+          { eventId: eA.id, quantity: 2 },
+          { eventId: eB.id, quantity: 2 },
+        ]),
+      ).toBe(true);
+    });
+
+    test("group capacity check handles deleted group gracefully", async () => {
+      const { hasAvailableSpots } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({
+        name: "delete-me",
+        slug: "delete-me",
+        maxAttendees: 5,
+      });
+      const event = await createTestEvent({
+        name: "orphan-event",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+      // Delete the group but leave event pointing to it
+      const { groupsTable } = await import("#lib/db/groups.ts");
+      await groupsTable.deleteById(group.id);
+
+      // Should still work — getGroupMaxAttendees returns 0 for missing group
+      expect(await hasAvailableSpots(event.id, 1)).toBe(true);
+    });
+
+    test("group max_attendees is per-date for daily events", async () => {
+      const { e1: event } = await createCappedGroupWithEvents(3, "daily", {
+        eventType: "daily",
+      });
+
+      // Book 3 for date A — fills group for that date
+      expect((await book(event.id, 3, "2026-07-01")).success).toBe(true);
+
+      // Book 1 for date A — should fail (group full for date A)
+      expect((await book(event.id, 1, "2026-07-01")).success).toBe(false);
+
+      // Book 3 for date B — should succeed (different date)
+      expect((await book(event.id, 3, "2026-07-02")).success).toBe(true);
+    });
+
+    test("daily group cap counts across multiple events for same date", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(4, "daily-multi", {
+        eventType: "daily",
+      });
+
+      // Book 2 on event A for date X (group total: 2/4)
+      expect((await book(e1.id, 2, "2026-07-01")).success).toBe(true);
+
+      // Book 2 on event B for same date X (group total: 4/4)
+      expect((await book(e2.id, 2, "2026-07-01")).success).toBe(true);
+
+      // Book 1 more on event B for same date — should fail (group full for this date)
+      expect((await book(e2.id, 1, "2026-07-01")).success).toBe(false);
+
+      // Book on event B for different date — should succeed (separate date budget)
+      expect((await book(e2.id, 3, "2026-07-02")).success).toBe(true);
+    });
+
+    test("hasAvailableSpots checks group capacity for daily events with date", async () => {
+      const { hasAvailableSpots } = await import("#lib/db/attendees.ts");
+      const { e1, e2 } = await createCappedGroupWithEvents(3, "daily-spots", {
+        eventType: "daily",
+      });
+
+      // Book 2 on event A for a specific date
+      await book(e1.id, 2, "2026-08-01");
+
+      // Event B has its own capacity (10), but group only has 1 spot left for this date
+      expect(await hasAvailableSpots(e2.id, 1, "2026-08-01")).toBe(true);
+      expect(await hasAvailableSpots(e2.id, 2, "2026-08-01")).toBe(false);
+
+      // Different date should have full group budget available
+      expect(await hasAvailableSpots(e2.id, 3, "2026-08-02")).toBe(true);
+    });
+
+    test("checkBatchAvailability checks group capacity with date for daily events", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const { e1, e2 } = await createCappedGroupWithEvents(5, "daily-batch", {
+        eventType: "daily",
+      });
+
+      // Both events in same group — combined quantity exceeds group cap for this date
+      expect(
+        await checkBatchAvailability(
+          [
+            { eventId: e1.id, quantity: 3 },
+            { eventId: e2.id, quantity: 3 },
+          ],
+          "2026-09-01",
+        ),
+      ).toBe(false);
+
+      // Within group cap for this date
+      expect(
+        await checkBatchAvailability(
+          [
+            { eventId: e1.id, quantity: 2 },
+            { eventId: e2.id, quantity: 3 },
+          ],
+          "2026-09-01",
+        ),
+      ).toBe(true);
+    });
+
+    test("checkBatchAvailability considers pre-existing attendees in group", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const { e1, e2 } = await createCappedGroupWithEvents(5, "pre-exist");
+
+      // Book 3 on event A first
+      await book(e1.id, 3);
+
+      // Batch check: 3 more would exceed group cap (3+3=6 > 5)
+      expect(
+        await checkBatchAvailability([{ eventId: e2.id, quantity: 3 }]),
+      ).toBe(false);
+
+      // 2 more fits exactly (3+2=5)
+      expect(
+        await checkBatchAvailability([{ eventId: e2.id, quantity: 2 }]),
+      ).toBe(true);
+    });
+
+    test("event-level cap rejects even when group has room", async () => {
+      const group = await createTestGroup({
+        name: "big-group",
+        slug: "big-group",
+        maxAttendees: 100,
+      });
+      const event = await createTestEvent({
+        name: "small-event",
+        maxAttendees: 2,
+        groupId: group.id,
+      });
+
+      // Event max is 2, group max is 100 — event cap should be the constraint
+      expect((await book(event.id, 2)).success).toBe(true);
+      const r = await book(event.id, 1);
+      expect(r.success).toBe(false);
+      if (!r.success) expect(r.reason).toBe("capacity_exceeded");
+    });
+
+    test("hasAvailableSpots respects event cap even when group has room", async () => {
+      const { hasAvailableSpots } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({
+        name: "big-group2",
+        slug: "big-group2",
+        maxAttendees: 100,
+      });
+      const event = await createTestEvent({
+        name: "tiny-event",
+        maxAttendees: 1,
+        groupId: group.id,
+      });
+
+      await book(event.id, 1);
+      expect(await hasAvailableSpots(event.id, 1)).toBe(false);
+    });
+
+    test("checkBatchAvailability rejects when one group is full and another has room", async () => {
+      const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
+      const { e1: fullGroupEvent } = await createCappedGroupWithEvents(
+        2,
+        "full-grp",
+      );
+      const { e1: openGroupEvent } = await createCappedGroupWithEvents(
+        10,
+        "open-grp",
+      );
+
+      // Fill the first group
+      await book(fullGroupEvent.id, 2);
+
+      // Batch with one event from full group + one from open group
+      expect(
+        await checkBatchAvailability([
+          { eventId: fullGroupEvent.id, quantity: 1 },
+          { eventId: openGroupEvent.id, quantity: 1 },
+        ]),
+      ).toBe(false);
+
+      // Just the open group event should work
+      expect(
+        await checkBatchAvailability([
+          { eventId: openGroupEvent.id, quantity: 1 },
+        ]),
+      ).toBe(true);
     });
   });
 

@@ -2,6 +2,7 @@
  * Admin settings page template
  */
 
+import { COUNTRIES, type CountryData } from "#lib/countries.ts";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -19,6 +20,7 @@ import { Layout } from "#templates/layout.tsx";
 
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
+  stripeKeyMode: string | null;
   paymentProvider: string;
   squareTokenConfigured: boolean;
   squareSandbox: boolean;
@@ -30,7 +32,7 @@ export type SettingsPageState = {
   businessEmail: string;
   theme: Theme;
   showPublicSite: boolean;
-  phonePrefix: string;
+  country: string;
   headerImageUrl: string;
   storageEnabled: boolean;
 };
@@ -86,28 +88,22 @@ export const adminSettingsPage = (
         </div>
       )}
 
-      <CsrfForm
-        action="/admin/settings/phone-prefix"
-        id="settings-phone-prefix"
-      >
-        <h2>Phone Prefix</h2>
-        <p>
-          Country calling code used when normalizing phone numbers that start
-          with 0 (e.g. 44 for UK, 1 for US).
-        </p>
+      <CsrfForm action="/admin/settings/country" id="settings-country">
+        <h2>Your Country</h2>
+        <p>Sets your timezone, currency, and phone prefix.</p>
         <label>
-          Phone Prefix
-          <input
-            type="number"
-            name="phone_prefix"
-            step="1"
-            min="1"
-            max="999"
-            value={s.phonePrefix}
-            required
-          />
+          Country
+          <select name="country" required>
+            {Object.entries(COUNTRIES).map(
+              ([code, data]: [string, CountryData]) => (
+                <option value={code} selected={code === s.country}>
+                  {data.name} ({data.currency}, +{data.phonePrefix})
+                </option>
+              ),
+            )}
+          </select>
         </label>
-        <button type="submit">Save Phone Prefix</button>
+        <button type="submit">Save Country</button>
       </CsrfForm>
 
       <CsrfForm
@@ -178,6 +174,20 @@ export const adminSettingsPage = (
               ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
               : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
           </p>
+          {s.stripeKeyConfigured && s.stripeKeyMode === "test" && (
+            <p class="notice warning">
+              <strong>Test mode:</strong> You are using a Stripe test key (
+              <code>sk_test_</code>). No real charges will be made. Switch to a
+              live key (<code>sk_live_</code>) when you are ready to accept real
+              payments.
+            </p>
+          )}
+          {s.stripeKeyConfigured && s.stripeKeyMode === "live" && (
+            <p class="notice">
+              <strong>Live mode:</strong> You are using a Stripe live key.
+              Payments will be charged for real.
+            </p>
+          )}
           <p>
             <small>
               <a href="/admin/guide#payment-setup">Where do I find this?</a>
@@ -229,6 +239,12 @@ export const adminSettingsPage = (
             Sandbox mode (use Square's test environment)
           </label>
           <button type="submit">Update Square Credentials</button>
+          {s.squareTokenConfigured && (
+            <button type="button" id="square-test-btn" class="secondary">
+              Test Connection
+            </button>
+          )}
+          <div id="square-test-result" class="hidden"></div>
         </CsrfForm>
       )}
 

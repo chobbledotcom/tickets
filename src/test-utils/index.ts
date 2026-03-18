@@ -14,6 +14,7 @@ import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { resetAllowedDomain } from "#lib/config.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
+import { getCountry } from "#lib/countries.ts";
 import {
   clearEncryptionKeyCache,
   setEncryptionKeyForTest,
@@ -39,7 +40,8 @@ import {
   completeSetup,
   invalidateSettingsCache,
   resetHostAppleWalletConfig,
-  updateTimezone,
+  resetTimezoneTestOverride,
+  setTimezoneForTest,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
@@ -82,7 +84,9 @@ export const setupTestEncryptionKey = (): void => {
  * Clear test encryption key from environment
  */
 export const clearTestEncryptionKey = (): void => {
-  setEncryptionKeyForTest(null);
+  // Use empty string (not null) so the override stays active and doesn't
+  // fall through to Deno.env, avoiding races with parallel test workers.
+  setEncryptionKeyForTest("");
   Deno.env.delete("DB_ENCRYPTION_KEY");
   Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
@@ -192,9 +196,7 @@ export const createTestDb = async (): Promise<void> => {
  * On the first call, runs the full setup (migrations + crypto key generation).
  * On subsequent calls, restores the cached settings snapshot instead.
  */
-export const createTestDbWithSetup = async (
-  currency = "GBP",
-): Promise<void> => {
+export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
   const { reused } = await prepareTestClient();
 
   // prepareTestClient clears tables when reusing the cached client, which wipes sessions.
@@ -226,15 +228,16 @@ export const createTestDbWithSetup = async (
         });
       }
     }
-    setCurrencyCodeForTest(currency);
+    setCurrencyCodeForTest(getCountry(country).currency);
+    setTimezoneForTest("UTC");
     return;
   }
 
-  await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, currency);
-  setCurrencyCodeForTest(currency);
+  await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, country);
+  setCurrencyCodeForTest(getCountry(country).currency);
 
   // Default timezone to UTC for tests so datetime-local values pass through unchanged
-  await updateTimezone("UTC");
+  setTimezoneForTest("UTC");
 
   // Snapshot settings AND users for reuse
   const result = await cachedClient!.execute("SELECT key, value FROM settings");
@@ -287,6 +290,7 @@ export const resetDb = (): void => {
   resetAllowedDomain();
   resetHostEmailConfig();
   resetHostAppleWalletConfig();
+  resetTimezoneTestOverride();
 };
 
 /**
@@ -1490,6 +1494,7 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   slug: "test-group",
   slug_index: "test-group-index",
   terms_and_conditions: "",
+  max_attendees: 0,
   ...overrides,
 });
 
@@ -1504,6 +1509,7 @@ export const createTestGroup = async (
   const input = {
     name: overrides.name ?? "Test Group",
     termsAndConditions: overrides.termsAndConditions ?? "",
+    maxAttendees: overrides.maxAttendees ?? 0,
   };
 
   const group = await authenticatedFormRequest(
@@ -1511,6 +1517,7 @@ export const createTestGroup = async (
     {
       name: input.name,
       terms_and_conditions: input.termsAndConditions,
+      max_attendees: String(input.maxAttendees),
     },
     async () => {
       const { getAllGroups } = await import("#lib/db/groups.ts");
@@ -1525,6 +1532,7 @@ export const createTestGroup = async (
       name: group.name,
       slug: overrides.slug,
       termsAndConditions: group.terms_and_conditions,
+      maxAttendees: group.max_attendees,
     });
   }
 
@@ -1548,6 +1556,7 @@ export const updateTestGroup = async (
       slug: updates.slug ?? existing.slug,
       terms_and_conditions:
         updates.termsAndConditions ?? existing.terms_and_conditions,
+      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
     },
     async () => {
       const updated = await groupsTable.findById(groupId);

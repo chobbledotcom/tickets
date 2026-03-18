@@ -28,7 +28,7 @@ const buildCspHeader = (embeddable: boolean): string => {
     "style-src 'self'",
     "script-src 'self' https://*.squarecdn.com https://js.squareup.com https://js.squareupsandbox.com",
     "connect-src 'self' https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com",
-    "form-action 'self' https://checkout.stripe.com",
+    "form-action 'self' https://checkout.stripe.com https://square.link",
   ];
   if (!embeddable) {
     directives.unshift("frame-ancestors 'none'");
@@ -45,6 +45,9 @@ export const getSecurityHeaders = (
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
   ...(embeddable && { "x-robots-tag": "index, follow" }),
+  ...(getAllowedDomain() !== "localhost" && {
+    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+  }),
   "content-security-policy": buildCspHeader(embeddable),
 });
 
