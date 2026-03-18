@@ -195,8 +195,12 @@ const loadEventQuestionLinks = (eventIds: number[]) =>
 /** Get questions for multiple events with event-ID mapping (for conditional display) */
 export const getQuestionsWithEventIds = async (
   eventIds: number[],
-): Promise<{ questions: QuestionWithAnswers[]; questionEventMap: QuestionEventMap }> => {
-  if (eventIds.length === 0) return { questions: [], questionEventMap: new Map() };
+): Promise<{
+  questions: QuestionWithAnswers[];
+  questionEventMap: QuestionEventMap;
+}> => {
+  if (eventIds.length === 0)
+    return { questions: [], questionEventMap: new Map() };
   const links = await loadEventQuestionLinks(eventIds);
   return {
     questions: await resolveLinkedQuestions(links),
@@ -283,10 +287,12 @@ export const deleteQuestion = async (questionId: number): Promise<void> => {
 
   const statements = [
     ...(answerIds.length > 0
-      ? [{
-          sql: `DELETE FROM attendee_answers WHERE answer_id IN (${inPlaceholders(answerIds)})`,
-          args: answerIds,
-        }]
+      ? [
+          {
+            sql: `DELETE FROM attendee_answers WHERE answer_id IN (${inPlaceholders(answerIds)})`,
+            args: answerIds,
+          },
+        ]
       : []),
     { sql: "DELETE FROM answers WHERE question_id = ?", args: [questionId] },
     {
@@ -301,7 +307,10 @@ export const deleteQuestion = async (questionId: number): Promise<void> => {
 /** Delete an answer and all related attendee answers in a single batch */
 export const deleteAnswer = async (answerId: number): Promise<void> => {
   await executeBatch([
-    { sql: "DELETE FROM attendee_answers WHERE answer_id = ?", args: [answerId] },
+    {
+      sql: "DELETE FROM attendee_answers WHERE answer_id = ?",
+      args: [answerId],
+    },
     { sql: "DELETE FROM answers WHERE id = ?", args: [answerId] },
   ]);
 };

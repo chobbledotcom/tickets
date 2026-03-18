@@ -34,13 +34,13 @@ import {
   nearCapacity,
 } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
+import { Breadcrumb } from "#templates/admin/nav.tsx";
 import {
   adminAnswerDeletePage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
-import { Breadcrumb } from "#templates/admin/nav.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
@@ -3896,9 +3896,7 @@ describe("html", () => {
     const question = {
       id: 1,
       text: "T-shirt size?",
-      answers: [
-        { id: 10, question_id: 1, text: "Small", sort_order: 0 },
-      ],
+      answers: [{ id: 10, question_id: 1, text: "Small", sort_order: 0 }],
     };
 
     test("renders confirmation form with question text", () => {

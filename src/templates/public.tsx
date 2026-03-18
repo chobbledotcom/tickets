@@ -5,7 +5,10 @@
 import { map, pipe } from "#fp";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
-import type { QuestionEventMap, QuestionWithAnswers } from "#lib/db/questions.ts";
+import type {
+  QuestionEventMap,
+  QuestionWithAnswers,
+} from "#lib/db/questions.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
@@ -504,9 +507,7 @@ export const multiTicketPage = ({
       ) : (
         <CsrfForm action={`/ticket/${slugs.join("+")}`}>
           <Raw html={renderFields(fields)} />
-          {hasDaily && dates && (
-            <Raw html={renderDateSelector(dates)} />
-          )}
+          {hasDaily && dates && <Raw html={renderDateSelector(dates)} />}
 
           {hideQuantity ? (
             <Raw html={eventRows} />
@@ -520,9 +521,7 @@ export const multiTicketPage = ({
           {questions && questions.length > 0 && (
             <Raw html={renderQuestions(questions, questionEventMap)} />
           )}
-          {terms && (
-            <Raw html={renderTermsAndCheckbox(terms)} />
-          )}
+          {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
           <button type="submit">Reserve Tickets</button>
         </CsrfForm>
       )}
