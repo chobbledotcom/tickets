@@ -342,17 +342,20 @@ describe("server (admin questions)", () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const { questionsTable } = await import("#lib/db/questions.ts");
+      // Stub getQuestion to return the question but delete it before returning,
+      // simulating a race where the question is deleted between getQuestion
+      // and getQuestionWithAnswers
+      const { questionsTable, deleteQuestion: deleteQ } = await import(
+        "#lib/db/questions.ts"
+      );
       const original = questionsTable.findById.bind(questionsTable);
-      let calls = 0;
       const findByIdStub = stub(
         questionsTable,
         "findById",
-        (...args: Parameters<typeof original>) => {
-          calls++;
-          // First call (getQuestion): return the question
-          // Second call (getQuestionWithAnswers): return null
-          return calls === 1 ? original(...args) : Promise.resolve(null);
+        async (...args: Parameters<typeof original>) => {
+          const result = await original(...args);
+          if (result) await deleteQ(id);
+          return result;
         },
       );
 
