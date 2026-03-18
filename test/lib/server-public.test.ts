@@ -4180,7 +4180,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("daily event parses date after question validation", async () => {
-      const today = todayInTz();
+      const today = todayInTz("UTC");
       const validDate = addDays(today, 1);
       const event = await createTestEvent({
         maxAttendees: 50,
