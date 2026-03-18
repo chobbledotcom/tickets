@@ -14,8 +14,8 @@ describe("renderQuestions", () => {
         id: 1,
         text: "Favourite colour?",
         answers: [
-          { id: 10, question_id: 1, text: "Red" },
-          { id: 11, question_id: 1, text: "Blue" },
+          { id: 10, question_id: 1, text: "Red", sort_order: 0 },
+          { id: 11, question_id: 1, text: "Blue", sort_order: 1 },
         ],
       },
     ];
@@ -37,12 +37,12 @@ describe("renderQuestions", () => {
       {
         id: 1,
         text: "Q1",
-        answers: [{ id: 10, question_id: 1, text: "A1" }],
+        answers: [{ id: 10, question_id: 1, text: "A1", sort_order: 0 }],
       },
       {
         id: 2,
         text: "Q2",
-        answers: [{ id: 20, question_id: 2, text: "A2" }],
+        answers: [{ id: 20, question_id: 2, text: "A2", sort_order: 0 }],
       },
     ];
 
@@ -57,7 +57,7 @@ describe("renderQuestions", () => {
       {
         id: 1,
         text: "What <b>size</b>?",
-        answers: [{ id: 10, question_id: 1, text: "S&M" }],
+        answers: [{ id: 10, question_id: 1, text: "S&M", sort_order: 0 }],
       },
     ];
 

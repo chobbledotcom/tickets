@@ -656,6 +656,7 @@ export const initDb = async (): Promise<void> => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       question_id INTEGER NOT NULL,
       text TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (question_id) REFERENCES questions(id)
     )
   `);

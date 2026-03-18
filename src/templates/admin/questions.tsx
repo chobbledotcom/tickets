@@ -3,7 +3,7 @@
  */
 
 import { map } from "#fp";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm, renderError } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
@@ -97,7 +97,7 @@ export const adminQuestionPage = (
         </p>
       ) : (
         <ul class="answer-list">
-          {map((a: { id: number; text: string }) => (
+          {map((a: Answer) => (
             <li>
               {a.text}
               <CsrfForm

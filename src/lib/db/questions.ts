@@ -7,7 +7,7 @@
 
 import { map, unique } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto.ts";
-import { getDb, queryAll } from "#lib/db/client.ts";
+import { executeBatch, inPlaceholders, queryAll } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,7 @@ export interface Answer {
   id: number;
   question_id: number;
   text: string; // encrypted
+  sort_order: number;
 }
 
 /** Link between event and question (ordering by sort_order) */
@@ -61,7 +62,7 @@ export const questionsTable = defineTable<Question, QuestionInput>({
   schema: { id: generatedId, text: encryptedText },
 });
 
-type AnswerInput = { questionId: number; text: string };
+type AnswerInput = { questionId: number; text: string; sortOrder: number };
 
 export const answersTable = defineTable<Answer, AnswerInput>({
   name: "answers",
@@ -70,6 +71,7 @@ export const answersTable = defineTable<Answer, AnswerInput>({
     id: generatedId,
     question_id: col.simple<number>(),
     text: encryptedText,
+    sort_order: col.simple<number>(),
   },
 });
 
@@ -112,7 +114,7 @@ export const attendeeAnswersTable = defineTable<
 // Queries
 // ---------------------------------------------------------------------------
 
-/** Get all questions with their answers, decrypted */
+/** Get all questions with their answers (sorted by sort_order), decrypted */
 export const getAllQuestionsWithAnswers = async (): Promise<
   QuestionWithAnswers[]
 > => {
@@ -124,6 +126,11 @@ export const getAllQuestionsWithAnswers = async (): Promise<
     const list = answersByQuestion.get(a.question_id) ?? [];
     list.push(a);
     answersByQuestion.set(a.question_id, list);
+  }
+
+  // Sort answers by sort_order within each question
+  for (const list of answersByQuestion.values()) {
+    list.sort((a, b) => a.sort_order - b.sort_order);
   }
 
   return map((q: Question) => ({
@@ -167,7 +174,7 @@ export const getQuestionsForEvents = async (
 ): Promise<QuestionWithAnswers[]> => {
   if (eventIds.length === 0) return [];
   const links = await queryAll<EventQuestion>(
-    `SELECT * FROM event_questions WHERE event_id IN (${eventIds.map(() => "?").join(",")}) ORDER BY sort_order`,
+    `SELECT * FROM event_questions WHERE event_id IN (${inPlaceholders(eventIds)}) ORDER BY sort_order`,
     eventIds,
   );
   return resolveLinkedQuestions(links);
@@ -178,30 +185,42 @@ export const setEventQuestions = async (
   eventId: number,
   questionIds: number[],
 ): Promise<void> => {
-  await getDb().execute({
-    sql: "DELETE FROM event_questions WHERE event_id = ?",
-    args: [eventId],
-  });
-  for (let i = 0; i < questionIds.length; i++) {
-    await eventQuestionsTable.insert({
-      eventId,
-      questionId: questionIds[i]!,
-      sortOrder: i,
-    });
-  }
+  const statements = [
+    { sql: "DELETE FROM event_questions WHERE event_id = ?", args: [eventId] },
+    ...questionIds.map((qid, i) => ({
+      sql: "INSERT INTO event_questions (event_id, question_id, sort_order) VALUES (?, ?, ?)",
+      args: [eventId, qid, i],
+    })),
+  ];
+  await executeBatch(statements);
 };
 
-/** Save attendee answers (one answer per question) */
-export const saveAttendeeAnswers = async (
-  attendeeId: number,
+const ATTENDEE_ANSWER_INSERT =
+  "INSERT INTO attendee_answers (attendee_id, answer_id) VALUES (?, ?)";
+
+/** Save the same answers for one or more attendees in a single batch */
+export const saveAttendeeAnswersBatch = async (
+  attendeeIds: number[],
   answerIds: number[],
 ): Promise<void> => {
-  for (const answerId of answerIds) {
-    await attendeeAnswersTable.insert({ attendeeId, answerId });
-  }
+  if (attendeeIds.length === 0 || answerIds.length === 0) return;
+  await executeBatch(
+    attendeeIds.flatMap((attendeeId) =>
+      answerIds.map((answerId) => ({
+        sql: ATTENDEE_ANSWER_INSERT,
+        args: [attendeeId, answerId],
+      })),
+    ),
+  );
 };
 
-/** Get answers for an attendee, decrypted */
+/** Save attendee answers for a single attendee */
+export const saveAttendeeAnswers = (
+  attendeeId: number,
+  answerIds: number[],
+): Promise<void> => saveAttendeeAnswersBatch([attendeeId], answerIds);
+
+/** Get answers for an attendee */
 export const getAttendeeAnswers = (
   attendeeId: number,
 ): Promise<AttendeeAnswer[]> =>
@@ -217,7 +236,7 @@ export const getAttendeeAnswersBatch = async (
   if (attendeeIds.length === 0) return new Map();
 
   const rows = await queryAll<AttendeeAnswer>(
-    `SELECT * FROM attendee_answers WHERE attendee_id IN (${attendeeIds.map(() => "?").join(",")})`,
+    `SELECT * FROM attendee_answers WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
     attendeeIds,
   );
 
@@ -230,55 +249,42 @@ export const getAttendeeAnswersBatch = async (
   return result;
 };
 
-/** Delete a question and all related data (answers, event links, attendee answers) */
+/** Delete a question and all related data in a single batch */
 export const deleteQuestion = async (questionId: number): Promise<void> => {
-  // Get answer IDs first for cascading delete
   const answers = await queryAll<{ id: number }>(
     "SELECT id FROM answers WHERE question_id = ?",
     [questionId],
   );
   const answerIds = map((a: { id: number }) => a.id)(answers);
 
-  if (answerIds.length > 0) {
-    await getDb().execute({
-      sql: `DELETE FROM attendee_answers WHERE answer_id IN (${answerIds.map(() => "?").join(",")})`,
-      args: answerIds,
-    });
-  }
-
-  await getDb().execute({
-    sql: "DELETE FROM answers WHERE question_id = ?",
-    args: [questionId],
-  });
-  await getDb().execute({
-    sql: "DELETE FROM event_questions WHERE question_id = ?",
-    args: [questionId],
-  });
-  await getDb().execute({
-    sql: "DELETE FROM questions WHERE id = ?",
-    args: [questionId],
-  });
+  const statements = [
+    ...(answerIds.length > 0
+      ? [{
+          sql: `DELETE FROM attendee_answers WHERE answer_id IN (${inPlaceholders(answerIds)})`,
+          args: answerIds,
+        }]
+      : []),
+    { sql: "DELETE FROM answers WHERE question_id = ?", args: [questionId] },
+    {
+      sql: "DELETE FROM event_questions WHERE question_id = ?",
+      args: [questionId],
+    },
+    { sql: "DELETE FROM questions WHERE id = ?", args: [questionId] },
+  ];
+  await executeBatch(statements);
 };
 
-/** Delete an answer and all related attendee answers */
+/** Delete an answer and all related attendee answers in a single batch */
 export const deleteAnswer = async (answerId: number): Promise<void> => {
-  await getDb().execute({
-    sql: "DELETE FROM attendee_answers WHERE answer_id = ?",
-    args: [answerId],
-  });
-  await getDb().execute({
-    sql: "DELETE FROM answers WHERE id = ?",
-    args: [answerId],
-  });
+  await executeBatch([
+    { sql: "DELETE FROM attendee_answers WHERE answer_id = ?", args: [answerId] },
+    { sql: "DELETE FROM answers WHERE id = ?", args: [answerId] },
+  ]);
 };
 
 /** Get a question by ID (decrypted) */
 export const getQuestion = (id: number): Promise<Question | null> =>
   questionsTable.findById(id);
-
-/** Get an answer by ID (decrypted) */
-export const getAnswer = (id: number): Promise<Answer | null> =>
-  answersTable.findById(id);
 
 /** Get question with answers by ID */
 export const getQuestionWithAnswers = async (
@@ -288,7 +294,7 @@ export const getQuestionWithAnswers = async (
   if (!question) return null;
 
   const answers = await queryAll<Answer>(
-    "SELECT * FROM answers WHERE question_id = ?",
+    "SELECT * FROM answers WHERE question_id = ? ORDER BY sort_order",
     [id],
   );
   const decryptedAnswers = await Promise.all(
@@ -296,4 +302,15 @@ export const getQuestionWithAnswers = async (
   );
 
   return { ...question, answers: decryptedAnswers };
+};
+
+/** Get the next sort_order for a new answer in a question */
+export const getNextAnswerSortOrder = async (
+  questionId: number,
+): Promise<number> => {
+  const rows = await queryAll<{ max_order: number | null }>(
+    "SELECT MAX(sort_order) as max_order FROM answers WHERE question_id = ?",
+    [questionId],
+  );
+  return (rows[0]?.max_order ?? -1) + 1;
 };

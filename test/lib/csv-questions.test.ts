@@ -30,16 +30,16 @@ const makeQuestions = (): QuestionWithAnswers[] => [
     id: 1,
     text: "T-shirt Size",
     answers: [
-      { id: 10, question_id: 1, text: "Small" },
-      { id: 11, question_id: 1, text: "Large" },
+      { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+      { id: 11, question_id: 1, text: "Large", sort_order: 1 },
     ],
   },
   {
     id: 2,
     text: "Dietary Requirements",
     answers: [
-      { id: 20, question_id: 2, text: "None" },
-      { id: 21, question_id: 2, text: "Vegetarian" },
+      { id: 20, question_id: 2, text: "None", sort_order: 0 },
+      { id: 21, question_id: 2, text: "Vegetarian", sort_order: 1 },
     ],
   },
 ];
