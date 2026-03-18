@@ -3775,12 +3775,12 @@ describe("html", () => {
     });
 
     describe("adminDuplicateEventPage image section", () => {
-      test("shows image upload field when storage enabled", () => {
+      test("does not show image upload field even when storage enabled", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = adminDuplicateEventPage(event, [], TEST_SESSION);
-        expect(html).toContain('type="file"');
-        expect(html).toContain('name="image"');
+        expect(html).not.toContain('type="file"');
+        expect(html).not.toContain('name="image"');
         expect(html).toContain("multipart/form-data");
         cleanupStorage();
       });

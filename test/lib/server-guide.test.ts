@@ -1,5 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import {
+  resetHostAppleWalletConfig,
+  setHostAppleWalletConfigForTest,
+} from "#lib/db/settings.ts";
+import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
@@ -178,6 +183,65 @@ describe("server (admin guide)", () => {
       expect(html).toContain("/admin/guide");
       expect(html).toContain("Events");
       expect(html).toContain("Logout");
+    });
+
+    test("shows default email setup instructions when no host email configured", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Choose your email provider from the dropdown");
+      expect(html).not.toContain(
+        "already configured by your server administrator",
+      );
+    });
+
+    test("shows host email config and setup instructions when configured", async () => {
+      setHostEmailConfigForTest({
+        provider: "resend",
+        apiKey: "re_test_key",
+        fromAddress: "tickets@example.com",
+      });
+      try {
+        const { response } = await adminGet("/admin/guide");
+        const html = await response.text();
+        expect(html).toContain(
+          "already configured by your server administrator",
+        );
+        expect(html).toContain("Resend");
+        expect(html).toContain("tickets@example.com");
+        expect(html).toContain("Choose your email provider from the dropdown");
+      } finally {
+        resetHostEmailConfig();
+      }
+    });
+
+    test("shows default wallet setup instructions when no host wallet configured", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("You need five values from");
+      expect(html).not.toContain(
+        "already configured by your server administrator using pass type",
+      );
+    });
+
+    test("shows host wallet config and setup instructions when configured", async () => {
+      setHostAppleWalletConfigForTest({
+        passTypeId: "pass.com.host.tickets",
+        teamId: "HOSTTEAM01",
+        signingCert: "cert-data",
+        signingKey: "key-data",
+        wwdrCert: "wwdr-data",
+      });
+      try {
+        const { response } = await adminGet("/admin/guide");
+        const html = await response.text();
+        expect(html).toContain(
+          "already configured by your server administrator using pass type",
+        );
+        expect(html).toContain("pass.com.host.tickets");
+        expect(html).toContain("You need five values from");
+      } finally {
+        resetHostAppleWalletConfig();
+      }
     });
   });
 });
