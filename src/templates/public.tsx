@@ -257,7 +257,7 @@ export const ticketPage = (
   availableDates: string[] | undefined,
   termsAndConditions: string | null | undefined,
   baseUrl?: string,
-  questions: QuestionWithAnswers[] = [],
+  questions?: QuestionWithAnswers[],
 ): string => {
   const inIframe = getIframeMode();
   const spotsRemaining = event.max_attendees - event.attendee_count;
@@ -319,7 +319,9 @@ export const ticketPage = (
             <input type="hidden" name="quantity" value="1" />
           )}
           {showPayMore && <Raw html={renderPayMoreInput(event)} />}
-          {questions.length > 0 && <Raw html={renderQuestions(questions)} />}
+          {questions && questions.length > 0 && (
+            <Raw html={renderQuestions(questions)} />
+          )}
           {termsAndConditions && (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}
@@ -441,17 +443,27 @@ const renderMultiEventRow = (
 const getMultiTicketFieldsSetting = (events: MultiTicketEvent[]): EventFields =>
   mergeEventFields(events.map((e) => e.event.fields));
 
+/** Options for the multi-ticket page */
+export type MultiTicketPageOptions = {
+  events: MultiTicketEvent[];
+  slugs: string[];
+  error?: string;
+  availableDates?: string[];
+  termsAndConditions?: string | null;
+  questions?: QuestionWithAnswers[];
+};
+
 /**
  * Multi-ticket page - register for multiple events at once
  */
-export const multiTicketPage = (
-  events: MultiTicketEvent[],
-  slugs: string[],
-  error?: string,
-  availableDates?: string[],
-  termsAndConditions?: string | null,
-  questions: QuestionWithAnswers[] = [],
-): string => {
+export const multiTicketPage = ({
+  events,
+  slugs,
+  error,
+  availableDates,
+  termsAndConditions,
+  questions,
+}: MultiTicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
@@ -494,7 +506,9 @@ export const multiTicketPage = (
             </fieldset>
           )}
 
-          {questions.length > 0 && <Raw html={renderQuestions(questions)} />}
+          {questions && questions.length > 0 && (
+            <Raw html={renderQuestions(questions)} />
+          )}
           {termsAndConditions && (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}
