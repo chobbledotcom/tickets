@@ -4118,6 +4118,5 @@ describe("server (public routes)", () => {
       expect(html).toContain("Active Event");
       expect(html).not.toContain("Inactive Event");
     });
-
   });
 });
