@@ -564,7 +564,7 @@ describe("server (admin questions)", () => {
     test("assigns questions to event and redirects", async () => {
       const event = await createTestEvent({ name: "Assign Questions" });
       const q1 = await createQuestion("Question A?");
-      const q2 = await createQuestion("Question B?");
+      await createQuestion("Question B?");
 
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
