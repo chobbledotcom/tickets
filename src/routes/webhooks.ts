@@ -913,6 +913,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
   // Cannot read body as underlying resource unavailable" errors.
   const payloadBytes = new Uint8Array(await request.arrayBuffer());
+  const payload = new TextDecoder().decode(payloadBytes);
 
   // Get signature header (sync — headers are always available)
   const signature = getWebhookSignatureHeader(request);
@@ -921,6 +922,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Webhook missing signature header",
     });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Missing signature", 400);
   }
 
@@ -930,10 +932,9 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Webhook received but payment provider not configured",
     });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Payment provider not configured", 400);
   }
-
-  const payload = new TextDecoder().decode(payloadBytes);
 
   // Use the public-facing domain for signature verification. Square signs the
   // webhook using the exact notification URL from the subscription, which is the
@@ -953,6 +954,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SIGNATURE,
       detail: `Webhook signature verification failed: ${verification.error}`,
     });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse(verification.error, 400);
   }
 
@@ -977,6 +979,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Webhook event missing session data",
     });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Invalid session data", 400);
   }
 
@@ -990,6 +993,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Ignoring webhook for unrecognized payment session",
     });
+    logDebug("Webhook", `Ignored payload: ${payload}`);
     return webhookAckResponse();
   }
 
@@ -999,6 +1003,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})`,
     });
+    logDebug("Webhook", `Pending payload: ${payload}`);
     return webhookAckResponse({ status: "pending" });
   }
 
@@ -1015,6 +1020,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
         code: ErrorCode.PAYMENT_SESSION,
         detail: `Invalid multi-ticket session data for ${session.id}`,
       });
+      logDebug("Webhook", `Rejected payload: ${payload}`);
       return plainResponse("Invalid multi-ticket session data", 400);
     }
     eventIdForLog = multiIntent.items[0]?.e;
@@ -1035,6 +1041,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       eventId: eventIdForLog,
       detail: result.detail ?? result.error,
     });
+    logDebug("Webhook", `Failed payload: ${payload}`);
   }
 
   return webhookAckResponse({
