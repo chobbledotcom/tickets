@@ -14,6 +14,9 @@ const escapeHtml = (str: string): string =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
+const getString = (form: URLSearchParams, key: string): string =>
+  form.get(key)?.trim() ?? "";
+
 export type FieldType =
   | "text"
   | "number"
@@ -102,8 +105,8 @@ const getDatetimeValue = (
   form: URLSearchParams,
   name: string,
 ): string | null => {
-  const date = form.get(`${name}_date`)?.trim() ?? "";
-  const time = form.get(`${name}_time`)?.trim() ?? "";
+  const date = getString(form, `${name}_date`);
+  const time = getString(form, `${name}_time`);
   if (date && time) return `${date}T${time}`;
   if (date && !time) return `${date}T00:00`;
   if (!date && !time) return "";
@@ -228,7 +231,7 @@ const validateSingleField = (
       .filter((v) => v)
       .join(",");
   } else {
-    trimmed = form.get(field.name)?.trim() ?? "";
+    trimmed = getString(form, field.name);
   }
 
   if (!trimmed && field.defaultValue) {
