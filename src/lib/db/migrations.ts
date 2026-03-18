@@ -15,7 +15,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add ticket_tokens column to processed_payments";
+export const LATEST_UPDATE = "add custom questions tables";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -643,6 +643,44 @@ export const initDb = async (): Promise<void> => {
     "ALTER TABLE processed_payments ADD COLUMN ticket_tokens TEXT NOT NULL DEFAULT ''",
   );
 
+  // Migration: create custom questions tables
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      text TEXT NOT NULL
+    )
+  `);
+
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS answers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question_id INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      FOREIGN KEY (question_id) REFERENCES questions(id)
+    )
+  `);
+
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS event_questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      question_id INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (event_id) REFERENCES events(id),
+      FOREIGN KEY (question_id) REFERENCES questions(id)
+    )
+  `);
+
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS attendee_answers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      attendee_id INTEGER NOT NULL,
+      answer_id INTEGER NOT NULL,
+      FOREIGN KEY (attendee_id) REFERENCES attendees(id),
+      FOREIGN KEY (answer_id) REFERENCES answers(id)
+    )
+  `);
+
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -654,6 +692,10 @@ export const initDb = async (): Promise<void> => {
  * All database tables in order for safe dropping (respects foreign key constraints)
  */
 const ALL_TABLES = [
+  "attendee_answers",
+  "event_questions",
+  "answers",
+  "questions",
   "groups",
   "holidays",
   "activity_log",

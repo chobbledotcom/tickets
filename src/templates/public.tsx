@@ -5,6 +5,7 @@
 import { map, pipe } from "#fp";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
+import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
@@ -226,6 +227,22 @@ const renderTermsAndCheckbox = (terms: string): string =>
   `<div class="terms">${renderMarkdown(terms)}</div>` +
   `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
 
+/** Render custom multiple-choice question fields (radio buttons) */
+export const renderQuestions = (questions: QuestionWithAnswers[]): string => {
+  if (questions.length === 0) return "";
+  return questions
+    .map((q) => {
+      const options = q.answers
+        .map(
+          (a) =>
+            `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(a.text)}</label>`,
+        )
+        .join("");
+      return `<fieldset class="custom-question"><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+    })
+    .join("");
+};
+
 /**
  * Public ticket page
  */
@@ -236,6 +253,7 @@ export const ticketPage = (
   availableDates: string[] | undefined,
   termsAndConditions: string | null | undefined,
   baseUrl?: string,
+  questions: QuestionWithAnswers[] = [],
 ): string => {
   const inIframe = getIframeMode();
   const spotsRemaining = event.max_attendees - event.attendee_count;
@@ -297,6 +315,7 @@ export const ticketPage = (
             <input type="hidden" name="quantity" value="1" />
           )}
           {showPayMore && <Raw html={renderPayMoreInput(event)} />}
+          {questions.length > 0 && <Raw html={renderQuestions(questions)} />}
           {termsAndConditions && (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}
@@ -428,6 +447,7 @@ export const multiTicketPage = (
   error?: string,
   availableDates?: string[],
   termsAndConditions?: string | null,
+  questions: QuestionWithAnswers[] = [],
 ): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
@@ -470,6 +490,7 @@ export const multiTicketPage = (
             </fieldset>
           )}
 
+          {questions.length > 0 && <Raw html={renderQuestions(questions)} />}
           {termsAndConditions && (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}

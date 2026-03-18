@@ -18,6 +18,7 @@ import { eventsRoutes } from "#routes/admin/events.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
+import { questionsRoutes } from "#routes/admin/questions.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { seedsRoutes } from "#routes/admin/seeds.ts";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
@@ -42,6 +43,7 @@ const adminRoutes = {
   ...guideRoutes,
   ...groupsRoutes,
   ...holidaysRoutes,
+  ...questionsRoutes,
   ...scannerRoutes,
   ...seedsRoutes,
 };

@@ -17,6 +17,10 @@ import {
 } from "#lib/db/events.ts";
 import { getAllGroups, groupsTable } from "#lib/db/groups.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
+import {
+  getAttendeeAnswersBatch,
+  getQuestionsForEvent,
+} from "#lib/db/questions.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -76,7 +80,7 @@ import {
   adminEventPage,
   adminReactivateEventPage,
 } from "#templates/admin/events.tsx";
-import { generateAttendeesCsv } from "#templates/csv.ts";
+import { type CsvQuestionData, generateAttendeesCsv } from "#templates/csv.ts";
 import type {
   EventEditFormValues,
   EventFormValues,
@@ -559,10 +563,25 @@ const handleAdminEventExport: TypedRouteHandler<
       request,
     );
     const isDaily = event.event_type === "daily";
-    const csv = generateAttendeesCsv(filteredByDate, isDaily, {
-      eventDate: event.date,
-      eventLocation: event.location,
-    });
+
+    // Load questions and attendee answers for CSV
+    const attendeeIds = filteredByDate.map((a) => a.id);
+    const [questions, attendeeAnswerMap] = await Promise.all([
+      getQuestionsForEvent(event.id),
+      getAttendeeAnswersBatch(attendeeIds),
+    ]);
+    const questionData: CsvQuestionData | undefined =
+      questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
+
+    const csv = generateAttendeesCsv(
+      filteredByDate,
+      isDaily,
+      {
+        eventDate: event.date,
+        eventLocation: event.location,
+      },
+      questionData,
+    );
     const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
     const filename = dateFilter
       ? `${sanitizedName}_${dateFilter}_attendees.csv`

@@ -300,6 +300,9 @@ export const adminEventPage = ({
             <a href={`/admin/event/${event.id}/scanner`}>Scanner</a>
           </li>
           <li>
+            <a href={`/admin/event/${event.id}/questions`}>Questions</a>
+          </li>
+          <li>
             <a
               href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}
             >
