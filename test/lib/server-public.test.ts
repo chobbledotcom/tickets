@@ -4138,7 +4138,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     /** Create a question with answers and assign it to an event */
     const setupQuestionForEvent = async (eventId: number) => {
       const q = await questionsTable.insert({ text: "T-shirt size?" });
-      await answersTable.insert({
+      const a1 = await answersTable.insert({
         questionId: q.id,
         text: "Small",
         sortOrder: 0,
@@ -4231,7 +4231,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("multi-ticket with custom questions", () => {
     const setupQuestionForEvents = async (eventIds: number[]) => {
       const q = await questionsTable.insert({ text: "Dietary needs?" });
-      await answersTable.insert({
+      const a1 = await answersTable.insert({
         questionId: q.id,
         text: "None",
         sortOrder: 0,
