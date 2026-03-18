@@ -9,7 +9,7 @@ import {
   getAttendeeAnswersBatch,
   getQuestion,
   getQuestionsForEvent,
-  getQuestionsForEvents,
+  getQuestionsWithEventIds,
   getQuestionWithAnswers,
   questionsTable,
   saveAttendeeAnswers,
@@ -143,7 +143,7 @@ describe("custom questions", () => {
     });
   });
 
-  describe("getQuestionsForEvents (deduped)", () => {
+  describe("getQuestionsWithEventIds", () => {
     test("deduplicates questions across events", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
@@ -155,15 +155,33 @@ describe("custom questions", () => {
       await setEventQuestions(event1.id, [q1.id, q2.id]);
       await setEventQuestions(event2.id, [q2.id]);
 
-      const questions = await getQuestionsForEvents([event1.id, event2.id]);
+      const { questions } = await getQuestionsWithEventIds([event1.id, event2.id]);
       expect(questions).toHaveLength(2);
       expect(questions[0]!.text).toBe("Q1");
       expect(questions[1]!.text).toBe("Q2");
     });
 
+    test("returns event-ID mapping for each question", async () => {
+      const q1 = await questionsTable.insert({ text: "Q1" });
+      const q2 = await questionsTable.insert({ text: "Q2" });
+      await answersTable.insert({ questionId: q1.id, text: "A1", sortOrder: 0 });
+      await answersTable.insert({ questionId: q2.id, text: "A2", sortOrder: 0 });
+
+      const event1 = await createTestEvent();
+      const event2 = await createTestEvent({ name: "Event 2" });
+      await setEventQuestions(event1.id, [q1.id, q2.id]);
+      await setEventQuestions(event2.id, [q2.id]);
+
+      const { questionEventMap } = await getQuestionsWithEventIds([event1.id, event2.id]);
+      expect(questionEventMap.get(q1.id)).toEqual([event1.id]);
+      const q2Events = questionEventMap.get(q2.id)!;
+      expect(q2Events.sort()).toEqual([event1.id, event2.id].sort());
+    });
+
     test("returns empty for no events", async () => {
-      const questions = await getQuestionsForEvents([]);
+      const { questions, questionEventMap } = await getQuestionsWithEventIds([]);
       expect(questions).toEqual([]);
+      expect(questionEventMap.size).toBe(0);
     });
   });
 

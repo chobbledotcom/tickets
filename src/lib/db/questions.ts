@@ -168,16 +168,40 @@ export const getQuestionsForEvent = async (
   return resolveLinkedQuestions(links);
 };
 
-/** Get questions for multiple events, deduped and ordered by first appearance */
-export const getQuestionsForEvents = async (
-  eventIds: number[],
-): Promise<QuestionWithAnswers[]> => {
-  if (eventIds.length === 0) return [];
-  const links = await queryAll<EventQuestion>(
+/** Map from question ID to the set of event IDs that use it */
+export type QuestionEventMap = Map<number, number[]>;
+
+/** Build event-ID mapping from event_questions links */
+const buildQuestionEventMap = (links: EventQuestion[]): QuestionEventMap => {
+  const result: QuestionEventMap = new Map();
+  for (const link of links) {
+    const existing = result.get(link.question_id);
+    if (existing) {
+      if (!existing.includes(link.event_id)) existing.push(link.event_id);
+    } else {
+      result.set(link.question_id, [link.event_id]);
+    }
+  }
+  return result;
+};
+
+/** Load event_questions links for multiple events */
+const loadEventQuestionLinks = (eventIds: number[]) =>
+  queryAll<EventQuestion>(
     `SELECT * FROM event_questions WHERE event_id IN (${inPlaceholders(eventIds)}) ORDER BY sort_order`,
     eventIds,
   );
-  return resolveLinkedQuestions(links);
+
+/** Get questions for multiple events with event-ID mapping (for conditional display) */
+export const getQuestionsWithEventIds = async (
+  eventIds: number[],
+): Promise<{ questions: QuestionWithAnswers[]; questionEventMap: QuestionEventMap }> => {
+  if (eventIds.length === 0) return { questions: [], questionEventMap: new Map() };
+  const links = await loadEventQuestionLinks(eventIds);
+  return {
+    questions: await resolveLinkedQuestions(links),
+    questionEventMap: buildQuestionEventMap(links),
+  };
 };
 
 /** Set which questions are assigned to an event (replaces existing) */
