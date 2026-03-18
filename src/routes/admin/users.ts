@@ -26,6 +26,7 @@ import {
   type AuthSession,
   generateSecureToken,
   getSearchParam,
+  getString,
   htmlResponse,
   redirect,
   requireOwnerOr,
@@ -258,8 +259,8 @@ const handleUserDeletePost: TypedRouteHandler<
     }
 
     const username = await decryptUsername(user);
-    const confirmName = String(form.get("confirm_identifier") ?? "");
-    if (confirmName.trim().toLowerCase() !== username.trim().toLowerCase()) {
+    const confirmName = getString(form, "confirm_identifier");
+    if (confirmName.toLowerCase() !== username.trim().toLowerCase()) {
       const displayUser = await toDisplayUser(user);
       return htmlResponse(
         adminUserDeletePage(

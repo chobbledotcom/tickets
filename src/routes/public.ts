@@ -57,6 +57,7 @@ import {
   checkoutResponse,
   formatCreationError,
   getBaseUrl,
+  getString,
   htmlResponse,
   isRegistrationClosed,
   notFoundResponse,
@@ -344,7 +345,7 @@ const parseCustomPrice = (
   fieldName: string,
   minPrice: number,
   maxPrice: number,
-) => validatePrice((form.get(fieldName) || "").trim(), minPrice, maxPrice);
+) => validatePrice(getString(form, fieldName), minPrice, maxPrice);
 
 /** Format error message for failed attendee creation */
 const formatAtomicError = formatCreationError(
@@ -362,7 +363,7 @@ const validateSubmittedDate = (
   form: URLSearchParams,
   dates: string[],
 ): string | null => {
-  const submitted = form.get("date") || "";
+  const submitted = getString(form, "date");
   return submitted && dates.includes(submitted) ? submitted : null;
 };
 

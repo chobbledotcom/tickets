@@ -11,6 +11,7 @@ import { isDemoMode } from "#lib/demo.ts";
 import { deleteAllEventStorageFiles, isStorageEnabled } from "#lib/storage.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
+  getString,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -37,8 +38,8 @@ const resetPageError = (message: string, status: number): Response =>
  * Shared with admin settings reset handler.
  */
 export const validateResetPhrase = (form: URLSearchParams): string | null => {
-  const confirmPhrase = form.get("confirm_phrase") ?? "";
-  return confirmPhrase.trim() === RESET_DATABASE_PHRASE
+  const confirmPhrase = getString(form, "confirm_phrase");
+  return confirmPhrase === RESET_DATABASE_PHRASE
     ? null
     : RESET_PHRASE_MISMATCH_ERROR;
 };

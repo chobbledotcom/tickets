@@ -16,6 +16,7 @@ import type {
 import {
   type AuthFormResult,
   type AuthSession,
+  getString,
   requireAuthForm,
 } from "#routes/utils.ts";
 
@@ -108,7 +109,7 @@ const verifyOrError = <R, I>(
   onFail?: DeleteHandlerOptions<R>["onVerifyFailed"],
 ): MaybeAsync<Response> | null => {
   if (!needsVerify(req) || !res.verifyName || !onFail) return null;
-  const name = auth.form.get("confirm_name") ?? "";
+  const name = getString(auth.form, "confirm_name");
   return res.verifyName(row, name)
     ? null
     : onFail(id, row, auth.session, auth.form);

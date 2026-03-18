@@ -41,6 +41,7 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
   getSearchParam,
+  getString,
   htmlResponse,
   notFoundResponse,
   orNotFound,
@@ -160,9 +161,9 @@ const verifyAttendeeName = (
   ) => string,
   errorMsg: string,
 ): Response | null => {
-  const confirmName = form.get("confirm_name") ?? "";
+  const confirmName = getString(form, "confirm_name");
   if (!verifyIdentifier(data.attendee.name, confirmName)) {
-    const returnUrl = form.get("return_url") ?? "";
+    const returnUrl = getString(form, "return_url");
     return htmlResponse(renderPage(data, session, errorMsg, returnUrl), 400);
   }
   return null;
@@ -261,13 +262,13 @@ const handleAttendeeCheckin = attendeeFormAction(
     const action = nowCheckedIn ? "checked in" : "checked out";
     await logActivity(`Attendee ${action} for '${data.event.name}'`, eventId);
 
-    const returnUrl = form.get("return_url") ?? "";
+    const returnUrl = getString(form, "return_url");
     if (returnUrl)
       return redirect(returnUrl, `${data.attendee.name} ${action}`, true);
 
     const name = encodeURIComponent(data.attendee.name);
     const status = nowCheckedIn ? "in" : "out";
-    const filterValue = form.get("return_filter") ?? "";
+    const filterValue = getString(form, "return_filter");
     const suffix =
       filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
     return redirectResponse(
@@ -286,7 +287,7 @@ const refundError = (
   const returnUrl =
     typeof formOrReturnUrl === "string"
       ? formOrReturnUrl
-      : (formOrReturnUrl.get("return_url") ?? "");
+      : getString(formOrReturnUrl, "return_url");
   return htmlResponse(
     adminRefundAttendeePage(data, session, msg, returnUrl),
     400,
@@ -385,7 +386,7 @@ const processRefundAll = async (
   const refundable = getRefundable(attendees);
   const nameConfirmed = verifyIdentifier(
     event.name,
-    form.get("confirm_name") ?? "",
+    getString(form, "confirm_name"),
   );
   if (!nameConfirmed) {
     return htmlResponse(
@@ -630,14 +631,14 @@ async function editAttendeeHandler(
   applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
   const editError = (msg: string) =>
     htmlResponse(
-      adminEditAttendeePage(data, session, msg, form.get("return_url") ?? ""),
+      adminEditAttendeePage(data, session, msg, getString(form, "return_url")),
       400,
     );
-  const name = form.get("name") || "";
-  const email = form.get("email") || "";
-  const phone = form.get("phone") || "";
-  const address = form.get("address") || "";
-  const special_instructions = form.get("special_instructions") || "";
+  const name = getString(form, "name");
+  const email = getString(form, "email");
+  const phone = getString(form, "phone");
+  const address = getString(form, "address");
+  const special_instructions = getString(form, "special_instructions");
   const event_id = Number(form.get("event_id")) || 0;
 
   if (!name.trim()) return editError("Name is required");

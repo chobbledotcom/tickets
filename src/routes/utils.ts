@@ -312,6 +312,12 @@ export const getSearchParam = (request: Request, key: string): string => {
 };
 
 /**
+ * Get a form field value as a trimmed string, defaulting to "" when absent.
+ */
+export const getString = (form: URLSearchParams, key: string): string =>
+  form.get(key)?.trim() ?? "";
+
+/**
  * Add cookie header to response.
  * Mutates headers in-place to avoid re-reading the response body.
  */
@@ -463,7 +469,7 @@ export const requireCsrfForm = async (
   onInvalid: () => Response,
 ): Promise<CsrfFormResult> => {
   const form = await parseFormData(request);
-  const formCsrf = form.get("csrf_token") || "";
+  const formCsrf = getString(form, "csrf_token");
 
   if (formCsrf && (await verifySignedCsrfToken(formCsrf))) {
     return { ok: true, form };
@@ -506,7 +512,7 @@ export const requireAuthForm = async (
   }
 
   const form = await parseFormData(request);
-  const csrfToken = form.get("csrf_token") || "";
+  const csrfToken = getString(form, "csrf_token");
   if (!(await verifySignedCsrfToken(csrfToken))) {
     return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
   }

@@ -23,6 +23,7 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
   getSearchParam,
+  getString,
   htmlResponse,
   redirect,
   requireOwnerOr,
@@ -87,7 +88,7 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
   applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
   const showError = errorPageFor(session, renderHomePage);
 
-  const titleRaw = (form.get("website_title") ?? "").trim();
+  const titleRaw = getString(form, "website_title");
   if (titleRaw.length > MAX_WEBSITE_TITLE_LENGTH) {
     return showError(
       `Website title must be ${MAX_WEBSITE_TITLE_LENGTH} characters or fewer (currently ${titleRaw.length})`,
@@ -95,7 +96,7 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
     );
   }
 
-  const textRaw = (form.get("homepage_text") ?? "").trim();
+  const textRaw = getString(form, "homepage_text");
   if (textRaw.length > MAX_PAGE_TEXT_LENGTH) {
     return showError(
       `Homepage text must be ${MAX_PAGE_TEXT_LENGTH} characters or fewer (currently ${textRaw.length})`,
@@ -112,7 +113,7 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
 /** Handle POST /admin/site/contact - save contact page */
 const handleSiteContactPost = sitePostRoute(async (session, form) => {
   applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
-  const textRaw = (form.get("contact_page_text") ?? "").trim();
+  const textRaw = getString(form, "contact_page_text");
   if (textRaw.length > MAX_PAGE_TEXT_LENGTH) {
     return errorPageFor(session, renderContactPage)(
       `Contact page text must be ${MAX_PAGE_TEXT_LENGTH} characters or fewer (currently ${textRaw.length})`,

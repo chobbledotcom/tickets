@@ -10,6 +10,7 @@ import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
+  getString,
   htmlResponse,
   parseFormData,
   redirectResponse,
@@ -113,7 +114,7 @@ const handleSetupPost = async (
 
   // Validate signed CSRF token
   const form = await parseFormData(request);
-  const formCsrf = form.get("csrf_token") || "";
+  const formCsrf = getString(form, "csrf_token");
   logDebug(
     "Setup",
     `CSRF form present: ${!!formCsrf} length: ${formCsrf.length}`,
