@@ -107,6 +107,7 @@ import {
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
+import { testSquareConnection } from "#lib/square.ts";
 import {
   deleteAllEventStorageFiles,
   deleteImage,
@@ -644,6 +645,15 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
 const handleStripeTestPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async () => {
     const result = await testStripeConnection();
+    return jsonResponse(result);
+  });
+
+/**
+ * Handle POST /admin/settings/square/test - owner only
+ */
+const handleSquareTestPost = (request: Request): Promise<Response> =>
+  withOwnerAuthForm(request, async () => {
+    const result = await testSquareConnection();
     return jsonResponse(result);
   });
 
@@ -1375,6 +1385,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/square": handleAdminSquarePost,
   "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,
   "POST /admin/settings/stripe/test": handleStripeTestPost,
+  "POST /admin/settings/square/test": handleSquareTestPost,
   "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
   "POST /admin/settings/terms": handleTermsPost,
   "POST /admin/settings/country": handleCountryPost,

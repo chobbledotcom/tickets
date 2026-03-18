@@ -224,6 +224,12 @@ export const adminSettingsPage = (
             Sandbox mode (use Square's test environment)
           </label>
           <button type="submit">Update Square Credentials</button>
+          {s.squareTokenConfigured && (
+            <button type="button" id="square-test-btn" class="secondary">
+              Test Connection
+            </button>
+          )}
+          <div id="square-test-result" class="hidden"></div>
         </CsrfForm>
       )}
 

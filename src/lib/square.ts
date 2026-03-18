@@ -30,6 +30,7 @@ import {
   buildMultiIntentMetadata,
   buildSingleIntentMetadata,
   createWithClient,
+  errorMessage,
   PaymentUserError,
 } from "#lib/payment-helpers.ts";
 import type {
@@ -243,6 +244,16 @@ type SquarePaymentResponse = {
   };
 };
 
+type SquareLocation = {
+  id?: string;
+  name?: string;
+  status?: string;
+};
+
+type SquareLocationsResponse = {
+  locations?: SquareLocation[];
+};
+
 /**
  * Create a lightweight Square API client using direct fetch calls.
  * Translates between camelCase (app code) and snake_case (Square REST API).
@@ -348,6 +359,9 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           },
         };
       },
+    },
+    locations: {
+      list: () => get<SquareLocationsResponse>("/v2/locations"),
     },
     refunds: {
       refundPayment: async (p: RefundPaymentInput) => {
@@ -598,6 +612,7 @@ export type SquareClient = ReturnType<typeof createSquareClient>;
 export const squareApi: {
   getSquareClient: () => ReturnType<typeof getClientImpl>;
   resetSquareClient: () => void;
+  testSquareConnection: () => Promise<SquareConnectionTestResult>;
   createPaymentLink: (
     event: Event,
     intent: RegistrationIntent,
@@ -614,6 +629,75 @@ export const squareApi: {
   getSquareClient: getClientImpl,
 
   resetSquareClient: (): void => setCache(null),
+
+  /** Test Square connection: verify access token, location, and webhook key */
+  testSquareConnection: async (): Promise<SquareConnectionTestResult> => {
+    const result: SquareConnectionTestResult = {
+      ok: false,
+      accessToken: { valid: false },
+      location: { configured: false },
+      webhook: { configured: false },
+    };
+
+    // Step 1: Test access token by listing locations
+    const client = await squareApi.getSquareClient();
+    if (!client) {
+      result.accessToken.error = "No Square access token configured";
+      return result;
+    }
+
+    let locations: SquareLocation[] = [];
+    try {
+      const response = await client.locations.list();
+      locations = response.locations ?? [];
+      const sandbox = await getSquareSandbox();
+      result.accessToken = {
+        valid: true,
+        mode: sandbox ? "sandbox" : "production",
+      };
+    } catch (err) {
+      result.accessToken = { valid: false, error: errorMessage(err) };
+      return result;
+    }
+
+    // Step 2: Verify location ID
+    const locationId = await getSquareLocationId();
+    if (!locationId) {
+      result.location = {
+        configured: false,
+        error: "No location ID configured",
+      };
+    } else {
+      const match = locations.find((l) => l.id === locationId);
+      if (match) {
+        result.location = {
+          configured: true,
+          locationId,
+          name: match.name,
+          status: match.status,
+        };
+      } else {
+        result.location = {
+          configured: false,
+          locationId,
+          error: "Location ID not found in account",
+        };
+      }
+    }
+
+    // Step 3: Check webhook signature key
+    const webhookKey = await getSquareWebhookSignatureKey();
+    result.webhook = { configured: webhookKey !== null };
+    if (!webhookKey) {
+      result.webhook.error = "No webhook signature key configured";
+    }
+
+    result.ok =
+      result.accessToken.valid &&
+      result.location.configured &&
+      result.webhook.configured;
+    return result;
+  },
 
   /** Create a payment link for a single-event purchase */
   createPaymentLink: async (
@@ -763,6 +847,7 @@ export const squareApi: {
 // Wrapper exports for production code (delegate to squareApi for test mocking)
 export const getSquareClient = () => squareApi.getSquareClient();
 export const resetSquareClient = () => squareApi.resetSquareClient();
+export const testSquareConnection = () => squareApi.testSquareConnection();
 export const createPaymentLink = (e: Event, i: RegistrationIntent, b: string) =>
   squareApi.createPaymentLink(e, i, b);
 export const createMultiPaymentLink = (i: MultiRegistrationIntent, b: string) =>
@@ -770,6 +855,20 @@ export const createMultiPaymentLink = (i: MultiRegistrationIntent, b: string) =>
 export const retrieveOrder = (id: string) => squareApi.retrieveOrder(id);
 export const retrievePayment = (id: string) => squareApi.retrievePayment(id);
 export const refundPayment = (id: string) => squareApi.refundPayment(id);
+
+/** Result of testing the Square connection */
+export type SquareConnectionTestResult = {
+  ok: boolean;
+  accessToken: { valid: boolean; error?: string; mode?: string };
+  location: {
+    configured: boolean;
+    locationId?: string;
+    name?: string;
+    status?: string;
+    error?: string;
+  };
+  webhook: { configured: boolean; error?: string };
+};
 
 /**
  * =============================================================================
