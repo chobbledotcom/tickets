@@ -343,18 +343,21 @@ const validateAndPrice = async (
 };
 
 /** Check if the amount charged matches the current event price (including booking fee).
- * For pay-more events, the amount must be >= the expected minimum price and <= the max cap. */
+ * For pay-more events, the amount must be >= the expected minimum price and <= the max cap.
+ * `quantity` scales max_price so multi-ticket purchases are validated against the correct total cap. */
 const hasPriceMismatch = (
   amountTotal: number,
   expectedPrice: number,
   event: Pick<EventWithCount, "can_pay_more" | "max_price">,
-  bookingFeePercent = 0,
+  bookingFeePercent: number,
+  quantity: number,
 ): boolean => {
   if (event.can_pay_more) {
     const minWithFee =
       expectedPrice + calculateBookingFee(expectedPrice, bookingFeePercent);
+    const maxTicketTotal = event.max_price * quantity;
     const maxWithFee =
-      event.max_price + calculateBookingFee(event.max_price, bookingFeePercent);
+      maxTicketTotal + calculateBookingFee(maxTicketTotal, bookingFeePercent);
     return amountTotal < minWithFee || amountTotal > maxWithFee;
   }
   const expectedWithFee =
@@ -517,7 +520,7 @@ const processMultiPaymentSession = async (
   if (hasPerItemPrices) {
     // Per-item prices are ticket-only (no fee), so validate without booking fee
     for (const { item, event, expectedPrice } of validatedItems) {
-      if (hasPriceMismatch(item.p, expectedPrice, event)) {
+      if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
         return priceMismatchRefund(
           session,
           `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
@@ -676,6 +679,7 @@ const processPaymentSession = async (
       expectedPrice,
       event,
       bookingFeePercent,
+      intent.quantity,
     )
   ) {
     return priceMismatchRefund(

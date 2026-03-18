@@ -61,6 +61,7 @@ export type EventEditFormValues = EventFormValues & {
 export type GroupCreateFormValues = {
   name: string;
   terms_and_conditions: string;
+  max_attendees: number | null;
 };
 
 /** Typed values from group edit form validation (includes slug) */
@@ -68,6 +69,7 @@ export type GroupFormValues = {
   name: string;
   slug: string;
   terms_and_conditions: string;
+  max_attendees: number | null;
 };
 
 /** Typed values from ticket form (field presence varies by event config) */
@@ -520,6 +522,14 @@ export const groupIdField: Field = {
   type: "text",
 };
 
+/** Max attendees field for group forms */
+const groupMaxAttendeesField: Field = {
+  name: "max_attendees",
+  label: "Max Attendees (optional)",
+  type: "number",
+  hint: "Limits total attendees across all events in this group. Leave blank for no limit. Works best when all events in the group are the same type (daily or standard).",
+};
+
 /** Group form fields for creation (no slug - auto-generated) */
 export const groupCreateFields: Field[] = [
   {
@@ -529,6 +539,7 @@ export const groupCreateFields: Field[] = [
     required: true,
     placeholder: "Summer Fete",
   },
+  groupMaxAttendeesField,
   {
     name: "terms_and_conditions",
     label: "Terms and Conditions (optional)",
@@ -543,6 +554,7 @@ export const groupFields: Field[] = [
   groupCreateFields[0]!,
   slugField,
   groupCreateFields[1]!,
+  groupCreateFields[2]!,
 ];
 
 /** Name field shown on all ticket forms */

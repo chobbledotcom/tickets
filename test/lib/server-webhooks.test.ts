@@ -3750,5 +3750,123 @@ describe("server (webhooks)", () => {
         mockRefund.restore();
       }
     });
+
+    test("multi-ticket can_pay_more accepts total at max_price × quantity boundary", async () => {
+      await setupStripe();
+
+      // unitPrice=1000, maxPrice=10000 (default), quantity=2
+      // maxWithFee = 10000 * 2 = 20000 (no booking fee in tests)
+      // amount_total=20000 is exactly at the boundary → should be accepted
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        canPayMore: true,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_qty2_at_max",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_qty2_at_max",
+                  payment_status: "paid",
+                  payment_intent: "pi_qty2_at_max",
+                  amount_total: 20000,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Boundary User",
+                    email: "boundary@example.com",
+                    quantity: "2",
+                  }),
+                },
+              },
+            },
+          }),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify one attendee record was created (quantity=2 is stored on the record)
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(2);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("multi-ticket can_pay_more rejects total above max_price × quantity", async () => {
+      await setupStripe();
+
+      // unitPrice=1000, maxPrice=10000 (default), quantity=2
+      // maxWithFee = 10000 * 2 = 20000 (no booking fee in tests)
+      // amount_total=20001 exceeds the boundary → should be refunded
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        canPayMore: true,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_qty2_over_max",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_qty2_over_max",
+                  payment_status: "paid",
+                  payment_intent: "pi_qty2_over_max",
+                  amount_total: 20001,
+                  metadata: webhookMeta({
+                    event_id: String(event.id),
+                    name: "Overpay Qty2 User",
+                    email: "overpay-qty2@example.com",
+                    quantity: "2",
+                  }),
+                },
+              },
+            },
+          }),
+      );
+
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_qty2_over_max" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
   });
 });

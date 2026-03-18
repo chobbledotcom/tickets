@@ -531,7 +531,8 @@ label > input[type="time"] {
   width: auto;
 }
 
-label > select[name="quantity"] {
+label > select[name="quantity"],
+label > select[name^="quantity_"] {
   width: 6ch;
   flex: 0 0 auto;
 }
