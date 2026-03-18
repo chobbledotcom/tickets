@@ -209,58 +209,114 @@ if (paymentResult && window.opener) {
   }
 }
 
-/* Stripe connection test button */
-const btn = document.getElementById("stripe-test-btn");
-if (btn instanceof HTMLButtonElement) {
-  btn.addEventListener("click", async () => {
-    const resultDiv = document.getElementById("stripe-test-result")!;
-    btn.disabled = true;
-    btn.textContent = "Testing...";
+/** Wire up a payment provider "Test Connection" button.
+ * @param btnId - button element ID
+ * @param resultId - result div element ID
+ * @param url - POST endpoint to test
+ * @param cssClass - CSS class for result formatting
+ * @param formatLines - extract display lines from JSON response
+ */
+const setupTestButton = (
+  btnId: string,
+  resultId: string,
+  url: string,
+  cssClass: string,
+  // deno-lint-ignore no-explicit-any
+  formatLines: (data: any) => string[],
+) => {
+  const button = document.getElementById(btnId);
+  if (!(button instanceof HTMLButtonElement)) return;
+  button.addEventListener("click", async () => {
+    const resultDiv = document.getElementById(resultId)!;
+    button.disabled = true;
+    button.textContent = "Testing...";
     resultDiv.classList.add("hidden");
     resultDiv.classList.remove("success", "error");
     try {
-      const csrfInput = btn
+      const csrfInput = button
         .closest("form")
         ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
       const csrfToken = csrfInput?.value ?? "";
-      const res = await fetch("/admin/settings/stripe/test", {
+      const res = await fetch(url, {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: `csrf_token=${encodeURIComponent(csrfToken)}`,
       });
       const data = await res.json();
-      const lines: string[] = [];
-      if (data.apiKey.valid) {
-        lines.push(`API Key: Valid (${data.apiKey.mode} mode)`);
-      } else {
-        lines.push(
-          `API Key: Invalid${data.apiKey.error ? ` - ${data.apiKey.error}` : ""}`,
-        );
-      }
-      if (data.webhook.configured) {
-        lines.push(`Webhook: ${data.webhook.status || "configured"}`);
-        lines.push(`URL: ${data.webhook.url}`);
-        if (data.webhook.enabledEvents) {
-          lines.push(`Events: ${data.webhook.enabledEvents.join(", ")}`);
-        }
-      } else {
-        lines.push(
-          `Webhook: Not configured${data.webhook.error ? ` - ${data.webhook.error}` : ""}`,
-        );
-      }
-      resultDiv.textContent = lines.join("\n");
+      resultDiv.textContent = formatLines(data).join("\n");
       resultDiv.classList.remove("hidden", "success", "error");
-      resultDiv.classList.add(
-        data.ok ? "success" : "error",
-        "stripe-test-result",
-      );
+      resultDiv.classList.add(data.ok ? "success" : "error", cssClass);
     } catch (e) {
       resultDiv.textContent = `Connection test failed: ${e instanceof Error ? e.message : "Unknown error"}`;
       resultDiv.classList.remove("hidden", "success", "error");
-      resultDiv.classList.add("error", "stripe-test-result");
+      resultDiv.classList.add("error", cssClass);
     }
-    btn.disabled = false;
-    btn.textContent = "Test Connection";
+    button.disabled = false;
+    button.textContent = "Test Connection";
   });
-}
+};
+
+/** Format a webhook status line from a test result's webhook field */
+// deno-lint-ignore no-explicit-any
+const formatWebhookLine = (webhook: any, detail?: string): string =>
+  webhook.configured
+    ? `Webhook: ${detail ?? "configured"}`
+    : `Webhook: Not configured${webhook.error ? ` - ${webhook.error}` : ""}`;
+
+/* Stripe connection test button */
+setupTestButton(
+  "stripe-test-btn",
+  "stripe-test-result",
+  "/admin/settings/stripe/test",
+  "stripe-test-result",
+  (data) => {
+    const lines: string[] = [];
+    if (data.apiKey.valid) {
+      lines.push(`API Key: Valid (${data.apiKey.mode} mode)`);
+    } else {
+      lines.push(
+        `API Key: Invalid${data.apiKey.error ? ` - ${data.apiKey.error}` : ""}`,
+      );
+    }
+    lines.push(
+      formatWebhookLine(data.webhook, data.webhook.status || "configured"),
+    );
+    if (data.webhook.configured) {
+      lines.push(`URL: ${data.webhook.url}`);
+      if (data.webhook.enabledEvents) {
+        lines.push(`Events: ${data.webhook.enabledEvents.join(", ")}`);
+      }
+    }
+    return lines;
+  },
+);
+
+/* Square connection test button */
+setupTestButton(
+  "square-test-btn",
+  "square-test-result",
+  "/admin/settings/square/test",
+  "square-test-result",
+  (data) => {
+    const lines: string[] = [];
+    if (data.accessToken.valid) {
+      lines.push(`Access Token: Valid (${data.accessToken.mode} mode)`);
+    } else {
+      lines.push(
+        `Access Token: Invalid${data.accessToken.error ? ` - ${data.accessToken.error}` : ""}`,
+      );
+    }
+    if (data.location.configured) {
+      lines.push(
+        `Location: ${data.location.name ?? data.location.locationId}${data.location.status ? ` (${data.location.status})` : ""}`,
+      );
+    } else {
+      lines.push(
+        `Location: Not configured${data.location.error ? ` - ${data.location.error}` : ""}`,
+      );
+    }
+    lines.push(formatWebhookLine(data.webhook, "Signature key configured"));
+    return lines;
+  },
+);

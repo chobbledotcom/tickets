@@ -1291,8 +1291,9 @@ button.secondary:hover {
   font-weight: bold;
 }
 
-/* Stripe test result */
-.stripe-test-result {
+/* Stripe/Square test result */
+.stripe-test-result,
+.square-test-result {
   white-space: pre-wrap;
 }
 

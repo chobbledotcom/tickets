@@ -10,6 +10,7 @@ import {
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
+import { squareApi } from "#lib/square.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -663,12 +664,10 @@ describe("server (admin settings)", () => {
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
       });
-      await expectHtmlResponse(
-        response,
-        200,
-        "No Square access token is configured",
-        "/admin/guide#payment-setup",
-      );
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain("No Square access token is configured");
+      expect(html).not.toContain("square-test-btn");
     });
 
     test("settings page shows Square is configured after setting token", async () => {
@@ -691,6 +690,8 @@ describe("server (admin settings)", () => {
       });
       const html = await response.text();
       expect(html).toContain("A Square access token is currently configured");
+      expect(html).toContain("square-test-btn");
+      expect(html).toContain("Test Connection");
     });
   });
 
@@ -734,6 +735,130 @@ describe("server (admin settings)", () => {
       const location = response.headers.get("location")!;
       expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Square webhook signature key updated",
+      );
+    });
+  });
+
+  describe("POST /admin/settings/square/test", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/square/test", {}),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square/test",
+          { csrf_token: "invalid-csrf-token" },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
+    });
+
+    test("returns JSON result when access token is not configured", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "testSquareConnection", () =>
+            Promise.resolve({
+              ok: false,
+              accessToken: {
+                valid: false,
+                error: "No Square access token configured",
+              },
+              location: { configured: false },
+              webhook: { configured: false },
+            }),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/square/test",
+              { csrf_token: await testCsrfToken() },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(200);
+          expect(response.headers.get("content-type")).toBe(
+            "application/json; charset=utf-8",
+          );
+          const json = await response.json();
+          expect(json.ok).toBe(false);
+          expect(json.accessToken.valid).toBe(false);
+          expect(json.accessToken.error).toContain(
+            "No Square access token configured",
+          );
+        },
+      );
+    });
+
+    test("returns success when all checks pass", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "testSquareConnection", () =>
+            Promise.resolve({
+              ok: true,
+              accessToken: { valid: true, mode: "sandbox" },
+              location: {
+                configured: true,
+                locationId: "L_test_123",
+                name: "Test Location",
+                status: "ACTIVE",
+              },
+              webhook: { configured: true },
+            }),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/square/test",
+              { csrf_token: await testCsrfToken() },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(200);
+          const json = await response.json();
+          expect(json.ok).toBe(true);
+          expect(json.accessToken.valid).toBe(true);
+          expect(json.accessToken.mode).toBe("sandbox");
+          expect(json.location.configured).toBe(true);
+          expect(json.location.name).toBe("Test Location");
+          expect(json.webhook.configured).toBe(true);
+        },
+      );
+    });
+
+    test("returns partial failure when token valid but location missing", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "testSquareConnection", () =>
+            Promise.resolve({
+              ok: false,
+              accessToken: { valid: true, mode: "sandbox" },
+              location: {
+                configured: false,
+                error: "No location ID configured",
+              },
+              webhook: { configured: true },
+            }),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/square/test",
+              { csrf_token: await testCsrfToken() },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(200);
+          const json = await response.json();
+          expect(json.ok).toBe(false);
+          expect(json.accessToken.valid).toBe(true);
+          expect(json.location.configured).toBe(false);
+          expect(json.location.error).toContain("No location ID configured");
+        },
       );
     });
   });
