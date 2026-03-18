@@ -18,18 +18,23 @@ import {
   getCustomDomainFromDb,
   getEmailFromAddressFromDb,
   getEmailProviderFromDb,
+  getGoogleWalletConfig,
+  getGoogleWalletIssuerIdFromDb,
   getHostAppleWalletConfig,
+  getHostGoogleWalletConfig,
   getPaymentProviderFromDb,
   getSquareWebhookSignatureKeyFromDb,
   getStripeWebhookEndpointId,
   getThemeFromDb,
   hasAppleWalletDbConfig,
   hasEmailApiKey,
+  hasGoogleWalletDbConfig,
   hasSquareToken,
   hasStripeKey,
 } from "#lib/db/settings.ts";
 import { getHostEmailConfig } from "#lib/email.ts";
 import { getEnv } from "#lib/env.ts";
+import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { htmlResponse, requireOwnerOr } from "#routes/utils.ts";
@@ -75,6 +80,9 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     appleWalletDbConfigured,
     appleWalletPassTypeId,
     appleWalletConfig,
+    googleWalletDbConfigured,
+    googleWalletIssuerId,
+    googleWalletConfig,
     paymentProvider,
     stripeKeyConfigured,
     squareTokenConfigured,
@@ -89,6 +97,9 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     hasAppleWalletDbConfig(),
     getAppleWalletPassTypeIdFromDb(),
     getAppleWalletConfig(),
+    hasGoogleWalletDbConfig(),
+    getGoogleWalletIssuerIdFromDb(),
+    getGoogleWalletConfig(),
     getPaymentProviderFromDb(),
     hasStripeKey(),
     hasSquareToken(),
@@ -102,6 +113,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   ]);
 
   const appleWalletEnvConfigured = getHostAppleWalletConfig() !== null;
+  const googleWalletEnvConfigured = getHostGoogleWalletConfig() !== null;
   const hostEmailConfig = getHostEmailConfig();
 
   const keyConfigured =
@@ -133,6 +145,22 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
 
   const certValidation = validateAppleWalletCerts(appleWalletConfig);
 
+  const resolveGoogleWalletIssuerId = (): string => {
+    if (googleWalletDbConfigured) return googleWalletIssuerId as string;
+    if (googleWalletEnvConfigured) return getHostGoogleWalletConfig()!.issuerId;
+    return "";
+  };
+  const resolveGoogleWalletSource = (): string => {
+    if (googleWalletDbConfigured) return "Database";
+    if (googleWalletEnvConfigured) return "Environment variables";
+    return "";
+  };
+  const googleWalletPrivateKeyValid = googleWalletConfig
+    ? (await isValidGooglePrivateKey(googleWalletConfig.serviceAccountKey))
+      ? "Valid"
+      : "Invalid key"
+    : "Not set";
+
   return {
     appleWallet: {
       dbConfigured: appleWalletDbConfigured,
@@ -140,6 +168,13 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       passTypeId: walletPassTypeId,
       source: walletSource,
       certValidation,
+    },
+    googleWallet: {
+      dbConfigured: googleWalletDbConfigured,
+      envConfigured: googleWalletEnvConfigured,
+      issuerId: resolveGoogleWalletIssuerId(),
+      source: resolveGoogleWalletSource(),
+      privateKeyValid: googleWalletPrivateKeyValid,
     },
     payment: {
       provider: paymentProvider ?? "",

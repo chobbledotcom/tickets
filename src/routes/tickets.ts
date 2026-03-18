@@ -4,12 +4,13 @@
  * The SVG endpoint serves individual QR codes for CDN caching.
  */
 
-import { compact } from "#fp";
 import { signAttachmentUrl } from "#lib/attachment-url.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import { decrypt } from "#lib/crypto.ts";
-import { getAttendeesByTokens } from "#lib/db/attendees.ts";
-import { hasAppleWalletConfig } from "#lib/db/settings.ts";
+import {
+  hasAppleWalletConfig,
+  hasGoogleWalletConfig,
+} from "#lib/db/settings.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import {
   createTokenRoute,
@@ -18,7 +19,7 @@ import {
   type TokenEntry,
   type TokenRouteFn,
 } from "#routes/token-utils.ts";
-import { htmlResponse, notFoundResponse } from "#routes/utils.ts";
+import { htmlResponse } from "#routes/utils.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 
 /** Build the check-in URL for a single token */
@@ -49,9 +50,10 @@ const handleTicketView = async (
   const result = await lookupAttendees(tokens);
   if (!result.ok) return result.response;
 
-  const [entries, walletEnabled] = await Promise.all([
+  const [entries, appleWalletEnabled, googleWalletEnabled] = await Promise.all([
     resolveEntries(result.attendees),
     hasAppleWalletConfig(),
+    hasGoogleWalletConfig(),
   ]);
   for (const entry of entries) {
     entry.attendee.price_paid = await decrypt(entry.attendee.price_paid);
@@ -59,7 +61,9 @@ const handleTicketView = async (
   const cards = await Promise.all(
     entries.map((entry, index) => buildTicketCard(entry, tokens[index]!)),
   );
-  return htmlResponse(ticketViewPage(cards, walletEnabled));
+  return htmlResponse(
+    ticketViewPage(cards, appleWalletEnabled, googleWalletEnabled),
+  );
 };
 
 /** One year in seconds — SVG tickets never change so cache aggressively */
@@ -67,9 +71,8 @@ const ONE_YEAR = 365 * 24 * 60 * 60;
 
 /** Handle GET /t/:token/svg — serve QR code SVG for CDN caching */
 const handleTicketSvg = async (token: string): Promise<Response> => {
-  const attendees = await getAttendeesByTokens([token]);
-  const valid = compact(attendees);
-  if (valid.length === 0) return notFoundResponse();
+  const result = await lookupAttendees([token]);
+  if (!result.ok) return result.response;
 
   const svg = await generateQrSvg(buildCheckinUrl(token));
   return new Response(svg, {
