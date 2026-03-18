@@ -3649,11 +3649,9 @@ describe("db", () => {
 
     test("checkBatchAvailability checks group capacity with date for daily events", async () => {
       const { checkBatchAvailability } = await import("#lib/db/attendees.ts");
-      const { e1, e2 } = await createCappedGroupWithEvents(
-        5,
-        "daily-batch",
-        { eventType: "daily" },
-      );
+      const { e1, e2 } = await createCappedGroupWithEvents(5, "daily-batch", {
+        eventType: "daily",
+      });
 
       // Both events in same group — combined quantity exceeds group cap for this date
       expect(

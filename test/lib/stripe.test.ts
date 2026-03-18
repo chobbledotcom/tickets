@@ -2205,4 +2205,72 @@ describe("stripe-provider", () => {
       }
     });
   });
+
+  describe("resolveWebhookSession", () => {
+    test("extracts session directly from event with complete metadata", async () => {
+      const result = await stripePaymentProvider.resolveWebhookSession({
+        id: "evt_resolve_1",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_resolve_1",
+            payment_status: "paid",
+            payment_intent: "pi_resolve_1",
+            amount_total: 2000,
+            metadata: {
+              name: "Alice",
+              email: "alice@example.com",
+              event_id: "1",
+              quantity: "1",
+            },
+          },
+        },
+      });
+      expect(result).not.toBe("skip");
+      expect(result).not.toBeNull();
+      if (result && result !== "skip") {
+        expect(result.id).toBe("cs_resolve_1");
+        expect(result.paymentStatus).toBe("paid");
+        expect(result.paymentReference).toBe("pi_resolve_1");
+        expect(result.amountTotal).toBe(2000);
+      }
+    });
+
+    test("falls back to retrieveSession when event lacks metadata", async () => {
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve(null),
+      );
+
+      try {
+        const result = await stripePaymentProvider.resolveWebhookSession({
+          id: "evt_no_meta",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_no_meta",
+              // No payment_status or metadata
+            },
+          },
+        });
+        // retrieveSession called with event object id
+        expect(mockRetrieve.calls[0]!.args[0]).toBe("cs_no_meta");
+        expect(result).toBeNull();
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
+    test("returns null when event has no id", async () => {
+      const result = await stripePaymentProvider.resolveWebhookSession({
+        id: "evt_no_obj_id",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            some_field: "value",
+          },
+        },
+      });
+      expect(result).toBeNull();
+    });
+  });
 });
