@@ -139,6 +139,13 @@ describe("server (misc)", () => {
         expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
       });
 
+      test("responses have Strict-Transport-Security header", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.headers.get("strict-transport-security")).toBe(
+          "max-age=63072000; includeSubDomains; preload",
+        );
+      });
+
       test("ticket pages also have base security headers", async () => {
         const response = await getTicketPageResponse();
         expect(response.headers.get("x-content-type-options")).toBe("nosniff");
@@ -146,6 +153,9 @@ describe("server (misc)", () => {
           "strict-origin-when-cross-origin",
         );
         expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+        expect(response.headers.get("strict-transport-security")).toBe(
+          "max-age=63072000; includeSubDomains; preload",
+        );
       });
     });
   });
@@ -480,6 +490,9 @@ describe("server (misc)", () => {
       expect(response.headers.get("x-frame-options")).toBe("DENY");
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
       expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(response.headers.get("strict-transport-security")).toBe(
+        "max-age=63072000; includeSubDomains; preload",
+      );
     });
 
     test("logs debug message with host details on domain redirect", async () => {

@@ -14,6 +14,7 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "strict-origin-when-cross-origin",
   "x-robots-tag": "noindex, nofollow",
+  "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
 };
 
 /**
