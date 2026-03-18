@@ -5,6 +5,7 @@
 import { map, pipe, reduce } from "#fp";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
+import { getString } from "#lib/form-data.ts";
 import { appendIframeParam } from "#lib/iframe.ts";
 
 const escapeHtml = (str: string): string =>
@@ -13,9 +14,6 @@ const escapeHtml = (str: string): string =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-
-const getString = (form: URLSearchParams, key: string): string =>
-  form.get(key)?.trim() ?? "";
 
 export type FieldType =
   | "text"

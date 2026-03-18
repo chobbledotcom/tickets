@@ -14,6 +14,7 @@ import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
+import { getString } from "#lib/form-data.ts";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -311,11 +312,7 @@ export const getSearchParam = (request: Request, key: string): string => {
   return url.searchParams.get(key) ?? "";
 };
 
-/**
- * Get a form field value as a trimmed string, defaulting to "" when absent.
- */
-export const getString = (form: URLSearchParams, key: string): string =>
-  form.get(key)?.trim() ?? "";
+export { getString } from "#lib/form-data.ts";
 
 /**
  * Add cookie header to response.

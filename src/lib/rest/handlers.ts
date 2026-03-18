@@ -8,6 +8,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { getString } from "#lib/form-data.ts";
 import type {
   CreateResult,
   DeleteResult,
@@ -16,7 +17,6 @@ import type {
 import {
   type AuthFormResult,
   type AuthSession,
-  getString,
   requireAuthForm,
 } from "#routes/utils.ts";
 
