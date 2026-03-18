@@ -218,17 +218,17 @@ const handleSingleTicketGet = (
   });
 
 /** Map a BookingResult to a web response for single-ticket pages */
-const bookingResultToWebResponse = (
+const bookingResultToWebResponse = async (
   result: BookingResult,
   event: EventWithCount,
   ctx: TicketContext,
   answerIds: number[] = [],
-): Response => {
+): Promise<Response> => {
   const showError = ticketError(event, ctx);
   switch (result.type) {
     case "success": {
       if (answerIds.length > 0) {
-        saveAttendeeAnswers(result.attendee.id, answerIds);
+        await saveAttendeeAnswers(result.attendee.id, answerIds);
       }
       if (event.thank_you_url) return redirectResponse(event.thank_you_url);
       return redirectResponse(
