@@ -77,6 +77,7 @@ import {
   CONFIG_KEYS,
   clearPaymentProvider,
   completeSetup,
+  getCountryFromDb,
   getCurrencyCodeFromDb,
   getPublicKey,
   getSetting,
@@ -87,10 +88,12 @@ import {
   hasStripeKey,
   invalidateSettingsCache,
   isSetupComplete,
+  resetTimezoneTestOverride,
   setPaymentProvider,
   setSetting,
+  setTimezoneForTest,
+  updateCountry,
   updateStripeKey,
-  updateTimezone,
 } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { nowMs } from "#lib/now.ts";
@@ -268,7 +271,7 @@ describe("db", () => {
       // Delete existing user from createTestDbWithSetup to test fresh setup
       await getDb().execute("DELETE FROM users");
       await getDb().execute("DELETE FROM settings");
-      await completeSetup("setupuser", "mypassword", "USD");
+      await completeSetup("setupuser", "mypassword", "US");
 
       expect(await isSetupComplete()).toBe(true);
       // Password is now stored on the user row, verify via user-based API
@@ -286,7 +289,7 @@ describe("db", () => {
     });
 
     test("CONFIG_KEYS contains expected keys", () => {
-      expect(CONFIG_KEYS.CURRENCY_CODE).toBe("currency_code");
+      expect(CONFIG_KEYS.COUNTRY).toBe("country");
       expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
       expect(CONFIG_KEYS.WRAPPED_PRIVATE_KEY).toBe("wrapped_private_key");
       expect(CONFIG_KEYS.PUBLIC_KEY).toBe("public_key");
@@ -295,6 +298,12 @@ describe("db", () => {
 
     test("getCurrencyCodeFromDb returns GBP by default", async () => {
       expect(await getCurrencyCodeFromDb()).toBe("GBP");
+    });
+
+    test("getCountryFromDb returns GB when no country is stored", async () => {
+      await getDb().execute("DELETE FROM settings");
+      invalidateSettingsCache();
+      expect(await getCountryFromDb()).toBe("GB");
     });
   });
 
@@ -2564,38 +2573,42 @@ describe("db", () => {
   });
 
   describe("timezone cache", () => {
+    beforeEach(() => {
+      resetTimezoneTestOverride();
+    });
+
     test("getTimezoneCached returns default when no cache exists", () => {
       invalidateSettingsCache();
       expect(getTimezoneCached()).toBe("Europe/London");
     });
 
-    test("getTimezoneFromDb returns default when no timezone is stored", async () => {
-      // Remove the timezone setting that createTestDbWithSetup inserted
+    test("getTimezoneFromDb returns default when no country is stored", async () => {
+      // Remove the country setting
       await getDb().execute({
         sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.TIMEZONE],
+        args: [CONFIG_KEYS.COUNTRY],
       });
       invalidateSettingsCache();
       const value = await getTimezoneFromDb();
       expect(value).toBe("Europe/London");
     });
 
-    test("getTimezoneCached reads default from TTL cache when no timezone is stored", async () => {
-      // Remove the timezone setting that createTestDbWithSetup inserted
+    test("getTimezoneCached reads default from TTL cache when no country is stored", async () => {
+      // Remove the country setting
       await getDb().execute({
         sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.TIMEZONE],
+        args: [CONFIG_KEYS.COUNTRY],
       });
       invalidateSettingsCache();
-      // Load the settings cache (without timezone key)
-      await getSetting(CONFIG_KEYS.TIMEZONE);
+      // Load the settings cache (without country key)
+      await getSetting(CONFIG_KEYS.COUNTRY);
       // Permanent cache should not be set, so it reads from TTL cache
-      // TTL cache has no timezone key → falls back to default
+      // TTL cache has no country key → falls back to default
       expect(getTimezoneCached()).toBe("Europe/London");
     });
 
     test("getTimezoneCached returns value after getTimezoneFromDb populates cache", async () => {
-      await updateTimezone("America/New_York");
+      await updateCountry("US");
       invalidateSettingsCache();
       const value = await getTimezoneFromDb();
       expect(value).toBe("America/New_York");
@@ -2603,16 +2616,30 @@ describe("db", () => {
     });
 
     test("getTimezoneCached reads from TTL cache when permanent cache is empty", async () => {
-      await updateTimezone("Asia/Tokyo");
+      await updateCountry("JP");
       invalidateSettingsCache();
       // Force TTL cache to load by calling getSetting
-      await getSetting(CONFIG_KEYS.TIMEZONE);
+      await getSetting(CONFIG_KEYS.COUNTRY);
       expect(getTimezoneCached()).toBe("Asia/Tokyo");
     });
 
-    test("updateTimezone updates the permanent cache immediately", async () => {
-      await updateTimezone("Pacific/Auckland");
+    test("updateCountry updates the permanent cache immediately", async () => {
+      await updateCountry("NZ");
       expect(getTimezoneCached()).toBe("Pacific/Auckland");
+    });
+
+    test("getTimezoneFromDb returns test override when set", async () => {
+      setTimezoneForTest("America/Chicago");
+      const value = await getTimezoneFromDb();
+      expect(value).toBe("America/Chicago");
+    });
+
+    test("getTimezoneFromDb returns permanent cache when set", async () => {
+      // Populate permanent cache via getTimezoneFromDb
+      const value = await getTimezoneFromDb();
+      // Now the permanent cache is set; calling again should return from cache
+      const cached = await getTimezoneFromDb();
+      expect(cached).toBe(value);
     });
   });
 

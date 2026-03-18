@@ -19,6 +19,7 @@ import {
 } from "#lib/config.ts";
 import {
   completeSetup,
+  invalidateSettingsCache,
   setPaymentProvider,
   setSetting,
   updateBookingFee,
@@ -126,8 +127,9 @@ describe("config", () => {
       expect(await getCurrencyCode()).toBe("GBP");
     });
 
-    test("returns set value from database", async () => {
-      await setSetting("currency_code", "USD");
+    test("returns currency from country setting", async () => {
+      await setSetting("country", "US");
+      invalidateSettingsCache();
       expect(await getCurrencyCode()).toBe("USD");
     });
   });

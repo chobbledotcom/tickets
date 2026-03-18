@@ -332,6 +332,11 @@ describe("code quality", () => {
       // Reset/set host Apple Wallet config between tests without env var races
       "lib/db/settings.ts:setHostAppleWalletConfigForTest",
       "lib/db/settings.ts:resetHostAppleWalletConfig",
+      // Set/reset timezone override between tests (survives cache invalidation)
+      "lib/db/settings.ts:setTimezoneForTest",
+      "lib/db/settings.ts:resetTimezoneTestOverride",
+      // Timezone validation utility (timezone now derived from country, but still useful for tests)
+      "lib/timezone.ts:isValidTimezone",
       // Attachment size constant used in production (validateAttachment) but test pattern doesn't detect same-file usage
       "lib/storage.ts:MAX_ATTACHMENT_SIZE",
     ];

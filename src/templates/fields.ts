@@ -98,7 +98,6 @@ export type SetupFormValues = {
   admin_username: string;
   admin_password: string;
   admin_password_confirm: string;
-  currency_code: string;
 };
 
 /** Typed values from change password form */
@@ -724,13 +723,6 @@ export const setupFields: Field[] = [
     type: "password",
     required: true,
     autocomplete: "new-password",
-  },
-  {
-    name: "currency_code",
-    label: "Currency Code",
-    type: "text",
-    pattern: "[A-Z]{3}",
-    hint: "3-letter ISO code (e.g., GBP, USD, EUR)",
   },
 ];
 

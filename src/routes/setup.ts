@@ -2,6 +2,7 @@
  * Setup routes - initial system configuration
  */
 
+import { isValidCountry } from "#lib/countries.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { settingsApi } from "#lib/db/settings.ts";
@@ -28,7 +29,7 @@ type SetupValidation =
       valid: true;
       username: string;
       password: string;
-      currency: string;
+      country: string;
     }
   | { valid: false; error: string };
 
@@ -47,7 +48,7 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
     admin_password: password,
     admin_password_confirm: passwordConfirm,
   } = validation.values;
-  const currency = (validation.values.currency_code || "GBP").toUpperCase();
+  const country = (form.get("country") || "GB").trim().toUpperCase();
 
   // Check Data Controller Agreement acceptance
   const acceptAgreement = form.get("accept_agreement");
@@ -67,9 +68,9 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
     logDebug("Setup", "Passwords do not match");
     return { valid: false, error: "Passwords do not match" };
   }
-  if (!/^[A-Z]{3}$/.test(currency)) {
-    logDebug("Setup", `Invalid currency code: ${currency}`);
-    return { valid: false, error: "Currency code must be 3 uppercase letters" };
+  if (!isValidCountry(country)) {
+    logDebug("Setup", `Invalid country code: ${country}`);
+    return { valid: false, error: "Please select a valid country" };
   }
 
   logDebug("Setup", "Validation passed");
@@ -77,7 +78,7 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
     valid: true,
     username,
     password,
-    currency,
+    country,
   };
 };
 
@@ -140,7 +141,7 @@ const handleSetupPost = async (
     await settingsApi.completeSetup(
       validation.username,
       validation.password,
-      validation.currency,
+      validation.country,
     );
     await logActivity("Initial setup completed");
     logDebug("Setup", "Setup completed successfully!");

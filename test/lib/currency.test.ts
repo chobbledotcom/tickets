@@ -155,7 +155,7 @@ describe("currency", () => {
   describe("loadCurrencyCode", () => {
     beforeEach(async () => {
       setupTestEncryptionKey();
-      await createTestDbWithSetup("USD");
+      await createTestDbWithSetup("US");
       resetCurrencyCode();
     });
 

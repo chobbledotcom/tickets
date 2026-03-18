@@ -5,6 +5,7 @@
 import { lazyRef } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { registerCache } from "#lib/cache-registry.ts";
+import { DEFAULT_COUNTRY, getCountry } from "#lib/countries.ts";
 import {
   decrypt,
   deriveKEK,
@@ -28,7 +29,7 @@ import type { PaymentProviderType, Settings, Theme } from "#lib/types.ts";
  * Setting keys for configuration
  */
 export const CONFIG_KEYS = {
-  CURRENCY_CODE: "currency_code",
+  COUNTRY: "country",
   SETUP_COMPLETE: "setup_complete",
   // Encryption key hierarchy
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
@@ -48,8 +49,6 @@ export const CONFIG_KEYS = {
   EMBED_HOSTS: "embed_hosts",
   // Terms and conditions (plaintext - displayed publicly)
   TERMS_AND_CONDITIONS: "terms_and_conditions",
-  // Timezone (IANA timezone identifier, plaintext)
-  TIMEZONE: "timezone",
   // Business email (encrypted)
   BUSINESS_EMAIL: "business_email",
   // Theme setting (plaintext - light or dark)
@@ -62,8 +61,6 @@ export const CONFIG_KEYS = {
   HOMEPAGE_TEXT: "homepage_text",
   // Contact page text (encrypted - shown on public site contact page)
   CONTACT_PAGE_TEXT: "contact_page_text",
-  // Phone prefix (plaintext - country calling code, e.g. "44")
-  PHONE_PREFIX: "phone_prefix",
   // Header image (encrypted - Bunny CDN filename)
   HEADER_IMAGE_URL: "header_image_url",
   // Show public API (plaintext - "true" or "false")
@@ -341,7 +338,7 @@ export const clearSetupCompleteCache = (): void => {
 export const completeSetup = async (
   username: string,
   adminPassword: string,
-  currencyCode: string,
+  country: string,
 ): Promise<void> => {
   // Hash the password
   const hashedPassword = await hashPassword(adminPassword);
@@ -368,16 +365,35 @@ export const completeSetup = async (
   // Store public key (plaintext - it's meant to be public)
   await setSetting(CONFIG_KEYS.PUBLIC_KEY, publicKey);
 
-  await setSetting(CONFIG_KEYS.CURRENCY_CODE, currencyCode);
+  await setSetting(CONFIG_KEYS.COUNTRY, country);
   await setSetting(CONFIG_KEYS.SETUP_COMPLETE, "true");
 };
 
 /**
- * Get currency code from database
+ * Get the configured country code from database.
+ * Returns ISO 3166-1 alpha-2 code, defaulting to "GB".
+ */
+export const getCountryFromDb = async (): Promise<string> => {
+  const value = await getSetting(CONFIG_KEYS.COUNTRY);
+  return value || DEFAULT_COUNTRY;
+};
+
+/**
+ * Update the configured country.
+ */
+export const updateCountry = async (country: string): Promise<void> => {
+  await setSetting(CONFIG_KEYS.COUNTRY, country);
+  // Also update timezone cache since it derives from country
+  const tz = getCountry(country).timezone;
+  setTzCache(tz);
+};
+
+/**
+ * Get currency code derived from country setting.
  */
 export const getCurrencyCodeFromDb = async (): Promise<string> => {
-  const value = await getSetting(CONFIG_KEYS.CURRENCY_CODE);
-  return value || "GBP";
+  const country = await getCountryFromDb();
+  return getCountry(country).currency;
 };
 
 /**
@@ -587,36 +603,47 @@ export const updateTermsAndConditions = async (text: string): Promise<void> => {
 
 /**
  * Permanent timezone cache. Timezone changes very rarely, so we cache it
- * indefinitely and update on explicit changes via updateTimezone().
+ * indefinitely and update on explicit changes via updateCountry().
  */
 const [getTzCache, setTzCache] = lazyRef<string | null>(() => null);
 
 /**
- * Get the configured timezone from database.
- * Returns the IANA timezone identifier, defaulting to Europe/London.
+ * Test-only timezone override. Survives cache invalidation so tests
+ * can pin the timezone to UTC without it being cleared.
+ */
+const [getTzTestOverride, setTzTestOverride] = lazyRef<string | null>(
+  () => null,
+);
+
+/**
+ * Get the configured timezone derived from country setting.
  * Also populates the permanent timezone cache for sync access via getTimezoneCached().
  */
 export const getTimezoneFromDb = async (): Promise<string> => {
+  const testOverride = getTzTestOverride();
+  if (testOverride !== null) return testOverride;
   const cached = getTzCache();
   if (cached !== null) return cached;
-  const value = await getSetting(CONFIG_KEYS.TIMEZONE);
-  const tz = value || DEFAULT_TIMEZONE;
+  const country = await getCountryFromDb();
+  const tz = getCountry(country).timezone;
   setTzCache(tz);
   return tz;
 };
 
 /**
  * Get the configured timezone synchronously.
- * Reads from the permanent cache, falling back to the TTL settings cache,
- * then to the default timezone. Safe to call from synchronous template code
+ * Derives from country setting. Safe to call from synchronous template code
  * because the middleware populates the settings cache on every request.
  */
 export const getTimezoneCached = (): string => {
+  const testOverride = getTzTestOverride();
+  if (testOverride !== null) return testOverride;
   const cached = getTzCache();
   if (cached !== null) return cached;
   const state = getSettingsCacheState();
   if (state.entries !== null) {
-    const value = state.entries.get(CONFIG_KEYS.TIMEZONE) || DEFAULT_TIMEZONE;
+    const country = state.entries.get(CONFIG_KEYS.COUNTRY) || DEFAULT_COUNTRY;
+    const value = getCountry(country).timezone;
     setTzCache(value);
     return value;
   }
@@ -629,18 +656,13 @@ const invalidateTimezoneCache = (): void => {
 };
 
 /**
- * Update the configured timezone.
- */
-export const updateTimezone = async (tz: string): Promise<void> => {
-  await setSetting(CONFIG_KEYS.TIMEZONE, tz);
-  setTzCache(tz);
-};
-
-/**
  * Explicitly set timezone for testing.
- * Bypasses the database to avoid races between parallel test workers.
+ * Uses a separate override that survives cache invalidation.
  */
-export const setTimezoneForTest = (tz: string): void => setTzCache(tz);
+export const setTimezoneForTest = (tz: string): void => setTzTestOverride(tz);
+
+/** Clear the test timezone override (call in test teardown). */
+export const resetTimezoneTestOverride = (): void => setTzTestOverride(null);
 
 /**
  * Get the configured theme from database.
@@ -718,19 +740,11 @@ export const { get: getContactPageTextFromDb, update: updateContactPageText } =
   cachedEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT);
 
 /**
- * Get the configured phone prefix from database.
- * Returns the country calling code, defaulting to "44" (UK).
+ * Get the configured phone prefix derived from country setting.
  */
 export const getPhonePrefixFromDb = async (): Promise<string> => {
-  const value = await getSetting(CONFIG_KEYS.PHONE_PREFIX);
-  return value || "44";
-};
-
-/**
- * Update the configured phone prefix.
- */
-export const updatePhonePrefix = async (prefix: string): Promise<void> => {
-  await setSetting(CONFIG_KEYS.PHONE_PREFIX, prefix);
+  const country = await getCountryFromDb();
+  return getCountry(country).phonePrefix;
 };
 
 export const { get: getHeaderImageUrlFromDb, update: updateHeaderImageUrl } =
@@ -947,6 +961,8 @@ export const settingsApi = {
   getPublicKey,
   getWrappedPrivateKey,
   updateUserPassword,
+  getCountryFromDb,
+  updateCountry,
   getCurrencyCodeFromDb,
   getPaymentProviderFromDb,
   setPaymentProvider,
@@ -973,8 +989,8 @@ export const settingsApi = {
   getTermsAndConditionsFromDb,
   updateTermsAndConditions,
   getTimezoneFromDb,
-  updateTimezone,
   setTimezoneForTest,
+  resetTimezoneTestOverride,
   getThemeFromDb,
   updateTheme,
   getShowPublicSiteFromDb,
@@ -987,7 +1003,6 @@ export const settingsApi = {
   getContactPageTextFromDb,
   updateContactPageText,
   getPhonePrefixFromDb,
-  updatePhonePrefix,
   getHeaderImageUrlFromDb,
   updateHeaderImageUrl,
   getShowPublicApiFromDb,
