@@ -2,9 +2,18 @@
  * Phone number normalization utilities
  */
 
-/** Strip non-numeric characters from a phone number, then prefix if it starts with 0 */
+/** Strip non-numeric characters from a phone number and normalize to +{prefix}{local} */
 export const normalizePhone = (phone: string, prefix: string): string => {
   const digits = phone.replace(/\D/g, "");
   if (!digits) return "";
-  return digits.startsWith("0") ? `+${prefix}${digits.slice(1)}` : `+${digits}`;
+
+  // Local number with leading zero: 0161... → +44161...
+  if (digits.startsWith("0")) return `+${prefix}${digits.slice(1)}`;
+
+  // Country code followed by spurious zero: 440161... → +44161...
+  if (digits.startsWith(`${prefix}0`))
+    return `+${prefix}${digits.slice(prefix.length + 1)}`;
+
+  // Already has country code without leading zero: 44161... → +44161...
+  return `+${digits}`;
 };
