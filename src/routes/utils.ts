@@ -635,9 +635,6 @@ type IdRouteAuth = AdminLevel | null;
 const authRequireFor = (level: IdRouteAuth) =>
   level === "owner" ? requireOwnerOr : requireSessionOr;
 
-const authFormFor = (level: IdRouteAuth) =>
-  level === "owner" ? withOwnerAuthForm : withAuthForm;
-
 /**
  * Authenticated GET-by-ID route handler factory.
  * Loads entity by ID, returns 404 if missing, renders with session context.
@@ -668,8 +665,10 @@ export const authenticatedFormById =
       form: URLSearchParams,
     ) => Response | Promise<Response>,
   ): IdRouteHandler =>
-  (request, { id }) =>
-    authFormFor(level)(request, (session, form) => handler(id, session, form));
+  (request, { id }) => {
+    const authForm = level === "owner" ? withOwnerAuthForm : withAuthForm;
+    return authForm(request, (session, form) => handler(id, session, form));
+  };
 
 /** Shorthand: owner GET-by-ID */
 export const ownerGetById = authenticatedGetById("owner");

@@ -498,6 +498,17 @@ describe("server (admin questions)", () => {
       expectStatus(404)(response);
     });
 
+    test("shows empty state when no questions exist", async () => {
+      const event = await createTestEvent({ name: "No Questions Event" });
+      const { response } = await adminGet(`/admin/event/${event.id}/questions`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "No questions created yet",
+        'href="/admin/questions"',
+      );
+    });
+
     test("shows event questions page with available questions", async () => {
       const event = await createTestEvent({ name: "Question Event" });
       const qId = await createQuestion("Dietary needs?");
