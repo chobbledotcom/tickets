@@ -104,8 +104,9 @@ describe("svg-ticket", () => {
   });
 
   describe("generateSvgTicket", () => {
-    test("returns valid SVG document", async () => {
+    test("returns valid SVG document with XML declaration", async () => {
       const svg = await generateSvgTicket(makeTicketData());
+      expect(svg).toMatch(/^<\?xml version="1\.0" encoding="UTF-8"\?>/);
       expect(svg).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
       expect(svg).toContain("</svg>");
     });

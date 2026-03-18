@@ -448,12 +448,28 @@ describe("email", () => {
       expect(attachments[0]!.filename).toBe("ticket.svg");
     });
 
-    test("attachment content is base64-encoded SVG", async () => {
+    test("attachment content is base64-encoded UTF-8 SVG", async () => {
       const attachments = await buildTicketAttachments([makeEntry()], "GBP");
 
-      const decoded = atob(attachments[0]!.content);
+      const binary = atob(attachments[0]!.content);
+      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+      const decoded = new TextDecoder().decode(bytes);
+      expect(decoded).toContain("<?xml");
       expect(decoded).toContain("<svg");
       expect(decoded).toContain("</svg>");
+    });
+
+    test("attachment preserves non-ASCII characters via UTF-8 encoding", async () => {
+      const attachments = await buildTicketAttachments(
+        [makeEntry({ name: "Café Müsik", location: "Zürich" })],
+        "GBP",
+      );
+
+      const binary = atob(attachments[0]!.content);
+      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+      const decoded = new TextDecoder().decode(bytes);
+      expect(decoded).toContain("Café Müsik");
+      expect(decoded).toContain("Zürich");
     });
   });
 
@@ -658,7 +674,9 @@ describe("email", () => {
       const body = getFetchJsonBody();
       expect(body.attachments).toHaveLength(1);
       expect(body.attachments[0].filename).toBe("ticket.svg");
-      const decoded = atob(body.attachments[0].content);
+      const binary = atob(body.attachments[0].content);
+      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+      const decoded = new TextDecoder().decode(bytes);
       expect(decoded).toContain("<svg");
     });
 
