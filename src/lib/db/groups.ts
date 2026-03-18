@@ -13,7 +13,8 @@ import {
 } from "#lib/db/common-schema.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { queryAndMap } from "#lib/db/query.ts";
-import type { Event, EventWithCount, Group } from "#lib/types.ts";
+import { col } from "#lib/db/table.ts";
+import type { Event, EventType, EventWithCount, Group } from "#lib/types.ts";
 
 /** Group input fields for create/update (camelCase) */
 export type GroupInput = {
@@ -21,6 +22,7 @@ export type GroupInput = {
   slugIndex: string;
   name: string;
   termsAndConditions: string;
+  maxAttendees: number;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -39,6 +41,7 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...encryptedNameSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   terms_and_conditions: { default: () => "", write: encrypt, read: decrypt },
+  max_attendees: col.simple<number>(),
 });
 
 /** Execute a query and decrypt the resulting group rows */
@@ -161,6 +164,25 @@ export const getActiveEventsByGroupId = (
 export const getEventsByGroupId = (
   groupId: number,
 ): Promise<EventWithCount[]> => queryGroupEvents(groupId, false);
+
+/**
+ * Validate that an event type is compatible with a group's existing events.
+ * Returns an error message if mismatched, null if OK.
+ * Pass excludeEventId to skip a specific event (for edit-self case).
+ */
+export const validateGroupEventType = async (
+  groupId: number,
+  eventType: EventType,
+  excludeEventId?: number,
+): Promise<string | null> => {
+  const siblings = await getEventsByGroupId(groupId);
+  const other = siblings.find(
+    (e) => e.id !== excludeEventId && e.event_type !== eventType,
+  );
+  return other
+    ? `This group already contains ${other.event_type} events — all events in a group must be the same type`
+    : null;
+};
 
 /**
  * Get ungrouped events (group_id = 0) with attendee counts.

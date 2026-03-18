@@ -1491,6 +1491,7 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   slug: "test-group",
   slug_index: "test-group-index",
   terms_and_conditions: "",
+  max_attendees: 0,
   ...overrides,
 });
 
@@ -1505,6 +1506,7 @@ export const createTestGroup = async (
   const input = {
     name: overrides.name ?? "Test Group",
     termsAndConditions: overrides.termsAndConditions ?? "",
+    maxAttendees: overrides.maxAttendees ?? 0,
   };
 
   const group = await authenticatedFormRequest(
@@ -1512,6 +1514,7 @@ export const createTestGroup = async (
     {
       name: input.name,
       terms_and_conditions: input.termsAndConditions,
+      max_attendees: String(input.maxAttendees),
     },
     async () => {
       const { getAllGroups } = await import("#lib/db/groups.ts");
@@ -1526,6 +1529,7 @@ export const createTestGroup = async (
       name: group.name,
       slug: overrides.slug,
       termsAndConditions: group.terms_and_conditions,
+      maxAttendees: group.max_attendees,
     });
   }
 
@@ -1549,6 +1553,7 @@ export const updateTestGroup = async (
       slug: updates.slug ?? existing.slug,
       terms_and_conditions:
         updates.termsAndConditions ?? existing.terms_and_conditions,
+      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
     },
     async () => {
       const updated = await groupsTable.findById(groupId);

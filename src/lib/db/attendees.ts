@@ -400,6 +400,34 @@ export const getDateAttendeeCount = async (
   return rows[0]!.count;
 };
 
+/** Get a group's max_attendees limit (0 = no limit) */
+const getGroupMaxAttendees = async (groupId: number): Promise<number> => {
+  const row = await queryOne<{ max_attendees: number }>(
+    "SELECT max_attendees FROM groups WHERE id = ?",
+    [groupId],
+  );
+  return row?.max_attendees ?? 0;
+};
+
+/**
+ * Count total attendees across all events in a group.
+ * Date-aware: standard events always count, daily events only count matching date.
+ */
+const getGroupAttendeeCount = async (
+  groupId: number,
+  date: string | null,
+): Promise<number> => {
+  const rows = await queryAll<{ count: number }>(
+    `SELECT COALESCE(SUM(a.quantity), 0) as count
+     FROM attendees a
+     JOIN events e ON e.id = a.event_id
+     WHERE e.group_id = ?
+       AND (? IS NULL OR e.event_type != 'daily' OR a.date = ?)`,
+    [groupId, date, date],
+  );
+  return rows[0]!.count;
+};
+
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
   /**
@@ -417,9 +445,11 @@ export const attendeesApi = {
       id: number;
       max_attendees: number;
       current_count: number;
+      group_id: number;
     }>(
       `SELECT e.id, e.max_attendees,
-              COALESCE(SUM(a.quantity), 0) as current_count
+              COALESCE(SUM(a.quantity), 0) as current_count,
+              e.group_id
             FROM events e
             LEFT JOIN attendees a ON a.event_id = e.id
               AND (e.event_type != 'daily' OR a.date = ?)
@@ -428,12 +458,32 @@ export const attendeesApi = {
       [date ?? null, ...eventIds],
     );
     const counts = new Map(rows.map((r) => [r.id, r]));
-    return items.every((item) => {
+    // Per-event capacity check
+    const eventOk = items.every((item) => {
       const row = counts.get(item.eventId);
       return row
         ? row.current_count + item.quantity <= row.max_attendees
         : false;
     });
+    if (!eventOk) return false;
+
+    // Group capacity check: collect unique group IDs with limits
+    const groupIds = new Set<number>();
+    for (const row of rows) {
+      if (row.group_id > 0) groupIds.add(row.group_id);
+    }
+    for (const groupId of groupIds) {
+      const groupLimit = await getGroupMaxAttendees(groupId);
+      if (groupLimit <= 0) continue;
+      const groupCount = await getGroupAttendeeCount(groupId, date ?? null);
+      // Sum requested quantities for events in this group
+      const requestedInGroup = items.reduce((sum, item) => {
+        const row = counts.get(item.eventId);
+        return row && row.group_id === groupId ? sum + item.quantity : sum;
+      }, 0);
+      if (groupCount + requestedInGroup > groupLimit) return false;
+    }
+    return true;
   },
   /** Check if an event has available spots for the requested quantity */
   hasAvailableSpots: async (
@@ -445,9 +495,22 @@ export const attendeesApi = {
     if (!event) return false;
     if (date) {
       const dateCount = await getDateAttendeeCount(eventId, date);
-      return dateCount + quantity <= event.max_attendees;
+      if (dateCount + quantity > event.max_attendees) return false;
+    } else {
+      if (event.attendee_count + quantity > event.max_attendees) return false;
     }
-    return event.attendee_count + quantity <= event.max_attendees;
+    // Check group capacity if event belongs to a group with a limit
+    if (event.group_id > 0) {
+      const groupLimit = await getGroupMaxAttendees(event.group_id);
+      if (groupLimit > 0) {
+        const groupCount = await getGroupAttendeeCount(
+          event.group_id,
+          date ?? null,
+        );
+        if (groupCount + quantity > groupLimit) return false;
+      }
+    }
+    return true;
   },
   /**
    * Atomically create attendee with capacity check in single SQL statement.
@@ -485,6 +548,34 @@ export const attendeesApi = {
       : "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?";
     const capacityArgs = date ? [eventId, date] : [eventId];
 
+    // Group capacity check via single CASE expression — one event+group lookup.
+    // Skips when group_id=0 (no group) or max_attendees=0 (no limit).
+    // Date-aware: standard events always count, daily events only count matching date.
+    const groupCapacityCheck = `
+            AND (
+              SELECT CASE
+                WHEN ev.group_id = 0 THEN 1
+                WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
+                WHEN (
+                  SELECT COALESCE(SUM(a2.quantity), 0)
+                  FROM attendees a2
+                  JOIN events e2 ON e2.id = a2.event_id
+                  WHERE e2.group_id = ev.group_id
+                    AND (? IS NULL OR e2.event_type != 'daily' OR a2.date = ?)
+                ) + ? <= g.max_attendees THEN 1
+                ELSE 0
+              END
+              FROM events ev
+              LEFT JOIN groups g ON g.id = ev.group_id
+              WHERE ev.id = ?
+            ) = 1`;
+    const groupCapacityArgs = [
+      date, // date IS NULL check
+      date, // date match
+      qty, // quantity to add
+      eventId, // event lookup
+    ];
+
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
       sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
@@ -493,7 +584,7 @@ export const attendeesApi = {
               ${capacityFilter}
             ) + ? <= (
               SELECT max_attendees FROM events WHERE id = ?
-            )`,
+            )${groupCapacityCheck}`,
       args: [
         eventId,
         enc.encryptedName,
@@ -513,6 +604,7 @@ export const attendeesApi = {
         ...capacityArgs,
         qty,
         eventId,
+        ...groupCapacityArgs,
       ],
     });
 
