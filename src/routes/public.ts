@@ -440,10 +440,7 @@ const processTicketReservation = async (
         if (!date) return showError("Please select a valid date");
       }
 
-      const date =
-        event.event_type === "daily"
-          ? validateSubmittedDate(form, ctx.dates ?? [])
-          : null;
+      const date = event.event_type === "daily" ? validateSubmittedDate(form, ctx.dates ?? []) : null;
       const quantity = parseQuantity(form, event);
 
       // Parse custom price for pay-more events
