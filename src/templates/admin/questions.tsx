@@ -112,10 +112,7 @@ export const adminQuestionPage = (
       )}
 
       <p>
-        <a
-          href={`/admin/questions/${question.id}/delete`}
-          class="danger"
-        >
+        <a href={`/admin/questions/${question.id}/delete`} class="danger">
           Delete Question
         </a>
       </p>
@@ -131,7 +128,10 @@ export const adminQuestionDeletePage = (
   String(
     <Layout title="Delete Question">
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href={`/admin/questions/${question.id}`} label={question.text} />
+      <Breadcrumb
+        href={`/admin/questions/${question.id}`}
+        label={question.text}
+      />
 
       <h1>Delete Question</h1>
       <Raw html={renderError(error)} />
@@ -177,7 +177,10 @@ export const adminAnswerDeletePage = (
   String(
     <Layout title="Delete Answer">
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href={`/admin/questions/${question.id}`} label={question.text} />
+      <Breadcrumb
+        href={`/admin/questions/${question.id}`}
+        label={question.text}
+      />
 
       <h1>Delete Answer</h1>
       <Raw html={renderError(error)} />
