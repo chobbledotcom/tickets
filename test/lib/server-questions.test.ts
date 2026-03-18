@@ -36,10 +36,7 @@ const createQuestion = async (text: string): Promise<number> => {
 };
 
 /** Helper: add an answer to a question via the admin form */
-const addAnswer = async (
-  questionId: number,
-  text: string,
-): Promise<number> => {
+const addAnswer = async (questionId: number, text: string): Promise<number> => {
   const { response } = await adminFormPost(
     `/admin/questions/${questionId}/answers`,
     { text },
@@ -107,22 +104,14 @@ describe("server (admin questions)", () => {
       const { response } = await adminFormPost("/admin/questions", {
         text: "",
       });
-      await expectHtmlResponse(
-        response,
-        400,
-        "Question text is required",
-      );
+      await expectHtmlResponse(response, 400, "Question text is required");
     });
 
     test("rejects whitespace-only text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
         text: "   ",
       });
-      await expectHtmlResponse(
-        response,
-        400,
-        "Question text is required",
-      );
+      await expectHtmlResponse(response, 400, "Question text is required");
     });
   });
 
@@ -143,11 +132,7 @@ describe("server (admin questions)", () => {
     test("shows question detail page", async () => {
       const id = await createQuestion("What is your role?");
       const { response } = await adminGet(`/admin/questions/${id}`);
-      await expectHtmlResponse(
-        response,
-        200,
-        "What is your role?",
-      );
+      await expectHtmlResponse(response, 200, "What is your role?");
     });
 
     test("shows answers on detail page", async () => {
@@ -170,10 +155,9 @@ describe("server (admin questions)", () => {
 
     test("updates question text", async () => {
       const id = await createQuestion("Before edit");
-      const { response } = await adminFormPost(
-        `/admin/questions/${id}/edit`,
-        { text: "After edit" },
-      );
+      const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
+        text: "After edit",
+      });
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         `/admin/questions/${id}?success=Question+updated`,
@@ -187,15 +171,10 @@ describe("server (admin questions)", () => {
 
     test("rejects empty text with error page", async () => {
       const id = await createQuestion("Keep me");
-      const { response } = await adminFormPost(
-        `/admin/questions/${id}/edit`,
-        { text: "" },
-      );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Question text is required",
-      );
+      const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
+        text: "",
+      });
+      await expectHtmlResponse(response, 400, "Question text is required");
     });
 
     test("returns 404 for non-existent question on edit", async () => {
@@ -235,18 +214,13 @@ describe("server (admin questions)", () => {
         `/admin/questions/${id}/answers`,
         { text: "" },
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Answer text is required",
-      );
+      await expectHtmlResponse(response, 400, "Answer text is required");
     });
 
     test("returns 404 when adding answer with empty text to non-existent question", async () => {
-      const { response } = await adminFormPost(
-        "/admin/questions/999/answers",
-        { text: "" },
-      );
+      const { response } = await adminFormPost("/admin/questions/999/answers", {
+        text: "",
+      });
       expectStatus(404)(response);
     });
 
@@ -327,11 +301,7 @@ describe("server (admin questions)", () => {
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "Wrong Text" },
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "exact text to confirm deletion",
-      );
+      await expectHtmlResponse(response, 400, "exact text to confirm deletion");
 
       // Verify still exists
       const { getQuestion } = await import("#lib/db/questions.ts");
@@ -340,10 +310,9 @@ describe("server (admin questions)", () => {
     });
 
     test("returns 404 for non-existent question", async () => {
-      const { response } = await adminFormPost(
-        "/admin/questions/999/delete",
-        { confirm_identifier: "Anything" },
-      );
+      const { response } = await adminFormPost("/admin/questions/999/delete", {
+        confirm_identifier: "Anything",
+      });
       expectStatus(404)(response);
     });
 
@@ -365,11 +334,7 @@ describe("server (admin questions)", () => {
         `/admin/questions/${id}/delete`,
         {},
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "exact text to confirm deletion",
-      );
+      await expectHtmlResponse(response, 400, "exact text to confirm deletion");
     });
 
     test("returns 404 when question disappears between getQuestion and getQuestionWithAnswers", async () => {
@@ -500,16 +465,22 @@ describe("server (admin questions)", () => {
         `/admin/questions/${qId}/answers/${aId}/delete`,
         { confirm_identifier: "Wrong Text" },
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "exact text to confirm deletion",
-      );
+      await expectHtmlResponse(response, 400, "exact text to confirm deletion");
 
       // Verify answer still exists
       const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeTruthy();
+    });
+
+    test("rejects deletion when confirm_identifier is missing", async () => {
+      const qId = await createQuestion("Missing confirm answer");
+      const aId = await addAnswer(qId, "Still here");
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/delete`,
+        {},
+      );
+      await expectHtmlResponse(response, 400, "exact text to confirm deletion");
     });
   });
 
@@ -533,9 +504,7 @@ describe("server (admin questions)", () => {
       await addAnswer(qId, "Vegetarian");
       await addAnswer(qId, "Vegan");
 
-      const { response } = await adminGet(
-        `/admin/event/${event.id}/questions`,
-      );
+      const { response } = await adminGet(`/admin/event/${event.id}/questions`);
       await expectHtmlResponse(
         response,
         200,
@@ -552,9 +521,7 @@ describe("server (admin questions)", () => {
       const { setEventQuestions } = await import("#lib/db/questions.ts");
       await setEventQuestions(event.id, [qId]);
 
-      const { response } = await adminGet(
-        `/admin/event/${event.id}/questions`,
-      );
+      const { response } = await adminGet(`/admin/event/${event.id}/questions`);
       await expectHtmlResponse(
         response,
         200,
@@ -577,10 +544,9 @@ describe("server (admin questions)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event/999/questions",
-        { question_ids: "1" },
-      );
+      const { response } = await adminFormPost("/admin/event/999/questions", {
+        question_ids: "1",
+      });
       expectStatus(404)(response);
     });
 
