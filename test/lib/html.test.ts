@@ -34,6 +34,12 @@ import {
   nearCapacity,
 } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
+import {
+  adminAnswerDeletePage,
+  adminQuestionDeletePage,
+  adminQuestionPage,
+  adminQuestionsPage,
+} from "#templates/admin/questions.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
@@ -2390,7 +2396,7 @@ describe("html", () => {
       const html = multiTicketPage({
         events,
         slugs: ["ab12c"],
-        termsAndConditions: "Rule one\n\nRule two",
+        terms: "Rule one\n\nRule two",
       });
       expect(html).toContain("<p>Rule one</p>");
       expect(html).toContain("<p>Rule two</p>");
@@ -3810,6 +3816,147 @@ describe("html", () => {
         const html = adminEventNewPage([], TEST_SESSION);
         expect(html).not.toContain('type="file"');
       });
+    });
+  });
+
+  describe("adminQuestionsPage", () => {
+    test("renders empty state when no questions", () => {
+      const html = adminQuestionsPage([], TEST_SESSION);
+      expect(html).toContain("No custom questions yet");
+    });
+
+    test("renders question list with answer counts", () => {
+      const html = adminQuestionsPage(
+        [
+          {
+            id: 1,
+            text: "Favourite colour?",
+            answers: [
+              { id: 10, question_id: 1, text: "Red", sort_order: 0 },
+              { id: 11, question_id: 1, text: "Blue", sort_order: 1 },
+            ],
+          },
+        ],
+        TEST_SESSION,
+      );
+      expect(html).toContain("Favourite colour?");
+      expect(html).toContain("2 answers");
+    });
+
+    test("renders error message when provided", () => {
+      const html = adminQuestionsPage([], TEST_SESSION, "Something went wrong");
+      expect(html).toContain("Something went wrong");
+    });
+  });
+
+  describe("adminQuestionPage", () => {
+    const question = {
+      id: 1,
+      text: "T-shirt size?",
+      answers: [
+        { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+        { id: 11, question_id: 1, text: "Large", sort_order: 1 },
+      ],
+    };
+
+    test("renders question text and edit form", () => {
+      const html = adminQuestionPage(question, TEST_SESSION);
+      expect(html).toContain("T-shirt size?");
+      expect(html).toContain('action="/admin/questions/1/edit"');
+    });
+
+    test("renders answer list with delete links", () => {
+      const html = adminQuestionPage(question, TEST_SESSION);
+      expect(html).toContain("Small");
+      expect(html).toContain("Large");
+      expect(html).toContain("/admin/questions/1/answers/10/delete");
+      expect(html).toContain("/admin/questions/1/answers/11/delete");
+    });
+
+    test("renders delete question link", () => {
+      const html = adminQuestionPage(question, TEST_SESSION);
+      expect(html).toContain('href="/admin/questions/1/delete"');
+    });
+
+    test("renders error message when provided", () => {
+      const html = adminQuestionPage(question, TEST_SESSION, "Error!");
+      expect(html).toContain("Error!");
+    });
+
+    test("renders empty answers state", () => {
+      const html = adminQuestionPage(
+        { id: 1, text: "Q?", answers: [] },
+        TEST_SESSION,
+      );
+      expect(html).toContain("No answers yet");
+    });
+  });
+
+  describe("adminQuestionDeletePage", () => {
+    const question = {
+      id: 1,
+      text: "T-shirt size?",
+      answers: [
+        { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+      ],
+    };
+
+    test("renders confirmation form with question text", () => {
+      const html = adminQuestionDeletePage(question, TEST_SESSION);
+      expect(html).toContain("Delete Question");
+      expect(html).toContain("T-shirt size?");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain('action="/admin/questions/1/delete"');
+    });
+
+    test("warns about cascading deletes", () => {
+      const html = adminQuestionDeletePage(question, TEST_SESSION);
+      expect(html).toContain("all its answers");
+      expect(html).toContain("attendee responses");
+    });
+
+    test("renders error message when provided", () => {
+      const html = adminQuestionDeletePage(
+        question,
+        TEST_SESSION,
+        "Text does not match",
+      );
+      expect(html).toContain("Text does not match");
+    });
+  });
+
+  describe("adminAnswerDeletePage", () => {
+    const question = {
+      id: 1,
+      text: "T-shirt size?",
+      answers: [
+        { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+        { id: 11, question_id: 1, text: "Large", sort_order: 1 },
+      ],
+    };
+    const answer = question.answers[0]!;
+
+    test("renders confirmation form with answer text", () => {
+      const html = adminAnswerDeletePage(question, answer, TEST_SESSION);
+      expect(html).toContain("Delete Answer");
+      expect(html).toContain("Small");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain('action="/admin/questions/1/answers/10/delete"');
+    });
+
+    test("shows question context", () => {
+      const html = adminAnswerDeletePage(question, answer, TEST_SESSION);
+      expect(html).toContain("T-shirt size?");
+    });
+
+    test("renders error message when provided", () => {
+      const html = adminAnswerDeletePage(
+        question,
+        answer,
+        TEST_SESSION,
+        "Text does not match",
+      );
+      expect(html).toContain("Text does not match");
     });
   });
 });

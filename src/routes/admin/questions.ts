@@ -5,6 +5,7 @@
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import {
+  type Answer,
   answersTable,
   deleteAnswer,
   deleteQuestion,
@@ -13,10 +14,12 @@ import {
   getQuestion,
   getQuestionsForEvent,
   getQuestionWithAnswers,
+  type QuestionWithAnswers,
   questionsTable,
   setEventQuestions,
 } from "#lib/db/questions.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
@@ -28,7 +31,9 @@ import {
   withOwnerAuthForm,
 } from "#routes/utils.ts";
 import {
+  adminAnswerDeletePage,
   adminEventQuestionsPage,
+  adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
@@ -119,25 +124,99 @@ const handleAddAnswer = withValidatedText(
   },
 );
 
-/** Handle POST /admin/questions/:id/answers/:answerId/delete */
-const handleDeleteAnswer = (
-  request: Request,
-  { id, answerId }: { id: number; answerId: number },
-): Promise<Response> =>
-  withOwnerAuthForm(request, async () => {
-    await deleteAnswer(answerId);
-    await logActivity(`Answer deleted from question ${id}`);
-    return redirect(`/admin/questions/${id}`, "Answer deleted", true);
-  });
+const CONFIRM_TEXT_MSG =
+  "Text does not match. Please type the exact text to confirm deletion.";
+
+/** Handle GET /admin/questions/:id/delete */
+const handleDeleteQuestionGet = ownerGetById(
+  getQuestionWithAnswers,
+  (q, session) => htmlResponse(adminQuestionDeletePage(q, session)),
+);
 
 /** Handle POST /admin/questions/:id/delete */
-const handleDeleteQuestion = ownerFormById(async (id) => {
+const handleDeleteQuestionPost = ownerFormById(async (id, session, form) => {
   const question = await getQuestion(id);
   if (!question) return notFoundResponse();
+  const confirm = form.get("confirm_identifier") ?? "";
+  if (!verifyIdentifier(question.text, confirm)) {
+    const questionWithAnswers = await getQuestionWithAnswers(id);
+    return questionWithAnswers
+      ? htmlResponse(
+          adminQuestionDeletePage(questionWithAnswers, session, CONFIRM_TEXT_MSG),
+          400,
+        )
+      : notFoundResponse();
+  }
   await deleteQuestion(id);
   await logActivity(`Question '${question.text}' deleted`);
   return redirect("/admin/questions", "Question deleted", true);
 });
+
+/** Load question + answer by IDs, returning 404 if either is missing */
+const withAnswer = async <T>(
+  questionId: number,
+  answerId: number,
+  handler: (question: QuestionWithAnswers, answer: Answer) => T | Promise<T>,
+): Promise<T | Response> => {
+  const question = await getQuestionWithAnswers(questionId);
+  if (!question) return notFoundResponse();
+  const answer = question.answers.find((a) => a.id === answerId);
+  if (!answer) return notFoundResponse();
+  return handler(question, answer);
+};
+
+type AnswerRouteParams = { id: number; answerId: number };
+type AnswerHandler<Extra extends unknown[]> = (
+  question: QuestionWithAnswers,
+  answer: Answer,
+  session: AdminSession,
+  ...extra: Extra
+) => Response | Promise<Response>;
+
+/** Owner answer-scoped route factory, parameterized by auth type */
+const withAnswerAuth =
+  <Extra extends unknown[]>(
+    auth: (
+      request: Request,
+      handler: (session: AdminSession, ...extra: Extra) => Response | Promise<Response>,
+    ) => Promise<Response>,
+  ) =>
+  (handler: AnswerHandler<Extra>) =>
+  (request: Request, { id, answerId }: AnswerRouteParams): Promise<Response> =>
+    auth(request, (session, ...extra) =>
+      withAnswer(id, answerId, (question, answer) =>
+        handler(question, answer, session, ...extra),
+      ),
+    );
+
+/** Owner GET route for answer-scoped pages */
+const answerRoute = withAnswerAuth(requireOwnerOr);
+
+/** Owner POST route for answer-scoped form actions */
+const answerFormRoute = withAnswerAuth(withOwnerAuthForm);
+
+/** Handle GET /admin/questions/:id/answers/:answerId/delete */
+const handleDeleteAnswerGet = answerRoute((question, answer, session) =>
+  htmlResponse(adminAnswerDeletePage(question, answer, session)),
+);
+
+/** Handle POST /admin/questions/:id/answers/:answerId/delete */
+const handleDeleteAnswerPost = answerFormRoute(
+  async (question, answer, session, form) => {
+    const confirm = form.get("confirm_identifier") ?? "";
+    if (!verifyIdentifier(answer.text, confirm)) {
+      return htmlResponse(
+        adminAnswerDeletePage(question, answer, session, CONFIRM_TEXT_MSG),
+        400,
+      );
+    }
+    await deleteAnswer(answer.id);
+    await logActivity(
+      `Answer '${answer.text}' deleted from question ${question.id}`,
+    );
+    return redirect(`/admin/questions/${question.id}`, "Answer deleted", true);
+  },
+);
 
 /** Handle GET /admin/event/:id/questions */
 const handleEventQuestionsGet = ownerGetById(
@@ -181,8 +260,10 @@ export const questionsRoutes = defineRoutes({
   "GET /admin/questions/:id": handleQuestionGet,
   "POST /admin/questions/:id/edit": handleQuestionEdit,
   "POST /admin/questions/:id/answers": handleAddAnswer,
-  "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswer,
-  "POST /admin/questions/:id/delete": handleDeleteQuestion,
+  "GET /admin/questions/:id/delete": handleDeleteQuestionGet,
+  "POST /admin/questions/:id/delete": handleDeleteQuestionPost,
+  "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
+  "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
   "GET /admin/event/:id/questions": handleEventQuestionsGet,
   "POST /admin/event/:id/questions": handleEventQuestionsPost,
 });
