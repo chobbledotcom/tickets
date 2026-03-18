@@ -4016,12 +4016,7 @@ describe("html", () => {
   describe("adminEventQuestionsPage", () => {
     test("shows empty state when no questions exist", () => {
       const event = testEventWithCount({ id: 1, name: "My Event" });
-      const html = adminEventQuestionsPage(
-        event,
-        [],
-        new Set(),
-        TEST_SESSION,
-      );
+      const html = adminEventQuestionsPage(event, [], new Set(), TEST_SESSION);
       expect(html).toContain("No questions created yet");
       expect(html).toContain('href="/admin/questions"');
       expect(html).toContain("Create questions");

@@ -4255,10 +4255,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
       const att2 = await getAttendeesRaw(event2.id);
-      const batch = await getAttendeeAnswersBatch([
-        att1[0]!.id,
-        att2[0]!.id,
-      ]);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
       expect(batch.get(att1[0]!.id)).toEqual([answer1.id]);
       expect(batch.get(att2[0]!.id)).toEqual([answer1.id]);
     });
