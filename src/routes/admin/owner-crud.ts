@@ -4,6 +4,7 @@ import type { AdminSession } from "#lib/types.ts";
 import {
   getSearchParam,
   htmlResponse,
+  type IdRouteHandler,
   notFoundResponse,
   orNotFound,
   redirect,
@@ -43,11 +44,6 @@ export const createOwnerCrudHandlers = <Row, Input>(
     (request: Request): Promise<Response> =>
       withOwnerAuthForm(request, handler);
 
-  const ownerFormForId =
-    (mkHandler: (id: number) => OwnerFormHandler) =>
-    (request: Request, id: number): Promise<Response> =>
-      ownerForm(mkHandler(id))(request);
-
   const ownerHtml =
     (render: (session: AdminSession) => string | Promise<string>) =>
     (request: Request): Promise<Response> =>
@@ -56,8 +52,8 @@ export const createOwnerCrudHandlers = <Row, Input>(
       );
 
   const ownerRowHtml =
-    (render: (row: Row, session: AdminSession) => string) =>
-    (request: Request, id: number): Promise<Response> =>
+    (render: (row: Row, session: AdminSession) => string): IdRouteHandler =>
+    (request, { id }) =>
       requireOwnerOr(request, (session) =>
         orNotFound(cfg.resource.table.findById(id), (row) =>
           htmlResponse(render(row, session)),
@@ -97,9 +93,8 @@ export const createOwnerCrudHandlers = <Row, Input>(
 
   const editGet = ownerRowHtml(cfg.renderEdit);
 
-  const editHandler =
-    (id: number) =>
-    async (session: AdminSession, form: URLSearchParams): Promise<Response> => {
+  const editPost: IdRouteHandler = (request, { id }) =>
+    withOwnerAuthForm(request, async (session, form) => {
       const result = await cfg.resource.update(id, form);
       if (result.ok) {
         return logAndRedirect(
@@ -112,15 +107,12 @@ export const createOwnerCrudHandlers = <Row, Input>(
       return orNotFound(cfg.resource.table.findById(id), (row) =>
         htmlResponse(cfg.renderEdit(row, session, result.error), 400),
       );
-    };
-
-  const editPost = ownerFormForId(editHandler);
+    });
 
   const deleteGet = ownerRowHtml(cfg.renderDelete);
 
-  const deleteHandler =
-    (id: number) =>
-    (session: AdminSession, form: URLSearchParams): Promise<Response> =>
+  const deletePost: IdRouteHandler = (request, { id }) =>
+    withOwnerAuthForm(request, (session, form) =>
       orNotFound(cfg.resource.table.findById(id), async (row) => {
         const confirm = String(form.get("confirm_identifier"));
         const nameMatches = cfg.resource.verifyName(row, confirm);
@@ -136,9 +128,8 @@ export const createOwnerCrudHandlers = <Row, Input>(
         if ("notFound" in result) return notFoundResponse();
         await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
         return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
-      });
-
-  const deletePost = ownerFormForId(deleteHandler);
+      }),
+    );
 
   return {
     listGet,
