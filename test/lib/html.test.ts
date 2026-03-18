@@ -3943,9 +3943,7 @@ describe("html", () => {
           {
             id: 1,
             text: "Yes or no?",
-            answers: [
-              { id: 10, question_id: 1, text: "Yes", sort_order: 0 },
-            ],
+            answers: [{ id: 10, question_id: 1, text: "Yes", sort_order: 0 }],
           },
         ],
         TEST_SESSION,
@@ -4084,9 +4082,7 @@ describe("html", () => {
         {
           id: 1,
           text: "Yes or no?",
-          answers: [
-            { id: 10, question_id: 1, text: "Yes", sort_order: 0 },
-          ],
+          answers: [{ id: 10, question_id: 1, text: "Yes", sort_order: 0 }],
         },
       ];
       const html = adminEventQuestionsPage(
