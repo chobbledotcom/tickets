@@ -116,7 +116,7 @@ describe("server (admin guide)", () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("Settings Overview");
-      expect(html).toContain("Phone prefix");
+      expect(html).toContain("Country");
       expect(html).toContain("Site theme");
     });
 
