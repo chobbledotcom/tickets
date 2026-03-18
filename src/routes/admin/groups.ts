@@ -1,5 +1,5 @@
 /**
- * Admin group management routes - owner only
+ * Admin group management routes - accessible to owners and managers
  */
 
 import { compact, map } from "#fp";
@@ -27,7 +27,7 @@ import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -36,8 +36,8 @@ import {
   htmlResponse,
   orNotFound,
   redirect,
-  requireOwnerOr,
-  withOwnerAuthForm,
+  requireSessionOr,
+  withAuthForm,
 } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
@@ -128,11 +128,11 @@ const groupsResource = defineNamedResource({
   onDelete: deleteGroup,
 });
 
-const crudCreate = createOwnerCrudHandlers({
+const crudCreate = createCrudHandlers({
   ...crudConfig,
   resource: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
 });
-const crud = createOwnerCrudHandlers({
+const crud = createCrudHandlers({
   ...crudConfig,
   resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
@@ -148,7 +148,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
   request,
   { id },
 ) =>
-  requireOwnerOr(request, (session) =>
+  requireSessionOr(request, (session) =>
     withGroup(id, async (group) => {
       const [events, ungroupedEvents, holidays] = await Promise.all([
         getEventsByGroupId(id),
@@ -198,7 +198,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
 const handleAddEventsToGroup: TypedRouteHandler<
   "POST /admin/group/:id/add-events"
 > = (request, { id }) =>
-  withOwnerAuthForm(request, (_session, form) =>
+  withAuthForm(request, (_session, form) =>
     withGroup(id, async (group) => {
       const eventIds = form
         .getAll("event_ids")

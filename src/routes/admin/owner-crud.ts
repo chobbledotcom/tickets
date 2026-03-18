@@ -8,10 +8,12 @@ import {
   orNotFound,
   redirect,
   requireOwnerOr,
+  requireSessionOr,
+  withAuthForm,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
 
-type OwnerCrudConfig<Row, Input> = {
+type CrudConfig<Row, Input> = {
   singular: string;
   listPath: string;
   /** Redirect path after create/edit. Falls back to listPath when not provided. */
@@ -30,35 +32,59 @@ type OwnerCrudConfig<Row, Input> = {
   deleteConfirmError: string;
 };
 
+/** Create CRUD handlers that require owner role */
 export const createOwnerCrudHandlers = <Row, Input>(
-  cfg: OwnerCrudConfig<Row, Input>,
+  cfg: CrudConfig<Row, Input>,
+) => createCrudHandlersWithAuth(cfg, requireOwnerOr, withOwnerAuthForm);
+
+/** Create CRUD handlers accessible to any authenticated admin (owner or manager) */
+export const createCrudHandlers = <Row, Input>(cfg: CrudConfig<Row, Input>) =>
+  createCrudHandlersWithAuth(cfg, requireSessionOr, withAuthForm);
+
+type AuthGuard = (
+  request: Request,
+  handler: (session: AdminSession) => Response | Promise<Response>,
+) => Promise<Response>;
+
+type FormGuard = (
+  request: Request,
+  handler: (
+    session: AdminSession,
+    form: URLSearchParams,
+  ) => Response | Promise<Response>,
+) => Promise<Response>;
+
+const createCrudHandlersWithAuth = <Row, Input>(
+  cfg: CrudConfig<Row, Input>,
+  requireAuth: AuthGuard,
+  withFormAuth: FormGuard,
 ) => {
-  type OwnerFormHandler = (
+  type FormHandler = (
     session: AdminSession,
     form: URLSearchParams,
   ) => Response | Promise<Response>;
 
-  const ownerForm =
-    (handler: OwnerFormHandler) =>
+  const authForm =
+    (handler: FormHandler) =>
     (request: Request): Promise<Response> =>
-      withOwnerAuthForm(request, handler);
+      withFormAuth(request, handler);
 
-  const ownerFormForId =
-    (mkHandler: (id: number) => OwnerFormHandler) =>
+  const authFormForId =
+    (mkHandler: (id: number) => FormHandler) =>
     (request: Request, id: number): Promise<Response> =>
-      ownerForm(mkHandler(id))(request);
+      authForm(mkHandler(id))(request);
 
-  const ownerHtml =
+  const authHtml =
     (render: (session: AdminSession) => string | Promise<string>) =>
     (request: Request): Promise<Response> =>
-      requireOwnerOr(request, async (session) =>
+      requireAuth(request, async (session) =>
         htmlResponse(await render(session)),
       );
 
-  const ownerRowHtml =
+  const authRowHtml =
     (render: (row: Row, session: AdminSession) => string) =>
     (request: Request, id: number): Promise<Response> =>
-      requireOwnerOr(request, (session) =>
+      requireAuth(request, (session) =>
         orNotFound(cfg.resource.table.findById(id), (row) =>
           htmlResponse(render(row, session)),
         ),
@@ -74,15 +100,15 @@ export const createOwnerCrudHandlers = <Row, Input>(
   };
 
   const listGet = (request: Request): Promise<Response> =>
-    requireOwnerOr(request, async (session) => {
+    requireAuth(request, async (session) => {
       const rows = await cfg.getAll();
       const success = getSearchParam(request, "success") || undefined;
       return htmlResponse(cfg.renderList(rows, session, success));
     });
 
-  const newGet = ownerHtml(cfg.renderNew);
+  const newGet = authHtml(cfg.renderNew);
 
-  const createHandler: OwnerFormHandler = async (session, form) => {
+  const createHandler: FormHandler = async (session, form) => {
     const result = await cfg.resource.create(form);
     return result.ok
       ? await logAndRedirect(
@@ -93,9 +119,9 @@ export const createOwnerCrudHandlers = <Row, Input>(
       : htmlResponse(cfg.renderNew(session, result.error), 400);
   };
 
-  const createPost = ownerForm(createHandler);
+  const createPost = authForm(createHandler);
 
-  const editGet = ownerRowHtml(cfg.renderEdit);
+  const editGet = authRowHtml(cfg.renderEdit);
 
   const editHandler =
     (id: number) =>
@@ -114,9 +140,9 @@ export const createOwnerCrudHandlers = <Row, Input>(
       );
     };
 
-  const editPost = ownerFormForId(editHandler);
+  const editPost = authFormForId(editHandler);
 
-  const deleteGet = ownerRowHtml(cfg.renderDelete);
+  const deleteGet = authRowHtml(cfg.renderDelete);
 
   const deleteHandler =
     (id: number) =>
@@ -138,7 +164,7 @@ export const createOwnerCrudHandlers = <Row, Input>(
         return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
       });
 
-  const deletePost = ownerFormForId(deleteHandler);
+  const deletePost = authFormForId(deleteHandler);
 
   return {
     listGet,
