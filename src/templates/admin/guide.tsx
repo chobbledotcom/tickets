@@ -944,11 +944,11 @@ export const adminGuidePage = (
       <Section id="user-classes" title="Users &amp; Permissions">
         <Q q="What's the difference between an owner and a manager?">
           <p>
-            <strong>Owners</strong> have full access: events, calendar, users,
-            settings, holidays, sessions, and the activity log.{" "}
-            <strong>Managers</strong> can see events, the calendar, and the
-            activity log. They cannot change settings, manage users, or view
-            sessions.
+            <strong>Owners</strong> have full access: events, calendar, groups,
+            users, settings, holidays, sessions, and the activity log.{" "}
+            <strong>Managers</strong> can see events, the calendar, groups, and
+            the activity log. They cannot change settings, manage users, or
+            view sessions.
           </p>
         </Q>
 
@@ -1304,8 +1304,8 @@ export const adminGuidePage = (
           </p>
           <ul>
             <li>
-              <strong>Phone prefix</strong> &mdash; country calling code (e.g.
-              44 for UK, 1 for US) used to normalise phone numbers
+              <strong>Country</strong> &mdash; sets your timezone, currency, and
+              phone prefix in one step
             </li>
             <li>
               <strong>Business email</strong> &mdash; included in webhook
@@ -1325,6 +1325,10 @@ export const adminGuidePage = (
             <li>
               <strong>Terms and conditions</strong> &mdash; attendees must agree
               before booking
+            </li>
+            <li>
+              <strong>Show public site</strong> &mdash; enable or disable the
+              public-facing website
             </li>
             <li>
               <strong>Site theme</strong> &mdash; light or dark
@@ -1359,16 +1363,8 @@ export const adminGuidePage = (
               and admin notification emails using Liquid syntax
             </li>
             <li>
-              <strong>Timezone</strong> &mdash; all dates and times use this
-              timezone
-            </li>
-            <li>
               <strong>Custom domain</strong> &mdash; set up a custom domain for
               your site (Bunny CDN only)
-            </li>
-            <li>
-              <strong>Public site</strong> &mdash; enable or disable the public
-              website
             </li>
             <li>
               <strong>Database reset</strong> &mdash; permanently delete all
