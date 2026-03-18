@@ -37,6 +37,7 @@ import { adminLoginPage } from "#templates/admin/login.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
 import {
   adminAnswerDeletePage,
+  adminEventQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
@@ -4009,6 +4010,21 @@ describe("html", () => {
         "Text does not match",
       );
       expect(html).toContain("Text does not match");
+    });
+  });
+
+  describe("adminEventQuestionsPage", () => {
+    test("shows empty state when no questions exist", () => {
+      const event = testEventWithCount({ id: 1, name: "My Event" });
+      const html = adminEventQuestionsPage(
+        event,
+        [],
+        new Set(),
+        TEST_SESSION,
+      );
+      expect(html).toContain("No questions created yet");
+      expect(html).toContain('href="/admin/questions"');
+      expect(html).toContain("Create questions");
     });
   });
 });

@@ -13,6 +13,7 @@ import {
   getQuestionWithAnswers,
   questionsTable,
   saveAttendeeAnswers,
+  saveAttendeeAnswersBatch,
   setEventQuestions,
 } from "#lib/db/questions.ts";
 import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
@@ -289,9 +290,20 @@ describe("custom questions", () => {
       expect(batch.get(att2.id)).toEqual([a2.id]);
     });
 
+
     test("empty batch for no attendees", async () => {
       const batch = await getAttendeeAnswersBatch([]);
       expect(batch.size).toBe(0);
+    });
+
+    test("saveAttendeeAnswersBatch does nothing for empty attendeeIds", async () => {
+      await saveAttendeeAnswersBatch([], [1]);
+      // No error thrown, no rows inserted
+    });
+
+    test("saveAttendeeAnswersBatch does nothing for empty answerIds", async () => {
+      await saveAttendeeAnswersBatch([1], []);
+      // No error thrown, no rows inserted
     });
   });
 
