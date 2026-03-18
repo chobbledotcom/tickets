@@ -37,7 +37,7 @@ const getRandomBytes = (length: number): Uint8Array => {
 /**
  * Convert Uint8Array to base64 string
  */
-const toBase64 = (bytes: Uint8Array): string => {
+export const toBase64 = (bytes: Uint8Array): string => {
   let binary = "";
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
