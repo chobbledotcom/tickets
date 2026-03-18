@@ -135,7 +135,7 @@ export const squarePaymentProvider: PaymentProvider = {
     });
   },
 
-  resolveWebhookSession(
+  async resolveWebhookSession(
     event: WebhookEvent,
   ): Promise<ValidatedPaymentSession | "skip" | null> {
     const obj = event.data.object;
@@ -165,6 +165,11 @@ export const squarePaymentProvider: PaymentProvider = {
       return Promise.resolve("skip");
     }
 
-    return this.retrieveSession(orderId);
+    // If the order has no metadata (e.g. created directly in Square
+    // dashboard/POS, not by our system), skip silently instead of treating
+    // it as an error — avoids noisy logs and 400 responses that trigger
+    // Square webhook retries.
+    const session = await this.retrieveSession(orderId);
+    return session ?? "skip";
   },
 };

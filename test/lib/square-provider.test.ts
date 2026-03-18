@@ -428,7 +428,37 @@ describe("square-provider", () => {
           });
           // retrieveSession called with payment id as fallback
           expect(mocks.order.calls[0]!.args[0]).toBe("pay_fallback_id");
-          expect(result).toBeNull();
+          expect(result).toBe("skip");
+        },
+      );
+    });
+
+    test("returns skip when order exists but has no metadata", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_no_meta",
+              metadata: {},
+              state: "COMPLETED",
+              totalMoney: { amount: BigInt(1000), currency: "USD" },
+            }),
+          ),
+        async () => {
+          const result = await squarePaymentProvider.resolveWebhookSession({
+            id: "evt_no_meta",
+            type: "payment.updated",
+            data: {
+              object: {
+                payment: {
+                  id: "pay_no_meta",
+                  order_id: "order_no_meta",
+                  status: "COMPLETED",
+                },
+              },
+            },
+          });
+          expect(result).toBe("skip");
         },
       );
     });
@@ -449,7 +479,7 @@ describe("square-provider", () => {
             },
           });
           expect(mockOrder.calls[0]!.args[0]).toBe("order_flat");
-          expect(result).toBeNull();
+          expect(result).toBe("skip");
         },
       );
     });
