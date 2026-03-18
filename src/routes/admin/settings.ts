@@ -17,7 +17,6 @@ import {
   getAllowedDomain,
   getCdnHostname,
   getSquareWebhookSignatureKey,
-  getStripePublishableKey,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
@@ -186,22 +185,9 @@ const getSettingsPageState = async () => {
     getHeaderImageUrlFromDb(),
   ]);
 
-  // Detect publishable key mode mismatch
-  const publishableKey = getStripePublishableKey();
-  const publishableKeyMode = publishableKey?.startsWith("pk_test_")
-    ? "test"
-    : publishableKey?.startsWith("pk_live_")
-      ? "live"
-      : null;
-  const stripeKeyMismatch =
-    stripeKeyMode !== null &&
-    publishableKeyMode !== null &&
-    stripeKeyMode !== publishableKeyMode;
-
   return {
     stripeKeyConfigured,
     stripeKeyMode,
-    stripeKeyMismatch,
     paymentProvider: paymentProvider ?? "",
     squareTokenConfigured,
     squareSandbox,

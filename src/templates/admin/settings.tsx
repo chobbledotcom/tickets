@@ -21,7 +21,6 @@ import { Layout } from "#templates/layout.tsx";
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
   stripeKeyMode: string | null;
-  stripeKeyMismatch: boolean;
   paymentProvider: string;
   squareTokenConfigured: boolean;
   squareSandbox: boolean;
@@ -187,15 +186,6 @@ export const adminSettingsPage = (
             <p class="notice">
               <strong>Live mode:</strong> You are using a Stripe live key.
               Payments will be charged for real.
-            </p>
-          )}
-          {s.stripeKeyMismatch && (
-            <p class="notice error">
-              <strong>Key mismatch:</strong> Your Stripe secret key is in{" "}
-              {s.stripeKeyMode} mode but the <code>STRIPE_PUBLISHABLE_KEY</code>{" "}
-              environment variable is in{" "}
-              {s.stripeKeyMode === "test" ? "live" : "test"} mode. Both keys
-              must use the same mode or payments will fail.
             </p>
           )}
           <p>

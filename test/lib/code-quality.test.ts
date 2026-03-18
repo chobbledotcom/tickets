@@ -285,8 +285,6 @@ describe("code quality", () => {
       "lib/db/sessions.ts:resetSessionCache",
       // DB version constant used in production but test pattern doesn't detect constant comparison
       "lib/db/migrations.ts:LATEST_UPDATE",
-      // Client-side Stripe publishable key (for future payment form templates)
-      "lib/config.ts:getStripePublishableKey",
       // Test helper for creating signed webhook payloads
       "lib/stripe.ts:constructTestWebhookEvent",
       // Reset cached Square client between tests

@@ -2560,7 +2560,6 @@ describe("html", () => {
       {
         stripeKeyConfigured: false,
         stripeKeyMode: null,
-        stripeKeyMismatch: false,
         paymentProvider: "",
         squareTokenConfigured: false,
         squareSandbox: false,

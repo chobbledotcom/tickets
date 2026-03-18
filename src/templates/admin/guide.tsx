@@ -656,10 +656,9 @@ export const adminGuidePage = (
           </ul>
           <p>
             The system detects which mode you are in based on the key prefix and
-            shows it on the <a href="/admin/settings">Settings</a> page. If you
-            also have a <code>STRIPE_PUBLISHABLE_KEY</code> environment variable
-            set, both keys must be from the same mode (both test or both live)
-            &mdash; a mismatch will be flagged as an error.
+            shows it on the <a href="/admin/settings">Settings</a> page. Only
+            keys with a valid prefix (<code>sk_test_</code> or{" "}
+            <code>sk_live_</code>) are accepted.
           </p>
         </Q>
 
