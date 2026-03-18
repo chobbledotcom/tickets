@@ -304,8 +304,6 @@ describe("custom questions", () => {
       await saveAttendeeAnswersBatch([1], []);
       // No error thrown, no rows inserted
     });
-
-
   });
 
   describe("getAllQuestionsWithAnswers", () => {

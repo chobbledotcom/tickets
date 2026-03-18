@@ -4049,7 +4049,7 @@ describe("server (public routes)", () => {
     };
 
     test("saves answers when question is answered correctly", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+      const event = await createTestEvent({ maxAttendees: 50, thankYouUrl: "" });
       const { question, answer1 } = await setupQuestionForEvent(event.id);
 
       const response = await submitTicketForm(event.slug, {
@@ -4095,6 +4095,7 @@ describe("server (public routes)", () => {
       const validDate = addDays(today, 1);
       const event = await createTestEvent({
         maxAttendees: 50,
+        thankYouUrl: "",
         eventType: "daily",
         bookableDays: [
           "Monday",
