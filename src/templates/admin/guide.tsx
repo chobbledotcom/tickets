@@ -631,6 +631,38 @@ export const adminGuidePage = (
           </p>
         </Q>
 
+        <Q q="What is the difference between Stripe test and live keys?">
+          <p>
+            Stripe provides two completely separate environments, each with its
+            own set of API keys:
+          </p>
+          <ul>
+            <li>
+              <strong>Test mode</strong> (<code>sk_test_</code> /{" "}
+              <code>pk_test_</code>) &mdash; a sandbox environment for
+              development and testing. No real money is moved. You can use{" "}
+              <a href="https://docs.stripe.com/testing#cards">
+                Stripe&apos;s test card numbers
+              </a>{" "}
+              to simulate successful and failed payments. Bookings created in
+              test mode won&apos;t appear in your live Stripe dashboard.
+            </li>
+            <li>
+              <strong>Live mode</strong> (<code>sk_live_</code> /{" "}
+              <code>pk_live_</code>) &mdash; the production environment. Real
+              cards are charged and real money is transferred to your Stripe
+              account.
+            </li>
+          </ul>
+          <p>
+            The system detects which mode you are in based on the key prefix and
+            shows it on the <a href="/admin/settings">Settings</a> page. If you
+            also have a <code>STRIPE_PUBLISHABLE_KEY</code> environment variable
+            set, both keys must be from the same mode (both test or both live)
+            &mdash; a mismatch will be flagged as an error.
+          </p>
+        </Q>
+
         <Q q="Should I use test or live credentials?">
           <p>
             Start with test credentials to make sure everything is working
@@ -642,23 +674,27 @@ export const adminGuidePage = (
               <strong>Stripe:</strong> Use a key starting with{" "}
               <code>sk_test_</code>. You can make test payments with{" "}
               <a href="https://docs.stripe.com/testing#cards">
-                Stripe's test card numbers
+                Stripe&apos;s test card numbers
               </a>
-              .
+              . The Settings page will show a <strong>Test mode</strong> badge
+              so you always know which environment is active.
             </li>
             <li>
               <strong>Square:</strong> Use your Sandbox access token and
               location, and tick the <strong>Sandbox mode</strong> checkbox on
               the Settings page. You can make test payments with{" "}
               <a href="https://developer.squareup.com/docs/devtools/sandbox/payments">
-                Square's sandbox test values
+                Square&apos;s sandbox test values
               </a>
               . Untick Sandbox mode when switching to production.
             </li>
           </ul>
           <p>
-            When you're ready to go live, replace the test credentials with your
-            production credentials in <a href="/admin/settings">Settings</a>.
+            When you&apos;re ready to go live, replace the test credentials with
+            your production credentials in{" "}
+            <a href="/admin/settings">Settings</a>. The system will only accept
+            keys that start with a valid prefix (<code>sk_test_</code> or{" "}
+            <code>sk_live_</code>).
           </p>
         </Q>
       </Section>
