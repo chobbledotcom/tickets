@@ -569,30 +569,19 @@ export const authenticatedGetById =
       orNotFound(load(id), (entity) => render(entity, session)),
     );
 
-/**
- * Authenticated POST-by-ID route handler factory.
- * Validates CSRF, extracts ID from params, calls handler(id, session, form).
- * @param level - "owner" requires owner role, null allows any authenticated user
- */
-export const authenticatedFormById =
-  (level: IdRouteAuth) =>
-  (
-    handler: (
-      id: number,
-      session: AuthSession,
-      form: URLSearchParams,
-    ) => Response | Promise<Response>,
-  ): IdRouteHandler =>
-  (request, { id }) => {
-    const authForm = level === "owner" ? withOwnerAuthForm : withAuthForm;
-    return authForm(request, (session, form) => handler(id, session, form));
-  };
-
 /** Shorthand: owner GET-by-ID */
 export const ownerGetById = authenticatedGetById("owner");
 
-/** Shorthand: owner POST-by-ID + CSRF */
-export const ownerFormById = authenticatedFormById("owner");
+/** Owner POST-by-ID + CSRF */
+export const ownerFormById = (
+  handler: (
+    id: number,
+    session: AuthSession,
+    form: URLSearchParams,
+  ) => Response | Promise<Response>,
+): IdRouteHandler =>
+(request, { id }) =>
+  withOwnerAuthForm(request, (session, form) => handler(id, session, form));
 
 /** Handler function that receives session and multipart FormData */
 type MultipartFormHandler = (
