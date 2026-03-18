@@ -2371,7 +2371,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain("Sorry, all events are sold out.");
       expect(html).not.toContain("Reserve Tickets</button>");
     });
@@ -2387,13 +2387,11 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(
+      const html = multiTicketPage({
         events,
-        ["ab12c"],
-        undefined,
-        undefined,
-        "Rule one\n\nRule two",
-      );
+        slugs: ["ab12c"],
+        termsAndConditions: "Rule one\n\nRule two",
+      });
       expect(html).toContain("<p>Rule one</p>");
       expect(html).toContain("<p>Rule two</p>");
       expect(html).toContain('name="agree_terms"');
@@ -2411,7 +2409,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('action="/ticket/ab12c?iframe=true"');
       expect(html).toContain('class="iframe"');
       detectIframeMode("https://example.com/");
@@ -2429,7 +2427,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain("iframe-resizer-child.js");
       detectIframeMode("https://example.com/");
     });
@@ -2445,7 +2443,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).not.toContain("iframe-resizer-child.js");
     });
 
@@ -2460,7 +2458,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('action="/ticket/ab12c"');
       expect(html).not.toContain("?iframe=true");
       expect(html).not.toContain('class="iframe"');
@@ -2478,7 +2476,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('name="quantity_1" value="1"');
       expect(html).not.toContain("<select");
       expect(html).not.toContain("Select Tickets");
@@ -2496,7 +2494,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain("<select");
       expect(html).toContain('name="quantity_1"');
       expect(html).toContain("Select Tickets");
@@ -2524,7 +2522,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain("<select");
       expect(html).toContain("Select Tickets");
     });
@@ -2550,7 +2548,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain('name="quantity_1" value="1"');
       expect(html).not.toContain("Select Tickets");
     });
@@ -3604,7 +3602,7 @@ describe("html", () => {
             }),
           ),
         ];
-        const html = multiTicketPage(events, ["slug-a", "slug-b"]);
+        const html = multiTicketPage({ events, slugs: ["slug-a", "slug-b"] });
         expect(html).toContain("/image/img-a.jpg");
         expect(html).toContain("/image/img-b.jpg");
         cleanupStorage();
@@ -3617,7 +3615,7 @@ describe("html", () => {
             testEventWithCount({ id: 1, name: "Event A", image_url: "" }),
           ),
         ];
-        const html = multiTicketPage(events, ["slug-a"]);
+        const html = multiTicketPage({ events, slugs: ["slug-a"] });
         expect(html).not.toContain("/image/");
         cleanupStorage();
       });

@@ -57,7 +57,7 @@ describe("custom questions", () => {
 
     test("deletes a question and cascades", async () => {
       const q = await questionsTable.insert({ text: "To delete" });
-      const a = await answersTable.insert({ questionId: q.id, text: "Opt A" });
+      const a = await answersTable.insert({ questionId: q.id, text: "Opt A", sortOrder: 0 });
 
       const event = await createTestEvent();
       await setEventQuestions(event.id, [q.id]);
@@ -77,8 +77,8 @@ describe("custom questions", () => {
   describe("answers CRUD", () => {
     test("creates answers for a question", async () => {
       const q = await questionsTable.insert({ text: "Size?" });
-      await answersTable.insert({ questionId: q.id, text: "Small" });
-      await answersTable.insert({ questionId: q.id, text: "Large" });
+      await answersTable.insert({ questionId: q.id, text: "Small", sortOrder: 0 });
+      await answersTable.insert({ questionId: q.id, text: "Large", sortOrder: 1 });
 
       const withAnswers = await getQuestionWithAnswers(q.id);
       expect(withAnswers).not.toBeNull();
@@ -92,8 +92,9 @@ describe("custom questions", () => {
       const small = await answersTable.insert({
         questionId: q.id,
         text: "Small",
+        sortOrder: 0,
       });
-      await answersTable.insert({ questionId: q.id, text: "Large" });
+      await answersTable.insert({ questionId: q.id, text: "Large", sortOrder: 1 });
 
       await deleteAnswer(small.id);
 
@@ -107,8 +108,8 @@ describe("custom questions", () => {
     test("assigns questions to an event", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
-      await answersTable.insert({ questionId: q1.id, text: "A1" });
-      await answersTable.insert({ questionId: q2.id, text: "A2" });
+      await answersTable.insert({ questionId: q1.id, text: "A1", sortOrder: 0 });
+      await answersTable.insert({ questionId: q2.id, text: "A2", sortOrder: 0 });
 
       const event = await createTestEvent();
       await setEventQuestions(event.id, [q2.id, q1.id]);
@@ -123,8 +124,8 @@ describe("custom questions", () => {
     test("replaces event questions on re-assignment", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
-      await answersTable.insert({ questionId: q1.id, text: "A1" });
-      await answersTable.insert({ questionId: q2.id, text: "A2" });
+      await answersTable.insert({ questionId: q1.id, text: "A1", sortOrder: 0 });
+      await answersTable.insert({ questionId: q2.id, text: "A2", sortOrder: 0 });
 
       const event = await createTestEvent();
       await setEventQuestions(event.id, [q1.id, q2.id]);
@@ -146,8 +147,8 @@ describe("custom questions", () => {
     test("deduplicates questions across events", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
-      await answersTable.insert({ questionId: q1.id, text: "A1" });
-      await answersTable.insert({ questionId: q2.id, text: "A2" });
+      await answersTable.insert({ questionId: q1.id, text: "A1", sortOrder: 0 });
+      await answersTable.insert({ questionId: q2.id, text: "A2", sortOrder: 0 });
 
       const event1 = await createTestEvent();
       const event2 = await createTestEvent({ name: "Event 2" });
@@ -169,8 +170,8 @@ describe("custom questions", () => {
   describe("attendee answers", () => {
     test("saves and retrieves attendee answers", async () => {
       const q = await questionsTable.insert({ text: "Size?" });
-      const a1 = await answersTable.insert({ questionId: q.id, text: "Small" });
-      await answersTable.insert({ questionId: q.id, text: "Large" });
+      const a1 = await answersTable.insert({ questionId: q.id, text: "Small", sortOrder: 0 });
+      await answersTable.insert({ questionId: q.id, text: "Large", sortOrder: 1 });
 
       const event = await createTestEvent();
       const attendee = await createAttendee(event.id);
@@ -183,8 +184,8 @@ describe("custom questions", () => {
 
     test("batch retrieval for multiple attendees", async () => {
       const q = await questionsTable.insert({ text: "Size?" });
-      const a1 = await answersTable.insert({ questionId: q.id, text: "Small" });
-      const a2 = await answersTable.insert({ questionId: q.id, text: "Large" });
+      const a1 = await answersTable.insert({ questionId: q.id, text: "Small", sortOrder: 0 });
+      const a2 = await answersTable.insert({ questionId: q.id, text: "Large", sortOrder: 1 });
 
       const event = await createTestEvent();
       const att1 = await createAttendee(event.id, "Alice");
@@ -208,9 +209,9 @@ describe("custom questions", () => {
     test("returns all questions with their answers", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
-      await answersTable.insert({ questionId: q1.id, text: "A1" });
-      await answersTable.insert({ questionId: q1.id, text: "A2" });
-      await answersTable.insert({ questionId: q2.id, text: "B1" });
+      await answersTable.insert({ questionId: q1.id, text: "A1", sortOrder: 0 });
+      await answersTable.insert({ questionId: q1.id, text: "A2", sortOrder: 1 });
+      await answersTable.insert({ questionId: q2.id, text: "B1", sortOrder: 0 });
 
       const all = await getAllQuestionsWithAnswers();
       expect(all).toHaveLength(2);

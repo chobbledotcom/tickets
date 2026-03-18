@@ -1,5 +1,5 @@
 /**
- * Admin routes for custom questions management
+ * Admin routes for custom questions management (owner-only)
  */
 
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -9,6 +9,7 @@ import {
   deleteAnswer,
   deleteQuestion,
   getAllQuestionsWithAnswers,
+  getNextAnswerSortOrder,
   getQuestion,
   getQuestionsForEvent,
   getQuestionWithAnswers,
@@ -22,8 +23,8 @@ import {
   notFoundResponse,
   orNotFound,
   redirect,
-  requireSessionOr,
-  withAuthForm,
+  requireOwnerOr,
+  withOwnerAuthForm,
 } from "#routes/utils.ts";
 import {
   adminEventQuestionsPage,
@@ -50,21 +51,16 @@ const requireTextOrError = async (
     : notFoundResponse();
 };
 
-/** Generic question-scoped POST handler */
-const questionFormHandler =
-  (
-    handler: (
-      id: number,
-      session: AdminSession,
-      form: URLSearchParams,
-    ) => Promise<Response>,
-  ) =>
-  (request: Request, { id }: { id: number }): Promise<Response> =>
-    withAuthForm(request, (session, form) => handler(id, session, form));
+/** Generic question-scoped owner POST handler — extracts id from params and delegates to withOwnerAuthForm */
+const questionFormHandler = (
+  handler: (id: number, session: AdminSession, form: URLSearchParams) => Promise<Response>,
+) =>
+(request: Request, params: { id: number }): Promise<Response> =>
+  withOwnerAuthForm(request, (session, form) => handler(params.id, session, form));
 
 /** Handle GET /admin/questions */
 const handleQuestionsGet = (request: Request): Promise<Response> =>
-  requireSessionOr(request, async (session) =>
+  requireOwnerOr(request, async (session) =>
     htmlResponse(
       adminQuestionsPage(await getAllQuestionsWithAnswers(), session),
     ),
@@ -72,7 +68,7 @@ const handleQuestionsGet = (request: Request): Promise<Response> =>
 
 /** Handle POST /admin/questions (create question) */
 const handleQuestionsPost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (session, form) => {
     const text = extractText(form);
     if (!text) {
       return htmlResponse(
@@ -89,21 +85,21 @@ const handleQuestionsPost = (request: Request): Promise<Response> =>
     return redirect("/admin/questions", "Question created", true);
   });
 
-/** Require session + load entity, 404 if missing */
-const withSessionAndEntity = <T>(
-  request: Request,
-  load: Promise<T | null>,
-  render: (entity: T, session: AdminSession) => Response,
-): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    orNotFound(load, (entity) => render(entity, session)),
-  );
+/** Owner GET handler that loads an entity by ID, 404 if missing */
+const ownerEntityGet =
+  <T>(
+    load: (id: number) => Promise<T | null>,
+    render: (entity: T, session: AdminSession) => Response | Promise<Response>,
+  ) =>
+  (request: Request, { id }: { id: number }): Promise<Response> =>
+    requireOwnerOr(request, (session) =>
+      orNotFound(load(id), (entity) => render(entity, session)),
+    );
 
 /** Handle GET /admin/questions/:id */
-const handleQuestionGet = (request: Request, { id }: { id: number }): Promise<Response> =>
-  withSessionAndEntity(request, getQuestionWithAnswers(id), (q, session) =>
-    htmlResponse(adminQuestionPage(q, session)),
-  );
+const handleQuestionGet = ownerEntityGet(getQuestionWithAnswers, (q, session) =>
+  htmlResponse(adminQuestionPage(q, session)),
+);
 
 /** Shared handler for question-scoped text submit actions (edit/add answer) */
 const withValidatedText = (
@@ -132,7 +128,8 @@ const handleQuestionEdit = withValidatedText(
 const handleAddAnswer = withValidatedText(
   "Answer text is required",
   async (id, text) => {
-    await answersTable.insert({ questionId: id, text });
+    const sortOrder = await getNextAnswerSortOrder(id);
+    await answersTable.insert({ questionId: id, text, sortOrder });
     await logActivity(`Answer '${text}' added to question ${id}`);
     return redirect(`/admin/questions/${id}`, "Answer added", true);
   },
@@ -143,7 +140,7 @@ const handleDeleteAnswer = (
   request: Request,
   { id, answerId }: { id: number; answerId: number },
 ): Promise<Response> =>
-  withAuthForm(request, async () => {
+  withOwnerAuthForm(request, async () => {
     await deleteAnswer(answerId);
     await logActivity(`Answer deleted from question ${id}`);
     return redirect(`/admin/questions/${id}`, "Answer deleted", true);
@@ -159,36 +156,39 @@ const handleDeleteQuestion = questionFormHandler(async (id) => {
 });
 
 /** Handle GET /admin/event/:id/questions */
-const handleEventQuestionsGet = (request: Request, { id }: { id: number }): Promise<Response> =>
-  withSessionAndEntity(request, getEventWithCount(id), async (event, session) => {
+const handleEventQuestionsGet = ownerEntityGet(
+  getEventWithCount,
+  async (event, session) => {
     const [allQuestions, assigned] = await Promise.all([
       getAllQuestionsWithAnswers(),
-      getQuestionsForEvent(id),
+      getQuestionsForEvent(event.id),
     ]);
     return htmlResponse(
-      adminEventQuestionsPage(event, allQuestions, new Set(assigned.map((q) => q.id)), session),
+      adminEventQuestionsPage(
+        event,
+        allQuestions,
+        new Set(assigned.map((q) => q.id)),
+        session,
+      ),
     );
-  });
+  },
+);
 
 /** Handle POST /admin/event/:id/questions */
-const handleEventQuestionsPost = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
-  withAuthForm(request, async (_session, form) => {
-    const event = await getEventWithCount(id);
-    if (!event) return notFoundResponse();
-    const questionIds = form
-      .getAll("question_ids")
-      .map((v) => Number.parseInt(v, 10))
-      .filter((n) => !Number.isNaN(n));
-    await setEventQuestions(id, questionIds);
-    await logActivity(
-      `Questions updated for '${event.name}' (${questionIds.length} question${questionIds.length !== 1 ? "s" : ""})`,
-      event,
-    );
-    return redirect(`/admin/event/${id}`, "Questions updated", true);
-  });
+const handleEventQuestionsPost = questionFormHandler(async (id, _session, form) => {
+  const event = await getEventWithCount(id);
+  if (!event) return notFoundResponse();
+  const questionIds = form
+    .getAll("question_ids")
+    .map((v) => Number.parseInt(v, 10))
+    .filter((n) => !Number.isNaN(n));
+  await setEventQuestions(id, questionIds);
+  await logActivity(
+    `Questions updated for '${event.name}' (${questionIds.length} question${questionIds.length !== 1 ? "s" : ""})`,
+    event,
+  );
+  return redirect(`/admin/event/${id}`, "Questions updated", true);
+});
 
 /** Questions routes */
 export const questionsRoutes = defineRoutes({
