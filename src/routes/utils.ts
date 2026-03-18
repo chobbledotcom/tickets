@@ -648,15 +648,16 @@ export const authenticatedGetById =
 export const ownerGetById = authenticatedGetById("owner");
 
 /** Owner POST-by-ID + CSRF */
-export const ownerFormById = (
-  handler: (
-    id: number,
-    session: AuthSession,
-    form: URLSearchParams,
-  ) => Response | Promise<Response>,
-): IdRouteHandler =>
-(request, { id }) =>
-  withOwnerAuthForm(request, (session, form) => handler(id, session, form));
+export const ownerFormById =
+  (
+    handler: (
+      id: number,
+      session: AuthSession,
+      form: URLSearchParams,
+    ) => Response | Promise<Response>,
+  ): IdRouteHandler =>
+  (request, { id }) =>
+    withOwnerAuthForm(request, (session, form) => handler(id, session, form));
 
 /** Handler function that receives session and multipart FormData */
 type MultipartFormHandler = (
