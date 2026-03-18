@@ -8,10 +8,10 @@ import { signCsrfToken } from "#lib/csrf.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import { isDemoMode } from "#lib/demo.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { deleteAllEventStorageFiles, isStorageEnabled } from "#lib/storage.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
-  getString,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -37,8 +37,8 @@ const resetPageError = (message: string, status: number): Response =>
  * Validate the confirmation phrase from a form submission.
  * Shared with admin settings reset handler.
  */
-export const validateResetPhrase = (form: URLSearchParams): string | null => {
-  const confirmPhrase = getString(form, "confirm_phrase");
+export const validateResetPhrase = (form: FormParams): string | null => {
+  const confirmPhrase = form.getString("confirm_phrase");
   return confirmPhrase === RESET_DATABASE_PHRASE
     ? null
     : RESET_PHRASE_MISMATCH_ERROR;

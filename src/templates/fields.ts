@@ -5,6 +5,7 @@
 import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
 import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { type Field, validateForm } from "#lib/forms.tsx";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 import { isValidDatetime } from "#lib/timezone.ts";
@@ -643,7 +644,7 @@ export const getTicketFields = (fields: EventFields): Field[] => {
 
 /** Validate ticket fields, mapping validation failure to a response via onError */
 export const tryValidateTicketFields = (
-  form: URLSearchParams,
+  form: FormParams,
   fieldsSetting: EventFields,
   onError: (message: string) => Response,
 ): TicketFormValues | Response => {

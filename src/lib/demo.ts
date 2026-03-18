@@ -5,6 +5,7 @@
 
 import { lazyRef } from "#fp";
 import { getEnv } from "#lib/env.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import type { FieldValues } from "#lib/forms.tsx";
 import type { NamedResource } from "#lib/rest/resource.ts";
 
@@ -597,9 +598,9 @@ export const randomName = (): string =>
  * Mutates and returns the same URLSearchParams for chaining.
  */
 export const applyDemoOverrides = (
-  form: URLSearchParams,
+  form: FormParams,
   mapping: DemoFieldMap,
-): URLSearchParams => {
+): FormParams => {
   if (!isDemoMode()) return form;
   for (const [field, values] of Object.entries(mapping)) {
     if (form.has(field) && form.get(field) !== "") {

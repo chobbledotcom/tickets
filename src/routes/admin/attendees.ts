@@ -21,6 +21,7 @@ import {
   getEventWithCount,
 } from "#lib/db/events.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
@@ -41,7 +42,6 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
   getSearchParam,
-  getString,
   htmlResponse,
   notFoundResponse,
   orNotFound,
@@ -135,7 +135,7 @@ const withAttendeeForm = (
   handler: (
     data: AttendeeWithEvent,
     session: AuthSession,
-    form: URLSearchParams,
+    form: FormParams,
   ) => Response | Promise<Response>,
 ): Promise<Response> =>
   withAuthForm(request, (session, form) =>
@@ -152,7 +152,7 @@ const getReturnUrl = (request: Request): string =>
 const verifyAttendeeName = (
   data: AttendeeWithEvent,
   session: AuthSession,
-  form: URLSearchParams,
+  form: FormParams,
   renderPage: (
     data: AttendeeWithEvent,
     session: AdminSession,
@@ -161,9 +161,9 @@ const verifyAttendeeName = (
   ) => string,
   errorMsg: string,
 ): Response | null => {
-  const confirmName = getString(form, "confirm_name");
+  const confirmName = form.getString("confirm_name");
   if (!verifyIdentifier(data.attendee.name, confirmName)) {
-    const returnUrl = getString(form, "return_url");
+    const returnUrl = form.getString("return_url");
     return htmlResponse(renderPage(data, session, errorMsg, returnUrl), 400);
   }
   return null;
@@ -173,7 +173,7 @@ const verifyAttendeeName = (
 type AttendeeFormAction = (
   data: AttendeeWithEvent,
   session: AuthSession,
-  form: URLSearchParams,
+  form: FormParams,
   eventId: number,
   attendeeId: number,
 ) => Response | Promise<Response>;
@@ -262,13 +262,13 @@ const handleAttendeeCheckin = attendeeFormAction(
     const action = nowCheckedIn ? "checked in" : "checked out";
     await logActivity(`Attendee ${action} for '${data.event.name}'`, eventId);
 
-    const returnUrl = getString(form, "return_url");
+    const returnUrl = form.getString("return_url");
     if (returnUrl)
       return redirect(returnUrl, `${data.attendee.name} ${action}`, true);
 
     const name = encodeURIComponent(data.attendee.name);
     const status = nowCheckedIn ? "in" : "out";
-    const filterValue = getString(form, "return_filter");
+    const filterValue = form.getString("return_filter");
     const suffix =
       filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
     return redirectResponse(
@@ -282,12 +282,12 @@ const refundError = (
   data: AttendeeWithEvent,
   session: AuthSession,
   msg: string,
-  formOrReturnUrl: URLSearchParams | string,
+  formOrReturnUrl: FormParams | string,
 ): Response => {
   const returnUrl =
     typeof formOrReturnUrl === "string"
       ? formOrReturnUrl
-      : getString(formOrReturnUrl, "return_url");
+      : (formOrReturnUrl as FormParams).getString("return_url");
   return htmlResponse(
     adminRefundAttendeePage(data, session, msg, returnUrl),
     400,
@@ -381,12 +381,12 @@ const processRefundAll = async (
   event: EventWithCount,
   attendees: Attendee[],
   session: AuthSession,
-  form: URLSearchParams,
+  form: FormParams,
 ): Promise<Response> => {
   const refundable = getRefundable(attendees);
   const nameConfirmed = verifyIdentifier(
     event.name,
-    getString(form, "confirm_name"),
+    form.getString("confirm_name"),
   );
   if (!nameConfirmed) {
     return htmlResponse(
@@ -601,7 +601,7 @@ const editAttendeePost =
   (
     handler: (
       session: AuthSession,
-      form: URLSearchParams,
+      form: FormParams,
       data: EditAttendeeData,
       attendeeId: number,
     ) => Response | Promise<Response>,
@@ -624,21 +624,21 @@ function parseQuantity(value: string, max: number): number {
 /** Handle POST /admin/attendees/:attendeeId */
 async function editAttendeeHandler(
   session: AuthSession,
-  form: URLSearchParams,
+  form: FormParams,
   data: EditAttendeeData,
   attendeeId: number,
 ): Promise<Response> {
   applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
   const editError = (msg: string) =>
     htmlResponse(
-      adminEditAttendeePage(data, session, msg, getString(form, "return_url")),
+      adminEditAttendeePage(data, session, msg, form.getString("return_url")),
       400,
     );
-  const name = getString(form, "name");
-  const email = getString(form, "email");
-  const phone = getString(form, "phone");
-  const address = getString(form, "address");
-  const special_instructions = getString(form, "special_instructions");
+  const name = form.getString("name");
+  const email = form.getString("email");
+  const phone = form.getString("phone");
+  const address = form.getString("address");
+  const special_instructions = form.getString("special_instructions");
   const event_id = Number(form.get("event_id")) || 0;
 
   if (!name.trim()) return editError("Name is required");
@@ -729,7 +729,7 @@ const handleResendNotification = attendeeFormAction(
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 async function refreshPaymentHandler(
   session: AuthSession,
-  _form: URLSearchParams,
+  _form: FormParams,
   data: EditAttendeeData,
   attendeeId: number,
 ): Promise<Response> {

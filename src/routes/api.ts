@@ -12,6 +12,7 @@ import { getAvailableDates } from "#lib/dates.ts";
 import { hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
+import { FormParams } from "#lib/form-data.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -177,12 +178,12 @@ const handleCheckAvailability = withActiveEvent(async (request, event) => {
   });
 });
 
-/** Convert JSON body fields to URLSearchParams for validation compatibility */
-const toFormParams = (body: Record<string, unknown>): URLSearchParams =>
+/** Convert JSON body fields to FormParams for validation compatibility */
+const toFormParams = (body: Record<string, unknown>): FormParams =>
   Object.entries(body).reduce((params, [key, value]) => {
     if (value !== null && value !== undefined) params.set(key, String(value));
     return params;
-  }, new URLSearchParams());
+  }, new FormParams());
 
 /** Parse and validate a custom unit price from API input */
 const parseCustomPrice = (

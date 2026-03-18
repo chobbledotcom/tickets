@@ -46,6 +46,7 @@ import {
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig } from "#lib/email.ts";
+import { FormParams } from "#lib/form-data.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
@@ -1295,7 +1296,7 @@ import { type Field, validateForm } from "#lib/forms.tsx";
 
 /** Validate form data and return the result. Shared core for assertion helpers. */
 const validateFormData = (fields: Field[], data: Record<string, string>) =>
-  validateForm(new URLSearchParams(data), fields);
+  validateForm(new FormParams(data), fields);
 
 /** Validate form data against fields and assert the result is valid. Returns the values. */
 export const expectValid = (

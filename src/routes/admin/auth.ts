@@ -23,7 +23,6 @@ import {
   generateSecureToken,
   getAuthenticatedSession,
   getClientIp,
-  getString,
   parseFormData,
   redirect,
   withAuthForm,
@@ -75,7 +74,7 @@ const handleAdminLogin = async (
   const form = await parseFormData(request);
 
   // Validate login CSRF token (signed token pattern)
-  const csrfForm = getString(form, "csrf_token");
+  const csrfForm = form.getString("csrf_token");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
     return loginResponse("Invalid or expired form. Please try again.", 403);
   }

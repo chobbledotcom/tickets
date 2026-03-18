@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
+import { FormParams } from "#lib/form-data.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import { createHandler, deleteHandler } from "#lib/rest/handlers.ts";
 import { defineResource, type Resource } from "#lib/rest/resource.ts";
@@ -126,7 +127,7 @@ describe("rest/resource", () => {
     test("creates a working resource from table and fields", async () => {
       const resource = createTestResource();
       const result = await resource.create(
-        new URLSearchParams({ name: "Test", value: "1" }),
+        new FormParams({ name: "Test", value: "1" }),
       );
       expect(result.ok).toBe(true);
     });
@@ -147,7 +148,7 @@ describe("rest/resource", () => {
   describe("parseInput", () => {
     test("parses valid form data into Input", async () => {
       const resource = createTestResource();
-      const form = new URLSearchParams({ name: "Test", value: "42" });
+      const form = new FormParams({ name: "Test", value: "42" });
       const result = await resource.parseInput(form);
 
       expect(result.ok).toBe(true);
@@ -159,7 +160,7 @@ describe("rest/resource", () => {
     test("returns error for missing required field", async () => {
       const resource = createTestResource();
       const result = await resource.parseInput(
-        new URLSearchParams({ name: "Test" }),
+        new FormParams({ name: "Test" }),
       );
       expectResultError("Value is required")(result);
     });
@@ -167,7 +168,7 @@ describe("rest/resource", () => {
     test("returns error for empty required field", async () => {
       const resource = createTestResource();
       const result = await resource.parseInput(
-        new URLSearchParams({ name: "", value: "42" }),
+        new FormParams({ name: "", value: "42" }),
       );
       expectResultError("Name is required")(result);
     });
@@ -177,7 +178,7 @@ describe("rest/resource", () => {
     test("parses only provided fields", async () => {
       const resource = createTestResource();
       // Only provide name, value not present in form
-      const form = new URLSearchParams({ name: "Updated" });
+      const form = new FormParams({ name: "Updated" });
       const result = await resource.parsePartialInput(form);
 
       expect(result.ok).toBe(true);
@@ -190,7 +191,7 @@ describe("rest/resource", () => {
     test("validates provided fields", async () => {
       const resource = createTestResource();
       // Provide name but it's empty (should fail validation)
-      const form = new URLSearchParams({ name: "" });
+      const form = new FormParams({ name: "" });
       const result = await resource.parsePartialInput(form);
 
       expect(result.ok).toBe(false);
@@ -200,7 +201,7 @@ describe("rest/resource", () => {
   describe("create", () => {
     test("creates row from valid form data", async () => {
       const resource = createTestResource();
-      const form = new URLSearchParams({ name: "New Item", value: "100" });
+      const form = new FormParams({ name: "New Item", value: "100" });
       const result = await resource.create(form);
 
       expect(result.ok).toBe(true);
@@ -213,9 +214,7 @@ describe("rest/resource", () => {
 
     test("returns error for invalid form data", async () => {
       const resource = createTestResource();
-      const result = await resource.create(
-        new URLSearchParams({ name: "Item" }),
-      );
+      const result = await resource.create(new FormParams({ name: "Item" }));
       expectResultError("Value is required")(result);
     });
 
@@ -228,7 +227,7 @@ describe("rest/resource", () => {
         validate: () => Promise.resolve("Name already taken"),
       });
       const result = await resource.create(
-        new URLSearchParams({ name: "Dup", value: "1" }),
+        new FormParams({ name: "Dup", value: "1" }),
       );
       expectResultError("Name already taken")(result);
     });
@@ -242,7 +241,7 @@ describe("rest/resource", () => {
         validate: () => Promise.resolve(null),
       });
       const result = await resource.create(
-        new URLSearchParams({ name: "Ok", value: "1" }),
+        new FormParams({ name: "Ok", value: "1" }),
       );
       expect(result.ok).toBe(true);
     });
@@ -253,7 +252,7 @@ describe("rest/resource", () => {
       const resource = await insertRow(createTestResource(), originalRowData);
       const result = await resource.update(
         1,
-        new URLSearchParams({ name: "Updated", value: "200" }),
+        new FormParams({ name: "Updated", value: "200" }),
       );
       expect(result.ok).toBe(true);
       if (result.ok)
@@ -264,7 +263,7 @@ describe("rest/resource", () => {
       expectResultNotFound(
         await createTestResource().update(
           999,
-          new URLSearchParams({ name: "Updated", value: "200" }),
+          new FormParams({ name: "Updated", value: "200" }),
         ),
       );
     });
@@ -272,7 +271,7 @@ describe("rest/resource", () => {
     test("returns error for invalid form data", async () => {
       const resource = await insertRow(createTestResource(), originalRowData);
       expectResultError("Name is required")(
-        await resource.update(1, new URLSearchParams({ name: "" })),
+        await resource.update(1, new FormParams({ name: "" })),
       );
     });
 
@@ -283,7 +282,7 @@ describe("rest/resource", () => {
       try {
         const result = await resource.update(
           1,
-          new URLSearchParams({ name: "Updated", value: "200" }),
+          new FormParams({ name: "Updated", value: "200" }),
         );
         expectResultNotFound(result);
       } finally {

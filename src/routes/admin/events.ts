@@ -60,7 +60,6 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   formDataToParams,
   getSearchParam,
-  getString,
   htmlResponse,
   notFoundResponse,
   orNotFound,
@@ -606,7 +605,7 @@ const handleEventWithConfirmation = (
 ): Promise<Response> =>
   withAuthForm(request, (session, form) =>
     orNotFound(getEventWithCount(id), (event) => {
-      const confirmIdentifier = getString(form, "confirm_identifier");
+      const confirmIdentifier = form.getString("confirm_identifier");
       if (!verifyIdentifier(event.name, confirmIdentifier)) {
         return eventErrorPage(event, renderPage, session, errorMsg);
       }

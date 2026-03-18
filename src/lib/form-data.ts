@@ -1,9 +1,12 @@
 /**
- * Utilities for reading values from URLSearchParams (form data).
+ * Utilities for reading values from form data (URLSearchParams).
  */
 
 /**
- * Get a form field value as a trimmed string, defaulting to "" when absent.
+ * URLSearchParams extended with form-specific helpers.
  */
-export const getString = (form: URLSearchParams, key: string): string =>
-  form.get(key)?.trim() ?? "";
+export class FormParams extends URLSearchParams {
+  getString(key: string): string {
+    return this.get(key)?.trim() ?? "";
+  }
+}

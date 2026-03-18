@@ -6,11 +6,11 @@ import { isValidCountry } from "#lib/countries.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { settingsApi } from "#lib/db/settings.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
-  getString,
   htmlResponse,
   parseFormData,
   redirectResponse,
@@ -34,7 +34,7 @@ type SetupValidation =
     }
   | { valid: false; error: string };
 
-const validateSetupForm = (form: URLSearchParams): SetupValidation => {
+const validateSetupForm = (form: FormParams): SetupValidation => {
   logDebug("Setup", "Validating form data...");
   logDebug("Setup", `Form keys: ${Array.from(form.keys()).join(", ")}`);
 
@@ -114,7 +114,7 @@ const handleSetupPost = async (
 
   // Validate signed CSRF token
   const form = await parseFormData(request);
-  const formCsrf = getString(form, "csrf_token");
+  const formCsrf = form.getString("csrf_token");
   logDebug(
     "Setup",
     `CSRF form present: ${!!formCsrf} length: ${formCsrf.length}`,

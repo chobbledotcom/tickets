@@ -37,6 +37,7 @@ import {
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import type { EmailEntry } from "#lib/email.ts";
 import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
   getActivePaymentProvider,
@@ -57,7 +58,6 @@ import {
   checkoutResponse,
   formatCreationError,
   getBaseUrl,
-  getString,
   htmlResponse,
   isRegistrationClosed,
   notFoundResponse,
@@ -335,17 +335,17 @@ const parseQuantityValue = (
 };
 
 /** Parse quantity from single-ticket form */
-const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
+const parseQuantity = (form: FormParams, event: EventWithCount): number =>
   parseQuantityValue(form.get("quantity") || "1", event.max_quantity);
 
 /** Parse and validate a custom unit price from a form field.
  * Returns the price in minor units, or an error string if invalid. */
 const parseCustomPrice = (
-  form: URLSearchParams,
+  form: FormParams,
   fieldName: string,
   minPrice: number,
   maxPrice: number,
-) => validatePrice(getString(form, fieldName), minPrice, maxPrice);
+) => validatePrice(form.getString(fieldName), minPrice, maxPrice);
 
 /** Format error message for failed attendee creation */
 const formatAtomicError = formatCreationError(
@@ -360,10 +360,10 @@ const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
 
 /** Validate submitted date against available dates; returns the date or null if invalid */
 const validateSubmittedDate = (
-  form: URLSearchParams,
+  form: FormParams,
   dates: string[],
 ): string | null => {
-  const submitted = getString(form, "date");
+  const submitted = form.getString("date");
   return submitted && dates.includes(submitted) ? submitted : null;
 };
 
@@ -715,7 +715,7 @@ const handleMultiTicketBySlugs = (
 
 /** Parse quantity values from multi-ticket form */
 const parseMultiQuantities = (
-  form: URLSearchParams,
+  form: FormParams,
   events: MultiTicketEvent[],
 ): Map<number, number> => {
   const quantities = new Map<number, number>();

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
+import { FormParams } from "#lib/form-data.ts";
 import {
   CsrfForm,
   type Field,
@@ -302,7 +303,7 @@ describe("forms", () => {
       const fields: Field[] = [
         field({ name: "days", label: "Days", type: "checkbox-group" }),
       ];
-      const form = new URLSearchParams();
+      const form = new FormParams();
       form.append("days", "Monday");
       form.append("days", "Wednesday");
       const result = validateForm(form, fields);
@@ -317,7 +318,7 @@ describe("forms", () => {
         field({ name: "days", label: "Days", type: "checkbox-group" }),
       ];
       const result = validateForm(
-        new URLSearchParams({ days: "Monday,Friday" }),
+        new FormParams({ days: "Monday,Friday" }),
         fields,
       );
       expect(result.valid).toBe(true);
@@ -330,7 +331,7 @@ describe("forms", () => {
       const fields: Field[] = [
         field({ name: "days", label: "Days", type: "checkbox-group" }),
       ];
-      const result = validateForm(new URLSearchParams(), fields);
+      const result = validateForm(new FormParams(), fields);
       expect(result.valid).toBe(true);
       if (result.valid) {
         expect(result.values.days).toBe("");
@@ -341,7 +342,7 @@ describe("forms", () => {
       const fields: Field[] = [
         field({ name: "image", label: "Image", type: "file" }),
       ];
-      const result = validateForm(new URLSearchParams(), fields);
+      const result = validateForm(new FormParams(), fields);
       expect(result.valid).toBe(true);
       if (result.valid) {
         expect(result.values.image).toBeNull();
@@ -1051,7 +1052,7 @@ describe("forms", () => {
 
     test("combines date and time into datetime string", () => {
       const result = validateForm(
-        new URLSearchParams({
+        new FormParams({
           closes_at_date: "2099-06-15",
           closes_at_time: "14:30",
         }),
@@ -1065,7 +1066,7 @@ describe("forms", () => {
 
     test("returns null when both date and time are empty", () => {
       const result = validateForm(
-        new URLSearchParams({ closes_at_date: "", closes_at_time: "" }),
+        new FormParams({ closes_at_date: "", closes_at_time: "" }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
@@ -1084,7 +1085,7 @@ describe("forms", () => {
         }),
       ];
       const result = validateForm(
-        new URLSearchParams({ closes_at_date: "", closes_at_time: "" }),
+        new FormParams({ closes_at_date: "", closes_at_time: "" }),
         requiredDatetime,
       );
       expect(result.valid).toBe(false);
@@ -1095,7 +1096,7 @@ describe("forms", () => {
 
     test("defaults time to 00:00 when only date is provided", () => {
       const result = validateForm(
-        new URLSearchParams({
+        new FormParams({
           closes_at_date: "2099-06-15",
           closes_at_time: "",
         }),
@@ -1109,7 +1110,7 @@ describe("forms", () => {
 
     test("rejects when only time is provided", () => {
       const result = validateForm(
-        new URLSearchParams({ closes_at_date: "", closes_at_time: "14:30" }),
+        new FormParams({ closes_at_date: "", closes_at_time: "14:30" }),
         datetimeField,
       );
       expect(result.valid).toBe(false);
