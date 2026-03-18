@@ -2441,9 +2441,7 @@ describe("html", () => {
         {
           id: 5,
           text: "Size?",
-          answers: [
-            { id: 10, question_id: 5, text: "Small", sort_order: 0 },
-          ],
+          answers: [{ id: 10, question_id: 5, text: "Small", sort_order: 0 }],
         },
       ];
       const questionEventMap = new Map([[5, [1]]]);
