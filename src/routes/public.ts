@@ -429,13 +429,12 @@ const processTicketReservation = async (
       if (!answersResult.ok) return showError(answersResult.error);
 
       // For daily events, validate the submitted date against available dates
+      let date: string | null = null;
       if (event.event_type === "daily") {
         ctx.dates = getAvailableDates(event, await getActiveHolidays());
-        const date = validateSubmittedDate(form, ctx.dates);
+        date = validateSubmittedDate(form, ctx.dates);
         if (!date) return showError("Please select a valid date");
       }
-
-      const date = event.event_type === "daily" ? validateSubmittedDate(form, ctx.dates ?? []) : null;
       const quantity = parseQuantity(form, event);
 
       // Parse custom price for pay-more events
