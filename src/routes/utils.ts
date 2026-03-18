@@ -418,10 +418,16 @@ export const withEvent = (
  * Curried event page GET handler: renderPage -> (request, { id }) -> Response.
  * Combines session auth + event fetch + HTML rendering.
  */
+/** Route handler that takes request + { id } params */
+export type IdRouteHandler = (
+  request: Request,
+  params: { id: number },
+) => Promise<Response>;
+
 export const withEventPage =
   (
     renderPage: (event: EventWithCount, session: AdminSession) => string,
-  ): ((request: Request, params: { id: number }) => Promise<Response>) =>
+  ): IdRouteHandler =>
   (request, { id }) =>
     requireSessionOr(request, (session) =>
       withEvent(id, (event) => htmlResponse(renderPage(event, session))),
@@ -621,6 +627,34 @@ export const requireOwnerOr = (
   handler: SessionHandler,
 ): Promise<Response> =>
   requireSessionOr(request, (session) => requireOwnerRole(session, handler));
+
+/**
+ * Owner GET-by-ID route handler factory.
+ * load(id) → entity | null, render(entity, session) → Response.
+ * Returns a typed `(request, { id }) => Promise<Response>` route handler.
+ */
+export const ownerGetById = <T>(
+  load: (id: number) => Promise<T | null>,
+  render: (entity: T, session: AuthSession) => Response | Promise<Response>,
+): IdRouteHandler =>
+(request, { id }) =>
+  requireOwnerOr(request, (session) =>
+    orNotFound(load(id), (entity) => render(entity, session)),
+  );
+
+/**
+ * Owner POST-by-ID route handler factory.
+ * Extracts `id` from params, validates CSRF + owner role, calls handler(id, session, form).
+ */
+export const ownerFormById = (
+  handler: (
+    id: number,
+    session: AuthSession,
+    form: URLSearchParams,
+  ) => Response | Promise<Response>,
+): IdRouteHandler =>
+(request, { id }) =>
+  withOwnerAuthForm(request, (session, form) => handler(id, session, form));
 
 /** Handle request with owner auth form - requires owner role + CSRF validation */
 export const withOwnerAuthForm = (

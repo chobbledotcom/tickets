@@ -21,7 +21,8 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
   notFoundResponse,
-  orNotFound,
+  ownerFormById,
+  ownerGetById,
   redirect,
   requireOwnerOr,
   withOwnerAuthForm,
@@ -51,13 +52,6 @@ const requireTextOrError = async (
     : notFoundResponse();
 };
 
-/** Generic question-scoped owner POST handler — extracts id from params and delegates to withOwnerAuthForm */
-const questionFormHandler = (
-  handler: (id: number, session: AdminSession, form: URLSearchParams) => Promise<Response>,
-) =>
-(request: Request, params: { id: number }): Promise<Response> =>
-  withOwnerAuthForm(request, (session, form) => handler(params.id, session, form));
-
 /** Handle GET /admin/questions */
 const handleQuestionsGet = (request: Request): Promise<Response> =>
   requireOwnerOr(request, async (session) =>
@@ -85,20 +79,10 @@ const handleQuestionsPost = (request: Request): Promise<Response> =>
     return redirect("/admin/questions", "Question created", true);
   });
 
-/** Owner GET handler that loads an entity by ID, 404 if missing */
-const ownerEntityGet =
-  <T>(
-    load: (id: number) => Promise<T | null>,
-    render: (entity: T, session: AdminSession) => Response | Promise<Response>,
-  ) =>
-  (request: Request, { id }: { id: number }): Promise<Response> =>
-    requireOwnerOr(request, (session) =>
-      orNotFound(load(id), (entity) => render(entity, session)),
-    );
-
 /** Handle GET /admin/questions/:id */
-const handleQuestionGet = ownerEntityGet(getQuestionWithAnswers, (q, session) =>
-  htmlResponse(adminQuestionPage(q, session)),
+const handleQuestionGet = ownerGetById(
+  getQuestionWithAnswers,
+  (q, session) => htmlResponse(adminQuestionPage(q, session)),
 );
 
 /** Shared handler for question-scoped text submit actions (edit/add answer) */
@@ -106,7 +90,7 @@ const withValidatedText = (
   errorMsg: string,
   onValid: (id: number, text: string) => Promise<Response>,
 ) =>
-  questionFormHandler(async (id, session, form) => {
+  ownerFormById(async (id, session, form) => {
     const textOrError = await requireTextOrError(form, id, session, errorMsg);
     return textOrError instanceof Response
       ? textOrError
@@ -147,7 +131,7 @@ const handleDeleteAnswer = (
   });
 
 /** Handle POST /admin/questions/:id/delete */
-const handleDeleteQuestion = questionFormHandler(async (id) => {
+const handleDeleteQuestion = ownerFormById(async (id) => {
   const question = await getQuestion(id);
   if (!question) return notFoundResponse();
   await deleteQuestion(id);
@@ -156,7 +140,7 @@ const handleDeleteQuestion = questionFormHandler(async (id) => {
 });
 
 /** Handle GET /admin/event/:id/questions */
-const handleEventQuestionsGet = ownerEntityGet(
+const handleEventQuestionsGet = ownerGetById(
   getEventWithCount,
   async (event, session) => {
     const [allQuestions, assigned] = await Promise.all([
@@ -175,7 +159,7 @@ const handleEventQuestionsGet = ownerEntityGet(
 );
 
 /** Handle POST /admin/event/:id/questions */
-const handleEventQuestionsPost = questionFormHandler(async (id, _session, form) => {
+const handleEventQuestionsPost = ownerFormById(async (id, _session, form) => {
   const event = await getEventWithCount(id);
   if (!event) return notFoundResponse();
   const questionIds = form
