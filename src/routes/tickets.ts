@@ -19,7 +19,7 @@ import {
   type TokenEntry,
   type TokenRouteFn,
 } from "#routes/token-utils.ts";
-import { htmlResponse, notFoundResponse } from "#routes/utils.ts";
+import { htmlResponse } from "#routes/utils.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 
 /** Build the check-in URL for a single token */
