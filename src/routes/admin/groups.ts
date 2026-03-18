@@ -228,11 +228,9 @@ export const groupsRoutes = defineRoutes({
   "GET /admin/group/new": crudCreate.newGet,
   "POST /admin/group": crudCreate.createPost,
   "GET /admin/group/:id": handleGroupDetail,
-  "GET /admin/group/:id/edit": (request, { id }) => crud.editGet(request, id),
-  "POST /admin/group/:id/edit": (request, { id }) => crud.editPost(request, id),
-  "GET /admin/group/:id/delete": (request, { id }) =>
-    crud.deleteGet(request, id),
-  "POST /admin/group/:id/delete": (request, { id }) =>
-    crud.deletePost(request, id),
+  "GET /admin/group/:id/edit": crud.editGet,
+  "POST /admin/group/:id/edit": crud.editPost,
+  "GET /admin/group/:id/delete": crud.deleteGet,
+  "POST /admin/group/:id/delete": crud.deletePost,
   "POST /admin/group/:id/add-events": handleAddEventsToGroup,
 });
