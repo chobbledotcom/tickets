@@ -637,6 +637,12 @@ export const updateTimezone = async (tz: string): Promise<void> => {
 };
 
 /**
+ * Explicitly set timezone for testing.
+ * Bypasses the database to avoid races between parallel test workers.
+ */
+export const setTimezoneForTest = (tz: string): void => setTzCache(tz);
+
+/**
  * Get the configured theme from database.
  * Returns "light" or "dark", defaulting to "light".
  */
@@ -968,6 +974,7 @@ export const settingsApi = {
   updateTermsAndConditions,
   getTimezoneFromDb,
   updateTimezone,
+  setTimezoneForTest,
   getThemeFromDb,
   updateTheme,
   getShowPublicSiteFromDb,

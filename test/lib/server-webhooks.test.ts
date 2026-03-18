@@ -2074,11 +2074,9 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("webhook with checkout event but non-COMPLETED status returns pending", async () => {
+    test("webhook returns pending when resolveWebhookSession returns skip", async () => {
       await setupStripe();
 
-      // Event type matches but metadata is invalid so extractSessionFromEvent returns null
-      // data object has id (for sessionId) and status "PENDING" (covers lines 605-607)
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = stub(
         stripePaymentProvider,
@@ -2087,17 +2085,16 @@ describe("server (webhooks)", () => {
           Promise.resolve({
             valid: true,
             event: {
-              id: "evt_pending_square",
+              id: "evt_skip",
               type: "checkout.session.completed",
-              data: {
-                object: {
-                  id: "pay_pending_123",
-                  status: "PENDING",
-                  // No payment_status or metadata -> extractSessionFromEvent returns null
-                },
-              },
+              data: { object: {} },
             },
           }),
+      );
+      const mockResolve = stub(
+        stripePaymentProvider,
+        "resolveWebhookSession",
+        () => Promise.resolve("skip" as const),
       );
 
       try {
@@ -2110,14 +2107,13 @@ describe("server (webhooks)", () => {
         expect(json.status).toBe("pending");
       } finally {
         mockVerify.restore();
+        mockResolve.restore();
       }
     });
 
-    test("webhook fallback uses order_id when present in event data", async () => {
+    test("webhook returns 400 when resolveWebhookSession returns null", async () => {
       await setupStripe();
 
-      // Event with order_id instead of id triggers the order_id branch
-      // in extractSessionIdFromObject
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = stub(
         stripePaymentProvider,
@@ -2126,22 +2122,15 @@ describe("server (webhooks)", () => {
           Promise.resolve({
             valid: true,
             event: {
-              id: "evt_order_id_test",
+              id: "evt_null",
               type: "checkout.session.completed",
-              data: {
-                object: {
-                  order_id: "order_abc123",
-                  status: "COMPLETED",
-                  // No metadata -> extractSessionFromEvent returns null
-                },
-              },
+              data: { object: {} },
             },
           }),
       );
-
-      const mockRetrieveSession = stub(
+      const mockResolve = stub(
         stripePaymentProvider,
-        "retrieveSession",
+        "resolveWebhookSession",
         () => Promise.resolve(null),
       );
 
@@ -2149,13 +2138,12 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        // retrieveSession returns null -> "Invalid session data"
         expect(response.status).toBe(400);
         const text = await response.text();
         expect(text).toBe("Invalid session data");
       } finally {
         mockVerify.restore();
-        mockRetrieveSession.restore();
+        mockResolve.restore();
       }
     });
 

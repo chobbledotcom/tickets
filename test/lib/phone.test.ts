@@ -42,4 +42,28 @@ describe("normalizePhone", () => {
   test("handles number with spaces and leading zero", () => {
     expect(normalizePhone("0 20 1234 5678", "44")).toBe("+442012345678");
   });
+
+  test("strips spurious zero after country code: 44 0161 1234567", () => {
+    expect(normalizePhone("44 0161 1234567", "44")).toBe("+441611234567");
+  });
+
+  test("strips spurious zero after +country code: +44 0161 1234567", () => {
+    expect(normalizePhone("+44 0161 1234567", "44")).toBe("+441611234567");
+  });
+
+  test("strips spurious zero with parenthesized country code: (44) 0161 1234567", () => {
+    expect(normalizePhone("(44) 0161 1234567", "44")).toBe("+441611234567");
+  });
+
+  test("normalizes +44 161 1234567", () => {
+    expect(normalizePhone("+44 161 1234567", "44")).toBe("+441611234567");
+  });
+
+  test("normalizes 44 161 1234567", () => {
+    expect(normalizePhone("44 161 1234567", "44")).toBe("+441611234567");
+  });
+
+  test("normalizes 0161 1234567", () => {
+    expect(normalizePhone("0161 1234567", "44")).toBe("+441611234567");
+  });
 });

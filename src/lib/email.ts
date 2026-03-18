@@ -6,6 +6,7 @@
 import { lazyRef, map } from "#fp";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 import { getAllowedDomain } from "#lib/config.ts";
+import { toBase64 } from "#lib/crypto.ts";
 import {
   getEmailApiKeyFromDb,
   getEmailFromAddressFromDb,
@@ -296,7 +297,7 @@ export const buildTicketAttachments = async (
   );
   return svgs.map((svg, i) => ({
     filename: entries.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
-    content: btoa(svg),
+    content: toBase64(new TextEncoder().encode(svg)),
     contentType: "image/svg+xml",
   }));
 };

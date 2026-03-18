@@ -16,6 +16,7 @@ import {
   type PaymentProvider,
   type RegistrationIntent,
   type ValidatedPaymentSession,
+  type WebhookEvent,
   type WebhookVerifyResult,
 } from "#lib/payments.ts";
 import {
@@ -121,5 +122,39 @@ export const stripePaymentProvider: PaymentProvider = {
 
   setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {
     return setupWebhookEndpoint(...args);
+  },
+
+  resolveWebhookSession({
+    data: { object: obj },
+  }: WebhookEvent): Promise<ValidatedPaymentSession | "skip" | null> {
+    const metadata = obj.metadata as
+      | Record<string, string | undefined>
+      | undefined;
+
+    // Stripe includes the full session in the event — extract directly
+    if (
+      typeof obj.id === "string" &&
+      typeof obj.payment_status === "string" &&
+      typeof obj.amount_total === "number" &&
+      hasRequiredSessionMetadata(metadata)
+    ) {
+      return Promise.resolve({
+        id: obj.id,
+        paymentStatus: isPaymentStatus(obj.payment_status)
+          ? obj.payment_status
+          : "unpaid",
+        paymentReference:
+          typeof obj.payment_intent === "string" ? obj.payment_intent : "",
+        amountTotal: obj.amount_total,
+        metadata: extractSessionMetadata(metadata),
+      });
+    }
+
+    // Fallback: retrieve session by ID from event data
+    if (typeof obj.id === "string") {
+      return this.retrieveSession(obj.id);
+    }
+
+    return Promise.resolve(null);
   },
 };
