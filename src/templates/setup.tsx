@@ -2,6 +2,7 @@
  * Setup page templates - initial configuration
  */
 
+import { COUNTRIES, DEFAULT_COUNTRY } from "#lib/countries.ts";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { setupFields } from "#templates/fields.ts";
@@ -67,7 +68,20 @@ export const setupPage = (error?: string): string =>
       <p>Welcome! Please configure your ticket reservation system.</p>
       <Raw html={renderError(error)} />
       <CsrfForm action="/setup/">
-        <Raw html={renderFields(setupFields, { currency_code: "GBP" })} />
+        <Raw html={renderFields(setupFields)} />
+        <div class="field">
+          <label>
+            Your Country
+            <select name="country" required>
+              {Object.entries(COUNTRIES).map(([code, data]) => (
+                <option value={code} selected={code === DEFAULT_COUNTRY}>
+                  {data.name} ({data.currency})
+                </option>
+              ))}
+            </select>
+          </label>
+          <p class="hint">Sets your timezone, currency, and phone prefix.</p>
+        </div>
         <DataControllerAgreement />
         <button type="submit">Complete Setup</button>
       </CsrfForm>

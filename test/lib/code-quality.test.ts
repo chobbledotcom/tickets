@@ -285,8 +285,6 @@ describe("code quality", () => {
       "lib/db/sessions.ts:resetSessionCache",
       // DB version constant used in production but test pattern doesn't detect constant comparison
       "lib/db/migrations.ts:LATEST_UPDATE",
-      // Client-side Stripe publishable key (for future payment form templates)
-      "lib/config.ts:getStripePublishableKey",
       // Test helper for creating signed webhook payloads
       "lib/stripe.ts:constructTestWebhookEvent",
       // Reset cached Square client between tests
@@ -332,6 +330,11 @@ describe("code quality", () => {
       // Reset/set host Apple Wallet config between tests without env var races
       "lib/db/settings.ts:setHostAppleWalletConfigForTest",
       "lib/db/settings.ts:resetHostAppleWalletConfig",
+      // Set/reset timezone override between tests (survives cache invalidation)
+      "lib/db/settings.ts:setTimezoneForTest",
+      "lib/db/settings.ts:resetTimezoneTestOverride",
+      // Timezone validation utility (timezone now derived from country, but still useful for tests)
+      "lib/timezone.ts:isValidTimezone",
       // Attachment size constant used in production (validateAttachment) but test pattern doesn't detect same-file usage
       "lib/storage.ts:MAX_ATTACHMENT_SIZE",
     ];

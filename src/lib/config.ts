@@ -45,15 +45,6 @@ export const getStripeSecretKey = (): Promise<string | null> => {
 };
 
 /**
- * Get Stripe publishable key from environment variable
- * Returns null if not set
- */
-export const getStripePublishableKey = (): string | null => {
-  const key = getEnv("STRIPE_PUBLISHABLE_KEY");
-  return key && key.trim() !== "" ? key : null;
-};
-
-/**
  * Get Stripe webhook signing secret from database (encrypted)
  * Automatically configured when Stripe secret key is saved
  */

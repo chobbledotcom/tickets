@@ -19,6 +19,7 @@ import {
   retrievePayment,
   type SquareClient,
   squareApi,
+  testSquareConnection,
   verifyWebhookSignature,
 } from "#lib/square.ts";
 import { squarePaymentProvider } from "#lib/square-provider.ts";
@@ -34,6 +35,7 @@ const createMockClient = (
     ordersGet?: MockFn;
     paymentsGet?: MockFn;
     refundsRefundPayment?: MockFn;
+    locationsList?: MockFn;
   } = {},
 ) => {
   const noop: MockFn = () => undefined;
@@ -41,6 +43,7 @@ const createMockClient = (
   const ordersGet = spy(impls.ordersGet ?? noop);
   const paymentsGet = spy(impls.paymentsGet ?? noop);
   const refundsRefundPayment = spy(impls.refundsRefundPayment ?? noop);
+  const locationsList = spy(impls.locationsList ?? noop);
 
   return {
     client: {
@@ -48,11 +51,13 @@ const createMockClient = (
       orders: { get: ordersGet },
       payments: { get: paymentsGet },
       refunds: { refundPayment: refundsRefundPayment },
+      locations: { list: locationsList },
     } as unknown as SquareClient,
     checkoutCreate,
     ordersGet,
     paymentsGet,
     refundsRefundPayment,
+    locationsList,
   };
 };
 
@@ -121,6 +126,204 @@ describe("square", () => {
 
       const client2 = await getSquareClient();
       expect(client2).toBeNull();
+    });
+  });
+
+  describe("testSquareConnection", () => {
+    test("returns error when no access token configured", async () => {
+      const result = await testSquareConnection();
+      expect(result.ok).toBe(false);
+      expect(result.accessToken.valid).toBe(false);
+      expect(result.accessToken.error).toContain(
+        "No Square access token configured",
+      );
+    });
+
+    test("returns error when locations list fails", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      const mock = createMockClient({
+        locationsList: () => Promise.reject(new Error("Invalid access token")),
+      });
+
+      await withMocks(
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
+        async () => {
+          const result = await testSquareConnection();
+          expect(result.ok).toBe(false);
+          expect(result.accessToken.valid).toBe(false);
+          expect(result.accessToken.error).toContain("Invalid access token");
+        },
+      );
+    });
+
+    test("returns sandbox mode with valid token and all checks pass", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareSandbox(true);
+      await updateSquareLocationId("L_test_123");
+      await updateSquareWebhookSignatureKey("sig_key_test");
+      const mock = createMockClient({
+        locationsList: () =>
+          Promise.resolve({
+            locations: [
+              { id: "L_test_123", name: "Test Store", status: "ACTIVE" },
+            ],
+          }),
+      });
+
+      await withMocks(
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
+        async () => {
+          const result = await testSquareConnection();
+          expect(result.ok).toBe(true);
+          expect(result.accessToken.valid).toBe(true);
+          expect(result.accessToken.mode).toBe("sandbox");
+          expect(result.location.configured).toBe(true);
+          expect(result.location.name).toBe("Test Store");
+          expect(result.location.status).toBe("ACTIVE");
+          expect(result.webhook.configured).toBe(true);
+        },
+      );
+    });
+
+    test("returns production mode when sandbox disabled", async () => {
+      await updateSquareAccessToken("EAAAl_live_123");
+      await updateSquareSandbox(false);
+      await updateSquareLocationId("L_live_123");
+      await updateSquareWebhookSignatureKey("sig_key_live");
+      const mock = createMockClient({
+        locationsList: () =>
+          Promise.resolve({
+            locations: [
+              { id: "L_live_123", name: "Live Store", status: "ACTIVE" },
+            ],
+          }),
+      });
+
+      await withMocks(
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
+        async () => {
+          const result = await testSquareConnection();
+          expect(result.ok).toBe(true);
+          expect(result.accessToken.valid).toBe(true);
+          expect(result.accessToken.mode).toBe("production");
+        },
+      );
+    });
+
+    test("returns location error when location ID not found", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_wrong");
+      await updateSquareWebhookSignatureKey("sig_key_test");
+      const mock = createMockClient({
+        locationsList: () =>
+          Promise.resolve({
+            locations: [
+              { id: "L_test_123", name: "Test Store", status: "ACTIVE" },
+            ],
+          }),
+      });
+
+      await withMocks(
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
+        async () => {
+          const result = await testSquareConnection();
+          expect(result.ok).toBe(false);
+          expect(result.accessToken.valid).toBe(true);
+          expect(result.location.configured).toBe(false);
+          expect(result.location.error).toContain(
+            "Location ID not found in account",
+          );
+        },
+      );
+    });
+
+    test("returns location error when no location ID configured", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareWebhookSignatureKey("sig_key_test");
+      const mock = createMockClient({
+        locationsList: () =>
+          Promise.resolve({ locations: [{ id: "L_test_123" }] }),
+      });
+
+      await withMocks(
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
+        async () => {
+          const result = await testSquareConnection();
+          expect(result.ok).toBe(false);
+          expect(result.location.configured).toBe(false);
+          expect(result.location.error).toContain("No location ID configured");
+        },
+      );
+    });
+
+    test("handles empty locations response", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareSandbox(true);
+      await updateSquareLocationId("L_test_123");
+      await updateSquareWebhookSignatureKey("sig_key_test");
+      const mock = createMockClient({
+        locationsList: () => Promise.resolve({}),
+      });
+
+      await withMocks(
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
+        async () => {
+          const result = await testSquareConnection();
+          expect(result.accessToken.valid).toBe(true);
+          expect(result.location.configured).toBe(false);
+          expect(result.location.error).toContain(
+            "Location ID not found in account",
+          );
+        },
+      );
+    });
+
+    test("returns webhook error when no signature key configured", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_test_123");
+      const mock = createMockClient({
+        locationsList: () =>
+          Promise.resolve({
+            locations: [
+              { id: "L_test_123", name: "Test Store", status: "ACTIVE" },
+            ],
+          }),
+      });
+
+      await withMocks(
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
+        async () => {
+          const result = await testSquareConnection();
+          expect(result.ok).toBe(false);
+          expect(result.accessToken.valid).toBe(true);
+          expect(result.location.configured).toBe(true);
+          expect(result.webhook.configured).toBe(false);
+          expect(result.webhook.error).toContain(
+            "No webhook signature key configured",
+          );
+        },
+      );
     });
   });
 
@@ -1874,6 +2077,32 @@ describe("square", () => {
         expect((err as Error).message).toContain("Status code: 400");
         expect((err as Error).message).toContain("BAD_REQUEST");
       }
+    });
+
+    test("locations.list sends GET to /v2/locations", async () => {
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              locations: [
+                { id: "L_1", name: "Main", status: "ACTIVE" },
+                { id: "L_2", name: "Branch", status: "INACTIVE" },
+              ],
+            }),
+        }),
+      );
+
+      const client = await getSquareClient();
+      const result = await client!.locations.list();
+
+      expect(mockFetch.calls[0]!.args[0]).toBe(
+        "https://connect.squareupsandbox.com/v2/locations",
+      );
+      expect(result.locations).toHaveLength(2);
+      expect(result.locations![0]!.id).toBe("L_1");
+      expect(result.locations![0]!.name).toBe("Main");
+      expect(result.locations![1]!.status).toBe("INACTIVE");
     });
 
     test("uses production URL when sandbox is disabled", async () => {

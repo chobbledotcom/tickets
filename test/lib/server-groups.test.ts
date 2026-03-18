@@ -46,11 +46,11 @@ describe("server (admin groups)", () => {
       expectAdminRedirect(response);
     });
 
-    test("returns 403 for non-owner", async () => {
+    test("accessible to managers", async () => {
       const response = await awaitTestRequest("/admin/groups", {
         cookie: await createTestManagerSession(),
       });
-      expectStatus(403)(response);
+      expectStatus(200)(response);
     });
 
     test("shows empty list when no groups exist", async () => {
@@ -83,11 +83,11 @@ describe("server (admin groups)", () => {
       expectAdminRedirect(response);
     });
 
-    test("returns 403 for non-owner", async () => {
+    test("accessible to managers", async () => {
       const response = await awaitTestRequest("/admin/group/new", {
         cookie: await createTestManagerSession(),
       });
-      expectStatus(403)(response);
+      expectStatus(200)(response);
     });
 
     test("shows create group form without slug field", async () => {
@@ -111,17 +111,24 @@ describe("server (admin groups)", () => {
       expectAdminRedirect(response);
     });
 
-    test("returns 403 for non-owner", async () => {
+    test("accessible to managers", async () => {
       const cookie = await createTestManagerSession("mgr-create-post");
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/group",
-          { name: "X", csrf_token: csrfToken },
+          {
+            name: "Manager Group",
+            terms_and_conditions: "",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
-      expectStatus(403)(response);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toMatch(
+        /\/admin\/group\/\d+\?success=Group\+created$/,
+      );
     });
 
     test("creates group with auto-generated slug", async () => {
@@ -172,10 +179,10 @@ describe("server (admin groups)", () => {
   });
 
   describe("POST /admin/group/:id/edit", () => {
-    test("returns 403 for non-owner", async () => {
+    test("accessible to managers", async () => {
       const group = await createTestGroup({
-        name: "Edit Deny",
-        slug: "edit-deny",
+        name: "Edit Allow",
+        slug: "edit-allow",
       });
       const cookie = await createTestManagerSession("mgr-edit-post");
       const csrfToken = await signCsrfToken();
@@ -191,7 +198,10 @@ describe("server (admin groups)", () => {
           cookie,
         ),
       );
-      expectStatus(403)(response);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        `/admin/group/${group.id}?success=Group+updated`,
+      );
     });
 
     test("updates group", async () => {
@@ -251,10 +261,10 @@ describe("server (admin groups)", () => {
   });
 
   describe("POST /admin/group/:id/delete", () => {
-    test("returns 403 for non-owner", async () => {
+    test("accessible to managers", async () => {
       const group = await createTestGroup({
-        name: "Delete Deny",
-        slug: "delete-deny",
+        name: "Delete Allow",
+        slug: "delete-allow",
       });
       const cookie = await createTestManagerSession("mgr-delete-post");
       const csrfToken = await signCsrfToken();
@@ -262,13 +272,16 @@ describe("server (admin groups)", () => {
         mockFormRequest(
           `/admin/group/${group.id}/delete`,
           {
-            confirm_identifier: "Delete Deny",
+            confirm_identifier: "Delete Allow",
             csrf_token: csrfToken,
           },
           cookie,
         ),
       );
-      expectStatus(403)(response);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toMatch(
+        /\/admin\/groups\?success=Group\+deleted$/,
+      );
     });
 
     test("rejects deletion when name confirmation is wrong", async () => {
@@ -355,15 +368,15 @@ describe("server (admin groups)", () => {
       expectAdminRedirect(response);
     });
 
-    test("returns 403 for non-owner", async () => {
+    test("accessible to managers", async () => {
       const group = await createTestGroup({
-        name: "Detail Deny",
-        slug: "detail-deny",
+        name: "Detail Allow",
+        slug: "detail-allow",
       });
       const response = await awaitTestRequest(`/admin/group/${group.id}`, {
         cookie: await createTestManagerSession("mgr-detail"),
       });
-      expectStatus(403)(response);
+      expectStatus(200)(response);
     });
 
     test("returns 404 for non-existent group", async () => {
@@ -617,10 +630,10 @@ describe("server (admin groups)", () => {
       expectAdminRedirect(response);
     });
 
-    test("returns 403 for non-owner", async () => {
+    test("accessible to managers", async () => {
       const group = await createTestGroup({
-        name: "Add Deny",
-        slug: "add-deny",
+        name: "Add Allow",
+        slug: "add-allow",
       });
       const cookie = await createTestManagerSession("mgr-add-events");
       const csrfToken = await signCsrfToken();
@@ -628,13 +641,12 @@ describe("server (admin groups)", () => {
         mockFormRequest(
           `/admin/group/${group.id}/add-events`,
           {
-            event_ids: "1",
             csrf_token: csrfToken,
           },
           cookie,
         ),
       );
-      expectStatus(403)(response);
+      expect(response.status).toBe(302);
     });
 
     test("returns 404 for non-existent group", async () => {
@@ -862,13 +874,13 @@ describe("server (admin groups)", () => {
       expect(html).toContain("Groups");
     });
 
-    test("groups link not visible to managers", async () => {
+    test("groups link visible to managers", async () => {
       const response = await awaitTestRequest("/admin/", {
         cookie: await createTestManagerSession("mgr-groups-nav"),
       });
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).not.toContain("/admin/groups");
+      expect(html).toContain("/admin/groups");
     });
   });
 });

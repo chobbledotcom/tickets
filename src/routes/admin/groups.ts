@@ -1,5 +1,5 @@
 /**
- * Admin group management routes - owner only
+ * Admin group management routes - accessible to owners and managers
  */
 
 import { compact, map } from "#fp";
@@ -27,7 +27,7 @@ import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -35,9 +35,9 @@ import {
   getSearchParam,
   htmlResponse,
   orNotFound,
-  ownerFormById,
   redirect,
-  requireOwnerOr,
+  requireSessionOr,
+  withAuthForm,
 } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
@@ -128,11 +128,11 @@ const groupsResource = defineNamedResource({
   onDelete: deleteGroup,
 });
 
-const crudCreate = createOwnerCrudHandlers({
+const crudCreate = createCrudHandlers({
   ...crudConfig,
   resource: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
 });
-const crud = createOwnerCrudHandlers({
+const crud = createCrudHandlers({
   ...crudConfig,
   resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
@@ -148,7 +148,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
   request,
   { id },
 ) =>
-  requireOwnerOr(request, (session) =>
+  requireSessionOr(request, (session) =>
     withGroup(id, async (group) => {
       const [events, ungroupedEvents, holidays] = await Promise.all([
         getEventsByGroupId(id),
@@ -195,29 +195,32 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
   );
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
-const handleAddEventsToGroup = ownerFormById((id, _session, form) =>
-  withGroup(id, async (group) => {
-    const eventIds = form
-      .getAll("event_ids")
-      .map(Number)
-      .filter((n) => n > 0);
-    if (eventIds.length > 0) {
-      // Validate all events have the same type as existing group events
-      const newEvents = compact(await Promise.all(eventIds.map(getEvent)));
-      for (const event of newEvents) {
-        const typeError = await validateGroupEventType(id, event.event_type);
-        if (typeError) {
-          return redirect(`/admin/group/${id}`, typeError, false);
+const handleAddEventsToGroup: TypedRouteHandler<
+  "POST /admin/group/:id/add-events"
+> = (request, { id }) =>
+  withAuthForm(request, (_session, form) =>
+    withGroup(id, async (group) => {
+      const eventIds = form
+        .getAll("event_ids")
+        .map(Number)
+        .filter((n) => n > 0);
+      if (eventIds.length > 0) {
+        // Validate all events have the same type as existing group events
+        const newEvents = compact(await Promise.all(eventIds.map(getEvent)));
+        for (const event of newEvents) {
+          const typeError = await validateGroupEventType(id, event.event_type);
+          if (typeError) {
+            return redirect(`/admin/group/${id}`, typeError, false);
+          }
         }
+        await assignEventsToGroup(eventIds, id);
+        await logActivity(
+          `${eventIds.length} event(s) added to group '${group.name}'`,
+        );
       }
-      await assignEventsToGroup(eventIds, id);
-      await logActivity(
-        `${eventIds.length} event(s) added to group '${group.name}'`,
-      );
-    }
-    return redirect(`/admin/group/${id}`, "Events added to group", true);
-  }),
-);
+      return redirect(`/admin/group/${id}`, "Events added to group", true);
+    }),
+  );
 
 /** Group routes */
 export const groupsRoutes = defineRoutes({
@@ -225,9 +228,11 @@ export const groupsRoutes = defineRoutes({
   "GET /admin/group/new": crudCreate.newGet,
   "POST /admin/group": crudCreate.createPost,
   "GET /admin/group/:id": handleGroupDetail,
-  "GET /admin/group/:id/edit": crud.editGet,
-  "POST /admin/group/:id/edit": crud.editPost,
-  "GET /admin/group/:id/delete": crud.deleteGet,
-  "POST /admin/group/:id/delete": crud.deletePost,
+  "GET /admin/group/:id/edit": (request, { id }) => crud.editGet(request, id),
+  "POST /admin/group/:id/edit": (request, { id }) => crud.editPost(request, id),
+  "GET /admin/group/:id/delete": (request, { id }) =>
+    crud.deleteGet(request, id),
+  "POST /admin/group/:id/delete": (request, { id }) =>
+    crud.deletePost(request, id),
   "POST /admin/group/:id/add-events": handleAddEventsToGroup,
 });

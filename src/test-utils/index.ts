@@ -14,6 +14,7 @@ import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { resetAllowedDomain } from "#lib/config.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
+import { getCountry } from "#lib/countries.ts";
 import {
   clearEncryptionKeyCache,
   setEncryptionKeyForTest,
@@ -39,7 +40,8 @@ import {
   completeSetup,
   invalidateSettingsCache,
   resetHostAppleWalletConfig,
-  updateTimezone,
+  resetTimezoneTestOverride,
+  setTimezoneForTest,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
@@ -193,9 +195,7 @@ export const createTestDb = async (): Promise<void> => {
  * On the first call, runs the full setup (migrations + crypto key generation).
  * On subsequent calls, restores the cached settings snapshot instead.
  */
-export const createTestDbWithSetup = async (
-  currency = "GBP",
-): Promise<void> => {
+export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
   const { reused } = await prepareTestClient();
 
   // prepareTestClient clears tables when reusing the cached client, which wipes sessions.
@@ -227,15 +227,16 @@ export const createTestDbWithSetup = async (
         });
       }
     }
-    setCurrencyCodeForTest(currency);
+    setCurrencyCodeForTest(getCountry(country).currency);
+    setTimezoneForTest("UTC");
     return;
   }
 
-  await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, currency);
-  setCurrencyCodeForTest(currency);
+  await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, country);
+  setCurrencyCodeForTest(getCountry(country).currency);
 
   // Default timezone to UTC for tests so datetime-local values pass through unchanged
-  await updateTimezone("UTC");
+  setTimezoneForTest("UTC");
 
   // Snapshot settings AND users for reuse
   const result = await cachedClient!.execute("SELECT key, value FROM settings");
@@ -288,6 +289,7 @@ export const resetDb = (): void => {
   resetAllowedDomain();
   resetHostEmailConfig();
   resetHostAppleWalletConfig();
+  resetTimezoneTestOverride();
 };
 
 /**

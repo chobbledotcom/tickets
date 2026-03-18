@@ -46,6 +46,23 @@ type StripeCache = { client: Stripe; secretKey: string };
 /** Nullable checkout session result */
 type CheckoutResult = Stripe.Checkout.Session | null;
 
+/** Valid Stripe secret key prefixes */
+const STRIPE_KEY_PREFIX_TEST = "sk_test_";
+const STRIPE_KEY_PREFIX_LIVE = "sk_live_";
+
+/** Stripe key mode: "test" for sandbox keys, "live" for production keys */
+export type StripeKeyMode = "test" | "live";
+
+/**
+ * Detect the mode (test or live) from a Stripe secret key prefix.
+ * Returns null if the key doesn't match a known prefix.
+ */
+export const detectStripeKeyMode = (key: string): StripeKeyMode | null => {
+  if (key.startsWith(STRIPE_KEY_PREFIX_TEST)) return "test";
+  if (key.startsWith(STRIPE_KEY_PREFIX_LIVE)) return "live";
+  return null;
+};
+
 /**
  * Extract a privacy-safe error detail from a caught error.
  * Stripe errors expose type/code/statusCode which are safe to log.

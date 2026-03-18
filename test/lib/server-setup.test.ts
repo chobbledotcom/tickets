@@ -45,7 +45,7 @@ describe("server (setup)", () => {
       admin_username: "testadmin",
       admin_password: "mypassword123",
       admin_password_confirm: "mypassword123",
-      currency_code: "GBP",
+      country: "GB",
       ...overrides,
     });
   }
@@ -82,7 +82,7 @@ describe("server (setup)", () => {
           200,
           "Initial Setup",
           "Admin Password",
-          "Currency Code",
+          "Your Country",
           "Data Controller Agreement",
         );
       });
@@ -94,7 +94,7 @@ describe("server (setup)", () => {
 
       test("POST /setup/ with valid data completes setup", async () => {
         const response = await submitSetupFormWithDefaults({
-          currency_code: "USD",
+          country: "US",
         });
         expectRedirect("/setup/complete")(response);
       });
@@ -106,7 +106,7 @@ describe("server (setup)", () => {
             admin_username: "testadmin",
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            currency_code: "USD",
+            country: "US",
           }),
         );
         await expectHtmlResponse(response, 403, "Invalid or expired form");
@@ -119,7 +119,7 @@ describe("server (setup)", () => {
             admin_username: "testadmin",
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            currency_code: "USD",
+            country: "US",
             csrf_token: "wrong-token-in-form",
           }),
         );
@@ -149,15 +149,11 @@ describe("server (setup)", () => {
         await expectHtmlResponse(response, 400, "at least 8 characters");
       });
 
-      test("POST /setup/ with invalid currency shows error", async () => {
+      test("POST /setup/ with invalid country shows error", async () => {
         const response = await submitSetupFormWithDefaults({
-          currency_code: "INVALID",
+          country: "XX",
         });
-        await expectHtmlResponse(
-          response,
-          400,
-          "Currency code must be 3 uppercase letters",
-        );
+        await expectHtmlResponse(response, 400, "valid country");
       });
 
       test("POST /setup/ without accepting agreement shows error", async () => {
@@ -171,9 +167,9 @@ describe("server (setup)", () => {
         );
       });
 
-      test("POST /setup/ normalizes lowercase currency to uppercase", async () => {
+      test("POST /setup/ normalizes lowercase country to uppercase", async () => {
         const response = await submitSetupFormWithDefaults({
-          currency_code: "usd",
+          country: "us",
         });
         expectRedirect("/setup/complete")(response);
       });
@@ -199,7 +195,7 @@ describe("server (setup)", () => {
                   admin_username: "testadmin",
                   admin_password: "mypassword123",
                   admin_password_confirm: "mypassword123",
-                  currency_code: "GBP",
+                  country: "GB",
                 },
                 csrfToken as string,
               ),
@@ -241,7 +237,7 @@ describe("server (setup)", () => {
               admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
-              currency_code: "GBP",
+              country: "GB",
             },
             csrfToken as string,
           ),
@@ -271,7 +267,7 @@ describe("server (setup)", () => {
               admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
-              currency_code: "GBP",
+              country: "GB",
             },
             csrfToken as string,
           ),
@@ -297,7 +293,7 @@ describe("server (setup)", () => {
           mockFormRequest("/setup/", {
             admin_password: "newpassword123",
             admin_password_confirm: "newpassword123",
-            currency_code: "EUR",
+            country: "FR",
           }),
         );
         expectRedirect("/")(response);
@@ -324,7 +320,7 @@ describe("server (setup)", () => {
             admin_username: "testadmin",
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            currency_code: "USD",
+            country: "US",
           },
           csrfToken as string,
         ),
@@ -337,13 +333,13 @@ describe("server (setup)", () => {
     });
   });
 
-  describe("setup routes (currency code default)", () => {
-    test("POST /setup/ with empty currency code defaults to GBP", async () => {
+  describe("setup routes (country default)", () => {
+    test("POST /setup/ with empty country defaults to GB", async () => {
       resetDb();
       await createTestDb();
 
       const response = await submitSetupFormWithDefaults({
-        currency_code: "", // Empty defaults to GBP
+        country: "", // Empty defaults to GB
       });
       expectRedirect("/setup/complete")(response);
     });

@@ -64,8 +64,11 @@ export const holidaysRoutes = defineRoutes({
   "GET /admin/holidays": crud.listGet,
   "GET /admin/holiday/new": crud.newGet,
   "POST /admin/holiday": crud.createPost,
-  "GET /admin/holiday/:id/edit": crud.editGet,
-  "POST /admin/holiday/:id/edit": crud.editPost,
-  "GET /admin/holiday/:id/delete": crud.deleteGet,
-  "POST /admin/holiday/:id/delete": crud.deletePost,
+  "GET /admin/holiday/:id/edit": (request, { id }) => crud.editGet(request, id),
+  "POST /admin/holiday/:id/edit": (request, { id }) =>
+    crud.editPost(request, id),
+  "GET /admin/holiday/:id/delete": (request, { id }) =>
+    crud.deleteGet(request, id),
+  "POST /admin/holiday/:id/delete": (request, { id }) =>
+    crud.deletePost(request, id),
 });
