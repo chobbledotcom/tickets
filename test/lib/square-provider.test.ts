@@ -330,6 +330,131 @@ describe("square-provider", () => {
     });
   });
 
+  describe("resolveWebhookSession", () => {
+    test("extracts order_id from nested Square payment object", async () => {
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_nested_456",
+              metadata: {
+                name: "Alice",
+                email: "alice@example.com",
+                event_id: "1",
+                quantity: "1",
+              },
+              tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
+              state: "COMPLETED",
+              totalMoney: { amount: BigInt(1000), currency: "USD" },
+            }),
+          ),
+          payment: stub(squareApi, "retrievePayment", () =>
+            Promise.resolve({
+              id: "pay_nested_123",
+              status: "COMPLETED",
+            }),
+          ),
+        }),
+        async (mocks) => {
+          const result = await squarePaymentProvider.resolveWebhookSession({
+            id: "evt_square",
+            type: "payment.updated",
+            data: {
+              object: {
+                payment: {
+                  id: "pay_nested_123",
+                  order_id: "order_nested_456",
+                  status: "COMPLETED",
+                },
+              },
+            },
+          });
+          expect(result).not.toBe("skip");
+          expect(result).not.toBeNull();
+          expect(mocks.order.calls[0]!.args[0]).toBe("order_nested_456");
+        },
+      );
+    });
+
+    test("returns skip for non-COMPLETED payment status", async () => {
+      const result = await squarePaymentProvider.resolveWebhookSession({
+        id: "evt_pending",
+        type: "payment.updated",
+        data: {
+          object: {
+            payment: {
+              id: "pay_pending",
+              order_id: "order_pending",
+              status: "APPROVED",
+            },
+          },
+        },
+      });
+      expect(result).toBe("skip");
+    });
+
+    test("returns null when no order_id or id found", async () => {
+      const result = await squarePaymentProvider.resolveWebhookSession({
+        id: "evt_no_id",
+        type: "payment.updated",
+        data: {
+          object: {
+            payment: {
+              status: "COMPLETED",
+            },
+          },
+        },
+      });
+      expect(result).toBeNull();
+    });
+
+    test("falls back to payment id when order_id is missing", async () => {
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
+        }),
+        async (mocks) => {
+          const result = await squarePaymentProvider.resolveWebhookSession({
+            id: "evt_no_order",
+            type: "payment.updated",
+            data: {
+              object: {
+                payment: {
+                  id: "pay_fallback_id",
+                  status: "COMPLETED",
+                },
+              },
+            },
+          });
+          // retrieveSession called with payment id as fallback
+          expect(mocks.order.calls[0]!.args[0]).toBe("pay_fallback_id");
+          expect(result).toBeNull();
+        },
+      );
+    });
+
+    test("handles flat event object without payment wrapper", async () => {
+      await withMocks(
+        () => stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
+        async (mockOrder) => {
+          const result = await squarePaymentProvider.resolveWebhookSession({
+            id: "evt_flat",
+            type: "payment.updated",
+            data: {
+              object: {
+                id: "pay_flat",
+                order_id: "order_flat",
+                status: "COMPLETED",
+              },
+            },
+          });
+          expect(mockOrder.calls[0]!.args[0]).toBe("order_flat");
+          expect(result).toBeNull();
+        },
+      );
+    });
+  });
+
   describe("setupWebhookEndpoint", () => {
     test("returns failure since Square webhooks are manual", async () => {
       const result = await squarePaymentProvider.setupWebhookEndpoint(
