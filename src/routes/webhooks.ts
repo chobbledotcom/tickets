@@ -943,12 +943,25 @@ const getWebhookSignatureHeader = (request: Request): string | null =>
   request.headers.get("x-square-hmacsha256-signature") ??
   null;
 
+/**
+ * Unwrap the inner data object from a webhook event. Square nests payment
+ * fields under `data.object.payment`, while Stripe puts them directly on
+ * `data.object`. This helper normalises both shapes to a flat record.
+ */
+const unwrapEventObject = (
+  obj: Record<string, unknown>,
+): Record<string, unknown> =>
+  typeof obj.payment === "object" && obj.payment !== null
+    ? (obj.payment as Record<string, unknown>)
+    : obj;
+
 /** Extract order/session ID from webhook event object (used for Square fallback) */
 const extractSessionIdFromObject = (
   obj: Record<string, unknown>,
 ): string | null => {
-  if (typeof obj.order_id === "string") return obj.order_id;
-  if (typeof obj.id === "string") return obj.id;
+  const target = unwrapEventObject(obj);
+  if (typeof target.order_id === "string") return target.order_id;
+  if (typeof target.id === "string") return target.id;
   return null;
 };
 
@@ -1034,10 +1047,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     }
 
     // For Square payment.updated: check payment status before retrieving order
-    if (typeof obj.status === "string" && obj.status !== "COMPLETED") {
+    const inner = unwrapEventObject(obj);
+    if (typeof inner.status === "string" && inner.status !== "COMPLETED") {
       logError({
         code: ErrorCode.PAYMENT_SESSION,
-        detail: `Webhook payment not completed (status=${obj.status})`,
+        detail: `Webhook payment not completed (status=${inner.status})`,
       });
       return webhookAckResponse({ status: "pending" });
     }
