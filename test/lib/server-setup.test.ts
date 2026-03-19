@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
-import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDb,
-  describeWithEnv,
+  createTestDbWithSetup,
   expectHtmlResponse,
   expectRedirect,
   getSetupCsrfToken,
@@ -13,10 +13,21 @@ import {
   mockRequest,
   mockSetupFormRequest,
   resetDb,
+  resetTestSlugCounter,
+  withExpectedError,
   withMocks,
 } from "#test-utils";
 
-describeWithEnv("server (setup)", { db: true }, () => {
+describe("server (setup)", () => {
+  beforeEach(async () => {
+    resetTestSlugCounter();
+    await createTestDbWithSetup();
+  });
+
+  afterEach(() => {
+    resetDb();
+  });
+
   /** Get CSRF token from setup page and submit setup form with given fields */
   async function submitSetupForm(
     fields: Record<string, string>,
@@ -171,28 +182,30 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(await getResponse.text());
 
-        await withMocks(
-          () => ({
-            mockCompleteSetup: stub(settingsApi, "completeSetup", () =>
-              Promise.reject(new Error("Database error")),
-            ),
-            mockConsoleError: stub(console, "error", () => {}),
-          }),
-          async () => {
-            const response = await handleRequest(
-              mockSetupFormRequest(
-                {
-                  admin_username: "testadmin",
-                  admin_password: "mypassword123",
-                  admin_password_confirm: "mypassword123",
-                  country: "GB",
-                },
-                csrfToken as string,
+        await withExpectedError(async () => {
+          await withMocks(
+            () => ({
+              mockCompleteSetup: stub(settingsApi, "completeSetup", () =>
+                Promise.reject(new Error("Database error")),
               ),
-            );
-            await expectHtmlResponse(response, 503, "Temporary Error");
-          },
-        );
+              mockConsoleError: stub(console, "error", () => {}),
+            }),
+            async () => {
+              const response = await handleRequest(
+                mockSetupFormRequest(
+                  {
+                    admin_username: "testadmin",
+                    admin_password: "mypassword123",
+                    admin_password_confirm: "mypassword123",
+                    country: "GB",
+                  },
+                  csrfToken as string,
+                ),
+              );
+              await expectHtmlResponse(response, 503, "Temporary Error");
+            },
+          );
+        });
       });
 
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {

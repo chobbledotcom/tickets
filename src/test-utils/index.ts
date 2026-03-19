@@ -79,6 +79,7 @@ export const setupTestEncryptionKey = (): void => {
   Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
   Deno.env.set("TEST_RSA_KEY_SIZE", "1024"); // Use smaller RSA keys for faster test setup
   Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1"); // Reduce test output noise
+  Deno.env.set("TEST_RETHROW_ERRORS", "1"); // Surface real errors instead of "Temporary Error" page
   clearEncryptionKeyCache();
 };
 
@@ -403,6 +404,20 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
     : input instanceof URL
       ? input.toString()
       : input.url;
+
+/**
+ * Run a callback that intentionally triggers an error caught by handleRequest.
+ * Temporarily sets TEST_EXPECT_ERROR so the error is returned as a response
+ * instead of being rethrown by the TEST_RETHROW_ERRORS guard.
+ */
+export const withExpectedError = bracket(
+  () => {
+    Deno.env.set("TEST_EXPECT_ERROR", "1");
+  },
+  () => {
+    Deno.env.delete("TEST_EXPECT_ERROR");
+  },
+);
 
 /**
  * Swap globalThis.fetch for the duration of a callback, using bracket for safe restore.
