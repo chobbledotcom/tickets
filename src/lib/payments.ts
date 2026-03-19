@@ -28,6 +28,8 @@ export type RegistrationIntent = ContactInfo & {
   date?: string | null;
   /** Custom unit price (minor units) when can_pay_more is enabled; overrides event.unit_price */
   customUnitPrice?: number;
+  /** Custom question answer IDs selected during checkout */
+  answerIds?: number[];
 };
 
 /** Single item within a multi-event checkout */
@@ -43,6 +45,8 @@ export type MultiRegistrationItem = {
 export type MultiRegistrationIntent = ContactInfo & {
   date?: string | null;
   items: MultiRegistrationItem[];
+  /** Custom question answer IDs selected during checkout */
+  answerIds?: number[];
 };
 
 /** Result of creating a checkout session.
@@ -81,6 +85,7 @@ export type SessionMetadata = {
   multi: string;
   items: string;
   date: string;
+  answer_ids: string;
 };
 
 /** Valid payment status values */

@@ -28,6 +28,7 @@ import {
   getAttendeesByTokens,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
+import { saveAttendeeAnswersBatch } from "#lib/db/questions.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -76,6 +77,20 @@ const PRICE_CHANGED_MESSAGE =
 const isMultiSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
+/** Parse answer_ids from metadata JSON string; returns empty array on missing/invalid */
+const parseAnswerIds = (json: string): number[] => {
+  if (!json) return [];
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (v): v is number => typeof v === "number" && Number.isInteger(v) && v > 0,
+    );
+  } catch {
+    return [];
+  }
+};
+
 /**
  * Extract registration intent from validated session metadata (single-ticket only).
  *
@@ -94,6 +109,7 @@ const extractIntent = (
   special_instructions: session.metadata.special_instructions,
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
   date: session.metadata.date || null,
+  answerIds: parseAnswerIds(session.metadata.answer_ids),
 });
 
 /** Wrap handler with session ID extraction */
@@ -417,6 +433,7 @@ const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
 type MultiIntent = ContactInfo & {
   date: string | null;
   items: MultiItem[];
+  answerIds: number[];
 };
 
 /**
@@ -439,6 +456,7 @@ const extractMultiIntent = (
     special_instructions: metadata.special_instructions,
     date: metadata.date || null,
     items,
+    answerIds: parseAnswerIds(metadata.answer_ids),
   };
 };
 
@@ -595,6 +613,14 @@ const processMultiPaymentSession = async (
     );
   }
 
+  // Save custom question answers for all created attendees
+  if (intent.answerIds.length > 0) {
+    const attendeeIds = map(
+      ({ attendee }: { attendee: Attendee }) => attendee.id,
+    )(createdAttendees);
+    await saveAttendeeAnswersBatch(attendeeIds, intent.answerIds);
+  }
+
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)
   // createdAttendees is guaranteed non-empty: the loop always runs (intent.items
   // is validated non-empty) and if any creation fails we return early above.
@@ -694,6 +720,11 @@ const processPaymentSession = async (
 
   if (!result.success) {
     return refundAndFail(session, formatPostPaymentError(result.reason));
+  }
+
+  // Save custom question answers
+  if (intent.answerIds && intent.answerIds.length > 0) {
+    await saveAttendeeAnswersBatch([result.attendee.id], intent.answerIds);
   }
 
   // Phase 3: Finalize the session with the attendee ID and token

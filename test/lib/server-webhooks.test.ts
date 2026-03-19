@@ -3913,8 +3913,7 @@ describe("server (webhooks)", () => {
       expectCheckoutRedirect(checkoutResponse);
 
       // Now simulate the webhook callback from the payment provider.
-      // The metadata is what the checkout session stored — answer_ids
-      // cannot currently be included because SessionMetadata has no such field.
+      // The metadata includes answer_ids serialized during checkout.
       const mockVerify = await stubWebhookVerify({
         id: "evt_multi_q",
         type: "checkout.session.completed",
@@ -3932,6 +3931,7 @@ describe("server (webhooks)", () => {
                 { e: event1.id, q: 1, p: 1000 },
                 { e: event2.id, q: 1, p: 0 },
               ]),
+              answer_ids: JSON.stringify([a1.id]),
             }),
           },
         },
@@ -3953,10 +3953,7 @@ describe("server (webhooks)", () => {
         expect(att1.length).toBe(1);
         expect(att2.length).toBe(1);
 
-        // BUG: Custom question answers should be saved for the attendee of
-        // event1 (which had the question), but they are lost because
-        // answer_ids are not included in SessionMetadata / MultiRegistrationIntent
-        // and the webhook handler never saves them.
+        // Verify custom question answers were saved for all attendees
         const batch = await getAttendeeAnswersBatch([
           att1[0]!.id,
           att2[0]!.id,
