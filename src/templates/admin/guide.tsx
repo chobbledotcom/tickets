@@ -947,8 +947,8 @@ export const adminGuidePage = (
             <strong>Owners</strong> have full access: events, calendar, groups,
             users, settings, holidays, sessions, and the activity log.{" "}
             <strong>Managers</strong> can see events, the calendar, groups, and
-            the activity log. They cannot change settings, manage users, or
-            view sessions.
+            the activity log. They cannot change settings, manage users, or view
+            sessions.
           </p>
         </Q>
 
