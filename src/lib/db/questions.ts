@@ -350,7 +350,8 @@ export const getQuestionWithAnswers = async (
 ): Promise<QuestionWithAnswers | null> => {
   const rows = await fetchQuestions("WHERE q.id = ?", [id]);
   if (rows.length === 0) return null;
-  return (await groupJoinedRows(rows))[0] ?? null;
+  // rows is non-empty so groupJoinedRows always returns at least one entry
+  return (await groupJoinedRows(rows))[0]!;
 };
 
 /** Get the next sort_order for a new answer in a question */
