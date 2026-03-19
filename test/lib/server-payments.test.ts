@@ -446,9 +446,7 @@ describe("server (payment flow)", () => {
           ),
         async () => {
           const response = await handleRequest(
-            mockRequest(
-              "/payment/cancel?session_id=cs_test_cancel_bad_multi",
-            ),
+            mockRequest("/payment/cancel?session_id=cs_test_cancel_bad_multi"),
           );
           await expectHtmlResponse(response, 404, "Event not found");
         },
