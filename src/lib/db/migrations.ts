@@ -15,7 +15,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add max_attendees column to groups";
+export const LATEST_UPDATE = "recreate processed_payments table";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -81,6 +81,19 @@ const backfillHybridEncryptedColumn = async (
     whereClause,
     await encryptAttendeePII("", publicKey),
   );
+};
+
+/** Check if a table has a specific column */
+const tableHasColumn = async (
+  table: string,
+  column: string,
+): Promise<boolean> => {
+  try {
+    const result = await getDb().execute(`PRAGMA table_info(${table})`);
+    return result.rows.some((row) => row.name === column);
+  } catch {
+    return false;
+  }
 };
 
 /**
@@ -219,28 +232,31 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: rename stripe_session_id -> payment_session_id for existing databases
   // SQLite doesn't support ALTER COLUMN RENAME before 3.25, so recreate the table
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS processed_payments_new (
-      payment_session_id TEXT PRIMARY KEY,
-      attendee_id INTEGER,
-      processed_at TEXT NOT NULL,
-      FOREIGN KEY (attendee_id) REFERENCES attendees(id)
-    )
-  `);
-  await runMigration(`
-    INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
-    SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments
-    WHERE typeof(stripe_session_id) = 'text'
-  `);
-  await runMigration(`
-    INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
-    SELECT payment_session_id, attendee_id, processed_at FROM processed_payments
-    WHERE typeof(payment_session_id) = 'text'
-  `);
-  await runMigration("DROP TABLE IF EXISTS processed_payments");
-  await runMigration(
-    "ALTER TABLE processed_payments_new RENAME TO processed_payments",
-  );
+  // Guard: only run destructive DROP+RENAME if the old column still exists
+  if (await tableHasColumn("processed_payments", "stripe_session_id")) {
+    await getDb().execute(`
+      CREATE TABLE IF NOT EXISTS processed_payments_new (
+        payment_session_id TEXT PRIMARY KEY,
+        attendee_id INTEGER,
+        processed_at TEXT NOT NULL,
+        FOREIGN KEY (attendee_id) REFERENCES attendees(id)
+      )
+    `);
+    await getDb().execute(`
+      INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
+      SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments
+      WHERE typeof(stripe_session_id) = 'text'
+    `);
+    await getDb().execute(`
+      INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
+      SELECT payment_session_id, attendee_id, processed_at FROM processed_payments
+      WHERE typeof(payment_session_id) = 'text'
+    `);
+    await getDb().execute("DROP TABLE processed_payments");
+    await getDb().execute(
+      "ALTER TABLE processed_payments_new RENAME TO processed_payments",
+    );
+  }
 
   // Migration: add price_paid column to attendees (encrypted with DB_ENCRYPTION_KEY)
   await runMigration("ALTER TABLE attendees ADD COLUMN price_paid TEXT");
