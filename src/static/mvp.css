@@ -81,6 +81,7 @@ html[data-theme="dark"] {
 [data-theme="dark"] select:focus,
 [data-theme="dark"] textarea:focus {
   border-color: #ffffff;
+  outline: none;
 }
 [data-theme="dark"] table {
   border-width: 2px;
