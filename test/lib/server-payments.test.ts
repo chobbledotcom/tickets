@@ -372,6 +372,89 @@ describe("server (payment flow)", () => {
         resetStripeClient,
       );
     });
+
+    test("shows cancel page for multi-ticket session", async () => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#lib/stripe.ts");
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const event2 = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        unitPrice: 2000,
+      });
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_cancel_multi",
+              payment_status: "unpaid",
+              metadata: {
+                multi: "1",
+                name: "John",
+                email: "john@example.com",
+                items: JSON.stringify([
+                  { e: event.id, q: 1, p: 1000 },
+                  { e: event2.id, q: 2, p: 4000 },
+                ]),
+              },
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockRequest("/payment/cancel?session_id=cs_test_cancel_multi"),
+          );
+          await expectHtmlResponse(
+            response,
+            200,
+            "Payment Cancelled",
+            `/ticket/${event.slug}`,
+          );
+        },
+        resetStripeClient,
+      );
+    });
+
+    test("returns 404 for multi-ticket session with invalid items", async () => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#lib/stripe.ts");
+      await setupStripe();
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_cancel_bad_multi",
+              payment_status: "unpaid",
+              metadata: {
+                multi: "1",
+                name: "John",
+                email: "john@example.com",
+                items: "[]", // Empty items array
+              },
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockRequest(
+              "/payment/cancel?session_id=cs_test_cancel_bad_multi",
+            ),
+          );
+          await expectHtmlResponse(response, 404, "Event not found");
+        },
+        resetStripeClient,
+      );
+    });
   });
 
   describe("payment routes", () => {
