@@ -408,6 +408,8 @@ describe("server (admin groups)", () => {
         "Delete Group",
         "Public URL",
         "/ticket/detail-group",
+        "QR Code",
+        "/ticket/detail-group/qr",
         "Embed Script",
         "data-events=",
         "Embed Iframe",

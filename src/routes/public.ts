@@ -933,19 +933,28 @@ const handleTicketPost = slugRoute(
   handleMultiTicketBySlugs,
 );
 
-/** Handle GET /ticket/:slug/qr */
-export const handleTicketQrGet = async (
-  _request: Request,
-  { slug }: { slug: string },
-): Promise<Response> => {
-  const event = await getEventWithCountBySlug(slug);
-  if (!event) return notFoundResponse();
-
+/** Generate a QR code SVG response for a given slug */
+const qrResponse = async (slug: string): Promise<Response> => {
   const ticketUrl = `https://${getAllowedDomain()}/ticket/${slug}`;
   const svg = await generateQrSvg(ticketUrl);
   return new Response(svg, {
     headers: { "content-type": "image/svg+xml" },
   });
+};
+
+/** Handle GET /ticket/:slug/qr (event first, then group fallback) */
+export const handleTicketQrGet = async (
+  _request: Request,
+  { slug }: { slug: string },
+): Promise<Response> => {
+  const event = await getEventWithCountBySlug(slug);
+  if (event) return qrResponse(slug);
+
+  const slugIndex = await computeGroupSlugIndex(slug);
+  const group = await getGroupBySlugIndex(slugIndex);
+  if (group) return qrResponse(slug);
+
+  return notFoundResponse();
 };
 
 /** Public ticket routes */
