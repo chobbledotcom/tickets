@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
@@ -26,6 +26,7 @@ import {
   resetDb,
   resetTestSlugCounter,
   testCookie,
+  withExpectedError,
 } from "#test-utils";
 
 describe("server (misc)", () => {
@@ -728,6 +729,23 @@ describe("server (misc)", () => {
       );
     });
 
+    test("rethrows unhandled errors in test mode", async () => {
+      const { getDb: getDbFn } = await import("#lib/db/client.ts");
+      const { invalidateEventsCache } = await import("#lib/db/events.ts");
+      const db = getDbFn();
+      invalidateEventsCache();
+      const executeStub = stub(db, "execute", () => {
+        throw new Error("synthetic db failure");
+      });
+      try {
+        await expect(
+          handleRequest(mockRequest("/ticket/nonexistent")),
+        ).rejects.toThrow("synthetic db failure");
+      } finally {
+        executeStub.restore();
+      }
+    });
+
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
@@ -739,16 +757,18 @@ describe("server (misc)", () => {
       });
       invalidateSettingsCache();
 
-      // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey
-      const response = await handleRequest(
-        mockRequest("/admin", { headers: { cookie: await testCookie() } }),
-      );
+      await withExpectedError(async () => {
+        // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey
+        const response = await handleRequest(
+          mockRequest("/admin", { headers: { cookie: await testCookie() } }),
+        );
 
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-      const setCookie = response.headers.get("set-cookie")!;
-      expect(setCookie).toContain("session=");
-      expect(setCookie).toContain("Max-Age=0");
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/admin");
+        const setCookie = response.headers.get("set-cookie")!;
+        expect(setCookie).toContain("session=");
+        expect(setCookie).toContain("Max-Age=0");
+      });
     });
   });
 });

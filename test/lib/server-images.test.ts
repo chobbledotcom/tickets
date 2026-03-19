@@ -18,6 +18,7 @@ import {
   testCookie,
   testCsrfToken,
   updateTestEvent,
+  withExpectedError,
   withFetchMock,
 } from "#test-utils";
 
@@ -530,16 +531,18 @@ describe("server (event images)", () => {
     });
 
     test("propagates non-404 storage errors as 503", async () => {
-      await withCdnProxy(
-        () => new Response("Unauthorized", { status: 401 }),
-        async () => {
-          await expectHtmlResponse(
-            await proxyRequest(),
-            503,
-            "Temporary Error",
-          );
-        },
-      );
+      await withExpectedError(async () => {
+        await withCdnProxy(
+          () => new Response("Unauthorized", { status: 401 }),
+          async () => {
+            await expectHtmlResponse(
+              await proxyRequest(),
+              503,
+              "Temporary Error",
+            );
+          },
+        );
+      });
     });
 
     test("returns 404 for unknown extension", async () => {
