@@ -221,6 +221,7 @@ type SquarePaymentLinkResponse = {
   payment_link?: {
     order_id?: string;
     url?: string;
+    long_url?: string;
   };
 };
 
@@ -303,7 +304,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           const link = data?.payment_link;
           return {
             paymentLink: link
-              ? { orderId: link.order_id, url: link.url }
+              ? { orderId: link.order_id, url: link.long_url ?? link.url }
               : undefined,
           };
         },
