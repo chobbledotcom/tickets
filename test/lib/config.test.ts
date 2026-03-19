@@ -161,14 +161,10 @@ describe("config", () => {
   });
 
   describe("getAllowedDomain", () => {
-    afterEach(() => {
-      Deno.env.set("ALLOWED_DOMAIN", "localhost");
-      resetAllowedDomain();
-    });
+    afterEach(() => resetAllowedDomain());
 
-    test("returns set value from environment", () => {
-      Deno.env.set("ALLOWED_DOMAIN", "example.com");
-      resetAllowedDomain();
+    test("returns set value via test override", () => {
+      setAllowedDomainForTest("example.com");
       expect(getAllowedDomain()).toBe("example.com");
     });
 
