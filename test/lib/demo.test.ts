@@ -24,6 +24,7 @@ import {
   setDemoModeForTest,
   wrapResourceForDemo,
 } from "#lib/demo.ts";
+import { FormParams } from "#lib/form-data.ts";
 import { handleRequest } from "#routes";
 import {
   createTestDbWithSetup,
@@ -83,7 +84,7 @@ describe("demo", () => {
 
   describe("applyDemoOverrides", () => {
     test("returns form unchanged when demo mode is off", () => {
-      const form = new URLSearchParams({
+      const form = new FormParams({
         name: "Real Name",
         email: "real@example.com",
       });
@@ -94,7 +95,7 @@ describe("demo", () => {
 
     test("replaces fields that exist in the form when demo mode is on", () => {
       setDemoModeForTest(true);
-      const form = new URLSearchParams({
+      const form = new FormParams({
         name: "Real Name",
         email: "real@example.com",
       });
@@ -107,7 +108,7 @@ describe("demo", () => {
 
     test("skips fields not present in the form", () => {
       setDemoModeForTest(true);
-      const form = new URLSearchParams({ name: "Real Name" });
+      const form = new FormParams({ name: "Real Name" });
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(form.has("email")).toBe(false);
       expect(form.has("phone")).toBe(false);
@@ -115,7 +116,7 @@ describe("demo", () => {
 
     test("skips empty-string fields", () => {
       setDemoModeForTest(true);
-      const form = new URLSearchParams({ name: "Real Name", email: "" });
+      const form = new FormParams({ name: "Real Name", email: "" });
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(form.get("email")).toBe("");
       expect(DEMO_NAMES as readonly string[]).toContain(form.get("name"));
@@ -123,21 +124,21 @@ describe("demo", () => {
 
     test("returns the same form instance", () => {
       setDemoModeForTest(true);
-      const form = new URLSearchParams({ name: "Test" });
+      const form = new FormParams({ name: "Test" });
       const result = applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(result).toBe(form);
     });
 
     test("does not modify fields not in the mapping", () => {
       setDemoModeForTest(true);
-      const form = new URLSearchParams({ name: "Real", csrf_token: "abc123" });
+      const form = new FormParams({ name: "Real", csrf_token: "abc123" });
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(form.get("csrf_token")).toBe("abc123");
     });
 
     test("works with event demo fields", () => {
       setDemoModeForTest(true);
-      const form = new URLSearchParams({
+      const form = new FormParams({
         name: "My Event",
         description: "My description",
         location: "My location",
@@ -197,7 +198,7 @@ describe("demo", () => {
         name: DEMO_GROUP_NAMES,
       } as DemoFieldMap);
 
-      const form = new URLSearchParams({ name: "Real Group" });
+      const form = new FormParams({ name: "Real Group" });
       wrapped.create(form);
 
       // applyDemoOverrides mutates the form in place before passing to resource
@@ -214,7 +215,7 @@ describe("demo", () => {
         name: DEMO_HOLIDAY_NAMES,
       } as DemoFieldMap);
 
-      const form = new URLSearchParams({ name: "Real Holiday" });
+      const form = new FormParams({ name: "Real Holiday" });
       wrapped.update(42, form);
 
       expect(DEMO_HOLIDAY_NAMES as readonly string[]).toContain(
@@ -236,7 +237,7 @@ describe("demo", () => {
         name: DEMO_NAMES,
       } as DemoFieldMap);
 
-      const form = new URLSearchParams({ name: "Unchanged" });
+      const form = new FormParams({ name: "Unchanged" });
       wrapped.create(form);
 
       expect(getLastCreateForm()!.get("name")).toBe("Unchanged");

@@ -5,6 +5,7 @@
 import { map, pipe, reduce } from "#fp";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { appendIframeParam } from "#lib/iframe.ts";
 
 const escapeHtml = (str: string): string =>
@@ -98,12 +99,9 @@ const DATETIME_PARTIAL_ERROR =
   "Please enter a date when providing a time, or leave both blank";
 
 /** Combine date and time form values into a datetime string, defaulting time when absent */
-const getDatetimeValue = (
-  form: URLSearchParams,
-  name: string,
-): string | null => {
-  const date = (form.get(`${name}_date`) || "").trim();
-  const time = (form.get(`${name}_time`) || "").trim();
+const getDatetimeValue = (form: FormParams, name: string): string | null => {
+  const date = form.getString(`${name}_date`);
+  const time = form.getString(`${name}_time`);
   if (date && time) return `${date}T${time}`;
   if (date && !time) return `${date}T00:00`;
   if (!date && !time) return "";
@@ -204,7 +202,7 @@ const parseFieldValue = (
  * and joins them as a comma-separated string.
  */
 const validateSingleField = (
-  form: URLSearchParams,
+  form: FormParams,
   field: Field,
 ): FieldValidationResult => {
   // File fields are handled separately via FormData, not URLSearchParams
@@ -228,7 +226,7 @@ const validateSingleField = (
       .filter((v) => v)
       .join(",");
   } else {
-    trimmed = (form.get(field.name) || "").trim();
+    trimmed = form.getString(field.name);
   }
 
   if (!trimmed && field.defaultValue) {
@@ -256,7 +254,7 @@ const validateSingleField = (
  * Without a type parameter, values default to the loose FieldValues dict.
  */
 export const validateForm = <T = FieldValues>(
-  form: URLSearchParams,
+  form: FormParams,
   fields: Field[],
 ): ValidationResult<T> => {
   const values: FieldValues = {};
