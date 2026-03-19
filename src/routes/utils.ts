@@ -14,6 +14,7 @@ import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
+import { FormParams } from "#lib/form-data.ts";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -258,19 +259,17 @@ export const redirect = (
 /**
  * Parse form data from request
  */
-export const parseFormData = async (
-  request: Request,
-): Promise<URLSearchParams> => {
+export const parseFormData = async (request: Request): Promise<FormParams> => {
   const text = await request.text();
-  return new URLSearchParams(text);
+  return new FormParams(text);
 };
 
 /**
- * Extract text fields from FormData as URLSearchParams (skips File entries).
+ * Extract text fields from FormData as FormParams (skips File entries).
  * Handles multi-value fields (e.g. checkbox groups) via append.
  */
-export const formDataToParams = (formData: FormData): URLSearchParams => {
-  const params = new URLSearchParams();
+export const formDataToParams = (formData: FormData): FormParams => {
+  const params = new FormParams();
   for (const [key, value] of formData.entries()) {
     if (typeof value === "string") params.append(key, value);
   }
@@ -310,6 +309,8 @@ export const getSearchParam = (request: Request, key: string): string => {
   const url = new URL(request.url);
   return url.searchParams.get(key) ?? "";
 };
+
+export { FormParams } from "#lib/form-data.ts";
 
 /**
  * Add cookie header to response.
@@ -450,7 +451,7 @@ const requireOwnerRole = (
 
 /** CSRF form result type */
 export type CsrfFormResult =
-  | { ok: true; form: URLSearchParams }
+  | { ok: true; form: FormParams }
   | { ok: false; response: Response };
 
 /**
@@ -463,7 +464,7 @@ export const requireCsrfForm = async (
   onInvalid: () => Response,
 ): Promise<CsrfFormResult> => {
   const form = await parseFormData(request);
-  const formCsrf = form.get("csrf_token") || "";
+  const formCsrf = form.getString("csrf_token");
 
   if (formCsrf && (await verifySignedCsrfToken(formCsrf))) {
     return { ok: true, form };
@@ -481,7 +482,7 @@ export const requireCsrfForm = async (
 export const withCsrfForm = async (
   request: Request,
   onInvalid: (message: string, status: number) => Response,
-  handler: (form: URLSearchParams) => Response | Promise<Response>,
+  handler: (form: FormParams) => Response | Promise<Response>,
 ): Promise<Response> => {
   const csrf = await requireCsrfForm(request, () =>
     onInvalid(CSRF_INVALID_FORM_MESSAGE, 403),
@@ -491,7 +492,7 @@ export const withCsrfForm = async (
 
 /** Auth form result type */
 export type AuthFormResult =
-  | { ok: true; session: AuthSession; form: URLSearchParams }
+  | { ok: true; session: AuthSession; form: FormParams }
   | { ok: false; response: Response };
 
 /**
@@ -506,7 +507,7 @@ export const requireAuthForm = async (
   }
 
   const form = await parseFormData(request);
-  const csrfToken = form.get("csrf_token") || "";
+  const csrfToken = form.getString("csrf_token");
   if (!(await verifySignedCsrfToken(csrfToken))) {
     return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
   }
@@ -516,7 +517,7 @@ export const requireAuthForm = async (
 
 type FormHandler = (
   session: AuthSession,
-  form: URLSearchParams,
+  form: FormParams,
 ) => Response | Promise<Response>;
 type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
 
@@ -571,7 +572,7 @@ export const withAuthMultipartForm = async (
   if (!session) return redirectResponse("/admin");
 
   const formData = await request.formData();
-  const csrfToken = String(formData.get("csrf_token") ?? "");
+  const csrfToken = String(formData.get("csrf_token") ?? "").trim();
   if (!(await verifySignedCsrfToken(csrfToken))) {
     return htmlResponse("Invalid CSRF token", 403);
   }

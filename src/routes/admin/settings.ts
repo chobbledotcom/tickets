@@ -113,6 +113,7 @@ import {
   parseEmbedHosts,
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
@@ -336,7 +337,7 @@ type ErrorPageFn = (
   formId: string,
 ) => Promise<Response>;
 type SettingsFormHandler = (
-  form: URLSearchParams,
+  form: FormParams,
   errorPage: ErrorPageFn,
   session: AuthSession,
 ) => Response | Promise<Response>;
@@ -356,10 +357,10 @@ export type SecretFieldResult =
  * Consistently handles: trim → sentinel detection → empty vs provided.
  */
 export const processSecretField = (
-  form: URLSearchParams,
+  form: FormParams,
   fieldName: string,
 ): SecretFieldResult => {
-  const raw = (form.get(fieldName) ?? "").trim();
+  const raw = form.getString(fieldName);
   if (isMaskSentinel(raw)) return { action: "unchanged" };
   if (!raw) return { action: "cleared" };
   return { action: "provided", value: raw };
@@ -417,7 +418,7 @@ type ChangePasswordValidation =
   | { valid: false; error: string };
 
 const validateChangePasswordForm = (
-  form: URLSearchParams,
+  form: FormParams,
 ): ChangePasswordValidation => {
   const validation = validateForm<ChangePasswordFormValues>(
     form,
@@ -497,7 +498,7 @@ const isPaymentProvider = (s: string): s is PaymentProviderType =>
  * Handle POST /admin/settings/payment-provider - owner only
  */
 const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
-  const provider = form.get("payment_provider") ?? "";
+  const provider = form.getString("payment_provider");
 
   if (provider === "none") {
     await clearPaymentProvider();
@@ -615,7 +616,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   }
 
   const tokenField = processSecretField(form, "square_access_token");
-  const locationId = (form.get("square_location_id") || "").trim();
+  const locationId = form.getString("square_location_id");
   const sandbox = form.get("square_sandbox") === "on";
 
   if (!locationId) {
@@ -704,8 +705,7 @@ const handleSquareTestPost = (request: Request): Promise<Response> =>
  * Handle POST /admin/settings/embed-hosts - owner only
  */
 const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
-  const raw = form.get("embed_hosts") ?? "";
-  const trimmed = raw.trim();
+  const trimmed = form.getString("embed_hosts");
 
   // Empty = clear restriction
   if (trimmed === "") {
@@ -736,8 +736,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
  */
 const handleTermsPost = settingsRoute(async (form, errorPage) => {
   applyDemoOverrides(form, TERMS_DEMO_FIELDS);
-  const raw = form.get("terms_and_conditions") ?? "";
-  const trimmed = raw.trim();
+  const trimmed = form.getString("terms_and_conditions");
 
   if (trimmed.length > MAX_TERMS_LENGTH) {
     return errorPage(
@@ -763,7 +762,7 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
 
 /** Validate and save country from form submission */
 const processCountryForm: SettingsFormHandler = async (form, errorPage) => {
-  const trimmed = (form.get("country") || "").trim().toUpperCase();
+  const trimmed = form.getString("country").toUpperCase();
 
   if (trimmed === "") {
     return errorPage("Country is required", 400, "settings-country");
@@ -788,8 +787,7 @@ const processBusinessEmailForm: SettingsFormHandler = async (
   form,
   errorPage,
 ) => {
-  const raw = form.get("business_email") || "";
-  const trimmed = raw.trim();
+  const trimmed = form.getString("business_email");
 
   // Allow empty (clearing the business email)
   if (trimmed === "") {
@@ -820,7 +818,7 @@ const handleBusinessEmailPost = settingsRoute(processBusinessEmailForm);
 
 /** Validate and save theme from form submission */
 const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
-  const theme = form.get("theme") ?? "";
+  const theme = form.getString("theme");
 
   if (theme !== "light" && theme !== "dark") {
     return errorPage("Invalid theme selection", 400, "settings-theme");
@@ -870,7 +868,7 @@ const handleShowPublicApiPost = advancedSettingsRoute(processShowPublicApiForm);
 
 /** Validate and save booking fee from form submission */
 const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
-  const raw = (form.get("booking_fee") ?? "").trim();
+  const raw = form.getString("booking_fee");
   const value = Number.parseFloat(raw);
 
   if (!Number.isFinite(value) || value < 0 || value > 10) {
@@ -965,9 +963,9 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
 
 /** Handle POST /admin/settings/email - owner only */
 const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
-  const provider = (form.get("email_provider") ?? "").trim();
+  const provider = form.getString("email_provider");
   const apiKeyField = processSecretField(form, "email_api_key");
-  const fromAddress = (form.get("email_from_address") ?? "").trim();
+  const fromAddress = form.getString("email_from_address");
 
   if (provider === "") {
     await updateEmailProvider("");
@@ -1046,9 +1044,9 @@ const isEmailTemplateType = (v: string): v is EmailTemplateType =>
 const handleEmailTemplatePost = (type: EmailTemplateType) =>
   advancedSettingsRoute(async (form, errorPage) => {
     const formId = `settings-email-tpl-${type}`;
-    const subject = form.get("subject") ?? "";
-    const html = form.get("html") ?? "";
-    const text = form.get("text") ?? "";
+    const subject = form.getString("subject");
+    const html = form.getString("html");
+    const text = form.getString("text");
 
     // Validate lengths
     for (const [name, value] of [
@@ -1164,8 +1162,8 @@ const PREVIEW_TICKET_URL = "https://example.com/t/SAMPLE123+SAMPLE456";
 /** Handle POST /admin/settings/email-templates/preview - render template with sample data */
 const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (_session, form) => {
-    const type = form.get("type") ?? "";
-    const template = form.get("template") ?? "";
+    const type = form.getString("type");
+    const template = form.getString("template");
     const format = form.get("format") ?? "html";
 
     if (!isEmailTemplateType(type)) {
@@ -1202,7 +1200,7 @@ const handleCustomDomainPost = advancedSettingsRoute(
       );
     }
 
-    const raw = (form.get("custom_domain") ?? "").trim().toLowerCase();
+    const raw = form.getString("custom_domain").toLowerCase();
 
     if (raw === "") {
       await updateCustomDomain("");
