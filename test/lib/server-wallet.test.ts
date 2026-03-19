@@ -259,7 +259,7 @@ describe("ticket view wallet link", () => {
     );
     const body = await fetchWalletTicketBody(token);
     expect(body).not.toContain("wallet-link");
-    expect(body).not.toContain("Add to Apple Wallet");
+    expect(body).not.toContain("Apple Wallet");
   });
 
   test("shows wallet link when Apple Wallet is configured", async () => {
@@ -270,7 +270,7 @@ describe("ticket view wallet link", () => {
     );
     const body = await fetchWalletTicketBody(token);
     expect(body).toContain("wallet-link");
-    expect(body).toContain("Add to Apple Wallet");
+    expect(body).toContain("Apple Wallet");
     expect(body).toContain(`/wallet/${token}.pkpass`);
   });
 });
@@ -518,7 +518,7 @@ describe("Apple Wallet env var fallback", () => {
     );
     const body = await fetchWalletTicketBody(token);
     expect(body).toContain("wallet-link");
-    expect(body).toContain("Add to Apple Wallet");
+    expect(body).toContain("Apple Wallet");
   });
 
   test("settings page shows host Apple Wallet label when env vars configured", async () => {

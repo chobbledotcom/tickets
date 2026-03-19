@@ -931,7 +931,7 @@ button.bulk-checkout:hover {
   padding: 0;
   border: none;
   margin: 0;
-  box-shadow: none;
+  box-shadow: none !important;
 }
 
 button.link-button {
