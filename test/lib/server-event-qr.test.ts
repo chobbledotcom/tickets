@@ -9,6 +9,7 @@ import { handleTicketQrGet } from "#routes/public.ts";
 import {
   createTestDbWithSetup,
   createTestEvent,
+  createTestGroup,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
@@ -69,6 +70,32 @@ describe("ticket QR code", () => {
         slug: "no-such-event",
       });
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("group QR code", () => {
+    test("returns SVG QR code for valid group slug", async () => {
+      const group = await createTestGroup();
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}/qr`),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("image/svg+xml");
+      const body = await response.text();
+      expect(body).toContain("<svg");
+      expect(body).toContain("</svg>");
+    });
+
+    test("handleTicketQrGet returns QR code for group slug", async () => {
+      const group = await createTestGroup();
+      const request = mockRequest(`/ticket/${group.slug}/qr`);
+      const response = await handleTicketQrGet(request, {
+        slug: group.slug,
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("image/svg+xml");
+      const body = await response.text();
+      expect(body).toContain("<svg");
     });
   });
 });
