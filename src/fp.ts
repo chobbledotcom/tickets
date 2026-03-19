@@ -418,6 +418,10 @@ export type CollectionCache<T> = {
  * Loads all items via fetchAll on first access or after invalidation/expiry,
  * then serves from memory until the TTL expires or invalidate() is called.
  * Accepts an optional clock function for testing.
+ *
+ * Uses a generation counter to prevent a race condition where a concurrent
+ * fetchAll() that started before an invalidation could overwrite the cache
+ * with stale data.
  */
 export const collectionCache = <T>(
   fetchAll: () => Promise<T[]>,
@@ -427,17 +431,22 @@ export const collectionCache = <T>(
   const [getState, setState] = lazyRef<{ items: T[] | null; time: number }>(
     () => ({ items: null, time: 0 }),
   );
+  let generation = 0;
   return {
     getAll: async (): Promise<T[]> => {
       const state = getState();
       if (state.items !== null && now() - state.time < ttlMs) {
         return state.items;
       }
+      const gen = generation;
       const items = await fetchAll();
-      setState({ items, time: now() });
+      if (gen === generation) {
+        setState({ items, time: now() });
+      }
       return items;
     },
     invalidate: (): void => {
+      generation++;
       setState(null);
     },
     size: (): number => getState().items?.length ?? 0,
