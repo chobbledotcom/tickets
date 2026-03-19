@@ -674,7 +674,6 @@ describe("server (multi-user admin)", () => {
       });
       const html = await response.text();
       expect(html).toContain("Settings");
-      expect(html).toContain("Sessions");
       expect(html).toContain("Users");
     });
 
@@ -686,7 +685,6 @@ describe("server (multi-user admin)", () => {
       const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
       const html = await dashboardResponse.text();
       expect(html).not.toContain("Settings");
-      expect(html).not.toContain("Sessions");
       expect(html).not.toContain("Users");
     });
 

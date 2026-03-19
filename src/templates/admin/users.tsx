@@ -47,6 +47,10 @@ export const adminUsersPage = (
       <AdminNav session={session} active="/admin/users" />
       <h1>Users</h1>
       <p>
+        <a href="/admin/sessions">Click here</a> to view your currently logged
+        in sessions.
+      </p>
+      <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
       </p>
       <Raw html={renderError(opts.error)} />
