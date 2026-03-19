@@ -197,7 +197,8 @@ export const getQuestionsForEvent = async (
     await queryAll<JoinedRow>(
       `SELECT ${QA_COLS}
        FROM event_questions eq
-       JOIN ${QA_JOIN} ON q.id = eq.question_id
+       JOIN questions q ON q.id = eq.question_id
+       LEFT JOIN answers a ON a.question_id = q.id
        WHERE eq.event_id = ?
        ORDER BY eq.sort_order, a.sort_order`,
       [eventId],

@@ -32,6 +32,7 @@ import {
   submitTicketForm,
   testCookie,
   testCsrfToken,
+  withExpectedError,
   updateTestEvent,
 } from "#test-utils";
 
@@ -2180,20 +2181,22 @@ describe("server (admin events)", () => {
       });
 
       try {
-        const response = await handleRequest(
-          mockFormRequest(
-            "/admin/event",
-            {
-              name: "Collision Event",
-              max_attendees: "50",
-              max_quantity: "1",
-              thank_you_url: "https://example.com",
-              csrf_token: await testCsrfToken(),
-            },
-            await testCookie(),
-          ),
-        );
-        await expectHtmlResponse(response, 503, "Temporary Error");
+        await withExpectedError(async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/event",
+              {
+                name: "Collision Event",
+                max_attendees: "50",
+                max_quantity: "1",
+                thank_you_url: "https://example.com",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          await expectHtmlResponse(response, 503, "Temporary Error");
+        });
       } finally {
         executeStub.restore();
       }

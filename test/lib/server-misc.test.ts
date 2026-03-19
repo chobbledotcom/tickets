@@ -26,6 +26,7 @@ import {
   resetDb,
   resetTestSlugCounter,
   testCookie,
+  withExpectedError,
 } from "#test-utils";
 
 describe("server (misc)", () => {
@@ -739,16 +740,18 @@ describe("server (misc)", () => {
       });
       invalidateSettingsCache();
 
-      // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey
-      const response = await handleRequest(
-        mockRequest("/admin", { headers: { cookie: await testCookie() } }),
-      );
+      await withExpectedError(async () => {
+        // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey
+        const response = await handleRequest(
+          mockRequest("/admin", { headers: { cookie: await testCookie() } }),
+        );
 
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-      const setCookie = response.headers.get("set-cookie")!;
-      expect(setCookie).toContain("session=");
-      expect(setCookie).toContain("Max-Age=0");
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/admin");
+        const setCookie = response.headers.get("set-cookie")!;
+        expect(setCookie).toContain("session=");
+        expect(setCookie).toContain("Max-Age=0");
+      });
     });
   });
 });

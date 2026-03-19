@@ -14,6 +14,7 @@ import {
   mockSetupFormRequest,
   resetDb,
   resetTestSlugCounter,
+  withExpectedError,
   withMocks,
 } from "#test-utils";
 
@@ -181,28 +182,30 @@ describe("server (setup)", () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(await getResponse.text());
 
-        await withMocks(
-          () => ({
-            mockCompleteSetup: stub(settingsApi, "completeSetup", () =>
-              Promise.reject(new Error("Database error")),
-            ),
-            mockConsoleError: stub(console, "error", () => {}),
-          }),
-          async () => {
-            const response = await handleRequest(
-              mockSetupFormRequest(
-                {
-                  admin_username: "testadmin",
-                  admin_password: "mypassword123",
-                  admin_password_confirm: "mypassword123",
-                  country: "GB",
-                },
-                csrfToken as string,
+        await withExpectedError(async () => {
+          await withMocks(
+            () => ({
+              mockCompleteSetup: stub(settingsApi, "completeSetup", () =>
+                Promise.reject(new Error("Database error")),
               ),
-            );
-            await expectHtmlResponse(response, 503, "Temporary Error");
-          },
-        );
+              mockConsoleError: stub(console, "error", () => {}),
+            }),
+            async () => {
+              const response = await handleRequest(
+                mockSetupFormRequest(
+                  {
+                    admin_username: "testadmin",
+                    admin_password: "mypassword123",
+                    admin_password_confirm: "mypassword123",
+                    country: "GB",
+                  },
+                  csrfToken as string,
+                ),
+              );
+              await expectHtmlResponse(response, 503, "Temporary Error");
+            },
+          );
+        });
       });
 
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
