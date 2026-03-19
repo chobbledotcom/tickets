@@ -124,10 +124,15 @@ type JoinedRow = {
   a_sort_order: number | null;
 };
 
+/** Shared SELECT columns and JOIN for question + answers */
+const QA_COLS = `q.id AS q_id, q.text AS q_text,
+       a.id AS a_id, a.text AS a_text,
+       a.question_id AS a_question_id, a.sort_order AS a_sort_order`;
+const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
+
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
  * Decrypts question and answer text in parallel. */
 const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
-  // Collect unique questions and their answers, preserving insertion order
   const questionMap = new Map<number, { text: string; answers: Answer[] }>();
   for (const row of rows) {
     if (!questionMap.has(row.q_id)) {
@@ -143,7 +148,6 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
     }
   }
 
-  // Decrypt all texts in parallel
   const entries = [...questionMap.entries()];
   return Promise.all(
     map(
@@ -168,18 +172,22 @@ const decryptQuestion = async (
   return { ...question, answers };
 };
 
-const ALL_QUESTIONS_JOIN = `
-  SELECT q.id AS q_id, q.text AS q_text,
-         a.id AS a_id, a.text AS a_text, a.question_id AS a_question_id,
-         a.sort_order AS a_sort_order
-  FROM questions q
-  LEFT JOIN answers a ON a.question_id = q.id
-  ORDER BY q.id, a.sort_order`;
+/** Fetch questions with answers by a WHERE clause on q.id */
+const fetchQuestions = (where: string, args: unknown[]) =>
+  queryAll<JoinedRow>(
+    `SELECT ${QA_COLS} FROM ${QA_JOIN} ${where} ORDER BY a.sort_order`,
+    args,
+  );
 
 /** Get all questions with their answers (sorted by sort_order), decrypted */
 export const getAllQuestionsWithAnswers = async (): Promise<
   QuestionWithAnswers[]
-> => groupJoinedRows(await queryAll<JoinedRow>(ALL_QUESTIONS_JOIN));
+> =>
+  groupJoinedRows(
+    await queryAll<JoinedRow>(
+      `SELECT ${QA_COLS} FROM ${QA_JOIN} ORDER BY q.id, a.sort_order`,
+    ),
+  );
 
 /** Get questions assigned to an event, ordered by sort_order */
 export const getQuestionsForEvent = async (
@@ -187,12 +195,9 @@ export const getQuestionsForEvent = async (
 ): Promise<QuestionWithAnswers[]> =>
   groupJoinedRows(
     await queryAll<JoinedRow>(
-      `SELECT q.id AS q_id, q.text AS q_text,
-              a.id AS a_id, a.text AS a_text, a.question_id AS a_question_id,
-              a.sort_order AS a_sort_order
+      `SELECT ${QA_COLS}
        FROM event_questions eq
-       JOIN questions q ON q.id = eq.question_id
-       LEFT JOIN answers a ON a.question_id = q.id
+       JOIN ${QA_JOIN} ON q.id = eq.question_id
        WHERE eq.event_id = ?
        ORDER BY eq.sort_order, a.sort_order`,
       [eventId],
@@ -202,10 +207,9 @@ export const getQuestionsForEvent = async (
 /** Map from question ID to the set of event IDs that use it */
 export type QuestionEventMap = Map<number, number[]>;
 
-/** Flat row from the multi-event joined query */
-type EventJoinedRow = JoinedRow & { eq_event_id: number };
-
-/** Get questions for multiple events with event-ID mapping (for conditional display) */
+/** Get questions for multiple events with event-ID mapping (for conditional display).
+ * Uses two queries to avoid row multiplication: event_questions links are
+ * orthogonal to answers, so a 3-way JOIN would read answers × events rows. */
 export const getQuestionsWithEventIds = async (
   eventIds: number[],
 ): Promise<{
@@ -215,31 +219,36 @@ export const getQuestionsWithEventIds = async (
   if (eventIds.length === 0)
     return { questions: [], questionEventMap: new Map() };
 
-  const rows = await queryAll<EventJoinedRow>(
-    `SELECT eq.event_id AS eq_event_id,
-            q.id AS q_id, q.text AS q_text,
-            a.id AS a_id, a.text AS a_text, a.question_id AS a_question_id,
-            a.sort_order AS a_sort_order
-     FROM event_questions eq
-     JOIN questions q ON q.id = eq.question_id
-     LEFT JOIN answers a ON a.question_id = q.id
-     WHERE eq.event_id IN (${inPlaceholders(eventIds)})
-     ORDER BY eq.sort_order, a.sort_order`,
+  // 1. Lightweight query: just the event↔question mapping (no encrypted text)
+  const links = await queryAll<{ event_id: number; question_id: number }>(
+    `SELECT event_id, question_id FROM event_questions
+     WHERE event_id IN (${inPlaceholders(eventIds)})
+     ORDER BY sort_order`,
     eventIds,
   );
+  if (links.length === 0) return { questions: [], questionEventMap: new Map() };
 
-  // Build event map from the same rows (no extra query)
+  // Build event map and collect distinct question IDs
   const questionEventMap: QuestionEventMap = new Map();
-  for (const row of rows) {
-    const existing = questionEventMap.get(row.q_id);
+  for (const { question_id, event_id } of links) {
+    const existing = questionEventMap.get(question_id);
     if (existing) {
-      if (!existing.includes(row.eq_event_id)) existing.push(row.eq_event_id);
+      if (!existing.includes(event_id)) existing.push(event_id);
     } else {
-      questionEventMap.set(row.q_id, [row.eq_event_id]);
+      questionEventMap.set(question_id, [event_id]);
     }
   }
+  const questionIds = [...questionEventMap.keys()];
 
-  return { questions: await groupJoinedRows(rows), questionEventMap };
+  // 2. Fetch only the needed questions + answers (no duplication from events)
+  const questions = await groupJoinedRows(
+    await fetchQuestions(
+      `WHERE q.id IN (${inPlaceholders(questionIds)})`,
+      questionIds,
+    ),
+  );
+
+  return { questions, questionEventMap };
 };
 
 /** Set which questions are assigned to an event (replaces existing) */
@@ -288,16 +297,17 @@ export const getAttendeeAnswersBatch = async (
 ): Promise<Map<number, number[]>> => {
   if (attendeeIds.length === 0) return new Map();
 
-  const rows = await queryAll<AttendeeAnswer>(
-    `SELECT * FROM attendee_answers WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
+  const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
+    `SELECT attendee_id, answer_id FROM attendee_answers
+     WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
     attendeeIds,
   );
 
   const result = new Map<number, number[]>();
-  for (const row of rows) {
-    const list = result.get(row.attendee_id) ?? [];
-    list.push(row.answer_id);
-    result.set(row.attendee_id, list);
+  for (const { attendee_id, answer_id } of rows) {
+    const list = result.get(attendee_id) ?? [];
+    list.push(answer_id);
+    result.set(attendee_id, list);
   }
   return result;
 };
@@ -338,16 +348,7 @@ export const getQuestion = (id: number): Promise<Question | null> =>
 export const getQuestionWithAnswers = async (
   id: number,
 ): Promise<QuestionWithAnswers | null> => {
-  const rows = await queryAll<JoinedRow>(
-    `SELECT q.id AS q_id, q.text AS q_text,
-            a.id AS a_id, a.text AS a_text, a.question_id AS a_question_id,
-            a.sort_order AS a_sort_order
-     FROM questions q
-     LEFT JOIN answers a ON a.question_id = q.id
-     WHERE q.id = ?
-     ORDER BY a.sort_order`,
-    [id],
-  );
+  const rows = await fetchQuestions("WHERE q.id = ?", [id]);
   if (rows.length === 0) return null;
   return (await groupJoinedRows(rows))[0] ?? null;
 };
@@ -356,9 +357,9 @@ export const getQuestionWithAnswers = async (
 export const getNextAnswerSortOrder = async (
   questionId: number,
 ): Promise<number> => {
-  const rows = await queryAll<{ max_order: number | null }>(
-    "SELECT MAX(sort_order) as max_order FROM answers WHERE question_id = ?",
+  const [row] = await queryAll<{ next_order: number }>(
+    "SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order FROM answers WHERE question_id = ?",
     [questionId],
   );
-  return (rows[0]?.max_order ?? -1) + 1;
+  return row.next_order;
 };
