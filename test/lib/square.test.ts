@@ -1779,6 +1779,7 @@ describe("square", () => {
               payment_link: {
                 order_id: "ord_rest",
                 url: "https://square.link/rest",
+                long_url: "https://checkout.square.site/rest",
               },
             }),
         }),
@@ -1806,9 +1807,9 @@ describe("square", () => {
         },
       });
 
-      // Response mapped from snake_case
+      // Response prefers long_url (checkout.square.site) over short url (square.link)
       expect(result.paymentLink!.orderId).toBe("ord_rest");
-      expect(result.paymentLink!.url).toBe("https://square.link/rest");
+      expect(result.paymentLink!.url).toBe("https://checkout.square.site/rest");
 
       // Request verification
       const [url, opts] = mockFetch.calls[0]!.args;
@@ -1830,6 +1831,43 @@ describe("square", () => {
       );
       expect(body.pre_populated_data.buyer_email).toBe("test@test.com");
       expect(body.pre_populated_data.buyer_phone_number).toBe("+44123");
+    });
+
+    test("falls back to short url when long_url is absent", async () => {
+      installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              payment_link: {
+                order_id: "ord_short",
+                url: "https://square.link/short",
+              },
+            }),
+        }),
+      );
+
+      const client = await getSquareClient();
+      const result = await client!.checkout.paymentLinks.create({
+        idempotencyKey: "idem-short",
+        order: {
+          locationId: "L_rest",
+          lineItems: [
+            {
+              name: "T",
+              quantity: "1",
+              note: "T",
+              basePriceMoney: { amount: BigInt(100), currency: "USD" },
+            },
+          ],
+          metadata: {},
+        },
+        checkoutOptions: { redirectUrl: "https://example.com" },
+        prePopulatedData: { buyerEmail: "a@b.com" },
+      });
+
+      expect(result.paymentLink!.orderId).toBe("ord_short");
+      expect(result.paymentLink!.url).toBe("https://square.link/short");
     });
 
     test("omits buyer_phone_number from request when not provided", async () => {
