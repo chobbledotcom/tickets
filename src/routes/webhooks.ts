@@ -870,14 +870,15 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return paymentErrorResponse("Payment session not found");
   }
 
-  const intent = extractIntent(session);
+  // Multi-ticket sessions store event IDs in metadata.items, not event_id
+  const eventId = isMultiSession(session.metadata)
+    ? (extractMultiIntent(session)?.items[0]?.e ?? 0)
+    : extractIntent(session).eventId;
 
   // Use getEvent (not getEventWithCount) - we only need slug for redirect
-  const event = await getEvent(intent.eventId);
+  const event = await getEvent(eventId);
   if (!event) {
-    logCancelError(
-      `Event not found (session=${sid}, eventId=${intent.eventId})`,
-    );
+    logCancelError(`Event not found (session=${sid}, eventId=${eventId})`);
     return paymentErrorResponse("Event not found", 404);
   }
 
