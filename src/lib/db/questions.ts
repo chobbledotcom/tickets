@@ -173,7 +173,7 @@ const decryptQuestion = async (
 };
 
 /** Fetch questions with answers by a WHERE clause on q.id */
-const fetchQuestions = (where: string, args: unknown[]) =>
+const fetchQuestions = (where: string, args: number[]) =>
   queryAll<JoinedRow>(
     `SELECT ${QA_COLS} FROM ${QA_JOIN} ${where} ORDER BY a.sort_order`,
     args,
@@ -362,5 +362,5 @@ export const getNextAnswerSortOrder = async (
     "SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order FROM answers WHERE question_id = ?",
     [questionId],
   );
-  return row.next_order;
+  return row!.next_order;
 };

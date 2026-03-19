@@ -8,6 +8,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import type { FormParams } from "#lib/form-data.ts";
 import type {
   CreateResult,
   DeleteResult,
@@ -29,7 +30,7 @@ type AuthOk = AuthFormResult & { ok: true };
 type OnError = (
   error: string,
   session: AuthSession,
-  form: URLSearchParams,
+  form: FormParams,
 ) => MaybeAsync<Response>;
 
 /** Callback for row success */
@@ -49,7 +50,7 @@ export interface DeleteHandlerOptions<R> {
     id: InValue,
     row: R,
     session: AuthSession,
-    form: URLSearchParams,
+    form: FormParams,
   ) => MaybeAsync<Response>;
   onNotFound: () => MaybeAsync<Response>;
 }
@@ -108,7 +109,7 @@ const verifyOrError = <R, I>(
   onFail?: DeleteHandlerOptions<R>["onVerifyFailed"],
 ): MaybeAsync<Response> | null => {
   if (!needsVerify(req) || !res.verifyName || !onFail) return null;
-  const name = auth.form.get("confirm_name") ?? "";
+  const name = auth.form.getString("confirm_name");
   return res.verifyName(row, name)
     ? null
     : onFail(id, row, auth.session, auth.form);

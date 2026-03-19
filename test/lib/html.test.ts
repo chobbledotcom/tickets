@@ -2693,6 +2693,10 @@ describe("html", () => {
         appleWalletPassTypeId: "",
         appleWalletTeamId: "",
         hostAppleWalletLabel: "",
+        googleWalletConfigured: false,
+        googleWalletIssuerId: "",
+        googleWalletServiceAccountEmail: "",
+        hostGoogleWalletLabel: "",
         theme: "light",
       };
 

@@ -56,6 +56,64 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
+/* Dark mode form enhancements */
+[data-theme="dark"] form {
+  border-width: 2px;
+  box-shadow: 0 0 8px rgba(146, 13, 233, 0.12),
+              0 0 16px rgba(146, 13, 233, 0.06);
+  transition: box-shadow 0.3s ease;
+}
+[data-theme="dark"] form:focus-within {
+  box-shadow: 0 0 12px rgba(146, 13, 233, 0.3),
+              0 0 24px rgba(146, 13, 233, 0.15);
+}
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  border-width: 2px;
+  transition: border-color 0.3s ease;
+}
+[data-theme="dark"] input[type="text"]:focus,
+[data-theme="dark"] input[type="password"]:focus,
+[data-theme="dark"] input[type="email"]:focus,
+[data-theme="dark"] select:focus,
+[data-theme="dark"] textarea:focus {
+  border-color: #ffffff;
+  outline: none;
+}
+[data-theme="dark"] table {
+  border-width: 2px;
+}
+
+@keyframes btn-glow-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 6px rgba(149, 213, 255, 0.4),
+      0 0 14px rgba(149, 213, 255, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 10px rgba(149, 213, 255, 0.6),
+      0 0 20px rgba(149, 213, 255, 0.3);
+  }
+}
+[data-theme="dark"] button[type="submit"],
+[data-theme="dark"] input[type="submit"] {
+  animation: btn-glow-pulse 3s ease-in-out infinite;
+  transition: box-shadow 0.2s ease, filter 0.2s ease;
+}
+[data-theme="dark"] button[type="submit"]:hover,
+[data-theme="dark"] input[type="submit"]:hover,
+[data-theme="dark"] button[type="submit"]:active,
+[data-theme="dark"] input[type="submit"]:active {
+  box-shadow:
+    0 0 12px rgba(149, 213, 255, 0.7),
+    0 0 28px rgba(149, 213, 255, 0.4);
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -67,6 +125,7 @@ article aside {
   background: var(--color-secondary-accent);
   border-left: 4px solid var(--color-secondary);
   padding: 0.01rem 0.8rem;
+  margin-bottom: 2rem;
 }
 
 body {
@@ -874,7 +933,7 @@ button.bulk-checkout:hover {
   padding: 0;
   border: none;
   margin: 0;
-  box-shadow: none;
+  box-shadow: none !important;
 }
 
 button.link-button {

@@ -1,4 +1,5 @@
 import { logActivity } from "#lib/db/activityLog.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
 import {
@@ -50,7 +51,7 @@ type FormGuard = (
   request: Request,
   handler: (
     session: AdminSession,
-    form: URLSearchParams,
+    form: FormParams,
   ) => Response | Promise<Response>,
 ) => Promise<Response>;
 
@@ -61,7 +62,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
 ) => {
   type FormHandler = (
     session: AdminSession,
-    form: URLSearchParams,
+    form: FormParams,
   ) => Response | Promise<Response>;
 
   const authForm =
@@ -125,7 +126,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const editHandler =
     (id: number) =>
-    async (session: AdminSession, form: URLSearchParams): Promise<Response> => {
+    async (session: AdminSession, form: FormParams): Promise<Response> => {
       const result = await cfg.resource.update(id, form);
       if (result.ok) {
         return logAndRedirect(
@@ -146,7 +147,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const deleteHandler =
     (id: number) =>
-    (session: AdminSession, form: URLSearchParams): Promise<Response> =>
+    (session: AdminSession, form: FormParams): Promise<Response> =>
       orNotFound(cfg.resource.table.findById(id), async (row) => {
         const confirm = String(form.get("confirm_identifier"));
         const nameMatches = cfg.resource.verifyName(row, confirm);

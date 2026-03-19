@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
+import { FormParams } from "#lib/form-data.ts";
 import { processSecretField } from "#routes/admin/settings.ts";
 
 describe("processSecretField", () => {
-  const makeForm = (fields: Record<string, string>) =>
-    new URLSearchParams(fields);
+  const makeForm = (fields: Record<string, string>) => new FormParams(fields);
 
   test("returns 'unchanged' when value is the mask sentinel", () => {
     const form = makeForm({ api_key: MASK_SENTINEL });

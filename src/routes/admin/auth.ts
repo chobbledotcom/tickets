@@ -74,7 +74,7 @@ const handleAdminLogin = async (
   const form = await parseFormData(request);
 
   // Validate login CSRF token (signed token pattern)
-  const csrfForm = form.get("csrf_token") || "";
+  const csrfForm = form.getString("csrf_token");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
     return loginResponse("Invalid or expired form. Please try again.", 403);
   }

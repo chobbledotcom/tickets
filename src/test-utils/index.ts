@@ -46,6 +46,8 @@ import {
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig } from "#lib/email.ts";
+import { FormParams } from "#lib/form-data.ts";
+import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
@@ -1295,7 +1297,7 @@ import { type Field, validateForm } from "#lib/forms.tsx";
 
 /** Validate form data and return the result. Shared core for assertion helpers. */
 const validateFormData = (fields: Field[], data: Record<string, string>) =>
-  validateForm(new URLSearchParams(data), fields);
+  validateForm(new FormParams(data), fields);
 
 /** Validate form data against fields and assert the result is valid. Returns the values. */
 export const expectValid = (
@@ -2028,6 +2030,24 @@ const _testCerts: SigningCredentials = (() => {
 
 /** Return pre-built test certificates for Apple Wallet signing */
 export const generateTestCerts = (): SigningCredentials => _testCerts;
+
+/** Pre-generate Google Wallet test credentials (PKCS8 RSA key, synchronous) */
+const _googleTestCreds: GoogleWalletCredentials = (() => {
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+  const pkcs8Asn1 = forge.pki.wrapRsaPrivateKey(
+    forge.pki.privateKeyToAsn1(keys.privateKey),
+  );
+  const pem = forge.pki.privateKeyInfoToPem(pkcs8Asn1);
+  return {
+    issuerId: "1234567890",
+    serviceAccountEmail: "test@test-project.iam.gserviceaccount.com",
+    serviceAccountKey: pem,
+  };
+})();
+
+/** Return pre-built Google Wallet test credentials */
+export const generateGoogleTestCreds = (): GoogleWalletCredentials =>
+  _googleTestCreds;
 
 // ---------------------------------------------------------------------------
 // Email / Webhook test factories

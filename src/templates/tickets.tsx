@@ -24,12 +24,20 @@ export type TicketCard = {
 const ticketCount = (count: number): string =>
   count === 1 ? "1 Ticket" : `${count} Tickets`;
 
-/** Render an "Add to Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
-const renderWalletLink = (token: string): string =>
-  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">Add to Apple Wallet</a>`;
+/** Render an "Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
+const renderAppleWalletLink = (token: string): string =>
+  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">Apple Wallet</a>`;
+
+/** Render a "Google Wallet" link for a token */
+const renderGoogleWalletLink = (token: string): string =>
+  `<a href="/gwallet/${escapeHtml(token)}" class="wallet-link">Google Wallet</a>`;
 
 /** Render a single ticket card */
-const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
+const renderTicketCard = (
+  card: TicketCard,
+  appleWalletEnabled: boolean,
+  googleWalletEnabled: boolean,
+): string => {
   const { entry, token, attachmentUrl } = card;
   const { event, attendee } = entry;
   const imageHtml = renderEventImage(event, "ticket-card-image");
@@ -59,7 +67,15 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
     ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
     : "";
 
-  const walletHtml = walletEnabled ? renderWalletLink(token) : "";
+  const walletLinks = [
+    appleWalletEnabled ? renderAppleWalletLink(token) : "",
+    googleWalletEnabled ? renderGoogleWalletLink(token) : "",
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const walletHtml = walletLinks
+    ? `<div class="ticket-card-wallet">Add to: ${walletLinks}</div>`
+    : "";
 
   const attachmentHtml = attachmentUrl
     ? `<a href="${escapeHtml(attachmentUrl)}" class="attachment-link">Download: ${escapeHtml(event.attachment_name)}</a>`
@@ -90,10 +106,13 @@ const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
  */
 export const ticketViewPage = (
   cards: TicketCard[],
-  walletEnabled = false,
+  appleWalletEnabled = false,
+  googleWalletEnabled = false,
 ): string => {
   const cardHtml = pipe(
-    map((card: TicketCard) => renderTicketCard(card, walletEnabled)),
+    map((card: TicketCard) =>
+      renderTicketCard(card, appleWalletEnabled, googleWalletEnabled),
+    ),
     (c: string[]) => c.join(""),
   )(cards);
 

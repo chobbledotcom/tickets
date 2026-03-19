@@ -18,6 +18,7 @@
 
 import type { InValue } from "@libsql/client";
 import type { Table } from "#lib/db/table.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import { validateForm } from "#lib/forms.tsx";
 
@@ -60,12 +61,10 @@ export interface Resource<
 > {
   readonly table: Table<Row, Input>;
   readonly fields: Field[];
-  parseInput: (form: URLSearchParams) => Promise<ParseResult<Input>>;
-  parsePartialInput: (
-    form: URLSearchParams,
-  ) => Promise<ParseResult<Partial<Input>>>;
-  create: (form: URLSearchParams) => Promise<CreateResult<Row>>;
-  update: (id: InValue, form: URLSearchParams) => Promise<UpdateResult<Row>>;
+  parseInput: (form: FormParams) => Promise<ParseResult<Input>>;
+  parsePartialInput: (form: FormParams) => Promise<ParseResult<Partial<Input>>>;
+  create: (form: FormParams) => Promise<CreateResult<Row>>;
+  update: (id: InValue, form: FormParams) => Promise<UpdateResult<Row>>;
   delete: (id: InValue) => Promise<DeleteResult>;
   verifyName?: (row: Row, confirmName: string) => boolean;
 }
@@ -90,7 +89,7 @@ export interface ResourceConfig<
 
 /** Validate form and convert to result type */
 const validateAndParse = async <T, V extends FieldValues = FieldValues>(
-  form: URLSearchParams,
+  form: FormParams,
   fields: Field[],
   toInput: (values: V) => T | Promise<T>,
 ): Promise<ParseResult<T>> => {
@@ -126,8 +125,8 @@ const toUpdateResult = <Row>(row: Row | null): UpdateResult<Row> =>
 
 /** Parse and validate input, returning parsed input or error */
 const parseAndValidate = async <Input>(
-  form: URLSearchParams,
-  parseInput: (form: URLSearchParams) => Promise<ParseResult<Input>>,
+  form: FormParams,
+  parseInput: (form: FormParams) => Promise<ParseResult<Input>>,
   validate: ValidateFn<Input>,
   id?: InValue,
 ): Promise<ParseResult<Input>> => {
@@ -158,11 +157,11 @@ export const defineResource = <
 ): Resource<Row, Input, Values> => {
   const { table, fields, toInput, nameField } = config;
 
-  const parseInput = (form: URLSearchParams): Promise<ParseResult<Input>> =>
+  const parseInput = (form: FormParams): Promise<ParseResult<Input>> =>
     validateAndParse<Input, Values>(form, fields, toInput);
 
   const parsePartialInput = (
-    form: URLSearchParams,
+    form: FormParams,
   ): Promise<ParseResult<Partial<Input>>> =>
     validateAndParse<Partial<Input>, Values>(
       form,
@@ -170,7 +169,7 @@ export const defineResource = <
       async (v) => (await toInput(v)) as Partial<Input>,
     );
 
-  const create = async (form: URLSearchParams): Promise<CreateResult<Row>> => {
+  const create = async (form: FormParams): Promise<CreateResult<Row>> => {
     const result = await parseAndValidate(form, parseInput, config.validate);
     return result.ok
       ? { ok: true, row: await table.insert(result.input) }
@@ -179,7 +178,7 @@ export const defineResource = <
 
   const update = async (
     id: InValue,
-    form: URLSearchParams,
+    form: FormParams,
   ): Promise<UpdateResult<Row>> => {
     const notFound = await requireExists(table, id);
     if (notFound) return notFound;

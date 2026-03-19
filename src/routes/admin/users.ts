@@ -18,6 +18,7 @@ import {
   isInviteExpired,
   isUsernameTaken,
 } from "#lib/db/users.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
@@ -123,7 +124,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
 
 const handleUsersPostForm = async (
   session: AuthSession,
-  form: URLSearchParams,
+  form: FormParams,
 ): Promise<Response> => {
   const validation = validateForm<InviteUserFormValues>(form, inviteUserFields);
   if (!validation.valid) {
@@ -258,8 +259,8 @@ const handleUserDeletePost: TypedRouteHandler<
     }
 
     const username = await decryptUsername(user);
-    const confirmName = String(form.get("confirm_identifier") ?? "");
-    if (confirmName.trim().toLowerCase() !== username.trim().toLowerCase()) {
+    const confirmName = form.getString("confirm_identifier");
+    if (confirmName.toLowerCase() !== username.trim().toLowerCase()) {
       const displayUser = await toDisplayUser(user);
       return htmlResponse(
         adminUserDeletePage(
