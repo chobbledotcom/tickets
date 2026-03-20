@@ -4,11 +4,12 @@
 
 import { map, pipe, unique } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
+import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**
  * Admin delete attendee confirmation page
@@ -253,6 +254,25 @@ const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
   );
 };
 
+/** Render custom question fields with pre-selected answers for admin edit */
+const renderEditQuestions = (
+  questions: QuestionWithAnswers[],
+  selectedAnswerIds: number[],
+): string => {
+  if (questions.length === 0) return "";
+  return questions
+    .map((q) => {
+      const options = q.answers
+        .map((a) => {
+          const checked = selectedAnswerIds.includes(a.id) ? " checked" : "";
+          return `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked}> ${escapeHtml(a.text)}</label>`;
+        })
+        .join("");
+      return `<fieldset class="custom-question"><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+    })
+    .join("");
+};
+
 /**
  * Admin edit attendee page
  */
@@ -261,7 +281,15 @@ export const adminEditAttendeePage = (
     event,
     attendee,
     allEvents,
-  }: { event: EventWithCount; attendee: Attendee; allEvents: EventWithCount[] },
+    questions = [],
+    selectedAnswerIds = [],
+  }: {
+    event: EventWithCount;
+    attendee: Attendee;
+    allEvents: EventWithCount[];
+    questions?: QuestionWithAnswers[];
+    selectedAnswerIds?: number[];
+  },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
@@ -346,6 +374,8 @@ export const adminEditAttendeePage = (
         </label>
 
         <Raw html={renderEventSelector(event.id, allEvents)} />
+
+        <Raw html={renderEditQuestions(questions, selectedAnswerIds)} />
 
         <button type="submit">Save Changes</button>
       </CsrfForm>

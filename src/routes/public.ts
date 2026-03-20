@@ -33,7 +33,6 @@ import {
   type QuestionEventMap,
   type QuestionWithAnswers,
   saveAttendeeAnswers,
-  saveAttendeeAnswersBatch,
 } from "#lib/db/questions.ts";
 import {
   getContactPageTextFromDb,
@@ -230,7 +229,7 @@ const bookingResultToWebResponse = async (
   switch (result.type) {
     case "success": {
       if (answerIds.length > 0) {
-        await saveAttendeeAnswers(result.attendee.id, answerIds);
+        await saveAttendeeAnswers([result.attendee.id], answerIds);
       }
       if (event.thank_you_url) return redirectResponse(event.thank_you_url);
       return redirectResponse(
@@ -736,7 +735,7 @@ const submitMultiTicket = (
       // Save answers for all created attendees in a single batch
       if (answersResult.answerIds.length > 0) {
         const attendeeIds = result.entries.map((e) => e.attendee.id);
-        await saveAttendeeAnswersBatch(attendeeIds, answersResult.answerIds);
+        await saveAttendeeAnswers(attendeeIds, answersResult.answerIds);
       }
 
       const tokens = encodeURIComponent(result.tokens.join("+"));

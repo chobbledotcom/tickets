@@ -2,6 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#lib/db/attendees.ts";
+import {
+  answersTable,
+  questionsTable,
+  setEventQuestions,
+} from "#lib/db/questions.ts";
 import { paymentsApi } from "#lib/payments.ts";
 import { handleRequest } from "#routes";
 import {
@@ -2279,6 +2284,190 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           }
         },
       );
+    });
+  });
+
+  describe("edit attendee questions", () => {
+    const setupQuestionAndAttendee = async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      // Create attendee before assigning questions (public route requires answers)
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const q = await questionsTable.insert({ text: "T-shirt size?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Small",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Large",
+        sortOrder: 1,
+      });
+      await setEventQuestions(event.id, [q.id]);
+      return { event, q, a1, a2, attendee };
+    };
+
+    test("shows questions on edit page", async () => {
+      const { attendee } = await setupQuestionAndAttendee();
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "T-shirt size?",
+        "Small",
+        "Large",
+      );
+    });
+
+    test("pre-selects existing answer on edit page", async () => {
+      const { attendee, a1 } = await setupQuestionAndAttendee();
+      const { saveAttendeeAnswers } = await import("#lib/db/questions.ts");
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await response.text();
+      expect(html).toContain(`value="${a1.id}" checked`);
+    });
+
+    test("does not show questions when event has none", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await response.text();
+      expect(html).not.toContain("custom-question");
+    });
+
+    test("saves selected answer on edit", async () => {
+      const { event, attendee, q, a2 } = await setupQuestionAndAttendee();
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "1",
+            [`question_${q.id}`]: String(a2.id),
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeAnswersBatch } = await import("#lib/db/questions.ts");
+      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      expect(answers.get(attendee.id)).toEqual([a2.id]);
+    });
+
+    test("updates answer from one option to another", async () => {
+      const { event, attendee, q, a1, a2 } = await setupQuestionAndAttendee();
+      const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
+        "#lib/db/questions.ts"
+      );
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "1",
+            [`question_${q.id}`]: String(a2.id),
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      expect(answers.get(attendee.id)).toEqual([a2.id]);
+    });
+
+    test("clears answers when no question field submitted", async () => {
+      const { event, attendee, a1 } = await setupQuestionAndAttendee();
+      const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
+        "#lib/db/questions.ts"
+      );
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "1",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      const attendeeAnswers = answers.get(attendee.id) ?? [];
+      expect(attendeeAnswers.length).toBe(0);
+    });
+
+    test("ignores invalid answer ID for question", async () => {
+      const { event, attendee, q } = await setupQuestionAndAttendee();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "1",
+            [`question_${q.id}`]: "99999",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeAnswersBatch } = await import("#lib/db/questions.ts");
+      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      const attendeeAnswers = answers.get(attendee.id) ?? [];
+      expect(attendeeAnswers.length).toBe(0);
     });
   });
 });
