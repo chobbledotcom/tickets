@@ -6,6 +6,7 @@ import {
   getAllowedDomain,
   getEmbedHosts,
   getPaymentProvider,
+  getSquareSandbox,
 } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
@@ -23,6 +24,7 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
 /** Payment config for CSP header construction */
 export type PaymentCspConfig = {
   provider: "stripe" | "square" | null;
+  sandbox?: boolean;
 };
 
 /**
@@ -41,8 +43,11 @@ export const buildCspHeader = (
   const directives = ["default-src 'self'"];
 
   if (payment?.provider === "square") {
+    const sq = payment.sandbox
+      ? "https://connect.squareupsandbox.com https://pci-connect.squareupsandbox.com https://api.squareupsandbox.com"
+      : "https://connect.squareup.com https://pci-connect.squareup.com https://api.squareup.com";
     directives.push(
-      "form-action 'self' https://square.link https://checkout.square.site",
+      `form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com ${sq}`,
     );
   } else if (payment?.provider === "stripe") {
     directives.push("form-action 'self' https://checkout.stripe.com");
@@ -274,9 +279,10 @@ export const applySecurityHeaders = async (
 
   // Rebuild CSP with payment-provider-specific directives
   const provider = await getPaymentProvider();
+  const sandbox = provider === "square" ? await getSquareSandbox() : undefined;
   response.headers.set(
     "content-security-policy",
-    buildCspHeader(embeddable, { provider }),
+    buildCspHeader(embeddable, { provider, sandbox }),
   );
 
   // Override x-robots-tag for hidden events (signal header set by route handlers)
