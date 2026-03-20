@@ -58,10 +58,7 @@ import {
 } from "#routes/utils.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 
-/** Raw booking item from metadata (p may be absent in old webhooks) */
-type RawBookingItem = { e: number; q: number; p?: number };
-
-/** Booking item with p defaulted to 0 */
+/** Booking line item from metadata */
 type BookingItem = { e: number; q: number; p: number };
 
 /** User-facing message when the event price changed between checkout and payment */
@@ -378,7 +375,7 @@ const alreadyProcessedResult = async (
 };
 
 /** Validate that a parsed value has the shape of a booking item */
-const isBookingItem = (v: unknown): v is RawBookingItem => {
+const isBookingItem = (v: unknown): v is BookingItem => {
   if (typeof v !== "object" || v === null) return false;
   const { e, q, p } = v as Record<string, unknown>;
   return (
@@ -388,8 +385,9 @@ const isBookingItem = (v: unknown): v is RawBookingItem => {
     typeof q === "number" &&
     Number.isInteger(q) &&
     q >= 1 &&
-    (p === undefined ||
-      (typeof p === "number" && Number.isInteger(p) && p >= 0))
+    typeof p === "number" &&
+    Number.isInteger(p) &&
+    p >= 0
   );
 };
 
@@ -398,10 +396,7 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   try {
     const parsed: unknown = JSON.parse(itemsJson);
     if (!Array.isArray(parsed) || !parsed.every(isBookingItem)) return null;
-    // Default p to 0 when absent — old webhooks may lack per-item prices
-    return map(
-      (item: RawBookingItem): BookingItem => ({ ...item, p: item.p ?? 0 }),
-    )(parsed);
+    return parsed;
   } catch {
     return null;
   }
@@ -574,13 +569,6 @@ const processPaymentSession = async (
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
-
-  if (!hasPerItemPrices && !isSingleItemCheckout) {
-    logDebug(
-      "Payment",
-      `Cart session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
-    );
-  }
 
   for (const { item, event, expectedPrice } of validatedItems) {
     // For single-ticket pay-more events, use the actual amount charged to capture
