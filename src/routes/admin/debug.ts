@@ -7,6 +7,7 @@ import {
   isValidPemCertificate,
   isValidPemPrivateKey,
 } from "#lib/apple-wallet.ts";
+import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#lib/build-info.ts";
 import {
   getAllowedDomain,
   getCdnHostname,
@@ -162,6 +163,10 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     : "Not set";
 
   return {
+    build: {
+      timestamp: BUILD_TIMESTAMP,
+      commit: BUILD_COMMIT,
+    },
     appleWallet: {
       dbConfigured: appleWalletDbConfigured,
       envConfigured: appleWalletEnvConfigured,

@@ -24,6 +24,8 @@ jobs:
 
       - name: Build edge script
         run: deno task build:edge
+        env:
+          BUILD_COMMIT: ${{ github.sha }}
 
       - name: Deploy to clients
         env:
