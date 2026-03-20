@@ -649,7 +649,7 @@ export const fieldsApi = { getSettingCached };
  */
 export const getTicketFields = (
   fields: EventFields,
-  isPaid = false,
+  isPaid: boolean,
 ): Field[] => {
   const effective =
     isPaid &&
@@ -665,7 +665,7 @@ export const tryValidateTicketFields = (
   form: FormParams,
   fieldsSetting: EventFields,
   onError: (message: string) => Response,
-  isPaid = false,
+  isPaid: boolean,
 ): TicketFormValues | Response => {
   const result = validateForm<TicketFormValues>(
     form,
@@ -710,7 +710,7 @@ export const getAddAttendeeFields = (
   fields: EventFields,
   isDaily: boolean,
 ): Field[] => {
-  const result = [...getTicketFields(fields), addAttendeeQuantityField];
+  const result = [...getTicketFields(fields, false), addAttendeeQuantityField];
   if (isDaily) result.push(addAttendeeDateField);
   return result;
 };
