@@ -16,12 +16,9 @@ import {
   unwrapKeyWithToken,
   wrapKeyWithToken,
 } from "#lib/crypto.ts";
-import { executeByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
+import { deleteByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
 import { nowIso } from "#lib/now.ts";
 import type { ApiKey } from "#lib/types.ts";
-
-/** Maximum number of API keys per user */
-export const MAX_KEYS_PER_USER = 10;
 
 /**
  * Create a new API key for a user.
@@ -64,18 +61,12 @@ export const getApiKeyByToken = async (
 
 /**
  * Unwrap the DATA_KEY from an API key row using the plaintext token.
- * Returns null if unwrapping fails (e.g. corrupted or rotated key).
+ * Throws if unwrapping fails (e.g. corrupted or rotated key).
  */
-export const unwrapApiKeyDataKey = async (
+export const unwrapApiKeyDataKey = (
   wrappedDataKey: string,
   token: string,
-): Promise<CryptoKey | null> => {
-  try {
-    return await unwrapKeyWithToken(wrappedDataKey, token);
-  } catch {
-    return null;
-  }
-};
+): Promise<CryptoKey> => unwrapKeyWithToken(wrappedDataKey, token);
 
 /**
  * List all API keys for a user (decrypts names for display).
@@ -90,20 +81,33 @@ export const getApiKeysForUser = async (
     [userId],
   );
 
-  const results = [];
-  for (const row of rows) {
-    results.push({
+  return Promise.all(
+    rows.map(async (row) => ({
       id: row.id,
       name: await decrypt(row.name),
       created: row.created,
       lastUsed: row.last_used,
-    });
-  }
-  return results;
+    })),
+  );
 };
 
 /**
- * Count API keys for a user (for enforcing MAX_KEYS_PER_USER).
+ * Get a single API key by ID and user, with decrypted name.
+ */
+export const getApiKeyForUser = async (
+  id: number,
+  userId: number,
+): Promise<{ id: number; name: string } | null> => {
+  const row = await queryOne<ApiKey>(
+    "SELECT id, user_id, key_index, wrapped_data_key, name, created, last_used FROM api_keys WHERE id = ? AND user_id = ?",
+    [id, userId],
+  );
+  if (!row) return null;
+  return { id: row.id, name: await decrypt(row.name) };
+};
+
+/**
+ * Count API keys for a user.
  */
 export const countApiKeysForUser = async (userId: number): Promise<number> => {
   const result = await queryOne<{ count: number }>(
@@ -131,7 +135,7 @@ export const deleteApiKey = async (
  * Delete all API keys for a user.
  */
 export const deleteAllApiKeysForUser = (userId: number): Promise<void> =>
-  executeByField("api_keys", "user_id", userId);
+  deleteByField("api_keys", "user_id", userId);
 
 /**
  * Update last_used timestamp for an API key.
@@ -149,9 +153,9 @@ export const apiKeysApi = {
   getApiKeyByToken,
   unwrapApiKeyDataKey,
   getApiKeysForUser,
+  getApiKeyForUser,
   countApiKeysForUser,
   deleteApiKey,
   deleteAllApiKeysForUser,
   touchApiKeyLastUsed,
-  MAX_KEYS_PER_USER,
 };

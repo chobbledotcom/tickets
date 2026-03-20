@@ -13,8 +13,8 @@ import {
   deleteAllApiKeysForUser,
   deleteApiKey,
   getApiKeyByToken,
+  getApiKeyForUser,
   getApiKeysForUser,
-  MAX_KEYS_PER_USER,
   touchApiKeyLastUsed,
   unwrapApiKeyDataKey,
 } from "#lib/db/api-keys.ts";
@@ -92,7 +92,7 @@ describe("API Keys", () => {
       expect(found).toBeNull();
     });
 
-    test("returns null for wrong token unwrap", async () => {
+    test("throws for wrong token unwrap", async () => {
       const dataKey = await getTestDataKey();
       const { apiKey } = await createApiKey(
         1,
@@ -102,11 +102,9 @@ describe("API Keys", () => {
       );
 
       const found = await getApiKeyByToken(apiKey);
-      const unwrapped = await unwrapApiKeyDataKey(
-        found!.wrapped_data_key,
-        "wrong-token",
-      );
-      expect(unwrapped).toBeNull();
+      await expect(
+        unwrapApiKeyDataKey(found!.wrapped_data_key, "wrong-token"),
+      ).rejects.toThrow();
     });
 
     test("lists API keys for a user", async () => {
@@ -178,6 +176,32 @@ describe("API Keys", () => {
       await touchApiKeyLastUsed(id);
       const keys = await getApiKeysForUser(1);
       expect(keys[0]!.lastUsed).toBeTruthy();
+    });
+
+    test("gets a single API key by ID and user", async () => {
+      const dataKey = await getTestDataKey();
+      const { id } = await createApiKey(
+        1,
+        "Lookup Key",
+        dataKey,
+        generateSecureToken,
+      );
+
+      const found = await getApiKeyForUser(id, 1);
+      expect(found).not.toBeNull();
+      expect(found!.name).toBe("Lookup Key");
+    });
+
+    test("getApiKeyForUser returns null for wrong user", async () => {
+      const dataKey = await getTestDataKey();
+      const { id } = await createApiKey(
+        1,
+        "Wrong User",
+        dataKey,
+        generateSecureToken,
+      );
+
+      expect(await getApiKeyForUser(id, 999)).toBeNull();
     });
 
     test("lists empty array for user with no keys", async () => {
@@ -302,39 +326,14 @@ describe("API Keys", () => {
       expect(response.headers.get("location")).toContain("error=");
     });
 
-    test("POST /admin/api-keys enforces max keys limit", async () => {
-      const dataKey = await getTestDataKey();
-      for (let i = 0; i < MAX_KEYS_PER_USER; i++) {
-        await createApiKey(1, `Key ${i}`, dataKey, generateSecureToken);
-      }
-
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const body = new URLSearchParams({
-        name: "One Too Many",
-        csrf_token: csrfToken,
-      });
-      const response = await handleRequest(
-        mockRequest("/admin/api-keys", {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
-          body: body.toString(),
-        }),
-      );
-
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("error=");
-    });
-
     test("POST /admin/api-keys/:id/delete returns error for nonexistent key", async () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const body = new URLSearchParams({ csrf_token: csrfToken });
+      const body = new URLSearchParams({
+        csrf_token: csrfToken,
+        confirm_identifier: "anything",
+      });
       const response = await handleRequest(
         mockRequest("/admin/api-keys/99999/delete", {
           method: "POST",
@@ -383,7 +382,7 @@ describe("API Keys", () => {
       expect(html).toContain("oops");
     });
 
-    test("POST /admin/api-keys/:id/delete removes a key", async () => {
+    test("POST /admin/api-keys/:id/delete removes a key with name confirmation", async () => {
       const dataKey = await getTestDataKey();
       const { id } = await createApiKey(
         1,
@@ -395,7 +394,10 @@ describe("API Keys", () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const body = new URLSearchParams({ csrf_token: csrfToken });
+      const body = new URLSearchParams({
+        csrf_token: csrfToken,
+        confirm_identifier: "Doomed Key",
+      });
       const response = await handleRequest(
         mockRequest(`/admin/api-keys/${id}/delete`, {
           method: "POST",
@@ -409,6 +411,72 @@ describe("API Keys", () => {
 
       expect(response.status).toBe(302);
       expect(await countApiKeysForUser(1)).toBe(0);
+    });
+
+    test("POST /admin/api-keys/:id/delete rejects wrong name", async () => {
+      const dataKey = await getTestDataKey();
+      const { id } = await createApiKey(
+        1,
+        "My Key",
+        dataKey,
+        generateSecureToken,
+      );
+
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const body = new URLSearchParams({
+        csrf_token: csrfToken,
+        confirm_identifier: "Wrong Name",
+      });
+      const response = await handleRequest(
+        mockRequest(`/admin/api-keys/${id}/delete`, {
+          method: "POST",
+          headers: {
+            cookie,
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: body.toString(),
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("does not match");
+      expect(await countApiKeysForUser(1)).toBe(1);
+    });
+
+    test("GET /admin/api-keys/:id/delete shows confirmation page", async () => {
+      const dataKey = await getTestDataKey();
+      const { id } = await createApiKey(
+        1,
+        "Confirm Key",
+        dataKey,
+        generateSecureToken,
+      );
+
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest(`/admin/api-keys/${id}/delete`, {
+          headers: { cookie },
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Confirm Key");
+      expect(html).toContain("confirm_identifier");
+    });
+
+    test("GET /admin/api-keys/:id/delete returns 404 for nonexistent key", async () => {
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest("/admin/api-keys/99999/delete", {
+          headers: { cookie },
+        }),
+      );
+
+      expect(response.status).toBe(404);
     });
   });
 

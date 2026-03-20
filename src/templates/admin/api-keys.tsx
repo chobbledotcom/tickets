@@ -29,14 +29,9 @@ const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
           : "Never"}
       </td>
       <td>
-        <CsrfForm
-          action={`/admin/api-keys/${apiKey.id}/delete`}
-          class="one-button"
-        >
-          <button type="submit" class="danger small">
-            Delete
-          </button>
-        </CsrfForm>
+        <a href={`/admin/api-keys/${apiKey.id}/delete`} class="danger small">
+          Delete
+        </a>
       </td>
     </tr>,
   );
@@ -113,3 +108,47 @@ export const adminApiKeysPage = (
     </Layout>,
   );
 };
+
+/**
+ * Admin API key delete confirmation page
+ */
+export const adminDeleteApiKeyPage = (
+  apiKey: { id: number; name: string },
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title={`Delete: ${apiKey.name}`}>
+      <AdminNav session={session} active="/admin/api-keys" />
+      {error && <div class="error">{error}</div>}
+
+      <article>
+        <aside>
+          <p>
+            <strong>Warning:</strong> This will permanently delete this API key.
+            Any integrations using it will stop working immediately.
+          </p>
+        </aside>
+      </article>
+
+      <p>
+        To delete this API key, type its name &quot;{apiKey.name}&quot; into the
+        box below:
+      </p>
+
+      <CsrfForm action={`/admin/api-keys/${apiKey.id}/delete`}>
+        <label for="confirm_identifier">API key name</label>
+        <input
+          type="text"
+          id="confirm_identifier"
+          name="confirm_identifier"
+          placeholder={apiKey.name}
+          autocomplete="off"
+          required
+        />
+        <button type="submit" class="danger">
+          Delete API Key
+        </button>
+      </CsrfForm>
+    </Layout>,
+  );

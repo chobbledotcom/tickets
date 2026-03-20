@@ -175,10 +175,19 @@ export const getAuthenticatedApiKey = async (
   if (!apiKeyRow) return null;
 
   const user = await getUserById(apiKeyRow.user_id);
-  if (!user) return null;
+  if (!user) {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "API key references non-existent user",
+    });
+    return null;
+  }
 
-  const dataKey = await unwrapApiKeyDataKey(apiKeyRow.wrapped_data_key, token);
-  if (!dataKey) return null;
+  try {
+    await unwrapApiKeyDataKey(apiKeyRow.wrapped_data_key, token);
+  } catch {
+    return null;
+  }
 
   // Re-wrap DATA_KEY with the token so getPrivateKey() works
   // (it expects token + wrappedDataKey in the same format as sessions)

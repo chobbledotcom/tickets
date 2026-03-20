@@ -14,7 +14,7 @@ import {
   verifyPassword,
   wrapKey,
 } from "#lib/crypto.ts";
-import { executeByField, getDb, queryAll } from "#lib/db/client.ts";
+import { deleteByFieldBatch, getDb, queryAll } from "#lib/db/client.ts";
 import { now } from "#lib/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#lib/types.ts";
 
@@ -233,9 +233,11 @@ export const activateUser = async (
  * Delete a user and all their sessions and API keys
  */
 export const deleteUser = async (userId: number): Promise<void> => {
-  await executeByField("api_keys", "user_id", userId);
-  await executeByField("sessions", "user_id", userId);
-  await executeByField("users", "id", userId);
+  await deleteByFieldBatch([
+    { table: "api_keys", field: "user_id", value: userId },
+    { table: "sessions", field: "user_id", value: userId },
+    { table: "users", field: "id", value: userId },
+  ]);
   invalidateUsersCache();
 };
 

@@ -4,22 +4,26 @@
 
 import { generateSecureToken, unwrapKeyWithToken } from "#lib/crypto.ts";
 import {
-  countApiKeysForUser,
   createApiKey,
   deleteApiKey,
+  getApiKeyForUser,
   getApiKeysForUser,
-  MAX_KEYS_PER_USER,
 } from "#lib/db/api-keys.ts";
+import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   getSearchParam,
   htmlResponse,
   jsonResponse,
+  notFoundResponse,
   redirect,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
-import { adminApiKeysPage } from "#templates/admin/api-keys.tsx";
+import {
+  adminApiKeysPage,
+  adminDeleteApiKeyPage,
+} from "#templates/admin/api-keys.tsx";
 
 /**
  * Handle GET /admin/api-keys
@@ -45,15 +49,6 @@ const handleApiKeysPost = (request: Request): Promise<Response> =>
       return redirect(
         "/admin/api-keys",
         "Name must be under 100 characters",
-        false,
-      );
-    }
-
-    const count = await countApiKeysForUser(session.userId);
-    if (count >= MAX_KEYS_PER_USER) {
-      return redirect(
-        "/admin/api-keys",
-        `Maximum of ${MAX_KEYS_PER_USER} API keys reached`,
         false,
       );
     }
@@ -86,16 +81,42 @@ const handleApiKeysPost = (request: Request): Promise<Response> =>
   });
 
 /**
+ * Handle GET /admin/api-keys/:apiKeyId/delete — confirmation page
+ */
+const handleApiKeyDeleteGet: TypedRouteHandler<
+  "GET /admin/api-keys/:apiKeyId/delete"
+> = (request, { apiKeyId }) =>
+  requireOwnerOr(request, async (session) => {
+    const apiKey = await getApiKeyForUser(apiKeyId, session.userId);
+    if (!apiKey) return notFoundResponse();
+    return htmlResponse(adminDeleteApiKeyPage(apiKey, session));
+  });
+
+/**
  * Handle POST /admin/api-keys/:apiKeyId/delete
  */
 const handleApiKeyDelete: TypedRouteHandler<
   "POST /admin/api-keys/:apiKeyId/delete"
 > = (request, { apiKeyId }) =>
-  withOwnerAuthForm(request, async (session) => {
-    const deleted = await deleteApiKey(apiKeyId, session.userId);
-    if (!deleted) {
+  withOwnerAuthForm(request, async (session, form) => {
+    const apiKey = await getApiKeyForUser(apiKeyId, session.userId);
+    if (!apiKey) {
       return redirect("/admin/api-keys", "API key not found", false);
     }
+
+    const confirmIdentifier = form.getString("confirm_identifier");
+    if (!verifyIdentifier(apiKey.name, confirmIdentifier)) {
+      return htmlResponse(
+        adminDeleteApiKeyPage(
+          apiKey,
+          session,
+          "API key name does not match. Please type the exact name to confirm deletion.",
+        ),
+        400,
+      );
+    }
+
+    await deleteApiKey(apiKeyId, session.userId);
     return redirect("/admin/api-keys", "API key deleted", true);
   });
 
@@ -121,6 +142,7 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
 export const apiKeysRoutes = defineRoutes({
   "GET /admin/api-keys": handleApiKeysGet,
   "POST /admin/api-keys": handleApiKeysPost,
+  "GET /admin/api-keys/:apiKeyId/delete": handleApiKeyDeleteGet,
   "POST /admin/api-keys/:apiKeyId/delete": handleApiKeyDelete,
   "GET /admin/api-keys/docs": handleApiDocsGet,
 });
