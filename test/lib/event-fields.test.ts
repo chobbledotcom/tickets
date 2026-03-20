@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
+import {
+  mergeEventFields,
+  parseEventFields,
+  withRequiredEmail,
+} from "#lib/event-fields.ts";
 
 describe("event-fields", () => {
   describe("parseEventFields", () => {
@@ -58,6 +62,24 @@ describe("event-fields", () => {
 
     test("returns single field from single setting", () => {
       expect(mergeEventFields(["phone"])).toBe("phone");
+    });
+  });
+
+  describe("withRequiredEmail", () => {
+    test("returns unchanged when email already present", () => {
+      expect(withRequiredEmail("email,phone")).toBe("email,phone");
+    });
+
+    test("prepends email when missing", () => {
+      expect(withRequiredEmail("phone")).toBe("email,phone");
+    });
+
+    test("returns email for empty fields", () => {
+      expect(withRequiredEmail("")).toBe("email");
+    });
+
+    test("prepends email when only non-email fields present", () => {
+      expect(withRequiredEmail("phone,address")).toBe("email,phone,address");
     });
   });
 });

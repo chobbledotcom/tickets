@@ -4,7 +4,12 @@
 
 import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
-import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
+import { isSquareProviderCached } from "#lib/db/settings.ts";
+import {
+  mergeEventFields,
+  parseEventFields,
+  withRequiredEmail,
+} from "#lib/event-fields.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { type Field, validateForm } from "#lib/forms.tsx";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
@@ -633,12 +638,19 @@ const contactFieldMap: Record<ContactField, Field> = {
 
 export { mergeEventFields, parseEventFields };
 
+/** Stubbable API for testing */
+export const fieldsApi = { isSquareProvider: isSquareProviderCached };
+
 /**
  * Get ticket form fields based on event fields setting.
  * Always includes name. Adds contact fields based on the comma-separated setting.
+ * Square requires email, so email is always included when Square is the active provider.
  */
 export const getTicketFields = (fields: EventFields): Field[] => {
-  const parsed = parseEventFields(fields);
+  const effective = fieldsApi.isSquareProvider()
+    ? withRequiredEmail(fields)
+    : fields;
+  const parsed = parseEventFields(effective);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };
 

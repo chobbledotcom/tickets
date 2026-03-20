@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import { FormParams } from "#lib/form-data.ts";
 import {
@@ -17,6 +18,7 @@ import { detectIframeMode } from "#lib/iframe.ts";
 import {
   changePasswordFields,
   eventFields,
+  fieldsApi,
   getTicketFields,
   holidayFields,
   joinFields,
@@ -693,6 +695,44 @@ describe("forms", () => {
     test("address field has autocomplete=street-address", () => {
       const fields = getTicketFields("address");
       expect(fields[1]!.autocomplete).toBe("street-address");
+    });
+
+    test("includes email when Square is the active provider", () => {
+      const s = stub(fieldsApi, "isSquareProvider", () => true);
+      try {
+        const fields = getTicketFields("phone");
+        expect(fields.length).toBe(3);
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
+        expect(fields[2]!.name).toBe("phone");
+      } finally {
+        s.restore();
+      }
+    });
+
+    test("does not duplicate email with Square when already present", () => {
+      const s = stub(fieldsApi, "isSquareProvider", () => true);
+      try {
+        const fields = getTicketFields("email,phone");
+        expect(fields.length).toBe(3);
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
+        expect(fields[2]!.name).toBe("phone");
+      } finally {
+        s.restore();
+      }
+    });
+
+    test("adds email with Square even for empty fields", () => {
+      const s = stub(fieldsApi, "isSquareProvider", () => true);
+      try {
+        const fields = getTicketFields("");
+        expect(fields.length).toBe(2);
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
+      } finally {
+        s.restore();
+      }
     });
   });
 

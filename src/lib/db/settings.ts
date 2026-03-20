@@ -411,6 +411,15 @@ export const getPaymentProviderFromDb = (): Promise<string | null> =>
   getSetting(CONFIG_KEYS.PAYMENT_PROVIDER);
 
 /**
+ * Check if the configured payment provider is Square (synchronous, cache-based).
+ * Safe to call from synchronous code because the settings cache is populated by middleware.
+ */
+export const isSquareProviderCached = (): boolean => {
+  const state = getSettingsCacheState();
+  return state.entries?.get(CONFIG_KEYS.PAYMENT_PROVIDER) === "square";
+};
+
+/**
  * Set the active payment provider type
  */
 export const setPaymentProvider = async (
