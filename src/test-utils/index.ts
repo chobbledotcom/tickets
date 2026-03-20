@@ -1971,19 +1971,6 @@ export const stubWebhookVerify = async (eventData: {
   );
 };
 
-/**
- * Stub `stripeApi.refundPayment` to return a successful refund.
- * Returns the stub (call `.restore()` in a `finally` block).
- */
-export const stubRefundPayment = async () => {
-  const { stripeApi } = await import("#lib/stripe.ts");
-  return stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: "re_stub" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
-  );
-};
-
 /** Pre-built test certificates for Apple Wallet PKCS#7 signing.
  *  Generated once at module load since RSA-2048 keygen in pure JS is slow (~5s per keypair).
  *  Safe because #test-utils is only imported by test files, and Deno loads it once per process. */

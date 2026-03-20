@@ -37,6 +37,7 @@ import {
 } from "#lib/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
+  type BookingItem,
   getActivePaymentProvider,
   type SessionMetadata,
   type ValidatedPaymentSession,
@@ -57,9 +58,6 @@ import {
   redirectResponse,
 } from "#routes/utils.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
-
-/** Booking line item from metadata */
-type BookingItem = { e: number; q: number; p: number };
 
 /** User-facing message when the event price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
@@ -477,8 +475,8 @@ const processPaymentSession = async (
 
   // Phase 2: Validate events and create attendees atomically
   // A single-item checkout uses strict price validation (exact match / pay-more
-  // range). A cart checkout — even with one item — uses lenient validation
-  // (total >= expected) because legacy sessions may lack per-item prices.
+  // range). A cart checkout uses per-item price validation when items have
+  // non-zero prices, or lenient total validation for free-event carts.
   const isSingleItemCheckout = !isCartSession(session.metadata);
   const includeEventName = !isSingleItemCheckout;
 
@@ -552,18 +550,8 @@ const processPaymentSession = async (
         event.id,
       );
     }
-  } else {
-    // Cart without per-item prices: validate total >= expected + fee
-    const expectedWithFee =
-      expectedTotal + calculateBookingFee(expectedTotal, bookingFeePercent);
-    if (session.amountTotal < expectedWithFee) {
-      return priceMismatchRefund(
-        session,
-        `Total mismatch: provider charged ${session.amountTotal} but expected at least ${expectedWithFee}`,
-        validatedItems[0]!.event.id,
-      );
-    }
   }
+  // Free-event cart (all p=0, not single-item): no price validation needed
 
   // Create attendees
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];

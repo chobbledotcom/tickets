@@ -8,6 +8,7 @@ import { getAllowedDomain } from "#lib/config.ts";
 import type { ErrorCodeType, LogCategory } from "#lib/logger.ts";
 import { logDebug, logError } from "#lib/logger.ts";
 import type {
+  BookingItem,
   CheckoutSessionResult,
   MultiRegistrationIntent,
   SessionMetadata,
@@ -63,11 +64,13 @@ export const serializeBookingItems = (
   items: MultiRegistrationIntent["items"],
 ): string =>
   JSON.stringify(
-    map((i: MultiRegistrationIntent["items"][number]) => ({
-      e: i.eventId,
-      q: i.quantity,
-      p: i.unitPrice * i.quantity,
-    }))(items),
+    map(
+      (i: MultiRegistrationIntent["items"][number]): BookingItem => ({
+        e: i.eventId,
+        q: i.quantity,
+        p: i.unitPrice * i.quantity,
+      }),
+    )(items),
   );
 
 /**
