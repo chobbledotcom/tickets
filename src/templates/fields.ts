@@ -4,7 +4,7 @@
 
 import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
-import { isSquareProviderCached } from "#lib/db/settings.ts";
+import { CONFIG_KEYS, getSettingCached } from "#lib/db/settings.ts";
 import {
   mergeEventFields,
   parseEventFields,
@@ -639,7 +639,7 @@ const contactFieldMap: Record<ContactField, Field> = {
 export { mergeEventFields, parseEventFields };
 
 /** Stubbable API for testing */
-export const fieldsApi = { isSquareProvider: isSquareProviderCached };
+export const fieldsApi = { getSettingCached };
 
 /**
  * Get ticket form fields based on event fields setting.
@@ -647,9 +647,10 @@ export const fieldsApi = { isSquareProvider: isSquareProviderCached };
  * Square requires email, so email is always included when Square is the active provider.
  */
 export const getTicketFields = (fields: EventFields): Field[] => {
-  const effective = fieldsApi.isSquareProvider()
-    ? withRequiredEmail(fields)
-    : fields;
+  const effective =
+    fieldsApi.getSettingCached(CONFIG_KEYS.PAYMENT_PROVIDER) === "square"
+      ? withRequiredEmail(fields)
+      : fields;
   const parsed = parseEventFields(effective);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };

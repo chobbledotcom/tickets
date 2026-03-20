@@ -698,7 +698,7 @@ describe("forms", () => {
     });
 
     test("includes email when Square is the active provider", () => {
-      const s = stub(fieldsApi, "isSquareProvider", () => true);
+      const s = stub(fieldsApi, "getSettingCached", () => "square");
       try {
         const fields = getTicketFields("phone");
         expect(fields.length).toBe(3);
@@ -711,7 +711,7 @@ describe("forms", () => {
     });
 
     test("does not duplicate email with Square when already present", () => {
-      const s = stub(fieldsApi, "isSquareProvider", () => true);
+      const s = stub(fieldsApi, "getSettingCached", () => "square");
       try {
         const fields = getTicketFields("email,phone");
         expect(fields.length).toBe(3);
@@ -724,7 +724,7 @@ describe("forms", () => {
     });
 
     test("adds email with Square even for empty fields", () => {
-      const s = stub(fieldsApi, "isSquareProvider", () => true);
+      const s = stub(fieldsApi, "getSettingCached", () => "square");
       try {
         const fields = getTicketFields("");
         expect(fields.length).toBe(2);
