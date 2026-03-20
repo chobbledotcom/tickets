@@ -3851,10 +3851,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(att2.length).toBe(1);
 
         // Verify custom question answers were saved for all attendees
-        const batch = await getAttendeeAnswersBatch([
-          att1[0]!.id,
-          att2[0]!.id,
-        ]);
+        const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
         expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
       } finally {
         mockVerify.restore();

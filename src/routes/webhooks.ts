@@ -28,7 +28,6 @@ import {
   getAttendeesByTokens,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
-import { saveAttendeeAnswers, saveAttendeeAnswersBatch } from "#lib/db/questions.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -36,6 +35,7 @@ import {
   type ProcessedPayment,
   reserveSession,
 } from "#lib/db/processed-payments.ts";
+import { saveAttendeeAnswers } from "#lib/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   type BookingItem,
@@ -627,7 +627,7 @@ const processPaymentSession = async (
   // Save custom question answers for all created attendees
   if (intent.answerIds.length > 0) {
     const attendeeIds = createdAttendees.map(({ attendee }) => attendee.id);
-    await saveAttendeeAnswersBatch(attendeeIds, intent.answerIds);
+    await saveAttendeeAnswers(attendeeIds, intent.answerIds);
   }
 
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)

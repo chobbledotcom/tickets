@@ -270,27 +270,28 @@ export const setEventQuestions = async (
 const ATTENDEE_ANSWER_INSERT =
   "INSERT INTO attendee_answers (attendee_id, answer_id) VALUES (?, ?)";
 
-/** Save the same answers for one or more attendees in a single batch */
-export const saveAttendeeAnswersBatch = async (
+/** Replace all answers for one or more attendees in a single atomic batch.
+ * Deletes existing answers first, then inserts the new ones. */
+export const saveAttendeeAnswers = async (
   attendeeIds: number[],
   answerIds: number[],
 ): Promise<void> => {
-  if (attendeeIds.length === 0 || answerIds.length === 0) return;
-  await executeBatch(
-    attendeeIds.flatMap((attendeeId) =>
-      answerIds.map((answerId) => ({
-        sql: ATTENDEE_ANSWER_INSERT,
-        args: [attendeeId, answerId],
-      })),
-    ),
-  );
+  if (attendeeIds.length === 0) return;
+  const deletes = attendeeIds.map((attendeeId) => ({
+    sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
+    args: [attendeeId],
+  }));
+  const inserts =
+    answerIds.length === 0
+      ? []
+      : attendeeIds.flatMap((attendeeId) =>
+          answerIds.map((answerId) => ({
+            sql: ATTENDEE_ANSWER_INSERT,
+            args: [attendeeId, answerId],
+          })),
+        );
+  await executeBatch([...deletes, ...inserts]);
 };
-
-/** Save attendee answers for a single attendee */
-export const saveAttendeeAnswers = (
-  attendeeId: number,
-  answerIds: number[],
-): Promise<void> => saveAttendeeAnswersBatch([attendeeId], answerIds);
 
 /** Get answers for multiple attendees in a single query */
 export const getAttendeeAnswersBatch = async (
