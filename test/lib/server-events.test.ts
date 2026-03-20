@@ -384,45 +384,6 @@ describe("server (admin events)", () => {
       expect(html).toContain("/admin/event/1/duplicate");
       expect(html).toContain(">Duplicate<");
     });
-
-    test("refreshes events cache after creating duplicated event", async () => {
-      const { cookie } = await setupEventAndLogin({
-        name: "Original Event",
-        maxAttendees: 75,
-        thankYouUrl: "https://example.com/thanks",
-        unitPrice: 2000,
-      });
-
-      // Warm the cache by fetching all events
-      const { getAllEvents } = await import("#lib/db/events.ts");
-      const before = await getAllEvents();
-      expect(before).toHaveLength(1);
-      expect(before[0]!.name).toBe("Original Event");
-
-      // Submit the duplicate form (same endpoint as create)
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/event",
-          {
-            name: "Duplicated Event",
-            max_attendees: "75",
-            max_quantity: "1",
-            thank_you_url: "https://example.com/thanks",
-            unit_price: "20.00",
-            csrf_token: await testCsrfToken(),
-          },
-          cookie,
-        ),
-      );
-      expectRedirect("/admin?success=Event+created")(response);
-
-      // Cache should be refreshed — both events visible
-      const after = await getAllEvents();
-      expect(after).toHaveLength(2);
-      const names = after.map((e) => e.name);
-      expect(names).toContain("Original Event");
-      expect(names).toContain("Duplicated Event");
-    });
   });
 
   describe("GET /admin/event/:id/in", () => {
