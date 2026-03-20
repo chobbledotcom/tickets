@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import { FormParams } from "#lib/form-data.ts";
 import {
@@ -17,6 +18,7 @@ import { detectIframeMode } from "#lib/iframe.ts";
 import {
   changePasswordFields,
   eventFields,
+  fieldsApi,
   getTicketFields,
   holidayFields,
   joinFields,
@@ -448,13 +450,13 @@ describe("forms", () => {
   describe("ticketFields validation", () => {
     test("validates email format", () => {
       expectInvalid("Please enter a valid email address")(
-        getTicketFields("email"),
+        getTicketFields("email", false),
         { name: "John Doe", email: "not-an-email" },
       );
     });
 
     test("accepts valid email", () => {
-      expectValid(getTicketFields("email"), {
+      expectValid(getTicketFields("email", false), {
         name: "John Doe",
         email: "john@example.com",
       });
@@ -579,21 +581,21 @@ describe("forms", () => {
 
   describe("getTicketFields", () => {
     test("returns name and email fields for email setting", () => {
-      const fields = getTicketFields("email");
+      const fields = getTicketFields("email", false);
       expect(fields.length).toBe(2);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("email");
     });
 
     test("returns name and phone fields for phone setting", () => {
-      const fields = getTicketFields("phone");
+      const fields = getTicketFields("phone", false);
       expect(fields.length).toBe(2);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("phone");
     });
 
     test("returns name, email, and phone fields for email,phone setting", () => {
-      const fields = getTicketFields("email,phone");
+      const fields = getTicketFields("email,phone", false);
       expect(fields.length).toBe(3);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("email");
@@ -601,26 +603,26 @@ describe("forms", () => {
     });
 
     test("phone field has validation", () => {
-      const phoneField = getTicketFields("phone")[1]!;
+      const phoneField = getTicketFields("phone", false)[1]!;
       expect(phoneField.validate).toBeDefined();
       expect(phoneField.required).toBe(true);
     });
 
     test("email field has validation", () => {
-      const emailField = getTicketFields("email")[1]!;
+      const emailField = getTicketFields("email", false)[1]!;
       expect(emailField.validate).toBeDefined();
       expect(emailField.required).toBe(true);
     });
 
     test("returns name and address fields for address setting", () => {
-      const fields = getTicketFields("address");
+      const fields = getTicketFields("address", false);
       expect(fields.length).toBe(2);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("address");
     });
 
     test("returns all four contact fields for email,phone,address setting", () => {
-      const fields = getTicketFields("email,phone,address");
+      const fields = getTicketFields("email,phone,address", false);
       expect(fields.length).toBe(4);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("email");
@@ -629,21 +631,21 @@ describe("forms", () => {
     });
 
     test("address field has validation", () => {
-      const addrField = getTicketFields("address")[1]!;
+      const addrField = getTicketFields("address", false)[1]!;
       expect(addrField.validate).toBeDefined();
       expect(addrField.required).toBe(true);
       expect(addrField.type).toBe("textarea");
     });
 
     test("returns name and special_instructions fields for special_instructions setting", () => {
-      const fields = getTicketFields("special_instructions");
+      const fields = getTicketFields("special_instructions", false);
       expect(fields.length).toBe(2);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("special_instructions");
     });
 
     test("special_instructions field has validation", () => {
-      const field = getTicketFields("special_instructions")[1]!;
+      const field = getTicketFields("special_instructions", false)[1]!;
       expect(field.validate).toBeDefined();
       expect(field.required).toBe(true);
       expect(field.type).toBe("textarea");
@@ -652,6 +654,7 @@ describe("forms", () => {
     test("returns all five contact fields for email,phone,address,special_instructions setting", () => {
       const fields = getTicketFields(
         "email,phone,address,special_instructions",
+        false,
       );
       expect(fields.length).toBe(5);
       expect(fields[0]!.name).toBe("name");
@@ -662,7 +665,7 @@ describe("forms", () => {
     });
 
     test("ignores unknown field names in comma-separated setting", () => {
-      const fields = getTicketFields("email,bogus,phone");
+      const fields = getTicketFields("email,bogus,phone", false);
       expect(fields.length).toBe(3);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("email");
@@ -670,29 +673,79 @@ describe("forms", () => {
     });
 
     test("returns only name for empty fields setting", () => {
-      const fields = getTicketFields("");
+      const fields = getTicketFields("", false);
       expect(fields.length).toBe(1);
       expect(fields[0]!.name).toBe("name");
     });
 
     test("name field has autocomplete=name", () => {
-      const fields = getTicketFields("email");
+      const fields = getTicketFields("email", false);
       expect(fields[0]!.autocomplete).toBe("name");
     });
 
     test("email field has autocomplete=email", () => {
-      const fields = getTicketFields("email");
+      const fields = getTicketFields("email", false);
       expect(fields[1]!.autocomplete).toBe("email");
     });
 
     test("phone field has autocomplete=tel", () => {
-      const fields = getTicketFields("phone");
+      const fields = getTicketFields("phone", false);
       expect(fields[1]!.autocomplete).toBe("tel");
     });
 
     test("address field has autocomplete=street-address", () => {
-      const fields = getTicketFields("address");
+      const fields = getTicketFields("address", false);
       expect(fields[1]!.autocomplete).toBe("street-address");
+    });
+
+    test("includes email when Square is active and event is paid", () => {
+      const s = stub(fieldsApi, "getSettingCached", () => "square");
+      try {
+        const fields = getTicketFields("phone", true);
+        expect(fields.length).toBe(3);
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
+        expect(fields[2]!.name).toBe("phone");
+      } finally {
+        s.restore();
+      }
+    });
+
+    test("does not add email with Square when event is free", () => {
+      const s = stub(fieldsApi, "getSettingCached", () => "square");
+      try {
+        const fields = getTicketFields("phone", false);
+        expect(fields.length).toBe(2);
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("phone");
+      } finally {
+        s.restore();
+      }
+    });
+
+    test("does not duplicate email with Square when already present", () => {
+      const s = stub(fieldsApi, "getSettingCached", () => "square");
+      try {
+        const fields = getTicketFields("email,phone", true);
+        expect(fields.length).toBe(3);
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
+        expect(fields[2]!.name).toBe("phone");
+      } finally {
+        s.restore();
+      }
+    });
+
+    test("adds email with Square even for empty fields when paid", () => {
+      const s = stub(fieldsApi, "getSettingCached", () => "square");
+      try {
+        const fields = getTicketFields("", true);
+        expect(fields.length).toBe(2);
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
+      } finally {
+        s.restore();
+      }
     });
   });
 
@@ -851,28 +904,31 @@ describe("forms", () => {
 
   describe("phone ticket fields validation", () => {
     test("validates phone is required for phone-only events", () => {
-      expectInvalid("Your Phone Number is required")(getTicketFields("phone"), {
-        name: "John Doe",
-        phone: "",
-      });
+      expectInvalid("Your Phone Number is required")(
+        getTicketFields("phone", false),
+        {
+          name: "John Doe",
+          phone: "",
+        },
+      );
     });
 
     test("validates phone format for phone-only events", () => {
       expectInvalid("Please enter a valid phone number")(
-        getTicketFields("phone"),
+        getTicketFields("phone", false),
         { name: "John Doe", phone: "abc" },
       );
     });
 
     test("accepts valid phone for phone-only events", () => {
-      expectValid(getTicketFields("phone"), {
+      expectValid(getTicketFields("phone", false), {
         name: "John Doe",
         phone: "+1 555 123 4567",
       });
     });
 
     test("validates both email and phone for email,phone setting", () => {
-      expectValid(getTicketFields("email,phone"), {
+      expectValid(getTicketFields("email,phone", false), {
         name: "John Doe",
         email: "john@example.com",
         phone: "+1 555 123 4567",
@@ -880,7 +936,7 @@ describe("forms", () => {
     });
 
     test("rejects missing phone for email,phone setting", () => {
-      expectInvalidForm(getTicketFields("email,phone"), {
+      expectInvalidForm(getTicketFields("email,phone", false), {
         name: "John Doe",
         email: "john@example.com",
         phone: "",
@@ -888,7 +944,7 @@ describe("forms", () => {
     });
 
     test("rejects missing email for email,phone setting", () => {
-      expectInvalidForm(getTicketFields("email,phone"), {
+      expectInvalidForm(getTicketFields("email,phone", false), {
         name: "John Doe",
         email: "",
         phone: "+1 555 123 4567",

@@ -205,6 +205,16 @@ export const invalidateSettingsCache = (): void => {
 };
 
 /**
+ * Get a setting value synchronously from the in-memory cache.
+ * Returns null if the cache is not populated or the key is absent.
+ * Safe to call from synchronous code because the settings cache is populated by middleware.
+ */
+export const getSettingCached = (key: string): string | null => {
+  const state = getSettingsCacheState();
+  return state.entries?.get(key) ?? null;
+};
+
+/**
  * Get a setting value. Reads from the in-memory cache, loading all
  * settings in one query on first access or after TTL expiry.
  */
