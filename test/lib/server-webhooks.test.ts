@@ -3963,5 +3963,63 @@ describe("server (webhooks)", () => {
         mockVerify.restore();
       }
     });
+
+    test("saves custom question answers for paid single-ticket checkout", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        name: "Single Q Paid",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const q = await questionsTable.insert({ text: "Dietary needs?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Vegan",
+        sortOrder: 1,
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      const mockVerify = await stubWebhookVerify({
+        id: "evt_single_q",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_single_q",
+            payment_status: "paid",
+            payment_intent: "pi_single_q",
+            amount_total: 1000,
+            metadata: webhookMeta({
+              event_id: String(event.id),
+              name: "Q Single Buyer",
+              email: "qsingle@example.com",
+              quantity: "1",
+              answer_ids: JSON.stringify([a1.id]),
+            }),
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBe(true);
+
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+
+        // Verify custom question answers were saved
+        const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        expect(batch.get(attendees[0]!.id)).toEqual([a1.id]);
+      } finally {
+        mockVerify.restore();
+      }
+    });
   });
 });
