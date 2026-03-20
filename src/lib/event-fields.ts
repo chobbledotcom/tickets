@@ -19,6 +19,12 @@ export const parseEventFields = (fields: EventFields): ContactField[] =>
         .filter(isContactField)
     : [];
 
+/** Ensure "email" is included in an event fields setting */
+export const withRequiredEmail = (fields: EventFields): EventFields => {
+  const parsed = parseEventFields(fields);
+  return parsed.includes("email") ? fields : ["email", ...parsed].join(",");
+};
+
 /**
  * Determine which contact fields to collect for multiple events.
  * Returns the union of all field settings, sorted by canonical CONTACT_FIELDS order.

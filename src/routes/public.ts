@@ -46,11 +46,12 @@ import {
 } from "#lib/payments.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import { sortEvents } from "#lib/sort-events.ts";
-import type {
-  ContactInfo,
-  EventFields,
-  EventWithCount,
-  Group,
+import {
+  type ContactInfo,
+  type EventFields,
+  type EventWithCount,
+  type Group,
+  isPaidEvent,
 } from "#lib/types.ts";
 import { logAndNotifyMultiRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -388,8 +389,11 @@ const processTicketReservation = async (
       }
 
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-      const valResult = tryValidateTicketFields(form, event.fields, (msg) =>
-        ticketResponse(event, undefined, terms)(msg),
+      const valResult = tryValidateTicketFields(
+        form,
+        event.fields,
+        (msg) => ticketResponse(event, undefined, terms)(msg),
+        isPaidEvent(event),
       );
       if (valResult instanceof Response) return valResult;
       const values = valResult;
@@ -565,10 +569,12 @@ const submitMultiTicket = (
 
       // Validate fields based on merged event settings
       const errorResponse = multiTicketFormErrorResponse(ctx);
+      const anyPaid = ctx.events.some((e) => isPaidEvent(e.event));
       const fieldResult = tryValidateTicketFields(
         form,
         getMultiTicketFieldsSetting(ctx.events),
         errorResponse,
+        anyPaid,
       );
       if (fieldResult instanceof Response) return fieldResult;
       const values = fieldResult;

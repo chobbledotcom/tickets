@@ -770,9 +770,12 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
   const tokensParam = getSearchParam(request, "tokens");
   if (tokensParam) return renderSuccessFromTokens(tokensParam);
 
+  const url = new URL(request.url);
+  const paramKeys = [...url.searchParams.keys()].join(",") || "none";
+  const referer = request.headers.get("referer") ?? "none";
   logError({
     code: ErrorCode.PAYMENT_SESSION,
-    detail: "Payment success callback with no session_id or tokens",
+    detail: `Payment success callback with no session_id or tokens | params=[${paramKeys}] referer=${referer}`,
   });
   return Promise.resolve(paymentErrorResponse("Invalid payment callback"));
 };

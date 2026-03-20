@@ -14,7 +14,7 @@ import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { sortEvents } from "#lib/sort-events.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import { type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   getBaseUrl,
@@ -233,10 +233,12 @@ const handleBook = withActiveEvent(async (request, event) => {
   const body = bodyOrError;
 
   // Validate fields using the same form validation as the web
+  const paid = isPaidEvent(event);
   const valResult = tryValidateTicketFields(
     toFormParams(body),
     event.fields,
     (msg) => apiResponse({ error: msg }, 400),
+    paid,
   );
   if (valResult instanceof Response) return valResult;
   const values = valResult;
