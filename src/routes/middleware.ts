@@ -2,7 +2,12 @@
  * Middleware functions for request processing
  */
 
-import { getAllowedDomain, getEmbedHosts } from "#lib/config.ts";
+import {
+  getAllowedDomain,
+  getEmbedHosts,
+  getPaymentProvider,
+  getSquareSandbox,
+} from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 import { encodeBody } from "#routes/utils.ts";
@@ -16,20 +21,40 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
   "x-robots-tag": "noindex, nofollow",
 };
 
+/** Payment config for CSP header construction */
+export type PaymentCspConfig = {
+  provider: "stripe" | "square" | null;
+  sandbox?: boolean;
+};
+
 /**
  * Build CSP header value
  * Non-embeddable pages get frame-ancestors 'none' to prevent clickjacking.
  * Embeddable pages omit frame-ancestors here; it's added by applySecurityHeaders
  * if embed host restrictions are configured.
+ * Payment-specific directives are included only when a provider is configured.
+ * Both Stripe and Square use server-side redirect flows (not embedded SDKs),
+ * so only form-action needs provider-specific domains.
  */
-const buildCspHeader = (embeddable: boolean): string => {
-  const directives = [
-    "default-src 'self'",
-    "style-src 'self'",
-    "script-src 'self' https://*.squarecdn.com https://js.squareup.com https://js.squareupsandbox.com",
-    "connect-src 'self' https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com",
-    "form-action 'self' https://checkout.stripe.com https://square.link https://checkout.square.site",
-  ];
+export const buildCspHeader = (
+  embeddable: boolean,
+  payment?: PaymentCspConfig,
+): string => {
+  const directives = ["default-src 'self'"];
+
+  if (payment?.provider === "square") {
+    const sq = payment.sandbox
+      ? "https://connect.squareupsandbox.com https://pci-connect.squareupsandbox.com https://api.squareupsandbox.com"
+      : "https://connect.squareup.com https://pci-connect.squareup.com https://api.squareup.com";
+    directives.push(
+      `form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com ${sq}`,
+    );
+  } else if (payment?.provider === "stripe") {
+    directives.push("form-action 'self' https://checkout.stripe.com");
+  } else {
+    directives.push("form-action 'self'");
+  }
+
   if (!embeddable) {
     directives.unshift("frame-ancestors 'none'");
   }
@@ -251,6 +276,14 @@ export const applySecurityHeaders = async (
   for (const [key, value] of Object.entries(securityHeaders)) {
     response.headers.set(key, value);
   }
+
+  // Rebuild CSP with payment-provider-specific directives
+  const provider = await getPaymentProvider();
+  const sandbox = provider === "square" ? await getSquareSandbox() : undefined;
+  response.headers.set(
+    "content-security-policy",
+    buildCspHeader(embeddable, { provider, sandbox }),
+  );
 
   // Override x-robots-tag for hidden events (signal header set by route handlers)
   if (response.headers.has("x-robots-noindex")) {

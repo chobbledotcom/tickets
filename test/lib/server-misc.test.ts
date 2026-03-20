@@ -4,6 +4,7 @@ import { spy } from "@std/testing/mock";
 import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
+  buildCspHeader,
   getCleanUrl,
   handleRequest,
   isValidContentType,
@@ -100,8 +101,7 @@ describe("server (misc)", () => {
     });
 
     describe("Content-Security-Policy", () => {
-      const baseCsp =
-        "default-src 'self'; style-src 'self'; script-src 'self' https://*.squarecdn.com https://js.squareup.com https://js.squareupsandbox.com; connect-src 'self' https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com; form-action 'self' https://checkout.stripe.com https://square.link https://checkout.square.site";
+      const baseCsp = "default-src 'self'; form-action 'self'";
 
       test("non-embeddable pages have frame-ancestors 'none' and security restrictions", async () => {
         const response = await handleRequest(mockRequest("/"));
@@ -118,6 +118,67 @@ describe("server (misc)", () => {
       test("multi-slug ticket page allows embedding (no frame-ancestors)", async () => {
         const response = await getMultiSlugTicketPageResponse();
         expect(response.headers.get("content-security-policy")).toBe(baseCsp);
+      });
+
+      test("includes Stripe CSP directives when Stripe is configured", async () => {
+        const { setPaymentProvider, invalidateSettingsCache } = await import(
+          "#lib/db/settings.ts"
+        );
+        await setPaymentProvider("stripe");
+        invalidateSettingsCache();
+        try {
+          const response = await handleRequest(mockRequest("/"));
+          expect(response.headers.get("content-security-policy")).toBe(
+            "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://checkout.stripe.com",
+          );
+        } finally {
+          const { clearPaymentProvider } = await import("#lib/db/settings.ts");
+          await clearPaymentProvider();
+          invalidateSettingsCache();
+        }
+      });
+
+      test("includes Square production CSP directives when Square is configured", async () => {
+        const {
+          setPaymentProvider,
+          invalidateSettingsCache,
+          updateSquareSandbox,
+        } = await import("#lib/db/settings.ts");
+        await setPaymentProvider("square");
+        await updateSquareSandbox(false);
+        invalidateSettingsCache();
+        try {
+          const response = await handleRequest(mockRequest("/"));
+          expect(response.headers.get("content-security-policy")).toBe(
+            "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com https://connect.squareup.com https://pci-connect.squareup.com https://api.squareup.com",
+          );
+        } finally {
+          const { clearPaymentProvider } = await import("#lib/db/settings.ts");
+          await clearPaymentProvider();
+          invalidateSettingsCache();
+        }
+      });
+
+      test("includes Square sandbox CSP directives when sandbox mode is enabled", async () => {
+        const {
+          setPaymentProvider,
+          invalidateSettingsCache,
+          updateSquareSandbox,
+        } = await import("#lib/db/settings.ts");
+        await setPaymentProvider("square");
+        await updateSquareSandbox(true);
+        invalidateSettingsCache();
+        try {
+          const response = await handleRequest(mockRequest("/"));
+          expect(response.headers.get("content-security-policy")).toBe(
+            "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com https://connect.squareupsandbox.com https://pci-connect.squareupsandbox.com https://api.squareupsandbox.com",
+          );
+        } finally {
+          const { clearPaymentProvider } = await import("#lib/db/settings.ts");
+          await clearPaymentProvider();
+          await updateSquareSandbox(false);
+          invalidateSettingsCache();
+        }
       });
     });
 
@@ -164,6 +225,60 @@ describe("server (misc)", () => {
         );
         expect(response.headers.get("x-robots-tag")).toBe("index, follow");
       });
+    });
+  });
+
+  describe("buildCspHeader", () => {
+    test("returns base CSP with no payment provider", () => {
+      const csp = buildCspHeader(false);
+      expect(csp).toBe(
+        "frame-ancestors 'none'; default-src 'self'; form-action 'self'",
+      );
+    });
+
+    test("omits frame-ancestors for embeddable pages", () => {
+      const csp = buildCspHeader(true);
+      expect(csp).toBe("default-src 'self'; form-action 'self'");
+    });
+
+    test("includes Stripe checkout domain when Stripe is configured", () => {
+      const csp = buildCspHeader(false, { provider: "stripe" });
+      expect(csp).toBe(
+        "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://checkout.stripe.com",
+      );
+    });
+
+    test("includes Square production domains when sandbox is false", () => {
+      const csp = buildCspHeader(false, { provider: "square", sandbox: false });
+      expect(csp).toBe(
+        "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com https://connect.squareup.com https://pci-connect.squareup.com https://api.squareup.com",
+      );
+    });
+
+    test("includes Square sandbox domains when sandbox is true", () => {
+      const csp = buildCspHeader(false, { provider: "square", sandbox: true });
+      expect(csp).toBe(
+        "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com https://connect.squareupsandbox.com https://pci-connect.squareupsandbox.com https://api.squareupsandbox.com",
+      );
+    });
+
+    test("Square defaults to production domains when sandbox is undefined", () => {
+      const csp = buildCspHeader(false, { provider: "square" });
+      expect(csp).toContain("https://connect.squareup.com");
+      expect(csp).not.toContain("squareupsandbox");
+    });
+
+    test("Square embeddable page omits frame-ancestors", () => {
+      const csp = buildCspHeader(true, { provider: "square", sandbox: false });
+      expect(csp).not.toContain("frame-ancestors");
+      expect(csp).toContain("form-action 'self' https://square.link");
+    });
+
+    test("null provider returns base CSP", () => {
+      const csp = buildCspHeader(false, { provider: null });
+      expect(csp).toBe(
+        "frame-ancestors 'none'; default-src 'self'; form-action 'self'",
+      );
     });
   });
 

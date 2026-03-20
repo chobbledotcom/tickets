@@ -158,8 +158,10 @@ const loadApiRoutes = once(async () => {
   return routeApi;
 });
 
+export type { PaymentCspConfig } from "#routes/middleware.ts";
 // Re-export middleware functions for testing
 export {
+  buildCspHeader,
   getCleanUrl,
   getSecurityHeaders,
   isEmbeddablePath,
