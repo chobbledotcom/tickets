@@ -32,8 +32,8 @@ import {
   submitTicketForm,
   testCookie,
   testCsrfToken,
-  withExpectedError,
   updateTestEvent,
+  withExpectedError,
 } from "#test-utils";
 
 describe("server (admin events)", () => {

@@ -459,6 +459,7 @@ const processTicketReservation = async (
         date,
         getBaseUrl(request),
         customUnitPrice,
+        answersResult.answerIds,
       );
       return bookingResultToWebResponse(
         bookingResult,
@@ -705,7 +706,12 @@ const submitMultiTicket = (
           );
         }
 
-        const intent: MultiRegistrationIntent = { ...contact, date, items };
+        const intent: MultiRegistrationIntent = {
+          ...contact,
+          date,
+          items,
+          answerIds: answersResult.answerIds,
+        };
         return handleMultiPaymentFlow(request, intent, ctx);
       }
 
