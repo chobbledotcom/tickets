@@ -4,7 +4,6 @@ import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   answersTable,
   deleteAnswer,
-  deleteAttendeeAnswers,
   deleteQuestion,
   getAllQuestionsWithAnswers,
   getAttendeeAnswersBatch,
@@ -306,7 +305,7 @@ describe("custom questions", () => {
       // No error thrown, no rows inserted
     });
 
-    test("deleteAttendeeAnswers removes all answers for an attendee", async () => {
+    test("saveAttendeeAnswers replaces existing answers atomically", async () => {
       const q = await questionsTable.insert({ text: "Colour?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -321,12 +320,30 @@ describe("custom questions", () => {
 
       const event = await createTestEvent();
       const att = await createAttendee(event.id);
-      await saveAttendeeAnswers(att.id, [a1.id, a2.id]);
+      await saveAttendeeAnswers(att.id, [a1.id]);
 
       const before = await getAttendeeAnswersBatch([att.id]);
-      expect(before.get(att.id)!.length).toBe(2);
+      expect(before.get(att.id)).toEqual([a1.id]);
 
-      await deleteAttendeeAnswers(att.id);
+      await saveAttendeeAnswers(att.id, [a2.id]);
+
+      const after = await getAttendeeAnswersBatch([att.id]);
+      expect(after.get(att.id)).toEqual([a2.id]);
+    });
+
+    test("saveAttendeeAnswers with empty answerIds clears answers", async () => {
+      const q = await questionsTable.insert({ text: "Colour?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Red",
+        sortOrder: 0,
+      });
+
+      const event = await createTestEvent();
+      const att = await createAttendee(event.id);
+      await saveAttendeeAnswers(att.id, [a1.id]);
+
+      await saveAttendeeAnswers(att.id, []);
 
       const after = await getAttendeeAnswersBatch([att.id]);
       expect(after.get(att.id)).toBeUndefined();

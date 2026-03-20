@@ -22,7 +22,6 @@ import {
 } from "#lib/db/events.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import {
-  deleteAttendeeAnswers,
   getAttendeeAnswersBatch,
   getQuestionsForEvent,
   saveAttendeeAnswers,
@@ -703,12 +702,9 @@ async function editAttendeeHandler(
     quantity,
   });
 
-  // Update answers: delete existing and save new selections
+  // Update answers (atomic delete + insert)
   if (data.questions.length > 0) {
-    await deleteAttendeeAnswers(attendeeId);
-    if (answerIds.length > 0) {
-      await saveAttendeeAnswers(attendeeId, answerIds);
-    }
+    await saveAttendeeAnswers(attendeeId, answerIds);
   }
 
   await logActivity(`Attendee '${name}' updated`, event_id);
