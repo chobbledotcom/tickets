@@ -644,10 +644,15 @@ export const fieldsApi = { getSettingCached };
 /**
  * Get ticket form fields based on event fields setting.
  * Always includes name. Adds contact fields based on the comma-separated setting.
- * Square requires email, so email is always included when Square is the active provider.
+ * When isPaid is true and Square is the active provider, email is always included
+ * because Square requires an email address for checkout.
  */
-export const getTicketFields = (fields: EventFields): Field[] => {
+export const getTicketFields = (
+  fields: EventFields,
+  isPaid = false,
+): Field[] => {
   const effective =
+    isPaid &&
     fieldsApi.getSettingCached(CONFIG_KEYS.PAYMENT_PROVIDER) === "square"
       ? withRequiredEmail(fields)
       : fields;
@@ -660,10 +665,11 @@ export const tryValidateTicketFields = (
   form: FormParams,
   fieldsSetting: EventFields,
   onError: (message: string) => Response,
+  isPaid = false,
 ): TicketFormValues | Response => {
   const result = validateForm<TicketFormValues>(
     form,
-    getTicketFields(fieldsSetting),
+    getTicketFields(fieldsSetting, isPaid),
   );
   return result.valid ? result.values : onError(result.error);
 };

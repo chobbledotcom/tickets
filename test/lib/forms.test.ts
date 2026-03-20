@@ -697,14 +697,26 @@ describe("forms", () => {
       expect(fields[1]!.autocomplete).toBe("street-address");
     });
 
-    test("includes email when Square is the active provider", () => {
+    test("includes email when Square is active and event is paid", () => {
       const s = stub(fieldsApi, "getSettingCached", () => "square");
       try {
-        const fields = getTicketFields("phone");
+        const fields = getTicketFields("phone", true);
         expect(fields.length).toBe(3);
         expect(fields[0]!.name).toBe("name");
         expect(fields[1]!.name).toBe("email");
         expect(fields[2]!.name).toBe("phone");
+      } finally {
+        s.restore();
+      }
+    });
+
+    test("does not add email with Square when event is free", () => {
+      const s = stub(fieldsApi, "getSettingCached", () => "square");
+      try {
+        const fields = getTicketFields("phone", false);
+        expect(fields.length).toBe(2);
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("phone");
       } finally {
         s.restore();
       }
@@ -713,7 +725,7 @@ describe("forms", () => {
     test("does not duplicate email with Square when already present", () => {
       const s = stub(fieldsApi, "getSettingCached", () => "square");
       try {
-        const fields = getTicketFields("email,phone");
+        const fields = getTicketFields("email,phone", true);
         expect(fields.length).toBe(3);
         expect(fields[0]!.name).toBe("name");
         expect(fields[1]!.name).toBe("email");
@@ -723,10 +735,10 @@ describe("forms", () => {
       }
     });
 
-    test("adds email with Square even for empty fields", () => {
+    test("adds email with Square even for empty fields when paid", () => {
       const s = stub(fieldsApi, "getSettingCached", () => "square");
       try {
-        const fields = getTicketFields("");
+        const fields = getTicketFields("", true);
         expect(fields.length).toBe(2);
         expect(fields[0]!.name).toBe("name");
         expect(fields[1]!.name).toBe("email");
