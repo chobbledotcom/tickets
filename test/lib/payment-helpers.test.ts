@@ -581,6 +581,7 @@ describe("payment-helpers", () => {
         multi: "",
         date: "",
         items: "",
+        answer_ids: "",
       });
     });
 
@@ -604,6 +605,7 @@ describe("payment-helpers", () => {
         multi: "1",
         date: "",
         items: '[{"e":1,"q":2}]',
+        answer_ids: "",
       });
     });
 

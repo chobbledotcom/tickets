@@ -31,8 +31,8 @@ import {
   submitTicketForm,
   testCookie,
   testCsrfToken,
-  withExpectedError,
   updateTestEvent,
+  withExpectedError,
 } from "#test-utils";
 
 describeWithEnv("server (admin events)", { db: true }, () => {

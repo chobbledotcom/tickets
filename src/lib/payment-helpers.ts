@@ -93,10 +93,19 @@ const optionalFields = (
   ...(intent.date ? { date: intent.date } : {}),
 });
 
+/** Serialize answer IDs for metadata (only if non-empty) */
+const answerIdsField = (
+  answerIds?: number[],
+): Record<string, string> =>
+  answerIds && answerIds.length > 0
+    ? { answer_ids: JSON.stringify(answerIds) }
+    : {};
+
 /** Single-event checkout intent for metadata building */
 type SingleIntentMetadata = ContactFields & {
   quantity: number;
   date?: string | null;
+  answerIds?: number[];
 };
 
 /**
@@ -113,6 +122,7 @@ export const buildSingleIntentMetadata = (
   email: intent.email,
   quantity: String(intent.quantity),
   ...optionalFields(intent),
+  ...answerIdsField(intent.answerIds),
 });
 
 /**
@@ -128,6 +138,7 @@ export const buildCartMetadata = (
   email: intent.email,
   items: serializeBookingItems(intent.items),
   ...optionalFields(intent),
+  ...answerIdsField(intent.answerIds),
 });
 
 /**
@@ -180,4 +191,5 @@ export const extractSessionMetadata = (
   multi: metadata.multi || "",
   date: metadata.date || "",
   items: metadata.items || "",
+  answer_ids: metadata.answer_ids || "",
 });
