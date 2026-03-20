@@ -326,7 +326,7 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("multi-ticket webhook rejects items missing per-item price (p)", async () => {
+    test("corrupt booking item in metadata throws (missing p)", async () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
@@ -335,7 +335,7 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
 
-      // Items without p field are rejected — p is required
+      // Items without p field throw — corrupt data from a verified origin is a bug
       const mockVerify = await stubWebhookVerify({
         id: "evt_no_price",
         type: "checkout.session.completed",
@@ -359,9 +359,8 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toContain("Invalid cart session data");
+        // Corrupt metadata from a verified origin is a bug — surfaces as 503
+        expect(response.status).toBe(503);
       } finally {
         mockVerify.restore();
       }
@@ -1629,13 +1628,11 @@ describe("server (webhooks)", () => {
       resetStripeClient();
     });
 
-    test("extractIntent defaults eventId to 0 when event_id is missing from metadata", async () => {
+    test("extractIntent throws when event_id is missing from metadata", async () => {
       await setupStripe();
 
-      // Use webhook path: event type matches but metadata is incomplete,
-      // so extractSessionFromEvent returns null. Fallback retrieves session
-      // via provider.retrieveSession which we mock to return event_id undefined.
-      // This triggers the ?? "0" fallback in extractIntent (line 52).
+      // Session with missing event_id: after _origin verification, extractIntent
+      // throws because this should be impossible for our own sessions.
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = stub(
         stripePaymentProvider,
@@ -1650,7 +1647,6 @@ describe("server (webhooks)", () => {
                 object: {
                   id: "cs_no_event_id",
                   status: "COMPLETED",
-                  // No proper metadata -> extractSessionFromEvent returns null
                 },
               },
             },
@@ -1670,27 +1666,20 @@ describe("server (webhooks)", () => {
               name: "No EventId",
               email: "noeventid@example.com",
               quantity: "1",
-              // event_id intentionally undefined -> triggers ?? "0"
+              // event_id missing — corrupt metadata
             }),
           }),
       );
-
-      const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        // eventId defaults to 0 (no event with id 0), so "Event not found" error
-        expect(json.error).toContain("Event not found");
-        // Event not found should NOT trigger a refund (webhook may be for a different instance)
-        expect(mockRefund.calls.length).toBe(0);
+        // Corrupt metadata from a verified origin is a bug — surfaces as 503
+        expect(response.status).toBe(503);
       } finally {
         mockVerify.restore();
         mockRetrieveSession.restore();
-        mockRefund.restore();
       }
     });
 
@@ -3413,7 +3402,7 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("multi-ticket rejects metadata with non-integer p", async () => {
+    test("corrupt booking item in metadata throws (non-integer p)", async () => {
       await setupStripe();
 
       const event = await createTestEvent({
@@ -3453,13 +3442,14 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(400);
+        // Corrupt metadata from a verified origin is a bug — surfaces as 503
+        expect(response.status).toBe(503);
       } finally {
         mockVerify.restore();
       }
     });
 
-    test("multi-ticket rejects metadata with non-object item", async () => {
+    test("corrupt booking item in metadata throws (non-object item)", async () => {
       await setupStripe();
 
       const event = await createTestEvent({
@@ -3499,53 +3489,8 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(400);
-      } finally {
-        mockVerify.restore();
-      }
-    });
-
-    test("multi-ticket rejects metadata with q < 1", async () => {
-      await setupStripe();
-
-      const event = await createTestEvent({
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            valid: true,
-            event: {
-              id: "evt_bad_q",
-              type: "checkout.session.completed",
-              data: {
-                object: {
-                  id: "cs_bad_q",
-                  payment_status: "paid",
-                  payment_intent: "pi_bad_q",
-                  amount_total: 0,
-                  metadata: webhookMeta({
-                    multi: "1",
-                    name: "Bad Q",
-                    email: "badq@example.com",
-                    items: JSON.stringify([{ e: event.id, q: 0, p: 0 }]),
-                  }),
-                },
-              },
-            },
-          }),
-      );
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-        );
-        expect(response.status).toBe(400);
+        // Corrupt metadata from a verified origin is a bug — surfaces as 503
+        expect(response.status).toBe(503);
       } finally {
         mockVerify.restore();
       }

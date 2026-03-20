@@ -70,28 +70,33 @@ const isCartSession = (metadata: SessionMetadata): boolean =>
 /**
  * Extract registration intent from validated session metadata (single-ticket).
  *
+ * Precondition: hasRequiredSessionMetadata has verified event_id is present.
  * Converts from SessionMetadata's "" convention back to domain types:
  * - date: "" → null (BookingIntent uses null for "no date selected")
- * - numeric fields: "" → default via parseInt
  *
  * Returns a BookingIntent with a single item so that single and multi bookings
  * share the same processing path.
  */
-const extractIntent = (session: ValidatedPaymentSession): BookingIntent => ({
-  name: session.metadata.name,
-  email: session.metadata.email,
-  phone: session.metadata.phone,
-  address: session.metadata.address,
-  special_instructions: session.metadata.special_instructions,
-  date: session.metadata.date || null,
-  items: [
-    {
-      e: Number.parseInt(session.metadata.event_id || "0", 10),
-      q: Number.parseInt(session.metadata.quantity || "1", 10),
-      p: 0,
-    },
-  ],
-});
+const extractIntent = (session: ValidatedPaymentSession): BookingIntent => {
+  const eventId = Number.parseInt(session.metadata.event_id, 10);
+  const quantity = Number.parseInt(session.metadata.quantity, 10) || 1;
+
+  if (!Number.isFinite(eventId) || eventId <= 0) {
+    throw new Error(
+      `Invalid event_id in session metadata: "${session.metadata.event_id}"`,
+    );
+  }
+
+  return {
+    name: session.metadata.name,
+    email: session.metadata.email,
+    phone: session.metadata.phone,
+    address: session.metadata.address,
+    special_instructions: session.metadata.special_instructions,
+    date: session.metadata.date || null,
+    items: [{ e: eventId, q: quantity, p: 0 }],
+  };
+};
 
 /** Wrap handler with session ID extraction */
 const withSessionId =
@@ -372,32 +377,40 @@ const alreadyProcessedResult = async (
   };
 };
 
-/** Validate that a parsed value has the shape of a booking item */
-const isBookingItem = (v: unknown): v is BookingItem => {
-  if (typeof v !== "object" || v === null) return false;
-  const { e, q, p } = v as Record<string, unknown>;
-  return (
-    typeof e === "number" &&
-    Number.isInteger(e) &&
-    e > 0 &&
-    typeof q === "number" &&
-    Number.isInteger(q) &&
-    q >= 1 &&
-    typeof p === "number" &&
-    Number.isInteger(p) &&
-    p >= 0
-  );
-};
-
-/** Parse booking items from metadata */
+/**
+ * Parse booking items from metadata JSON.
+ *
+ * Precondition: the session has passed _origin verification, so this JSON
+ * was serialized by our own serializeBookingItems(). We parse with JSON.parse
+ * (which is safe) and do a basic structural check. Returns null only if the
+ * JSON is unparseable or the array is empty — a corrupt item (e.g. missing
+ * field) throws so the bug surfaces immediately.
+ */
 const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(itemsJson);
-    if (!Array.isArray(parsed) || !parsed.every(isBookingItem)) return null;
-    return parsed;
+    parsed = JSON.parse(itemsJson);
   } catch {
     return null;
   }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+  for (const item of parsed) {
+    const valid =
+      typeof item === "object" &&
+      item !== null &&
+      Number.isInteger(item.e) &&
+      Number.isInteger(item.q) &&
+      Number.isInteger(item.p);
+    if (!valid) {
+      throw new Error(
+        `Corrupt booking item in session metadata: ${JSON.stringify(item)}`,
+      );
+    }
+  }
+
+  return parsed as BookingItem[];
 };
 
 /** Booking intent with one or more line items */
