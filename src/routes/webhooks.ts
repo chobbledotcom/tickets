@@ -28,6 +28,7 @@ import {
   getAttendeesByTokens,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
+import { saveAttendeeAnswers, saveAttendeeAnswersBatch } from "#lib/db/questions.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -67,6 +68,10 @@ const PRICE_CHANGED_MESSAGE =
 const isCartSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
+/** Parse answer_ids from metadata JSON string */
+const parseAnswerIds = (json: string): number[] =>
+  json ? JSON.parse(json) : [];
+
 /**
  * Extract registration intent from validated session metadata (single-ticket).
  *
@@ -101,6 +106,7 @@ const extractIntent = (session: ValidatedPaymentSession): BookingIntent => {
     special_instructions: session.metadata.special_instructions,
     date: session.metadata.date || null,
     items: [{ e: eventId, q: quantity, p: 0 }],
+    answerIds: parseAnswerIds(session.metadata.answer_ids),
   };
 };
 
@@ -423,6 +429,7 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
 type BookingIntent = ContactInfo & {
   date: string | null;
   items: BookingItem[];
+  answerIds: number[];
 };
 
 /**
@@ -445,6 +452,7 @@ const extractBookingIntent = (
     special_instructions: metadata.special_instructions,
     date: metadata.date || null,
     items,
+    answerIds: parseAnswerIds(metadata.answer_ids),
   };
 };
 
@@ -614,6 +622,12 @@ const processPaymentSession = async (
     const error = formatPostPaymentError(failureReason, failedEvent.name);
     const refunded = await refundAndLog(session, error, failedEvent.id);
     return { success: false, error, refunded };
+  }
+
+  // Save custom question answers for all created attendees
+  if (intent.answerIds.length > 0) {
+    const attendeeIds = createdAttendees.map(({ attendee }) => attendee.id);
+    await saveAttendeeAnswersBatch(attendeeIds, intent.answerIds);
   }
 
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)
