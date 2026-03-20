@@ -39,6 +39,9 @@ export type MultiRegistrationItem = {
   name: string;
 };
 
+/** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
+export type BookingItem = { e: number; q: number; p: number };
+
 /** Registration intent for multi-event checkout */
 export type MultiRegistrationIntent = ContactInfo & {
   date?: string | null;

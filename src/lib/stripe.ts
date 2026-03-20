@@ -21,7 +21,7 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 import {
-  buildMultiIntentMetadata,
+  buildCartMetadata,
   buildSingleIntentMetadata,
   createWithClient,
   errorMessage,
@@ -401,7 +401,7 @@ export const stripeApi: {
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
-      metadata: buildMultiIntentMetadata(intent),
+      metadata: buildCartMetadata(intent),
     };
 
     logDebug(

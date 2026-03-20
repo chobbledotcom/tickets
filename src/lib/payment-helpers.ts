@@ -8,6 +8,7 @@ import { getAllowedDomain } from "#lib/config.ts";
 import type { ErrorCodeType, LogCategory } from "#lib/logger.ts";
 import { logDebug, logError } from "#lib/logger.ts";
 import type {
+  BookingItem,
   CheckoutSessionResult,
   MultiRegistrationIntent,
   SessionMetadata,
@@ -58,16 +59,18 @@ export const createWithClient =
     return client ? safeAsync(() => op(client), errorCode) : null;
   };
 
-/** Serialize multi-ticket items for metadata storage (compact JSON) */
-export const serializeMultiItems = (
+/** Serialize booking items for metadata storage (compact JSON) */
+export const serializeBookingItems = (
   items: MultiRegistrationIntent["items"],
 ): string =>
   JSON.stringify(
-    map((i: MultiRegistrationIntent["items"][number]) => ({
-      e: i.eventId,
-      q: i.quantity,
-      p: i.unitPrice * i.quantity,
-    }))(items),
+    map(
+      (i: MultiRegistrationIntent["items"][number]): BookingItem => ({
+        e: i.eventId,
+        q: i.quantity,
+        p: i.unitPrice * i.quantity,
+      }),
+    )(items),
   );
 
 /**
@@ -113,17 +116,17 @@ export const buildSingleIntentMetadata = (
 });
 
 /**
- * Build intent metadata for a multi-event checkout.
+ * Build intent metadata for a cart checkout.
  * Common fields: multi flag, name, email, serialized items, optional phone/date.
  */
-export const buildMultiIntentMetadata = (
+export const buildCartMetadata = (
   intent: MultiRegistrationIntent,
 ): Record<string, string> => ({
   _origin: getAllowedDomain(),
   multi: "1",
   name: intent.name,
   email: intent.email,
-  items: serializeMultiItems(intent.items),
+  items: serializeBookingItems(intent.items),
   ...optionalFields(intent),
 });
 

@@ -27,7 +27,7 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 import {
-  buildMultiIntentMetadata,
+  buildCartMetadata,
   buildSingleIntentMetadata,
   createWithClient,
   errorMessage,
@@ -741,7 +741,7 @@ export const squareApi: {
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
-      buildMultiIntentMetadata(intent),
+      buildCartMetadata(intent),
       `multi payment link for ${intent.items.length} events`,
     );
     if (!prep) return null;
