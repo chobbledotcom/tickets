@@ -2341,7 +2341,7 @@ describe("server (admin attendees)", () => {
     test("pre-selects existing answer on edit page", async () => {
       const { attendee, a1 } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers } = await import("#lib/db/questions.ts");
-      await saveAttendeeAnswers(attendee.id, [a1.id]);
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -2398,7 +2398,7 @@ describe("server (admin attendees)", () => {
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
         "#lib/db/questions.ts"
       );
-      await saveAttendeeAnswers(attendee.id, [a1.id]);
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
 
       const response = await handleRequest(
         mockFormRequest(
@@ -2428,7 +2428,7 @@ describe("server (admin attendees)", () => {
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
         "#lib/db/questions.ts"
       );
-      await saveAttendeeAnswers(attendee.id, [a1.id]);
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
 
       const response = await handleRequest(
         mockFormRequest(

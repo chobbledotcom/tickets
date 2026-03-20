@@ -272,7 +272,7 @@ const ATTENDEE_ANSWER_INSERT =
 
 /** Replace all answers for one or more attendees in a single atomic batch.
  * Deletes existing answers first, then inserts the new ones. */
-export const saveAttendeeAnswersBatch = async (
+export const saveAttendeeAnswers = async (
   attendeeIds: number[],
   answerIds: number[],
 ): Promise<void> => {
@@ -292,12 +292,6 @@ export const saveAttendeeAnswersBatch = async (
         );
   await executeBatch([...deletes, ...inserts]);
 };
-
-/** Replace attendee answers for a single attendee in a single atomic batch */
-export const saveAttendeeAnswers = (
-  attendeeId: number,
-  answerIds: number[],
-): Promise<void> => saveAttendeeAnswersBatch([attendeeId], answerIds);
 
 /** Get answers for multiple attendees in a single query */
 export const getAttendeeAnswersBatch = async (

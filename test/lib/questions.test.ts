@@ -13,7 +13,6 @@ import {
   getQuestionWithAnswers,
   questionsTable,
   saveAttendeeAnswers,
-  saveAttendeeAnswersBatch,
   setEventQuestions,
 } from "#lib/db/questions.ts";
 import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
@@ -68,7 +67,7 @@ describe("custom questions", () => {
       await setEventQuestions(event.id, [q.id]);
 
       const attendee = await createAttendee(event.id);
-      await saveAttendeeAnswers(attendee.id, [a.id]);
+      await saveAttendeeAnswers([attendee.id], [a.id]);
 
       await deleteQuestion(q.id);
 
@@ -259,7 +258,7 @@ describe("custom questions", () => {
       const event = await createTestEvent();
       const attendee = await createAttendee(event.id);
 
-      await saveAttendeeAnswers(attendee.id, [a1.id]);
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
 
       const batch = await getAttendeeAnswersBatch([attendee.id]);
       expect(batch.get(attendee.id)).toEqual([a1.id]);
@@ -282,8 +281,8 @@ describe("custom questions", () => {
       const att1 = await createAttendee(event.id, "Alice");
       const att2 = await createAttendee(event.id, "Bob");
 
-      await saveAttendeeAnswers(att1.id, [a1.id]);
-      await saveAttendeeAnswers(att2.id, [a2.id]);
+      await saveAttendeeAnswers([att1.id], [a1.id]);
+      await saveAttendeeAnswers([att2.id], [a2.id]);
 
       const batch = await getAttendeeAnswersBatch([att1.id, att2.id]);
       expect(batch.get(att1.id)).toEqual([a1.id]);
@@ -295,13 +294,13 @@ describe("custom questions", () => {
       expect(batch.size).toBe(0);
     });
 
-    test("saveAttendeeAnswersBatch does nothing for empty attendeeIds", async () => {
-      await saveAttendeeAnswersBatch([], [1]);
+    test("saveAttendeeAnswers does nothing for empty attendeeIds", async () => {
+      await saveAttendeeAnswers([], [1]);
       // No error thrown, no rows inserted
     });
 
-    test("saveAttendeeAnswersBatch does nothing for empty answerIds", async () => {
-      await saveAttendeeAnswersBatch([1], []);
+    test("saveAttendeeAnswers does nothing for empty answerIds", async () => {
+      await saveAttendeeAnswers([1], []);
       // No error thrown, no rows inserted
     });
 
@@ -320,12 +319,12 @@ describe("custom questions", () => {
 
       const event = await createTestEvent();
       const att = await createAttendee(event.id);
-      await saveAttendeeAnswers(att.id, [a1.id]);
+      await saveAttendeeAnswers([att.id], [a1.id]);
 
       const before = await getAttendeeAnswersBatch([att.id]);
       expect(before.get(att.id)).toEqual([a1.id]);
 
-      await saveAttendeeAnswers(att.id, [a2.id]);
+      await saveAttendeeAnswers([att.id], [a2.id]);
 
       const after = await getAttendeeAnswersBatch([att.id]);
       expect(after.get(att.id)).toEqual([a2.id]);
@@ -341,9 +340,9 @@ describe("custom questions", () => {
 
       const event = await createTestEvent();
       const att = await createAttendee(event.id);
-      await saveAttendeeAnswers(att.id, [a1.id]);
+      await saveAttendeeAnswers([att.id], [a1.id]);
 
-      await saveAttendeeAnswers(att.id, []);
+      await saveAttendeeAnswers([att.id], []);
 
       const after = await getAttendeeAnswersBatch([att.id]);
       expect(after.get(att.id)).toBeUndefined();

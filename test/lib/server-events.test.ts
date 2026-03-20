@@ -649,7 +649,7 @@ describe("server (admin events)", () => {
         sortOrder: 1,
       });
       await setEventQuestions(event.id, [q.id]);
-      await saveAttendeeAnswers(attendee.id, [a1.id]);
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}/export`,

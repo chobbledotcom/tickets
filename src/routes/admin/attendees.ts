@@ -704,7 +704,7 @@ async function editAttendeeHandler(
 
   // Update answers (atomic delete + insert)
   if (data.questions.length > 0) {
-    await saveAttendeeAnswers(attendeeId, answerIds);
+    await saveAttendeeAnswers([attendeeId], answerIds);
   }
 
   await logActivity(`Attendee '${name}' updated`, event_id);
