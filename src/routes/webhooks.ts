@@ -28,7 +28,7 @@ import {
   getAttendeesByTokens,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
-import { saveAttendeeAnswersBatch } from "#lib/db/questions.ts";
+import { saveAttendeeAnswers, saveAttendeeAnswersBatch } from "#lib/db/questions.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -77,19 +77,9 @@ const PRICE_CHANGED_MESSAGE =
 const isMultiSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
-/** Parse answer_ids from metadata JSON string; returns empty array on missing/invalid */
-const parseAnswerIds = (json: string): number[] => {
-  if (!json) return [];
-  try {
-    const parsed: unknown = JSON.parse(json);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (v): v is number => typeof v === "number" && Number.isInteger(v) && v > 0,
-    );
-  } catch {
-    return [];
-  }
-};
+/** Parse answer_ids from metadata JSON string */
+const parseAnswerIds = (json: string): number[] =>
+  json ? JSON.parse(json) : [];
 
 /**
  * Extract registration intent from validated session metadata (single-ticket only).
@@ -615,9 +605,7 @@ const processMultiPaymentSession = async (
 
   // Save custom question answers for all created attendees
   if (intent.answerIds.length > 0) {
-    const attendeeIds = map(
-      ({ attendee }: { attendee: Attendee }) => attendee.id,
-    )(createdAttendees);
+    const attendeeIds = createdAttendees.map(({ attendee }) => attendee.id);
     await saveAttendeeAnswersBatch(attendeeIds, intent.answerIds);
   }
 
@@ -724,7 +712,7 @@ const processPaymentSession = async (
 
   // Save custom question answers
   if (intent.answerIds && intent.answerIds.length > 0) {
-    await saveAttendeeAnswersBatch([result.attendee.id], intent.answerIds);
+    await saveAttendeeAnswers(result.attendee.id, intent.answerIds);
   }
 
   // Phase 3: Finalize the session with the attendee ID and token
