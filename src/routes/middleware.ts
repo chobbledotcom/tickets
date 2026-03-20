@@ -6,7 +6,6 @@ import {
   getAllowedDomain,
   getEmbedHosts,
   getPaymentProvider,
-  getSquareSandbox,
 } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
@@ -21,26 +20,9 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
   "x-robots-tag": "noindex, nofollow",
 };
 
-/** Square CDN domain for sandbox vs production */
-const SQUARE_CDN = {
-  sandbox: "https://sandbox.web.squarecdn.com",
-  production: "https://web.squarecdn.com",
-} as const;
-
-/** Square PCI connect domain for sandbox vs production */
-const SQUARE_PCI = {
-  sandbox: "https://pci-connect.squareupsandbox.com",
-  production: "https://pci-connect.squareup.com",
-} as const;
-
-/** Square font domains (same for sandbox and production) */
-const SQUARE_FONT_DOMAINS =
-  "https://square-fonts-production-f.squarecdn.com https://d1g145x70srn7h.cloudfront.net";
-
 /** Payment config for CSP header construction */
 export type PaymentCspConfig = {
   provider: "stripe" | "square" | null;
-  squareSandbox?: boolean;
 };
 
 /**
@@ -49,6 +31,8 @@ export type PaymentCspConfig = {
  * Embeddable pages omit frame-ancestors here; it's added by applySecurityHeaders
  * if embed host restrictions are configured.
  * Payment-specific directives are included only when a provider is configured.
+ * Both Stripe and Square use server-side redirect flows (not embedded SDKs),
+ * so only form-action needs provider-specific domains.
  */
 export const buildCspHeader = (
   embeddable: boolean,
@@ -57,18 +41,7 @@ export const buildCspHeader = (
   const directives = ["default-src 'self'"];
 
   if (payment?.provider === "square") {
-    const cdn = payment.squareSandbox
-      ? SQUARE_CDN.sandbox
-      : SQUARE_CDN.production;
-    const pci = payment.squareSandbox
-      ? SQUARE_PCI.sandbox
-      : SQUARE_PCI.production;
     directives.push(
-      `style-src 'self' ${cdn}`,
-      `script-src 'self' ${cdn}`,
-      `frame-src 'self' ${cdn}`,
-      `connect-src 'self' ${pci} https://o160250.ingest.sentry.io`,
-      `font-src ${SQUARE_FONT_DOMAINS}`,
       "form-action 'self' https://square.link https://checkout.square.site",
     );
   } else if (payment?.provider === "stripe") {
@@ -301,11 +274,9 @@ export const applySecurityHeaders = async (
 
   // Rebuild CSP with payment-provider-specific directives
   const provider = await getPaymentProvider();
-  const squareSandbox =
-    provider === "square" ? await getSquareSandbox() : undefined;
   response.headers.set(
     "content-security-policy",
-    buildCspHeader(embeddable, { provider, squareSandbox }),
+    buildCspHeader(embeddable, { provider }),
   );
 
   // Override x-robots-tag for hidden events (signal header set by route handlers)
