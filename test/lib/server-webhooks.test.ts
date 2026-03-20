@@ -2201,6 +2201,58 @@ describe("server (webhooks)", () => {
       }
     });
 
+    test("single-ticket capacity exceeded uses metadata event_id for refund", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        name: "WH Single Cap",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
+        Promise.resolve({
+          success: false,
+          reason: "capacity_exceeded",
+        }),
+      );
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_single_cap",
+          payment_status: "paid",
+          payment_intent: "pi_single_cap",
+          amount_total: 500,
+          metadata: {
+            event_id: String(event.id),
+            name: "Cap User",
+            email: "cap@example.com",
+            quantity: "1",
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_single_cap" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_single_cap"),
+        );
+        await expectHtmlResponse(response, 400, "sold out");
+      } finally {
+        mockAtomic.restore();
+        mockRetrieve.restore();
+        mockRefund.restore();
+      }
+    });
+
     test("webhook treats invalid payment_status as unpaid", async () => {
       await setupStripe();
 

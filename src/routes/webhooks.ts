@@ -38,15 +38,11 @@ import {
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   getActivePaymentProvider,
-  type RegistrationIntent,
   type SessionMetadata,
   type ValidatedPaymentSession,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
-import {
-  logAndNotifyMultiRegistration,
-  logAndNotifyRegistration,
-} from "#lib/webhook.ts";
+import { logAndNotifyMultiRegistration } from "#lib/webhook.ts";
 import { getFromEmailIfConfigured } from "#routes/public.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
@@ -77,23 +73,29 @@ const isMultiSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
 /**
- * Extract registration intent from validated session metadata (single-ticket only).
+ * Extract registration intent from validated session metadata (single-ticket).
  *
  * Converts from SessionMetadata's "" convention back to domain types:
- * - date: "" → null (RegistrationIntent uses null for "no date selected")
+ * - date: "" → null (MultiIntent uses null for "no date selected")
  * - numeric fields: "" → default via parseInt
+ *
+ * Returns a MultiIntent with a single item so that single and multi bookings
+ * share the same processing path.
  */
-const extractIntent = (
-  session: ValidatedPaymentSession,
-): RegistrationIntent => ({
-  eventId: Number.parseInt(session.metadata.event_id || "0", 10),
+const extractIntent = (session: ValidatedPaymentSession): MultiIntent => ({
   name: session.metadata.name,
   email: session.metadata.email,
   phone: session.metadata.phone,
   address: session.metadata.address,
   special_instructions: session.metadata.special_instructions,
-  quantity: Number.parseInt(session.metadata.quantity || "1", 10),
   date: session.metadata.date || null,
+  items: [
+    {
+      e: Number.parseInt(session.metadata.event_id || "0", 10),
+      q: Number.parseInt(session.metadata.quantity || "1", 10),
+      p: 0,
+    },
+  ],
 });
 
 /** Wrap handler with session ID extraction */
@@ -112,14 +114,11 @@ const withSessionId =
       : Promise.resolve(paymentErrorResponse("Invalid payment callback"));
   };
 
-/** Validated session data - either single or multi */
-type ValidatedSession =
-  | {
-      type: "single";
-      session: ValidatedPaymentSession;
-      intent: RegistrationIntent;
-    }
-  | { type: "multi"; session: ValidatedPaymentSession; intent: MultiIntent };
+/** Validated session data */
+type ValidatedSession = {
+  session: ValidatedPaymentSession;
+  intent: MultiIntent;
+};
 
 type SessionValidation =
   | { ok: true; data: ValidatedSession }
@@ -162,21 +161,22 @@ const validatePaidSession = async (
     };
   }
 
-  // Check if this is a multi-ticket session
+  // Extract intent — multi-ticket sessions use items metadata, single-ticket
+  // sessions are converted to a single-item MultiIntent
   if (isMultiSession(session.metadata)) {
-    const multiIntent = extractMultiIntent(session);
-    if (!multiIntent) {
+    const intent = extractMultiIntent(session);
+    if (!intent) {
       logRedirectError(`Invalid multi-ticket data (session=${sessionId})`);
       return {
         ok: false,
         response: paymentErrorResponse("Invalid multi-ticket session data"),
       };
     }
-    return { ok: true, data: { type: "multi", session, intent: multiIntent } };
+    return { ok: true, data: { session, intent } };
   }
 
   const intent = extractIntent(session);
-  return { ok: true, data: { type: "single", session, intent } };
+  return { ok: true, data: { session, intent } };
 };
 
 /** Result type for processPaymentSession */
@@ -230,29 +230,17 @@ const tryRefund = async (
   return refunded;
 };
 
-/**
- * Attempt to refund payment and return failure result.
- * Reports refund status accurately based on API result.
- * Logs a refund entry to the activity log for admin visibility.
- *
- * @param eventId - Explicit event ID for multi-ticket refunds. For single-ticket,
- *   the event ID is derived from session metadata.
- */
-const refundAndFail = async (
+/** Attempt refund and log activity if successful */
+const refundAndLog = async (
   session: ValidatedPaymentSession,
   error: string,
-  status?: number,
-  eventId?: number | null,
-): Promise<PaymentResult> => {
-  const metadataEventId = session.metadata.event_id
-    ? Number.parseInt(session.metadata.event_id, 10)
-    : undefined;
-  const resolvedEventId = eventId ?? metadataEventId;
-  const refunded = await tryRefund(session.paymentReference, resolvedEventId);
+  eventId: number,
+): Promise<boolean> => {
+  const refunded = await tryRefund(session.paymentReference, eventId);
   if (refunded) {
-    await logActivity(`Automatic refund: ${error}`, resolvedEventId);
+    await logActivity(`Automatic refund: ${error}`, eventId);
   }
-  return { success: false, error, status, refunded };
+  return refunded;
 };
 
 /**
@@ -261,20 +249,26 @@ const refundAndFail = async (
  * payment provider account. For known-event failures (inactive, closed),
  * refund so the customer gets their money back.
  */
-const validationFailure = (
+const validationFailure = async (
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
-  eventId?: number,
+  eventId: number,
 ): Promise<PaymentResult> => {
   if (validation.status === 404) {
-    return Promise.resolve({
+    return {
       success: false,
       error: validation.error,
       status: 404,
       detail: `Post-payment event not found (session=${session.id})`,
-    });
+    };
   }
-  return refundAndFail(session, validation.error, validation.status, eventId);
+  const refunded = await refundAndLog(session, validation.error, eventId);
+  return {
+    success: false,
+    error: validation.error,
+    status: validation.status,
+    refunded,
+  };
 };
 
 /** Rollback created attendees (multi-ticket failure recovery) */
@@ -446,27 +440,29 @@ const extractMultiIntent = (
 const priceMismatchRefund = async (
   session: ValidatedPaymentSession,
   detail: string,
-  eventId?: number,
+  eventId: number,
 ): Promise<PaymentResult> => {
-  const refunded = await tryRefund(session.paymentReference, eventId);
-  if (refunded) {
-    await logActivity(`Automatic refund: ${PRICE_CHANGED_MESSAGE}`, eventId);
-  }
+  const refunded = await refundAndLog(session, PRICE_CHANGED_MESSAGE, eventId);
   return { success: false, error: PRICE_CHANGED_MESSAGE, refunded, detail };
 };
 
 /**
- * Process multi-ticket payment session.
- * Creates attendees for all events atomically.
- * If any creation fails, deletes already-created attendees and refunds.
+ * Core attendee creation logic shared between redirect and webhook handlers.
+ * Handles both single-ticket and multi-ticket bookings uniformly — a single
+ * booking is just an items array with one entry.
+ *
+ * Uses two-phase locking to prevent duplicate attendee creation:
+ * 1. Reserve session (claims the lock)
+ * 2. Validate events and create attendees atomically (with rollback on failure)
+ * 3. Finalize session (records attendee ID)
  */
-const processMultiPaymentSession = async (
+const processPaymentSession = async (
   sessionId: string,
   data: { session: ValidatedPaymentSession; intent: MultiIntent },
   options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
-  // Phase 1: Reserve the session
+  // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
 
   if (!reservation.reserved) {
@@ -476,7 +472,7 @@ const processMultiPaymentSession = async (
       return alreadyProcessedResult(intent.items[0]!.e, existing);
     }
 
-    // Still being processed by another request
+    // Session reserved but not finalized — another request is processing
     return {
       success: false,
       error: "Payment is being processed. Please wait a moment and refresh.",
@@ -485,7 +481,12 @@ const processMultiPaymentSession = async (
   }
 
   // Phase 2: Validate events and create attendees atomically
-  // First pass: validate all events and compute expected prices
+  // A single-ticket checkout uses strict price validation (exact match / pay-more
+  // range). A multi-ticket checkout — even with one item — uses lenient validation
+  // (total >= expected) because legacy sessions may lack per-item prices.
+  const isSingleTicketCheckout = !isMultiSession(session.metadata);
+  const includeEventName = !isSingleTicketCheckout;
+
   const validatedItems: {
     item: MultiItem;
     event: EventWithCount;
@@ -496,7 +497,7 @@ const processMultiPaymentSession = async (
   for (const item of intent.items) {
     const vp = await validateAndPrice(
       { eventId: item.e, quantity: item.q },
-      true,
+      includeEventName,
     );
     if (!vp.ok) return validationFailure(session, vp, item.e);
     validatedItems.push({
@@ -507,7 +508,7 @@ const processMultiPaymentSession = async (
     expectedTotal += vp.expectedPrice;
   }
 
-  // When items have per-item prices, validate each against the event's rules
+  // Price validation
   const hasPerItemPrices = intent.items.some((item) => item.p > 0);
   const bookingFeePercent = await getBookingFee();
 
@@ -517,7 +518,7 @@ const processMultiPaymentSession = async (
       if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
         return priceMismatchRefund(
           session,
-          `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
+          `Per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
           event.id,
         );
       }
@@ -533,28 +534,48 @@ const processMultiPaymentSession = async (
     if (session.amountTotal !== expectedCartTotal) {
       return priceMismatchRefund(
         session,
-        `Multi-ticket total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
-        validatedItems[0]?.event.id,
+        `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
+        validatedItems[0]!.event.id,
+      );
+    }
+  } else if (isSingleTicketCheckout) {
+    // Single-ticket checkout: validate with hasPriceMismatch (exact match for
+    // fixed-price, range check for pay-more events)
+    const { event, expectedPrice } = validatedItems[0]!;
+    if (
+      hasPriceMismatch(
+        session.amountTotal,
+        expectedPrice,
+        event,
+        bookingFeePercent,
+        intent.items[0]!.q,
+      )
+    ) {
+      return priceMismatchRefund(
+        session,
+        `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
+        event.id,
       );
     }
   } else {
-    // No per-item prices: validate that provider charged at least the expected total + fee
+    // Multi-item without per-item prices: validate total >= expected + fee
     const expectedWithFee =
       expectedTotal + calculateBookingFee(expectedTotal, bookingFeePercent);
     if (session.amountTotal < expectedWithFee) {
       return priceMismatchRefund(
         session,
-        `Multi-ticket total mismatch: provider charged ${session.amountTotal} but expected at least ${expectedWithFee}`,
-        validatedItems[0]?.event.id,
+        `Total mismatch: provider charged ${session.amountTotal} but expected at least ${expectedWithFee}`,
+        validatedItems[0]!.event.id,
       );
     }
   }
 
+  // Create attendees
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
-  if (!hasPerItemPrices) {
+  if (!hasPerItemPrices && !isSingleTicketCheckout) {
     logDebug(
       "Payment",
       `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
@@ -562,6 +583,14 @@ const processMultiPaymentSession = async (
   }
 
   for (const { item, event, expectedPrice } of validatedItems) {
+    // For single-ticket pay-more events, use the actual amount charged to capture
+    // the customer's chosen price. Otherwise use per-item or expected price.
+    const pricePaid = hasPerItemPrices
+      ? item.p
+      : isSingleTicketCheckout && event.can_pay_more
+        ? session.amountTotal
+        : expectedPrice;
+
     const result = await createAttendeeAtomic({
       eventId: item.e,
       name: intent.name,
@@ -571,7 +600,7 @@ const processMultiPaymentSession = async (
       phone: intent.phone,
       address: intent.address,
       special_instructions: intent.special_instructions,
-      pricePaid: hasPerItemPrices ? item.p : expectedPrice,
+      pricePaid,
       date: event.event_type === "daily" ? intent.date : null,
     });
 
@@ -584,15 +613,12 @@ const processMultiPaymentSession = async (
     createdAttendees.push({ attendee: result.attendee, event });
   }
 
-  // If any creation failed, rollback all created attendees and refund
+  // If any creation failed, rollback already-created attendees and refund
   if (failedEvent && failureReason) {
     await rollbackAttendees(createdAttendees);
-    return refundAndFail(
-      session,
-      formatPostPaymentError(failureReason, failedEvent.name),
-      undefined,
-      failedEvent.id,
-    );
+    const error = formatPostPaymentError(failureReason, failedEvent.name);
+    const refunded = await refundAndLog(session, error, failedEvent.id);
+    return { success: false, error, refunded };
   }
 
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)
@@ -610,7 +636,6 @@ const processMultiPaymentSession = async (
     options?.storeTokens === false ? [] : ticketTokens,
   );
 
-  // Log and send consolidated webhook for all created attendees
   await logAndNotifyMultiRegistration(
     createdAttendees,
     await getCurrencyCode(),
@@ -620,100 +645,6 @@ const processMultiPaymentSession = async (
     success: true,
     attendee: firstAttendee.attendee,
     event: firstAttendee.event,
-    ticketTokens,
-  };
-};
-
-/**
- * Core attendee creation logic shared between redirect and webhook handlers.
- * Uses two-phase locking to prevent duplicate attendee creation:
- * 1. Reserve session (claims the lock)
- * 2. Create attendee atomically
- * 3. Finalize session (records attendee ID)
- */
-const processPaymentSession = async (
-  sessionId: string,
-  data: { session: ValidatedPaymentSession; intent: RegistrationIntent },
-  options?: { storeTokens?: boolean },
-): Promise<PaymentResult> => {
-  const { session, intent } = data;
-  // Phase 1: Try to reserve the session (claim the lock)
-  const reservation = await reserveSession(sessionId);
-
-  if (!reservation.reserved) {
-    // Session already claimed by another request
-    const { existing } = reservation;
-
-    if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.eventId, existing);
-    }
-
-    // Session reserved but not finalized - another request is processing
-    // This is a race condition where both arrived at nearly the same time
-    // Return a conflict error (the other request will complete the work)
-    return {
-      success: false,
-      error: "Payment is being processed. Please wait a moment and refresh.",
-      status: 409,
-    };
-  }
-
-  // Phase 2: Validate event and create attendee atomically with capacity check
-  const vp = await validateAndPrice(intent);
-  if (!vp.ok) return validationFailure(session, vp);
-
-  const { event, expectedPrice } = vp;
-  const bookingFeePercent = await getBookingFee();
-
-  // Reject if event price changed since checkout was created
-  // For pay-more events, the amount charged may be >= the minimum price
-  if (
-    hasPriceMismatch(
-      session.amountTotal,
-      expectedPrice,
-      event,
-      bookingFeePercent,
-      intent.quantity,
-    )
-  ) {
-    return priceMismatchRefund(
-      session,
-      `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
-      intent.eventId,
-    );
-  }
-
-  // Use the actual amount charged as price_paid (covers pay-more and booking fee)
-  const pricePaid = event.can_pay_more ? session.amountTotal : expectedPrice;
-
-  const result = await createAttendeeAtomic({
-    ...intent,
-    paymentId: session.paymentReference,
-    pricePaid,
-  });
-
-  if (!result.success) {
-    return refundAndFail(session, formatPostPaymentError(result.reason));
-  }
-
-  // Phase 3: Finalize the session with the attendee ID and token
-  // Skip storing tokens when called from redirect (caller already has them in memory)
-  const ticketTokens = [result.attendee.ticket_token];
-  await finalizeSession(
-    sessionId,
-    result.attendee.id,
-    options?.storeTokens === false ? [] : ticketTokens,
-  );
-
-  await logAndNotifyRegistration(
-    event,
-    result.attendee,
-    await getCurrencyCode(),
-  );
-  return {
-    success: true,
-    attendee: result.attendee,
-    event,
     ticketTokens,
   };
 };
@@ -745,16 +676,13 @@ const processSessionAndRedirect = async (
   const { data } = validation;
   // Skip persisting tokens — the redirect has them in memory and will put them in the URL.
   // This avoids tokens sitting in the DB forever when the redirect wins the race.
-  const noStore = { storeTokens: false } as const;
-  const result =
-    data.type === "multi"
-      ? await processMultiPaymentSession(sessionId, data, noStore)
-      : await processPaymentSession(sessionId, data, noStore);
+  const result = await processPaymentSession(sessionId, data, {
+    storeTokens: false,
+  });
 
   if (!result.success) {
     // Log once at the redirect boundary
-    const eventId =
-      data.type === "multi" ? data.intent.items[0]?.e : data.intent.eventId;
+    const eventId = data.intent.items[0]?.e;
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId,
@@ -777,7 +705,8 @@ const processSessionAndRedirect = async (
   }
 
   // Already-processed session (no tokens available) - render directly
-  const thankYouUrl = data.type === "single" ? result.event.thank_you_url : "";
+  const thankYouUrl =
+    data.intent.items.length === 1 ? result.event.thank_you_url : "";
   return htmlResponse(
     successPage({ ticketUrl: null, thankYouUrl, paid: true }),
   );
@@ -870,10 +799,11 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return paymentErrorResponse("Payment session not found");
   }
 
-  // Multi-ticket sessions store event IDs in metadata.items, not event_id
-  const eventId = isMultiSession(session.metadata)
-    ? (extractMultiIntent(session)?.items[0]?.e ?? 0)
-    : extractIntent(session).eventId;
+  // Extract first event ID for redirect (multi uses items metadata, single uses event_id)
+  const intent = isMultiSession(session.metadata)
+    ? extractMultiIntent(session)
+    : extractIntent(session);
+  const eventId = intent?.items[0]?.e ?? 0;
 
   // Use getEvent (not getEventWithCount) - we only need slug for redirect
   const event = await getEvent(eventId);
@@ -1008,32 +938,25 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse({ status: "pending" });
   }
 
-  // Determine if this is a multi-ticket session and process accordingly
+  // Extract intent — multi-ticket sessions use items metadata, single-ticket
+  // sessions are converted to a single-item MultiIntent
   const isMulti = isMultiSession(session.metadata);
-  let result: PaymentResult;
+  const intent = isMulti ? extractMultiIntent(session) : extractIntent(session);
 
-  let eventIdForLog: number | undefined;
-
-  if (isMulti) {
-    const multiIntent = extractMultiIntent(session);
-    if (!multiIntent) {
-      logError({
-        code: ErrorCode.PAYMENT_SESSION,
-        detail: `Invalid multi-ticket session data for ${session.id}`,
-      });
-      logDebug("Webhook", `Rejected payload: ${payload}`);
-      return plainResponse("Invalid multi-ticket session data", 400);
-    }
-    eventIdForLog = multiIntent.items[0]?.e;
-    result = await processMultiPaymentSession(session.id, {
-      session,
-      intent: multiIntent,
+  if (!intent) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Invalid multi-ticket session data for ${session.id}`,
     });
-  } else {
-    const intent = extractIntent(session);
-    eventIdForLog = intent.eventId;
-    result = await processPaymentSession(session.id, { session, intent });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
+    return plainResponse("Invalid multi-ticket session data", 400);
   }
+
+  const eventIdForLog = intent.items[0]?.e;
+  const result = await processPaymentSession(session.id, {
+    session,
+    intent,
+  });
 
   if (!result.success) {
     // Log once at the boundary — inner functions pass structured context via result.detail
