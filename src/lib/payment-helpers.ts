@@ -91,9 +91,7 @@ const optionalFields = (
 });
 
 /** Serialize answer IDs for metadata (only if non-empty) */
-const answerIdsField = (
-  answerIds?: number[],
-): Record<string, string> =>
+const answerIdsField = (answerIds?: number[]): Record<string, string> =>
   answerIds && answerIds.length > 0
     ? { answer_ids: JSON.stringify(answerIds) }
     : {};

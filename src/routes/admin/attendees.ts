@@ -20,6 +20,13 @@ import {
   getEventWithAttendeeRaw,
   getEventWithCount,
 } from "#lib/db/events.ts";
+import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import {
+  deleteAttendeeAnswers,
+  getAttendeeAnswersBatch,
+  getQuestionsForEvent,
+  saveAttendeeAnswers,
+} from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
@@ -551,6 +558,8 @@ const loadAttendeeForEdit = async (
   attendee: Attendee;
   event: EventWithCount;
   allEvents: EventWithCount[];
+  questions: QuestionWithAnswers[];
+  selectedAnswerIds: number[];
 } | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>(
@@ -560,9 +569,14 @@ const loadAttendeeForEdit = async (
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const event = (await getEventWithCount(attendee.event_id))!;
-  const allEvents = await getEventsForSelector(event.id);
+  const [allEvents, questions, answersMap] = await Promise.all([
+    getEventsForSelector(event.id),
+    getQuestionsForEvent(event.id),
+    getAttendeeAnswersBatch([attendeeId]),
+  ]);
+  const selectedAnswerIds = answersMap.get(attendeeId) ?? [];
 
-  return { attendee, event, allEvents };
+  return { attendee, event, allEvents, questions, selectedAnswerIds };
 };
 
 type EditAttendeeData = NonNullable<
@@ -667,6 +681,18 @@ async function editAttendeeHandler(
     if (!available) return editError("Not enough spots available");
   }
 
+  // Parse question answers
+  const answerIds: number[] = [];
+  for (const q of data.questions) {
+    const raw = form.get(`question_${q.id}`);
+    if (raw) {
+      const answerId = Number.parseInt(raw, 10);
+      if (q.answers.some((a) => a.id === answerId)) {
+        answerIds.push(answerId);
+      }
+    }
+  }
+
   await updateAttendee(attendeeId, {
     name,
     email,
@@ -676,6 +702,15 @@ async function editAttendeeHandler(
     event_id,
     quantity,
   });
+
+  // Update answers: delete existing and save new selections
+  if (data.questions.length > 0) {
+    await deleteAttendeeAnswers(attendeeId);
+    if (answerIds.length > 0) {
+      await saveAttendeeAnswers(attendeeId, answerIds);
+    }
+  }
+
   await logActivity(`Attendee '${name}' updated`, event_id);
 
   return redirect(

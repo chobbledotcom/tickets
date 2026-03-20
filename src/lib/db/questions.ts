@@ -313,6 +313,18 @@ export const getAttendeeAnswersBatch = async (
   return result;
 };
 
+/** Delete all answers for an attendee */
+export const deleteAttendeeAnswers = async (
+  attendeeId: number,
+): Promise<void> => {
+  await executeBatch([
+    {
+      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
+      args: [attendeeId],
+    },
+  ]);
+};
+
 /** Delete a question and all related data in a single batch.
  * Uses a subquery for attendee_answers so the entire cascade is atomic. */
 export const deleteQuestion = async (questionId: number): Promise<void> => {

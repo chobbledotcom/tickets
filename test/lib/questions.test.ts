@@ -4,6 +4,7 @@ import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   answersTable,
   deleteAnswer,
+  deleteAttendeeAnswers,
   deleteQuestion,
   getAllQuestionsWithAnswers,
   getAttendeeAnswersBatch,
@@ -303,6 +304,32 @@ describe("custom questions", () => {
     test("saveAttendeeAnswersBatch does nothing for empty answerIds", async () => {
       await saveAttendeeAnswersBatch([1], []);
       // No error thrown, no rows inserted
+    });
+
+    test("deleteAttendeeAnswers removes all answers for an attendee", async () => {
+      const q = await questionsTable.insert({ text: "Colour?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Red",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Blue",
+        sortOrder: 1,
+      });
+
+      const event = await createTestEvent();
+      const att = await createAttendee(event.id);
+      await saveAttendeeAnswers(att.id, [a1.id, a2.id]);
+
+      const before = await getAttendeeAnswersBatch([att.id]);
+      expect(before.get(att.id)!.length).toBe(2);
+
+      await deleteAttendeeAnswers(att.id);
+
+      const after = await getAttendeeAnswersBatch([att.id]);
+      expect(after.get(att.id)).toBeUndefined();
     });
   });
 
