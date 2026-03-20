@@ -140,6 +140,16 @@ export interface User {
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
 }
 
+export interface ApiKey {
+  id: number;
+  user_id: number;
+  key_index: string; // HMAC hash for lookup
+  wrapped_data_key: string; // DATA_KEY wrapped with the API key token
+  name: string; // encrypted label
+  created: string;
+  last_used: string; // ISO 8601 or empty string
+}
+
 export interface Holiday {
   id: number;
   name: string;

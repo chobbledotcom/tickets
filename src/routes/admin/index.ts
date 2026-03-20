@@ -9,6 +9,7 @@
 
 import { enableQueryLog } from "#lib/db/query-log.ts";
 import { loadAllSettings } from "#lib/db/settings.ts";
+import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
@@ -31,6 +32,7 @@ import { getAuthenticatedSession } from "#routes/utils.ts";
 const adminRoutes = {
   ...dashboardRoutes,
   ...authRoutes,
+  ...apiKeysRoutes,
   ...settingsRoutes,
   ...debugRoutes,
   ...siteRoutes,
