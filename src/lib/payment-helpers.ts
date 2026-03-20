@@ -58,8 +58,8 @@ export const createWithClient =
     return client ? safeAsync(() => op(client), errorCode) : null;
   };
 
-/** Serialize multi-ticket items for metadata storage (compact JSON) */
-export const serializeMultiItems = (
+/** Serialize booking items for metadata storage (compact JSON) */
+export const serializeBookingItems = (
   items: MultiRegistrationIntent["items"],
 ): string =>
   JSON.stringify(
@@ -113,17 +113,17 @@ export const buildSingleIntentMetadata = (
 });
 
 /**
- * Build intent metadata for a multi-event checkout.
+ * Build intent metadata for a cart checkout.
  * Common fields: multi flag, name, email, serialized items, optional phone/date.
  */
-export const buildMultiIntentMetadata = (
+export const buildCartMetadata = (
   intent: MultiRegistrationIntent,
 ): Record<string, string> => ({
   _origin: getAllowedDomain(),
   multi: "1",
   name: intent.name,
   email: intent.email,
-  items: serializeMultiItems(intent.items),
+  items: serializeBookingItems(intent.items),
   ...optionalFields(intent),
 });
 

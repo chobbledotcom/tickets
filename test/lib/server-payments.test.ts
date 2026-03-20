@@ -989,11 +989,7 @@ describe("server (payment flow)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_bad_multi"),
         );
-        await expectHtmlResponse(
-          response,
-          400,
-          "Invalid multi-ticket session data",
-        );
+        await expectHtmlResponse(response, 400, "Invalid cart session data");
       } finally {
         mockRetrieve.restore();
       }

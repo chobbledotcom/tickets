@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ErrorCode } from "#lib/logger.ts";
 import {
-  buildMultiIntentMetadata,
+  buildCartMetadata,
   buildSingleIntentMetadata,
   createWithClient,
   errorMessage,
@@ -10,7 +10,7 @@ import {
   hasRequiredSessionMetadata,
   PaymentUserError,
   safeAsync,
-  serializeMultiItems,
+  serializeBookingItems,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
 import { isPaymentStatus, type SessionMetadata } from "#lib/payments.ts";
@@ -132,12 +132,12 @@ describe("payment-helpers", () => {
     });
   });
 
-  describe("serializeMultiItems", () => {
+  describe("serializeBookingItems", () => {
     test("serializes single item with total price to compact JSON", () => {
       const items = [
         { eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt", name: "Evt" },
       ];
-      const result = serializeMultiItems(items);
+      const result = serializeBookingItems(items);
       expect(result).toBe(JSON.stringify([{ e: 1, q: 2, p: 2000 }]));
     });
 
@@ -146,7 +146,7 @@ describe("payment-helpers", () => {
         { eventId: 10, quantity: 1, unitPrice: 500, slug: "a", name: "A" },
         { eventId: 20, quantity: 3, unitPrice: 700, slug: "b", name: "B" },
       ];
-      const result = serializeMultiItems(items);
+      const result = serializeBookingItems(items);
       const parsed = JSON.parse(result);
       expect(parsed).toEqual([
         { e: 10, q: 1, p: 500 },
@@ -155,7 +155,7 @@ describe("payment-helpers", () => {
     });
 
     test("serializes empty array", () => {
-      const result = serializeMultiItems([]);
+      const result = serializeBookingItems([]);
       expect(result).toBe("[]");
     });
 
@@ -169,7 +169,7 @@ describe("payment-helpers", () => {
           name: "Secret Event",
         },
       ];
-      const result = serializeMultiItems(items);
+      const result = serializeBookingItems(items);
       expect(result).not.toContain("unitPrice");
       expect(result).not.toContain("slug");
       expect(result).toContain("9999");
@@ -309,7 +309,7 @@ describe("payment-helpers", () => {
     });
   });
 
-  describe("buildMultiIntentMetadata", () => {
+  describe("buildCartMetadata", () => {
     test("builds metadata with multi flag and serialized items", () => {
       const intent = {
         name: "Alice",
@@ -334,7 +334,7 @@ describe("payment-helpers", () => {
           },
         ],
       };
-      const result = buildMultiIntentMetadata(intent);
+      const result = buildCartMetadata(intent);
       expect(result._origin).toBe("localhost");
       expect(result.multi).toBe("1");
       expect(result.name).toBe("Alice");
@@ -357,7 +357,7 @@ describe("payment-helpers", () => {
           { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
         ],
       };
-      const result = buildMultiIntentMetadata(intent);
+      const result = buildCartMetadata(intent);
       expect(result.phone).toBe("+1234567890");
     });
 
@@ -372,7 +372,7 @@ describe("payment-helpers", () => {
           { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
         ],
       };
-      const result = buildMultiIntentMetadata(intent);
+      const result = buildCartMetadata(intent);
       expect("phone" in result).toBe(false);
     });
 
@@ -388,7 +388,7 @@ describe("payment-helpers", () => {
           { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
         ],
       };
-      const result = buildMultiIntentMetadata(intent);
+      const result = buildCartMetadata(intent);
       expect(result.date).toBe("2026-02-10");
     });
 
@@ -404,7 +404,7 @@ describe("payment-helpers", () => {
           { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
         ],
       };
-      const result = buildMultiIntentMetadata(intent);
+      const result = buildCartMetadata(intent);
       expect("date" in result).toBe(false);
     });
   });

@@ -58,31 +58,31 @@ import {
 } from "#routes/utils.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 
-/** Raw multi-ticket item from metadata (p may be absent in old webhooks) */
-type RawMultiItem = { e: number; q: number; p?: number };
+/** Raw booking item from metadata (p may be absent in old webhooks) */
+type RawBookingItem = { e: number; q: number; p?: number };
 
-/** Multi-ticket item with p defaulted to 0 */
-type MultiItem = { e: number; q: number; p: number };
+/** Booking item with p defaulted to 0 */
+type BookingItem = { e: number; q: number; p: number };
 
 /** User-facing message when the event price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
   "The price for this event changed while you were completing payment.";
 
-/** Check if session is a multi-ticket session */
-const isMultiSession = (metadata: SessionMetadata): boolean =>
+/** Check if session uses cart (multi-item) metadata format */
+const isCartSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
 /**
  * Extract registration intent from validated session metadata (single-ticket).
  *
  * Converts from SessionMetadata's "" convention back to domain types:
- * - date: "" → null (MultiIntent uses null for "no date selected")
+ * - date: "" → null (BookingIntent uses null for "no date selected")
  * - numeric fields: "" → default via parseInt
  *
- * Returns a MultiIntent with a single item so that single and multi bookings
+ * Returns a BookingIntent with a single item so that single and multi bookings
  * share the same processing path.
  */
-const extractIntent = (session: ValidatedPaymentSession): MultiIntent => ({
+const extractIntent = (session: ValidatedPaymentSession): BookingIntent => ({
   name: session.metadata.name,
   email: session.metadata.email,
   phone: session.metadata.phone,
@@ -117,7 +117,7 @@ const withSessionId =
 /** Validated session data */
 type ValidatedSession = {
   session: ValidatedPaymentSession;
-  intent: MultiIntent;
+  intent: BookingIntent;
 };
 
 type SessionValidation =
@@ -161,15 +161,15 @@ const validatePaidSession = async (
     };
   }
 
-  // Extract intent — multi-ticket sessions use items metadata, single-ticket
-  // sessions are converted to a single-item MultiIntent
-  if (isMultiSession(session.metadata)) {
-    const intent = extractMultiIntent(session);
+  // Extract intent — cart sessions parse items metadata, single-item
+  // sessions are wrapped into a one-item BookingIntent
+  if (isCartSession(session.metadata)) {
+    const intent = extractBookingIntent(session);
     if (!intent) {
-      logRedirectError(`Invalid multi-ticket data (session=${sessionId})`);
+      logRedirectError(`Invalid cart data (session=${sessionId})`);
       return {
         ok: false,
-        response: paymentErrorResponse("Invalid multi-ticket session data"),
+        response: paymentErrorResponse("Invalid cart session data"),
       };
     }
     return { ok: true, data: { session, intent } };
@@ -271,7 +271,7 @@ const validationFailure = async (
   };
 };
 
-/** Rollback created attendees (multi-ticket failure recovery) */
+/** Rollback created attendees (booking failure recovery) */
 const rollbackAttendees = async (
   attendees: { attendee: Attendee }[],
 ): Promise<void> => {
@@ -332,7 +332,7 @@ const validateAndPrice = async (
 
 /** Check if the amount charged matches the current event price (including booking fee).
  * For pay-more events, the amount must be >= the expected minimum price and <= the max cap.
- * `quantity` scales max_price so multi-ticket purchases are validated against the correct total cap. */
+ * `quantity` scales max_price so purchases are validated against the correct total cap. */
 const hasPriceMismatch = (
   amountTotal: number,
   expectedPrice: number,
@@ -377,8 +377,8 @@ const alreadyProcessedResult = async (
   };
 };
 
-/** Validate that a parsed value has the shape of a valid RawMultiItem */
-const isMultiItem = (v: unknown): v is RawMultiItem => {
+/** Validate that a parsed value has the shape of a booking item */
+const isBookingItem = (v: unknown): v is RawBookingItem => {
   if (typeof v !== "object" || v === null) return false;
   const { e, q, p } = v as Record<string, unknown>;
   return (
@@ -393,36 +393,36 @@ const isMultiItem = (v: unknown): v is RawMultiItem => {
   );
 };
 
-/** Parse multi-ticket items from metadata */
-const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
+/** Parse booking items from metadata */
+const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   try {
     const parsed: unknown = JSON.parse(itemsJson);
-    if (!Array.isArray(parsed) || !parsed.every(isMultiItem)) return null;
+    if (!Array.isArray(parsed) || !parsed.every(isBookingItem)) return null;
     // Default p to 0 when absent — old webhooks may lack per-item prices
     return map(
-      (item: RawMultiItem): MultiItem => ({ ...item, p: item.p ?? 0 }),
+      (item: RawBookingItem): BookingItem => ({ ...item, p: item.p ?? 0 }),
     )(parsed);
   } catch {
     return null;
   }
 };
 
-/** Multi-ticket registration intent */
-type MultiIntent = ContactInfo & {
+/** Booking intent with one or more line items */
+type BookingIntent = ContactInfo & {
   date: string | null;
-  items: MultiItem[];
+  items: BookingItem[];
 };
 
 /**
- * Extract multi-ticket intent from session metadata.
+ * Extract booking intent from cart-style session metadata.
  *
  * Converts date from SessionMetadata's "" convention to null for domain use.
  */
-const extractMultiIntent = (
+const extractBookingIntent = (
   session: ValidatedPaymentSession,
-): MultiIntent | null => {
+): BookingIntent | null => {
   const { metadata } = session;
-  const items = parseMultiItems(metadata.items);
+  const items = parseBookingItems(metadata.items);
   if (!items || items.length === 0) return null;
 
   return {
@@ -448,8 +448,8 @@ const priceMismatchRefund = async (
 
 /**
  * Core attendee creation logic shared between redirect and webhook handlers.
- * Handles both single-ticket and multi-ticket bookings uniformly — a single
- * booking is just an items array with one entry.
+ * Handles all bookings uniformly — a single-item checkout is just an
+ * items array with one entry.
  *
  * Uses two-phase locking to prevent duplicate attendee creation:
  * 1. Reserve session (claims the lock)
@@ -458,7 +458,7 @@ const priceMismatchRefund = async (
  */
 const processPaymentSession = async (
   sessionId: string,
-  data: { session: ValidatedPaymentSession; intent: MultiIntent },
+  data: { session: ValidatedPaymentSession; intent: BookingIntent },
   options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
@@ -481,14 +481,14 @@ const processPaymentSession = async (
   }
 
   // Phase 2: Validate events and create attendees atomically
-  // A single-ticket checkout uses strict price validation (exact match / pay-more
-  // range). A multi-ticket checkout — even with one item — uses lenient validation
+  // A single-item checkout uses strict price validation (exact match / pay-more
+  // range). A cart checkout — even with one item — uses lenient validation
   // (total >= expected) because legacy sessions may lack per-item prices.
-  const isSingleTicketCheckout = !isMultiSession(session.metadata);
-  const includeEventName = !isSingleTicketCheckout;
+  const isSingleItemCheckout = !isCartSession(session.metadata);
+  const includeEventName = !isSingleItemCheckout;
 
   const validatedItems: {
-    item: MultiItem;
+    item: BookingItem;
     event: EventWithCount;
     expectedPrice: number;
   }[] = [];
@@ -538,7 +538,7 @@ const processPaymentSession = async (
         validatedItems[0]!.event.id,
       );
     }
-  } else if (isSingleTicketCheckout) {
+  } else if (isSingleItemCheckout) {
     // Single-ticket checkout: validate with hasPriceMismatch (exact match for
     // fixed-price, range check for pay-more events)
     const { event, expectedPrice } = validatedItems[0]!;
@@ -558,7 +558,7 @@ const processPaymentSession = async (
       );
     }
   } else {
-    // Multi-item without per-item prices: validate total >= expected + fee
+    // Cart without per-item prices: validate total >= expected + fee
     const expectedWithFee =
       expectedTotal + calculateBookingFee(expectedTotal, bookingFeePercent);
     if (session.amountTotal < expectedWithFee) {
@@ -575,10 +575,10 @@ const processPaymentSession = async (
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
-  if (!hasPerItemPrices && !isSingleTicketCheckout) {
+  if (!hasPerItemPrices && !isSingleItemCheckout) {
     logDebug(
       "Payment",
-      `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
+      `Cart session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
     );
   }
 
@@ -587,7 +587,7 @@ const processPaymentSession = async (
     // the customer's chosen price. Otherwise use per-item or expected price.
     const pricePaid = hasPerItemPrices
       ? item.p
-      : isSingleTicketCheckout && event.can_pay_more
+      : isSingleItemCheckout && event.can_pay_more
         ? session.amountTotal
         : expectedPrice;
 
@@ -800,8 +800,8 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   }
 
   // Extract first event ID for redirect (multi uses items metadata, single uses event_id)
-  const intent = isMultiSession(session.metadata)
-    ? extractMultiIntent(session)
+  const intent = isCartSession(session.metadata)
+    ? extractBookingIntent(session)
     : extractIntent(session);
   const eventId = intent?.items[0]?.e ?? 0;
 
@@ -938,18 +938,20 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse({ status: "pending" });
   }
 
-  // Extract intent — multi-ticket sessions use items metadata, single-ticket
-  // sessions are converted to a single-item MultiIntent
-  const isMulti = isMultiSession(session.metadata);
-  const intent = isMulti ? extractMultiIntent(session) : extractIntent(session);
+  // Extract intent — cart sessions parse items metadata, single-item
+  // sessions are wrapped into a one-item BookingIntent
+  const isCart = isCartSession(session.metadata);
+  const intent = isCart
+    ? extractBookingIntent(session)
+    : extractIntent(session);
 
   if (!intent) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Invalid multi-ticket session data for ${session.id}`,
+      detail: `Invalid cart session data for ${session.id}`,
     });
     logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse("Invalid multi-ticket session data", 400);
+    return plainResponse("Invalid cart session data", 400);
   }
 
   const eventIdForLog = intent.items[0]?.e;

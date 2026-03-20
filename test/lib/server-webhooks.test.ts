@@ -519,11 +519,7 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        await expectHtmlResponse(
-          response,
-          400,
-          "Invalid multi-ticket session data",
-        );
+        await expectHtmlResponse(response, 400, "Invalid cart session data");
       } finally {
         mockVerify.restore();
       }
@@ -827,11 +823,7 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        await expectHtmlResponse(
-          response,
-          400,
-          "Invalid multi-ticket session data",
-        );
+        await expectHtmlResponse(response, 400, "Invalid cart session data");
       } finally {
         mockVerify.restore();
       }
@@ -1184,7 +1176,7 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_empty_items"),
         );
-        // Empty items list returns "Invalid multi-ticket session data"
+        // Empty items list returns "Invalid cart session data"
         expect(response.status).toBe(400);
       } finally {
         mockRetrieve.restore();
