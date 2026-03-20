@@ -651,5 +651,38 @@ describe("fp", () => {
       cache.invalidate();
       expect(cache.size()).toBe(0);
     });
+
+    test("invalidation during in-flight fetch prevents stale cache", async () => {
+      let resolveFetch!: (items: number[]) => void;
+      const cache = collectionCache(
+        () =>
+          new Promise<number[]>((r) => {
+            resolveFetch = r;
+          }),
+        100,
+      );
+
+      // Start a fetch (simulates a concurrent request loading events)
+      const fetchPromise = cache.getAll();
+
+      // While fetch is in-flight, invalidate (simulates event creation)
+      cache.invalidate();
+
+      // Resolve the in-flight fetch with stale data (missing the new event)
+      resolveFetch([1, 2]);
+      const staleResult = await fetchPromise;
+      expect(staleResult).toEqual([1, 2]); // caller gets what was fetched
+
+      // The stale data should NOT have been cached
+      expect(cache.size()).toBe(0);
+
+      // Next getAll should re-fetch fresh data
+      const freshPromise = cache.getAll();
+      resolveFetch([1, 2, 3]);
+      const freshResult = await freshPromise;
+      expect(freshResult).toEqual([1, 2, 3]);
+      // Now the cache IS populated with fresh data
+      expect(cache.size()).toBe(3);
+    });
   });
 });
