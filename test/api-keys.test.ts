@@ -481,7 +481,9 @@ describe("API Keys", () => {
   });
 
   describe("Bearer token authentication", () => {
-    test("authenticates admin API request with Bearer token", async () => {
+    test("authenticates /api/admin/* request with Bearer token", async () => {
+      await createTestEvent({ name: "Bearer Test" });
+
       const dataKey = await getTestDataKey();
       const { apiKey } = await createApiKey(
         1,
@@ -490,31 +492,57 @@ describe("API Keys", () => {
         generateSecureToken,
       );
 
-      // Use the API key to access an admin-only page
       const response = await handleRequest(
-        mockRequest("/admin/api-keys/docs", {
-          headers: {
-            authorization: `Bearer ${apiKey}`,
-          },
+        mockRequest("/api/admin/events", {
+          headers: { authorization: `Bearer ${apiKey}` },
         }),
       );
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.message).toBe("Admin API documentation");
+      expect(body.events).toBeDefined();
+    });
+
+    test("rejects Bearer token on admin HTML pages", async () => {
+      const dataKey = await getTestDataKey();
+      const { apiKey } = await createApiKey(
+        1,
+        "Scope Test",
+        dataKey,
+        generateSecureToken,
+      );
+
+      // Bearer should NOT authenticate admin UI routes
+      const dashboardResponse = await handleRequest(
+        mockRequest("/admin/api-keys/docs", {
+          headers: { authorization: `Bearer ${apiKey}` },
+        }),
+      );
+      expect(dashboardResponse.status).toBe(302);
+
+      const settingsResponse = await handleRequest(
+        mockRequest("/admin/settings", {
+          headers: { authorization: `Bearer ${apiKey}` },
+        }),
+      );
+      expect(settingsResponse.status).toBe(302);
+
+      const keysResponse = await handleRequest(
+        mockRequest("/admin/api-keys", {
+          headers: { authorization: `Bearer ${apiKey}` },
+        }),
+      );
+      expect(keysResponse.status).toBe(302);
     });
 
     test("rejects invalid Bearer token", async () => {
       const response = await handleRequest(
-        mockRequest("/admin/api-keys/docs", {
-          headers: {
-            authorization: "Bearer invalid-token",
-          },
+        mockRequest("/api/admin/events", {
+          headers: { authorization: "Bearer invalid-token" },
         }),
       );
 
-      // Should redirect to login (requireOwnerOr behavior)
-      expect(response.status).toBe(302);
+      expect(response.status).toBe(401);
     });
 
     test("rejects request without auth", async () => {

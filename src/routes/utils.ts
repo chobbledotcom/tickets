@@ -209,18 +209,6 @@ export const getAuthenticatedApiKey = async (
 };
 
 /**
- * Get authenticated session from either cookie or API key.
- * Cookie auth is checked first (for browser requests), then Bearer token.
- */
-export const getAuth = async (
-  request: Request,
-): Promise<AuthSession | null> => {
-  const session = await getAuthenticatedSession(request);
-  if (session) return session;
-  return getAuthenticatedApiKey(request);
-};
-
-/**
  * Whether the current request is authenticated via API key (not cookie session).
  */
 export const isApiKeyAuth = (request: Request): boolean =>
@@ -500,14 +488,16 @@ export type AuthSession = {
 };
 
 /**
- * Handle request with authenticated session
+ * Handle request with authenticated cookie session.
+ * Only checks cookie-based auth. API key auth is intentionally excluded —
+ * Bearer tokens should only authenticate /api/* endpoints via withAdminApi.
  */
 export const withSession = async (
   request: Request,
   handler: (session: AuthSession) => Response | Promise<Response>,
   onNoSession: () => Response | Promise<Response>,
 ): Promise<Response> => {
-  const session = await getAuth(request);
+  const session = await getAuthenticatedSession(request);
   return session ? handler(session) : onNoSession();
 };
 
@@ -768,11 +758,13 @@ export async function withAdminApi(
   request: Request,
   handler: JsonHandler,
 ): Promise<Response> {
+  // Try API key auth first — getAuthenticatedApiKey returns null for
+  // non-Bearer requests (falling through to cookie+CSRF auth below)
+  // or when the key is invalid (returning 401).
+  const apiKeySession = await getAuthenticatedApiKey(request);
+  if (apiKeySession) return runJsonHandler(request, apiKeySession, handler);
   if (isApiKeyAuth(request)) {
-    const session = await getAuthenticatedApiKey(request);
-    if (!session)
-      return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
-    return runJsonHandler(request, session, handler);
+    return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
   }
   return withAuthJson(request, handler);
 }
