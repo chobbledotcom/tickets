@@ -9,6 +9,7 @@ import {
   type ErrorContext,
   errorCodeLabel,
   formatErrorMessage,
+  formatRequestError,
   logDebug,
   logError,
   logErrorLocal,
@@ -351,6 +352,20 @@ describe("logger", () => {
       expect(formatErrorMessage(context)).toBe(
         "Error: Payment session error (price mismatch)",
       );
+    });
+  });
+
+  describe("formatRequestError", () => {
+    test("formats Error instance with message", () => {
+      expect(
+        formatRequestError("GET", "/ticket/abc", new Error("DB timeout")),
+      ).toBe("GET /ticket/[redacted]: DB timeout");
+    });
+
+    test("formats non-Error value as string", () => {
+      expect(
+        formatRequestError("POST", "/admin/events/5", "connection reset"),
+      ).toBe("POST /admin/events/[id]: connection reset");
     });
   });
 
