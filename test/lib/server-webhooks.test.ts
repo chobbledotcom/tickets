@@ -521,8 +521,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_no_qty"),
         );
-        // Should return error page (503) since missing quantity is a data integrity issue
-        expect(redirectResponse.status).toBe(503);
+        // Should return error page since missing quantity is invalid session data
+        expect(redirectResponse.status).toBe(400);
       } finally {
         mockRetrieve.restore();
       }
