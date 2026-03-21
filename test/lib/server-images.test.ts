@@ -700,9 +700,11 @@ describe("server (event images)", () => {
     test("reports error when attachment upload fails", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin();
 
+      const restoreStorage = setTestEnv({
+        STORAGE_ZONE_NAME: "testzone",
+        STORAGE_ZONE_KEY: "testkey",
+      });
       await withFetchMock(async (originalFetch) => {
-        Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-        Deno.env.set("STORAGE_ZONE_KEY", "testkey");
         installUrlHandler(originalFetch, () =>
           Promise.reject(new Error("CDN unreachable")),
         );
@@ -727,10 +729,8 @@ describe("server (event images)", () => {
         expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
           "upload failed",
         );
-
-        Deno.env.delete("STORAGE_ZONE_NAME");
-        Deno.env.delete("STORAGE_ZONE_KEY");
       });
+      restoreStorage();
     });
   });
 

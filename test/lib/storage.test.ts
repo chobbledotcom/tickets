@@ -310,9 +310,15 @@ describe("storage", () => {
   });
 
   describe("deleteAllEventStorageFiles", () => {
+    let restoreStorageEnv: () => void;
     beforeEach(() => {
-      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+      restoreStorageEnv = setTestEnv({
+        STORAGE_ZONE_NAME: "testzone",
+        STORAGE_ZONE_KEY: "testkey",
+      });
+    });
+    afterEach(() => {
+      restoreStorageEnv();
     });
 
     test("deletes images and attachments for all events", async () => {

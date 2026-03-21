@@ -30,6 +30,7 @@ import {
   createTestDbWithSetup,
   mockRequest,
   resetDb,
+  setTestEnv,
   setupTestEncryptionKey,
 } from "#test-utils";
 
@@ -43,8 +44,12 @@ describe("demo", () => {
   });
 
   describe("isDemoMode", () => {
+    let restoreEnv: () => void;
+    beforeEach(() => {
+      restoreEnv = setTestEnv({ DEMO_MODE: undefined });
+    });
     afterEach(() => {
-      Deno.env.delete("DEMO_MODE");
+      restoreEnv();
     });
 
     test("returns false when DEMO_MODE is not set", () => {
