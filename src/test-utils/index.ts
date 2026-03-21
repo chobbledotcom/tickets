@@ -476,27 +476,44 @@ export const setTestEnv = (
   };
 };
 
+/** Options for {@link describeWithEnv}. */
+interface DescribeEnvOptions {
+  /** Environment variables to set before each test and restore after. */
+  env?: Record<string, string | undefined>;
+  /** Reset slug counter, create test DB in beforeEach; resetDb in afterEach. */
+  db?: boolean;
+  /** Call setupTestEncryptionKey in beforeEach. */
+  encryptionKey?: boolean;
+}
+
 /**
- * Describe block with automatic env var setup and restore.
- * Sets env vars before each test and restores originals after each test.
+ * Describe block with automatic test infrastructure setup.
  * Additional beforeEach/afterEach hooks can be added inside the callback.
  *
  * @example
- * describeWithEnv("storage", { STORAGE_ZONE_NAME: "z", STORAGE_ZONE_KEY: "k" }, () => {
+ * describeWithEnv("storage", { env: { STORAGE_ZONE_NAME: "z" }, db: true }, () => {
  *   test("uses storage", () => { ... });
  * });
  */
 export const describeWithEnv = (
   name: string,
-  env: Record<string, string | undefined>,
+  options: DescribeEnvOptions,
   fn: () => void,
 ): void => {
   describe(name, () => {
     let restoreEnv: () => void;
-    beforeEach(() => {
-      restoreEnv = setTestEnv(env);
+    beforeEach(async () => {
+      if (options.encryptionKey) setupTestEncryptionKey();
+      if (options.env) restoreEnv = setTestEnv(options.env);
+      if (options.db) {
+        resetTestSlugCounter();
+        await createTestDbWithSetup();
+      }
     });
-    afterEach(() => restoreEnv());
+    afterEach(() => {
+      if (options.db) resetDb();
+      if (options.env) restoreEnv();
+    });
     fn();
   });
 };

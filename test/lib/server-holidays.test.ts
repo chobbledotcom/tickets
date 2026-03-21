@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 
 import { handleRequest } from "#routes";
 import {
   adminFormPost,
   adminGet,
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestHoliday,
   deleteTestHoliday,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   expectStatus,
@@ -16,24 +16,13 @@ import {
   mockFormRequest,
   mockRequest,
   requireJoinCsrfToken,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
   testHoliday,
   updateTestHoliday,
 } from "#test-utils";
 
-describe("server (admin holidays)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin holidays)", { db: true }, () => {
   describe("GET /admin/holidays", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/holidays"));

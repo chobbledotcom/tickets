@@ -3,17 +3,15 @@
  */
 
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { updateShowPublicSite, updateWebsiteTitle } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
 import {
-  createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
+  describeWithEnv,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
 } from "#test-utils";
 
 /** Fetch a feed URL and return the body text */
@@ -49,16 +47,7 @@ const expectExcludesClosedRegistration = async (
   expect(body).not.toContain(absentTag);
 };
 
-describe("feeds", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("feeds", { db: true }, () => {
   describe("GET /feeds/events.ics", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/feeds/events.ics"));

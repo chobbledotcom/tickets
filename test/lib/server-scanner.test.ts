@@ -5,18 +5,16 @@
  */
 
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { isJsonApiPath } from "#routes/middleware.ts";
 import {
   adminGet,
   awaitTestRequest,
   createTestAttendeeWithToken,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
-  resetDb,
-  resetTestSlugCounter,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
@@ -196,16 +194,7 @@ const orphanAttendee = async (token: string) => {
   return { getDb };
 };
 
-describe("QR Scanner", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("QR Scanner", { db: true }, () => {
   describe("isJsonApiPath", () => {
     test("matches scan endpoint with numeric event ID", () => {
       expect(isJsonApiPath("/admin/event/123/scan")).toBe(true);

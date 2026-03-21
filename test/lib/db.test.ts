@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import {
@@ -100,12 +100,10 @@ import { nowMs } from "#lib/now.ts";
 import {
   createPaidTestAttendee,
   createTestAttendee,
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
+  describeWithEnv,
   invalidateTestDbCache,
-  resetDb,
-  resetTestSlugCounter,
   setTestEnv,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -128,16 +126,7 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
   return importPrivateKey(privateKeyJwk);
 };
 
-describe("db", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("db", { db: true }, () => {
   describe("getDb", () => {
     test("throws error when DB_URL is not set", () => {
       setDb(null);

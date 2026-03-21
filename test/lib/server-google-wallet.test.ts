@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { beforeEach, it as test } from "@std/testing/bdd";
 import {
   getGoogleWalletConfig,
   getGoogleWalletIssuerIdFromDb,
@@ -16,15 +16,12 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestAttendeeWithToken,
-  createTestDbWithSetup,
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   generateGoogleTestCreds,
   loginAsAdmin,
   mockFormRequest,
-  resetDb,
-  resetTestSlugCounter,
   setTestEnv,
 } from "#test-utils";
 
@@ -45,15 +42,9 @@ const ensureCreds = async () => {
   if (!testCreds) testCreds = await generateGoogleTestCreds();
 };
 
-describe("google wallet route (/gwallet/:token)", () => {
+describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
   beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
     await ensureCreds();
-  });
-
-  afterEach(() => {
-    resetDb();
   });
 
   test("returns 404 when Google Wallet is not configured", async () => {
@@ -133,15 +124,9 @@ describe("google wallet route (/gwallet/:token)", () => {
   });
 });
 
-describe("ticket view google wallet link", () => {
+describeWithEnv("ticket view google wallet link", { db: true }, () => {
   beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
     await ensureCreds();
-  });
-
-  afterEach(() => {
-    resetDb();
   });
 
   test("does not show google wallet link when not configured", async () => {
@@ -167,15 +152,9 @@ describe("ticket view google wallet link", () => {
   });
 });
 
-describe("POST /admin/settings/google-wallet", () => {
+describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
   beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
     await ensureCreds();
-  });
-
-  afterEach(() => {
-    resetDb();
   });
 
   test("redirects to login when not authenticated", async () => {
@@ -357,120 +336,119 @@ const setGoogleWalletEnvVars = async () => {
   });
 };
 
-/** Clear all Google Wallet env vars and return restore function */
-const clearGoogleWalletEnvVars = () =>
-  setTestEnv({
-    GOOGLE_WALLET_ISSUER_ID: undefined,
-    GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: undefined,
-    GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: undefined,
-  });
-
-describeWithEnv("getHostGoogleWalletConfig", {
-  GOOGLE_WALLET_ISSUER_ID: undefined,
-  GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: undefined,
-  GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: undefined,
-}, () => {
-  test("returns null when no env vars are set", () => {
-    expect(getHostGoogleWalletConfig()).toBeNull();
-  });
-
-  test("returns null when only some env vars are set", () => {
-    Deno.env.set("GOOGLE_WALLET_ISSUER_ID", "123");
-    expect(getHostGoogleWalletConfig()).toBeNull();
-  });
-
-  test("returns config when all env vars are set", async () => {
-    await setGoogleWalletEnvVars();
-    const config = getHostGoogleWalletConfig();
-    expect(config).not.toBeNull();
-    expect(config!.issuerId).toBe("9876543210");
-    expect(config!.serviceAccountEmail).toBe(
-      "env@env-project.iam.gserviceaccount.com",
-    );
-    expect(config!.serviceAccountKey).toContain("BEGIN PRIVATE KEY");
-  });
-});
-
-describeWithEnv("Google Wallet env var fallback", {
-  GOOGLE_WALLET_ISSUER_ID: undefined,
-  GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: undefined,
-  GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: undefined,
-}, () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-    await ensureCreds();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
-  test("hasGoogleWalletConfig returns true with env vars when DB not configured", async () => {
-    await setGoogleWalletEnvVars();
-    expect(await hasGoogleWalletDbConfig()).toBe(false);
-    expect(await hasGoogleWalletConfig()).toBe(true);
-  });
-
-  test("getGoogleWalletConfig falls back to env vars when DB not configured", async () => {
-    await setGoogleWalletEnvVars();
-    const config = await getGoogleWalletConfig();
-    expect(config).not.toBeNull();
-    expect(config!.issuerId).toBe("9876543210");
-  });
-
-  test("getGoogleWalletConfig prefers DB config over env vars", async () => {
-    await setGoogleWalletEnvVars();
-    await configureGoogleWallet();
-    const config = await getGoogleWalletConfig();
-    expect(config).not.toBeNull();
-    expect(config!.issuerId).toBe("1234567890");
-  });
-
-  test("gwallet route works with env var config", async () => {
-    await setGoogleWalletEnvVars();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-    const response = await awaitTestRequest(`/gwallet/${token}`);
-    expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toMatch(
-      /^https:\/\/pay\.google\.com\/gp\/v\/save\//,
-    );
-  });
-
-  test("ticket view shows google wallet link with env var config", async () => {
-    await setGoogleWalletEnvVars();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-    const response = await awaitTestRequest(`/t/${token}`);
-    const body = await response.text();
-    expect(body).toContain("Google Wallet");
-  });
-
-  test("settings page shows host Google Wallet label when env vars configured", async () => {
-    await setGoogleWalletEnvVars();
-    const { cookie } = await loginAsAdmin();
-    const response = await awaitTestRequest("/admin/settings-advanced", {
-      cookie,
+describeWithEnv(
+  "getHostGoogleWalletConfig",
+  {
+    env: {
+      GOOGLE_WALLET_ISSUER_ID: undefined,
+      GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: undefined,
+      GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: undefined,
+    },
+  },
+  () => {
+    test("returns null when no env vars are set", () => {
+      expect(getHostGoogleWalletConfig()).toBeNull();
     });
-    const body = await response.text();
-    expect(body).toContain("Host env (9876543210)");
-    expect(body).toContain("Currently using");
-  });
 
-  test("settings page shows overriding label when both DB and env configured", async () => {
-    await setGoogleWalletEnvVars();
-    await configureGoogleWallet();
-    const { cookie } = await loginAsAdmin();
-    const response = await awaitTestRequest("/admin/settings-advanced", {
-      cookie,
+    test("returns null when only some env vars are set", () => {
+      Deno.env.set("GOOGLE_WALLET_ISSUER_ID", "123");
+      expect(getHostGoogleWalletConfig()).toBeNull();
     });
-    const body = await response.text();
-    expect(body).toContain("Host env (9876543210)");
-    expect(body).toContain("Overriding");
-  });
-});
+
+    test("returns config when all env vars are set", async () => {
+      await setGoogleWalletEnvVars();
+      const config = getHostGoogleWalletConfig();
+      expect(config).not.toBeNull();
+      expect(config!.issuerId).toBe("9876543210");
+      expect(config!.serviceAccountEmail).toBe(
+        "env@env-project.iam.gserviceaccount.com",
+      );
+      expect(config!.serviceAccountKey).toContain("BEGIN PRIVATE KEY");
+    });
+  },
+);
+
+describeWithEnv(
+  "Google Wallet env var fallback",
+  {
+    env: {
+      GOOGLE_WALLET_ISSUER_ID: undefined,
+      GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: undefined,
+      GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: undefined,
+    },
+    db: true,
+  },
+  () => {
+    beforeEach(async () => {
+      await ensureCreds();
+    });
+
+    test("hasGoogleWalletConfig returns true with env vars when DB not configured", async () => {
+      await setGoogleWalletEnvVars();
+      expect(await hasGoogleWalletDbConfig()).toBe(false);
+      expect(await hasGoogleWalletConfig()).toBe(true);
+    });
+
+    test("getGoogleWalletConfig falls back to env vars when DB not configured", async () => {
+      await setGoogleWalletEnvVars();
+      const config = await getGoogleWalletConfig();
+      expect(config).not.toBeNull();
+      expect(config!.issuerId).toBe("9876543210");
+    });
+
+    test("getGoogleWalletConfig prefers DB config over env vars", async () => {
+      await setGoogleWalletEnvVars();
+      await configureGoogleWallet();
+      const config = await getGoogleWalletConfig();
+      expect(config).not.toBeNull();
+      expect(config!.issuerId).toBe("1234567890");
+    });
+
+    test("gwallet route works with env var config", async () => {
+      await setGoogleWalletEnvVars();
+      const { token } = await createTestAttendeeWithToken(
+        "Alice",
+        "alice@test.com",
+      );
+      const response = await awaitTestRequest(`/gwallet/${token}`);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toMatch(
+        /^https:\/\/pay\.google\.com\/gp\/v\/save\//,
+      );
+    });
+
+    test("ticket view shows google wallet link with env var config", async () => {
+      await setGoogleWalletEnvVars();
+      const { token } = await createTestAttendeeWithToken(
+        "Alice",
+        "alice@test.com",
+      );
+      const response = await awaitTestRequest(`/t/${token}`);
+      const body = await response.text();
+      expect(body).toContain("Google Wallet");
+    });
+
+    test("settings page shows host Google Wallet label when env vars configured", async () => {
+      await setGoogleWalletEnvVars();
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
+      const body = await response.text();
+      expect(body).toContain("Host env (9876543210)");
+      expect(body).toContain("Currently using");
+    });
+
+    test("settings page shows overriding label when both DB and env configured", async () => {
+      await setGoogleWalletEnvVars();
+      await configureGoogleWallet();
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie,
+      });
+      const body = await response.text();
+      expect(body).toContain("Host env (9876543210)");
+      expect(body).toContain("Overriding");
+    });
+  },
+);

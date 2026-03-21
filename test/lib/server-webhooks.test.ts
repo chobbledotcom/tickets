@@ -1,35 +1,24 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { decrypt } from "#lib/crypto.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
-  createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
   followRedirect,
   mockRequest,
   mockWebhookRequest,
-  resetDb,
-  resetTestSlugCounter,
   setupStripe,
   stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
-describe("server (webhooks)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (webhooks)", { db: true }, () => {
   describe("POST /payment/webhook", () => {
     afterEach(() => {
       resetStripeClient();

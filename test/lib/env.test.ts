@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getEnv, requireEnv } from "#lib/env.ts";
 import { describeWithEnv } from "#test-utils";
 
-describeWithEnv("env", { TEST_ENV_VAR: undefined }, () => {
+describeWithEnv("env", { env: { TEST_ENV_VAR: undefined } }, () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {

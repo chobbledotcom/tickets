@@ -1,18 +1,16 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { updateEmbedHosts } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
   adminFormPost,
   adminGet,
   awaitTestRequest,
-  createTestDbWithSetup,
+  describeWithEnv,
   expectHtmlResponse,
   getEmbeddableTicketResponse,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
 } from "#test-utils";
 
 /** Decode redirect location from response, normalizing URL encoding */
@@ -55,16 +53,7 @@ async function getTicketCsp(setupEmbedHosts?: string): Promise<string> {
   return response.headers.get("content-security-policy")!;
 }
 
-describe("server (embed hosts)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (embed hosts)", { db: true }, () => {
   describe("GET /admin/settings (embed hosts section)", () => {
     test("shows embed hosts section on settings page", async () => {
       const { response } = await adminGet("/admin/settings");

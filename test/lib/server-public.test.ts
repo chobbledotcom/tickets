@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -16,23 +16,21 @@ import { handleRequest } from "#routes";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
   createTestHoliday,
   deactivateTestEvent,
+  describeWithEnv,
   expectCheckoutRedirect,
   expectHtmlResponse,
   expectRedirect,
   getTicketCsrfToken,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
+  setTestEnv,
   setupStripe,
   submitMultiTicketForm,
   submitTicketForm,
-  setTestEnv,
   testCookie,
   updateTestEvent,
 } from "#test-utils";
@@ -43,16 +41,7 @@ const expectReservedRedirectWithTokens = (response: Response): void => {
   expect(location).toMatch(/^\/ticket\/reserved\?tokens=.+$/);
 };
 
-describe("server (public routes)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/"));

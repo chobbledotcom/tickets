@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
@@ -17,28 +17,18 @@ import {
 } from "#routes/utils.ts";
 import {
   createTestDb,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
   getEmbeddableTicketResponse,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
   resetDb,
-  resetTestSlugCounter,
   testCookie,
 } from "#test-utils";
 
-describe("server (misc)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (misc)", { db: true }, () => {
   /** Create an embeddable test event and return its ticket page response */
   const getTicketPageResponse = getEmbeddableTicketResponse;
 

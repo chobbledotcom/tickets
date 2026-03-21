@@ -43,8 +43,7 @@ describe("demo", () => {
     setDemoModeForTest(false);
   });
 
-  describeWithEnv("isDemoMode", { DEMO_MODE: undefined }, () => {
-
+  describeWithEnv("isDemoMode", { env: { DEMO_MODE: undefined } }, () => {
     test("returns false when DEMO_MODE is not set", () => {
       expect(isDemoMode()).toBe(false);
     });

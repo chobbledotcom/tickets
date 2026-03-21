@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeEach, describe, it } from "@std/testing/bdd";
+import { describe, it } from "@std/testing/bdd";
 import {
   clearEncryptionKeyCache,
   constantTimeEqual,
@@ -29,6 +29,7 @@ import {
 } from "#lib/crypto.ts";
 import {
   clearTestEncryptionKey,
+  describeWithEnv,
   setTestEnv,
   setupTestEncryptionKey,
 } from "#test-utils";
@@ -120,11 +121,7 @@ describe("generateTicketToken", () => {
   });
 });
 
-describe("encryption", () => {
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
+describeWithEnv("encryption", { encryptionKey: true }, () => {
   describe("validateEncryptionKey", () => {
     it("succeeds with valid 32-byte key", () => {
       expect(() => validateEncryptionKey()).not.toThrow();
@@ -321,11 +318,7 @@ describe("session token hashing", () => {
   });
 });
 
-describe("hmacHash", () => {
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
+describeWithEnv("hmacHash", { encryptionKey: true }, () => {
   it("produces consistent hash for same IP", async () => {
     const ip = "192.168.1.1";
     const hash1 = await hmacHash(ip);
@@ -375,11 +368,7 @@ describe("hmacHash", () => {
   });
 });
 
-describe("KEK derivation", () => {
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
+describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
   it("derives a usable CryptoKey", async () => {
     const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==";
     const kek = await deriveKEK(passwordHash);
@@ -411,11 +400,7 @@ describe("KEK derivation", () => {
   });
 });
 
-describe("key wrapping", () => {
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
+describeWithEnv("key wrapping", { encryptionKey: true }, () => {
   describe("wrapKey and unwrapKey", () => {
     it("round-trips a data key", async () => {
       const dataKey = await generateDataKey();

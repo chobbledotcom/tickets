@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -14,11 +14,11 @@ import {
   adminGet,
   awaitTestRequest,
   createTestAttendee,
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
   createTestManagerSession,
   deactivateTestEvent,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
@@ -26,8 +26,6 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   setTestEnv,
   setupEventAndLogin,
   submitTicketForm,
@@ -36,15 +34,9 @@ import {
   updateTestEvent,
 } from "#test-utils";
 
-describe("server (admin events)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
+describeWithEnv("server (admin events)", { db: true }, () => {
   afterEach(() => {
     setDemoModeForTest(false);
-    resetDb();
   });
 
   describe("GET /admin/event/new", () => {

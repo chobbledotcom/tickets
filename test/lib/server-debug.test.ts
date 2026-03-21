@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   setPaymentProvider,
   setStripeWebhookConfig,
@@ -17,27 +17,16 @@ import {
 import { handleRequest } from "#routes";
 import {
   adminGet,
-  createTestDbWithSetup,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   generateGoogleTestCreds,
   generateTestCerts,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   setTestEnv,
 } from "#test-utils";
 
-describe("server (admin debug)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/debug"));
@@ -302,8 +291,7 @@ describe("server (admin debug)", () => {
       const creds = await generateGoogleTestCreds();
       restoreEnv = setTestEnv({
         GOOGLE_WALLET_ISSUER_ID: "9876543210",
-        GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL:
-          "env@test.iam.gserviceaccount.com",
+        GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "env@test.iam.gserviceaccount.com",
         GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: creds.serviceAccountKey,
       });
       const { response } = await adminGet("/admin/debug");

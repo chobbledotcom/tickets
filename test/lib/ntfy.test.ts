@@ -5,7 +5,7 @@ import { ErrorCode } from "#lib/logger.ts";
 import { sendNtfyError } from "#lib/ntfy.ts";
 import { describeWithEnv } from "#test-utils";
 
-describeWithEnv("ntfy", { NTFY_URL: undefined }, () => {
+describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
   let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
 
   beforeEach(() => {

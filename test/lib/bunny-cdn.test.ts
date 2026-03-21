@@ -87,17 +87,20 @@ const pullZoneResponse = (
 });
 
 describe("bunny-cdn", () => {
-  describeWithEnv("isBunnyCdnEnabled", { BUNNY_API_KEY: undefined }, () => {
+  describeWithEnv(
+    "isBunnyCdnEnabled",
+    { env: { BUNNY_API_KEY: undefined } },
+    () => {
+      test("returns false when BUNNY_API_KEY is not set", () => {
+        expect(isBunnyCdnEnabled()).toBe(false);
+      });
 
-    test("returns false when BUNNY_API_KEY is not set", () => {
-      expect(isBunnyCdnEnabled()).toBe(false);
-    });
-
-    test("returns true when BUNNY_API_KEY is set", () => {
-      Deno.env.set("BUNNY_API_KEY", "test-key");
-      expect(isBunnyCdnEnabled()).toBe(true);
-    });
-  });
+      test("returns true when BUNNY_API_KEY is set", () => {
+        Deno.env.set("BUNNY_API_KEY", "test-key");
+        expect(isBunnyCdnEnabled()).toBe(true);
+      });
+    },
+  );
 
   describe("getCdnHostname", () => {
     afterEach(() => resetAllowedDomain());
@@ -131,13 +134,16 @@ describe("bunny-cdn", () => {
     });
   });
 
-  describeWithEnv("getBunnyApiKey", { BUNNY_API_KEY: undefined }, () => {
-
-    test("getBunnyApiKey returns the env var value", () => {
-      Deno.env.set("BUNNY_API_KEY", "my-api-key");
-      expect(getBunnyApiKey()).toBe("my-api-key");
-    });
-  });
+  describeWithEnv(
+    "getBunnyApiKey",
+    { env: { BUNNY_API_KEY: undefined } },
+    () => {
+      test("getBunnyApiKey returns the env var value", () => {
+        Deno.env.set("BUNNY_API_KEY", "my-api-key");
+        expect(getBunnyApiKey()).toBe("my-api-key");
+      });
+    },
+  );
 
   describe("findPullZoneId", () => {
     useBunnyEnv();
