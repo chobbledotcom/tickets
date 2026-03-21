@@ -61,6 +61,7 @@ const result = reduce((acc, item) => {
 | `unique(arr)` | Remove duplicates |
 | `uniqueBy(fn)` | Dedupe by key |
 | `compact(arr)` | Remove null/undefined |
+| `chunk(size)` | Split array into chunks |
 | `pick(keys)` | Extract object keys |
 
 | `groupBy(fn)` | Group array items |

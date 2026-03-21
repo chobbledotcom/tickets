@@ -318,6 +318,19 @@ export function pipeAsync(
 }
 
 /**
+ * Split an array into chunks of a given size
+ */
+export const chunk =
+  (size: number) =>
+  <T>(array: T[]): T[][] => {
+    const result: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+      result.push(array.slice(i, i + size));
+    }
+    return result;
+  };
+
+/**
  * Map over a promise-returning function sequentially (one at a time)
  */
 export const mapSequential =
