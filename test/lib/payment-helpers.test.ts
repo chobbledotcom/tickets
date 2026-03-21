@@ -307,6 +307,26 @@ describe("payment-helpers", () => {
       });
       expect("special_instructions" in result).toBe(false);
     });
+
+    test("includes answer_ids when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        quantity: 1,
+        answerIds: [10, 20],
+      });
+      expect(result.answer_ids).toBe(JSON.stringify([10, 20]));
+    });
+
+    test("excludes answer_ids when empty array", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        quantity: 1,
+        answerIds: [],
+      });
+      expect("answer_ids" in result).toBe(false);
+    });
   });
 
   describe("buildCartMetadata", () => {

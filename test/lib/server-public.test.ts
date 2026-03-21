@@ -4331,6 +4331,48 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(batch.get(att2[0]!.id)).toEqual([a2.id]);
     });
 
+    test("skips non-selected events in event answer map", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Q Shared 1",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Q Shared 2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      // Question assigned to BOTH events
+      const q1 = await questionsTable.insert({ text: "Shared question?" });
+      const a1 = await answersTable.insert({
+        questionId: q1.id,
+        text: "Shared answer",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q1.id]);
+      await setEventQuestions(event2.id, [q1.id]);
+
+      const slug = `${event1.slug}+${event2.slug}`;
+      // Only select event1, skip event2
+      const response = await submitMultiTicketForm(slug, {
+        name: "Shared Q User",
+        email: "shared@example.com",
+        [`quantity_${event1.id}`]: "1",
+        [`quantity_${event2.id}`]: "0",
+        [`question_${q1.id}`]: String(a1.id),
+      });
+      expectReservedRedirectWithTokens(response);
+
+      // Verify answer saved only for event1's attendee
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const att1 = await getAttendeesRaw(event1.id);
+      expect(att1.length).toBe(1);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id]);
+      expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
+      const att2 = await getAttendeesRaw(event2.id);
+      expect(att2.length).toBe(0);
+    });
+
     test("validates question answers for selected events only", async () => {
       const event1 = await createTestEvent({
         name: "Multi Q Filter 1",

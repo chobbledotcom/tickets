@@ -37,6 +37,7 @@ import {
 } from "#lib/db/processed-payments.ts";
 import { saveAttendeeAnswers } from "#lib/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
+import { errorMessage } from "#lib/payment-helpers.ts";
 import {
   type BookingItem,
   getActivePaymentProvider,
@@ -197,9 +198,7 @@ const validatePaidSession = async (
     const intent = extractIntent(session);
     return { ok: true, data: { session, intent } };
   } catch (err) {
-    logRedirectError(
-      `${err instanceof Error ? err.message : String(err)} (session=${sessionId})`,
-    );
+    logRedirectError(`${errorMessage(err)} (session=${sessionId})`);
     return {
       ok: false,
       response: paymentErrorResponse("Invalid session data"),

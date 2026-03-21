@@ -838,6 +838,21 @@ describeWithEnv("server (misc)", { db: true }, () => {
       );
     });
 
+    test("rethrows non-SessionKeyError when TEST_RETHROW_ERRORS is set", async () => {
+      // Drop the settings table to trigger a DB error (not a SessionKeyError)
+      const { getDb: getDbFn } = await import("#lib/db/client.ts");
+      const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
+      await getDbFn().execute({ sql: "DROP TABLE settings", args: [] });
+      invalidateSettingsCache();
+      try {
+        await expect(handleRequest(mockRequest("/"))).rejects.toThrow();
+      } finally {
+        // Recreate DB for next tests
+        resetDb();
+        await createTestDb();
+      }
+    });
+
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
