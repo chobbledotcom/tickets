@@ -13,6 +13,7 @@ import { getFlash } from "#lib/flash-context.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
+  getSearchParam,
   htmlResponse,
   jsonResponse,
   orNotFound,
@@ -32,10 +33,12 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const keys = await getApiKeysForUser(session.userId);
     const flash = getFlash();
+    const newKey = getSearchParam(request, "key") || undefined;
     return htmlResponse(
       adminApiKeysPage(keys, session, {
         success: flash.success,
         error: flash.error,
+        newKey,
       }),
     );
   });
@@ -43,7 +46,9 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
 /**
  * Handle POST /admin/api-keys (create new API key)
  */
-const handleApiKeysPost = (request: Request): Promise<Response> =>
+const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
+  request,
+) =>
   withOwnerAuthForm(request, async (session, form) => {
     const name = (form.get("name") ?? "").trim();
     if (!name) {
@@ -74,13 +79,11 @@ const handleApiKeysPost = (request: Request): Promise<Response> =>
       generateSecureToken,
     );
 
-    // Return the plaintext key in the response (shown once)
-    const keys = await getApiKeysForUser(session.userId);
-    return htmlResponse(
-      adminApiKeysPage(keys, session, {
-        success: "API key created",
-        newKey: apiKey,
-      }),
+    // Redirect back with the key in the URL (shown once on the GET page)
+    return redirect(
+      `/admin/api-keys?key=${encodeURIComponent(apiKey)}`,
+      "API key created",
+      true,
     );
   });
 

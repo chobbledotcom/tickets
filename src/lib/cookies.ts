@@ -1,6 +1,5 @@
 import { getAllowedDomain } from "#lib/config.ts";
-
-const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24;
+import { SESSION_MAX_AGE_S } from "#lib/limits.ts";
 
 export const isSecureMode = (): boolean => getAllowedDomain() !== "localhost";
 
@@ -15,7 +14,7 @@ export const buildSessionCookie = (
   token: string,
   options?: { maxAge?: number },
 ): string => {
-  const maxAge = options?.maxAge ?? DEFAULT_SESSION_MAX_AGE;
+  const maxAge = options?.maxAge ?? SESSION_MAX_AGE_S;
   return `${sessionCookieName()}=${token}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 };
 

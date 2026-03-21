@@ -6,6 +6,7 @@ import { COUNTRIES, type CountryData } from "#lib/countries.ts";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { formatBytes, MAX_IMAGE_SIZE } from "#lib/limits.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -73,7 +74,7 @@ export const adminSettingsPage = (
             <h2>Header Image</h2>
             <p>
               An optional image displayed at the top of every page. JPEG, PNG,
-              GIF, or WebP — max 256KB.
+              GIF, or WebP — max {formatBytes(MAX_IMAGE_SIZE)}.
             </p>
             <label>
               {s.headerImageUrl ? "Replace Image" : "Upload Image"}

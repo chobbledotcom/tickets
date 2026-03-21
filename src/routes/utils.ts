@@ -20,6 +20,7 @@ import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { FormParams } from "#lib/form-data.ts";
+import { clearSavedFormData, setSavedFormData } from "#lib/forms.tsx";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -46,8 +47,8 @@ export class SessionKeyError extends Error {
  * bypasses the runtime's string-to-UTF8 path entirely.
  */
 const encoder = new TextEncoder();
-export const encodeBody = (text: string): BodyInit =>
-  encoder.encode(text) as unknown as BodyInit;
+export const encodeBody = (text: string): ArrayBuffer =>
+  encoder.encode(text).buffer as ArrayBuffer;
 
 /**
  * Get client IP from request
@@ -545,10 +546,12 @@ export const requireCsrfForm = async (
   const formCsrf = form.getString("csrf_token");
 
   if (formCsrf && (await verifySignedCsrfToken(formCsrf))) {
+    clearSavedFormData();
     return { ok: true, form };
   }
 
   await signCsrfToken();
+  setSavedFormData(form);
   return { ok: false, response: onInvalid() };
 };
 

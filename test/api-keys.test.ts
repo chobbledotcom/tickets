@@ -227,7 +227,7 @@ describe("API Keys", () => {
       expect(html).toContain("Create API key");
     });
 
-    test("POST /admin/api-keys creates a key and shows it", async () => {
+    test("POST /admin/api-keys creates a key and redirects with it", async () => {
       const cookie = await testCookie();
 
       // GET the page to get CSRF token
@@ -252,10 +252,22 @@ describe("API Keys", () => {
         }),
       );
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain("key=");
+      expectFlash(response, "API key created");
+
+      // Follow the redirect and verify the key is shown
+      const flashCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith("flash="))!;
+      const redirectResponse = await handleRequest(
+        mockRequest(location, {
+          headers: { cookie: `${cookie}; ${flashCookie.split(";")[0]}` },
+        }),
+      );
+      const html = await redirectResponse.text();
       expect(html).toContain("API key created");
-      // The key should be shown in the response
       expect(html).toContain("Copy your API key now");
     });
 

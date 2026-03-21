@@ -2,6 +2,7 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
+import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -55,6 +56,7 @@ export type DebugPageState = {
     commit: string;
   };
   domain: string;
+  limits: typeof LIMIT_ENTRIES;
   theme: Theme;
 };
 
@@ -293,6 +295,44 @@ export const adminDebugPage = (
               <td>ALLOWED_DOMAIN</td>
               <td>{s.domain}</td>
             </tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article>
+        <h2>Limits</h2>
+        <p>
+          Override any limit with the corresponding environment variable. Values
+          must be positive integers.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Setting</th>
+              <th>Env var</th>
+              <th>Default</th>
+              <th>Current</th>
+            </tr>
+          </thead>
+          <tbody>
+            {s.limits.map((l) => (
+              <tr>
+                <td>{l.label}</td>
+                <td>
+                  <code>{l.envKey}</code>
+                </td>
+                <td>{formatLimitValue(l.defaultValue, l.unit)}</td>
+                <td>
+                  {l.current === l.defaultValue ? (
+                    <span>{formatLimitValue(l.current, l.unit)}</span>
+                  ) : (
+                    <strong>
+                      {formatLimitValue(l.current, l.unit)} (overridden)
+                    </strong>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </article>

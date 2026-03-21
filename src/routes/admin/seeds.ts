@@ -2,11 +2,13 @@
  * Admin seed data routes - populate database with sample events and attendees
  */
 
+import { getFlash } from "#lib/flash-context.ts";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
+  redirect,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -17,11 +19,14 @@ export const MAX_SEED_EVENTS = 30;
 
 /** Handle GET /admin/seeds (show seed form) */
 const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = (request) =>
-  requireOwnerOr(request, (session) => htmlResponse(adminSeedsPage(session)));
+  requireOwnerOr(request, (session) => {
+    const flash = getFlash();
+    return htmlResponse(adminSeedsPage(session, flash.error, flash.success));
+  });
 
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
-  withOwnerAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (_session, form) => {
     const eventCount = Math.min(
       Math.max(1, Number(form.get("event_count")) || 0),
       MAX_SEED_EVENTS,
@@ -33,14 +38,13 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
 
     try {
       const result = await createSeeds(eventCount, attendeesPerEvent);
-      return htmlResponse(adminSeedsPage(session, undefined, result));
+      const message = `Created ${result.eventsCreated} event(s) with ${result.attendeesCreated} attendee(s) total.`;
+      return redirect("/admin/seeds", message, true);
     } catch {
-      return htmlResponse(
-        adminSeedsPage(
-          session,
-          "Failed to create seed data. Ensure setup is complete.",
-        ),
-        500,
+      return redirect(
+        "/admin/seeds",
+        "Failed to create seed data. Ensure setup is complete.",
+        false,
       );
     }
   });

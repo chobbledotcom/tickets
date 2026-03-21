@@ -2,7 +2,7 @@
  * Admin attendee management routes
  */
 
-import { compact, filter, uniqueBy } from "#fp";
+import { chunk, compact, filter, uniqueBy } from "#fp";
 import { getCurrencyCode } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
@@ -75,6 +75,9 @@ const NO_REFUNDABLE_ERROR = "No attendees have payments to refund.";
 const REFUND_FAILED_ERROR =
   "Refund failed. The payment may have already been refunded.";
 const ALREADY_REFUNDED_ERROR = "This attendee has already been refunded.";
+
+/** Max refunds per request to stay within Bunny Edge fetch limits */
+const REFUND_BATCH_LIMIT = 30;
 
 /**
  * Load attendee ensuring it belongs to the specified event.
@@ -423,38 +426,61 @@ const processRefundAll = async (
     );
   }
 
-  // TODO: Refunds are sequential to avoid overwhelming payment providers.
-  // For large events, consider batching with Promise.all in chunks.
+  const REFUND_CHUNK_SIZE = 5;
+  const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
+  const remaining = refundable.length - batch.length;
+
   let refundedCount = 0;
   let failedCount = 0;
-  for (const attendee of refundable) {
-    const refunded = await provider.refundPayment(attendee.payment_id);
-    if (refunded) {
-      await markRefunded(attendee.id);
-      refundedCount++;
-    } else {
-      failedCount++;
-      logError({
-        code: ErrorCode.PAYMENT_REFUND,
-        eventId: event.id,
-        detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-      });
+  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
+    const results = await Promise.all(
+      group.map(async (attendee) => {
+        const refunded = await provider.refundPayment(attendee.payment_id);
+        if (refunded) {
+          await markRefunded(attendee.id);
+          return true;
+        }
+        logError({
+          code: ErrorCode.PAYMENT_REFUND,
+          eventId: event.id,
+          detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+        });
+        return false;
+      }),
+    );
+    for (const success of results) {
+      if (success) refundedCount++;
+      else failedCount++;
     }
   }
 
   if (failedCount > 0) {
+    const msg =
+      remaining > 0
+        ? `${refundedCount} refund(s) succeeded, ${failedCount} failed. ${remaining} remaining — submit again to continue.`
+        : `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`;
     await logActivity(
       `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
       event.id,
     );
     return htmlResponse(
+      adminRefundAllAttendeesPage(event, refundable.length, session, msg),
+      400,
+    );
+  }
+
+  if (remaining > 0) {
+    await logActivity(
+      `Bulk refund: ${refundedCount} of ${refundable.length} refunded for '${event.name}'`,
+      event.id,
+    );
+    return htmlResponse(
       adminRefundAllAttendeesPage(
         event,
-        refundable.length,
+        remaining,
         session,
-        `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`,
+        `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
       ),
-      400,
     );
   }
 
@@ -621,7 +647,8 @@ const editAttendeePost =
 
 /** Parse a quantity value from a form field, clamping to [1, max] */
 function parseQuantity(value: string, max: number): number {
-  return Math.max(1, Math.min(max, Math.floor(Number(value) || 1)));
+  const parsed = Math.floor(Number(value));
+  return Math.max(1, Math.min(max, Number.isNaN(parsed) ? 1 : parsed));
 }
 
 /** Handle POST /admin/attendees/:attendeeId */

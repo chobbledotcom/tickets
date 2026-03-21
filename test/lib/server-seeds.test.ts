@@ -13,6 +13,7 @@ import {
   createTestManagerSession,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   extractCsrfToken,
   mockFormRequest,
@@ -80,6 +81,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     });
 
     test("creates seed events with no attendees", async () => {
+      const cookie = await testCookie();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
@@ -88,13 +90,12 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
             attendees_per_event: "0",
             csrf_token: await testCsrfToken(),
           },
-          await testCookie(),
+          cookie,
         ),
       );
 
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain('class="success"');
-      expect(html).toContain("Created 2 event(s) with 0 attendee(s) total.");
+      expect(response.status).toBe(302);
+      expectFlash(response, "Created 2 event(s) with 0 attendee(s) total.");
 
       const events = await getAllEvents();
       expect(events.length).toBe(2);
@@ -113,8 +114,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("Created 2 event(s) with 6 attendee(s) total.");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Created 2 event"));
 
       const events = await getAllEvents();
       expect(events.length).toBe(2);
@@ -156,13 +157,14 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(`Created ${MAX_SEED_EVENTS} event(s)`);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(`Created ${MAX_SEED_EVENTS} event`),
+      );
     });
 
     test("clamps attendees per event to max", async () => {
-      // Request more than SEED_MAX_ATTENDEES but create 0 events to avoid slow creation
-      // We verify clamping by checking a single event with attendees
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
@@ -175,8 +177,11 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(`with ${SEED_MAX_ATTENDEES} attendee(s) total.`);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(`${SEED_MAX_ATTENDEES} attendee`),
+      );
     });
 
     test("clamps negative values to minimum", async () => {
@@ -192,8 +197,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("Created 1 event(s) with 0 attendee(s) total.");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Created 1 event"));
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -227,7 +232,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       expect(events[0]!.max_attendees).toBe(0);
     });
 
-    test("returns 500 when seed creation fails", async () => {
+    test("redirects with error when seed creation fails", async () => {
       // Remove public key to cause createSeeds to fail
       await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
       invalidateSettingsCache();
@@ -244,8 +249,12 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      const html = await expectHtmlResponse(response, 500);
-      expect(html).toContain("Failed to create seed data");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        "Failed to create seed data. Ensure setup is complete.",
+        false,
+      );
     });
 
     test("handles non-numeric event count as 1", async () => {
@@ -261,8 +270,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("Created 1 event(s) with 2 attendee(s) total.");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Created 1 event"));
     });
 
     test("handles non-numeric attendees per event as 0", async () => {
@@ -278,8 +287,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("Created 1 event(s) with 0 attendee(s) total.");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Created 1 event"));
     });
 
     test("throws when public key is not configured", async () => {

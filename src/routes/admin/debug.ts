@@ -36,6 +36,7 @@ import {
 import { getHostEmailConfig } from "#lib/email.ts";
 import { getEnv } from "#lib/env.ts";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
+import { LIMIT_ENTRIES } from "#lib/limits.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { htmlResponse, requireOwnerOr } from "#routes/utils.ts";
@@ -207,6 +208,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       hostConfigured: !!getEnv("DB_URL"),
     },
     domain: getAllowedDomain(),
+    limits: LIMIT_ENTRIES,
     theme,
   };
 };

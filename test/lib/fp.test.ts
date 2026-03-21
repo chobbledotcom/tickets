@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   boundedLru,
   bracket,
+  chunk,
   collectionCache,
   compact,
   err,
@@ -286,6 +287,31 @@ describe("fp", () => {
     test("removes only null and undefined from mixed array", () => {
       const result = compact([null, undefined]);
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("chunk", () => {
+    test("splits array into chunks of given size", () => {
+      expect(chunk(2)([1, 2, 3, 4, 5])).toEqual([[1, 2], [3, 4], [5]]);
+    });
+
+    test("returns single chunk when array fits", () => {
+      expect(chunk(5)([1, 2, 3])).toEqual([[1, 2, 3]]);
+    });
+
+    test("returns empty array for empty input", () => {
+      expect(chunk(3)([])).toEqual([]);
+    });
+
+    test("handles exact multiples", () => {
+      expect(chunk(2)([1, 2, 3, 4])).toEqual([
+        [1, 2],
+        [3, 4],
+      ]);
+    });
+
+    test("handles chunk size of 1", () => {
+      expect(chunk(1)([1, 2, 3])).toEqual([[1], [2], [3]]);
     });
   });
 
