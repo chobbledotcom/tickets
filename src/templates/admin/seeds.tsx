@@ -4,20 +4,15 @@
 
 import { CsrfForm, renderError, renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { SeedResult } from "#lib/seeds.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-
-/** Format seed result as a success message string */
-const formatSeedResult = (result: SeedResult): string =>
-  `Created ${result.eventsCreated} event(s) with ${result.attendeesCreated} attendee(s) total.`;
 
 /** Seed data admin page */
 export const adminSeedsPage = (
   session: AdminSession,
   error?: string,
-  result?: SeedResult,
+  success?: string,
 ): string =>
   String(
     <Layout title="Seed Data">
@@ -29,9 +24,7 @@ export const adminSeedsPage = (
       </p>
 
       <Raw html={renderError(error)} />
-      <Raw
-        html={renderSuccess(result ? formatSeedResult(result) : undefined)}
-      />
+      <Raw html={renderSuccess(success)} />
 
       <CsrfForm action="/admin/seeds">
         <label for="event_count">Number of events</label>
