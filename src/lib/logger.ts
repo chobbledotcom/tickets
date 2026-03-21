@@ -218,7 +218,7 @@ export const formatErrorMessage = (context: ErrorContext): string => {
 };
 
 /** Guard against recursive logError→logActivity→logError loops */
-const errorPersistGuard = { active: false };
+export const errorPersistGuard = { active: false };
 
 /** Persist error to activity log, swallowing failures to prevent cascading errors */
 const persistErrorToActivityLog = async (
