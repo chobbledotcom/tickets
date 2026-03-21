@@ -14,7 +14,7 @@ import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { resetAllowedDomain } from "#lib/config.ts";
-import { getSessionCookieName } from "#lib/cookies.ts";
+import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
 import { getCountry } from "#lib/countries.ts";
 import {
   clearEncryptionKeyCache,
@@ -823,7 +823,9 @@ export const loginAsAdmin = async (): Promise<{
       loginCsrfToken,
     ),
   );
-  const cookie = loginResponse.headers.get("set-cookie")!;
+  const cookie = loginResponse.headers
+    .getSetCookie()
+    .find((c) => c.startsWith(getSessionCookieName() + "="))!;
   const csrfToken = await signCsrfToken();
 
   return { cookie, csrfToken };
@@ -1232,6 +1234,52 @@ export const expectRedirect =
 /** Shorthand: assert redirect to /admin */
 export const expectAdminRedirect: (response: Response) => Response =
   expectRedirect("/admin");
+
+/**
+ * Assert the response carries a flash cookie with the given message.
+ * Works on both redirect (302) and rendered (200) responses.
+ */
+export const expectFlash = (
+  response: Response,
+  // deno-lint-ignore no-explicit-any
+  message: string | any,
+  succeeded = true,
+): Response => {
+  const cookies = response.headers.getSetCookie();
+  const flash = cookies.find((c) => c.startsWith("flash="));
+  expect(flash).toBeDefined();
+  const cookiePart = flash!.split(";")[0]!;
+  const value = cookiePart.split("=").slice(1).join("=");
+  const parsed = parseFlashValue(value);
+  expect(parsed).not.toBeNull();
+  const actual = succeeded ? parsed!.success : parsed!.error;
+  expect(actual).toEqual(message);
+  return response;
+};
+
+/**
+ * Assert a redirect (302) to the given location with a flash message.
+ * Combines expectRedirect + expectFlash in one step.
+ */
+export const expectRedirectWithFlash =
+  (location: string, message: string, succeeded = true) =>
+  (response: Response): Response => {
+    expectRedirect(location)(response);
+    expectFlash(response, message, succeeded);
+    return response;
+  };
+
+/**
+ * Build a cookie header string containing a flash message.
+ * Use in mockRequest to simulate a flash cookie from a previous redirect.
+ */
+export const flashCookieHeader = (
+  message: string,
+  succeeded = true,
+): string => {
+  const type = succeeded ? "s" : "e";
+  return `flash=${encodeURIComponent(`${type}:${message}`)}`;
+};
 
 /** Assert response is a checkout redirect (302 to an external HTTPS URL) */
 export const expectCheckoutRedirect = (response: Response): void => {

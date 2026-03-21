@@ -2,11 +2,11 @@
  * Admin seed data routes - populate database with sample events and attendees
  */
 
+import { getFlash } from "#lib/flash-context.ts";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  getSearchParam,
   htmlResponse,
   redirect,
   requireOwnerOr,
@@ -20,9 +20,8 @@ export const MAX_SEED_EVENTS = 30;
 /** Handle GET /admin/seeds (show seed form) */
 const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = (request) =>
   requireOwnerOr(request, (session) => {
-    const success = getSearchParam(request, "success");
-    const error = getSearchParam(request, "error");
-    return htmlResponse(adminSeedsPage(session, error || undefined, success));
+    const flash = getFlash();
+    return htmlResponse(adminSeedsPage(session, flash.error, flash.success));
   });
 
 /** Handle POST /admin/seeds (create seed data) */

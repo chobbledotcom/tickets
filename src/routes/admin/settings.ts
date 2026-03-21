@@ -113,6 +113,7 @@ import {
   parseEmbedHosts,
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
@@ -389,10 +390,7 @@ const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (
   request,
 ) =>
   requireOwnerOr(request, async (session) => {
-    setFormSuccess(
-      getSearchParam(request, "form"),
-      getSearchParam(request, "success"),
-    );
+    setFormSuccess(getSearchParam(request, "form"), getFlash().success);
     return htmlResponse(await renderSettingsPage(session));
   });
 
@@ -403,10 +401,7 @@ const handleAdminSettingsAdvancedGet: TypedRouteHandler<
   "GET /admin/settings-advanced"
 > = (request) =>
   requireOwnerOr(request, async (session) => {
-    setFormSuccess(
-      getSearchParam(request, "form"),
-      getSearchParam(request, "success"),
-    );
+    setFormSuccess(getSearchParam(request, "form"), getFlash().success);
     return htmlResponse(await renderAdvancedSettingsPage(session));
   });
 

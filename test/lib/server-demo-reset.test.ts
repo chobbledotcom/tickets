@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
@@ -12,7 +13,7 @@ import {
   createTestEvent,
   describeWithEnv,
   expectHtmlResponse,
-  expectRedirect,
+  expectRedirectWithFlash,
   extractCsrfToken,
   installUrlHandler,
   invalidateTestDbCache,
@@ -139,8 +140,11 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
         confirm_phrase: RESET_DATABASE_PHRASE,
       });
 
-      expectRedirect("/setup/?success=Database+reset")(response);
-      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+      expectRedirectWithFlash("/setup/", "Database reset")(response);
+      const sessionCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+      expect(sessionCookie).toContain("Max-Age=0");
       invalidateTestDbCache();
     });
 
@@ -174,7 +178,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
           confirm_phrase: RESET_DATABASE_PHRASE,
         });
 
-        expectRedirect("/setup/?success=Database+reset")(response);
+        expectRedirectWithFlash("/setup/", "Database reset")(response);
         expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
           true,
         );

@@ -3,7 +3,7 @@
  */
 
 import { compact, map, pipe, reduce } from "#fp";
-import { getSessionCookieName } from "#lib/cookies.ts";
+import { buildFlashCookie, getSessionCookieName } from "#lib/cookies.ts";
 import {
   generateSecureToken,
   getPrivateKeyFromSession,
@@ -309,7 +309,9 @@ type RedirectOpts = {
 
 /**
  * Redirect with a success or error message (PRG pattern).
- * Appends ?success= or ?error= to the URL, safely handling existing query params.
+ * Stores the message in a flash cookie instead of the query string
+ * to avoid leaking potentially sensitive data in URLs, browser history,
+ * and referrer headers.
  * When formId is provided, adds a `form` param and `#formId` anchor so the
  * browser scrolls to the form that was just submitted.
  */
@@ -321,12 +323,14 @@ export const redirect = (
 ): Response => {
   const target = opts?.form?.get("return_url") || url;
   const u = new URL(target, "http://localhost");
-  u.searchParams.set(succeeded ? "success" : "error", message);
   if (opts?.formId) {
     u.searchParams.set("form", opts.formId);
     u.hash = opts.formId;
   }
-  return redirectResponse(u.pathname + u.search + u.hash, opts?.cookie);
+  const flash = buildFlashCookie(message, succeeded);
+  const response = redirectResponse(u.pathname + u.search + u.hash, flash);
+  if (opts?.cookie) withCookie(response, opts.cookie);
+  return response;
 };
 
 /**

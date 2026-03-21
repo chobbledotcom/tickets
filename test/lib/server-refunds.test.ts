@@ -13,6 +13,7 @@ import {
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   mockFormRequest,
   mockProviderType,
   mockRequest,
@@ -277,10 +278,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
       await withRefundMock(true, async (mockRefund) => {
         const response = await submitRefund(ctx);
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(
-          `/admin/event/${ctx.event.id}?success=Refund+issued`,
-        );
+        expectRedirectWithFlash(
+          `/admin/event/${ctx.event.id}`,
+          "Refund issued",
+        )(response);
         expect(mockRefund.calls.length).toBeGreaterThan(0);
       });
     });
@@ -458,10 +459,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
             await testCookie(),
           ),
         );
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}?success=All+attendees+refunded`,
-        );
+        expectRedirectWithFlash(
+          `/admin/event/${event.id}`,
+          "All attendees refunded",
+        )(response);
         expect(mockRefund.calls.length).toBe(2);
       });
     });

@@ -20,6 +20,7 @@ import {
   createTestAttendeeWithToken,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   generateTestCerts,
   mockFormRequest,
@@ -340,10 +341,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     });
 
     expect(response.status).toBe(302);
-    const location = response.headers.get("location")!;
-    expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-      "Apple Wallet settings updated",
-    );
+    expectFlash(response, "Apple Wallet settings updated");
 
     expect(await hasAppleWalletConfig()).toBe(true);
     expect(await getAppleWalletPassTypeIdFromDb()).toBe(
@@ -365,10 +363,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     });
 
     expect(response.status).toBe(302);
-    const location = response.headers.get("location")!;
-    expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-      "Apple Wallet configuration cleared",
-    );
+    expectFlash(response, "Apple Wallet configuration cleared");
     expect(await hasAppleWalletConfig()).toBe(false);
   });
 

@@ -21,7 +21,7 @@ import {
   deactivateTestEvent,
   deleteTestGroup,
   errorResponse,
-  expectRedirect,
+  expectRedirectWithFlash,
   expectStatus,
   generateTestEventName,
   getAdminLoginCsrfToken,
@@ -435,9 +435,10 @@ describe("test-utils", () => {
         password: "newpassword123",
         password_confirm: "newpassword123",
       });
-      expectRedirect("/join/complete?success=Password+set+successfully")(
-        response,
-      );
+      expectRedirectWithFlash(
+        "/join/complete",
+        "Password set successfully",
+      )(response);
     });
 
     test("returns error response for mismatched passwords", async () => {

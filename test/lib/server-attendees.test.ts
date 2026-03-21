@@ -13,8 +13,11 @@ import {
   createTestEvent,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   expectRedirect,
+  expectRedirectWithFlash,
+  flashCookieHeader,
   getAttendeesRaw,
   mockFormRequest,
   mockProviderType,
@@ -208,10 +211,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response, event, attendee } = await deleteAction({
         confirm_name: "john doe",
       })();
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?success=Attendee+deleted`,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Attendee deleted",
+      )(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -223,7 +226,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await deleteAction({
         confirm_name: "  John Doe  ",
       })();
-      expectRedirect("/admin/event/1?success=Attendee+deleted")(response);
+      expectRedirectWithFlash("/admin/event/1", "Attendee deleted")(response);
     });
   });
 
@@ -259,7 +262,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           },
         ),
       );
-      expectRedirect("/admin/event/1?success=Attendee+deleted")(response);
+      expectRedirectWithFlash("/admin/event/1", "Attendee deleted")(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -369,8 +372,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(
-        `/admin/event/${event.id}?success=Incomplete+registration+removed`,
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Incomplete registration removed",
       )(response);
 
       // Verify attendee was deleted
@@ -400,10 +404,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        `/admin/event/${event.id}`,
-      );
-      expect(response.headers.get("location")).toContain("error=");
+      expectRedirect(`/admin/event/${event.id}`)(response);
+      expectFlash(response, expect.stringContaining(""), false);
 
       // Verify attendee was NOT deleted (still exists)
       const rows = await getAttendeesRaw(event.id);
@@ -431,10 +433,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        `/admin/event/${event.id}`,
-      );
-      expect(response.headers.get("location")).toContain("error=");
+      expectRedirect(`/admin/event/${event.id}`)(response);
+      expectFlash(response, expect.stringContaining(""), false);
 
       // Verify attendee was NOT deleted
       const rows = await getAttendeesRaw(event.id);
@@ -462,8 +462,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(
-        `/admin/event/${event.id}?success=Incomplete+registration+removed`,
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Incomplete registration removed",
       )(response);
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -600,8 +601,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const location = response.headers.get("location")!;
       expect(location).toContain("/admin/calendar");
       expect(location).toContain("date=2026-03-15");
-      expect(location).toContain("success=");
-      expect(location).toContain("checked");
+      expect(location).toContain("#attendees");
+      expectFlash(response, expect.stringContaining("checked"));
     });
 
     test("checks out an already checked-in attendee", async () => {
@@ -744,7 +745,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain(`/admin/event/${event.id}`);
-      expect(location).toContain("success=Added");
+      expectFlash(response, expect.stringContaining("Added"));
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -769,7 +770,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("success=Added");
+      expectFlash(response, expect.stringContaining("Added"));
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -795,7 +796,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("success=Added");
+      expectFlash(response, expect.stringContaining("Added"));
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -820,8 +821,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(location).toContain("error=");
+      expectFlash(response, expect.stringContaining(""), false);
     });
 
     test("redirects with error when capacity exceeded", async () => {
@@ -846,9 +846,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(location).toContain("error=");
-      expect(location).toContain("spots");
+      expectFlash(response, expect.stringContaining("spots"), false);
     });
 
     test("redirects with error on encryption failure", async () => {
@@ -878,9 +876,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             ),
           );
           expect(response.status).toBe(302);
-          const location = response.headers.get("location")!;
-          expect(location).toContain("error=");
-          expect(location).toContain("Encryption");
+          expectFlash(response, expect.stringContaining("Encryption"), false);
         },
       );
     });
@@ -918,7 +914,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("success=Added");
+      expectFlash(response, expect.stringContaining("Added"));
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -941,23 +937,21 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("event page shows success message when ?success param present", async () => {
+    test("event page shows success message when flash cookie present", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}?success=Added%20Jane%20Doe`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie: `${cookie}; ${flashCookieHeader("Added Jane Doe")}`,
+      });
       await expectHtmlResponse(response, 200, "Added Jane Doe");
     });
 
-    test("event page shows error message when ?error param present", async () => {
+    test("event page shows error message when flash cookie present", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}?error=Not%20enough%20spots`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie: `${cookie}; ${flashCookieHeader("Not enough spots", false)}`,
+      });
       await expectHtmlResponse(response, 200, "Not enough spots");
     });
   });
@@ -1285,9 +1279,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?success=Updated+Jane+Doe#attendees`,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}#attendees`,
+        "Updated Jane Doe",
+      )(response);
 
       // Verify the edit form shows the updated data
       const editResponse = await awaitTestRequest(
@@ -1333,9 +1328,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain("/admin/calendar");
-      expect(location).toContain("success=");
-      expect(location).toContain("John+Doe");
+      expect(location).toContain("date=2026-03-15");
       expect(location).toContain("#attendees");
+      expectFlash(response, expect.stringContaining("John Doe"));
     });
 
     test("allows moving attendee to different event", async () => {
@@ -1369,9 +1364,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/event/${event2.id}?success=Updated+John+Doe#attendees`,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event2.id}#attendees`,
+        "Updated John Doe",
+      )(response);
 
       // Verify attendee was moved to event2 by checking the raw attendee data
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -1383,10 +1379,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("event page shows edit success message", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}?success=Updated%20Jane%20Doe`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie: `${cookie}; ${flashCookieHeader("Updated Jane Doe")}`,
+      });
       await expectHtmlResponse(response, 200, "Updated Jane Doe");
     });
 
@@ -1553,9 +1548,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?success=Updated+Jane+Smith#attendees`,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}#attendees`,
+        "Updated Jane Smith",
+      )(response);
     });
 
     test("updates attendee quantity", async () => {
@@ -2019,9 +2015,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           webhookUrl: "https://example.com/webhook",
         });
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}?success=Notification+re-sent`,
-        );
+        expectRedirectWithFlash(
+          `/admin/event/${event.id}`,
+          "Notification re-sent",
+        )(response);
 
         // Verify webhook was sent
         expect(webhookFetch.calls.length).toBeGreaterThan(0);
@@ -2112,7 +2109,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Refunded");
     });
 
-    test("shows success message when success query param is present", async () => {
+    test("shows success message when flash cookie present", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
@@ -2120,11 +2117,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const cookie = await testCookie();
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}?success=${encodeURIComponent(
-          "Payment status is up to date",
-        )}`,
-        { cookie: await testCookie() },
+        `/admin/attendees/${attendee.id}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Payment status is up to date")}`,
+        },
       );
       await expectHtmlResponse(response, 200, "Payment status is up to date");
     });
@@ -2178,9 +2176,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/attendees/${attendee.id}?error=No+payment+to+refresh`,
-      );
+      expectRedirectWithFlash(
+        `/admin/attendees/${attendee.id}`,
+        "No payment to refresh",
+        false,
+      )(response);
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -2260,8 +2260,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             expect(response.headers.get("location")).toContain(
               `/admin/attendees/${attendee.id}`,
             );
-            expect(response.headers.get("location")).toContain("success=");
-            expect(response.headers.get("location")).toContain("refunded");
+            expectFlash(response, expect.stringContaining("refunded"));
             expect(mockRefunded.calls[0]!.args).toEqual(["pi_refresh_refund"]);
           } finally {
             mockRefunded.restore();
@@ -2307,8 +2306,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             expect(response.headers.get("location")).toContain(
               `/admin/attendees/${attendee.id}`,
             );
-            expect(response.headers.get("location")).toContain("success=");
-            expect(response.headers.get("location")).toContain("up+to+date");
+            expectFlash(response, expect.stringContaining("up to date"));
           } finally {
             mockRefunded.restore();
           }

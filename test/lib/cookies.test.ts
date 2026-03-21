@@ -6,6 +6,7 @@ import {
   clearSessionCookie,
   getSessionCookieName,
   isSecureMode,
+  parseFlashValue,
 } from "#lib/cookies.ts";
 
 /** Assert common cookie attributes for dev (localhost) mode */
@@ -95,5 +96,29 @@ describe("clearSessionCookie", () => {
     expect(cookie).toContain("session=");
     expectDevCookieAttributes(cookie);
     expect(cookie).toContain("Max-Age=0");
+  });
+});
+
+describe("parseFlashValue", () => {
+  test("parses success flash value", () => {
+    expect(parseFlashValue("s:Event created")).toEqual({
+      success: "Event created",
+    });
+  });
+
+  test("parses error flash value", () => {
+    expect(parseFlashValue("e:Something went wrong")).toEqual({
+      error: "Something went wrong",
+    });
+  });
+
+  test("decodes URL-encoded values", () => {
+    expect(parseFlashValue(encodeURIComponent("s:Hello world"))).toEqual({
+      success: "Hello world",
+    });
+  });
+
+  test("returns null for invalid format", () => {
+    expect(parseFlashValue("invalid")).toBeNull();
   });
 });

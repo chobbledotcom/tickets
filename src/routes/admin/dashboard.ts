@@ -11,10 +11,13 @@ import {
 } from "#lib/db/attendees.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
+/* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
+/* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -38,9 +41,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
-      const url = new URL(request.url);
-      const imageError = url.searchParams.get("error");
-      const successMessage = url.searchParams.get("success");
+      const { error: imageError, success: successMessage } = getFlash();
       const [events, holidays, newestRaw, privateKey] = await Promise.all([
         getAllEvents(),
         getActiveHolidays(),

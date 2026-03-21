@@ -166,9 +166,9 @@ const newestAttendeesSection = (
 export const adminDashboardPage = (
   events: EventWithCount[],
   session: AdminSession,
-  imageError?: string | null,
+  imageError?: string,
   newestAttendees: Attendee[] = [],
-  successMessage?: string | null,
+  successMessage?: string,
   stats?: ActiveEventStats | null,
 ): string => {
   const eventRows =
@@ -185,7 +185,7 @@ export const adminDashboardPage = (
     <Layout title="Events">
       <AdminNav session={session} active="/admin/" />
 
-      <Raw html={renderSuccess(successMessage ?? undefined)} />
+      <Raw html={renderSuccess(successMessage)} />
 
       {imageError && <p class="error">{imageError}</p>}
 

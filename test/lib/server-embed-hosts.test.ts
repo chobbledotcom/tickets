@@ -7,18 +7,12 @@ import {
   adminGet,
   awaitTestRequest,
   describeWithEnv,
+  expectFlash,
   expectHtmlResponse,
   getEmbeddableTicketResponse,
   mockFormRequest,
   mockRequest,
 } from "#test-utils";
-
-/** Decode redirect location from response, normalizing URL encoding */
-function decodedLocation(response: Response): string {
-  return decodeURIComponent(
-    response.headers.get("location")!.replaceAll("+", " "),
-  );
-}
 
 /** Post invalid embed hosts and assert a 400 error with expected message */
 async function postInvalidEmbedHosts(
@@ -31,7 +25,7 @@ async function postInvalidEmbedHosts(
   await expectHtmlResponse(response, 400, expectedError);
 }
 
-/** Post embed hosts form and assert a 302 redirect containing the expected message */
+/** Post embed hosts form and assert a 302 redirect with expected flash message */
 async function postEmbedHostsExpectRedirect(
   fields: Record<string, string>,
   expectedMessage: string,
@@ -41,7 +35,7 @@ async function postEmbedHostsExpectRedirect(
     fields,
   );
   expect(response.status).toBe(302);
-  expect(decodedLocation(response)).toContain(expectedMessage);
+  expectFlash(response, expectedMessage);
 }
 
 /** Create an embeddable event and return its ticket page CSP header */
@@ -135,9 +129,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(decodedLocation(response)).toContain(
-        "Embed host restrictions removed",
-      );
+      expectFlash(response, "Embed host restrictions removed");
     });
 
     test("rejects invalid host pattern", async () => {

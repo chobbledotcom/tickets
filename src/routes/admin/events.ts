@@ -27,6 +27,7 @@ import {
   EVENT_DEMO_FIELDS,
   isDemoMode,
 } from "#lib/demo.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
@@ -440,8 +441,7 @@ const renderEventPage = async (
           attendees,
           request,
         );
-        const errorMessage = getSearchParam(request, "error");
-        const successMessage = getSearchParam(request, "success");
+        const flash = getFlash();
         const phonePrefix = await getPhonePrefixFromDb();
         return htmlResponse(
           adminEventPage({
@@ -453,9 +453,9 @@ const renderEventPage = async (
             activeFilter,
             dateFilter,
             availableDates,
-            errorMessage,
+            errorMessage: flash.error,
             phonePrefix,
-            successMessage,
+            successMessage: flash.success,
           }),
         );
       },

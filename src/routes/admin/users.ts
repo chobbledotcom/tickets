@@ -18,6 +18,7 @@ import {
   isInviteExpired,
   isUsernameTaken,
 } from "#lib/db/users.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
@@ -32,6 +33,7 @@ import {
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
+
 import {
   adminUserDeletePage,
   adminUserNewPage,
@@ -86,7 +88,6 @@ const usersErrorResponse = async (
   htmlResponse(
     await renderUsersPage(session, {
       inviteLink: "",
-      success: "",
       error,
       currentUserId: session.userId,
     }),
@@ -99,12 +100,12 @@ const usersErrorResponse = async (
 const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const invite = getSearchParam(request, "invite");
-    const success = getSearchParam(request, "success");
+    const flash = getFlash();
     return htmlResponse(
       await renderUsersPage(session, {
         inviteLink: invite,
-        success,
-        error: "",
+        success: flash.success,
+        error: flash.error,
         currentUserId: session.userId,
       }),
     );

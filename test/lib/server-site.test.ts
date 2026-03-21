@@ -16,20 +16,19 @@ import {
   awaitTestRequest,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
+  flashCookieHeader,
   mockFormRequest,
   mockRequest,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
 
-/** Assert a 302 redirect whose decoded location contains the given text */
+/** Assert a 302 redirect with a flash cookie containing the given text */
 const expectRedirectContaining = (response: Response, text: string) => {
   expect(response.status).toBe(302);
-  const decoded = decodeURIComponent(
-    response.headers.get("location")!.replaceAll("+", " "),
-  );
-  expect(decoded).toContain(text);
+  expectFlash(response, text);
 };
 
 describeWithEnv("server (admin site)", { db: true }, () => {
@@ -64,11 +63,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       expect(html).toContain("Welcome!");
     });
 
-    test("displays success message from query param", async () => {
-      const response = await awaitTestRequest(
-        "/admin/site?success=Homepage+updated",
-        { cookie: await testCookie() },
-      );
+    test("displays success message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest("/admin/site", {
+        cookie: `${cookie}; ${flashCookieHeader("Homepage updated")}`,
+      });
       const html = await response.text();
       expect(html).toContain("Homepage updated");
     });
@@ -211,11 +210,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       expect(html).toContain("Call us!");
     });
 
-    test("displays success message from query param", async () => {
-      const response = await awaitTestRequest(
-        "/admin/site/contact?success=Contact+page+updated",
-        { cookie: await testCookie() },
-      );
+    test("displays success message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest("/admin/site/contact", {
+        cookie: `${cookie}; ${flashCookieHeader("Contact page updated")}`,
+      });
       const html = await response.text();
       expect(html).toContain("Contact page updated");
     });

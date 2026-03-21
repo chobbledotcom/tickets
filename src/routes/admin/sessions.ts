@@ -4,9 +4,9 @@
 
 import { hashSessionToken } from "#lib/crypto.ts";
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
-  getSearchParam,
   htmlResponse,
   redirect,
   requireOwnerOr,
@@ -23,9 +23,9 @@ const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> = (
   requireOwnerOr(request, async (session) => {
     const sessions = await getAllSessions();
     const tokenHash = await hashSessionToken(session.token);
-    const success = getSearchParam(request, "success");
+    const flash = getFlash();
     return htmlResponse(
-      adminSessionsPage(sessions, tokenHash, session, success),
+      adminSessionsPage(sessions, tokenHash, session, flash.success),
     );
   });
 

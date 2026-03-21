@@ -30,8 +30,8 @@ export const adminSiteHomePage = (
   session: AdminSession,
   websiteTitle: string | null,
   homepageText: string | null,
-  error: string,
-  success: string,
+  error?: string,
+  success?: string,
 ): string =>
   String(
     <Layout title="Site - Home">
@@ -87,8 +87,8 @@ export const adminSiteHomePage = (
 export const adminSiteContactPage = (
   session: AdminSession,
   contactPageText: string | null,
-  error: string,
-  success: string,
+  error?: string,
+  success?: string,
 ): string =>
   String(
     <Layout title="Site - Contact">

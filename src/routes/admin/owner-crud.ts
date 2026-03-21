@@ -1,9 +1,9 @@
 import { logActivity } from "#lib/db/activityLog.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
 import {
-  getSearchParam,
   htmlResponse,
   notFoundResponse,
   orNotFound,
@@ -103,7 +103,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const listGet = (request: Request): Promise<Response> =>
     requireAuth(request, async (session) => {
       const rows = await cfg.getAll();
-      const success = getSearchParam(request, "success") || undefined;
+      const success = getFlash().success;
       return htmlResponse(cfg.renderList(rows, session, success));
     });
 

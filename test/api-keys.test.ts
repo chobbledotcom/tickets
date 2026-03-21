@@ -24,7 +24,9 @@ import { handleRequest } from "#routes";
 import {
   createTestDbWithSetup,
   createTestEvent,
+  expectFlash,
   extractCsrfToken,
+  flashCookieHeader,
   mockRequest,
   resetDb,
   testCookie,
@@ -252,12 +254,17 @@ describe("API Keys", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toContain("success=API+key+created");
       expect(location).toContain("key=");
+      expectFlash(response, "API key created");
 
       // Follow the redirect and verify the key is shown
+      const flashCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith("flash="))!;
       const redirectResponse = await handleRequest(
-        mockRequest(location, { headers: { cookie } }),
+        mockRequest(location, {
+          headers: { cookie: `${cookie}; ${flashCookie.split(";")[0]}` },
+        }),
       );
       const html = await redirectResponse.text();
       expect(html).toContain("API key created");
@@ -285,7 +292,7 @@ describe("API Keys", () => {
 
       // Should redirect with error
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("error=");
+      expectFlash(response, "Name is required", false);
     });
 
     test("POST /admin/api-keys rejects missing name field", async () => {
@@ -307,7 +314,7 @@ describe("API Keys", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("error=");
+      expectFlash(response, "Name is required", false);
     });
 
     test("POST /admin/api-keys rejects name over 100 characters", async () => {
@@ -330,7 +337,7 @@ describe("API Keys", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("error=");
+      expectFlash(response, "Name must be under 100 characters", false);
     });
 
     test("POST /admin/api-keys/:id/delete returns error for nonexistent key", async () => {
@@ -353,7 +360,7 @@ describe("API Keys", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("error=");
+      expectFlash(response, "API key not found", false);
     });
 
     test("GET /admin/api-keys shows existing keys with last used date", async () => {
@@ -376,17 +383,31 @@ describe("API Keys", () => {
       expect(html).not.toContain("Never");
     });
 
-    test("GET /admin/api-keys shows success and error messages", async () => {
+    test("GET /admin/api-keys shows success message from flash cookie", async () => {
       const cookie = await testCookie();
       const response = await handleRequest(
-        mockRequest("/admin/api-keys?success=done&error=oops", {
-          headers: { cookie },
+        mockRequest("/admin/api-keys", {
+          headers: { cookie: `${cookie}; ${flashCookieHeader("done")}` },
         }),
       );
 
       const html = await response.text();
       expect(html).toContain("done");
-      expect(html).toContain("oops");
+    });
+
+    test("GET /admin/api-keys shows error message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest("/admin/api-keys", {
+          headers: {
+            cookie: `${cookie}; ${flashCookieHeader("key failed", false)}`,
+          },
+        }),
+      );
+
+      const html = await response.text();
+      expect(html).toContain("key failed");
+      expect(html).toContain("error");
     });
 
     test("POST /admin/api-keys/:id/delete removes a key with name confirmation", async () => {
@@ -595,9 +616,7 @@ describe("API Keys", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        "Session+key+unavailable",
-      );
+      expectFlash(response, "Session key unavailable", false);
     });
 
     test("GET /admin/api-keys/docs returns JSON via cookie auth", async () => {
