@@ -483,7 +483,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       resetStripeClient();
     });
 
-    test("extractIntent defaults quantity to 1 when missing", async () => {
+    test("extractIntent rejects missing quantity in metadata", async () => {
       await setupStripe();
 
       const event = await createTestEvent({
@@ -501,7 +501,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             event_id: String(event.id),
             name: "John",
             email: "john@example.com",
-            // quantity intentionally omitted
+            // quantity intentionally omitted — should cause an error
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -512,15 +512,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_no_qty"),
         );
-        expect(redirectResponse.status).toBe(302);
-        const response = await followRedirect(redirectResponse, handleRequest);
-        expect(response.status).toBe(200);
-
-        // Verify attendee was created with quantity 1
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
-        expect(attendees.length).toBe(1);
-        expect(attendees[0]?.quantity).toBe(1);
+        // Should return error page (503) since missing quantity is a data integrity issue
+        expect(redirectResponse.status).toBe(503);
       } finally {
         mockRetrieve.restore();
       }
