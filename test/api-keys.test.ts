@@ -6,6 +6,7 @@ import {
   hmacHash,
   unwrapKeyWithToken,
 } from "#lib/crypto.ts";
+
 import { signCsrfToken } from "#lib/csrf.ts";
 import {
   countApiKeysForUser,
@@ -16,7 +17,6 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
   touchApiKeyLastUsed,
-  unwrapApiKeyDataKey,
 } from "#lib/db/api-keys.ts";
 import { getDb } from "#lib/db/client.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
@@ -80,7 +80,7 @@ describe("API Keys", () => {
       );
 
       const found = await getApiKeyByToken(apiKey);
-      const unwrapped = await unwrapApiKeyDataKey(
+      const unwrapped = await unwrapKeyWithToken(
         found!.wrapped_data_key,
         apiKey,
       );
@@ -103,7 +103,7 @@ describe("API Keys", () => {
 
       const found = await getApiKeyByToken(apiKey);
       await expect(
-        unwrapApiKeyDataKey(found!.wrapped_data_key, "wrong-token"),
+        unwrapKeyWithToken(found!.wrapped_data_key, "wrong-token"),
       ).rejects.toThrow();
     });
 
@@ -192,7 +192,7 @@ describe("API Keys", () => {
       expect(found!.name).toBe("Lookup Key");
     });
 
-    test("getApiKeyForUser returns null for wrong user", async () => {
+    test("getApiKeyForUser throws for wrong user", async () => {
       const dataKey = await getTestDataKey();
       const { id } = await createApiKey(
         1,
@@ -201,7 +201,7 @@ describe("API Keys", () => {
         generateSecureToken,
       );
 
-      expect(await getApiKeyForUser(id, 999)).toBeNull();
+      await expect(getApiKeyForUser(id, 999)).rejects.toThrow();
     });
 
     test("lists empty array for user with no keys", async () => {

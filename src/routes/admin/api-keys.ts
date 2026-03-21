@@ -15,7 +15,7 @@ import {
   getSearchParam,
   htmlResponse,
   jsonResponse,
-  notFoundResponse,
+  orNotFound,
   redirect,
   requireOwnerOr,
   withOwnerAuthForm,
@@ -86,11 +86,12 @@ const handleApiKeysPost = (request: Request): Promise<Response> =>
 const handleApiKeyDeleteGet: TypedRouteHandler<
   "GET /admin/api-keys/:apiKeyId/delete"
 > = (request, { apiKeyId }) =>
-  requireOwnerOr(request, async (session) => {
-    const apiKey = await getApiKeyForUser(apiKeyId, session.userId);
-    if (!apiKey) return notFoundResponse();
-    return htmlResponse(adminDeleteApiKeyPage(apiKey, session));
-  });
+  requireOwnerOr(request, (session) =>
+    orNotFound(
+      getApiKeyForUser(apiKeyId, session.userId).catch(() => null),
+      (apiKey) => htmlResponse(adminDeleteApiKeyPage(apiKey, session)),
+    ),
+  );
 
 /**
  * Handle POST /admin/api-keys/:apiKeyId/delete
@@ -99,8 +100,10 @@ const handleApiKeyDelete: TypedRouteHandler<
   "POST /admin/api-keys/:apiKeyId/delete"
 > = (request, { apiKeyId }) =>
   withOwnerAuthForm(request, async (session, form) => {
-    const apiKey = await getApiKeyForUser(apiKeyId, session.userId);
-    if (!apiKey) {
+    let apiKey;
+    try {
+      apiKey = await getApiKeyForUser(apiKeyId, session.userId);
+    } catch {
       return redirect("/admin/api-keys", "API key not found", false);
     }
 

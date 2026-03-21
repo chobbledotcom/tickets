@@ -4,17 +4,17 @@
 
 import { compact, map, pipe, reduce } from "#fp";
 import { getSessionCookieName } from "#lib/cookies.ts";
-import { generateSecureToken, getPrivateKeyFromSession } from "#lib/crypto.ts";
+import {
+  generateSecureToken,
+  getPrivateKeyFromSession,
+  unwrapKeyWithToken,
+} from "#lib/crypto.ts";
 import {
   CSRF_INVALID_FORM_MESSAGE,
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#lib/csrf.ts";
-import {
-  getApiKeyByToken,
-  touchApiKeyLastUsed,
-  unwrapApiKeyDataKey,
-} from "#lib/db/api-keys.ts";
+import { getApiKeyByToken, touchApiKeyLastUsed } from "#lib/db/api-keys.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
@@ -190,7 +190,7 @@ export const getAuthenticatedApiKey = async (
   }
 
   try {
-    await unwrapApiKeyDataKey(apiKeyRow.wrapped_data_key, token);
+    await unwrapKeyWithToken(apiKeyRow.wrapped_data_key, token);
   } catch {
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
@@ -217,12 +217,6 @@ export const getAuthenticatedApiKey = async (
   setCachedSession(result);
   return result;
 };
-
-/**
- * Whether the current request is authenticated via API key (not cookie session).
- */
-export const isApiKeyAuth = (request: Request): boolean =>
-  getBearerToken(request) !== null;
 
 /**
  * Get private key for decrypting attendee PII from an authenticated session
@@ -773,7 +767,7 @@ export async function withAdminApi(
   // or when the key is invalid (returning 401).
   const apiKeySession = await getAuthenticatedApiKey(request);
   if (apiKeySession) return runJsonHandler(request, apiKeySession, handler);
-  if (isApiKeyAuth(request)) {
+  if (getBearerToken(request)) {
     return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
   }
   return withAuthJson(request, handler);

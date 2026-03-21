@@ -9,13 +9,7 @@
  * Keys inherit admin_level from their parent user.
  */
 
-import {
-  decrypt,
-  encrypt,
-  hmacHash,
-  unwrapKeyWithToken,
-  wrapKeyWithToken,
-} from "#lib/crypto.ts";
+import { decrypt, encrypt, hmacHash, wrapKeyWithToken } from "#lib/crypto.ts";
 import { deleteByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
 import { nowIso } from "#lib/now.ts";
 import type { ApiKey } from "#lib/types.ts";
@@ -60,15 +54,6 @@ export const getApiKeyByToken = async (
 };
 
 /**
- * Unwrap the DATA_KEY from an API key row using the plaintext token.
- * Throws if unwrapping fails (e.g. corrupted or rotated key).
- */
-export const unwrapApiKeyDataKey = (
-  wrappedDataKey: string,
-  token: string,
-): Promise<CryptoKey> => unwrapKeyWithToken(wrappedDataKey, token);
-
-/**
  * List all API keys for a user (decrypts names for display).
  */
 export const getApiKeysForUser = async (
@@ -97,12 +82,12 @@ export const getApiKeysForUser = async (
 export const getApiKeyForUser = async (
   id: number,
   userId: number,
-): Promise<{ id: number; name: string } | null> => {
+): Promise<{ id: number; name: string }> => {
   const row = await queryOne<ApiKey>(
     "SELECT id, user_id, key_index, wrapped_data_key, name, created, last_used FROM api_keys WHERE id = ? AND user_id = ?",
     [id, userId],
   );
-  if (!row) return null;
+  if (!row) throw new Error(`API key ${id} not found for user ${userId}`);
   return { id: row.id, name: await decrypt(row.name) };
 };
 
@@ -151,7 +136,6 @@ export const touchApiKeyLastUsed = async (id: number): Promise<void> => {
 export const apiKeysApi = {
   createApiKey,
   getApiKeyByToken,
-  unwrapApiKeyDataKey,
   getApiKeysForUser,
   getApiKeyForUser,
   countApiKeysForUser,
