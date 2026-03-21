@@ -62,7 +62,7 @@ export const adminApiKeysPage = (
 
       {opts.newKey && (
         <div class="warning">
-          <strong>Copy your API key now — it won't be shown again.</strong>
+          <strong>Copy your API key now — it won't be shown again:</strong>
           <pre>
             <code>{opts.newKey}</code>
           </pre>
