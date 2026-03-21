@@ -187,8 +187,18 @@ const validatePaidSession = async (
     return { ok: true, data: { session, intent } };
   }
 
-  const intent = extractIntent(session);
-  return { ok: true, data: { session, intent } };
+  try {
+    const intent = extractIntent(session);
+    return { ok: true, data: { session, intent } };
+  } catch (err) {
+    logRedirectError(
+      `${err instanceof Error ? err.message : String(err)} (session=${sessionId})`,
+    );
+    return {
+      ok: false,
+      response: paymentErrorResponse("Invalid session data"),
+    };
+  }
 };
 
 /** Result type for processPaymentSession */
