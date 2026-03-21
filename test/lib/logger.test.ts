@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
+import * as activityLogMod from "#lib/db/activityLog.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import {
   createRequestTimer,
@@ -286,6 +287,26 @@ describe("logger", () => {
           (e) => e.message === "Error: Database connection failed",
         );
         expect(match).toBeDefined();
+      });
+
+      test("guards against recursive logError during persistence", async () => {
+        const logActivityStub = stub(
+          activityLogMod,
+          "logActivity",
+          () => {
+            // Simulate logActivity triggering another logError (recursion)
+            logError({ code: ErrorCode.DB_QUERY });
+            return Promise.resolve();
+          },
+        );
+
+        logError({ code: ErrorCode.DB_CONNECTION });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // The outer logError triggers logActivity, which triggers a nested logError.
+        // The nested logError should be guarded — only one logActivity call.
+        expect(logActivityStub.calls.length).toBe(1);
+        logActivityStub.restore();
       });
     });
   });
