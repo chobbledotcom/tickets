@@ -293,7 +293,12 @@ describe("logger", () => {
         const logActivityStub = stub(activityLogMod, "logActivity", () => {
           // Simulate logActivity triggering another logError (recursion)
           logError({ code: ErrorCode.DB_QUERY });
-          return Promise.resolve();
+          return Promise.resolve({
+            id: 1,
+            created: "",
+            event_id: null,
+            message: "",
+          });
         });
 
         logError({ code: ErrorCode.DB_CONNECTION });
