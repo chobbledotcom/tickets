@@ -49,6 +49,23 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
   </nav>
 );
 
+/** Sub-navigation for user-related pages */
+export const UsersSubNav = (): JSX.Element => (
+  <nav>
+    <ul>
+      <li>
+        <a href="/admin/users">Users</a>
+      </li>
+      <li>
+        <a href="/admin/sessions">Sessions</a>
+      </li>
+      <li>
+        <a href="/admin/api-keys">API Keys</a>
+      </li>
+    </ul>
+  </nav>
+);
+
 interface BreadcrumbProps {
   href: string;
   label: string;

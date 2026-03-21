@@ -5,7 +5,7 @@
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav, Breadcrumb, UsersSubNav } from "#templates/admin/nav.tsx";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -45,11 +45,8 @@ export const adminUsersPage = (
   String(
     <Layout title="Users">
       <AdminNav session={session} active="/admin/users" />
+      <UsersSubNav />
       <h1>Users</h1>
-      <p>
-        <a href="/admin/sessions">Click here</a> to view your currently logged
-        in sessions.
-      </p>
       <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
       </p>

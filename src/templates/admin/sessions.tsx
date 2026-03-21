@@ -6,7 +6,7 @@ import { map, pipe, reduce } from "#fp";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Session } from "#lib/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
@@ -51,7 +51,8 @@ export const adminSessionsPage = (
 
   return String(
     <Layout title="Sessions">
-      <AdminNav session={adminSession} active="/admin/sessions" />
+      <AdminNav session={adminSession} active="/admin/users" />
+      <UsersSubNav />
 
       {success && <div class="success">{success}</div>}
 
