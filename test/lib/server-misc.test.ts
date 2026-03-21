@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
+import { runWithRequestId } from "#lib/logger.ts";
 import {
   buildCspHeader,
   getCleanUrl,
@@ -393,97 +394,119 @@ describeWithEnv("server (misc)", { db: true }, () => {
       return url.pathname + url.search + url.hash;
     };
 
-    test("creates success redirect without form ID", () => {
-      const response = redirect("/admin/settings", "Saved", true);
-      expect(response.status).toBe(302);
-      expect(parseRedirectLocation(response)).toBe("/admin/settings");
-      expectFlash(response, "Saved");
-    });
+    /** Run callback inside a request context so getRequestId() returns a value */
+    const withRequestContext = <T>(fn: () => T): T => runWithRequestId(fn);
 
-    test("creates success redirect with form ID and anchor", () => {
-      const response = redirect("/admin/settings", "Timezone updated", true, {
-        formId: "settings-timezone",
-      });
-      expect(response.status).toBe(302);
-      expect(parseRedirectLocation(response)).toBe(
-        "/admin/settings?form=settings-timezone#settings-timezone",
-      );
-      expectFlash(response, "Timezone updated");
-    });
+    test("creates success redirect without form ID", () =>
+      withRequestContext(() => {
+        const response = redirect("/admin/settings", "Saved", true);
+        expect(response.status).toBe(302);
+        expect(parseRedirectLocation(response)).toBe("/admin/settings");
+        expectFlash(response, "Saved");
+      }));
 
-    test("encodes special characters in message and form ID", () => {
-      const response = redirect("/admin/settings", "A & B", true, {
-        formId: "form&id",
-      });
-      const location = response.headers.get("location")!;
-      expect(location).not.toContain("success=");
-      expect(location).toContain("form=form%26id");
-      expect(location).toContain("#form&id");
-      expectFlash(response, "A & B");
-    });
+    test("creates success redirect with form ID and anchor", () =>
+      withRequestContext(() => {
+        const response = redirect(
+          "/admin/settings",
+          "Timezone updated",
+          true,
+          { formId: "settings-timezone" },
+        );
+        expect(response.status).toBe(302);
+        expect(parseRedirectLocation(response)).toBe(
+          "/admin/settings?form=settings-timezone#settings-timezone",
+        );
+        expectFlash(response, "Timezone updated");
+      }));
 
-    test("creates error redirect", () => {
-      const response = redirect("/admin/settings", "Something failed", false);
-      expect(response.status).toBe(302);
-      expect(parseRedirectLocation(response)).toBe("/admin/settings");
-      expectFlash(response, "Something failed", false);
-    });
+    test("encodes special characters in message and form ID", () =>
+      withRequestContext(() => {
+        const response = redirect("/admin/settings", "A & B", true, {
+          formId: "form&id",
+        });
+        const location = response.headers.get("location")!;
+        expect(location).not.toContain("success=");
+        expect(location).toContain("form=form%26id");
+        expect(location).toContain("#form&id");
+        expectFlash(response, "A & B");
+      }));
 
-    test("preserves existing query params without adding message", () => {
-      const response = redirect(
-        "/admin/event/1?tab=attendees",
-        "Updated",
-        true,
-      );
-      expect(response.status).toBe(302);
-      expect(parseRedirectLocation(response)).toBe(
-        "/admin/event/1?tab=attendees",
-      );
-      expectFlash(response, "Updated");
-    });
+    test("creates error redirect", () =>
+      withRequestContext(() => {
+        const response = redirect(
+          "/admin/settings",
+          "Something failed",
+          false,
+        );
+        expect(response.status).toBe(302);
+        expect(parseRedirectLocation(response)).toBe("/admin/settings");
+        expectFlash(response, "Something failed", false);
+      }));
 
-    test("preserves hash fragment", () => {
-      const response = redirect("/admin/calendar#attendees", "Done", true);
-      expect(response.status).toBe(302);
-      expect(parseRedirectLocation(response)).toBe(
-        "/admin/calendar#attendees",
-      );
-      expectFlash(response, "Done");
-    });
+    test("preserves existing query params without adding message", () =>
+      withRequestContext(() => {
+        const response = redirect(
+          "/admin/event/1?tab=attendees",
+          "Updated",
+          true,
+        );
+        expect(response.status).toBe(302);
+        expect(parseRedirectLocation(response)).toBe(
+          "/admin/event/1?tab=attendees",
+        );
+        expectFlash(response, "Updated");
+      }));
 
-    test("encodes special characters in flash cookie", () => {
-      const response = redirect("/admin/event/1", "A & B", true);
-      expect(parseRedirectLocation(response)).toBe("/admin/event/1");
-      expectFlash(response, "A & B");
-    });
+    test("preserves hash fragment", () =>
+      withRequestContext(() => {
+        const response = redirect("/admin/calendar#attendees", "Done", true);
+        expect(response.status).toBe(302);
+        expect(parseRedirectLocation(response)).toBe(
+          "/admin/calendar#attendees",
+        );
+        expectFlash(response, "Done");
+      }));
 
-    test("includes flash ID in redirect URL", () => {
-      const response = redirect("/admin/settings", "Saved", true);
-      const location = response.headers.get("location")!;
-      const url = new URL(location, "http://localhost");
-      const flashId = url.searchParams.get("flash");
-      expect(flashId).toBeDefined();
-      expect(flashId!.length).toBe(4);
-    });
+    test("encodes special characters in flash cookie", () =>
+      withRequestContext(() => {
+        const response = redirect("/admin/event/1", "A & B", true);
+        expect(parseRedirectLocation(response)).toBe("/admin/event/1");
+        expectFlash(response, "A & B");
+      }));
 
-    test("keys flash cookie by the flash ID in the URL", () => {
-      const response = redirect("/admin/settings", "Saved", true);
-      const location = response.headers.get("location")!;
-      const url = new URL(location, "http://localhost");
-      const flashId = url.searchParams.get("flash")!;
-      const cookies = response.headers.getSetCookie();
-      const flashCookie = cookies.find((c) => c.startsWith(`flash_${flashId}=`));
-      expect(flashCookie).toBeDefined();
-    });
+    test("uses request ID as flash key in redirect URL", () =>
+      withRequestContext(() => {
+        const response = redirect("/admin/settings", "Saved", true);
+        const location = response.headers.get("location")!;
+        const url = new URL(location, "http://localhost");
+        const flashId = url.searchParams.get("flash");
+        expect(flashId).toBeDefined();
+        expect(flashId!.length).toBe(4);
+      }));
 
-    test("passes cookie through to response alongside flash cookie", () => {
-      const response = redirect("/admin", "Done", true, {
-        cookie: "session=abc; Path=/",
-      });
-      const cookies = response.headers.getSetCookie();
-      expect(cookies.some((c) => c === "session=abc; Path=/")).toBe(true);
-      expectFlash(response, "Done");
-    });
+    test("keys flash cookie by the flash ID in the URL", () =>
+      withRequestContext(() => {
+        const response = redirect("/admin/settings", "Saved", true);
+        const location = response.headers.get("location")!;
+        const url = new URL(location, "http://localhost");
+        const flashId = url.searchParams.get("flash")!;
+        const cookies = response.headers.getSetCookie();
+        const flashCookie = cookies.find((c) =>
+          c.startsWith(`flash_${flashId}=`)
+        );
+        expect(flashCookie).toBeDefined();
+      }));
+
+    test("passes cookie through to response alongside flash cookie", () =>
+      withRequestContext(() => {
+        const response = redirect("/admin", "Done", true, {
+          cookie: "session=abc; Path=/",
+        });
+        const cookies = response.headers.getSetCookie();
+        expect(cookies.some((c) => c === "session=abc; Path=/")).toBe(true);
+        expectFlash(response, "Done");
+      }));
   });
 
   describe("routes/utils.ts (redirectResponse)", () => {

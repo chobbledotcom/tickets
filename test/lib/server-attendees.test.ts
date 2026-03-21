@@ -15,7 +15,6 @@ import {
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -404,9 +403,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expectRedirect(`/admin/event/${event.id}`)(response);
-      expectFlash(response, expect.stringContaining(""), false);
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        expect.stringContaining(""),
+        false,
+      )(response);
 
       // Verify attendee was NOT deleted (still exists)
       const rows = await getAttendeesRaw(event.id);
@@ -433,9 +434,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expectRedirect(`/admin/event/${event.id}`)(response);
-      expectFlash(response, expect.stringContaining(""), false);
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        expect.stringContaining(""),
+        false,
+      )(response);
 
       // Verify attendee was NOT deleted
       const rows = await getAttendeesRaw(event.id);

@@ -123,7 +123,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toMatch(/\/admin\/group\/\d+$/);
+      expect(response.headers.get("location")).toMatch(/\/admin\/group\/\d+(\?|$)/);
       expectFlash(response, "Group created");
     });
 
@@ -276,7 +276,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toMatch(/\/admin\/groups$/);
+      expect(response.headers.get("location")).toMatch(/\/admin\/groups(\?|$)/);
       expectFlash(response, "Group deleted");
     });
 
@@ -771,7 +771,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location") ?? "";
-      expect(location).toMatch(/\/admin\/group\/\d+$/);
+      expect(location).toMatch(/\/admin\/group\/\d+(\?|$)/);
       expectFlash(response, "Group created");
     });
 

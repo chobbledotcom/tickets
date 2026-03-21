@@ -261,7 +261,7 @@ describe("API Keys", () => {
       // Follow the redirect and verify the key is shown
       const flashCookie = response.headers
         .getSetCookie()
-        .find((c) => c.startsWith("flash="))!;
+        .find((c) => c.startsWith("flash_"))!;
       const redirectResponse = await handleRequest(
         mockRequest(location, {
           headers: { cookie: `${cookie}; ${flashCookie.split(";")[0]}` },
