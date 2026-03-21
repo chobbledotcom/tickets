@@ -10,7 +10,7 @@ import {
   createTestDb,
   describeWithEnv,
   errorResponse,
-  expectAdminRedirect,
+  expectRedirect,
   expectResultError,
   expectResultNotFound,
   resetDb,
@@ -402,7 +402,7 @@ describeWithEnv("rest/handlers", { db: true }, () => {
         onSuccess: successResponse(201, "Created"),
         onError: errorResponse(400),
       });
-      expectAdminRedirect(
+      expectRedirect("/admin")(
         await handler(
           createUnauthRequest("/items", { name: "Item", value: "42" }),
         ),
@@ -448,7 +448,7 @@ describeWithEnv("rest/handlers", { db: true }, () => {
 
     test("redirects for unauthenticated request", async () => {
       const handler = deleteHandler(createTestResource(), deleteOpts());
-      expectAdminRedirect(
+      expectRedirect("/admin")(
         await handler(createUnauthRequest("/items/1", {}), 1),
       );
     });
