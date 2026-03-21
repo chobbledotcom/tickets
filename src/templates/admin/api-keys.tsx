@@ -6,7 +6,7 @@ import { map, pipe, reduce } from "#fp";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
@@ -54,7 +54,8 @@ export const adminApiKeysPage = (
 
   return String(
     <Layout title="API Keys">
-      <AdminNav session={adminSession} active="/admin/api-keys" />
+      <AdminNav session={adminSession} active="/admin/users" />
+      <UsersSubNav />
 
       {opts.error && <div class="error">{opts.error}</div>}
       {opts.success && <div class="success">{opts.success}</div>}
@@ -119,7 +120,7 @@ export const adminDeleteApiKeyPage = (
 ): string =>
   String(
     <Layout title={`Delete: ${apiKey.name}`}>
-      <AdminNav session={session} active="/admin/api-keys" />
+      <AdminNav session={session} active="/admin/users" />
       {error && <div class="error">{error}</div>}
 
       <article>
