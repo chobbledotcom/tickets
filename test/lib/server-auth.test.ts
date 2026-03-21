@@ -1,33 +1,22 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   loginAsAdmin,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 
-describe("server (admin auth)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("GET /admin/", () => {
     test("shows login page when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/"));

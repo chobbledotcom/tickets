@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#lib/db/client.ts";
 import {
@@ -16,10 +16,8 @@ import {
 } from "#lib/db/processed-payments.ts";
 import {
   createTestAttendee,
-  createTestDbWithSetup,
   createTestEvent,
-  resetDb,
-  resetTestSlugCounter,
+  describeWithEnv,
 } from "#test-utils";
 
 /** Helper to simulate the old markSessionProcessed behavior using two-phase locking */
@@ -35,14 +33,12 @@ const processSession = async (
   return true;
 };
 
-describe("processed-payments", () => {
+describeWithEnv("processed-payments", { db: true }, () => {
   let testAttendeeId: number;
   let testAttendeeId2: number;
   let testAttendeeId3: number;
 
   beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
     // Create test event and attendees to satisfy foreign key constraints
     const event = await createTestEvent();
     const attendee1 = await createTestAttendee(
@@ -66,10 +62,6 @@ describe("processed-payments", () => {
     testAttendeeId = attendee1.id;
     testAttendeeId2 = attendee2.id;
     testAttendeeId3 = attendee3.id;
-  });
-
-  afterEach(() => {
-    resetDb();
   });
 
   describe("isSessionProcessed", () => {

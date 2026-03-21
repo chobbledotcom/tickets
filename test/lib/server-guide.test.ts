@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   resetHostAppleWalletConfig,
   setHostAppleWalletConfigForTest,
@@ -8,24 +8,13 @@ import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
-  createTestDbWithSetup,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
 } from "#test-utils";
 
-describe("server (admin guide)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin guide)", { db: true }, () => {
   describe("GET /admin/guide", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/guide"));

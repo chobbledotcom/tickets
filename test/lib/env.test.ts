@@ -2,20 +2,19 @@ import process from "node:process";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getEnv, requireEnv } from "#lib/env.ts";
+import { describeWithEnv } from "#test-utils";
 
-describe("env", () => {
+describeWithEnv("env", { env: { TEST_ENV_VAR: undefined } }, () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
     // Clear test env vars
     delete process.env.TEST_ENV_VAR;
-    Deno.env.delete("TEST_ENV_VAR");
   });
 
   afterEach(() => {
     // Restore original env
     process.env = { ...originalEnv };
-    Deno.env.delete("TEST_ENV_VAR");
   });
 
   describe("getEnv", () => {

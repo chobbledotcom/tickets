@@ -8,6 +8,7 @@ import {
   type InValue,
   type Row,
 } from "@libsql/client";
+import { afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
@@ -442,6 +443,79 @@ export const installUrlHandler = (
     const url = urlFromFetchInput(input);
     return handler(url, init) ?? fallback(input, init);
   };
+};
+
+/**
+ * Set env vars for a test and return a restore function that puts them back.
+ * Saves originals so cleanup restores the exact prior state (or deletes if unset).
+ * Pass `undefined` as a value to delete the key (useful for ensuring a clean slate).
+ *
+ * @example
+ * let restoreEnv: () => void;
+ * beforeEach(() => { restoreEnv = setTestEnv({ STORAGE_ZONE_NAME: "z", STORAGE_ZONE_KEY: "k" }); });
+ * afterEach(() => restoreEnv());
+ *
+ * // Delete keys to start with a clean slate:
+ * restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
+ */
+export const setTestEnv = (
+  vars: Record<string, string | undefined>,
+): (() => void) => {
+  const saved: [string, string | undefined][] = [];
+  for (const key of Object.keys(vars)) {
+    saved.push([key, Deno.env.get(key)]);
+    const value = vars[key];
+    if (value !== undefined) Deno.env.set(key, value);
+    else Deno.env.delete(key);
+  }
+  return () => {
+    for (const [key, orig] of saved) {
+      if (orig !== undefined) Deno.env.set(key, orig);
+      else Deno.env.delete(key);
+    }
+  };
+};
+
+/** Options for {@link describeWithEnv}. */
+interface DescribeEnvOptions {
+  /** Environment variables to set before each test and restore after. */
+  env?: Record<string, string | undefined>;
+  /** Reset slug counter, create test DB in beforeEach; resetDb in afterEach. */
+  db?: boolean;
+  /** Call setupTestEncryptionKey in beforeEach. */
+  encryptionKey?: boolean;
+}
+
+/**
+ * Describe block with automatic test infrastructure setup.
+ * Additional beforeEach/afterEach hooks can be added inside the callback.
+ *
+ * @example
+ * describeWithEnv("storage", { env: { STORAGE_ZONE_NAME: "z" }, db: true }, () => {
+ *   test("uses storage", () => { ... });
+ * });
+ */
+export const describeWithEnv = (
+  name: string,
+  options: DescribeEnvOptions,
+  fn: () => void,
+): void => {
+  describe(name, () => {
+    let restoreEnv: () => void;
+    beforeEach(async () => {
+      if (options.encryptionKey) setupTestEncryptionKey();
+      if (options.env) restoreEnv = setTestEnv(options.env);
+      if (options.db) {
+        resetTestSlugCounter();
+        await createTestDbWithSetup();
+      }
+    });
+    afterEach(() => {
+      if (options.db) resetDb();
+      if (options.env) restoreEnv();
+    });
+    fn();
+  });
 };
 
 /**

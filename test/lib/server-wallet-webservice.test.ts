@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import {
   updateAppleWalletPassTypeId,
@@ -11,10 +11,8 @@ import {
 import { handleRequest } from "#routes";
 import {
   createTestAttendeeWithToken,
-  createTestDbWithSetup,
+  describeWithEnv,
   generateTestCerts,
-  resetDb,
-  resetTestSlugCounter,
 } from "#test-utils";
 
 const testCerts = generateTestCerts();
@@ -52,16 +50,7 @@ const walletRequest = (
     }),
   );
 
-describe("Apple Wallet web service (/v1)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
   describe("POST /v1/devices/:deviceId/registrations/:passTypeId/:serialNumber", () => {
     test("returns 201 for device registration", async () => {
       const response = await walletRequest(

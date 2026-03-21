@@ -3,28 +3,17 @@
  */
 
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { handleTicketQrGet } from "#routes/public.ts";
 import {
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
+  describeWithEnv,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
 } from "#test-utils";
 
-describe("ticket QR code", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("ticket QR code", { db: true }, () => {
   describe("GET /ticket/:slug/qr", () => {
     test("returns SVG content type for valid event", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });

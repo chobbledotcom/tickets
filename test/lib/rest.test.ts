@@ -8,7 +8,7 @@ import { createHandler, deleteHandler } from "#lib/rest/handlers.ts";
 import { defineResource, type Resource } from "#lib/rest/resource.ts";
 import {
   createTestDb,
-  createTestDbWithSetup,
+  describeWithEnv,
   errorResponse,
   expectAdminRedirect,
   expectResultError,
@@ -330,14 +330,9 @@ describe("rest/resource", () => {
   });
 });
 
-describe("rest/handlers", () => {
+describeWithEnv("rest/handlers", { db: true }, () => {
   beforeEach(async () => {
-    await createTestDbWithSetup();
     await createTestItemsTable();
-  });
-
-  afterEach(() => {
-    resetDb();
   });
 
   /** Create authenticated request with session and CSRF */
@@ -570,14 +565,9 @@ describe("rest/handlers", () => {
   });
 });
 
-describe("rest/resource - additional coverage", () => {
+describeWithEnv("rest/resource - additional coverage", { db: true }, () => {
   beforeEach(async () => {
-    await createTestDbWithSetup();
     await createTestItemsTable();
-  });
-
-  afterEach(() => {
-    resetDb();
   });
 
   describe("custom onDelete handler", () => {

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeEach, describe, it } from "@std/testing/bdd";
+import { describe, it } from "@std/testing/bdd";
 import {
   clearEncryptionKeyCache,
   constantTimeEqual,
@@ -27,7 +27,12 @@ import {
   wrapKey,
   wrapKeyWithToken,
 } from "#lib/crypto.ts";
-import { clearTestEncryptionKey, setupTestEncryptionKey } from "#test-utils";
+import {
+  clearTestEncryptionKey,
+  describeWithEnv,
+  setTestEnv,
+  setupTestEncryptionKey,
+} from "#test-utils";
 
 describe("constantTimeEqual", () => {
   it("returns true for equal strings", () => {
@@ -116,11 +121,7 @@ describe("generateTicketToken", () => {
   });
 });
 
-describe("encryption", () => {
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
+describeWithEnv("encryption", { encryptionKey: true }, () => {
   describe("validateEncryptionKey", () => {
     it("succeeds with valid 32-byte key", () => {
       expect(() => validateEncryptionKey()).not.toThrow();
@@ -243,14 +244,13 @@ describe("password hashing", () => {
     });
 
     it("uses production iterations when TEST_PBKDF2_ITERATIONS is unset", async () => {
-      const saved = Deno.env.get("TEST_PBKDF2_ITERATIONS");
-      Deno.env.delete("TEST_PBKDF2_ITERATIONS");
+      const restore = setTestEnv({ TEST_PBKDF2_ITERATIONS: undefined });
       try {
         const hash = await hashPassword("password");
         const iterations = Number(hash.split(":")[1]);
         expect(iterations).toBe(600000);
       } finally {
-        if (saved !== undefined) Deno.env.set("TEST_PBKDF2_ITERATIONS", saved);
+        restore();
       }
     });
   });
@@ -318,11 +318,7 @@ describe("session token hashing", () => {
   });
 });
 
-describe("hmacHash", () => {
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
+describeWithEnv("hmacHash", { encryptionKey: true }, () => {
   it("produces consistent hash for same IP", async () => {
     const ip = "192.168.1.1";
     const hash1 = await hmacHash(ip);
@@ -372,11 +368,7 @@ describe("hmacHash", () => {
   });
 });
 
-describe("KEK derivation", () => {
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
+describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
   it("derives a usable CryptoKey", async () => {
     const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==";
     const kek = await deriveKEK(passwordHash);
@@ -408,11 +400,7 @@ describe("KEK derivation", () => {
   });
 });
 
-describe("key wrapping", () => {
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
+describeWithEnv("key wrapping", { encryptionKey: true }, () => {
   describe("wrapKey and unwrapKey", () => {
     it("round-trips a data key", async () => {
       const dataKey = await generateDataKey();
@@ -514,15 +502,14 @@ describe("RSA key pair and hybrid encryption", () => {
     });
 
     it("uses production key size when TEST_RSA_KEY_SIZE is unset", async () => {
-      const saved = Deno.env.get("TEST_RSA_KEY_SIZE");
-      Deno.env.delete("TEST_RSA_KEY_SIZE");
+      const restore = setTestEnv({ TEST_RSA_KEY_SIZE: undefined });
       try {
         const pair = await generateKeyPair();
         const jwk = JSON.parse(pair.publicKey);
         // 2048-bit RSA key: n (modulus) is 256 bytes = 344 base64url chars
         expect(jwk.n.length).toBeGreaterThan(300);
       } finally {
-        if (saved !== undefined) Deno.env.set("TEST_RSA_KEY_SIZE", saved);
+        restore();
       }
     });
 

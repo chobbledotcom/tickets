@@ -1,35 +1,25 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
+  setTestEnv,
   setupStripe,
   submitTicketForm,
   withMocks,
 } from "#test-utils";
 
-describe("server (payment flow)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (payment flow)", { db: true }, () => {
   describe("GET /payment/success", () => {
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/success"));
@@ -1493,9 +1483,11 @@ describe("server (payment flow)", () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
-      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
-      Deno.env.set("HOST_EMAIL_API_KEY", "re_test123");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@tickets.com");
+      const restore = setTestEnv({
+        HOST_EMAIL_PROVIDER: "resend",
+        HOST_EMAIL_API_KEY: "re_test123",
+        HOST_EMAIL_FROM_ADDRESS: "noreply@tickets.com",
+      });
 
       try {
         const response = await handleRequest(
@@ -1506,9 +1498,7 @@ describe("server (payment flow)", () => {
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");
         expect(html).toContain("noreply@tickets.com");
       } finally {
-        Deno.env.delete("HOST_EMAIL_PROVIDER");
-        Deno.env.delete("HOST_EMAIL_API_KEY");
-        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+        restore();
       }
     });
   });

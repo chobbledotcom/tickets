@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   getContactPageTextFromDb,
   getHomepageTextFromDb,
@@ -14,13 +14,11 @@ import {
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -34,16 +32,7 @@ const expectRedirectContaining = (response: Response, text: string) => {
   expect(decoded).toContain(text);
 };
 
-describe("server (admin site)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin site)", { db: true }, () => {
   describe("GET /admin/site", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/site"));

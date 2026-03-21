@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { formatDateLabel } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { handleRequest } from "#routes";
@@ -8,11 +8,9 @@ import {
   awaitTestRequest,
   createDailyTestAttendee,
   createTestAttendeeWithToken,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   mockFormRequest,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -53,16 +51,7 @@ const postCheckin = (
     ),
   );
 
-describe("check-in (/checkin/:tokens)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
   describe("GET /checkin/:tokens (unauthenticated)", () => {
     test("shows public check-in message for unauthenticated users", async () => {
       const { token } = await createTestAttendeeWithToken(
