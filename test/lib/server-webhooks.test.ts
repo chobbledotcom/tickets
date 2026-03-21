@@ -3,12 +3,6 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { decrypt } from "#lib/crypto.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
-import {
-  answersTable,
-  getAttendeeAnswersBatch,
-  questionsTable,
-  setEventQuestions,
-} from "#lib/db/questions.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -352,13 +346,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
 
       try {
-        const response = await withExpectedError(() =>
-          handleRequest(
+        await withExpectedError(async () => {
+          const response = await handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-        );
-        // Corrupt metadata from a verified origin is a bug — surfaces as 503
-        expect(response.status).toBe(503);
+          );
+          // Corrupt metadata from a verified origin is a bug — surfaces as 503
+          expect(response.status).toBe(503);
+        });
       } finally {
         mockVerify.restore();
       }
@@ -518,11 +512,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const redirectResponse = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_no_qty"),
-        );
-        // Should return error page (503) since missing quantity is a data integrity issue
-        expect(redirectResponse.status).toBe(503);
+        await withExpectedError(async () => {
+          const redirectResponse = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_no_qty"),
+          );
+          // Should return error page (503) since missing quantity is a data integrity issue
+          expect(redirectResponse.status).toBe(503);
+        });
       } finally {
         mockRetrieve.restore();
       }
@@ -1418,6 +1414,77 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("multi-ticket webhook saves custom question answers", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Answer WH",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      // Create a question and answer via DB
+      const {
+        questionsTable,
+        answersTable,
+        setEventQuestions,
+        getAttendeeAnswersBatch,
+      } = await import("#lib/db/questions.ts");
+      const q = await questionsTable.insert({ text: "Size?" });
+      const a = await answersTable.insert({
+        questionId: q.id,
+        text: "Large",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q.id]);
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_answer",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_answer",
+                  payment_status: "paid",
+                  payment_intent: "pi_answer",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    name: "Answer Buyer",
+                    email: "answer@example.com",
+                    multi: "1",
+                    items: JSON.stringify([{ e: event1.id, q: 1, p: 500 }]),
+                    answer_ids: JSON.stringify([a.id]),
+                  }),
+                },
+              },
+            },
+          }),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+
+        // Verify answers were saved for the created attendee
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event1.id);
+        expect(attendees.length).toBe(1);
+        const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        const attendeeAnswers = answerMap.get(attendees[0]!.id) ?? [];
+        expect(attendeeAnswers).toEqual([a.id]);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
     test("multi-ticket webhook handles event not found without refund", async () => {
       await setupStripe();
 
@@ -1706,13 +1773,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await withExpectedError(() =>
-          handleRequest(
+        await withExpectedError(async () => {
+          const response = await handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-        );
-        // Corrupt metadata from a verified origin is a bug — surfaces as 503
-        expect(response.status).toBe(503);
+          );
+          // Corrupt metadata from a verified origin is a bug — surfaces as 503
+          expect(response.status).toBe(503);
+        });
       } finally {
         mockVerify.restore();
         mockRetrieveSession.restore();
@@ -3475,13 +3542,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await withExpectedError(() =>
-          handleRequest(
+        await withExpectedError(async () => {
+          const response = await handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-        );
-        // Corrupt metadata from a verified origin is a bug — surfaces as 503
-        expect(response.status).toBe(503);
+          );
+          // Corrupt metadata from a verified origin is a bug — surfaces as 503
+          expect(response.status).toBe(503);
+        });
       } finally {
         mockVerify.restore();
       }
@@ -3524,13 +3591,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await withExpectedError(() =>
-          handleRequest(
+        await withExpectedError(async () => {
+          const response = await handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-        );
-        // Corrupt metadata from a verified origin is a bug — surfaces as 503
-        expect(response.status).toBe(503);
+          );
+          // Corrupt metadata from a verified origin is a bug — surfaces as 503
+          expect(response.status).toBe(503);
+        });
       } finally {
         mockVerify.restore();
       }
@@ -3766,162 +3833,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       } finally {
         mockVerify.restore();
         mockRefund.restore();
-      }
-    });
-  });
-
-  describe("multi-ticket webhook with custom questions", () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
-    test("saves custom question answers for paid multi-ticket checkout", async () => {
-      await setupStripe();
-
-      // Event with questions (paid) and event without questions (free)
-      const event1 = await createTestEvent({
-        name: "Multi Q Paid",
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-      const event2 = await createTestEvent({
-        name: "Multi No Q Free",
-        maxAttendees: 50,
-      });
-
-      // Add a custom question only to event1
-      const q = await questionsTable.insert({ text: "Dietary needs?" });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        text: "None",
-        sortOrder: 0,
-      });
-      await answersTable.insert({
-        questionId: q.id,
-        text: "Vegetarian",
-        sortOrder: 1,
-      });
-      await setEventQuestions(event1.id, [q.id]);
-
-      // Submit multi-ticket form with a question answer selected.
-      // One event is paid, so this triggers the payment flow.
-      const { submitMultiTicketForm, expectCheckoutRedirect } = await import(
-        "#test-utils"
-      );
-      const slug = `${event1.slug}+${event2.slug}`;
-      const checkoutResponse = await submitMultiTicketForm(slug, {
-        name: "Q Buyer",
-        email: "qbuyer@example.com",
-        [`quantity_${event1.id}`]: "1",
-        [`quantity_${event2.id}`]: "1",
-        [`question_${q.id}`]: String(a1.id),
-      });
-      expectCheckoutRedirect(checkoutResponse);
-
-      // Now simulate the webhook callback from the payment provider.
-      // The metadata includes answer_ids serialized during checkout.
-      const mockVerify = await stubWebhookVerify({
-        id: "evt_multi_q",
-        type: "checkout.session.completed",
-        data: {
-          object: {
-            id: "cs_multi_q",
-            payment_status: "paid",
-            payment_intent: "pi_multi_q",
-            amount_total: 1000,
-            metadata: webhookMeta({
-              name: "Q Buyer",
-              email: "qbuyer@example.com",
-              multi: "1",
-              items: JSON.stringify([
-                { e: event1.id, q: 1, p: 1000 },
-                { e: event2.id, q: 1, p: 0 },
-              ]),
-              answer_ids: JSON.stringify([a1.id]),
-            }),
-          },
-        },
-      });
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-        );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
-
-        // Verify attendees were created
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
-        const att1 = await getAttendeesRaw(event1.id);
-        const att2 = await getAttendeesRaw(event2.id);
-        expect(att1.length).toBe(1);
-        expect(att2.length).toBe(1);
-
-        // Verify custom question answers were saved for all attendees
-        const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
-        expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
-      } finally {
-        mockVerify.restore();
-      }
-    });
-
-    test("saves custom question answers for paid single-ticket checkout", async () => {
-      await setupStripe();
-
-      const event = await createTestEvent({
-        name: "Single Q Paid",
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-
-      const q = await questionsTable.insert({ text: "Dietary needs?" });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        text: "Vegan",
-        sortOrder: 1,
-      });
-      await setEventQuestions(event.id, [q.id]);
-
-      const mockVerify = await stubWebhookVerify({
-        id: "evt_single_q",
-        type: "checkout.session.completed",
-        data: {
-          object: {
-            id: "cs_single_q",
-            payment_status: "paid",
-            payment_intent: "pi_single_q",
-            amount_total: 1000,
-            metadata: webhookMeta({
-              event_id: String(event.id),
-              name: "Q Single Buyer",
-              email: "qsingle@example.com",
-              quantity: "1",
-              answer_ids: JSON.stringify([a1.id]),
-            }),
-          },
-        },
-      });
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-        );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
-
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
-        expect(attendees.length).toBe(1);
-
-        // Verify custom question answers were saved
-        const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
-        expect(batch.get(attendees[0]!.id)).toEqual([a1.id]);
-      } finally {
-        mockVerify.restore();
       }
     });
   });

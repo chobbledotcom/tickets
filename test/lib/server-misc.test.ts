@@ -19,7 +19,6 @@ import {
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
   getEmbeddableTicketResponse,

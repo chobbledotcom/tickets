@@ -11,7 +11,9 @@ import {
   createTestEvent,
   createTestManagerSession,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
   mockRequest,
@@ -25,8 +27,7 @@ import {
 const createQuestion = async (text: string): Promise<number> => {
   const { response } = await adminFormPost("/admin/questions", { text });
   expect(response.status).toBe(302);
-  const location = response.headers.get("location") ?? "";
-  expect(location).toContain("success=Question+created");
+  expectFlash(response, "Question created");
   // Get the ID from the DB
   const { getAllQuestionsWithAnswers } = await import("#lib/db/questions.ts");
   const questions = await getAllQuestionsWithAnswers();
@@ -42,8 +43,7 @@ const addAnswer = async (questionId: number, text: string): Promise<number> => {
     { text },
   );
   expect(response.status).toBe(302);
-  const location = response.headers.get("location") ?? "";
-  expect(location).toContain("success=Answer+added");
+  expectFlash(response, "Answer added");
   // Get the answer ID from the DB
   const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
   const question = await getQuestionWithAnswers(questionId);
@@ -158,10 +158,10 @@ describe("server (admin questions)", () => {
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
         text: "After edit",
       });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/questions/${id}?success=Question+updated`,
-      );
+      expectRedirectWithFlash(
+        `/admin/questions/${id}`,
+        "Question updated",
+      )(response);
 
       // Verify the question was updated
       const { getQuestion } = await import("#lib/db/questions.ts");
@@ -284,10 +284,7 @@ describe("server (admin questions)", () => {
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "Confirm Delete" },
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/questions?success=Question+deleted",
-      );
+      expectRedirectWithFlash("/admin/questions", "Question deleted")(response);
 
       // Verify it's gone
       const { getQuestion } = await import("#lib/db/questions.ts");
@@ -322,10 +319,7 @@ describe("server (admin questions)", () => {
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "case test" },
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/questions?success=Question+deleted",
-      );
+      expectRedirectWithFlash("/admin/questions", "Question deleted")(response);
     });
 
     test("rejects deletion when confirm_identifier is missing", async () => {
@@ -450,10 +444,10 @@ describe("server (admin questions)", () => {
         `/admin/questions/${qId}/answers/${aId}/delete`,
         { confirm_identifier: "Goodbye Answer" },
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/questions/${qId}?success=Answer+deleted`,
-      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}`,
+        "Answer deleted",
+      )(response);
 
       // Verify answer is gone
       const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
@@ -582,10 +576,10 @@ describe("server (admin questions)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?success=Questions+updated`,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Questions updated",
+      )(response);
 
       // Verify the questions are assigned
       const { getQuestionsForEvent } = await import("#lib/db/questions.ts");
@@ -600,10 +594,10 @@ describe("server (admin questions)", () => {
         `/admin/event/${event.id}/questions`,
         {},
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?success=Questions+updated`,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Questions updated",
+      )(response);
 
       const { getQuestionsForEvent } = await import("#lib/db/questions.ts");
       const assigned = await getQuestionsForEvent(event.id);

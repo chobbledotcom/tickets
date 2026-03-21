@@ -307,6 +307,30 @@ describe("payment-helpers", () => {
       });
       expect("special_instructions" in result).toBe(false);
     });
+
+    test("includes answer_ids when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Alice",
+        email: "alice@example.com",
+        address: "",
+        special_instructions: "",
+        quantity: 1,
+        answerIds: [10, 20],
+      });
+      expect(result.answer_ids).toBe("[10,20]");
+    });
+
+    test("excludes answer_ids when empty array", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Alice",
+        email: "alice@example.com",
+        address: "",
+        special_instructions: "",
+        quantity: 1,
+        answerIds: [],
+      });
+      expect("answer_ids" in result).toBe(false);
+    });
   });
 
   describe("buildCartMetadata", () => {
@@ -406,6 +430,22 @@ describe("payment-helpers", () => {
       };
       const result = buildCartMetadata(intent);
       expect("date" in result).toBe(false);
+    });
+
+    test("includes answer_ids when provided", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
+        ],
+        answerIds: [5, 6],
+      };
+      const result = buildCartMetadata(intent);
+      expect(result.answer_ids).toBe("[5,6]");
     });
   });
 
