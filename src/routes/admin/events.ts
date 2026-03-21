@@ -21,6 +21,10 @@ import {
   validateGroupEventType,
 } from "#lib/db/groups.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
+import {
+  getAttendeeAnswersBatch,
+  getQuestionsForEvent,
+} from "#lib/db/questions.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -59,6 +63,7 @@ import {
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  authenticatedGetById,
   formDataToParams,
   getSearchParam,
   htmlResponse,
@@ -81,7 +86,7 @@ import {
   adminEventPage,
   adminReactivateEventPage,
 } from "#templates/admin/events.tsx";
-import { generateAttendeesCsv } from "#templates/csv.ts";
+import { type CsvQuestionData, generateAttendeesCsv } from "#templates/csv.ts";
 import type {
   EventEditFormValues,
   EventFormValues,
@@ -570,10 +575,25 @@ const handleAdminEventExport: TypedRouteHandler<
       request,
     );
     const isDaily = event.event_type === "daily";
-    const csv = generateAttendeesCsv(filteredByDate, isDaily, {
-      eventDate: event.date,
-      eventLocation: event.location,
-    });
+
+    // Load questions and attendee answers for CSV
+    const attendeeIds = filteredByDate.map((a) => a.id);
+    const [questions, attendeeAnswerMap] = await Promise.all([
+      getQuestionsForEvent(event.id),
+      getAttendeeAnswersBatch(attendeeIds),
+    ]);
+    const questionData: CsvQuestionData | undefined =
+      questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
+
+    const csv = generateAttendeesCsv(
+      filteredByDate,
+      isDaily,
+      {
+        eventDate: event.date,
+        eventLocation: event.location,
+      },
+      questionData,
+    );
     const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
     const filename = dateFilter
       ? `${sanitizedName}_${dateFilter}_attendees.csv`
@@ -657,17 +677,13 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
  * Handle GET /admin/event/:id/log
  * Uses batched query to fetch event + activity log in a single DB round-trip.
  */
-const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (
-  request,
-  { id },
-) =>
-  requireSessionOr(request, (session) =>
-    orNotFound(getEventWithActivityLog(id), (result) =>
-      htmlResponse(
-        adminEventActivityLogPage(result.event, result.entries, session),
-      ),
+const handleAdminEventLog = authenticatedGetById(null)(
+  getEventWithActivityLog,
+  (result, session) =>
+    htmlResponse(
+      adminEventActivityLogPage(result.event, result.entries, session),
     ),
-  );
+);
 
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {

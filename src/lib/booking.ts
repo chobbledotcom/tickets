@@ -38,6 +38,7 @@ export const processBooking = async (
   date: string | null,
   baseUrl: string,
   customUnitPrice?: number,
+  answerIds?: number[],
 ): Promise<BookingResult> => {
   const paymentsEnabled = await isPaymentsEnabled();
   const needsPayment =
@@ -57,6 +58,7 @@ export const processBooking = async (
       quantity,
       date,
       customUnitPrice,
+      answerIds,
     };
 
     const result = await provider.createCheckoutSession(event, intent, baseUrl);

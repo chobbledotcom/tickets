@@ -4,6 +4,12 @@ import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
+  answersTable,
+  getAttendeeAnswersBatch,
+  questionsTable,
+  setEventQuestions,
+} from "#lib/db/questions.ts";
+import {
   updateContactPageText,
   updateHomepageText,
   updateShowPublicSite,
@@ -4125,6 +4131,297 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       // Page should load but only show the active event
       expect(html).toContain("Active Event");
       expect(html).not.toContain("Inactive Event");
+    });
+  });
+
+  describe("single-ticket with custom questions", () => {
+    /** Create a question with answers and assign it to an event */
+    const setupQuestionForEvent = async (eventId: number) => {
+      const q = await questionsTable.insert({ text: "T-shirt size?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Small",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Large",
+        sortOrder: 1,
+      });
+      await setEventQuestions(eventId, [q.id]);
+      return { question: q, answer1: a1, answer2: a2 };
+    };
+
+    test("saves answers when question is answered correctly", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "",
+      });
+      const { question, answer1 } = await setupQuestionForEvent(event.id);
+
+      const response = await submitTicketForm(event.slug, {
+        name: "Question User",
+        email: "question@example.com",
+        [`question_${question.id}`]: String(answer1.id),
+      });
+      expectReservedRedirectWithTokens(response);
+
+      // Verify answers were saved
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees = await getAttendeesRaw(event.id);
+      const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
+      expect(batch.get(attendees[0]!.id)).toEqual([answer1.id]);
+    });
+
+    test("returns error when required question is unanswered", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      await setupQuestionForEvent(event.id);
+
+      const response = await submitTicketForm(event.slug, {
+        name: "Question User",
+        email: "question@example.com",
+        // No question answer provided
+      });
+      await expectHtmlResponse(response, 400, "Please answer");
+    });
+
+    test("returns error when answer ID is invalid", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const { question } = await setupQuestionForEvent(event.id);
+
+      const response = await submitTicketForm(event.slug, {
+        name: "Question User",
+        email: "question@example.com",
+        [`question_${question.id}`]: "99999",
+      });
+      await expectHtmlResponse(response, 400, "Invalid answer for");
+    });
+
+    test("daily event parses date after question validation", async () => {
+      const today = todayInTz("UTC");
+      const validDate = addDays(today, 1);
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "",
+        eventType: "daily",
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const { question, answer1 } = await setupQuestionForEvent(event.id);
+
+      const response = await submitTicketForm(event.slug, {
+        name: "Daily Q User",
+        email: "dailyq@example.com",
+        date: validDate,
+        [`question_${question.id}`]: String(answer1.id),
+      });
+      expectReservedRedirectWithTokens(response);
+    });
+  });
+
+  describe("multi-ticket with custom questions", () => {
+    const setupQuestionForEvents = async (eventIds: number[]) => {
+      const q = await questionsTable.insert({ text: "Dietary needs?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "None",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Vegetarian",
+        sortOrder: 1,
+      });
+      for (const eid of eventIds) {
+        await setEventQuestions(eid, [q.id]);
+      }
+      return { question: q, answer1: a1, answer2: a2 };
+    };
+
+    test("saves answers for all attendees in multi-ticket reservation", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Q1",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Q2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const { question, answer1 } = await setupQuestionForEvents([
+        event1.id,
+        event2.id,
+      ]);
+
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await submitMultiTicketForm(slug, {
+        name: "Multi Q User",
+        email: "multiq@example.com",
+        [`quantity_${event1.id}`]: "1",
+        [`quantity_${event2.id}`]: "1",
+        [`question_${question.id}`]: String(answer1.id),
+      });
+      expectReservedRedirectWithTokens(response);
+
+      // Verify answers were saved for both attendees
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const att1 = await getAttendeesRaw(event1.id);
+      const att2 = await getAttendeesRaw(event2.id);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
+      expect(batch.get(att1[0]!.id)).toEqual([answer1.id]);
+      expect(batch.get(att2[0]!.id)).toEqual([answer1.id]);
+    });
+
+    test("saves event-specific answers only for each attendee", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Evt A",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Evt B",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      // Question 1 assigned to event1 only
+      const q1 = await questionsTable.insert({ text: "Event A question?" });
+      const a1 = await answersTable.insert({
+        questionId: q1.id,
+        text: "A answer",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q1.id]);
+
+      // Question 2 assigned to event2 only
+      const q2 = await questionsTable.insert({ text: "Event B question?" });
+      const a2 = await answersTable.insert({
+        questionId: q2.id,
+        text: "B answer",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event2.id, [q2.id]);
+
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await submitMultiTicketForm(slug, {
+        name: "Per Event User",
+        email: "perevent@example.com",
+        [`quantity_${event1.id}`]: "1",
+        [`quantity_${event2.id}`]: "1",
+        [`question_${q1.id}`]: String(a1.id),
+        [`question_${q2.id}`]: String(a2.id),
+      });
+      expectReservedRedirectWithTokens(response);
+
+      // Verify each attendee only has answers for their event's questions
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const att1 = await getAttendeesRaw(event1.id);
+      const att2 = await getAttendeesRaw(event2.id);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
+      expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
+      expect(batch.get(att2[0]!.id)).toEqual([a2.id]);
+    });
+
+    test("skips non-selected events in event answer map", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Q Shared 1",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Q Shared 2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      // Question assigned to BOTH events
+      const q1 = await questionsTable.insert({ text: "Shared question?" });
+      const a1 = await answersTable.insert({
+        questionId: q1.id,
+        text: "Shared answer",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q1.id]);
+      await setEventQuestions(event2.id, [q1.id]);
+
+      const slug = `${event1.slug}+${event2.slug}`;
+      // Only select event1, skip event2
+      const response = await submitMultiTicketForm(slug, {
+        name: "Shared Q User",
+        email: "shared@example.com",
+        [`quantity_${event1.id}`]: "1",
+        [`quantity_${event2.id}`]: "0",
+        [`question_${q1.id}`]: String(a1.id),
+      });
+      expectReservedRedirectWithTokens(response);
+
+      // Verify answer saved only for event1's attendee
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const att1 = await getAttendeesRaw(event1.id);
+      expect(att1.length).toBe(1);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id]);
+      expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
+      const att2 = await getAttendeesRaw(event2.id);
+      expect(att2.length).toBe(0);
+    });
+
+    test("validates question answers for selected events only", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Q Filter 1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Q Filter 2",
+        maxAttendees: 50,
+      });
+      // Only assign question to event1
+      const q = await questionsTable.insert({ text: "Event1 question?" });
+      await answersTable.insert({
+        questionId: q.id,
+        text: "Yes",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q.id]);
+
+      // Select only event2 (no question assigned) - should succeed without answer
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await submitMultiTicketForm(slug, {
+        name: "Filter User",
+        email: "filter@example.com",
+        [`quantity_${event1.id}`]: "0",
+        [`quantity_${event2.id}`]: "1",
+      });
+      expectReservedRedirectWithTokens(response);
+    });
+
+    test("returns error when multi-ticket question is unanswered", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Q Error 1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Q Error 2",
+        maxAttendees: 50,
+      });
+      await setupQuestionForEvents([event1.id]);
+
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await submitMultiTicketForm(slug, {
+        name: "Error User",
+        email: "error@example.com",
+        [`quantity_${event1.id}`]: "1",
+        [`quantity_${event2.id}`]: "0",
+        // No question answer provided
+      });
+      await expectHtmlResponse(response, 400, "Please answer");
     });
   });
 });

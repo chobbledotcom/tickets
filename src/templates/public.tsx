@@ -5,6 +5,10 @@
 import { map, pipe } from "#fp";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
+import type {
+  QuestionEventMap,
+  QuestionWithAnswers,
+} from "#lib/db/questions.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
@@ -230,6 +234,31 @@ const renderTermsAndCheckbox = (terms: string): string =>
   `<div class="terms">${renderMarkdown(terms)}</div>` +
   `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
 
+/** Render custom multiple-choice question fields (radio buttons).
+ * When questionEventMap is provided (multi-ticket), adds data-event-ids
+ * so JS can show/hide questions based on selected event quantities. */
+export const renderQuestions = (
+  questions: QuestionWithAnswers[],
+  questionEventMap?: QuestionEventMap,
+): string => {
+  if (questions.length === 0) return "";
+  return questions
+    .map((q) => {
+      const options = q.answers
+        .map(
+          (a) =>
+            `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(a.text)}</label>`,
+        )
+        .join("");
+      const eventIds = questionEventMap?.get(q.id);
+      const eventAttr = eventIds
+        ? ` data-event-ids="${eventIds.join(" ")}"`
+        : "";
+      return `<fieldset class="custom-question"${eventAttr}><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+    })
+    .join("");
+};
+
 /**
  * Public ticket page
  */
@@ -240,6 +269,7 @@ export const ticketPage = (
   availableDates: string[] | undefined,
   termsAndConditions: string | null | undefined,
   baseUrl?: string,
+  questions?: QuestionWithAnswers[],
 ): string => {
   const inIframe = getIframeMode();
   const spotsRemaining = event.max_attendees - event.attendee_count;
@@ -301,6 +331,9 @@ export const ticketPage = (
             <input type="hidden" name="quantity" value="1" />
           )}
           {showPayMore && <Raw html={renderPayMoreInput(event)} />}
+          {questions && questions.length > 0 && (
+            <Raw html={renderQuestions(questions)} />
+          )}
           {termsAndConditions && (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}
@@ -422,16 +455,29 @@ const renderMultiEventRow = (
 const getMultiTicketFieldsSetting = (events: MultiTicketEvent[]): EventFields =>
   mergeEventFields(events.map((e) => e.event.fields));
 
+/** Options for the multi-ticket page */
+export type MultiTicketPageOptions = {
+  events: MultiTicketEvent[];
+  slugs: string[];
+  error?: string;
+  dates?: string[];
+  terms?: string | null;
+  questions?: QuestionWithAnswers[];
+  questionEventMap?: QuestionEventMap;
+};
+
 /**
  * Multi-ticket page - register for multiple events at once
  */
-export const multiTicketPage = (
-  events: MultiTicketEvent[],
-  slugs: string[],
-  error?: string,
-  availableDates?: string[],
-  termsAndConditions?: string | null,
-): string => {
+export const multiTicketPage = ({
+  events,
+  slugs,
+  error,
+  dates,
+  terms,
+  questions,
+  questionEventMap,
+}: MultiTicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
@@ -461,9 +507,7 @@ export const multiTicketPage = (
       ) : (
         <CsrfForm action={`/ticket/${slugs.join("+")}`}>
           <Raw html={renderFields(fields)} />
-          {hasDaily && availableDates && (
-            <Raw html={renderDateSelector(availableDates)} />
-          )}
+          {hasDaily && dates && <Raw html={renderDateSelector(dates)} />}
 
           {hideQuantity ? (
             <Raw html={eventRows} />
@@ -474,9 +518,10 @@ export const multiTicketPage = (
             </fieldset>
           )}
 
-          {termsAndConditions && (
-            <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
+          {questions && questions.length > 0 && (
+            <Raw html={renderQuestions(questions, questionEventMap)} />
           )}
+          {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
           <button type="submit">Reserve Tickets</button>
         </CsrfForm>
       )}

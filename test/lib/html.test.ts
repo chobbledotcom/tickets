@@ -35,6 +35,13 @@ import {
 } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
+import {
+  adminAnswerDeletePage,
+  adminEventQuestionsPage,
+  adminQuestionDeletePage,
+  adminQuestionPage,
+  adminQuestionsPage,
+} from "#templates/admin/questions.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
@@ -830,6 +837,30 @@ describe("html", () => {
       const html = ticketPage(event, undefined, false, undefined, undefined);
       expect(html).not.toContain('class="terms"');
       expect(html).not.toContain('name="agree_terms"');
+    });
+
+    test("renders custom questions when provided", () => {
+      const questions = [
+        {
+          id: 1,
+          text: "Size?",
+          answers: [
+            { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+            { id: 11, question_id: 1, text: "Large", sort_order: 1 },
+          ],
+        },
+      ];
+      const html = ticketPage(
+        event,
+        undefined,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        questions,
+      );
+      expect(html).toContain("Size?");
+      expect(html).toContain('name="question_1"');
     });
 
     test("includes OpenGraph tags when baseUrl is provided", () => {
@@ -2410,7 +2441,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain("Sorry, all events are sold out.");
       expect(html).not.toContain("Reserve Tickets</button>");
     });
@@ -2426,16 +2457,44 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(
+      const html = multiTicketPage({
         events,
-        ["ab12c"],
-        undefined,
-        undefined,
-        "Rule one\n\nRule two",
-      );
+        slugs: ["ab12c"],
+        terms: "Rule one\n\nRule two",
+      });
       expect(html).toContain("<p>Rule one</p>");
       expect(html).toContain("<p>Rule two</p>");
       expect(html).toContain('name="agree_terms"');
+    });
+
+    test("renders custom questions with event IDs", () => {
+      const events = [
+        buildMultiTicketEvent(
+          testEventWithCount({
+            id: 1,
+            slug: "ab12c",
+            name: "Event A",
+            attendee_count: 0,
+          }),
+        ),
+      ];
+      const questions = [
+        {
+          id: 5,
+          text: "Size?",
+          answers: [{ id: 10, question_id: 5, text: "Small", sort_order: 0 }],
+        },
+      ];
+      const questionEventMap = new Map([[5, [1]]]);
+      const html = multiTicketPage({
+        events,
+        slugs: ["ab12c"],
+        questions,
+        questionEventMap,
+      });
+      expect(html).toContain("Size?");
+      expect(html).toContain('name="question_5"');
+      expect(html).toContain('data-event-ids="1"');
     });
 
     test("appends ?iframe=true to form action in iframe mode", () => {
@@ -2450,7 +2509,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('action="/ticket/ab12c?iframe=true"');
       expect(html).toContain('class="iframe"');
       detectIframeMode("https://example.com/");
@@ -2468,7 +2527,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain("iframe-resizer-child.js");
       detectIframeMode("https://example.com/");
     });
@@ -2484,7 +2543,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).not.toContain("iframe-resizer-child.js");
     });
 
@@ -2499,7 +2558,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('action="/ticket/ab12c"');
       expect(html).not.toContain("?iframe=true");
       expect(html).not.toContain('class="iframe"');
@@ -2517,7 +2576,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('name="quantity_1" value="1"');
       expect(html).not.toContain("<select");
       expect(html).not.toContain("Select Tickets");
@@ -2535,7 +2594,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain("<select");
       expect(html).toContain('name="quantity_1"');
       expect(html).toContain("Select Tickets");
@@ -2563,7 +2622,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain("<select");
       expect(html).toContain("Select Tickets");
     });
@@ -2589,7 +2648,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
+      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain('name="quantity_1" value="1"');
       expect(html).not.toContain("Select Tickets");
     });
@@ -3643,7 +3702,7 @@ describe("html", () => {
             }),
           ),
         ];
-        const html = multiTicketPage(events, ["slug-a", "slug-b"]);
+        const html = multiTicketPage({ events, slugs: ["slug-a", "slug-b"] });
         expect(html).toContain("/image/img-a.jpg");
         expect(html).toContain("/image/img-b.jpg");
         cleanupStorage();
@@ -3656,7 +3715,7 @@ describe("html", () => {
             testEventWithCount({ id: 1, name: "Event A", image_url: "" }),
           ),
         ];
-        const html = multiTicketPage(events, ["slug-a"]);
+        const html = multiTicketPage({ events, slugs: ["slug-a"] });
         expect(html).not.toContain("/image/");
         cleanupStorage();
       });
@@ -3851,6 +3910,189 @@ describe("html", () => {
         const html = adminEventNewPage([], TEST_SESSION);
         expect(html).not.toContain('type="file"');
       });
+    });
+  });
+
+  describe("adminQuestionsPage", () => {
+    test("renders empty state when no questions", () => {
+      const html = adminQuestionsPage([], TEST_SESSION);
+      expect(html).toContain("No custom questions yet");
+    });
+
+    test("renders question list with answer counts", () => {
+      const html = adminQuestionsPage(
+        [
+          {
+            id: 1,
+            text: "Favourite colour?",
+            answers: [
+              { id: 10, question_id: 1, text: "Red", sort_order: 0 },
+              { id: 11, question_id: 1, text: "Blue", sort_order: 1 },
+            ],
+          },
+        ],
+        TEST_SESSION,
+      );
+      expect(html).toContain("Favourite colour?");
+      expect(html).toContain("2 answers");
+    });
+
+    test("renders singular answer count for one answer", () => {
+      const html = adminQuestionsPage(
+        [
+          {
+            id: 1,
+            text: "Yes or no?",
+            answers: [{ id: 10, question_id: 1, text: "Yes", sort_order: 0 }],
+          },
+        ],
+        TEST_SESSION,
+      );
+      expect(html).toContain("1 answer)");
+      expect(html).not.toContain("1 answers");
+    });
+
+    test("renders error message when provided", () => {
+      const html = adminQuestionsPage([], TEST_SESSION, "Something went wrong");
+      expect(html).toContain("Something went wrong");
+    });
+  });
+
+  describe("adminQuestionPage", () => {
+    const question = {
+      id: 1,
+      text: "T-shirt size?",
+      answers: [
+        { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+        { id: 11, question_id: 1, text: "Large", sort_order: 1 },
+      ],
+    };
+
+    test("renders question text and edit form", () => {
+      const html = adminQuestionPage(question, TEST_SESSION);
+      expect(html).toContain("T-shirt size?");
+      expect(html).toContain('action="/admin/questions/1/edit"');
+    });
+
+    test("renders answer list with delete links", () => {
+      const html = adminQuestionPage(question, TEST_SESSION);
+      expect(html).toContain("Small");
+      expect(html).toContain("Large");
+      expect(html).toContain("/admin/questions/1/answers/10/delete");
+      expect(html).toContain("/admin/questions/1/answers/11/delete");
+    });
+
+    test("renders delete question link", () => {
+      const html = adminQuestionPage(question, TEST_SESSION);
+      expect(html).toContain('href="/admin/questions/1/delete"');
+    });
+
+    test("renders error message when provided", () => {
+      const html = adminQuestionPage(question, TEST_SESSION, "Error!");
+      expect(html).toContain("Error!");
+    });
+
+    test("renders empty answers state", () => {
+      const html = adminQuestionPage(
+        { id: 1, text: "Q?", answers: [] },
+        TEST_SESSION,
+      );
+      expect(html).toContain("No answers yet");
+    });
+  });
+
+  describe("adminQuestionDeletePage", () => {
+    const question = {
+      id: 1,
+      text: "T-shirt size?",
+      answers: [{ id: 10, question_id: 1, text: "Small", sort_order: 0 }],
+    };
+
+    test("renders confirmation form with question text", () => {
+      const html = adminQuestionDeletePage(question, TEST_SESSION);
+      expect(html).toContain("Delete Question");
+      expect(html).toContain("T-shirt size?");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain('action="/admin/questions/1/delete"');
+    });
+
+    test("warns about cascading deletes", () => {
+      const html = adminQuestionDeletePage(question, TEST_SESSION);
+      expect(html).toContain("all its answers");
+      expect(html).toContain("attendee responses");
+    });
+
+    test("renders error message when provided", () => {
+      const html = adminQuestionDeletePage(
+        question,
+        TEST_SESSION,
+        "Text does not match",
+      );
+      expect(html).toContain("Text does not match");
+    });
+  });
+
+  describe("adminAnswerDeletePage", () => {
+    const question = {
+      id: 1,
+      text: "T-shirt size?",
+      answers: [
+        { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+        { id: 11, question_id: 1, text: "Large", sort_order: 1 },
+      ],
+    };
+    const answer = question.answers[0]!;
+
+    test("renders confirmation form with answer text", () => {
+      const html = adminAnswerDeletePage(question, answer, TEST_SESSION);
+      expect(html).toContain("Delete Answer");
+      expect(html).toContain("Small");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain('action="/admin/questions/1/answers/10/delete"');
+    });
+
+    test("shows question context", () => {
+      const html = adminAnswerDeletePage(question, answer, TEST_SESSION);
+      expect(html).toContain("T-shirt size?");
+    });
+
+    test("renders error message when provided", () => {
+      const html = adminAnswerDeletePage(
+        question,
+        answer,
+        TEST_SESSION,
+        "Text does not match",
+      );
+      expect(html).toContain("Text does not match");
+    });
+  });
+
+  describe("adminEventQuestionsPage", () => {
+    test("shows empty state when no questions exist", () => {
+      const event = testEventWithCount({ id: 1, name: "My Event" });
+      const html = adminEventQuestionsPage(event, [], new Set(), TEST_SESSION);
+      expect(html).toContain("No questions created yet");
+      expect(html).toContain('href="/admin/questions"');
+      expect(html).toContain("Create questions");
+    });
+
+    test("shows singular option count for question with one answer", () => {
+      const event = testEventWithCount({ id: 1, name: "My Event" });
+      const questions = [
+        {
+          id: 1,
+          text: "Yes or no?",
+          answers: [{ id: 10, question_id: 1, text: "Yes", sort_order: 0 }],
+        },
+      ];
+      const html = adminEventQuestionsPage(
+        event,
+        questions,
+        new Set(),
+        TEST_SESSION,
+      );
+      expect(html).toContain("1 option)");
+      expect(html).not.toContain("1 options");
     });
   });
 });

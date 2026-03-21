@@ -427,6 +427,15 @@ export const handleRequest = async (
               code: ErrorCode.CDN_REQUEST,
               detail: formatRequestError(method, path, error),
             });
+            // In tests, surface the real error instead of swallowing it
+            // behind a generic "Temporary Error" page
+            if (
+              Deno.env.get("TEST_RETHROW_ERRORS") &&
+              !(error instanceof SessionKeyError) &&
+              !Deno.env.get("TEST_EXPECT_ERROR")
+            ) {
+              throw error;
+            }
             if (error instanceof SessionKeyError) {
               return logAndReturn(
                 redirectResponse("/admin", clearSessionCookie()),

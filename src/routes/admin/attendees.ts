@@ -20,6 +20,12 @@ import {
   getEventWithAttendeeRaw,
   getEventWithCount,
 } from "#lib/db/events.ts";
+import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import {
+  getAttendeeAnswersBatch,
+  getQuestionsForEvent,
+  saveAttendeeAnswers,
+} from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 /* jscpd:ignore-start */
 import { getFlash } from "#lib/flash-context.ts";
@@ -585,6 +591,8 @@ const loadAttendeeForEdit = async (
   attendee: Attendee;
   event: EventWithCount;
   allEvents: EventWithCount[];
+  questions: QuestionWithAnswers[];
+  selectedAnswerIds: number[];
 } | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>(
@@ -594,9 +602,14 @@ const loadAttendeeForEdit = async (
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const event = (await getEventWithCount(attendee.event_id))!;
-  const allEvents = await getEventsForSelector(event.id);
+  const [allEvents, questions, answersMap] = await Promise.all([
+    getEventsForSelector(event.id),
+    getQuestionsForEvent(event.id),
+    getAttendeeAnswersBatch([attendeeId]),
+  ]);
+  const selectedAnswerIds = answersMap.get(attendeeId) ?? [];
 
-  return { attendee, event, allEvents };
+  return { attendee, event, allEvents, questions, selectedAnswerIds };
 };
 
 type EditAttendeeData = NonNullable<
@@ -702,6 +715,18 @@ async function editAttendeeHandler(
     if (!available) return editError("Not enough spots available");
   }
 
+  // Parse question answers
+  const answerIds: number[] = [];
+  for (const q of data.questions) {
+    const raw = form.get(`question_${q.id}`);
+    if (raw) {
+      const answerId = Number.parseInt(raw, 10);
+      if (q.answers.some((a) => a.id === answerId)) {
+        answerIds.push(answerId);
+      }
+    }
+  }
+
   await updateAttendee(attendeeId, {
     name,
     email,
@@ -711,6 +736,12 @@ async function editAttendeeHandler(
     event_id,
     quantity,
   });
+
+  // Update answers (atomic delete + insert)
+  if (data.questions.length > 0) {
+    await saveAttendeeAnswers([attendeeId], answerIds);
+  }
+
   await logActivity(`Attendee '${name}' updated`, event_id);
 
   return redirect(

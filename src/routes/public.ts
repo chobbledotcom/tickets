@@ -28,6 +28,13 @@ import {
 } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import {
+  getQuestionsForEvent,
+  getQuestionsWithEventIds,
+  type QuestionEventMap,
+  type QuestionWithAnswers,
+  saveAttendeeAnswers,
+} from "#lib/db/questions.ts";
+import {
   getContactPageTextFromDb,
   getHomepageTextFromDb,
   getShowPublicSiteFromDb,
@@ -136,20 +143,31 @@ export const handlePublicTerms = (): Promise<Response> =>
 export const handlePublicContact = (): Promise<Response> =>
   renderPublicPage("contact", getContactPageTextFromDb);
 
+/** Render a ticket page with the given context */
+const renderTicketPage = (
+  event: EventWithCount,
+  ctx: TicketContext,
+  opts: { isClosed?: boolean; baseUrl?: string; error?: string },
+) =>
+  ticketPage(
+    event,
+    opts.error,
+    opts.isClosed ?? false,
+    ctx.dates,
+    ctx.terms,
+    opts.baseUrl,
+    ctx.questions,
+  );
+
 /** Ticket response builder (CSRF token auto-embedded by CsrfForm) */
 const ticketResponseWithToken =
   (
     event: EventWithCount,
-    isClosed: boolean,
-    dates: string[] | undefined,
-    terms: string | null | undefined,
-    baseUrl?: string,
+    ctx: TicketContext,
+    opts: { isClosed?: boolean; baseUrl?: string } = {},
   ) =>
   (error?: string, status = 200) =>
-    htmlResponse(
-      ticketPage(event, error, isClosed, dates, terms, baseUrl),
-      status,
-    );
+    htmlResponse(renderTicketPage(event, ctx, { ...opts, error }), status);
 
 /** Curried error response: render(error) → (error, status) → Response */
 const errorResponse =
@@ -157,23 +175,11 @@ const errorResponse =
   (error: string, status = 400) =>
     htmlResponse(render(error), status);
 
-/** Build a validation error responder from a page render function */
-const validationErrorResponder =
-  <Args extends unknown[]>(
-    renderPage: (error: string, ...args: Args) => string,
-  ) =>
-  (...args: Args) =>
-    errorResponse((error) => renderPage(error, ...args));
-
 /** Ticket error response - for validation errors after CSRF passed */
-const ticketResponse = validationErrorResponder(
-  (
-    error: string,
-    event: EventWithCount,
-    dates: string[] | undefined,
-    terms: string | null | undefined,
-  ) => ticketPage(event, error, false, dates, terms),
-);
+const ticketError =
+  (event: EventWithCount, ctx: TicketContext) =>
+  (error: string, status = 400) =>
+    htmlResponse(renderTicketPage(event, ctx, { error }), status);
 
 /** Compute available dates for a daily event, or undefined for standard */
 const computeDatesForEvent = async (
@@ -197,23 +203,34 @@ const handleSingleTicketGet = (
   withActiveEventBySlug(slug, async (event) => {
     const closed = isRegistrationClosed(event);
     await signCsrfToken();
-    const dates = await computeDatesForEvent(event);
-    const terms = await getTermsAndConditionsFromDb();
-    const baseUrl = getBaseUrl(request);
+    const [dates, terms, questions] = await Promise.all([
+      computeDatesForEvent(event),
+      getTermsAndConditionsFromDb(),
+      getQuestionsForEvent(event.id),
+    ]);
+    const ctx: TicketContext = { dates, terms, questions };
     return applyHiddenNoindex(
-      ticketResponseWithToken(event, closed, dates, terms, baseUrl)(),
+      ticketResponseWithToken(event, ctx, {
+        isClosed: closed,
+        baseUrl: getBaseUrl(request),
+      })(),
       event.hidden,
     );
   });
 
 /** Map a BookingResult to a web response for single-ticket pages */
-const bookingResultToWebResponse = (
+const bookingResultToWebResponse = async (
   result: BookingResult,
   event: EventWithCount,
   ctx: TicketContext,
-): Response => {
+  answerIds: number[] = [],
+): Promise<Response> => {
+  const showError = ticketError(event, ctx);
   switch (result.type) {
     case "success": {
+      if (answerIds.length > 0) {
+        await saveAttendeeAnswers([result.attendee.id], answerIds);
+      }
       if (event.thank_you_url) return redirectResponse(event.thank_you_url);
       return redirectResponse(
         `/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}`,
@@ -222,25 +239,13 @@ const bookingResultToWebResponse = (
     case "checkout":
       return checkoutResponse(result.checkoutUrl);
     case "sold_out":
-      return ticketResponse(
-        event,
-        ctx.dates,
-        ctx.terms,
-      )("Sorry, not enough spots available");
+      return showError("Sorry, not enough spots available");
     case "checkout_failed":
       return result.error
-        ? ticketResponse(event, ctx.dates, ctx.terms)(result.error, 400)
-        : ticketResponse(
-            event,
-            ctx.dates,
-            ctx.terms,
-          )("Failed to create payment session. Please try again.", 500);
+        ? showError(result.error)
+        : showError("Failed to create payment session. Please try again.", 500);
     case "creation_failed":
-      return ticketResponse(
-        event,
-        ctx.dates,
-        ctx.terms,
-      )(formatAtomicError(result.reason));
+      return showError(formatAtomicError(result.reason));
   }
 };
 
@@ -322,6 +327,7 @@ const runCheckoutFlow = (
 type TicketContext = {
   dates: string[] | undefined;
   terms: string | null | undefined;
+  questions: QuestionWithAnswers[];
 };
 
 /** Parse and validate a quantity value from a raw string, capping at max */
@@ -355,6 +361,50 @@ const formatAtomicError = formatCreationError(
   "Registration failed. Please try again.",
 );
 
+/** Parse and validate answers for custom questions from form data.
+ * Returns answer IDs if valid, or an error message if any required question is unanswered. */
+const parseQuestionAnswers = (
+  form: URLSearchParams,
+  questions: QuestionWithAnswers[],
+): { ok: true; answerIds: number[] } | { ok: false; error: string } => {
+  const answerIds: number[] = [];
+  for (const q of questions) {
+    const raw = form.get(`question_${q.id}`);
+    if (!raw) {
+      return { ok: false, error: `Please answer: ${q.text}` };
+    }
+    const answerId = Number.parseInt(raw, 10);
+    const validAnswer = q.answers.some((a) => a.id === answerId);
+    if (!validAnswer) {
+      return { ok: false, error: `Invalid answer for: ${q.text}` };
+    }
+    answerIds.push(answerId);
+  }
+  return { ok: true, answerIds };
+};
+
+/** Build a per-event answer map from parsed answers and the question-event mapping.
+ * Each event gets only the answer IDs for questions assigned to it. */
+const buildEventAnswerMap = (
+  questions: QuestionWithAnswers[],
+  answerIds: number[],
+  questionEventMap: QuestionEventMap,
+  selectedEventIds: Set<number>,
+): Record<string, number[]> => {
+  const result: Record<string, number[]> = {};
+  for (let i = 0; i < questions.length; i++) {
+    const question = questions[i]!;
+    const answerId = answerIds[i]!;
+    // questionEventMap always contains entries for all questions from getQuestionsWithEventIds
+    for (const eventId of questionEventMap.get(question.id)!) {
+      if (!selectedEventIds.has(eventId)) continue;
+      const key = String(eventId);
+      (result[key] ??= []).push(answerId);
+    }
+  }
+  return result;
+};
+
 /** Registration closed message for form submissions */
 const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
   "Sorry, registration closed while you were submitting.";
@@ -372,56 +422,45 @@ const processTicketReservation = async (
   request: Request,
   event: EventWithCount,
 ): Promise<Response> => {
-  const terms = await getTermsAndConditionsFromDb();
+  const [terms, questions] = await Promise.all([
+    getTermsAndConditionsFromDb(),
+    getQuestionsForEvent(event.id),
+  ]);
+  const ctx: TicketContext = { dates: undefined, terms, questions };
+  const showError = ticketError(event, ctx);
 
   return withCsrfForm(
     request,
-    (message, status) =>
-      ticketResponseWithToken(event, false, undefined, terms)(message, status),
+    (message, status) => ticketResponseWithToken(event, ctx)(message, status),
     async (form) => {
-      // Check if registration has closed since the form was loaded
       if (isRegistrationClosed(event)) {
-        return ticketResponse(
-          event,
-          undefined,
-          terms,
-        )(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+        return showError(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
       }
 
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       const valResult = tryValidateTicketFields(
         form,
         event.fields,
-        (msg) => ticketResponse(event, undefined, terms)(msg),
+        (msg) => showError(msg),
         isPaidEvent(event),
       );
       if (valResult instanceof Response) return valResult;
       const values = valResult;
 
-      // Validate terms and conditions acceptance if configured
       if (terms && form.get("agree_terms") !== "1") {
-        return ticketResponse(
-          event,
-          undefined,
-          terms,
-        )("You must agree to the terms and conditions");
+        return showError("You must agree to the terms and conditions");
       }
+
+      const answersResult = parseQuestionAnswers(form, questions);
+      if (!answersResult.ok) return showError(answersResult.error);
 
       // For daily events, validate the submitted date against available dates
       let date: string | null = null;
-      let dates: string[] | undefined;
       if (event.event_type === "daily") {
-        dates = getAvailableDates(event, await getActiveHolidays());
-        date = validateSubmittedDate(form, dates);
-        if (!date) {
-          return ticketResponse(
-            event,
-            dates,
-            terms,
-          )("Please select a valid date");
-        }
+        ctx.dates = getAvailableDates(event, await getActiveHolidays());
+        date = validateSubmittedDate(form, ctx.dates);
+        if (!date) return showError("Please select a valid date");
       }
-
       const quantity = parseQuantity(form, event);
 
       // Parse custom price for pay-more events
@@ -433,13 +472,10 @@ const processTicketReservation = async (
           event.unit_price,
           event.max_price,
         );
-        if (!priceResult.ok) {
-          return ticketResponse(event, dates, terms)(priceResult.error);
-        }
+        if (!priceResult.ok) return showError(priceResult.error);
         customUnitPrice = priceResult.price;
       }
 
-      const ctx: TicketContext = { dates, terms };
       const contact = extractContact(values);
       const bookingResult = await processBooking(
         event,
@@ -448,8 +484,14 @@ const processTicketReservation = async (
         date,
         getBaseUrl(request),
         customUnitPrice,
+        answersResult.answerIds,
       );
-      return bookingResultToWebResponse(bookingResult, event, ctx);
+      return bookingResultToWebResponse(
+        bookingResult,
+        event,
+        ctx,
+        answersResult.answerIds,
+      );
     },
   );
 };
@@ -483,7 +525,7 @@ const getActiveMultiEvents = (
 
 /** Render multi-ticket HTML (CSRF token auto-embedded by CsrfForm) */
 const renderMultiTicketPage = (ctx: MultiTicketCtx, error?: string) =>
-  multiTicketPage(ctx.events, ctx.slugs, error, ctx.dates, ctx.terms);
+  multiTicketPage({ ...ctx, error });
 
 /** Multi-ticket response builder */
 const multiTicketResponse =
@@ -497,6 +539,8 @@ type MultiTicketCtx = {
   events: MultiTicketEvent[];
   dates: string[];
   terms: string;
+  questions: QuestionWithAnswers[];
+  questionEventMap: QuestionEventMap;
 };
 
 /** Multi-ticket form error response (after CSRF passed) */
@@ -524,9 +568,9 @@ const withActiveMultiEvents = async (
 /** Compute shared available dates across all daily events (intersection) */
 const computeSharedDates = async (
   events: MultiTicketEvent[],
-): Promise<string[] | undefined> => {
+): Promise<string[]> => {
   const dailyEvents = events.filter((e) => e.event.event_type === "daily");
-  if (dailyEvents.length === 0) return undefined;
+  if (dailyEvents.length === 0) return [];
   const holidays = await getActiveHolidays();
   const dateSets = dailyEvents.map(
     (e) => new Set(getAvailableDates(e.event, holidays)),
@@ -534,25 +578,37 @@ const computeSharedDates = async (
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
-/** Fetch shared context for multi-ticket pages: dates, terms */
+/** Multi-ticket shared context shape */
+type MultiTicketSharedContext = {
+  dates: string[];
+  terms: string;
+  questions: QuestionWithAnswers[];
+  questionEventMap: QuestionEventMap;
+};
+
+/** Fetch shared context for multi-ticket pages: dates, terms, questions */
 const getMultiTicketContext = async (
   activeEvents: MultiTicketEvent[],
-): Promise<{ dates: string[]; terms: string }> => {
-  const dates = await computeSharedDates(activeEvents);
-  const terms = await getTermsAndConditionsFromDb();
-  return { dates: dates ?? [], terms: terms ?? "" };
+): Promise<MultiTicketSharedContext> => {
+  const eventIds = activeEvents.map((e) => e.event.id);
+  const [dates, terms, questionsResult] = await Promise.all([
+    computeSharedDates(activeEvents),
+    getTermsAndConditionsFromDb(),
+    getQuestionsWithEventIds(eventIds),
+  ]);
+  return { dates, terms: terms ?? "", ...questionsResult };
 };
 
 /** Shared context provider for multi-ticket pages */
 type MultiTicketContextProvider = (
   events: MultiTicketEvent[],
-) => Promise<{ dates: string[]; terms: string }>;
+) => Promise<MultiTicketSharedContext>;
 
 /** Load shared meta for multi-ticket pages */
 const loadMultiTicketMeta = (
   activeEvents: MultiTicketEvent[],
   getContext: MultiTicketContextProvider,
-): Promise<{ dates: string[]; terms: string }> => getContext(activeEvents);
+): Promise<MultiTicketSharedContext> => getContext(activeEvents);
 
 /** Handle POST for multi-ticket registration */
 const submitMultiTicket = (
@@ -584,19 +640,6 @@ const submitMultiTicket = (
         return errorResponse("You must agree to the terms and conditions");
       }
 
-      const contact = extractContact(values);
-
-      // For daily events, validate the submitted date
-      let date: string | null = null;
-      if (dates.length > 0) {
-        date = validateSubmittedDate(form, dates);
-        if (!date) {
-          return multiTicketFormErrorResponse(ctx)(
-            "Please select a valid date",
-          );
-        }
-      }
-
       // Check if any event the user selected is now closed
       for (const { event, isClosed } of ctx.events) {
         const selectedQty = Number.parseInt(
@@ -622,6 +665,30 @@ const submitMultiTicket = (
         return multiTicketFormErrorResponse(ctx)(
           "Please select at least one ticket",
         );
+      }
+
+      // Validate custom question answers (only for selected events)
+      const selectedEventIds = new Set(quantities.keys());
+      const activeQuestions = ctx.questions.filter((q) => {
+        const eventIds = ctx.questionEventMap.get(q.id);
+        return !eventIds || eventIds.some((eid) => selectedEventIds.has(eid));
+      });
+      const answersResult = parseQuestionAnswers(form, activeQuestions);
+      if (!answersResult.ok) {
+        return errorResponse(answersResult.error);
+      }
+
+      const contact = extractContact(values);
+
+      // For daily events, validate the submitted date
+      let date: string | null = null;
+      if (dates.length > 0) {
+        date = validateSubmittedDate(form, dates);
+        if (!date) {
+          return multiTicketFormErrorResponse(ctx)(
+            "Please select a valid date",
+          );
+        }
       }
 
       // Parse custom prices for pay-more events
@@ -666,7 +733,21 @@ const submitMultiTicket = (
           );
         }
 
-        const intent: MultiRegistrationIntent = { ...contact, date, items };
+        const eventAnswerIds =
+          answersResult.answerIds.length > 0
+            ? buildEventAnswerMap(
+                activeQuestions,
+                answersResult.answerIds,
+                ctx.questionEventMap,
+                selectedEventIds,
+              )
+            : undefined;
+        const intent: MultiRegistrationIntent = {
+          ...contact,
+          date,
+          items,
+          eventAnswerIds,
+        };
         return handleMultiPaymentFlow(request, intent, ctx);
       }
 
@@ -682,6 +763,22 @@ const submitMultiTicket = (
         return multiTicketFormErrorResponse(ctx)(result.error);
       }
 
+      // Save per-event answers for each attendee
+      if (answersResult.answerIds.length > 0) {
+        const eventAnswerMap = buildEventAnswerMap(
+          activeQuestions,
+          answersResult.answerIds,
+          ctx.questionEventMap,
+          selectedEventIds,
+        );
+        for (const { event, attendee } of result.entries) {
+          const answers = eventAnswerMap[String(event.id)];
+          if (answers && answers.length > 0) {
+            await saveAttendeeAnswers([attendee.id], answers);
+          }
+        }
+      }
+
       const tokens = encodeURIComponent(result.tokens.join("+"));
       return redirectResponse(`/ticket/reserved?tokens=${tokens}`);
     },
@@ -693,7 +790,7 @@ const handleMultiTicket = async (
   activeEvents: MultiTicketEvent[],
   getContext: MultiTicketContextProvider,
 ): Promise<Response> => {
-  const [{ dates, terms }] = await Promise.all([
+  const [{ dates, terms, questions, questionEventMap }] = await Promise.all([
     loadMultiTicketMeta(activeEvents, getContext),
     signCsrfToken(),
   ]);
@@ -702,6 +799,8 @@ const handleMultiTicket = async (
     events: activeEvents,
     dates,
     terms,
+    questions,
+    questionEventMap,
   };
   const response =
     request.method === "GET"
@@ -820,7 +919,8 @@ const processMultiFreeReservation = async (
   contact: ContactInfo,
   date: string | null,
 ): Promise<
-  { success: true; tokens: string[] } | { success: false; error: string }
+  | { success: true; tokens: string[]; entries: EmailEntry[] }
+  | { success: false; error: string }
 > => {
   const entries: EmailEntry[] = [];
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
@@ -843,6 +943,7 @@ const processMultiFreeReservation = async (
   return {
     success: true,
     tokens: entries.map((entry) => entry.attendee.ticket_token),
+    entries,
   };
 };
 
@@ -850,10 +951,14 @@ const processMultiFreeReservation = async (
 const getGroupMultiTicketContext =
   (group: Group): MultiTicketContextProvider =>
   async (events) => {
-    const dates = await computeSharedDates(events);
-    const globalTerms = await getTermsAndConditionsFromDb();
+    const eventIds = events.map((e) => e.event.id);
+    const [dates, globalTerms, questionsResult] = await Promise.all([
+      computeSharedDates(events),
+      getTermsAndConditionsFromDb(),
+      getQuestionsWithEventIds(eventIds),
+    ]);
     const terms = group.terms_and_conditions || globalTerms || "";
-    return { dates: dates ?? [], terms };
+    return { dates, terms, ...questionsResult };
   };
 
 /** Load group by slug and its active events, return 404 if empty */

@@ -5,6 +5,7 @@
 import { map, pipe, reduce } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { toMajorUnits } from "#lib/currency.ts";
+import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import type { Attendee } from "#lib/types.ts";
 
 /** Attendee with associated event info for calendar CSV */
@@ -87,23 +88,59 @@ const buildCsv = <T>(
   )(items);
 };
 
+/** Build answer columns for an attendee based on questions and answer map */
+const answerCols = (
+  attendeeId: number,
+  questions: QuestionWithAnswers[],
+  attendeeAnswerMap: Map<number, number[]>,
+  answerTextMap: Map<number, string>,
+): string[] =>
+  questions.map((q) => {
+    const answerIds = attendeeAnswerMap.get(attendeeId) ?? [];
+    const matched = answerIds.find((aid) =>
+      q.answers.some((a) => a.id === aid),
+    );
+    return escapeCsvValue(matched ? answerTextMap.get(matched)! : "");
+  });
+
+/** CSV options for question/answer data */
+export type CsvQuestionData = {
+  questions: QuestionWithAnswers[];
+  attendeeAnswerMap: Map<number, number[]>;
+};
+
 /**
  * Generate CSV content from attendees.
  * Always includes both Email and Phone columns regardless of event settings.
  * When includeDate is true, adds a Date column for daily events.
  * When eventInfo is provided, adds Event Date and Event Location columns.
+ * When questionData is provided, adds columns for each custom question.
  */
 export const generateAttendeesCsv = (
   attendees: Attendee[],
   includeDate = false,
   eventInfo?: CsvEventInfo,
+  questionData?: CsvQuestionData,
 ): string => {
   const showEventDate = !!eventInfo?.eventDate;
   const showEventLocation = !!eventInfo?.eventLocation;
+  const questions = questionData?.questions ?? [];
+  const attendeeAnswerMap = questionData?.attendeeAnswerMap ?? new Map();
+
+  // Build lookup from answer ID to answer text
+  const answerTextMap = new Map<number, string>();
+  for (const q of questions) {
+    for (const a of q.answers) {
+      answerTextMap.set(a.id, a.text);
+    }
+  }
+
+  const questionHeaders = questions.map((q) => escapeCsvValue(q.text));
   const headerParts = [
     ...(includeDate ? ["Date"] : []),
     ...eventInfoHeaders(showEventDate, showEventLocation),
     "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    ...questionHeaders,
   ];
   return buildCsv(
     headerParts.join(","),
@@ -116,6 +153,7 @@ export const generateAttendeesCsv = (
         eventInfo?.eventLocation ?? "",
       ),
       ...attendeeCols(a, domain),
+      ...answerCols(a.id, questions, attendeeAnswerMap, answerTextMap),
     ],
     attendees,
   );

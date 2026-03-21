@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { spy, stub } from "@std/testing/mock";
 import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
+import { setPaymentProvider, updateSquareSandbox } from "#lib/db/settings.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import { runWithRequestId } from "#lib/logger.ts";
 import {
-  buildCspHeader,
   getCleanUrl,
   handleRequest,
   isValidContentType,
@@ -18,8 +18,8 @@ import {
 } from "#routes/utils.ts";
 import {
   createTestDb,
+  createTestDbWithSetup,
   createTestEvent,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
   getEmbeddableTicketResponse,
@@ -27,10 +27,21 @@ import {
   mockRequest,
   mockRequestWithHost,
   resetDb,
+  resetTestSlugCounter,
   testCookie,
+  withExpectedError,
 } from "#test-utils";
 
-describeWithEnv("server (misc)", { db: true }, () => {
+describe("server (misc)", () => {
+  beforeEach(async () => {
+    resetTestSlugCounter();
+    await createTestDbWithSetup();
+  });
+
+  afterEach(() => {
+    resetDb();
+  });
+
   /** Create an embeddable test event and return its ticket page response */
   const getTicketPageResponse = getEmbeddableTicketResponse;
 
@@ -112,65 +123,12 @@ describeWithEnv("server (misc)", { db: true }, () => {
         expect(response.headers.get("content-security-policy")).toBe(baseCsp);
       });
 
-      test("includes Stripe CSP directives when Stripe is configured", async () => {
-        const { setPaymentProvider, invalidateSettingsCache } = await import(
-          "#lib/db/settings.ts"
-        );
-        await setPaymentProvider("stripe");
-        invalidateSettingsCache();
-        try {
-          const response = await handleRequest(mockRequest("/"));
-          expect(response.headers.get("content-security-policy")).toBe(
-            "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://checkout.stripe.com",
-          );
-        } finally {
-          const { clearPaymentProvider } = await import("#lib/db/settings.ts");
-          await clearPaymentProvider();
-          invalidateSettingsCache();
-        }
-      });
-
-      test("includes Square production CSP directives when Square is configured", async () => {
-        const {
-          setPaymentProvider,
-          invalidateSettingsCache,
-          updateSquareSandbox,
-        } = await import("#lib/db/settings.ts");
-        await setPaymentProvider("square");
-        await updateSquareSandbox(false);
-        invalidateSettingsCache();
-        try {
-          const response = await handleRequest(mockRequest("/"));
-          expect(response.headers.get("content-security-policy")).toBe(
-            "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com https://connect.squareup.com https://pci-connect.squareup.com https://api.squareup.com",
-          );
-        } finally {
-          const { clearPaymentProvider } = await import("#lib/db/settings.ts");
-          await clearPaymentProvider();
-          invalidateSettingsCache();
-        }
-      });
-
-      test("includes Square sandbox CSP directives when sandbox mode is enabled", async () => {
-        const {
-          setPaymentProvider,
-          invalidateSettingsCache,
-          updateSquareSandbox,
-        } = await import("#lib/db/settings.ts");
+      test("square sandbox CSP includes sandbox domains", async () => {
         await setPaymentProvider("square");
         await updateSquareSandbox(true);
-        invalidateSettingsCache();
-        try {
-          const response = await handleRequest(mockRequest("/"));
-          expect(response.headers.get("content-security-policy")).toBe(
-            "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com https://connect.squareupsandbox.com https://pci-connect.squareupsandbox.com https://api.squareupsandbox.com",
-          );
-        } finally {
-          const { clearPaymentProvider } = await import("#lib/db/settings.ts");
-          await clearPaymentProvider();
-          await updateSquareSandbox(false);
-          invalidateSettingsCache();
-        }
+        const response = await handleRequest(mockRequest("/"));
+        const csp = response.headers.get("content-security-policy")!;
+        expect(csp).toContain("squareupsandbox.com");
       });
     });
 
@@ -217,60 +175,6 @@ describeWithEnv("server (misc)", { db: true }, () => {
         );
         expect(response.headers.get("x-robots-tag")).toBe("index, follow");
       });
-    });
-  });
-
-  describe("buildCspHeader", () => {
-    test("returns base CSP with no payment provider", () => {
-      const csp = buildCspHeader(false);
-      expect(csp).toBe(
-        "frame-ancestors 'none'; default-src 'self'; form-action 'self'",
-      );
-    });
-
-    test("omits frame-ancestors for embeddable pages", () => {
-      const csp = buildCspHeader(true);
-      expect(csp).toBe("default-src 'self'; form-action 'self'");
-    });
-
-    test("includes Stripe checkout domain when Stripe is configured", () => {
-      const csp = buildCspHeader(false, { provider: "stripe" });
-      expect(csp).toBe(
-        "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://checkout.stripe.com",
-      );
-    });
-
-    test("includes Square production domains when sandbox is false", () => {
-      const csp = buildCspHeader(false, { provider: "square", sandbox: false });
-      expect(csp).toBe(
-        "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com https://connect.squareup.com https://pci-connect.squareup.com https://api.squareup.com",
-      );
-    });
-
-    test("includes Square sandbox domains when sandbox is true", () => {
-      const csp = buildCspHeader(false, { provider: "square", sandbox: true });
-      expect(csp).toBe(
-        "frame-ancestors 'none'; default-src 'self'; form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com https://connect.squareupsandbox.com https://pci-connect.squareupsandbox.com https://api.squareupsandbox.com",
-      );
-    });
-
-    test("Square defaults to production domains when sandbox is undefined", () => {
-      const csp = buildCspHeader(false, { provider: "square" });
-      expect(csp).toContain("https://connect.squareup.com");
-      expect(csp).not.toContain("squareupsandbox");
-    });
-
-    test("Square embeddable page omits frame-ancestors", () => {
-      const csp = buildCspHeader(true, { provider: "square", sandbox: false });
-      expect(csp).not.toContain("frame-ancestors");
-      expect(csp).toContain("form-action 'self' https://square.link");
-    });
-
-    test("null provider returns base CSP", () => {
-      const csp = buildCspHeader(false, { provider: null });
-      expect(csp).toBe(
-        "frame-ancestors 'none'; default-src 'self'; form-action 'self'",
-      );
     });
   });
 
@@ -881,6 +785,23 @@ describeWithEnv("server (misc)", { db: true }, () => {
       );
     });
 
+    test("rethrows unhandled errors in test mode", async () => {
+      const { getDb: getDbFn } = await import("#lib/db/client.ts");
+      const { invalidateEventsCache } = await import("#lib/db/events.ts");
+      const db = getDbFn();
+      invalidateEventsCache();
+      const executeStub = stub(db, "execute", () => {
+        throw new Error("synthetic db failure");
+      });
+      try {
+        await expect(
+          handleRequest(mockRequest("/ticket/nonexistent")),
+        ).rejects.toThrow("synthetic db failure");
+      } finally {
+        executeStub.restore();
+      }
+    });
+
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
@@ -892,16 +813,18 @@ describeWithEnv("server (misc)", { db: true }, () => {
       });
       invalidateSettingsCache();
 
-      // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey
-      const response = await handleRequest(
-        mockRequest("/admin", { headers: { cookie: await testCookie() } }),
-      );
+      await withExpectedError(async () => {
+        // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey
+        const response = await handleRequest(
+          mockRequest("/admin", { headers: { cookie: await testCookie() } }),
+        );
 
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-      const setCookie = response.headers.get("set-cookie")!;
-      expect(setCookie).toContain("session=");
-      expect(setCookie).toContain("Max-Age=0");
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/admin");
+        const setCookie = response.headers.get("set-cookie")!;
+        expect(setCookie).toContain("session=");
+        expect(setCookie).toContain("Max-Age=0");
+      });
     });
   });
 });

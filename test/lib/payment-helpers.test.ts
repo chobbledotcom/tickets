@@ -307,6 +307,26 @@ describe("payment-helpers", () => {
       });
       expect("special_instructions" in result).toBe(false);
     });
+
+    test("includes answer_ids in per-event format when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        quantity: 1,
+        answerIds: [10, 20],
+      });
+      expect(JSON.parse(result.answer_ids!)).toEqual({ "1": [10, 20] });
+    });
+
+    test("excludes answer_ids when empty array", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        quantity: 1,
+        answerIds: [],
+      });
+      expect("answer_ids" in result).toBe(false);
+    });
   });
 
   describe("buildCartMetadata", () => {
@@ -406,6 +426,42 @@ describe("payment-helpers", () => {
       };
       const result = buildCartMetadata(intent);
       expect("date" in result).toBe(false);
+    });
+
+    test("includes per-event answer IDs when provided", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e1", name: "E1" },
+          { eventId: 2, quantity: 1, unitPrice: 200, slug: "e2", name: "E2" },
+        ],
+        eventAnswerIds: { "1": [10], "2": [20, 21] },
+      };
+      const result = buildCartMetadata(intent);
+      expect(JSON.parse(result.answer_ids!)).toEqual({
+        "1": [10],
+        "2": [20, 21],
+      });
+    });
+
+    test("excludes answer_ids when eventAnswerIds is empty", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
+        ],
+        eventAnswerIds: {},
+      };
+      const result = buildCartMetadata(intent);
+      expect("answer_ids" in result).toBe(false);
     });
   });
 
@@ -581,6 +637,7 @@ describe("payment-helpers", () => {
         multi: "",
         date: "",
         items: "",
+        answer_ids: "",
       });
     });
 
@@ -604,6 +661,7 @@ describe("payment-helpers", () => {
         multi: "1",
         date: "",
         items: '[{"e":1,"q":2}]',
+        answer_ids: "",
       });
     });
 

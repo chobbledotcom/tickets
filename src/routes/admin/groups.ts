@@ -2,7 +2,7 @@
  * Admin group management routes - accessible to owners and managers
  */
 
-import { compact, map } from "#fp";
+import { map } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendeesForTable } from "#lib/db/attendees.ts";
@@ -204,12 +204,17 @@ const handleAddEventsToGroup: TypedRouteHandler<
         .map(Number)
         .filter((n) => n > 0);
       if (eventIds.length > 0) {
-        // Validate all events have the same type as existing group events
-        const newEvents = compact(await Promise.all(eventIds.map(getEvent)));
-        for (const event of newEvents) {
-          const typeError = await validateGroupEventType(id, event.event_type);
-          if (typeError) {
-            return redirect(`/admin/group/${id}`, typeError, false);
+        // Validate event types match the group's existing events
+        for (const eventId of eventIds) {
+          const event = await getEvent(eventId);
+          if (event) {
+            const typeError = await validateGroupEventType(
+              id,
+              event.event_type,
+            );
+            if (typeError) {
+              return redirect(`/admin/group/${id}`, typeError, false);
+            }
           }
         }
         await assignEventsToGroup(eventIds, id);
@@ -227,11 +232,9 @@ export const groupsRoutes = defineRoutes({
   "GET /admin/group/new": crudCreate.newGet,
   "POST /admin/group": crudCreate.createPost,
   "GET /admin/group/:id": handleGroupDetail,
-  "GET /admin/group/:id/edit": (request, { id }) => crud.editGet(request, id),
-  "POST /admin/group/:id/edit": (request, { id }) => crud.editPost(request, id),
-  "GET /admin/group/:id/delete": (request, { id }) =>
-    crud.deleteGet(request, id),
-  "POST /admin/group/:id/delete": (request, { id }) =>
-    crud.deletePost(request, id),
+  "GET /admin/group/:id/edit": crud.editGet,
+  "POST /admin/group/:id/edit": crud.editPost,
+  "GET /admin/group/:id/delete": crud.deleteGet,
+  "POST /admin/group/:id/delete": crud.deletePost,
   "POST /admin/group/:id/add-events": handleAddEventsToGroup,
 });

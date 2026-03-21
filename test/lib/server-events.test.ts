@@ -32,6 +32,7 @@ import {
   testCookie,
   testCsrfToken,
   updateTestEvent,
+  withExpectedError,
 } from "#test-utils";
 
 describeWithEnv("server (admin events)", { db: true }, () => {
@@ -606,6 +607,50 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const disposition = response.headers.get("content-disposition");
       // Non-alphanumeric characters are replaced with underscores in filename sanitization
       expect(disposition).toContain("Test_Event_Special");
+    });
+
+    test("CSV export includes question columns when event has questions", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Create attendee BEFORE assigning questions (avoids form validation)
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "CSV Q User",
+        "csvq@test.com",
+      );
+
+      // Create question, answers, and assign to event
+      const {
+        questionsTable,
+        answersTable,
+        setEventQuestions,
+        saveAttendeeAnswers,
+      } = await import("#lib/db/questions.ts");
+      const q = await questionsTable.insert({ text: "Shirt Size" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Small",
+        sortOrder: 0,
+      });
+      await answersTable.insert({
+        questionId: q.id,
+        text: "Large",
+        sortOrder: 1,
+      });
+      await setEventQuestions(event.id, [q.id]);
+      await saveAttendeeAnswers([attendee.id], [a1.id]);
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        { cookie },
+      );
+      const csv = await response.text();
+      expect(csv).toContain("Shirt Size");
+      expect(csv).toContain("Small");
     });
   });
 
@@ -2134,20 +2179,22 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       });
 
       try {
-        const response = await handleRequest(
-          mockFormRequest(
-            "/admin/event",
-            {
-              name: "Collision Event",
-              max_attendees: "50",
-              max_quantity: "1",
-              thank_you_url: "https://example.com",
-              csrf_token: await testCsrfToken(),
-            },
-            await testCookie(),
-          ),
-        );
-        await expectHtmlResponse(response, 503, "Temporary Error");
+        await withExpectedError(async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/event",
+              {
+                name: "Collision Event",
+                max_attendees: "50",
+                max_quantity: "1",
+                thank_you_url: "https://example.com",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          await expectHtmlResponse(response, 503, "Temporary Error");
+        });
       } finally {
         executeStub.restore();
       }
