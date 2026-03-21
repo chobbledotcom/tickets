@@ -395,9 +395,7 @@ const buildEventAnswerMap = (
   for (let i = 0; i < questions.length; i++) {
     const question = questions[i]!;
     const answerId = answerIds[i]!;
-    const eventIds = questionEventMap.get(question.id) ?? [
-      ...selectedEventIds,
-    ];
+    const eventIds = questionEventMap.get(question.id) ?? [...selectedEventIds];
     for (const eventId of eventIds) {
       if (!selectedEventIds.has(eventId)) continue;
       const key = String(eventId);

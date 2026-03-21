@@ -34,12 +34,10 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
     const flash = getFlash();
     // The API key is embedded in the flash success message after a newline
     const newLineIdx = flash.success?.indexOf("\n") ?? -1;
-    const success = newLineIdx >= 0
-      ? flash.success!.slice(0, newLineIdx)
-      : flash.success;
-    const newKey = newLineIdx >= 0
-      ? flash.success!.slice(newLineIdx + 1)
-      : undefined;
+    const success =
+      newLineIdx >= 0 ? flash.success!.slice(0, newLineIdx) : flash.success;
+    const newKey =
+      newLineIdx >= 0 ? flash.success!.slice(newLineIdx + 1) : undefined;
     return htmlResponse(
       adminApiKeysPage(keys, session, {
         success,
@@ -86,11 +84,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
     );
 
     // Embed the key in the flash message (after a newline) so it's not exposed in the URL
-    return redirect(
-      "/admin/api-keys",
-      `API key created\n${apiKey}`,
-      true,
-    );
+    return redirect("/admin/api-keys", `API key created\n${apiKey}`, true);
   });
 
 /**
