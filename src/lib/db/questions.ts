@@ -235,7 +235,7 @@ export const getQuestionsWithEventIds = async (
   for (const { question_id, event_id } of links) {
     const existing = questionEventMap.get(question_id);
     if (existing) {
-      if (!existing.includes(event_id)) existing.push(event_id);
+      existing.push(event_id);
     } else {
       questionEventMap.set(question_id, [event_id]);
     }
