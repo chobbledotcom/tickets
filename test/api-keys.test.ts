@@ -26,6 +26,7 @@ import {
   createTestEvent,
   expectFlash,
   extractCsrfToken,
+  FLASH_TEST_ID,
   flashCookieHeader,
   mockRequest,
   resetDb,
@@ -386,7 +387,7 @@ describe("API Keys", () => {
     test("GET /admin/api-keys shows success message from flash cookie", async () => {
       const cookie = await testCookie();
       const response = await handleRequest(
-        mockRequest("/admin/api-keys", {
+        mockRequest(`/admin/api-keys?flash=${FLASH_TEST_ID}`, {
           headers: { cookie: `${cookie}; ${flashCookieHeader("done")}` },
         }),
       );
@@ -398,7 +399,7 @@ describe("API Keys", () => {
     test("GET /admin/api-keys shows error message from flash cookie", async () => {
       const cookie = await testCookie();
       const response = await handleRequest(
-        mockRequest("/admin/api-keys", {
+        mockRequest(`/admin/api-keys?flash=${FLASH_TEST_ID}`, {
           headers: {
             cookie: `${cookie}; ${flashCookieHeader("key failed", false)}`,
           },

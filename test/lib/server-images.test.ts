@@ -10,6 +10,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  FLASH_TEST_ID,
   flashCookieHeader,
   installUrlHandler,
   mockFormRequest,
@@ -401,7 +402,7 @@ describeWithEnv(
       test("displays image error on admin dashboard", async () => {
         const cookie = await testCookie();
         const response = await handleRequest(
-          mockRequest("/admin", {
+          mockRequest(`/admin?flash=${FLASH_TEST_ID}`, {
             headers: {
               cookie: `${cookie}; ${flashCookieHeader("Image exceeds the 256KB size limit", false)}`,
             },
@@ -418,7 +419,7 @@ describeWithEnv(
         const { event, cookie } = await setupEventAndLogin();
 
         const response = await handleRequest(
-          mockRequest(`/admin/event/${event.id}`, {
+          mockRequest(`/admin/event/${event.id}?flash=${FLASH_TEST_ID}`, {
             headers: {
               cookie: `${cookie}; ${flashCookieHeader("Image must be a JPEG, PNG, GIF, or WebP file", false)}`,
             },

@@ -22,6 +22,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  FLASH_TEST_ID,
   flashCookieHeader,
   installUrlHandler,
   invalidateTestDbCache,
@@ -63,7 +64,7 @@ describe("server (admin settings)", () => {
     });
 
     test("does not display success when form param is missing", async () => {
-      const response = await awaitTestRequest("/admin/settings", {
+      const response = await awaitTestRequest(`/admin/settings?flash=${FLASH_TEST_ID}`, {
         cookie: `${await testCookie()}; ${flashCookieHeader("Test success message")}`,
       });
       const html = await response.text();
@@ -72,7 +73,7 @@ describe("server (admin settings)", () => {
 
     test("displays success message on the matching form when form param is provided", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings?form=settings-country",
+        `/admin/settings?form=settings-country&flash=${FLASH_TEST_ID}`,
         {
           cookie: `${await testCookie()}; ${flashCookieHeader("Country updated")}`,
         },
@@ -88,7 +89,7 @@ describe("server (admin settings)", () => {
 
     test("does not show success on non-matching forms", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings?form=settings-country",
+        `/admin/settings?form=settings-country&flash=${FLASH_TEST_ID}`,
         {
           cookie: `${await testCookie()}; ${flashCookieHeader("Country updated")}`,
         },

@@ -21,22 +21,34 @@ export const buildSessionCookie = (
 export const clearSessionCookie = (): string =>
   `${sessionCookieName()}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
 
-/** Cookie name for flash messages (success/error after redirects) */
-const FLASH_COOKIE_NAME = "flash";
+/** Cookie name prefix for flash messages (keyed by per-request ID) */
+const FLASH_COOKIE_PREFIX = "flash_";
 
-/** Build a flash cookie containing a success or error message */
+/** Build the cookie name for a keyed flash message */
+const flashCookieName = (id: string): string =>
+  `${FLASH_COOKIE_PREFIX}${id}`;
+
+/** Generate a short random hex ID for keying flash cookies */
+export const generateFlashId = (): string => {
+  const bytes = new Uint8Array(3);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+/** Build a flash cookie containing a success or error message, keyed by ID */
 export const buildFlashCookie = (
+  id: string,
   message: string,
   succeeded: boolean,
 ): string => {
   const type = succeeded ? "s" : "e";
   const value = encodeURIComponent(`${type}:${message}`);
-  return `${FLASH_COOKIE_NAME}=${value}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=10`;
+  return `${flashCookieName(id)}=${value}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=10`;
 };
 
-/** Clear the flash cookie (set after reading) */
-export const clearFlashCookie = (): string =>
-  `${FLASH_COOKIE_NAME}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
+/** Clear a keyed flash cookie (set after reading) */
+export const clearFlashCookie = (id: string): string =>
+  `${flashCookieName(id)}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
 
 /** Parse a flash cookie value into type and message, or null if invalid */
 export const parseFlashValue = (

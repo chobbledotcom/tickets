@@ -3,7 +3,11 @@
  */
 
 import { compact, map, pipe, reduce } from "#fp";
-import { buildFlashCookie, getSessionCookieName } from "#lib/cookies.ts";
+import {
+  buildFlashCookie,
+  generateFlashId,
+  getSessionCookieName,
+} from "#lib/cookies.ts";
 import {
   generateSecureToken,
   getPrivateKeyFromSession,
@@ -323,11 +327,13 @@ export const redirect = (
 ): Response => {
   const target = opts?.form?.get("return_url") || url;
   const u = new URL(target, "http://localhost");
+  const flashId = generateFlashId();
+  u.searchParams.set("flash", flashId);
   if (opts?.formId) {
     u.searchParams.set("form", opts.formId);
     u.hash = opts.formId;
   }
-  const flash = buildFlashCookie(message, succeeded);
+  const flash = buildFlashCookie(flashId, message, succeeded);
   const response = redirectResponse(u.pathname + u.search + u.hash, flash);
   if (opts?.cookie) withCookie(response, opts.cookie);
   return response;

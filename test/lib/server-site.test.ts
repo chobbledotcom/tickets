@@ -18,6 +18,7 @@ import {
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  FLASH_TEST_ID,
   flashCookieHeader,
   mockFormRequest,
   mockRequest,
@@ -65,7 +66,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
     test("displays success message from flash cookie", async () => {
       const cookie = await testCookie();
-      const response = await awaitTestRequest("/admin/site", {
+      const response = await awaitTestRequest(`/admin/site?flash=${FLASH_TEST_ID}`, {
         cookie: `${cookie}; ${flashCookieHeader("Homepage updated")}`,
       });
       const html = await response.text();
@@ -212,7 +213,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
     test("displays success message from flash cookie", async () => {
       const cookie = await testCookie();
-      const response = await awaitTestRequest("/admin/site/contact", {
+      const response = await awaitTestRequest(`/admin/site/contact?flash=${FLASH_TEST_ID}`, {
         cookie: `${cookie}; ${flashCookieHeader("Contact page updated")}`,
       });
       const html = await response.text();

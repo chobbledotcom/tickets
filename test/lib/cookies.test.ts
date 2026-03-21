@@ -2,8 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
 import {
+  buildFlashCookie,
   buildSessionCookie,
+  clearFlashCookie,
   clearSessionCookie,
+  generateFlashId,
   getSessionCookieName,
   isSecureMode,
   parseFlashValue,
@@ -95,6 +98,57 @@ describe("clearSessionCookie", () => {
     const cookie = clearSessionCookie();
     expect(cookie).toContain("session=");
     expectDevCookieAttributes(cookie);
+    expect(cookie).toContain("Max-Age=0");
+  });
+});
+
+describe("generateFlashId", () => {
+  test("returns a 6-character hex string", () => {
+    const id = generateFlashId();
+    expect(id).toMatch(/^[0-9a-f]{6}$/);
+  });
+
+  test("generates unique IDs", () => {
+    const ids = new Set(Array.from({ length: 100 }, () => generateFlashId()));
+    expect(ids.size).toBe(100);
+  });
+});
+
+describe("buildFlashCookie", () => {
+  afterEach(() => resetAllowedDomain());
+
+  test("keys cookie name by flash ID", () => {
+    setAllowedDomainForTest("localhost");
+    const cookie = buildFlashCookie("abc123", "Saved", true);
+    expect(cookie).toMatch(/^flash_abc123=/);
+  });
+
+  test("encodes success message", () => {
+    setAllowedDomainForTest("localhost");
+    const cookie = buildFlashCookie("abc123", "Saved", true);
+    expect(cookie).toContain(encodeURIComponent("s:Saved"));
+  });
+
+  test("encodes error message", () => {
+    setAllowedDomainForTest("localhost");
+    const cookie = buildFlashCookie("abc123", "Failed", false);
+    expect(cookie).toContain(encodeURIComponent("e:Failed"));
+  });
+
+  test("sets short Max-Age", () => {
+    setAllowedDomainForTest("localhost");
+    const cookie = buildFlashCookie("abc123", "Saved", true);
+    expect(cookie).toContain("Max-Age=10");
+  });
+});
+
+describe("clearFlashCookie", () => {
+  afterEach(() => resetAllowedDomain());
+
+  test("clears the keyed cookie with Max-Age=0", () => {
+    setAllowedDomainForTest("localhost");
+    const cookie = clearFlashCookie("abc123");
+    expect(cookie).toMatch(/^flash_abc123=/);
     expect(cookie).toContain("Max-Age=0");
   });
 });

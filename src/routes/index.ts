@@ -393,8 +393,13 @@ export const handleRequest = async (
           }
 
           try {
-            // Populate flash context from cookie before handling
-            const flashRaw = parseCookies(effectiveRequest).get("flash");
+            // Populate flash context from keyed cookie (flash ID in URL)
+            const flashId = new URL(effectiveRequest.url).searchParams.get(
+              "flash",
+            );
+            const flashRaw = flashId
+              ? parseCookies(effectiveRequest).get(`flash_${flashId}`)
+              : null;
             const flash = flashRaw ? parseFlashValue(flashRaw) : null;
             if (flash) setFlashContext(flash);
 
@@ -405,9 +410,9 @@ export const handleRequest = async (
               server,
             );
 
-            // Clear flash cookie if one was consumed
-            if (flash && hasFlash()) {
-              withCookie(response, clearFlashCookie());
+            // Clear keyed flash cookie if one was consumed
+            if (flashId && flash && hasFlash()) {
+              withCookie(response, clearFlashCookie(flashId));
             }
             resetFlashContext();
 

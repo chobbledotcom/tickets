@@ -27,6 +27,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  FLASH_TEST_ID,
   flashCookieHeader,
   mockAdminLoginRequest,
   mockFormRequest,
@@ -272,7 +273,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("displays success message from flash cookie", async () => {
       const cookie = await testCookie();
-      const response = await awaitTestRequest("/admin/users", {
+      const response = await awaitTestRequest(`/admin/users?flash=${FLASH_TEST_ID}`, {
         cookie: `${cookie}; ${flashCookieHeader("User deleted successfully")}`,
       });
       await expectHtmlResponse(
