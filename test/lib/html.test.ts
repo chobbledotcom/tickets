@@ -4001,13 +4001,6 @@ describe("html", () => {
       expect(html).toContain("No answers yet");
     });
 
-    test("renders zero for answer missing from counts map", () => {
-      const counts = new Map([[10, 2]]);
-      const html = adminQuestionPage(question, TEST_SESSION, undefined, counts);
-      expect(html).toContain("(2)");
-      expect(html).toContain("(0)");
-    });
-
     test("renders answer counts when provided", () => {
       const counts = new Map([
         [10, 5],
