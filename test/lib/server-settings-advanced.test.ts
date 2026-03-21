@@ -14,6 +14,7 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
@@ -21,10 +22,10 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
-  setTestEnv,
   withMocks,
 } from "#test-utils";
 
@@ -611,18 +612,10 @@ describe("server (admin settings-advanced)", () => {
     });
   });
 
-  describe("custom domain", () => {
-    let restoreEnv: () => void;
-
+  describeWithEnv("custom domain", { BUNNY_API_KEY: undefined }, () => {
     const setBunnyEnv = () => {
       Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
     };
-
-    beforeEach(() => {
-      restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
-    });
-
-    afterEach(() => restoreEnv());
 
     test("does not show custom domain form when Bunny CDN is not configured", async () => {
       Deno.env.delete("BUNNY_API_KEY");
