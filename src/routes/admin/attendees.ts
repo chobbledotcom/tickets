@@ -73,6 +73,9 @@ const REFUND_FAILED_ERROR =
   "Refund failed. The payment may have already been refunded.";
 const ALREADY_REFUNDED_ERROR = "This attendee has already been refunded.";
 
+/** Max refunds per request to stay within Bunny Edge fetch limits */
+const REFUND_BATCH_LIMIT = 30;
+
 /**
  * Load attendee ensuring it belongs to the specified event.
  * Uses batched query to fetch event + attendee in a single DB round-trip.
@@ -421,11 +424,14 @@ const processRefundAll = async (
   }
 
   const REFUND_CHUNK_SIZE = 5;
+  const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
+  const remaining = refundable.length - batch.length;
+
   let refundedCount = 0;
   let failedCount = 0;
-  for (const batch of chunk(REFUND_CHUNK_SIZE)(refundable)) {
+  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
     const results = await Promise.all(
-      batch.map(async (attendee) => {
+      group.map(async (attendee) => {
         const refunded = await provider.refundPayment(attendee.payment_id);
         if (refunded) {
           await markRefunded(attendee.id);
@@ -446,18 +452,32 @@ const processRefundAll = async (
   }
 
   if (failedCount > 0) {
+    const msg =
+      remaining > 0
+        ? `${refundedCount} refund(s) succeeded, ${failedCount} failed. ${remaining} remaining — submit again to continue.`
+        : `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`;
     await logActivity(
       `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
       event.id,
     );
     return htmlResponse(
+      adminRefundAllAttendeesPage(event, refundable.length, session, msg),
+      400,
+    );
+  }
+
+  if (remaining > 0) {
+    await logActivity(
+      `Bulk refund: ${refundedCount} of ${refundable.length} refunded for '${event.name}'`,
+      event.id,
+    );
+    return htmlResponse(
       adminRefundAllAttendeesPage(
         event,
-        refundable.length,
+        remaining,
         session,
-        `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`,
+        `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
       ),
-      400,
     );
   }
 
