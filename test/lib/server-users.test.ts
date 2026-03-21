@@ -24,8 +24,10 @@ import {
   createTestManagerSession,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
-  expectRedirect,
+  expectRedirectWithFlash,
+  flashCookieHeader,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -268,11 +270,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
     });
 
-    test("displays success message from query param", async () => {
-      const response = await awaitTestRequest(
-        "/admin/users?success=User+deleted+successfully",
-        { cookie: await testCookie() },
-      );
+    test("displays success message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest("/admin/users", {
+        cookie: `${cookie}; ${flashCookieHeader("User deleted successfully")}`,
+      });
       await expectHtmlResponse(
         response,
         200,
@@ -436,8 +438,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("deleted");
+      expectFlash(response, expect.stringContaining("deleted"));
 
       const usersAfter = await getAllUsers();
       expect(usersAfter.length).toBe(1);
@@ -538,8 +539,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("deleted");
+      expectFlash(response, expect.stringContaining("deleted"));
 
       const usersAfter = await getAllUsers();
       expect(usersAfter.length).toBe(1);
@@ -554,11 +554,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           password: TEST_ADMIN_PASSWORD,
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin?success=Logged+in");
-      expect(response.headers.get("set-cookie")).toContain(
-        `${getSessionCookieName()}=`,
-      );
+      expectRedirectWithFlash("/admin", "Logged in")(response);
+      const sessionCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+      expect(sessionCookie).toBeDefined();
     });
 
     test("login with wrong username returns 401", async () => {
@@ -618,9 +618,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "newpassword123",
       });
 
-      expectRedirect("/join/complete?success=Password+set+successfully")(
-        joinPostResponse,
-      );
+      expectRedirectWithFlash(
+        "/join/complete",
+        "Password set successfully",
+      )(joinPostResponse);
 
       // Verify user now has a password
       const user = await getUserByUsername("joiner2");
@@ -726,9 +727,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         ),
       );
       expect(activateResponse.status).toBe(302);
-      const location = activateResponse.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "activated successfully",
+      expectFlash(
+        activateResponse,
+        expect.stringContaining("activated successfully"),
       );
     });
 

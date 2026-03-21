@@ -7,7 +7,10 @@ import { handleRequest } from "#routes";
 import {
   createTestEvent,
   describeWithEnv,
+  expectFlash,
   expectHtmlResponse,
+  expectRedirectWithFlash,
+  flashCookieHeader,
   installUrlHandler,
   mockFormRequest,
   mockMultipartRequest,
@@ -137,17 +140,18 @@ const submitImageDelete = (
     ),
   );
 
-/** Assert a 302 redirect whose location contains `error=` and a decoded substring */
+/** Assert a 302 redirect with a flash error cookie containing the given substring */
 const expectImageErrorRedirect = (
   response: Response,
   errorSubstring: string,
 ): void => {
   expect(response.status).toBe(302);
-  const location = response.headers.get("location") ?? "";
-  expect(location).toContain("error=");
-  expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
-    errorSubstring,
-  );
+  const cookies = response.headers.getSetCookie();
+  const flash = cookies.find((c) => c.startsWith("flash="));
+  expect(flash).toBeDefined();
+  const cookiePart = flash!.split(";")[0] ?? "";
+  const decoded = decodeURIComponent(cookiePart.split("=").slice(1).join("="));
+  expect(decoded).toContain(errorSubstring);
 };
 
 /** Shared form fields for creating a new event via POST /admin/event */
@@ -286,10 +290,10 @@ describeWithEnv(
             csrfToken,
             "photo.jpg",
           );
-          expect(response.status).toBe(302);
-          expect(response.headers.get("location")).toBe(
-            `/admin/event/${event.id}?success=Event+updated`,
-          );
+          expectRedirectWithFlash(
+            `/admin/event/${event.id}`,
+            "Event updated",
+          )(response);
 
           const updated = await getEventWithCount(event.id);
           expect(updated?.image_url).not.toBe("");
@@ -382,12 +386,7 @@ describeWithEnv(
               contentType: "application/pdf",
             },
           );
-          expect(response.status).toBe(302);
-          const location = response.headers.get("location") ?? "";
-          expect(location).toContain("/admin?error=");
-          expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
-            "JPEG, PNG, GIF, or WebP",
-          );
+          expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
 
           const { getAllEvents } = await import("#lib/db/events.ts");
           const events = await getAllEvents();
@@ -400,9 +399,12 @@ describeWithEnv(
 
     describe("image error messages in rendered pages", () => {
       test("displays image error on admin dashboard", async () => {
+        const cookie = await testCookie();
         const response = await handleRequest(
-          mockRequest("/admin?error=Image+exceeds+the+256KB+size+limit", {
-            headers: { cookie: await testCookie() },
+          mockRequest("/admin", {
+            headers: {
+              cookie: `${cookie}; ${flashCookieHeader("Image exceeds the 256KB size limit", false)}`,
+            },
           }),
         );
         await expectHtmlResponse(
@@ -416,10 +418,11 @@ describeWithEnv(
         const { event, cookie } = await setupEventAndLogin();
 
         const response = await handleRequest(
-          mockRequest(
-            `/admin/event/${event.id}?error=Image+must+be+a+JPEG%2C+PNG%2C+GIF%2C+or+WebP+file`,
-            { headers: { cookie } },
-          ),
+          mockRequest(`/admin/event/${event.id}`, {
+            headers: {
+              cookie: `${cookie}; ${flashCookieHeader("Image must be a JPEG, PNG, GIF, or WebP file", false)}`,
+            },
+          }),
         );
         await expectHtmlResponse(
           response,
@@ -428,7 +431,7 @@ describeWithEnv(
         );
       });
 
-      test("does not display image error when query param is absent", async () => {
+      test("does not display image error when flash cookie is absent", async () => {
         const { event, cookie } = await setupEventAndLogin();
 
         const response = await handleRequest(
@@ -444,10 +447,10 @@ describeWithEnv(
         response: Response,
         eventId: number,
       ) => {
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(
-          `/admin/event/${eventId}?success=Image+removed`,
-        );
+        expectRedirectWithFlash(
+          `/admin/event/${eventId}`,
+          "Image removed",
+        )(response);
       };
 
       test("removes image from event and storage", async () => {
@@ -488,12 +491,7 @@ describeWithEnv(
           );
 
           const response = await submitImageDelete(event.id, cookie, csrfToken);
-          expect(response.status).toBe(302);
-          const location = response.headers.get("location") ?? "";
-          expect(location).toContain("error=");
-          expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
-            "removal failed",
-          );
+          expectImageErrorRedirect(response, "removal failed");
 
           // DB record should NOT be cleared when CDN delete fails
           const updated = await getEventWithCount(event.id);
@@ -592,7 +590,7 @@ describeWithEnv(
             ),
           );
           expect(response.status).toBe(302);
-          expect(response.headers.get("location")).toContain("success=");
+          expectFlash(response, "Event updated");
 
           const updated = await getEventWithCount(event.id);
           expect(updated?.attachment_url).toBe("");
@@ -641,10 +639,10 @@ describeWithEnv(
               },
             ),
           );
-          expect(response.status).toBe(302);
-          expect(response.headers.get("location")).toBe(
-            `/admin/event/${event.id}?success=Event+updated`,
-          );
+          expectRedirectWithFlash(
+            `/admin/event/${event.id}`,
+            "Event updated",
+          )(response);
 
           const updated = await getEventWithCount(event.id);
           expect(updated?.attachment_url).toMatch(/guide\.pdf$/);
@@ -734,12 +732,7 @@ describeWithEnv(
               },
             ),
           );
-          expect(response.status).toBe(302);
-          const location = response.headers.get("location") ?? "";
-          expect(location).toContain("error=");
-          expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
-            "upload failed",
-          );
+          expectImageErrorRedirect(response, "upload failed");
         });
         restoreStorage();
       });
@@ -764,10 +757,7 @@ describeWithEnv(
               },
             ),
           );
-          expect(response.status).toBe(302);
-          expect(response.headers.get("location")).toBe(
-            "/admin?success=Event+created",
-          );
+          expectRedirectWithFlash("/admin", "Event created")(response);
 
           const events = await import("#lib/db/events.ts").then((m) =>
             m.getAllEvents(),
@@ -795,10 +785,10 @@ describeWithEnv(
               cookie,
             ),
           );
-          expect(response.status).toBe(302);
-          expect(response.headers.get("location")).toBe(
-            `/admin/event/${event.id}?success=Attachment+removed`,
-          );
+          expectRedirectWithFlash(
+            `/admin/event/${event.id}`,
+            "Attachment removed",
+          )(response);
 
           const updated = await getEventWithCount(event.id);
           expect(updated?.attachment_url).toBe("");
@@ -816,10 +806,10 @@ describeWithEnv(
             cookie,
           ),
         );
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}?success=Attachment+removed`,
-        );
+        expectRedirectWithFlash(
+          `/admin/event/${event.id}`,
+          "Attachment removed",
+        )(response);
       });
 
       test("returns 404 for non-existent event", async () => {

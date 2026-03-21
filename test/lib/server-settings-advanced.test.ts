@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import {
   getCustomDomainFromDb,
@@ -16,8 +17,10 @@ import {
   createTestDbWithSetup,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
-  expectRedirect,
+  expectRedirectWithFlash,
+  flashCookieHeader,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -110,8 +113,10 @@ describe("server (admin settings-advanced)", () => {
 
     test("displays success message on the matching form when form param is provided", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings-advanced?success=API+enabled&form=settings-show-public-api",
-        { cookie: await testCookie() },
+        "/admin/settings-advanced?form=settings-show-public-api",
+        {
+          cookie: `${await testCookie()}; ${flashCookieHeader("API enabled")}`,
+        },
       );
       const html = await response.text();
       expect(html).toContain('id="settings-show-public-api"');
@@ -156,10 +161,7 @@ describe("server (admin settings-advanced)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Public API enabled",
-      );
+      expectFlash(response, expect.stringContaining("Public API enabled"));
     });
 
     test("disables public API", async () => {
@@ -175,10 +177,7 @@ describe("server (admin settings-advanced)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Public API disabled",
-      );
+      expectFlash(response, expect.stringContaining("Public API disabled"));
     });
 
     test("setting persists in database", async () => {
@@ -238,10 +237,7 @@ describe("server (admin settings-advanced)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Email settings updated",
-      );
+      expectFlash(response, expect.stringContaining("Email settings updated"));
     });
 
     test("disables email when provider is empty", async () => {
@@ -257,10 +253,7 @@ describe("server (admin settings-advanced)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Email provider disabled",
-      );
+      expectFlash(response, expect.stringContaining("Email provider disabled"));
     });
 
     test("rejects invalid email provider", async () => {
@@ -305,11 +298,7 @@ describe("server (admin settings-advanced)", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(
-        decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
-        ),
-      ).toContain("Email provider disabled");
+      expectFlash(response, expect.stringContaining("Email provider disabled"));
     });
 
     test("saves provider without updating key when key is empty", async () => {
@@ -327,11 +316,7 @@ describe("server (admin settings-advanced)", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(
-        decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
-        ),
-      ).toContain("Email settings updated");
+      expectFlash(response, expect.stringContaining("Email settings updated"));
     });
 
     test("logs activity when email provider is set", async () => {
@@ -420,9 +405,9 @@ describe("server (admin settings-advanced)", () => {
           );
 
           expect(response.status).toBe(302);
-          const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-            "Test email sent (status 200)",
+          expectFlash(
+            response,
+            expect.stringContaining("Test email sent (status 200)"),
           );
         },
       );
@@ -576,8 +561,11 @@ describe("server (admin settings-advanced)", () => {
       );
 
       // Should redirect to setup page with session cleared
-      expectRedirect("/setup/?success=Database+reset")(response);
-      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+      expectRedirectWithFlash("/setup/", "Database reset")(response);
+      const sessionCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+      expect(sessionCookie).toContain("Max-Age=0");
     });
 
     test("advanced settings page shows reset database section", async () => {
@@ -728,9 +716,9 @@ describe("server (admin settings-advanced)", () => {
               ),
             );
             expect(response.status).toBe(302);
-            const location = response.headers.get("location")!;
-            expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-              "Custom domain saved and validated",
+            expectFlash(
+              response,
+              expect.stringContaining("Custom domain saved and validated"),
             );
             expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
             expect(await getCustomDomainLastValidatedFromDb()).not.toBeNull();
@@ -759,11 +747,16 @@ describe("server (admin settings-advanced)", () => {
               ),
             );
             expect(response.status).toBe(302);
-            const location = response.headers.get("location")!;
-            const decoded = decodeURIComponent(location.replaceAll("+", " "));
-            expect(decoded).toContain("validation failed");
-            expect(decoded).toContain("DNS not configured");
-            expect(decoded).toContain("error=");
+            expectFlash(
+              response,
+              expect.stringContaining("validation failed"),
+              false,
+            );
+            expectFlash(
+              response,
+              expect.stringContaining("DNS not configured"),
+              false,
+            );
             expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
             expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
           } finally {
@@ -807,9 +800,9 @@ describe("server (admin settings-advanced)", () => {
             ),
           );
           expect(response.status).toBe(302);
-          const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-            "Custom domain cleared",
+          expectFlash(
+            response,
+            expect.stringContaining("Custom domain cleared"),
           );
           expect(await getCustomDomainFromDb()).toBeNull();
         });
@@ -827,9 +820,9 @@ describe("server (admin settings-advanced)", () => {
             ),
           );
           expect(response.status).toBe(302);
-          const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-            "Custom domain cleared",
+          expectFlash(
+            response,
+            expect.stringContaining("Custom domain cleared"),
           );
           expect(await getCustomDomainFromDb()).toBeNull();
         });
@@ -948,9 +941,9 @@ describe("server (admin settings-advanced)", () => {
               ),
             );
             expect(response.status).toBe(302);
-            const location = response.headers.get("location")!;
-            expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-              "Custom domain validated successfully",
+            expectFlash(
+              response,
+              expect.stringContaining("Custom domain validated successfully"),
             );
             const lastValidated = await getCustomDomainLastValidatedFromDb();
             expect(lastValidated).not.toBeNull();

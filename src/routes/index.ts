@@ -5,10 +5,19 @@
 
 import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
-import { clearSessionCookie } from "#lib/cookies.ts";
+import {
+  clearFlashCookie,
+  clearSessionCookie,
+  parseFlashValue,
+} from "#lib/cookies.ts";
 import { loadCurrencyCode } from "#lib/currency.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { getShowPublicApiFromDb } from "#lib/db/settings.ts";
+import {
+  hasFlash,
+  resetFlashContext,
+  setFlashContext,
+} from "#lib/flash-context.ts";
 import { loadHeaderImage } from "#lib/header-image.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
@@ -40,10 +49,12 @@ import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
   notFoundResponse,
+  parseCookies,
   parseRequest,
   redirectResponse,
   SessionKeyError,
   temporaryErrorResponse,
+  withCookie,
 } from "#routes/utils.ts";
 
 /** Router function type - reuse from router.ts */
@@ -382,12 +393,24 @@ export const handleRequest = async (
           }
 
           try {
+            // Populate flash context from cookie before handling
+            const flashRaw = parseCookies(effectiveRequest).get("flash");
+            const flash = flashRaw ? parseFlashValue(flashRaw) : null;
+            if (flash) setFlashContext(flash.success, flash.error);
+
             const response = await handleRequestInternal(
               effectiveRequest,
               path,
               method,
               server,
             );
+
+            // Clear flash cookie if one was consumed
+            if (flash && hasFlash()) {
+              withCookie(response, clearFlashCookie());
+            }
+            resetFlashContext();
+
             return logAndReturn(
               await applySecurityHeaders(response, embeddable),
               method,

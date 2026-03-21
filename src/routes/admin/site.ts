@@ -19,11 +19,11 @@ import {
   SITE_CONTACT_DEMO_FIELDS,
   SITE_HOME_DEMO_FIELDS,
 } from "#lib/demo.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
-  getSearchParam,
   htmlResponse,
   redirect,
   requireOwnerOr,
@@ -50,9 +50,9 @@ const errorPageFor =
 const siteGetRoute =
   (render: PageRenderer) =>
   (request: Request): Promise<Response> => {
-    const success = getSearchParam(request, "success");
+    const flash = getFlash();
     return requireOwnerOr(request, async (session) => {
-      const html = await render(session, "", success);
+      const html = await render(session, flash.error, flash.success);
       return htmlResponse(html);
     });
   };

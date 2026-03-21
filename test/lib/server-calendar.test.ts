@@ -8,6 +8,7 @@ import {
   createTestEvent,
   describeWithEnv,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   submitTicketForm,
   testCookie,
 } from "#test-utils";
@@ -305,10 +306,11 @@ describeWithEnv("admin calendar", { db: true }, () => {
 
     test("redirects to calendar when no date provided", async () => {
       const response = await fetchCalendarResponse("/admin/calendar/export");
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/calendar?error=Select+a+date+to+export",
-      );
+      expectRedirectWithFlash(
+        "/admin/calendar",
+        "Select a date to export",
+        false,
+      )(response);
     });
 
     test("returns CSV with correct headers", async () => {

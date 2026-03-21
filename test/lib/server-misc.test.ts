@@ -19,6 +19,7 @@ import {
   createTestDb,
   createTestEvent,
   describeWithEnv,
+  expectFlash,
   expectHtmlResponse,
   getEmbeddableTicketResponse,
   mockFormRequest,
@@ -386,9 +387,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
     test("creates success redirect without form ID", () => {
       const response = redirect("/admin/settings", "Saved", true);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/settings?success=Saved",
-      );
+      expect(response.headers.get("location")).toBe("/admin/settings");
+      expectFlash(response, "Saved");
     });
 
     test("creates success redirect with form ID and anchor", () => {
@@ -398,8 +398,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toBe(
-        "/admin/settings?success=Timezone+updated&form=settings-timezone#settings-timezone",
+        "/admin/settings?form=settings-timezone#settings-timezone",
       );
+      expectFlash(response, "Timezone updated");
     });
 
     test("encodes special characters in message and form ID", () => {
@@ -407,20 +408,20 @@ describeWithEnv("server (misc)", { db: true }, () => {
         formId: "form&id",
       });
       const location = response.headers.get("location")!;
-      expect(location).toContain("success=A+%26+B");
+      expect(location).not.toContain("success=");
       expect(location).toContain("form=form%26id");
       expect(location).toContain("#form&id");
+      expectFlash(response, "A & B");
     });
 
     test("creates error redirect", () => {
       const response = redirect("/admin/settings", "Something failed", false);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/settings?error=Something+failed",
-      );
+      expect(response.headers.get("location")).toBe("/admin/settings");
+      expectFlash(response, "Something failed", false);
     });
 
-    test("appends success param to path with existing query params", () => {
+    test("preserves existing query params without adding message", () => {
       const response = redirect(
         "/admin/event/1?tab=attendees",
         "Updated",
@@ -428,29 +429,33 @@ describeWithEnv("server (misc)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
-        "/admin/event/1?tab=attendees&success=Updated",
+        "/admin/event/1?tab=attendees",
       );
+      expectFlash(response, "Updated");
     });
 
     test("preserves hash fragment", () => {
       const response = redirect("/admin/calendar#attendees", "Done", true);
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
-        "/admin/calendar?success=Done#attendees",
+        "/admin/calendar#attendees",
       );
+      expectFlash(response, "Done");
     });
 
-    test("encodes special characters in message", () => {
+    test("encodes special characters in flash cookie", () => {
       const response = redirect("/admin/event/1", "A & B", true);
-      const location = response.headers.get("location")!;
-      expect(location).toContain("success=A+%26+B");
+      expect(response.headers.get("location")).toBe("/admin/event/1");
+      expectFlash(response, "A & B");
     });
 
-    test("passes cookie through to response", () => {
+    test("passes cookie through to response alongside flash cookie", () => {
       const response = redirect("/admin", "Done", true, {
         cookie: "session=abc; Path=/",
       });
-      expect(response.headers.get("set-cookie")).toBe("session=abc; Path=/");
+      const cookies = response.headers.getSetCookie();
+      expect(cookies.some((c) => c === "session=abc; Path=/")).toBe(true);
+      expectFlash(response, "Done");
     });
   });
 

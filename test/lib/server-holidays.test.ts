@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { handleRequest } from "#routes";
 import {
   adminFormPost,
@@ -11,6 +12,7 @@ import {
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   expectStatus,
   mockAdminLoginRequest,
   mockFormRequest,
@@ -88,7 +90,10 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
           password: "managerpass123",
         }),
       );
-      const managerCookie = loginResponse.headers.get("set-cookie") ?? "";
+      const managerCookie =
+        loginResponse.headers
+          .getSetCookie()
+          .find((c) => c.startsWith(`${getSessionCookieName()}=`)) ?? "";
 
       // Manager tries to access holidays
       const response = await awaitTestRequest("/admin/holidays", {
@@ -397,10 +402,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
           confirm_identifier: "christmas day",
         },
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/holidays?success=Holiday+deleted",
-      );
+      expectRedirectWithFlash("/admin/holidays", "Holiday deleted")(response);
     });
 
     test("returns 404 for non-existent holiday", async () => {

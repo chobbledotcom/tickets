@@ -15,12 +15,7 @@ import {
   updateCustomDomain,
   updateCustomDomainLastValidated,
 } from "#lib/db/settings.ts";
-import {
-  createTestDb,
-  describeWithEnv,
-  resetDb,
-  withMocks,
-} from "#test-utils";
+import { createTestDb, describeWithEnv, resetDb, withMocks } from "#test-utils";
 
 /** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
 const withMockValidate = async (
@@ -117,16 +112,12 @@ describe("validateCustomDomain", () => {
   });
 });
 
-describeWithEnv(
-  "getBunnyApiKey",
-  { env: { BUNNY_API_KEY: undefined } },
-  () => {
-    test("getBunnyApiKey returns the env var value", () => {
-      Deno.env.set("BUNNY_API_KEY", "my-api-key");
-      expect(getBunnyApiKey()).toBe("my-api-key");
-    });
-  },
-);
+describeWithEnv("getBunnyApiKey", { env: { BUNNY_API_KEY: undefined } }, () => {
+  test("getBunnyApiKey returns the env var value", () => {
+    Deno.env.set("BUNNY_API_KEY", "my-api-key");
+    expect(getBunnyApiKey()).toBe("my-api-key");
+  });
+});
 
 describeWithEnv(
   "findPullZoneId",

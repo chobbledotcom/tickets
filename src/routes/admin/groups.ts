@@ -23,16 +23,15 @@ import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
 import { mergeEventFields } from "#lib/event-fields.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
-  getSearchParam,
   htmlResponse,
   orNotFound,
   redirect,
@@ -178,7 +177,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
         phonePrefix = prefix;
       }
       const allowedDomain = getAllowedDomain();
-      const successMessage = getSearchParam(request, "success") || undefined;
+      const successMessage = getFlash().success || undefined;
       return htmlResponse(
         adminGroupDetailPage(
           group,

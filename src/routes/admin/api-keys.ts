@@ -9,10 +9,10 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
-  getSearchParam,
   htmlResponse,
   jsonResponse,
   orNotFound,
@@ -31,9 +31,13 @@ import {
 const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const keys = await getApiKeysForUser(session.userId);
-    const success = getSearchParam(request, "success");
-    const error = getSearchParam(request, "error");
-    return htmlResponse(adminApiKeysPage(keys, session, { success, error }));
+    const flash = getFlash();
+    return htmlResponse(
+      adminApiKeysPage(keys, session, {
+        success: flash.success,
+        error: flash.error,
+      }),
+    );
   });
 
 /**
