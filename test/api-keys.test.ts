@@ -383,6 +383,21 @@ describe("API Keys", () => {
       expect(html).toContain("done");
     });
 
+    test("GET /admin/api-keys shows error message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest("/admin/api-keys", {
+          headers: {
+            cookie: `${cookie}; ${flashCookieHeader("key failed", false)}`,
+          },
+        }),
+      );
+
+      const html = await response.text();
+      expect(html).toContain("key failed");
+      expect(html).toContain("error");
+    });
+
     test("POST /admin/api-keys/:id/delete removes a key with name confirmation", async () => {
       const dataKey = await getTestDataKey();
       const { id } = await createApiKey(

@@ -4,27 +4,30 @@
  * Consumed by templates via getFlash() — no manual reading needed in handlers.
  */
 
+/** Flash message shape — fields are only present when a message exists */
+export type Flash = { success?: string; error?: string };
+
 /** The current request's flash message, set by middleware before rendering */
-const _flash = { success: "", error: "" };
+const _flash: Flash = {};
 
 /** Set the flash context for the current request (called by middleware) */
-export const setFlashContext = (success: string, error: string): void => {
-  _flash.success = success;
-  _flash.error = error;
+export const setFlashContext = (flash: Flash): void => {
+  _flash.success = flash.success;
+  _flash.error = flash.error;
 };
 
 /** Reset the flash context (called by middleware after response) */
 export const resetFlashContext = (): void => {
-  _flash.success = "";
-  _flash.error = "";
+  _flash.success = undefined;
+  _flash.error = undefined;
 };
 
-/** Get the current flash success message (for use in templates/handlers) */
-export const getFlash = (): { success: string; error: string } => ({
+/** Get the current flash message (for use in templates/handlers) */
+export const getFlash = (): Flash => ({
   success: _flash.success,
   error: _flash.error,
 });
 
 /** Whether the current request has a flash message */
 export const hasFlash = (): boolean =>
-  _flash.success !== "" || _flash.error !== "";
+  _flash.success !== undefined || _flash.error !== undefined;

@@ -177,7 +177,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
         phonePrefix = prefix;
       }
       const allowedDomain = getAllowedDomain();
-      const successMessage = getFlash().success || undefined;
+      const successMessage = getFlash().success;
       return htmlResponse(
         adminGroupDetailPage(
           group,

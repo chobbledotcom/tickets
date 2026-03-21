@@ -1248,7 +1248,7 @@ export const expectFlash = (
   const cookies = response.headers.getSetCookie();
   const flash = cookies.find((c) => c.startsWith("flash="));
   expect(flash).toBeDefined();
-  const cookiePart = flash!.split(";")[0] ?? "";
+  const cookiePart = flash!.split(";")[0]!;
   const value = cookiePart.split("=").slice(1).join("=");
   const parsed = parseFlashValue(value);
   expect(parsed).not.toBeNull();

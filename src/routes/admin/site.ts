@@ -36,15 +36,15 @@ import {
 
 type PageRenderer = (
   session: AuthSession,
-  error: string,
-  success: string,
+  error?: string,
+  success?: string,
 ) => Promise<string>;
 
 /** Build error page callback for a given renderer */
 const errorPageFor =
   (session: AuthSession, render: PageRenderer) =>
   async (error: string, status: number): Promise<Response> =>
-    htmlResponse(await render(session, error, ""), status);
+    htmlResponse(await render(session, error), status);
 
 /** Owner-only GET route that renders a site editor page */
 const siteGetRoute =

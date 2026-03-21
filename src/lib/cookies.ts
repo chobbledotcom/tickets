@@ -42,13 +42,13 @@ export const clearFlashCookie = (): string =>
 /** Parse a flash cookie value into type and message, or null if invalid */
 export const parseFlashValue = (
   value: string,
-): { success: string; error: string } | null => {
+): { success?: string; error?: string } | null => {
   const decoded = decodeURIComponent(value);
   if (decoded.startsWith("s:")) {
-    return { success: decoded.slice(2), error: "" };
+    return { success: decoded.slice(2) };
   }
   if (decoded.startsWith("e:")) {
-    return { success: "", error: decoded.slice(2) };
+    return { error: decoded.slice(2) };
   }
   return null;
 };

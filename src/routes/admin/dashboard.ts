@@ -41,9 +41,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
-      const flash = getFlash();
-      const imageError = flash.error || null;
-      const successMessage = flash.success || null;
+      const { error: imageError, success: successMessage } = getFlash();
       const [events, holidays, newestRaw, privateKey] = await Promise.all([
         getAllEvents(),
         getActiveHolidays(),

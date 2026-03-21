@@ -218,9 +218,9 @@ export type AdminEventPageOptions = {
   activeFilter?: AttendeeFilter;
   dateFilter?: string | null;
   availableDates?: DateOption[];
-  errorMessage?: string | null;
+  errorMessage?: string;
   phonePrefix?: string;
-  successMessage?: string | null;
+  successMessage?: string;
 };
 
 export const adminEventPage = ({
@@ -232,9 +232,9 @@ export const adminEventPage = ({
   activeFilter = "all",
   dateFilter = null,
   availableDates = [],
-  errorMessage = null,
+  errorMessage,
   phonePrefix,
-  successMessage = null,
+  successMessage,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -332,7 +332,7 @@ export const adminEventPage = ({
         </ul>
       </nav>
 
-      <Raw html={renderSuccess(successMessage ?? undefined)} />
+      <Raw html={renderSuccess(successMessage)} />
 
       {!event.active && (
         <div class="error">This event is deactivated and cannot be booked</div>

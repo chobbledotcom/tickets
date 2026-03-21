@@ -103,7 +103,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const listGet = (request: Request): Promise<Response> =>
     requireAuth(request, async (session) => {
       const rows = await cfg.getAll();
-      const success = getFlash().success || undefined;
+      const success = getFlash().success;
       return htmlResponse(cfg.renderList(rows, session, success));
     });
 

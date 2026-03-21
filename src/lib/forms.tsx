@@ -284,7 +284,7 @@ export const renderSuccess = (message?: string): string =>
 const _successStore = { formId: "", message: "" };
 
 /** Set the success state for the current request (call before rendering) */
-export const setFormSuccess = (formId: string, message: string): void => {
+export const setFormSuccess = (formId: string, message = ""): void => {
   _successStore.formId = formId;
   _successStore.message = message;
 };

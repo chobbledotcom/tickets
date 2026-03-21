@@ -396,7 +396,7 @@ export const handleRequest = async (
             // Populate flash context from cookie before handling
             const flashRaw = parseCookies(effectiveRequest).get("flash");
             const flash = flashRaw ? parseFlashValue(flashRaw) : null;
-            if (flash) setFlashContext(flash.success, flash.error);
+            if (flash) setFlashContext(flash);
 
             const response = await handleRequestInternal(
               effectiveRequest,

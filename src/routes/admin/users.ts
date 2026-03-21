@@ -88,7 +88,6 @@ const usersErrorResponse = async (
   htmlResponse(
     await renderUsersPage(session, {
       inviteLink: "",
-      success: "",
       error,
       currentUserId: session.userId,
     }),
