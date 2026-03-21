@@ -3,6 +3,9 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   ATTACHMENT_URL_MAX_AGE_S,
   formatBytes,
+  formatLimitValue,
+  formatMs,
+  formatSeconds,
   LIMIT_ENTRIES,
   LOGIN_LOCKOUT_MS,
   MAX_ATTACHMENT_SIZE,
@@ -129,6 +132,68 @@ describe("limits", () => {
     test("rounds to nearest integer", () => {
       expect(formatBytes(1.5 * 1024 * 1024)).toBe("2MB");
       expect(formatBytes(1.4 * 1024)).toBe("1KB");
+    });
+  });
+
+  describe("formatMs", () => {
+    test("formats milliseconds below 1s", () => {
+      expect(formatMs(500)).toBe("500ms");
+    });
+
+    test("formats seconds", () => {
+      expect(formatMs(5000)).toBe("5s");
+    });
+
+    test("formats minutes", () => {
+      expect(formatMs(5 * 60 * 1000)).toBe("5min");
+    });
+
+    test("formats hours", () => {
+      expect(formatMs(2 * 60 * 60 * 1000)).toBe("2h");
+    });
+
+    test("rounds to nearest integer", () => {
+      expect(formatMs(90 * 1000)).toBe("2min");
+    });
+  });
+
+  describe("formatSeconds", () => {
+    test("formats seconds below 1min", () => {
+      expect(formatSeconds(30)).toBe("30s");
+    });
+
+    test("formats minutes", () => {
+      expect(formatSeconds(300)).toBe("5min");
+    });
+
+    test("formats hours", () => {
+      expect(formatSeconds(3600)).toBe("1h");
+    });
+
+    test("formats days", () => {
+      expect(formatSeconds(86400)).toBe("1d");
+    });
+
+    test("rounds to nearest integer", () => {
+      expect(formatSeconds(5400)).toBe("2h");
+    });
+  });
+
+  describe("formatLimitValue", () => {
+    test("delegates to formatBytes for bytes unit", () => {
+      expect(formatLimitValue(256 * 1024, "bytes")).toBe("256KB");
+    });
+
+    test("delegates to formatMs for ms unit", () => {
+      expect(formatLimitValue(5 * 60 * 1000, "ms")).toBe("5min");
+    });
+
+    test("delegates to formatSeconds for seconds unit", () => {
+      expect(formatLimitValue(3600, "seconds")).toBe("1h");
+    });
+
+    test("returns value with unit for unknown units", () => {
+      expect(formatLimitValue(5, "attempts")).toBe("5 attempts");
     });
   });
 });

@@ -72,6 +72,48 @@ export const formatBytes = (bytes: number): string => {
   return `${bytes}B`;
 };
 
+/** Format milliseconds as a human-readable duration string */
+export const formatMs = (ms: number): string => {
+  if (ms >= 60 * 60 * 1000) {
+    const h = Math.round(ms / (60 * 60 * 1000));
+    return `${h}h`;
+  }
+  if (ms >= 60 * 1000) {
+    const m = Math.round(ms / (60 * 1000));
+    return `${m}min`;
+  }
+  if (ms >= 1000) {
+    const s = Math.round(ms / 1000);
+    return `${s}s`;
+  }
+  return `${ms}ms`;
+};
+
+/** Format seconds as a human-readable duration string */
+export const formatSeconds = (seconds: number): string => {
+  if (seconds >= 86400) {
+    const d = Math.round(seconds / 86400);
+    return `${d}d`;
+  }
+  if (seconds >= 3600) {
+    const h = Math.round(seconds / 3600);
+    return `${h}h`;
+  }
+  if (seconds >= 60) {
+    const m = Math.round(seconds / 60);
+    return `${m}min`;
+  }
+  return `${seconds}s`;
+};
+
+/** Format a limit value with its unit into a human-readable string */
+export const formatLimitValue = (value: number, unit: string): string => {
+  if (unit === "bytes") return formatBytes(value);
+  if (unit === "ms") return formatMs(value);
+  if (unit === "seconds") return formatSeconds(value);
+  return `${value} ${unit}`;
+};
+
 type LimitEntry = {
   readonly label: string;
   readonly envKey: string;
