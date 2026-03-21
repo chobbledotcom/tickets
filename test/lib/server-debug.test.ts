@@ -14,7 +14,12 @@ import {
   updateSquareWebhookSignatureKey,
   updateStripeKey,
 } from "#lib/db/settings.ts";
+import { LIMIT_ENTRIES } from "#lib/limits.ts";
 import { handleRequest } from "#routes";
+import {
+  adminDebugPage,
+  type DebugPageState,
+} from "#templates/admin/debug.tsx";
 import {
   adminGet,
   describeWithEnv,
@@ -312,6 +317,72 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("badge-ok");
       expect(html).toContain("CDN management");
+    });
+  });
+
+  describe("Limits section", () => {
+    test("shows limits table with all entries", async () => {
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Limits");
+      for (const entry of LIMIT_ENTRIES) {
+        expect(html).toContain(entry.envKey);
+        expect(html).toContain(entry.label);
+      }
+    });
+
+    test("shows overridden indicator when current differs from default", () => {
+      const state: DebugPageState = {
+        build: { timestamp: "", commit: "" },
+        appleWallet: {
+          dbConfigured: false,
+          envConfigured: false,
+          passTypeId: "",
+          source: "",
+          certValidation: {
+            signingCert: "Not set",
+            signingKey: "Not set",
+            wwdrCert: "Not set",
+          },
+        },
+        googleWallet: {
+          dbConfigured: false,
+          envConfigured: false,
+          issuerId: "",
+          source: "",
+          privateKeyValid: "Not set",
+        },
+        payment: {
+          provider: "",
+          keyConfigured: false,
+          webhookConfigured: false,
+        },
+        email: {
+          provider: "",
+          apiKeyConfigured: false,
+          fromAddress: "",
+          hostProvider: "",
+        },
+        ntfy: { configured: false },
+        storage: { enabled: false },
+        bunnyCdn: { enabled: false, cdnHostname: "", customDomain: "" },
+        database: { hostConfigured: false },
+        domain: "localhost",
+        limits: [
+          {
+            label: "Test limit",
+            envKey: "TEST_LIMIT",
+            defaultValue: 100,
+            current: 200,
+            unit: "bytes",
+          },
+        ],
+        theme: "light",
+      };
+      const session = { adminLevel: "owner" as const };
+      const html = adminDebugPage(session, state);
+      expect(html).toContain("200B");
+      expect(html).toContain("(overridden)");
     });
   });
 });

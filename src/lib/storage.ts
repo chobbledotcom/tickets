@@ -8,10 +8,12 @@
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import { getEnv, requireEnv } from "#lib/env.ts";
+import {
+  formatBytes,
+  MAX_ATTACHMENT_SIZE,
+  MAX_IMAGE_SIZE,
+} from "#lib/limits.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-
-/** Maximum image file size in bytes (256KB) */
-const MAX_IMAGE_SIZE = 256 * 1024;
 
 /** Supported image types — single source of truth for mime, extension, and magic bytes */
 const IMAGE_TYPES = [
@@ -99,7 +101,7 @@ export const validateImage = (
 
 /** User-facing messages for image validation errors */
 export const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
-  too_large: "Image exceeds the 256KB size limit",
+  too_large: `Image exceeds the ${formatBytes(MAX_IMAGE_SIZE)} size limit`,
   invalid_type: "Image must be a JPEG, PNG, GIF, or WebP file",
   invalid_content: "File does not appear to be a valid image",
 };
@@ -242,8 +244,8 @@ export const deleteImage = async (filename: string): Promise<void> => {
 // Attachment storage (any file type, up to 25MB)
 // ---------------------------------------------------------------------------
 
-/** Maximum attachment file size in bytes (25MB) */
-export const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+// Re-export for existing consumers (imported from #lib/limits.ts at top)
+export { MAX_ATTACHMENT_SIZE };
 
 /** Attachment validation error */
 export type AttachmentValidationError = "too_large";
@@ -268,7 +270,7 @@ export const ATTACHMENT_ERROR_MESSAGES: Record<
   AttachmentValidationError,
   string
 > = {
-  too_large: "Attachment exceeds the 25MB size limit",
+  too_large: `Attachment exceeds the ${formatBytes(MAX_ATTACHMENT_SIZE)} size limit`,
 };
 
 /** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */

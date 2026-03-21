@@ -4,13 +4,8 @@
 
 import { hmacHash } from "#lib/crypto.ts";
 import { deleteByField, getDb, queryOne } from "#lib/db/client.ts";
+import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#lib/limits.ts";
 import { nowMs } from "#lib/now.ts";
-
-/**
- * Rate limiting constants
- */
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 type LoginAttemptRow = { attempts: number; locked_until: number | null };
 
@@ -57,7 +52,7 @@ const recordAttempt = async (
   const newAttempts = (row?.attempts ?? 0) + 1;
 
   if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
-    const lockedUntil = nowMs() + LOCKOUT_DURATION_MS;
+    const lockedUntil = nowMs() + LOGIN_LOCKOUT_MS;
     await getDb().execute({
       sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
       args: [hashedIp, newAttempts, lockedUntil],

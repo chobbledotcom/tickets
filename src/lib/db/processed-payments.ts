@@ -15,10 +15,10 @@
 
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { getDb, queryOne } from "#lib/db/client.ts";
+import { STALE_RESERVATION_MS } from "#lib/limits.ts";
 import { nowIso, nowMs } from "#lib/now.ts";
 
-/** Threshold for considering an unfinalized reservation abandoned (5 minutes) */
-export const STALE_RESERVATION_MS = 5 * 60 * 1000;
+export { STALE_RESERVATION_MS };
 
 /** Processed payment record */
 export type ProcessedPayment = {

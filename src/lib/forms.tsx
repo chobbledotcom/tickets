@@ -169,7 +169,10 @@ export const renderField = (field: Field, value: string = ""): string =>
   );
 
 /**
- * Render multiple fields with values
+ * Render multiple fields with values.
+ * When no explicit value is provided for a field, falls back to saved form
+ * data (set by requireCsrfForm on CSRF failure), then to the field's
+ * defaultValue. This preserves user input automatically on CSRF errors.
  */
 export const renderFields = (
   fields: Field[],
@@ -177,7 +180,10 @@ export const renderFields = (
 ): string =>
   pipe(
     map((f: Field) =>
-      renderField(f, String(values[f.name] ?? f.defaultValue ?? "")),
+      renderField(
+        f,
+        String(values[f.name] ?? (getSavedValue(f) || f.defaultValue) ?? ""),
+      ),
     ),
     joinStrings,
   )(fields);
@@ -279,6 +285,50 @@ export const renderError = (error?: string): string =>
  */
 export const renderSuccess = (message?: string): string =>
   message ? String(<div class="success">{message}</div>) : "";
+
+/** Field types that must never be restored from saved form data */
+const SENSITIVE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([
+  "password",
+  "file",
+]);
+
+/**
+ * Per-request saved form data, set when CSRF validation fails.
+ * Allows renderField/renderFields to restore user input automatically
+ * without any changes to individual form handlers or templates.
+ * Only non-sensitive field types (not password/file) are restored.
+ */
+const _savedFormData: { form: FormParams | null } = { form: null };
+
+/** Save form data for restoration after CSRF failure */
+export const setSavedFormData = (form: FormParams): void => {
+  _savedFormData.form = form;
+};
+
+/** Clear saved form data (called on successful CSRF validation) */
+export const clearSavedFormData = (): void => {
+  _savedFormData.form = null;
+};
+
+/** Get a saved value for a field, or empty string if not available */
+const getSavedValue = (field: Field): string => {
+  if (!_savedFormData.form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
+  if (field.type === "checkbox-group") {
+    return _savedFormData.form
+      .getAll(field.name)
+      .map((v) => v.trim())
+      .filter((v) => v)
+      .join(",");
+  }
+  if (field.type === "datetime") {
+    const date = _savedFormData.form.getString(`${field.name}_date`);
+    const time = _savedFormData.form.getString(`${field.name}_time`);
+    if (date && time) return `${date}T${time}`;
+    if (date) return `${date}T00:00`;
+    return "";
+  }
+  return _savedFormData.form.getString(field.name);
+};
 
 /** Per-request success state, readable synchronously by CsrfForm */
 const _successStore = { formId: "", message: "" };

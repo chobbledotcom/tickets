@@ -466,6 +466,63 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
+    test("caps refunds at 30 per request and shows continuation message", async () => {
+      const event = await createPaidEvent({ maxAttendees: 500 });
+      for (let i = 0; i < 32; i++) {
+        await createPaidTestAttendee(
+          event.id,
+          `User ${i}`,
+          `user${i}@example.com`,
+          `pi_batch_${i}`,
+        );
+      }
+      await withRefundMock(true, async (mockRefund) => {
+        const response = await handleRequest(
+          mockFormRequest(
+            refundAllUrl(event.id),
+            { confirm_name: event.name, csrf_token: await testCsrfToken() },
+            await testCookie(),
+          ),
+        );
+        expect(mockRefund.calls.length).toBe(30);
+        await expectHtmlResponse(
+          response,
+          200,
+          "30 attendee(s) refunded",
+          "2 remaining",
+          "submit again to continue",
+        );
+      });
+    });
+
+    test("reports failures with remaining count when batch has errors", async () => {
+      const event = await createPaidEvent({ maxAttendees: 500 });
+      for (let i = 0; i < 32; i++) {
+        await createPaidTestAttendee(
+          event.id,
+          `User ${i}`,
+          `user${i}@example.com`,
+          `pi_batchfail_${i}`,
+        );
+      }
+      await withRefundMock(false, async () => {
+        const response = await handleRequest(
+          mockFormRequest(
+            refundAllUrl(event.id),
+            { confirm_name: event.name, csrf_token: await testCsrfToken() },
+            await testCookie(),
+          ),
+        );
+        await expectHtmlResponse(
+          response,
+          400,
+          "30 failed",
+          "2 remaining",
+          "submit again to continue",
+        );
+      });
+    });
+
     test("reports partial failure when some refunds fail", async () => {
       const event = await createPaidEvent();
       await createPaidTestAttendee(

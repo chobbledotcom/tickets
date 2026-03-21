@@ -84,11 +84,17 @@ const parseAnswerIds = (json: string): number[] =>
  */
 const extractIntent = (session: ValidatedPaymentSession): BookingIntent => {
   const eventId = Number.parseInt(session.metadata.event_id, 10);
-  const quantity = Number.parseInt(session.metadata.quantity, 10) || 1;
+  const quantity = Number.parseInt(session.metadata.quantity, 10);
 
   if (!Number.isFinite(eventId) || eventId <= 0) {
     throw new Error(
       `Invalid event_id in session metadata: "${session.metadata.event_id}"`,
+    );
+  }
+
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    throw new Error(
+      `Invalid quantity in session metadata: "${session.metadata.quantity}"`,
     );
   }
 

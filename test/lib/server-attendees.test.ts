@@ -1775,6 +1775,41 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(updated!.quantity).toBe(1);
     });
 
+    test("clamps quantity 0 to 1 instead of using falsy default", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "0",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const updated = await getAttendeeRaw(attendee.id);
+      // Math.max(1, 0) = 1, but via explicit NaN check, not || 1 falsy coercion
+      expect(updated!.quantity).toBe(1);
+    });
+
     test("defaults missing quantity to 1", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
