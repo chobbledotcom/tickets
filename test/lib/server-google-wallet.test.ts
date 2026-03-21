@@ -17,9 +17,9 @@ import {
   awaitTestRequest,
   createTestAttendeeWithToken,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   generateGoogleTestCreds,
   loginAsAdmin,
   mockFormRequest,
@@ -164,7 +164,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         google_wallet_issuer_id: "123",
       }),
     );
-    expectAdminRedirect(response);
+    expectRedirect("/admin")(response);
   });
 
   test("requires Issuer ID", async () => {

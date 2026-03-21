@@ -15,9 +15,9 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
   mockFormRequest,
@@ -36,7 +36,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   describe("GET /admin/site", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/site"));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("shows homepage editor when authenticated", async () => {
@@ -85,7 +85,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
           homepage_text: "Hello",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -189,7 +189,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   describe("GET /admin/site/contact", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/site/contact"));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("shows contact editor when authenticated", async () => {
@@ -234,7 +234,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
           contact_page_text: "Hello",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {

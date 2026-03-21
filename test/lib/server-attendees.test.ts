@@ -17,9 +17,9 @@ import {
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -53,7 +53,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete`),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -154,7 +154,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           },
         ),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -354,7 +354,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           {},
         ),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("deletes incomplete attendee without name confirmation", async () => {
@@ -517,7 +517,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           {},
         ),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -696,7 +696,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           quantity: "1",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -984,7 +984,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(`/admin/attendees/${attendee.id}`),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1114,7 +1114,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           event_id: String(event.id),
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1868,7 +1868,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           `/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`,
         ),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1973,7 +1973,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           },
         ),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -2175,7 +2175,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(`/admin/attendees/${attendee.id}/refresh-payment`, {}),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("redirects to edit page when attendee has no payment", async () => {
