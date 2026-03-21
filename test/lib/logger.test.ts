@@ -290,15 +290,11 @@ describe("logger", () => {
       });
 
       test("guards against recursive logError during persistence", async () => {
-        const logActivityStub = stub(
-          activityLogMod,
-          "logActivity",
-          () => {
-            // Simulate logActivity triggering another logError (recursion)
-            logError({ code: ErrorCode.DB_QUERY });
-            return Promise.resolve();
-          },
-        );
+        const logActivityStub = stub(activityLogMod, "logActivity", () => {
+          // Simulate logActivity triggering another logError (recursion)
+          logError({ code: ErrorCode.DB_QUERY });
+          return Promise.resolve();
+        });
 
         logError({ code: ErrorCode.DB_CONNECTION });
         await new Promise((resolve) => setTimeout(resolve, 50));

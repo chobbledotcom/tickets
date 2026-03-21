@@ -287,9 +287,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     test("displays success message from flash cookie on sessions page", async () => {
       const { cookie } = await loginAsAdmin();
 
-      const response = await awaitTestRequest(`/admin/sessions?flash=${FLASH_TEST_ID}`, {
-        cookie: `${cookie}; ${flashCookieHeader("Logged out of all other sessions")}`,
-      });
+      const response = await awaitTestRequest(
+        `/admin/sessions?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Logged out of all other sessions")}`,
+        },
+      );
       await expectHtmlResponse(
         response,
         200,

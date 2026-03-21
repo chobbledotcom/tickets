@@ -123,7 +123,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toMatch(/\/admin\/group\/\d+(\?|$)/);
+      expect(response.headers.get("location")).toMatch(
+        /\/admin\/group\/\d+(\?|$)/,
+      );
       expectFlash(response, "Group created");
     });
 

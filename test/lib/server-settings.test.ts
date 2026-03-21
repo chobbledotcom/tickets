@@ -64,9 +64,12 @@ describe("server (admin settings)", () => {
     });
 
     test("does not display success when form param is missing", async () => {
-      const response = await awaitTestRequest(`/admin/settings?flash=${FLASH_TEST_ID}`, {
-        cookie: `${await testCookie()}; ${flashCookieHeader("Test success message")}`,
-      });
+      const response = await awaitTestRequest(
+        `/admin/settings?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${await testCookie()}; ${flashCookieHeader("Test success message")}`,
+        },
+      );
       const html = await response.text();
       expect(html).not.toContain('class="success"');
     });

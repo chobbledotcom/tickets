@@ -464,7 +464,12 @@ const processRefundAll = async (
       event.id,
     );
     return htmlResponse(
-      adminRefundAllAttendeesPage(event, refundable.length - refundedCount, session, msg),
+      adminRefundAllAttendeesPage(
+        event,
+        refundable.length - refundedCount,
+        session,
+        msg,
+      ),
       400,
     );
   }

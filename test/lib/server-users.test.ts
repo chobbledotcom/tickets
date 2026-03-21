@@ -273,9 +273,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("displays success message from flash cookie", async () => {
       const cookie = await testCookie();
-      const response = await awaitTestRequest(`/admin/users?flash=${FLASH_TEST_ID}`, {
-        cookie: `${cookie}; ${flashCookieHeader("User deleted successfully")}`,
-      });
+      const response = await awaitTestRequest(
+        `/admin/users?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("User deleted successfully")}`,
+        },
+      );
       await expectHtmlResponse(
         response,
         200,

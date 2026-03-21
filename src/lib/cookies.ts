@@ -25,8 +25,7 @@ export const clearSessionCookie = (): string =>
 const FLASH_COOKIE_PREFIX = "flash_";
 
 /** Build the cookie name for a keyed flash message */
-const flashCookieName = (id: string): string =>
-  `${FLASH_COOKIE_PREFIX}${id}`;
+const flashCookieName = (id: string): string => `${FLASH_COOKIE_PREFIX}${id}`;
 
 /** Build a flash cookie containing a success or error message, keyed by ID */
 export const buildFlashCookie = (

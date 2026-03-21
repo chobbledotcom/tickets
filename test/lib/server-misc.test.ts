@@ -407,12 +407,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("creates success redirect with form ID and anchor", () =>
       withRequestContext(() => {
-        const response = redirect(
-          "/admin/settings",
-          "Timezone updated",
-          true,
-          { formId: "settings-timezone" },
-        );
+        const response = redirect("/admin/settings", "Timezone updated", true, {
+          formId: "settings-timezone",
+        });
         expect(response.status).toBe(302);
         expect(parseRedirectLocation(response)).toBe(
           "/admin/settings?form=settings-timezone#settings-timezone",
@@ -434,11 +431,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("creates error redirect", () =>
       withRequestContext(() => {
-        const response = redirect(
-          "/admin/settings",
-          "Something failed",
-          false,
-        );
+        const response = redirect("/admin/settings", "Something failed", false);
         expect(response.status).toBe(302);
         expect(parseRedirectLocation(response)).toBe("/admin/settings");
         expectFlash(response, "Something failed", false);
@@ -493,7 +486,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
         const flashId = url.searchParams.get("flash")!;
         const cookies = response.headers.getSetCookie();
         const flashCookie = cookies.find((c) =>
-          c.startsWith(`flash_${flashId}=`)
+          c.startsWith(`flash_${flashId}=`),
         );
         expect(flashCookie).toBeDefined();
       }));
