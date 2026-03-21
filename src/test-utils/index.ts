@@ -1268,7 +1268,8 @@ export const expectFlash = (
  * Compares the location without the flash param for clean assertions.
  */
 export const expectRedirectWithFlash =
-  (location: string, message: string, succeeded = true) =>
+  // deno-lint-ignore no-explicit-any
+  (location: string, message: string | any, succeeded = true) =>
   (response: Response): Response => {
     expect(response.status).toBe(302);
     const actualLocation = response.headers.get("location")!;
