@@ -66,7 +66,7 @@ const handleQuestionsGet = (request: Request): Promise<Response> =>
   );
 
 /** Handle POST /admin/questions (create question) */
-const handleQuestionsPost = (request: Request): Promise<Response> =>
+const handleQuestionsPost = (request: Request) =>
   withOwnerAuthForm(request, async (session, form) => {
     const text = extractText(form);
     if (!text) {

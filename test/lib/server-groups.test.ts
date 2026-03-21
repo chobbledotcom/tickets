@@ -690,7 +690,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         `/admin/group/${group.id}?success=Events+added+to+group`,
       );
     });
-
   });
 
   describe("redirect after create/edit", () => {

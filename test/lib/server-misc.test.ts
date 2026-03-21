@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
+import { setPaymentProvider, updateSquareSandbox } from "#lib/db/settings.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   getCleanUrl,
@@ -118,6 +119,14 @@ describe("server (misc)", () => {
       test("multi-slug ticket page allows embedding (no frame-ancestors)", async () => {
         const response = await getMultiSlugTicketPageResponse();
         expect(response.headers.get("content-security-policy")).toBe(baseCsp);
+      });
+
+      test("square sandbox CSP includes sandbox domains", async () => {
+        await setPaymentProvider("square");
+        await updateSquareSandbox(true);
+        const response = await handleRequest(mockRequest("/"));
+        const csp = response.headers.get("content-security-policy")!;
+        expect(csp).toContain("squareupsandbox.com");
       });
     });
 
