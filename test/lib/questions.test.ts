@@ -7,6 +7,7 @@ import {
   deleteQuestion,
   getAllQuestionsWithAnswers,
   getAttendeeAnswersBatch,
+  getNextAnswerSortOrder,
   getQuestion,
   getQuestionsForEvent,
   getQuestionsWithEventIds,
@@ -377,6 +378,20 @@ describe("custom questions", () => {
 
       const qWithA2 = all.find((q) => q.text === "Q2")!;
       expect(qWithA2.answers).toHaveLength(1);
+    });
+  });
+
+  describe("getNextAnswerSortOrder", () => {
+    test("returns 0 for a question with no answers", async () => {
+      const q = await questionsTable.insert({ text: "Empty Q" });
+      expect(await getNextAnswerSortOrder(q.id)).toBe(0);
+    });
+
+    test("returns max sort_order + 1 when answers exist", async () => {
+      const q = await questionsTable.insert({ text: "Q" });
+      await answersTable.insert({ questionId: q.id, text: "A1", sortOrder: 0 });
+      await answersTable.insert({ questionId: q.id, text: "A2", sortOrder: 1 });
+      expect(await getNextAnswerSortOrder(q.id)).toBe(2);
     });
   });
 });
