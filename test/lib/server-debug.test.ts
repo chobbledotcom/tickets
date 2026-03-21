@@ -381,7 +381,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       };
       const session = { adminLevel: "owner" as const };
       const html = adminDebugPage(session, state);
-      expect(html).toContain("200 bytes");
+      expect(html).toContain("200B");
       expect(html).toContain("(overridden)");
     });
   });

@@ -2,7 +2,7 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
-import type { LIMIT_ENTRIES } from "#lib/limits.ts";
+import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -321,17 +321,13 @@ export const adminDebugPage = (
                 <td>
                   <code>{l.envKey}</code>
                 </td>
-                <td>
-                  {l.defaultValue} {l.unit}
-                </td>
+                <td>{formatLimitValue(l.defaultValue, l.unit)}</td>
                 <td>
                   {l.current === l.defaultValue ? (
-                    <span>
-                      {l.current} {l.unit}
-                    </span>
+                    <span>{formatLimitValue(l.current, l.unit)}</span>
                   ) : (
                     <strong>
-                      {l.current} {l.unit} (overridden)
+                      {formatLimitValue(l.current, l.unit)} (overridden)
                     </strong>
                   )}
                 </td>
