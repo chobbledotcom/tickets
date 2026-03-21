@@ -172,7 +172,13 @@ export const getAuthenticatedApiKey = async (
   if (!token) return null;
 
   const apiKeyRow = await getApiKeyByToken(token);
-  if (!apiKeyRow) return null;
+  if (!apiKeyRow) {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "Bearer token does not match any API key",
+    });
+    return null;
+  }
 
   const user = await getUserById(apiKeyRow.user_id);
   if (!user) {
@@ -186,6 +192,10 @@ export const getAuthenticatedApiKey = async (
   try {
     await unwrapApiKeyDataKey(apiKeyRow.wrapped_data_key, token);
   } catch {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "API key wrapped data key corrupted",
+    });
     return null;
   }
 
