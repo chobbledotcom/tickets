@@ -93,12 +93,6 @@ const optionalFields = (
   ...(intent.date ? { date: intent.date } : {}),
 });
 
-/** Serialize answer IDs for metadata (only if non-empty) */
-const answerIdsField = (answerIds?: number[]): Record<string, string> =>
-  answerIds && answerIds.length > 0
-    ? { answer_ids: JSON.stringify(answerIds) }
-    : {};
-
 /** Single-event checkout intent for metadata building */
 type SingleIntentMetadata = ContactFields & {
   quantity: number;
@@ -109,6 +103,7 @@ type SingleIntentMetadata = ContactFields & {
 /**
  * Build intent metadata for a single-event checkout.
  * Common fields: event_id, name, email, quantity, optional phone/address/date.
+ * Answer IDs are stored in per-event format (same as multi-ticket) for consistency.
  */
 export const buildSingleIntentMetadata = (
   eventId: number,
@@ -120,8 +115,20 @@ export const buildSingleIntentMetadata = (
   email: intent.email,
   quantity: String(intent.quantity),
   ...optionalFields(intent),
-  ...answerIdsField(intent.answerIds),
+  ...eventAnswerIdsField(
+    intent.answerIds && intent.answerIds.length > 0
+      ? { [String(eventId)]: intent.answerIds }
+      : undefined,
+  ),
 });
+
+/** Serialize per-event answer IDs for metadata (only if non-empty) */
+const eventAnswerIdsField = (
+  eventAnswerIds?: Record<string, number[]>,
+): Record<string, string> =>
+  eventAnswerIds && Object.keys(eventAnswerIds).length > 0
+    ? { answer_ids: JSON.stringify(eventAnswerIds) }
+    : {};
 
 /**
  * Build intent metadata for a cart checkout.
@@ -136,7 +143,7 @@ export const buildCartMetadata = (
   email: intent.email,
   items: serializeBookingItems(intent.items),
   ...optionalFields(intent),
-  ...answerIdsField(intent.answerIds),
+  ...eventAnswerIdsField(intent.eventAnswerIds),
 });
 
 /**

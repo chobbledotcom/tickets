@@ -206,6 +206,15 @@ export const getQuestionsForEvent = async (
     ),
   );
 
+/** Get just the assigned question IDs for an event (no joins/decryption) */
+export const getEventQuestionIds = async (eventId: number): Promise<number[]> =>
+  map((r: { question_id: number }) => r.question_id)(
+    await queryAll<{ question_id: number }>(
+      "SELECT question_id FROM event_questions WHERE event_id = ? ORDER BY sort_order",
+      [eventId],
+    ),
+  );
+
 /** Map from question ID to the set of event IDs that use it */
 export type QuestionEventMap = Map<number, number[]>;
 

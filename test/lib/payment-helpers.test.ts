@@ -308,24 +308,20 @@ describe("payment-helpers", () => {
       expect("special_instructions" in result).toBe(false);
     });
 
-    test("includes answer_ids when provided", () => {
+    test("includes answer_ids in per-event format when provided", () => {
       const result = buildSingleIntentMetadata(1, {
-        name: "Alice",
-        email: "alice@example.com",
-        address: "",
-        special_instructions: "",
+        name: "Bob",
+        email: "bob@example.com",
         quantity: 1,
         answerIds: [10, 20],
       });
-      expect(result.answer_ids).toBe("[10,20]");
+      expect(JSON.parse(result.answer_ids!)).toEqual({ "1": [10, 20] });
     });
 
     test("excludes answer_ids when empty array", () => {
       const result = buildSingleIntentMetadata(1, {
-        name: "Alice",
-        email: "alice@example.com",
-        address: "",
-        special_instructions: "",
+        name: "Bob",
+        email: "bob@example.com",
         quantity: 1,
         answerIds: [],
       });
@@ -432,7 +428,27 @@ describe("payment-helpers", () => {
       expect("date" in result).toBe(false);
     });
 
-    test("includes answer_ids when provided", () => {
+    test("includes per-event answer IDs when provided", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e1", name: "E1" },
+          { eventId: 2, quantity: 1, unitPrice: 200, slug: "e2", name: "E2" },
+        ],
+        eventAnswerIds: { "1": [10], "2": [20, 21] },
+      };
+      const result = buildCartMetadata(intent);
+      expect(JSON.parse(result.answer_ids!)).toEqual({
+        "1": [10],
+        "2": [20, 21],
+      });
+    });
+
+    test("excludes answer_ids when eventAnswerIds is empty", () => {
       const intent = {
         name: "Alice",
         email: "alice@example.com",
@@ -442,10 +458,10 @@ describe("payment-helpers", () => {
         items: [
           { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
         ],
-        answerIds: [5, 6],
+        eventAnswerIds: {},
       };
       const result = buildCartMetadata(intent);
-      expect(result.answer_ids).toBe("[5,6]");
+      expect("answer_ids" in result).toBe(false);
     });
   });
 

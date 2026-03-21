@@ -383,6 +383,28 @@ const parseQuestionAnswers = (
   return { ok: true, answerIds };
 };
 
+/** Build a per-event answer map from parsed answers and the question-event mapping.
+ * Each event gets only the answer IDs for questions assigned to it. */
+const buildEventAnswerMap = (
+  questions: QuestionWithAnswers[],
+  answerIds: number[],
+  questionEventMap: QuestionEventMap,
+  selectedEventIds: Set<number>,
+): Record<string, number[]> => {
+  const result: Record<string, number[]> = {};
+  for (let i = 0; i < questions.length; i++) {
+    const question = questions[i]!;
+    const answerId = answerIds[i]!;
+    // questionEventMap always contains entries for all questions from getQuestionsWithEventIds
+    for (const eventId of questionEventMap.get(question.id)!) {
+      if (!selectedEventIds.has(eventId)) continue;
+      const key = String(eventId);
+      (result[key] ??= []).push(answerId);
+    }
+  }
+  return result;
+};
+
 /** Registration closed message for form submissions */
 const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
   "Sorry, registration closed while you were submitting.";
@@ -711,11 +733,20 @@ const submitMultiTicket = (
           );
         }
 
+        const eventAnswerIds =
+          answersResult.answerIds.length > 0
+            ? buildEventAnswerMap(
+                activeQuestions,
+                answersResult.answerIds,
+                ctx.questionEventMap,
+                selectedEventIds,
+              )
+            : undefined;
         const intent: MultiRegistrationIntent = {
           ...contact,
           date,
           items,
-          answerIds: answersResult.answerIds,
+          eventAnswerIds,
         };
         return handleMultiPaymentFlow(request, intent, ctx);
       }
@@ -732,10 +763,20 @@ const submitMultiTicket = (
         return multiTicketFormErrorResponse(ctx)(result.error);
       }
 
-      // Save answers for all created attendees in a single batch
+      // Save per-event answers for each attendee
       if (answersResult.answerIds.length > 0) {
-        const attendeeIds = result.entries.map((e) => e.attendee.id);
-        await saveAttendeeAnswers(attendeeIds, answersResult.answerIds);
+        const eventAnswerMap = buildEventAnswerMap(
+          activeQuestions,
+          answersResult.answerIds,
+          ctx.questionEventMap,
+          selectedEventIds,
+        );
+        for (const { event, attendee } of result.entries) {
+          const answers = eventAnswerMap[String(event.id)];
+          if (answers && answers.length > 0) {
+            await saveAttendeeAnswers([attendee.id], answers);
+          }
+        }
       }
 
       const tokens = encodeURIComponent(result.tokens.join("+"));

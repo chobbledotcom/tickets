@@ -9,7 +9,7 @@ import {
   isStorageEnabled,
 } from "#lib/storage.ts";
 import type { createRouter } from "#routes/router.ts";
-import { notFoundResponse } from "#routes/utils.ts";
+import { notFoundResponse, temporaryErrorResponse } from "#routes/utils.ts";
 
 type RouterFn = ReturnType<typeof createRouter>;
 
@@ -21,15 +21,19 @@ const handleImageRequest = async (filename: string): Promise<Response> => {
   const mimeType = getMimeTypeFromFilename(filename);
   if (!mimeType) return notFoundResponse();
 
-  const data = await downloadImage(filename);
-  if (!data) return notFoundResponse();
+  try {
+    const data = await downloadImage(filename);
+    if (!data) return notFoundResponse();
 
-  return new Response(data.buffer as BodyInit, {
-    headers: {
-      "content-type": mimeType,
-      "cache-control": IMAGE_CACHE_CONTROL,
-    },
-  });
+    return new Response(data.buffer as BodyInit, {
+      headers: {
+        "content-type": mimeType,
+        "cache-control": IMAGE_CACHE_CONTROL,
+      },
+    });
+  } catch {
+    return temporaryErrorResponse();
+  }
 };
 
 /** Route image requests: GET /image/:filename */

@@ -167,7 +167,8 @@ const encryptAndUpload = async (
       controller.close();
     },
   });
-  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream, {
+  // deno-lint-ignore no-explicit-any
+  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream as any, {
     contentType: "application/octet-stream",
   });
   return filename;

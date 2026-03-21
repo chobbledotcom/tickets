@@ -37,6 +37,7 @@ import {
 } from "#lib/db/processed-payments.ts";
 import { saveAttendeeAnswers } from "#lib/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
+import { errorMessage } from "#lib/payment-helpers.ts";
 import {
   type BookingItem,
   getActivePaymentProvider,
@@ -68,9 +69,11 @@ const PRICE_CHANGED_MESSAGE =
 const isCartSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
-/** Parse answer_ids from metadata JSON string */
-const parseAnswerIds = (json: string): number[] =>
-  json ? JSON.parse(json) : [];
+/** Parse per-event answer IDs from metadata JSON string (object format) */
+const parseEventAnswerIds = (
+  json: string,
+): Record<string, number[]> | undefined =>
+  json ? JSON.parse(json) : undefined;
 
 /**
  * Extract registration intent from validated session metadata (single-ticket).
@@ -106,7 +109,7 @@ const extractIntent = (session: ValidatedPaymentSession): BookingIntent => {
     special_instructions: session.metadata.special_instructions,
     date: session.metadata.date || null,
     items: [{ e: eventId, q: quantity, p: 0 }],
-    answerIds: parseAnswerIds(session.metadata.answer_ids),
+    eventAnswerIds: parseEventAnswerIds(session.metadata.answer_ids),
   };
 };
 
@@ -187,8 +190,16 @@ const validatePaidSession = async (
     return { ok: true, data: { session, intent } };
   }
 
-  const intent = extractIntent(session);
-  return { ok: true, data: { session, intent } };
+  try {
+    const intent = extractIntent(session);
+    return { ok: true, data: { session, intent } };
+  } catch (err) {
+    logRedirectError(`${errorMessage(err)} (session=${sessionId})`);
+    return {
+      ok: false,
+      response: paymentErrorResponse("Invalid session data"),
+    };
+  }
 };
 
 /** Result type for processPaymentSession */
@@ -429,7 +440,8 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
 type BookingIntent = ContactInfo & {
   date: string | null;
   items: BookingItem[];
-  answerIds: number[];
+  /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
+  eventAnswerIds?: Record<string, number[]>;
 };
 
 /**
@@ -452,7 +464,7 @@ const extractBookingIntent = (
     special_instructions: metadata.special_instructions,
     date: metadata.date || null,
     items,
-    answerIds: parseAnswerIds(metadata.answer_ids),
+    eventAnswerIds: parseEventAnswerIds(metadata.answer_ids),
   };
 };
 
@@ -624,10 +636,14 @@ const processPaymentSession = async (
     return { success: false, error, refunded };
   }
 
-  // Save custom question answers for all created attendees
-  if (intent.answerIds.length > 0) {
-    const attendeeIds = createdAttendees.map(({ attendee }) => attendee.id);
-    await saveAttendeeAnswers(attendeeIds, intent.answerIds);
+  // Save per-event question answers for each attendee
+  if (intent.eventAnswerIds) {
+    for (const { attendee, event } of createdAttendees) {
+      const answers = intent.eventAnswerIds[String(event.id)];
+      if (answers && answers.length > 0) {
+        await saveAttendeeAnswers([attendee.id], answers);
+      }
+    }
   }
 
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)

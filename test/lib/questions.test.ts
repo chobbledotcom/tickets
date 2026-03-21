@@ -7,6 +7,7 @@ import {
   deleteQuestion,
   getAllQuestionsWithAnswers,
   getAttendeeAnswersBatch,
+  getEventQuestionIds,
   getNextAnswerSortOrder,
   getQuestion,
   getQuestionsForEvent,
@@ -173,6 +174,24 @@ describe("custom questions", () => {
       const event = await createTestEvent();
       const questions = await getQuestionsForEvent(event.id);
       expect(questions).toEqual([]);
+    });
+  });
+
+  describe("getEventQuestionIds", () => {
+    test("returns assigned question IDs", async () => {
+      const q1 = await questionsTable.insert({ text: "Q1" });
+      const q2 = await questionsTable.insert({ text: "Q2" });
+
+      const event = await createTestEvent();
+      await setEventQuestions(event.id, [q2.id, q1.id]);
+
+      const ids = await getEventQuestionIds(event.id);
+      expect(ids).toEqual([q2.id, q1.id]);
+    });
+
+    test("returns empty array for event with no questions", async () => {
+      const event = await createTestEvent();
+      expect(await getEventQuestionIds(event.id)).toEqual([]);
     });
   });
 
