@@ -167,7 +167,7 @@ const encryptAndUpload = async (
       controller.close();
     },
   });
-  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream, {
+  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream as never, {
     contentType: "application/octet-stream",
   });
   return filename;

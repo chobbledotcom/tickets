@@ -20,6 +20,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  FLASH_TEST_ID,
   flashCookieHeader,
   mockFormRequest,
   mockRequest,
@@ -113,7 +114,7 @@ describe("server (admin settings-advanced)", () => {
 
     test("displays success message on the matching form when form param is provided", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings-advanced?form=settings-show-public-api",
+        `/admin/settings-advanced?form=settings-show-public-api&flash=${FLASH_TEST_ID}`,
         {
           cookie: `${await testCookie()}; ${flashCookieHeader("API enabled")}`,
         },

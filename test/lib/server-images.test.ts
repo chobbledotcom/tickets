@@ -10,6 +10,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  FLASH_TEST_ID,
   flashCookieHeader,
   installUrlHandler,
   mockFormRequest,
@@ -147,9 +148,10 @@ const expectImageErrorRedirect = (
 ): void => {
   expect(response.status).toBe(302);
   const cookies = response.headers.getSetCookie();
-  const flash = cookies.find((c) => c.startsWith("flash="));
+  const flash = cookies.find((c) => c.startsWith("flash_"));
   expect(flash).toBeDefined();
   const cookiePart = flash!.split(";")[0] ?? "";
+  // Cookie is "flash_{id}={value}", extract value after first "="
   const decoded = decodeURIComponent(cookiePart.split("=").slice(1).join("="));
   expect(decoded).toContain(errorSubstring);
 };
@@ -401,7 +403,7 @@ describeWithEnv(
       test("displays image error on admin dashboard", async () => {
         const cookie = await testCookie();
         const response = await handleRequest(
-          mockRequest("/admin", {
+          mockRequest(`/admin?flash=${FLASH_TEST_ID}`, {
             headers: {
               cookie: `${cookie}; ${flashCookieHeader("Image exceeds the 256KB size limit", false)}`,
             },
@@ -418,7 +420,7 @@ describeWithEnv(
         const { event, cookie } = await setupEventAndLogin();
 
         const response = await handleRequest(
-          mockRequest(`/admin/event/${event.id}`, {
+          mockRequest(`/admin/event/${event.id}?flash=${FLASH_TEST_ID}`, {
             headers: {
               cookie: `${cookie}; ${flashCookieHeader("Image must be a JPEG, PNG, GIF, or WebP file", false)}`,
             },

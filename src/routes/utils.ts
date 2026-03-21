@@ -22,7 +22,7 @@ import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#lib/forms.tsx";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
+import { ErrorCode, getRequestId, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
 import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
 import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
@@ -323,11 +323,13 @@ export const redirect = (
 ): Response => {
   const target = opts?.form?.get("return_url") || url;
   const u = new URL(target, "http://localhost");
+  const flashId = getRequestId();
+  u.searchParams.set("flash", flashId);
   if (opts?.formId) {
     u.searchParams.set("form", opts.formId);
     u.hash = opts.formId;
   }
-  const flash = buildFlashCookie(message, succeeded);
+  const flash = buildFlashCookie(flashId, message, succeeded);
   const response = redirectResponse(u.pathname + u.search + u.hash, flash);
   if (opts?.cookie) withCookie(response, opts.cookie);
   return response;
