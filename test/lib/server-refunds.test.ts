@@ -549,12 +549,14 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          await expectHtmlResponse(
+          const html = await expectHtmlResponse(
             response,
             400,
             "1 refund(s) succeeded",
             "1 failed",
           );
+          expect(html).toContain("all 1 attendee(s)");
+          expect(html).not.toContain("all 2 attendee(s)");
         },
       );
     });

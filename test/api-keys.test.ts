@@ -255,8 +255,8 @@ describe("API Keys", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toContain("key=");
-      expectFlash(response, "API key created");
+      expect(location).toBe("/admin/api-keys");
+      expectFlash(response, expect.stringContaining("API key created\n"));
 
       // Follow the redirect and verify the key is shown
       const flashCookie = response.headers
