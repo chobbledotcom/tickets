@@ -352,13 +352,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
 
       try {
-        const response = await withExpectedError(() =>
-          handleRequest(
+        await withExpectedError(async () => {
+          const response = await handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-        );
-        // Corrupt metadata from a verified origin is a bug — surfaces as 503
-        expect(response.status).toBe(503);
+          );
+          // Corrupt metadata from a verified origin is a bug — surfaces as 503
+          expect(response.status).toBe(503);
+        });
       } finally {
         mockVerify.restore();
       }
@@ -521,7 +521,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_no_qty"),
         );
-        // Should return error page since missing quantity is invalid session data
+        // extractIntent catches error and returns 400
         expect(redirectResponse.status).toBe(400);
       } finally {
         mockRetrieve.restore();
@@ -1418,6 +1418,79 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("multi-ticket webhook saves custom question answers", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Answer WH",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      // Create a question and answer via DB
+      const {
+        questionsTable,
+        answersTable,
+        setEventQuestions,
+        getAttendeeAnswersBatch,
+      } = await import("#lib/db/questions.ts");
+      const q = await questionsTable.insert({ text: "Size?" });
+      const a = await answersTable.insert({
+        questionId: q.id,
+        text: "Large",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q.id]);
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            valid: true,
+            event: {
+              id: "evt_answer",
+              type: "checkout.session.completed",
+              data: {
+                object: {
+                  id: "cs_answer",
+                  payment_status: "paid",
+                  payment_intent: "pi_answer",
+                  amount_total: 500,
+                  metadata: webhookMeta({
+                    name: "Answer Buyer",
+                    email: "answer@example.com",
+                    multi: "1",
+                    items: JSON.stringify([{ e: event1.id, q: 1, p: 500 }]),
+                    answer_ids: JSON.stringify({
+                      [String(event1.id)]: [a.id],
+                    }),
+                  }),
+                },
+              },
+            },
+          }),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+
+        // Verify answers were saved for the created attendee
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event1.id);
+        expect(attendees.length).toBe(1);
+        const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        const attendeeAnswers = answerMap.get(attendees[0]!.id) ?? [];
+        expect(attendeeAnswers).toEqual([a.id]);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
     test("multi-ticket webhook handles event not found without refund", async () => {
       await setupStripe();
 
@@ -1706,13 +1779,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await withExpectedError(() =>
-          handleRequest(
+        await withExpectedError(async () => {
+          const response = await handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-        );
-        // Corrupt metadata from a verified origin is a bug — surfaces as 503
-        expect(response.status).toBe(503);
+          );
+          // Corrupt metadata from a verified origin is a bug — surfaces as 503
+          expect(response.status).toBe(503);
+        });
       } finally {
         mockVerify.restore();
         mockRetrieveSession.restore();
@@ -3475,13 +3548,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await withExpectedError(() =>
-          handleRequest(
+        await withExpectedError(async () => {
+          const response = await handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-        );
-        // Corrupt metadata from a verified origin is a bug — surfaces as 503
-        expect(response.status).toBe(503);
+          );
+          // Corrupt metadata from a verified origin is a bug — surfaces as 503
+          expect(response.status).toBe(503);
+        });
       } finally {
         mockVerify.restore();
       }
@@ -3524,13 +3597,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await withExpectedError(() =>
-          handleRequest(
+        await withExpectedError(async () => {
+          const response = await handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-        );
-        // Corrupt metadata from a verified origin is a bug — surfaces as 503
-        expect(response.status).toBe(503);
+          );
+          // Corrupt metadata from a verified origin is a bug — surfaces as 503
+          expect(response.status).toBe(503);
+        });
       } finally {
         mockVerify.restore();
       }
@@ -3901,7 +3974,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
               name: "Q Single Buyer",
               email: "qsingle@example.com",
               quantity: "1",
-              answer_ids: JSON.stringify([a1.id]),
+              answer_ids: JSON.stringify({
+                [String(event.id)]: [a1.id],
+              }),
             }),
           },
         },

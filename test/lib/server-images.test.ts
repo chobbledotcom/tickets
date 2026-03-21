@@ -20,6 +20,7 @@ import {
   testCookie,
   testCsrfToken,
   updateTestEvent,
+  withExpectedError,
   withFetchMock,
 } from "#test-utils";
 
@@ -535,11 +536,13 @@ describeWithEnv(
         await withCdnProxy(
           () => new Response("Unauthorized", { status: 401 }),
           async () => {
-            await expectHtmlResponse(
-              await proxyRequest(),
-              503,
-              "Temporary Error",
-            );
+            await withExpectedError(async () => {
+              await expectHtmlResponse(
+                await proxyRequest(),
+                503,
+                "Temporary Error",
+              );
+            });
           },
         );
       });

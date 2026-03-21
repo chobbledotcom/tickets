@@ -69,10 +69,6 @@ const PRICE_CHANGED_MESSAGE =
 const isCartSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
-/** Parse answer_ids from metadata JSON string (flat array for single-ticket) */
-const parseAnswerIds = (json: string): number[] =>
-  json ? JSON.parse(json) : [];
-
 /** Parse per-event answer IDs from metadata JSON string (object format) */
 const parseEventAnswerIds = (
   json: string,
@@ -113,7 +109,7 @@ const extractIntent = (session: ValidatedPaymentSession): BookingIntent => {
     special_instructions: session.metadata.special_instructions,
     date: session.metadata.date || null,
     items: [{ e: eventId, q: quantity, p: 0 }],
-    answerIds: parseAnswerIds(session.metadata.answer_ids),
+    eventAnswerIds: parseEventAnswerIds(session.metadata.answer_ids),
   };
 };
 
@@ -444,8 +440,7 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
 type BookingIntent = ContactInfo & {
   date: string | null;
   items: BookingItem[];
-  answerIds: number[];
-  /** Per-event answer IDs for multi-ticket (new format) */
+  /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
 };
 
@@ -469,7 +464,6 @@ const extractBookingIntent = (
     special_instructions: metadata.special_instructions,
     date: metadata.date || null,
     items,
-    answerIds: [],
     eventAnswerIds: parseEventAnswerIds(metadata.answer_ids),
   };
 };
@@ -650,10 +644,6 @@ const processPaymentSession = async (
         await saveAttendeeAnswers([attendee.id], answers);
       }
     }
-  } else if (intent.answerIds.length > 0) {
-    // Single-ticket path: one event, flat answer list
-    const attendeeIds = createdAttendees.map(({ attendee }) => attendee.id);
-    await saveAttendeeAnswers(attendeeIds, intent.answerIds);
   }
 
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)
