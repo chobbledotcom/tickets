@@ -28,9 +28,9 @@ import { FormParams } from "#lib/form-data.ts";
 import { handleRequest } from "#routes";
 import {
   createTestDbWithSetup,
+  describeWithEnv,
   mockRequest,
   resetDb,
-  setTestEnv,
   setupTestEncryptionKey,
 } from "#test-utils";
 
@@ -43,14 +43,7 @@ describe("demo", () => {
     setDemoModeForTest(false);
   });
 
-  describe("isDemoMode", () => {
-    let restoreEnv: () => void;
-    beforeEach(() => {
-      restoreEnv = setTestEnv({ DEMO_MODE: undefined });
-    });
-    afterEach(() => {
-      restoreEnv();
-    });
+  describeWithEnv("isDemoMode", { DEMO_MODE: undefined }, () => {
 
     test("returns false when DEMO_MODE is not set", () => {
       expect(isDemoMode()).toBe(false);

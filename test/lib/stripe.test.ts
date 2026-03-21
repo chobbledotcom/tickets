@@ -22,25 +22,20 @@ import {
 import { stripePaymentProvider } from "#lib/stripe-provider.ts";
 import {
   createTestDb,
+  describeWithEnv,
   installUrlHandler,
   resetDb,
   testEvent,
   urlFromFetchInput,
-  setTestEnv,
   withFetchMock,
   withMocks,
 } from "#test-utils";
 
-describe("stripe", () => {
-  let restoreEnv: () => void;
-
+describeWithEnv("stripe", {
+  STRIPE_MOCK_HOST: Deno.env.get("STRIPE_MOCK_HOST"),
+  STRIPE_MOCK_PORT: Deno.env.get("STRIPE_MOCK_PORT"),
+}, () => {
   beforeEach(async () => {
-    // Snapshot STRIPE_MOCK vars so tests can modify them freely;
-    // setTestEnv re-sets current values (no-op) but saves for restore.
-    restoreEnv = setTestEnv({
-      STRIPE_MOCK_HOST: Deno.env.get("STRIPE_MOCK_HOST"),
-      STRIPE_MOCK_PORT: Deno.env.get("STRIPE_MOCK_PORT"),
-    });
     resetStripeClient();
     // Create in-memory db for testing
     await createTestDb();
@@ -49,7 +44,6 @@ describe("stripe", () => {
   afterEach(() => {
     resetStripeClient();
     resetDb();
-    restoreEnv();
   });
 
   describe("getStripeClient", () => {
@@ -1582,14 +1576,11 @@ describe("stripe", () => {
   });
 });
 
-describe("stripe-provider", () => {
-  let restoreEnv: () => void;
-
+describeWithEnv("stripe-provider", {
+  STRIPE_MOCK_HOST: Deno.env.get("STRIPE_MOCK_HOST"),
+  STRIPE_MOCK_PORT: Deno.env.get("STRIPE_MOCK_PORT"),
+}, () => {
   beforeEach(async () => {
-    restoreEnv = setTestEnv({
-      STRIPE_MOCK_HOST: Deno.env.get("STRIPE_MOCK_HOST"),
-      STRIPE_MOCK_PORT: Deno.env.get("STRIPE_MOCK_PORT"),
-    });
     resetStripeClient();
     await createTestDb();
   });
@@ -1597,7 +1588,6 @@ describe("stripe-provider", () => {
   afterEach(() => {
     resetStripeClient();
     resetDb();
-    restoreEnv();
   });
 
   describe("toCheckoutResult - session with no URL", () => {

@@ -20,6 +20,7 @@ import {
 import {
   createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   resetDb,
   setTestEnv,
 } from "#test-utils";
@@ -67,18 +68,15 @@ describe("logger", () => {
     });
   });
 
-  describe("logRequest", () => {
+  describeWithEnv("logRequest", { TEST_SUPPRESS_REQUEST_LOGS: undefined }, () => {
     let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
-    let restoreEnv: () => void;
 
     beforeEach(() => {
-      restoreEnv = setTestEnv({ TEST_SUPPRESS_REQUEST_LOGS: undefined });
       debugSpy = spy(console, "debug");
     });
 
     afterEach(() => {
       debugSpy.restore();
-      restoreEnv();
     });
 
     test("logs request with redacted path", () => {
@@ -439,14 +437,7 @@ describe("logger", () => {
     });
   });
 
-  describe("runWithRequestId", () => {
-    let restoreEnv: () => void;
-
-    beforeEach(() => {
-      restoreEnv = setTestEnv({ TEST_SUPPRESS_REQUEST_LOGS: undefined });
-    });
-
-    afterEach(() => restoreEnv());
+  describeWithEnv("runWithRequestId", { TEST_SUPPRESS_REQUEST_LOGS: undefined }, () => {
 
     test("prefixes logRequest with 4-char hex ID", () => {
       const debugSpy = spy(console, "debug");

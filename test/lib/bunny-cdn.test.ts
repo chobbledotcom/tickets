@@ -15,7 +15,13 @@ import {
   updateCustomDomain,
   updateCustomDomainLastValidated,
 } from "#lib/db/settings.ts";
-import { createTestDb, resetDb, setTestEnv, withMocks } from "#test-utils";
+import {
+  createTestDb,
+  describeWithEnv,
+  resetDb,
+  setTestEnv,
+  withMocks,
+} from "#test-utils";
 
 /** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
 const withMockValidate = async (
@@ -81,14 +87,7 @@ const pullZoneResponse = (
 });
 
 describe("bunny-cdn", () => {
-  describe("isBunnyCdnEnabled", () => {
-    let restoreEnv: () => void;
-
-    beforeEach(() => {
-      restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
-    });
-
-    afterEach(() => restoreEnv());
+  describeWithEnv("isBunnyCdnEnabled", { BUNNY_API_KEY: undefined }, () => {
 
     test("returns false when BUNNY_API_KEY is not set", () => {
       expect(isBunnyCdnEnabled()).toBe(false);
@@ -132,14 +131,7 @@ describe("bunny-cdn", () => {
     });
   });
 
-  describe("getBunnyApiKey", () => {
-    let restoreEnv: () => void;
-
-    beforeEach(() => {
-      restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
-    });
-
-    afterEach(() => restoreEnv());
+  describeWithEnv("getBunnyApiKey", { BUNNY_API_KEY: undefined }, () => {
 
     test("getBunnyApiKey returns the env var value", () => {
       Deno.env.set("BUNNY_API_KEY", "my-api-key");

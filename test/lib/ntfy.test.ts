@@ -3,14 +3,12 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { ErrorCode } from "#lib/logger.ts";
 import { sendNtfyError } from "#lib/ntfy.ts";
-import { setTestEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils";
 
-describe("ntfy", () => {
+describeWithEnv("ntfy", { NTFY_URL: undefined }, () => {
   let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
-  let restoreEnv: () => void;
 
   beforeEach(() => {
-    restoreEnv = setTestEnv({ NTFY_URL: undefined });
     fetchStub = stub(globalThis, "fetch", () =>
       Promise.resolve(new Response()),
     );
@@ -18,7 +16,6 @@ describe("ntfy", () => {
 
   afterEach(() => {
     fetchStub.restore();
-    restoreEnv();
   });
 
   describe("sendNtfyError", () => {

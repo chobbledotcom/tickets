@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
@@ -14,19 +14,12 @@ import {
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
-import { installUrlHandler, setTestEnv, withFetchMock } from "#test-utils";
+import { describeWithEnv, installUrlHandler, withFetchMock } from "#test-utils";
 
-describe("storage", () => {
-  let restoreEnv: () => void;
-
-  beforeEach(() => {
-    restoreEnv = setTestEnv({
-      STORAGE_ZONE_NAME: undefined,
-      STORAGE_ZONE_KEY: undefined,
-    });
-  });
-
-  afterEach(() => restoreEnv());
+describeWithEnv("storage", {
+  STORAGE_ZONE_NAME: undefined,
+  STORAGE_ZONE_KEY: undefined,
+}, () => {
 
   describe("isStorageEnabled", () => {
     test("returns false when neither env var is set", () => {
@@ -309,17 +302,10 @@ describe("storage", () => {
     });
   });
 
-  describe("deleteAllEventStorageFiles", () => {
-    let restoreStorageEnv: () => void;
-    beforeEach(() => {
-      restoreStorageEnv = setTestEnv({
-        STORAGE_ZONE_NAME: "testzone",
-        STORAGE_ZONE_KEY: "testkey",
-      });
-    });
-    afterEach(() => {
-      restoreStorageEnv();
-    });
+  describeWithEnv("deleteAllEventStorageFiles", {
+    STORAGE_ZONE_NAME: "testzone",
+    STORAGE_ZONE_KEY: "testkey",
+  }, () => {
 
     test("deletes images and attachments for all events", async () => {
       const events = [

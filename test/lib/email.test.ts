@@ -24,9 +24,9 @@ import {
 } from "#lib/email.ts";
 import {
   createTestDbWithSetup,
+  describeWithEnv,
   makeTestEntry as makeEntry,
   resetDb,
-  setTestEnv,
 } from "#test-utils";
 
 const testConfig: EmailConfig = {
@@ -528,18 +528,11 @@ describe("email", () => {
     });
   });
 
-  describe("getHostEmailConfig", () => {
-    let restoreEnv: () => void;
-
-    beforeEach(() => {
-      restoreEnv = setTestEnv({
-        HOST_EMAIL_PROVIDER: undefined,
-        HOST_EMAIL_API_KEY: undefined,
-        HOST_EMAIL_FROM_ADDRESS: undefined,
-      });
-    });
-
-    afterEach(() => restoreEnv());
+  describeWithEnv("getHostEmailConfig", {
+    HOST_EMAIL_PROVIDER: undefined,
+    HOST_EMAIL_API_KEY: undefined,
+    HOST_EMAIL_FROM_ADDRESS: undefined,
+  }, () => {
 
     test("returns null when no env vars set", () => {
       expect(getHostEmailConfig()).toBeNull();
@@ -600,18 +593,11 @@ describe("email", () => {
     });
   });
 
-  describe("sendRegistrationEmails", () => {
-    let restoreEnv: () => void;
-
-    beforeEach(() => {
-      restoreEnv = setTestEnv({
-        HOST_EMAIL_PROVIDER: undefined,
-        HOST_EMAIL_API_KEY: undefined,
-        HOST_EMAIL_FROM_ADDRESS: undefined,
-      });
-    });
-
-    afterEach(() => restoreEnv());
+  describeWithEnv("sendRegistrationEmails", {
+    HOST_EMAIL_PROVIDER: undefined,
+    HOST_EMAIL_API_KEY: undefined,
+    HOST_EMAIL_FROM_ADDRESS: undefined,
+  }, () => {
 
     test("skips when attendee has no email address", async () => {
       await setupAndSendRegistration({}, [makeEntry({}, { email: "" })]);

@@ -7,6 +7,7 @@ import { handleRequest } from "#routes";
 import {
   createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
   installUrlHandler,
   mockFormRequest,
@@ -197,21 +198,17 @@ const submitCreateImage = (
 const proxyRequest = (ext = "jpg"): Promise<Response> =>
   handleRequest(mockRequest(`${PROXY_PATH}.${ext}`));
 
-describe("server (event images)", () => {
-  let restoreEnv: () => void;
-
+describeWithEnv("server (event images)", {
+  STORAGE_ZONE_NAME: "testzone",
+  STORAGE_ZONE_KEY: "testkey",
+}, () => {
   beforeEach(async () => {
     resetTestSlugCounter();
     await createTestDbWithSetup();
-    restoreEnv = setTestEnv({
-      STORAGE_ZONE_NAME: "testzone",
-      STORAGE_ZONE_KEY: "testkey",
-    });
   });
 
   afterEach(() => {
     resetDb();
-    restoreEnv();
   });
 
   describe("POST /admin/event/:id/edit (image upload via edit form)", () => {

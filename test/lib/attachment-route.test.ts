@@ -9,11 +9,11 @@ import { getMimeType } from "#routes/attachments.ts";
 import {
   createTestAttendeeWithToken,
   createTestDbWithSetup,
+  describeWithEnv,
   installUrlHandler,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  setTestEnv,
   setupTestEncryptionKey,
   withFetchMock,
 } from "#test-utils";
@@ -49,21 +49,17 @@ describe("getMimeType", () => {
   });
 });
 
-describe("GET /attachment/:id", () => {
-  let restoreEnv: () => void;
-
+describeWithEnv("GET /attachment/:id", {
+  STORAGE_ZONE_NAME: undefined,
+  STORAGE_ZONE_KEY: undefined,
+}, () => {
   beforeEach(async () => {
-    restoreEnv = setTestEnv({
-      STORAGE_ZONE_NAME: undefined,
-      STORAGE_ZONE_KEY: undefined,
-    });
     setupTestEncryptionKey();
     resetTestSlugCounter();
     await createTestDbWithSetup();
   });
 
   afterEach(() => {
-    restoreEnv();
     resetDb();
   });
 

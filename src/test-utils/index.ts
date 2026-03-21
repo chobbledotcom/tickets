@@ -8,6 +8,7 @@ import {
   type InValue,
   type Row,
 } from "@libsql/client";
+import { afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
@@ -473,6 +474,31 @@ export const setTestEnv = (
       else Deno.env.delete(key);
     }
   };
+};
+
+/**
+ * Describe block with automatic env var setup and restore.
+ * Sets env vars before each test and restores originals after each test.
+ * Additional beforeEach/afterEach hooks can be added inside the callback.
+ *
+ * @example
+ * describeWithEnv("storage", { STORAGE_ZONE_NAME: "z", STORAGE_ZONE_KEY: "k" }, () => {
+ *   test("uses storage", () => { ... });
+ * });
+ */
+export const describeWithEnv = (
+  name: string,
+  env: Record<string, string | undefined>,
+  fn: () => void,
+): void => {
+  describe(name, () => {
+    let restoreEnv: () => void;
+    beforeEach(() => {
+      restoreEnv = setTestEnv(env);
+    });
+    afterEach(() => restoreEnv());
+    fn();
+  });
 };
 
 /**

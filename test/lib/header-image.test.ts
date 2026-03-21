@@ -16,13 +16,13 @@ import {
   adminGet,
   createTestDbWithSetup,
   createTestManagerSession,
+  describeWithEnv,
   expectHtmlResponse,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  setTestEnv,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -210,23 +210,19 @@ describe("header image settings DB", () => {
   });
 });
 
-describe("server (header image settings)", () => {
-  let restoreEnv: () => void;
-
+describeWithEnv("server (header image settings)", {
+  STORAGE_ZONE_NAME: "testzone",
+  STORAGE_ZONE_KEY: "testkey",
+}, () => {
   beforeEach(async () => {
     resetTestSlugCounter();
     resetHeaderImage();
     await createTestDbWithSetup();
-    restoreEnv = setTestEnv({
-      STORAGE_ZONE_NAME: "testzone",
-      STORAGE_ZONE_KEY: "testkey",
-    });
   });
 
   afterEach(() => {
     resetDb();
     resetHeaderImage();
-    restoreEnv();
   });
 
   describe("GET /admin/settings (header image section)", () => {
