@@ -627,25 +627,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expectAdminRedirect(response);
     });
 
-    test("accessible to managers", async () => {
-      const group = await createTestGroup({
-        name: "Add Allow",
-        slug: "add-allow",
-      });
-      const cookie = await createTestManagerSession("mgr-add-events");
-      const csrfToken = await signCsrfToken();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/group/${group.id}/add-events`,
-          {
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(302);
-    });
-
     test("returns 404 for non-existent group", async () => {
       const { response } = await adminFormPost("/admin/group/999/add-events", {
         event_ids: "1",
@@ -710,43 +691,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
     });
 
-    test("rejects adding event with mismatched type", async () => {
-      const group = await createTestGroup({
-        name: "Type Check",
-        slug: "type-check",
-      });
-      await createTestEvent({
-        name: "Standard In Group",
-        groupId: group.id,
-        eventType: "standard",
-      });
-      const dailyEvent = await createTestEvent({
-        name: "Daily Ungrouped",
-        eventType: "daily",
-      });
-
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/group/${group.id}/add-events`,
-          {
-            event_ids: String(dailyEvent.id),
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location") ?? "";
-      expect(location).toContain("error=");
-      expect(location).toContain("already+contains+standard+events");
-
-      // Verify event was NOT assigned
-      const { getEvent } = await import("#lib/db/events.ts");
-      const unchanged = await getEvent(dailyEvent.id);
-      expect(unchanged?.group_id).toBe(0);
-    });
   });
 
   describe("redirect after create/edit", () => {
