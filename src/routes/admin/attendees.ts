@@ -2,7 +2,7 @@
  * Admin attendee management routes
  */
 
-import { compact, filter, uniqueBy } from "#fp";
+import { chunk, compact, filter, uniqueBy } from "#fp";
 import { getCurrencyCode } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
@@ -420,22 +420,28 @@ const processRefundAll = async (
     );
   }
 
-  // TODO: Refunds are sequential to avoid overwhelming payment providers.
-  // For large events, consider batching with Promise.all in chunks.
+  const REFUND_CHUNK_SIZE = 5;
   let refundedCount = 0;
   let failedCount = 0;
-  for (const attendee of refundable) {
-    const refunded = await provider.refundPayment(attendee.payment_id);
-    if (refunded) {
-      await markRefunded(attendee.id);
-      refundedCount++;
-    } else {
-      failedCount++;
-      logError({
-        code: ErrorCode.PAYMENT_REFUND,
-        eventId: event.id,
-        detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-      });
+  for (const batch of chunk(REFUND_CHUNK_SIZE)(refundable)) {
+    const results = await Promise.all(
+      batch.map(async (attendee) => {
+        const refunded = await provider.refundPayment(attendee.payment_id);
+        if (refunded) {
+          await markRefunded(attendee.id);
+          return true;
+        }
+        logError({
+          code: ErrorCode.PAYMENT_REFUND,
+          eventId: event.id,
+          detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+        });
+        return false;
+      }),
+    );
+    for (const success of results) {
+      if (success) refundedCount++;
+      else failedCount++;
     }
   }
 
