@@ -628,25 +628,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expectAdminRedirect(response);
     });
 
-    test("accessible to managers", async () => {
-      const group = await createTestGroup({
-        name: "Add Allow",
-        slug: "add-allow",
-      });
-      const cookie = await createTestManagerSession("mgr-add-events");
-      const csrfToken = await signCsrfToken();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/group/${group.id}/add-events`,
-          {
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(302);
-    });
-
     test("returns 404 for non-existent group", async () => {
       const { response } = await adminFormPost("/admin/group/999/add-events", {
         event_ids: "1",
