@@ -3837,7 +3837,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 { e: event1.id, q: 1, p: 1000 },
                 { e: event2.id, q: 1, p: 0 },
               ]),
-              answer_ids: JSON.stringify([a1.id]),
+              answer_ids: JSON.stringify({
+                [String(event1.id)]: [a1.id],
+              }),
             }),
           },
         },
@@ -3859,9 +3861,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(att1.length).toBe(1);
         expect(att2.length).toBe(1);
 
-        // Verify custom question answers were saved for all attendees
+        // Verify answers saved only for event1's attendee (question belongs to event1 only)
         const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
         expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
+        expect(batch.get(att2[0]!.id)).toBeUndefined();
       } finally {
         mockVerify.restore();
       }

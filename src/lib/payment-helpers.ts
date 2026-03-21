@@ -123,6 +123,14 @@ export const buildSingleIntentMetadata = (
   ...answerIdsField(intent.answerIds),
 });
 
+/** Serialize per-event answer IDs for metadata (only if non-empty) */
+const eventAnswerIdsField = (
+  eventAnswerIds?: Record<string, number[]>,
+): Record<string, string> =>
+  eventAnswerIds && Object.keys(eventAnswerIds).length > 0
+    ? { answer_ids: JSON.stringify(eventAnswerIds) }
+    : {};
+
 /**
  * Build intent metadata for a cart checkout.
  * Common fields: multi flag, name, email, serialized items, optional phone/date.
@@ -136,7 +144,7 @@ export const buildCartMetadata = (
   email: intent.email,
   items: serializeBookingItems(intent.items),
   ...optionalFields(intent),
-  ...answerIdsField(intent.answerIds),
+  ...eventAnswerIdsField(intent.eventAnswerIds),
 });
 
 /**

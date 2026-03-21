@@ -48,8 +48,8 @@ export type BookingItem = { e: number; q: number; p: number };
 export type MultiRegistrationIntent = ContactInfo & {
   date?: string | null;
   items: MultiRegistrationItem[];
-  /** Custom question answer IDs selected during checkout */
-  answerIds?: number[];
+  /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
+  eventAnswerIds?: Record<string, number[]>;
 };
 
 /** Result of creating a checkout session.

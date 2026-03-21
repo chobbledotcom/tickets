@@ -4282,6 +4282,55 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(batch.get(att2[0]!.id)).toEqual([answer1.id]);
     });
 
+    test("saves event-specific answers only for each attendee", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Evt A",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Evt B",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      // Question 1 assigned to event1 only
+      const q1 = await questionsTable.insert({ text: "Event A question?" });
+      const a1 = await answersTable.insert({
+        questionId: q1.id,
+        text: "A answer",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q1.id]);
+
+      // Question 2 assigned to event2 only
+      const q2 = await questionsTable.insert({ text: "Event B question?" });
+      const a2 = await answersTable.insert({
+        questionId: q2.id,
+        text: "B answer",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event2.id, [q2.id]);
+
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await submitMultiTicketForm(slug, {
+        name: "Per Event User",
+        email: "perevent@example.com",
+        [`quantity_${event1.id}`]: "1",
+        [`quantity_${event2.id}`]: "1",
+        [`question_${q1.id}`]: String(a1.id),
+        [`question_${q2.id}`]: String(a2.id),
+      });
+      expectReservedRedirectWithTokens(response);
+
+      // Verify each attendee only has answers for their event's questions
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const att1 = await getAttendeesRaw(event1.id);
+      const att2 = await getAttendeesRaw(event2.id);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
+      expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
+      expect(batch.get(att2[0]!.id)).toEqual([a2.id]);
+    });
+
     test("validates question answers for selected events only", async () => {
       const event1 = await createTestEvent({
         name: "Multi Q Filter 1",
