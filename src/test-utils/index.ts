@@ -1258,7 +1258,7 @@ export const expectFlash = (
   const parsed = parseFlashValue(value);
   expect(parsed).not.toBeNull();
   const actual = succeeded ? parsed!.success : parsed!.error;
-  expect(actual).toEqual(message);
+  if (message !== undefined) expect(actual).toEqual(message);
   return response;
 };
 
@@ -1268,8 +1268,7 @@ export const expectFlash = (
  * Compares the location without the flash param for clean assertions.
  */
 export const expectRedirectWithFlash =
-  // deno-lint-ignore no-explicit-any
-  (location: string, message: string | any, succeeded = true) =>
+  (location: string, message?: string, succeeded = true) =>
   (response: Response): Response => {
     expect(response.status).toBe(302);
     const actualLocation = response.headers.get("location")!;

@@ -405,7 +405,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expectRedirectWithFlash(
         `/admin/event/${event.id}`,
-        expect.stringContaining(""),
+        undefined,
         false,
       )(response);
 
@@ -436,7 +436,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expectRedirectWithFlash(
         `/admin/event/${event.id}`,
-        expect.stringContaining(""),
+        undefined,
         false,
       )(response);
 
