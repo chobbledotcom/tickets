@@ -196,6 +196,16 @@ export type ErrorContext = {
   detail?: string;
 };
 
+/** Format an error detail string with request context and error message */
+export const formatRequestError = (
+  method: string,
+  path: string,
+  error: unknown,
+): string => {
+  const msg = error instanceof Error ? error.message : String(error);
+  return `${method} ${redactPath(path)}: ${msg}`;
+};
+
 /** Format an error context into a human-readable activity log message */
 export const formatErrorMessage = (context: ErrorContext): string => {
   const label = errorCodeLabel[context.code];

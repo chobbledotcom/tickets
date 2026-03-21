@@ -16,23 +16,17 @@ import {
   resetEngine,
   validateTemplate,
 } from "#lib/email-renderer.ts";
-import {
-  createTestDbWithSetup,
-  makeTestEntry as makeEntry,
-  resetDb,
-} from "#test-utils";
+import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
 
-describe("email-renderer", () => {
-  beforeEach(async () => {
+describeWithEnv("email-renderer", { db: true }, () => {
+  beforeEach(() => {
     setCurrencyCodeForTest("GBP");
     resetEngine();
-    await createTestDbWithSetup();
   });
 
   afterEach(() => {
     resetCurrencyCode();
     resetEngine();
-    resetDb();
   });
 
   describe("buildTemplateData", () => {

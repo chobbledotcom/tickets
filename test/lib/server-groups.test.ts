@@ -11,33 +11,28 @@ import {
   adminGet,
   awaitTestRequest,
   createTestAttendee,
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
   createTestManagerSession,
   deleteTestGroup,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   expectStatus,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
   updateTestGroup,
 } from "#test-utils";
 
-describe("server (admin groups)", () => {
-  beforeEach(async () => {
+describeWithEnv("server (admin groups)", { db: true }, () => {
+  beforeEach(() => {
     setDemoModeForTest(false);
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
   });
 
   afterEach(() => {
     setDemoModeForTest(false);
-    resetDb();
   });
 
   describe("GET /admin/groups", () => {

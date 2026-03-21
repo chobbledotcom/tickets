@@ -14,6 +14,7 @@ import { detectIframeMode } from "#lib/iframe.ts";
 import {
   createRequestTimer,
   ErrorCode,
+  formatRequestError,
   logDebug,
   logError,
   logRequest,
@@ -394,7 +395,10 @@ export const handleRequest = async (
               getElapsed,
             );
           } catch (error) {
-            logError({ code: ErrorCode.CDN_REQUEST, detail: String(error) });
+            logError({
+              code: ErrorCode.CDN_REQUEST,
+              detail: formatRequestError(method, path, error),
+            });
             if (error instanceof SessionKeyError) {
               return logAndReturn(
                 redirectResponse("/admin", clearSessionCookie()),

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -16,19 +16,18 @@ import { handleRequest } from "#routes";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
   createTestHoliday,
   deactivateTestEvent,
+  describeWithEnv,
   expectCheckoutRedirect,
   expectHtmlResponse,
   expectRedirect,
   getTicketCsrfToken,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
+  setTestEnv,
   setupStripe,
   submitMultiTicketForm,
   submitTicketForm,
@@ -42,16 +41,7 @@ const expectReservedRedirectWithTokens = (response: Response): void => {
   expect(location).toMatch(/^\/ticket\/reserved\?tokens=.+$/);
 };
 
-describe("server (public routes)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/"));
@@ -1713,9 +1703,11 @@ describe("server (public routes)", () => {
     });
 
     test("shows email notice when email sending is configured", async () => {
-      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
-      Deno.env.set("HOST_EMAIL_API_KEY", "re_test123");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "tickets@mysite.com");
+      const restore = setTestEnv({
+        HOST_EMAIL_PROVIDER: "resend",
+        HOST_EMAIL_API_KEY: "re_test123",
+        HOST_EMAIL_FROM_ADDRESS: "tickets@mysite.com",
+      });
       try {
         const response = await handleRequest(
           mockRequest("/ticket/reserved?tokens=abc123"),
@@ -1723,9 +1715,7 @@ describe("server (public routes)", () => {
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");
         expect(html).toContain("tickets@mysite.com");
       } finally {
-        Deno.env.delete("HOST_EMAIL_PROVIDER");
-        Deno.env.delete("HOST_EMAIL_API_KEY");
-        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+        restore();
       }
     });
 

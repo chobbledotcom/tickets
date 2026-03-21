@@ -12,28 +12,23 @@ import { resetEngine } from "#lib/email-renderer.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   mockFormRequest,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
 
-describe("admin email templates", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
+describeWithEnv("admin email templates", { db: true }, () => {
+  beforeEach(() => {
     setCurrencyCodeForTest("GBP");
     resetEngine();
-    await createTestDbWithSetup();
   });
 
   afterEach(() => {
     resetCurrencyCode();
     resetEngine();
-    resetDb();
   });
 
   async function postTemplateForm(

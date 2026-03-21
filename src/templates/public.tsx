@@ -11,7 +11,11 @@ import { getIframeMode } from "#lib/iframe.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
-import type { EventFields, EventWithCount } from "#lib/types.ts";
+import {
+  type EventFields,
+  type EventWithCount,
+  isPaidEvent,
+} from "#lib/types.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
@@ -242,7 +246,7 @@ export const ticketPage = (
   const isFull = spotsRemaining <= 0;
   const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
   const showQuantity = maxPurchasable > 1;
-  const fields: Field[] = getTicketFields(event.fields);
+  const fields: Field[] = getTicketFields(event.fields, isPaidEvent(event));
   const isDaily = event.event_type === "daily";
   const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
   const showPayMore = event.can_pay_more;
@@ -432,7 +436,8 @@ export const multiTicketPage = (
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
   const fieldsSetting = getMultiTicketFieldsSetting(events);
-  const fields: Field[] = getTicketFields(fieldsSetting);
+  const anyPaid = events.some((e) => isPaidEvent(e.event));
+  const fields: Field[] = getTicketFields(fieldsSetting, anyPaid);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
 
   const availableEvents = events.filter((e) => !e.isSoldOut && !e.isClosed);

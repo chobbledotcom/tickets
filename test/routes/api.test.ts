@@ -1,16 +1,14 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { updateShowPublicApi } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
   createDailyTestEvent,
   createTestAttendeeDirect,
-  createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
-  resetDb,
-  resetTestSlugCounter,
+  describeWithEnv,
   setupStripe,
 } from "#test-utils";
 
@@ -43,15 +41,9 @@ const expectCorsHeaders = (response: Response): void => {
   expect(response.headers.get("access-control-allow-origin")).toBe("*");
 };
 
-describe("Public API", () => {
+describeWithEnv("Public API", { db: true }, () => {
   beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
     await updateShowPublicApi(true);
-  });
-
-  afterEach(() => {
-    resetDb();
   });
 
   /** Fetch the events list and return parsed events array */

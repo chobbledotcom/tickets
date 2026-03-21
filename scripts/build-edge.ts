@@ -64,6 +64,16 @@ const EDGE_SUBPATHS: Record<string, string> = {
   "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
 };
 
+/** Build the inline build-info module with timestamp and commit SHA */
+const buildBuildInfoModule = (): string => {
+  const timestamp = new Date().toISOString();
+  const commit = Deno.env.get("BUILD_COMMIT") ?? "";
+  return [
+    `export const BUILD_TIMESTAMP = ${JSON.stringify(timestamp)};`,
+    `export const BUILD_COMMIT = ${JSON.stringify(commit)};`,
+  ].join("\n");
+};
+
 /** Build the inline asset-paths module with cache-busted paths */
 const buildAssetPathsModule = (): string =>
   ASSET_DEFS.filter(([, , , pathConst]) => pathConst)
@@ -99,6 +109,17 @@ const buildAssetsModule = (): string => {
 const inlineAssetsPlugin: Plugin = {
   name: "inline-assets",
   setup(build) {
+    // Replace build-info module with actual build metadata
+    build.onResolve({ filter: /lib\/build-info\.ts$/ }, (args) => ({
+      path: args.path,
+      namespace: "inline-build-info",
+    }));
+
+    build.onLoad({ filter: /.*/, namespace: "inline-build-info" }, () => ({
+      contents: buildBuildInfoModule(),
+      loader: "ts",
+    }));
+
     // Replace asset paths module with cache-busted version
     build.onResolve({ filter: /lib\/asset-paths\.ts$/ }, (args) => ({
       path: args.path,

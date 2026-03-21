@@ -9,6 +9,7 @@ import {
   type ErrorContext,
   errorCodeLabel,
   formatErrorMessage,
+  formatRequestError,
   logDebug,
   logError,
   logErrorLocal,
@@ -16,8 +17,16 @@ import {
   redactPath,
   runWithRequestId,
 } from "#lib/logger.ts";
-import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
+import {
+  createTestDbWithSetup,
+  createTestEvent,
+  describeWithEnv,
+  resetDb,
+  setTestEnv,
+} from "#test-utils";
 
+// Outer describe ensures sequential execution — logError's fire-and-forget
+// promises must settle before later blocks spy on the same console methods.
 describe("logger", () => {
   describe("redactPath", () => {
     test("redacts ticket slugs", () => {
@@ -61,86 +70,87 @@ describe("logger", () => {
     });
   });
 
-  describe("logRequest", () => {
-    let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
+  describeWithEnv(
+    "logRequest",
+    { env: { TEST_SUPPRESS_REQUEST_LOGS: undefined } },
+    () => {
+      let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
 
-    beforeEach(() => {
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
-      debugSpy = spy(console, "debug");
-    });
-
-    afterEach(() => {
-      debugSpy.restore();
-    });
-
-    test("logs request with redacted path", () => {
-      logRequest({
-        method: "GET",
-        path: "/ticket/my-event",
-        status: 200,
-        durationMs: 42,
+      beforeEach(() => {
+        debugSpy = spy(console, "debug");
       });
 
-      expect(debugSpy.calls[0]!.args).toEqual([
-        "[Request] GET /ticket/[redacted] 200 42ms",
-      ]);
-    });
-
-    test("logs POST request", () => {
-      logRequest({
-        method: "POST",
-        path: "/admin/events/123",
-        status: 201,
-        durationMs: 100,
+      afterEach(() => {
+        debugSpy.restore();
       });
 
-      expect(debugSpy.calls[0]!.args).toEqual([
-        "[Request] POST /admin/events/[id] 201 100ms",
-      ]);
-    });
+      test("logs request with redacted path", () => {
+        logRequest({
+          method: "GET",
+          path: "/ticket/my-event",
+          status: 200,
+          durationMs: 42,
+        });
 
-    test("logs error status codes", () => {
-      logRequest({
-        method: "GET",
-        path: "/admin",
-        status: 403,
-        durationMs: 5,
+        expect(debugSpy.calls[0]!.args).toEqual([
+          "[Request] GET /ticket/[redacted] 200 42ms",
+        ]);
       });
 
-      expect(debugSpy.calls[0]!.args).toEqual(["[Request] GET /admin 403 5ms"]);
-    });
+      test("logs POST request", () => {
+        logRequest({
+          method: "POST",
+          path: "/admin/events/123",
+          status: 201,
+          durationMs: 100,
+        });
 
-    test("suppresses logs when TEST_SUPPRESS_REQUEST_LOGS is set", () => {
-      Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
-
-      logRequest({
-        method: "POST",
-        path: "/admin/login",
-        status: 302,
-        durationMs: 1,
+        expect(debugSpy.calls[0]!.args).toEqual([
+          "[Request] POST /admin/events/[id] 201 100ms",
+        ]);
       });
 
-      expect(debugSpy.calls.length).toBe(0);
+      test("logs error status codes", () => {
+        logRequest({
+          method: "GET",
+          path: "/admin",
+          status: 403,
+          durationMs: 5,
+        });
 
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
-    });
-
-    test("logs normally when TEST_SUPPRESS_REQUEST_LOGS is not set", () => {
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
-
-      logRequest({
-        method: "POST",
-        path: "/admin/login",
-        status: 302,
-        durationMs: 1,
+        expect(debugSpy.calls[0]!.args).toEqual([
+          "[Request] GET /admin 403 5ms",
+        ]);
       });
 
-      expect(debugSpy.calls.length).toBe(1);
-      expect(debugSpy.calls[0]!.args).toEqual([
-        "[Request] POST /admin/login 302 1ms",
-      ]);
-    });
-  });
+      test("suppresses logs when TEST_SUPPRESS_REQUEST_LOGS is set", () => {
+        Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
+
+        logRequest({
+          method: "POST",
+          path: "/admin/login",
+          status: 302,
+          durationMs: 1,
+        });
+
+        expect(debugSpy.calls.length).toBe(0);
+      });
+
+      test("logs normally when TEST_SUPPRESS_REQUEST_LOGS is not set", () => {
+        logRequest({
+          method: "POST",
+          path: "/admin/login",
+          status: 302,
+          durationMs: 1,
+        });
+
+        expect(debugSpy.calls.length).toBe(1);
+        expect(debugSpy.calls[0]!.args).toEqual([
+          "[Request] POST /admin/login 302 1ms",
+        ]);
+      });
+    },
+  );
 
   const setupErrorSpy = () => {
     let errorSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
@@ -204,7 +214,7 @@ describe("logger", () => {
     });
 
     test("sends ntfy notification when NTFY_URL is configured", () => {
-      Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
+      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );
@@ -217,7 +227,7 @@ describe("logger", () => {
       expect(options.body).toBe("E_DB_QUERY");
 
       fetchStub.restore();
-      Deno.env.delete("NTFY_URL");
+      restore();
     });
 
     describe("activity log persistence", () => {
@@ -302,7 +312,7 @@ describe("logger", () => {
     });
 
     test("does not send ntfy notification", () => {
-      Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
+      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );
@@ -312,7 +322,7 @@ describe("logger", () => {
       expect(fetchStub.calls.length).toBe(0);
 
       fetchStub.restore();
-      Deno.env.delete("NTFY_URL");
+      restore();
     });
   });
 
@@ -351,6 +361,20 @@ describe("logger", () => {
       expect(formatErrorMessage(context)).toBe(
         "Error: Payment session error (price mismatch)",
       );
+    });
+  });
+
+  describe("formatRequestError", () => {
+    test("formats Error instance with message", () => {
+      expect(
+        formatRequestError("GET", "/ticket/abc", new Error("DB timeout")),
+      ).toBe("GET /ticket/[redacted]: DB timeout");
+    });
+
+    test("formats non-Error value as string", () => {
+      expect(
+        formatRequestError("POST", "/admin/events/5", "connection reset"),
+      ).toBe("POST /admin/events/[id]: connection reset");
     });
   });
 
@@ -420,96 +444,101 @@ describe("logger", () => {
     });
   });
 
-  describe("runWithRequestId", () => {
-    beforeEach(() => {
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
-    });
+  describeWithEnv(
+    "runWithRequestId",
+    { env: { TEST_SUPPRESS_REQUEST_LOGS: undefined } },
+    () => {
+      test("prefixes logRequest with 4-char hex ID", () => {
+        const debugSpy = spy(console, "debug");
 
-    test("prefixes logRequest with 4-char hex ID", () => {
-      const debugSpy = spy(console, "debug");
+        runWithRequestId(() => {
+          logRequest({
+            method: "GET",
+            path: "/admin",
+            status: 200,
+            durationMs: 10,
+          });
+        });
 
-      runWithRequestId(() => {
+        const message = debugSpy.calls[0]!.args[0] as string;
+        expect(message).toMatch(
+          /^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/,
+        );
+        debugSpy.restore();
+      });
+
+      test("prefixes logError with same request ID", () => {
+        const debugSpy = spy(console, "debug");
+        const errorSpy = spy(console, "error");
+
+        runWithRequestId(() => {
+          logRequest({
+            method: "GET",
+            path: "/admin",
+            status: 200,
+            durationMs: 5,
+          });
+          logError({ code: ErrorCode.DB_CONNECTION });
+        });
+
+        const requestMsg = debugSpy.calls[0]!.args[0] as string;
+        const errorMsg = errorSpy.calls[0]!.args[0] as string;
+        const requestId = requestMsg.slice(1, 5);
+        expect(errorMsg).toBe(`[${requestId}] [Error] E_DB_CONNECTION`);
+
+        debugSpy.restore();
+        errorSpy.restore();
+      });
+
+      test("prefixes logDebug with request ID", () => {
+        const debugSpy = spy(console, "debug");
+
+        runWithRequestId(() => {
+          logDebug("Setup", "test message");
+        });
+
+        const message = debugSpy.calls[0]!.args[0] as string;
+        expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Setup\] test message$/);
+        debugSpy.restore();
+      });
+
+      test("different requests get different IDs", () => {
+        const debugSpy = spy(console, "debug");
+
+        const ids: string[] = [];
+        for (let i = 0; i < 10; i++) {
+          runWithRequestId(() => {
+            logRequest({
+              method: "GET",
+              path: "/",
+              status: 200,
+              durationMs: 0,
+            });
+          });
+          ids.push((debugSpy.calls[i]!.args[0] as string).slice(1, 5));
+        }
+
+        // With 65536 possible values, 10 samples should not all be identical
+        const unique = new Set(ids);
+        expect(unique.size).toBeGreaterThan(1);
+        debugSpy.restore();
+      });
+
+      test("no prefix outside request context", () => {
+        const debugSpy = spy(console, "debug");
+
         logRequest({
           method: "GET",
           path: "/admin",
           status: 200,
           durationMs: 10,
         });
+
+        expect(debugSpy.calls[0]!.args).toEqual([
+          "[Request] GET /admin 200 10ms",
+        ]);
+        debugSpy.restore();
       });
-
-      const message = debugSpy.calls[0]!.args[0] as string;
-      expect(message).toMatch(
-        /^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/,
-      );
-      debugSpy.restore();
-    });
-
-    test("prefixes logError with same request ID", () => {
-      const debugSpy = spy(console, "debug");
-      const errorSpy = spy(console, "error");
-
-      runWithRequestId(() => {
-        logRequest({
-          method: "GET",
-          path: "/admin",
-          status: 200,
-          durationMs: 5,
-        });
-        logError({ code: ErrorCode.DB_CONNECTION });
-      });
-
-      const requestMsg = debugSpy.calls[0]!.args[0] as string;
-      const errorMsg = errorSpy.calls[0]!.args[0] as string;
-      const requestId = requestMsg.slice(1, 5);
-      expect(errorMsg).toBe(`[${requestId}] [Error] E_DB_CONNECTION`);
-
-      debugSpy.restore();
-      errorSpy.restore();
-    });
-
-    test("prefixes logDebug with request ID", () => {
-      const debugSpy = spy(console, "debug");
-
-      runWithRequestId(() => {
-        logDebug("Setup", "test message");
-      });
-
-      const message = debugSpy.calls[0]!.args[0] as string;
-      expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Setup\] test message$/);
-      debugSpy.restore();
-    });
-
-    test("different requests get different IDs", () => {
-      const debugSpy = spy(console, "debug");
-
-      const ids: string[] = [];
-      for (let i = 0; i < 10; i++) {
-        runWithRequestId(() => {
-          logRequest({ method: "GET", path: "/", status: 200, durationMs: 0 });
-        });
-        ids.push((debugSpy.calls[i]!.args[0] as string).slice(1, 5));
-      }
-
-      // With 65536 possible values, 10 samples should not all be identical
-      const unique = new Set(ids);
-      expect(unique.size).toBeGreaterThan(1);
-      debugSpy.restore();
-    });
-
-    test("no prefix outside request context", () => {
-      const debugSpy = spy(console, "debug");
-
-      logRequest({
-        method: "GET",
-        path: "/admin",
-        status: 200,
-        durationMs: 10,
-      });
-
-      expect(debugSpy.calls[0]!.args).toEqual([
-        "[Request] GET /admin 200 10ms",
-      ]);
-      debugSpy.restore();
-    });
-  });
+    },
+  );
 });

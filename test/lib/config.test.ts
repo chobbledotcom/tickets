@@ -29,7 +29,7 @@ import {
 } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
-import { createTestDb, resetDb, setupStripe } from "#test-utils";
+import { createTestDb, resetDb, setTestEnv, setupStripe } from "#test-utils";
 
 describe("config", () => {
   beforeEach(async () => {
@@ -206,15 +206,11 @@ describe("env", () => {
     const uniqueKey = "TOTALLY_NONEXISTENT_VAR_XYZ_123";
     // Ensure it's not in process.env
     delete process.env[uniqueKey];
-    // Ensure it's not in Deno.env
-    try {
-      Deno.env.delete(uniqueKey);
-    } catch {
-      /* may not exist */
-    }
+    const restore = setTestEnv({ [uniqueKey]: undefined });
 
     const result = getEnv(uniqueKey);
     expect(result).toBeUndefined();
+    restore();
   });
 
   test("getEnv reads from process.env when available", () => {
@@ -227,10 +223,10 @@ describe("env", () => {
   test("getEnv falls back to Deno.env when not in process.env", () => {
     const key = "TEST_DENO_ONLY_VAR";
     delete process.env[key];
-    Deno.env.set(key, "from_deno");
+    const restore = setTestEnv({ [key]: "from_deno" });
     const result = getEnv(key);
     expect(result).toBe("from_deno");
-    Deno.env.delete(key);
+    restore();
   });
 });
 
@@ -242,7 +238,6 @@ describe("payments", () => {
   afterEach(() => {
     resetDb();
   });
-
   test("getActivePaymentProvider returns null when no provider configured", async () => {
     const provider = await getActivePaymentProvider();
     expect(provider).toBeNull();

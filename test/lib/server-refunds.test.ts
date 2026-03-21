@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import type { EventInput } from "#lib/db/events.ts";
 import { paymentsApi } from "#lib/payments.ts";
@@ -9,15 +9,13 @@ import {
   awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   mockFormRequest,
   mockProviderType,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
@@ -122,16 +120,7 @@ const withRefundMock = async (
 
 // -- Tests ---------------------------------------------------------------- //
 
-describe("server (admin refunds)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin refunds)", { db: true }, () => {
   describe("GET /admin/event/:eventId/attendee/:attendeeId/refund", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createPaidEvent();

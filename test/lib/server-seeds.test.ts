@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
 import { getAllEvents } from "#lib/db/events.ts";
@@ -10,29 +10,18 @@ import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
 import {
   adminGet,
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestManagerSession,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   extractCsrfToken,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
 
-describe("server (admin seeds)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin seeds)", { db: true }, () => {
   describe("GET /admin/seeds", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/seeds"));

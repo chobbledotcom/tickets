@@ -9,8 +9,8 @@ import {
 } from "#templates/admin/database-reset.tsx";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   extractCsrfToken,
@@ -18,23 +18,19 @@ import {
   invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
+  setTestEnv,
   testCookie,
   testCsrfToken,
   withFetchMock,
 } from "#test-utils";
 
-describe("server (demo reset)", () => {
-  beforeEach(async () => {
+describeWithEnv("server (demo reset)", { db: true }, () => {
+  beforeEach(() => {
     setDemoModeForTest(false);
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
   });
 
   afterEach(() => {
     setDemoModeForTest(false);
-    resetDb();
   });
 
   describe("GET /demo/reset", () => {
@@ -150,8 +146,10 @@ describe("server (demo reset)", () => {
 
     test("deletes storage files for all events during reset", async () => {
       setDemoModeForTest(true);
-      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+      const restore = setTestEnv({
+        STORAGE_ZONE_NAME: "testzone",
+        STORAGE_ZONE_KEY: "testkey",
+      });
 
       const event = await createTestEvent({ maxAttendees: 10 });
       await eventsTable.update(event.id, {
@@ -185,8 +183,7 @@ describe("server (demo reset)", () => {
         ).toBe(true);
       });
 
-      Deno.env.delete("STORAGE_ZONE_NAME");
-      Deno.env.delete("STORAGE_ZONE_KEY");
+      restore();
       invalidateTestDbCache();
     });
   });

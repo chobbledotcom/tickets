@@ -1,15 +1,13 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#lib/dates.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import {
   awaitTestRequest,
   createDailyTestEvent,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
-  resetDb,
-  resetTestSlugCounter,
   submitTicketForm,
   testCookie,
 } from "#test-utils";
@@ -81,16 +79,7 @@ async function setupMixedBookings(
   return { dailyEvent, standardEvent, eventDate };
 }
 
-describe("admin calendar", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("admin calendar", { db: true }, () => {
   describe("GET /admin/calendar", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await awaitTestRequest("/admin/calendar");

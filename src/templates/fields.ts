@@ -4,7 +4,12 @@
 
 import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
-import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
+import { CONFIG_KEYS, getSettingCached } from "#lib/db/settings.ts";
+import {
+  mergeEventFields,
+  parseEventFields,
+  withRequiredEmail,
+} from "#lib/event-fields.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { type Field, validateForm } from "#lib/forms.tsx";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
@@ -633,12 +638,25 @@ const contactFieldMap: Record<ContactField, Field> = {
 
 export { mergeEventFields, parseEventFields };
 
+/** Stubbable API for testing */
+export const fieldsApi = { getSettingCached };
+
 /**
  * Get ticket form fields based on event fields setting.
  * Always includes name. Adds contact fields based on the comma-separated setting.
+ * When isPaid is true and Square is the active provider, email is always included
+ * because Square requires an email address for checkout.
  */
-export const getTicketFields = (fields: EventFields): Field[] => {
-  const parsed = parseEventFields(fields);
+export const getTicketFields = (
+  fields: EventFields,
+  isPaid: boolean,
+): Field[] => {
+  const effective =
+    isPaid &&
+    fieldsApi.getSettingCached(CONFIG_KEYS.PAYMENT_PROVIDER) === "square"
+      ? withRequiredEmail(fields)
+      : fields;
+  const parsed = parseEventFields(effective);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };
 
@@ -647,10 +665,11 @@ export const tryValidateTicketFields = (
   form: FormParams,
   fieldsSetting: EventFields,
   onError: (message: string) => Response,
+  isPaid: boolean,
 ): TicketFormValues | Response => {
   const result = validateForm<TicketFormValues>(
     form,
-    getTicketFields(fieldsSetting),
+    getTicketFields(fieldsSetting, isPaid),
   );
   return result.valid ? result.values : onError(result.error);
 };
@@ -691,7 +710,7 @@ export const getAddAttendeeFields = (
   fields: EventFields,
   isDaily: boolean,
 ): Field[] => {
-  const result = [...getTicketFields(fields), addAttendeeQuantityField];
+  const result = [...getTicketFields(fields, false), addAttendeeQuantityField];
   if (isDaily) result.push(addAttendeeDateField);
   return result;
 };

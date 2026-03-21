@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -14,11 +14,11 @@ import {
   adminGet,
   awaitTestRequest,
   createTestAttendee,
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
   createTestManagerSession,
   deactivateTestEvent,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
@@ -26,8 +26,7 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
+  setTestEnv,
   setupEventAndLogin,
   submitTicketForm,
   testCookie,
@@ -35,15 +34,9 @@ import {
   updateTestEvent,
 } from "#test-utils";
 
-describe("server (admin events)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
+describeWithEnv("server (admin events)", { db: true }, () => {
   afterEach(() => {
     setDemoModeForTest(false);
-    resetDb();
   });
 
   describe("GET /admin/event/new", () => {
@@ -3260,8 +3253,10 @@ describe("server (admin events)", () => {
         attachmentUrl: "uuid-guide.pdf",
         attachmentName: "Event Guide.pdf",
       });
-      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+      const restore = setTestEnv({
+        STORAGE_ZONE_NAME: "testzone",
+        STORAGE_ZONE_KEY: "testkey",
+      });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
@@ -3271,14 +3266,15 @@ describe("server (admin events)", () => {
       expect(html).toContain("Event Guide.pdf");
       expect(html).toContain("Remove Attachment");
 
-      Deno.env.delete("STORAGE_ZONE_NAME");
-      Deno.env.delete("STORAGE_ZONE_KEY");
+      restore();
     });
 
     test("admin event edit page does not show attachment info when empty", async () => {
       const { event, cookie } = await setupEventAndLogin();
-      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+      const restore = setTestEnv({
+        STORAGE_ZONE_NAME: "testzone",
+        STORAGE_ZONE_KEY: "testkey",
+      });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
@@ -3287,8 +3283,7 @@ describe("server (admin events)", () => {
       expect(html).not.toContain("attachment-info");
       expect(html).not.toContain("Remove Attachment");
 
-      Deno.env.delete("STORAGE_ZONE_NAME");
-      Deno.env.delete("STORAGE_ZONE_KEY");
+      restore();
     });
   });
 });

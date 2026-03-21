@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
 import { eventsTable } from "#lib/db/events.ts";
@@ -9,12 +9,10 @@ import {
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeWithToken,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
   getAttendeesRaw,
-  resetDb,
-  resetTestSlugCounter,
 } from "#test-utils";
 
 /** Fetch a ticket page and return the response body text */
@@ -23,16 +21,7 @@ const fetchTicketBody = async (tokenPath: string): Promise<string> => {
   return response.text();
 };
 
-describe("ticket view (/t/:tokens)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   test("displays ticket for a single valid token", async () => {
     const { event, token } = await createTestAttendeeWithToken(
       "Alice",

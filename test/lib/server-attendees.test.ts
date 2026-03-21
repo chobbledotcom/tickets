@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#lib/db/attendees.ts";
 import { paymentsApi } from "#lib/payments.ts";
@@ -10,8 +10,8 @@ import {
   awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
@@ -19,24 +19,13 @@ import {
   mockFormRequest,
   mockProviderType,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
   withMocks,
 } from "#test-utils";
 
-describe("server (admin attendees)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin attendees)", { db: true }, () => {
   const deleteAction = adminAttendeeAction("delete");
   const checkinAction = adminAttendeeAction("checkin");
 

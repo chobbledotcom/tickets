@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import {
@@ -100,12 +100,11 @@ import { nowMs } from "#lib/now.ts";
 import {
   createPaidTestAttendee,
   createTestAttendee,
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
+  describeWithEnv,
   invalidateTestDbCache,
-  resetDb,
-  resetTestSlugCounter,
+  setTestEnv,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils";
@@ -127,30 +126,17 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
   return importPrivateKey(privateKeyJwk);
 };
 
-describe("db", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("db", { db: true }, () => {
   describe("getDb", () => {
     test("throws error when DB_URL is not set", () => {
       setDb(null);
-      const originalDbUrl = Deno.env.get("DB_URL");
-      Deno.env.delete("DB_URL");
-
+      const restore = setTestEnv({ DB_URL: undefined });
       try {
         expect(() => getDb()).toThrow(
           "DB_URL environment variable is required",
         );
       } finally {
-        if (originalDbUrl) {
-          Deno.env.set("DB_URL", originalDbUrl);
-        }
+        restore();
       }
     });
   });
@@ -1362,17 +1348,10 @@ describe("db", () => {
   describe("getDb", () => {
     test("creates client when db is null", () => {
       setDb(null);
-      const originalDbUrl = Deno.env.get("DB_URL");
-      Deno.env.set("DB_URL", ":memory:");
-
+      const restore = setTestEnv({ DB_URL: ":memory:" });
       const client = getDb();
       expect(client).toBeDefined();
-
-      if (originalDbUrl) {
-        Deno.env.set("DB_URL", originalDbUrl);
-      } else {
-        Deno.env.delete("DB_URL");
-      }
+      restore();
     });
 
     test("returns existing client when db is set", () => {

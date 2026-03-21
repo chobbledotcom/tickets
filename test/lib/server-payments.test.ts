@@ -1,35 +1,25 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
+  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
+  setTestEnv,
   setupStripe,
   submitTicketForm,
   withMocks,
 } from "#test-utils";
 
-describe("server (payment flow)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (payment flow)", { db: true }, () => {
   describe("GET /payment/success", () => {
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/success"));
@@ -989,11 +979,7 @@ describe("server (payment flow)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_bad_multi"),
         );
-        await expectHtmlResponse(
-          response,
-          400,
-          "Invalid multi-ticket session data",
-        );
+        await expectHtmlResponse(response, 400, "Invalid cart session data");
       } finally {
         mockRetrieve.restore();
       }
@@ -1288,6 +1274,60 @@ describe("server (payment flow)", () => {
       }
     });
 
+    test("handles single-item cart session replay (shows thank_you_url)", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        name: "Cart Single",
+        maxAttendees: 50,
+        unitPrice: 800,
+        thankYouUrl: "https://example.com/cart-thanks",
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_cart_single",
+          payment_status: "paid",
+          payment_intent: "pi_cart_single",
+          amount_total: 800,
+          metadata: {
+            name: "Cart Single Buyer",
+            email: "cartsingle@example.com",
+            multi: "1",
+            items: JSON.stringify([{ e: event.id, q: 1, p: 800 }]),
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        // First request: process and redirect with tokens
+        const response1 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_cart_single"),
+        );
+        expect(response1.status).toBe(302);
+
+        // Follow redirect to render success page with tokens
+        const tokenResponse = await followRedirect(response1, handleRequest);
+        const tokenHtml = await tokenResponse.text();
+        // Single-event cart: token path resolves one unique event → shows thank_you_url
+        expect(tokenHtml).toContain("redirected");
+
+        // Replay (no tokens stored): renders directly via items.length === 1 branch
+        const response2 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_cart_single"),
+        );
+        expect(response2.status).toBe(200);
+        const html = await response2.text();
+        expect(html).toContain("Payment Successful");
+        // Single-item cart replay also shows thank_you_url
+        expect(html).toContain("redirected");
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
     test("handles multi-ticket duplicate session replay (already processed)", async () => {
       await setupStripe();
 
@@ -1443,9 +1483,11 @@ describe("server (payment flow)", () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
-      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
-      Deno.env.set("HOST_EMAIL_API_KEY", "re_test123");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@tickets.com");
+      const restore = setTestEnv({
+        HOST_EMAIL_PROVIDER: "resend",
+        HOST_EMAIL_API_KEY: "re_test123",
+        HOST_EMAIL_FROM_ADDRESS: "noreply@tickets.com",
+      });
 
       try {
         const response = await handleRequest(
@@ -1456,9 +1498,7 @@ describe("server (payment flow)", () => {
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");
         expect(html).toContain("noreply@tickets.com");
       } finally {
-        Deno.env.delete("HOST_EMAIL_PROVIDER");
-        Deno.env.delete("HOST_EMAIL_API_KEY");
-        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+        restore();
       }
     });
   });

@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { ErrorCode } from "#lib/logger.ts";
 import { sendNtfyError } from "#lib/ntfy.ts";
+import { describeWithEnv } from "#test-utils";
 
-describe("ntfy", () => {
+describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
   let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
 
   beforeEach(() => {
@@ -15,7 +16,6 @@ describe("ntfy", () => {
 
   afterEach(() => {
     fetchStub.restore();
-    Deno.env.delete("NTFY_URL");
   });
 
   describe("sendNtfyError", () => {

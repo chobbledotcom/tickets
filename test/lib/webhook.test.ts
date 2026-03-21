@@ -14,6 +14,7 @@ import {
 import {
   createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   type EmailEntry,
   makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
@@ -83,11 +84,9 @@ describe("webhook", () => {
       return spyFirstArgs(errorSpy.calls);
     });
 
-  describe("buildWebhookPayload", () => {
+  describeWithEnv("buildWebhookPayload", { db: true }, () => {
     beforeEach(async () => {
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
-      await resetDb();
-      await createTestDbWithSetup();
       invalidateSettingsCache();
     });
 
@@ -238,15 +237,7 @@ describe("webhook", () => {
     });
   });
 
-  describe("sendWebhook", () => {
-    beforeEach(async () => {
-      await createTestDbWithSetup();
-    });
-
-    afterEach(() => {
-      resetDb();
-    });
-
+  describeWithEnv("sendWebhook", { db: true }, () => {
     test("sends POST request with correct payload", async () => {
       const payload: WebhookPayload = await buildWebhookPayload(
         defaultEntries(),
@@ -396,15 +387,7 @@ describe("webhook", () => {
     });
   });
 
-  describe("sendRegistrationWebhooks", () => {
-    beforeEach(async () => {
-      await createTestDbWithSetup();
-    });
-
-    afterEach(() => {
-      resetDb();
-    });
-
+  describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     test("sends to all unique webhook URLs", async () => {
       const entries = [
         makeEntry({ id: 1, webhook_url: "https://hook-a.com" }),
@@ -450,15 +433,7 @@ describe("webhook", () => {
     });
   });
 
-  describe("logAndNotifyRegistration", () => {
-    beforeEach(async () => {
-      await createTestDbWithSetup();
-    });
-
-    afterEach(() => {
-      resetDb();
-    });
-
+  describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     test("sends webhook when event has webhook_url", async () => {
       const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
       const dbEvent = await createTestEvent({
@@ -489,15 +464,7 @@ describe("webhook", () => {
     });
   });
 
-  describe("logAndNotifyMultiRegistration", () => {
-    beforeEach(async () => {
-      await createTestDbWithSetup();
-    });
-
-    afterEach(() => {
-      resetDb();
-    });
-
+  describeWithEnv("logAndNotifyMultiRegistration", { db: true }, () => {
     test("sends webhooks for multi-event registration", async () => {
       const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
       const dbEventA = await createTestEvent({

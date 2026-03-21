@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { encrypt, hashPassword } from "#lib/crypto.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
@@ -20,17 +20,15 @@ import {
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestInvite,
   createTestManagerSession,
+  describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   submitJoinForm,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -38,16 +36,7 @@ import {
   testCsrfToken,
 } from "#test-utils";
 
-describe("server (multi-user admin)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("users CRUD", () => {
     test("createTestDbWithSetup creates the owner user", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
