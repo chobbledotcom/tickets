@@ -55,6 +55,14 @@ describe("server (admin debug)", () => {
       expect(html).toContain("Settings");
     });
 
+    test("shows Build section", async () => {
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("Build");
+      expect(html).toContain("Timestamp");
+      expect(html).toContain("Commit");
+    });
+
     test("shows Apple Wallet section", async () => {
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();

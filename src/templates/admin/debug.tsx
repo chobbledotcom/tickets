@@ -50,6 +50,10 @@ export type DebugPageState = {
   database: {
     hostConfigured: boolean;
   };
+  build: {
+    timestamp: string;
+    commit: string;
+  };
   domain: string;
   theme: Theme;
 };
@@ -78,6 +82,22 @@ export const adminDebugPage = (
         Configuration status overview for troubleshooting. No secrets or keys
         are shown.
       </p>
+
+      <article>
+        <h2>Build</h2>
+        <table>
+          <tbody>
+            <tr>
+              <td>Timestamp</td>
+              <td>{s.build.timestamp || "—"}</td>
+            </tr>
+            <tr>
+              <td>Commit</td>
+              <td>{s.build.commit || "—"}</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
 
       <article>
         <h2>Apple Wallet</h2>
