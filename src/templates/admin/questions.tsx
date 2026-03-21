@@ -62,6 +62,7 @@ export const adminQuestionPage = (
   question: QuestionWithAnswers,
   session: AdminSession,
   error?: string,
+  answerCounts?: Map<number, number>,
 ): string =>
   String(
     <Layout title={`Question: ${question.text}`}>
@@ -97,9 +98,32 @@ export const adminQuestionPage = (
         </p>
       ) : (
         <ul class="answer-list">
-          {map((a: Answer) => (
+          {question.answers.map((a: Answer, i: number) => (
             <li>
               {a.text}
+              {answerCounts && <small> ({answerCounts.get(a.id) ?? 0})</small>}{" "}
+              {i > 0 && (
+                <CsrfForm
+                  action={`/admin/questions/${question.id}/answers/${a.id}/move-up`}
+                  class="inline"
+                >
+                  <button type="submit" class="link-button small">
+                    &#9650;
+                  </button>
+                </CsrfForm>
+              )}
+              {i > 0 && " "}
+              {i < question.answers.length - 1 && (
+                <CsrfForm
+                  action={`/admin/questions/${question.id}/answers/${a.id}/move-down`}
+                  class="inline"
+                >
+                  <button type="submit" class="link-button small">
+                    &#9660;
+                  </button>
+                </CsrfForm>
+              )}
+              {i < question.answers.length - 1 && " "}
               <a
                 href={`/admin/questions/${question.id}/answers/${a.id}/delete`}
                 class="danger small"
@@ -107,7 +131,7 @@ export const adminQuestionPage = (
                 Delete
               </a>
             </li>
-          ))(question.answers)}
+          ))}
         </ul>
       )}
 
@@ -251,12 +275,19 @@ export const adminEventQuestionsPage = (
               {` ${q.text}`}
               <small>
                 {" "}
-                ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""})
+                ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
+                {q.answers.length > 0 && (
+                  <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
+                )}
+                )
               </small>
             </label>
           ))(allQuestions)}
           <button type="submit">Save</button>
         </CsrfForm>
       )}
+      <p>
+        <a href="/admin/questions">Manage Questions</a>
+      </p>
     </Layout>,
   );

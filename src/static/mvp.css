@@ -1428,6 +1428,11 @@ button.secondary:hover {
   transition: none !important;
 }
 
+/* Answers cell in attendee table */
+.answers-cell {
+  font-size: smaller;
+}
+
 /* Guide page */
 body.guide h3 {
   margin-top: 3rem;

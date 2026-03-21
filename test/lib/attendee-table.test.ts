@@ -7,6 +7,7 @@ import {
   type AttendeeTableRow,
   formatAddressInline,
   sortAttendeeRows,
+  type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
@@ -589,5 +590,111 @@ describe("formatAddressInline", () => {
     expect(formatAddressInline("123 Main St\n\nNew York")).toBe(
       "123 Main St, New York",
     );
+  });
+});
+
+describe("AttendeeTable with questionData", () => {
+  const questionData: TableQuestionData = {
+    questions: [
+      {
+        id: 1,
+        text: "Size?",
+        answers: [
+          { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+          { id: 11, question_id: 1, text: "Large", sort_order: 1 },
+        ],
+      },
+      {
+        id: 2,
+        text: "Color?",
+        answers: [
+          { id: 20, question_id: 2, text: "Red", sort_order: 0 },
+          { id: 21, question_id: 2, text: "Blue", sort_order: 1 },
+        ],
+      },
+    ],
+    attendeeAnswerMap: new Map([
+      [1, [10, 20]],
+      [2, [11]],
+    ]),
+  };
+
+  test("renders Answers column header when questionData is provided", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
+        questionData,
+      }),
+    );
+    expect(html).toContain("<th>Answers</th>");
+  });
+
+  test("renders answer text in cell with smaller font", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
+        questionData,
+      }),
+    );
+    expect(html).toContain('class="answers-cell"');
+    expect(html).toContain("Small, Red");
+  });
+
+  test("renders tooltip with question: answer format", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
+        questionData,
+      }),
+    );
+    expect(html).toContain('title="Size?: Small, Color?: Red"');
+  });
+
+  test("renders empty answer for attendee with no answers", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        rows: [makeRow({ attendee: testAttendee({ id: 999 }) })],
+        questionData,
+      }),
+    );
+    expect(html).toContain('class="answers-cell"');
+    expect(html).toContain('title=""');
+  });
+
+  test("renders partial answers for attendee with some answers", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        rows: [makeRow({ attendee: testAttendee({ id: 2 }) })],
+        questionData,
+      }),
+    );
+    expect(html).toContain("Large");
+    expect(html).not.toContain("Small");
+  });
+
+  test("does not render Answers column when questionData is undefined", () => {
+    const html = AttendeeTable(makeOpts());
+    expect(html).not.toContain("<th>Answers</th>");
+    expect(html).not.toContain("answers-cell");
+  });
+
+  test("does not render Answers column when questions are empty", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        questionData: { questions: [], attendeeAnswerMap: new Map() },
+      }),
+    );
+    expect(html).not.toContain("<th>Answers</th>");
+  });
+
+  test("includes Answers column in colspan for empty table", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        rows: [],
+        questionData,
+      }),
+    );
+    expect(html).toContain("<th>Answers</th>");
+    expect(html).toContain("No attendees yet");
   });
 });

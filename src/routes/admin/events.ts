@@ -446,8 +446,16 @@ const renderEventPage = async (
           attendees,
           request,
         );
-        const flash = getFlash();
-        const phonePrefix = await getPhonePrefixFromDb();
+        const attendeeIds = filteredByDate.map((a) => a.id);
+        const [flash, phonePrefix, questions, attendeeAnswerMap] =
+          await Promise.all([
+            Promise.resolve(getFlash()),
+            getPhonePrefixFromDb(),
+            getQuestionsForEvent(event.id),
+            getAttendeeAnswersBatch(attendeeIds),
+          ]);
+        const questionData =
+          questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
         return htmlResponse(
           adminEventPage({
             event,
@@ -461,6 +469,7 @@ const renderEventPage = async (
             errorMessage: flash.error,
             phonePrefix,
             successMessage: flash.success,
+            questionData,
           }),
         );
       },

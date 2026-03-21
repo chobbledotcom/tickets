@@ -314,6 +314,30 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expect(html).toContain("/admin/event/1/edit");
       expect(html).toContain(">Edit<");
     });
+
+    test("shows question answer summary when questions assigned", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        name: "Q Event",
+        maxAttendees: 100,
+      });
+      const { questionsTable, answersTable, setEventQuestions } = await import(
+        "#lib/db/questions.ts"
+      );
+      const q = await questionsTable.insert({ text: "Size" });
+      await answersTable.insert({
+        questionId: q.id,
+        text: "Small",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("<th>Size</th>");
+      expect(html).toContain("Small (0)");
+    });
   });
 
   describe("GET /admin/event/:id/duplicate", () => {

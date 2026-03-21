@@ -26,6 +26,7 @@ import {
   adminEventEditPage,
   adminEventNewPage,
   adminEventPage,
+  buildAnswerSummaryRows,
   calculateTotalRevenue,
   countCheckedIn,
   countCheckedInRows,
@@ -3999,6 +4000,46 @@ describe("html", () => {
       );
       expect(html).toContain("No answers yet");
     });
+
+    test("renders zero for answer missing from counts map", () => {
+      const counts = new Map([[10, 2]]);
+      const html = adminQuestionPage(question, TEST_SESSION, undefined, counts);
+      expect(html).toContain("(2)");
+      expect(html).toContain("(0)");
+    });
+
+    test("renders answer counts when provided", () => {
+      const counts = new Map([
+        [10, 5],
+        [11, 3],
+      ]);
+      const html = adminQuestionPage(question, TEST_SESSION, undefined, counts);
+      expect(html).toContain("(5)");
+      expect(html).toContain("(3)");
+    });
+
+    test("renders move-up and move-down buttons", () => {
+      const html = adminQuestionPage(question, TEST_SESSION);
+      expect(html).toContain("/answers/10/move-down");
+      expect(html).not.toContain("/answers/10/move-up");
+      expect(html).toContain("/answers/11/move-up");
+      expect(html).not.toContain("/answers/11/move-down");
+    });
+
+    test("renders both move buttons for middle answer", () => {
+      const q = {
+        id: 1,
+        text: "Q?",
+        answers: [
+          { id: 10, question_id: 1, text: "A", sort_order: 0 },
+          { id: 11, question_id: 1, text: "B", sort_order: 1 },
+          { id: 12, question_id: 1, text: "C", sort_order: 2 },
+        ],
+      };
+      const html = adminQuestionPage(q, TEST_SESSION);
+      expect(html).toContain("/answers/11/move-up");
+      expect(html).toContain("/answers/11/move-down");
+    });
   });
 
   describe("adminQuestionDeletePage", () => {
@@ -4091,8 +4132,124 @@ describe("html", () => {
         new Set(),
         TEST_SESSION,
       );
-      expect(html).toContain("1 option)");
+      expect(html).toContain("1 option: Yes)");
       expect(html).not.toContain("1 options");
+    });
+
+    test("shows Manage Questions link below form", () => {
+      const event = testEventWithCount({ id: 1, name: "My Event" });
+      const questions = [
+        {
+          id: 1,
+          text: "Q?",
+          answers: [
+            { id: 10, question_id: 1, text: "A", sort_order: 0 },
+            { id: 11, question_id: 1, text: "B", sort_order: 1 },
+          ],
+        },
+      ];
+      const html = adminEventQuestionsPage(
+        event,
+        questions,
+        new Set(),
+        TEST_SESSION,
+      );
+      expect(html).toContain('href="/admin/questions"');
+      expect(html).toContain("Manage Questions");
+    });
+
+    test("lists option names in parentheses", () => {
+      const event = testEventWithCount({ id: 1, name: "My Event" });
+      const questions = [
+        {
+          id: 1,
+          text: "Size?",
+          answers: [
+            { id: 10, question_id: 1, text: "S", sort_order: 0 },
+            { id: 11, question_id: 1, text: "M", sort_order: 1 },
+            { id: 12, question_id: 1, text: "L", sort_order: 2 },
+          ],
+        },
+      ];
+      const html = adminEventQuestionsPage(
+        event,
+        questions,
+        new Set(),
+        TEST_SESSION,
+      );
+      expect(html).toContain("3 options: S, M, L)");
+    });
+  });
+
+  describe("buildAnswerSummaryRows", () => {
+    test("returns empty string when questionData is undefined", () => {
+      expect(buildAnswerSummaryRows(undefined)).toBe("");
+    });
+
+    test("returns empty string when no questions", () => {
+      expect(
+        buildAnswerSummaryRows({ questions: [], attendeeAnswerMap: new Map() }),
+      ).toBe("");
+    });
+
+    test("renders question with answer counts", () => {
+      const html = buildAnswerSummaryRows({
+        questions: [
+          {
+            id: 1,
+            text: "Size?",
+            answers: [
+              { id: 10, question_id: 1, text: "Small", sort_order: 0 },
+              { id: 11, question_id: 1, text: "Large", sort_order: 1 },
+            ],
+          },
+        ],
+        attendeeAnswerMap: new Map([
+          [1, [10]],
+          [2, [10]],
+          [3, [11]],
+        ]),
+      });
+      expect(html).toContain("<th>Size?</th>");
+      expect(html).toContain("Small (2)");
+      expect(html).toContain("Large (1)");
+    });
+
+    test("shows zero for answers with no selections", () => {
+      const html = buildAnswerSummaryRows({
+        questions: [
+          {
+            id: 1,
+            text: "Q?",
+            answers: [{ id: 10, question_id: 1, text: "A", sort_order: 0 }],
+          },
+        ],
+        attendeeAnswerMap: new Map(),
+      });
+      expect(html).toContain("A (0)");
+    });
+  });
+
+  describe("adminEventPage with questionData", () => {
+    test("renders answer summary rows in details table", () => {
+      const html = adminEventPage({
+        event: testEventWithCount({ id: 1, name: "E" }),
+        attendees: [],
+        allowedDomain: "example.com",
+        session: TEST_SESSION,
+        questionData: {
+          questions: [
+            {
+              id: 1,
+              text: "Size?",
+              answers: [{ id: 10, question_id: 1, text: "S", sort_order: 0 }],
+            },
+          ],
+          attendeeAnswerMap: new Map(),
+        },
+      });
+      expect(html).toContain("<th>Size?</th>");
+      expect(html).toContain("S (0)");
     });
   });
 });

@@ -26,7 +26,11 @@ import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { mergeEventFields } from "#lib/event-fields.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
-import { csvResponse, getDateFilter } from "#routes/admin/utils.ts";
+import {
+  csvResponse,
+  getDateFilter,
+  loadQuestionData,
+} from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   getPrivateKey,
@@ -228,6 +232,12 @@ const handleAdminCalendarGet = (request: Request) =>
       holidays,
     );
     const phonePrefix = await getPhonePrefixFromDb();
+
+    const questionData = await loadQuestionData(
+      attendees.map((a) => a.eventId),
+      attendees.map((a) => a.id),
+    );
+
     return htmlResponse(
       adminCalendarPage(
         attendees,
@@ -237,6 +247,7 @@ const handleAdminCalendarGet = (request: Request) =>
         availableDates,
         todayInTz(getTz()),
         phonePrefix,
+        questionData,
       ),
     );
   });

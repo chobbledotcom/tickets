@@ -32,6 +32,7 @@ import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
+  type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
   attachmentField,
@@ -93,6 +94,31 @@ export const sumQuantity = reduce(
   (sum: number, a: Attendee) => sum + a.quantity,
   0,
 );
+
+/** Build answer count summary rows for the details table */
+export const buildAnswerSummaryRows = (
+  questionData: TableQuestionData | undefined,
+): string => {
+  if (!questionData || questionData.questions.length === 0) return "";
+  // Count how many times each answer was selected
+  const answerCounts = new Map<number, number>();
+  for (const answerIds of questionData.attendeeAnswerMap.values()) {
+    for (const aid of answerIds) {
+      answerCounts.set(aid, (answerCounts.get(aid) ?? 0) + 1);
+    }
+  }
+  return questionData.questions
+    .map((q) => {
+      const parts = q.answers
+        .map((a) => {
+          const count = answerCounts.get(a.id) ?? 0;
+          return `${a.text} (${count})`;
+        })
+        .join(", ");
+      return `<tr><th>${q.text}</th><td>${parts}</td></tr>`;
+    })
+    .join("");
+};
 
 /** Concatenate strings (curried reducer for use in pipe) */
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
@@ -221,6 +247,7 @@ export type AdminEventPageOptions = {
   errorMessage?: string;
   phonePrefix?: string;
   successMessage?: string;
+  questionData?: TableQuestionData;
 };
 
 export const adminEventPage = ({
@@ -235,6 +262,7 @@ export const adminEventPage = ({
   errorMessage,
   phonePrefix,
   successMessage,
+  questionData,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -515,6 +543,7 @@ export const adminEventPage = ({
                   </td>
                 </tr>
               )}
+              <Raw html={buildAnswerSummaryRows(questionData)} />
               <tr>
                 <th>Registration Closes</th>
                 <td>
@@ -661,6 +690,7 @@ export const adminEventPage = ({
               activeFilter,
               returnUrl,
               phonePrefix,
+              questionData,
             })}
           />
         </div>

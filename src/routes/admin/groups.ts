@@ -29,7 +29,7 @@ import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { requirePrivateKey } from "#routes/admin/utils.ts";
+import { loadQuestionData, requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   htmlResponse,
@@ -178,6 +178,11 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
       }
       const allowedDomain = getAllowedDomain();
       const successMessage = getFlash().success;
+      const questionData = await loadQuestionData(
+        eventIds,
+        attendees.map((a: Attendee) => a.id),
+      );
+
       return htmlResponse(
         adminGroupDetailPage(
           group,
@@ -188,6 +193,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
           allowedDomain,
           phonePrefix,
           successMessage,
+          questionData,
         ),
       );
     }),

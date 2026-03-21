@@ -360,6 +360,44 @@ export const getQuestionWithAnswers = async (
   return (await groupJoinedRows(rows))[0]!;
 };
 
+/** Get total counts for each answer across all bookings */
+export const getAnswerCountsForQuestion = async (
+  questionId: number,
+): Promise<Map<number, number>> => {
+  const rows = await queryAll<{ answer_id: number; cnt: number }>(
+    `SELECT a.id AS answer_id, COUNT(aa.id) AS cnt
+     FROM answers a
+     LEFT JOIN attendee_answers aa ON aa.answer_id = a.id
+     WHERE a.question_id = ?
+     GROUP BY a.id`,
+    [questionId],
+  );
+  const result = new Map<number, number>();
+  for (const { answer_id, cnt } of rows) {
+    result.set(answer_id, cnt);
+  }
+  return result;
+};
+
+/** Swap the sort_order of two answers by their IDs */
+export const swapAnswerOrder = async (
+  answerId1: number,
+  sortOrder1: number,
+  answerId2: number,
+  sortOrder2: number,
+): Promise<void> => {
+  await executeBatch([
+    {
+      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
+      args: [sortOrder2, answerId1],
+    },
+    {
+      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
+      args: [sortOrder1, answerId2],
+    },
+  ]);
+};
+
 /** Get the next sort_order for a new answer in a question */
 export const getNextAnswerSortOrder = async (
   questionId: number,
