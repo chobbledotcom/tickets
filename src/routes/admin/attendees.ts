@@ -618,7 +618,8 @@ const editAttendeePost =
 
 /** Parse a quantity value from a form field, clamping to [1, max] */
 function parseQuantity(value: string, max: number): number {
-  return Math.max(1, Math.min(max, Math.floor(Number(value) || 1)));
+  const parsed = Math.floor(Number(value));
+  return Math.max(1, Math.min(max, Number.isNaN(parsed) ? 1 : parsed));
 }
 
 /** Handle POST /admin/attendees/:attendeeId */
