@@ -28,13 +28,6 @@ const FLASH_COOKIE_PREFIX = "flash_";
 const flashCookieName = (id: string): string =>
   `${FLASH_COOKIE_PREFIX}${id}`;
 
-/** Generate a short random hex ID for keying flash cookies */
-export const generateFlashId = (): string => {
-  const bytes = new Uint8Array(3);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-};
-
 /** Build a flash cookie containing a success or error message, keyed by ID */
 export const buildFlashCookie = (
   id: string,

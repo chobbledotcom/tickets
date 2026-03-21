@@ -6,7 +6,6 @@ import {
   buildSessionCookie,
   clearFlashCookie,
   clearSessionCookie,
-  generateFlashId,
   getSessionCookieName,
   isSecureMode,
   parseFlashValue,
@@ -99,18 +98,6 @@ describe("clearSessionCookie", () => {
     expect(cookie).toContain("session=");
     expectDevCookieAttributes(cookie);
     expect(cookie).toContain("Max-Age=0");
-  });
-});
-
-describe("generateFlashId", () => {
-  test("returns a 6-character hex string", () => {
-    const id = generateFlashId();
-    expect(id).toMatch(/^[0-9a-f]{6}$/);
-  });
-
-  test("generates unique IDs", () => {
-    const ids = new Set(Array.from({ length: 100 }, () => generateFlashId()));
-    expect(ids.size).toBe(100);
   });
 });
 

@@ -3,11 +3,7 @@
  */
 
 import { compact, map, pipe, reduce } from "#fp";
-import {
-  buildFlashCookie,
-  generateFlashId,
-  getSessionCookieName,
-} from "#lib/cookies.ts";
+import { buildFlashCookie, getSessionCookieName } from "#lib/cookies.ts";
 import {
   generateSecureToken,
   getPrivateKeyFromSession,
@@ -26,7 +22,7 @@ import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#lib/forms.tsx";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
+import { ErrorCode, getRequestId, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
 import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
 import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
@@ -327,7 +323,7 @@ export const redirect = (
 ): Response => {
   const target = opts?.form?.get("return_url") || url;
   const u = new URL(target, "http://localhost");
-  const flashId = generateFlashId();
+  const flashId = getRequestId();
   u.searchParams.set("flash", flashId);
   if (opts?.formId) {
     u.searchParams.set("form", opts.formId);

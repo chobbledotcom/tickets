@@ -1236,7 +1236,7 @@ export const expectAdminRedirect: (response: Response) => Response =
   expectRedirect("/admin");
 
 /** Fixed flash ID used in tests for deterministic keyed cookies */
-export const FLASH_TEST_ID = "test01";
+export const FLASH_TEST_ID = "t001";
 
 /**
  * Assert the response carries a keyed flash cookie with the given message.

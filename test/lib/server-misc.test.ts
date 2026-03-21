@@ -463,7 +463,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const url = new URL(location, "http://localhost");
       const flashId = url.searchParams.get("flash");
       expect(flashId).toBeDefined();
-      expect(flashId!.length).toBe(6);
+      expect(flashId!.length).toBe(4);
     });
 
     test("keys flash cookie by the flash ID in the URL", () => {
