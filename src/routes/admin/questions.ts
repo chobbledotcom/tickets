@@ -24,6 +24,7 @@ import type { AdminSession } from "#lib/types.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  type FormParams,
   htmlResponse,
   notFoundResponse,
   ownerFormById,
@@ -40,18 +41,14 @@ import {
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
 
-/** Extract trimmed text value from a form */
-const extractText = (form: URLSearchParams): string =>
-  (form.get("text") || "").trim();
-
 /** Validate text is non-empty, returning error page if blank */
 const requireTextOrError = async (
-  form: URLSearchParams,
+  form: FormParams,
   questionId: number,
   session: AdminSession,
   errorMsg: string,
 ): Promise<string | Response> => {
-  const text = extractText(form);
+  const text = form.getString("text");
   if (text) return text;
   const question = await getQuestionWithAnswers(questionId);
   return question
@@ -70,7 +67,7 @@ const handleQuestionsGet = (request: Request): Promise<Response> =>
 /** Handle POST /admin/questions (create question) */
 const handleQuestionsPost = (request: Request) =>
   withOwnerAuthForm(request, async (session, form) => {
-    const text = extractText(form);
+    const text = form.getString("text");
     if (!text) {
       return htmlResponse(
         adminQuestionsPage(

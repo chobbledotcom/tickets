@@ -662,7 +662,7 @@ export const ownerFormById =
     handler: (
       id: number,
       session: AuthSession,
-      form: URLSearchParams,
+      form: FormParams,
     ) => Response | Promise<Response>,
   ): IdRouteHandler =>
   (request, { id }) =>
