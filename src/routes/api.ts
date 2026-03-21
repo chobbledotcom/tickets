@@ -168,10 +168,8 @@ const handleGetEvent = withActiveEvent(async (_request, event) => {
 /** GET /api/events/:slug/availability — check if spots are available */
 const handleCheckAvailability = withActiveEvent(async (request, event) => {
   const url = new URL(request.url);
-  const quantity = Math.max(
-    1,
-    Number.parseInt(url.searchParams.get("quantity") || "1", 10) || 1,
-  );
+  const parsed = Number.parseInt(url.searchParams.get("quantity") || "1", 10);
+  const quantity = Math.max(1, Number.isNaN(parsed) ? 1 : parsed);
   const date = url.searchParams.get("date") || undefined;
   return apiResponse({
     available: await hasAvailableSpots(event.id, quantity, date),

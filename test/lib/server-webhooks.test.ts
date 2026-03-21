@@ -526,6 +526,49 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("extractIntent preserves quantity 0 from metadata", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_qty_zero",
+          payment_status: "paid",
+          payment_intent: "pi_qty_zero",
+          amount_total: 0,
+          metadata: {
+            event_id: String(event.id),
+            name: "John",
+            email: "john@example.com",
+            quantity: "0",
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_qty_zero"),
+        );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
+        expect(response.status).toBe(200);
+
+        // Verify attendee was created with quantity 0, not silently converted to 1
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.quantity).toBe(0);
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
     test("payment success reads orderId param for Square redirect", async () => {
       await setupStripe();
 

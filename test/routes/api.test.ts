@@ -277,6 +277,17 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("preserves quantity 0 instead of defaulting to 1", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const response = await handleRequest(
+        apiRequest(`/api/events/${event.slug}/availability?quantity=0`),
+      );
+      expect(response.status).toBe(200);
+      const body = await jsonBody(response);
+      // quantity=0 should be treated as 0, not silently become 1
+      expect(body.available).toBe(true);
+    });
+
     test("handles invalid quantity gracefully", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const response = await handleRequest(

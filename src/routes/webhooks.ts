@@ -79,7 +79,8 @@ const isCartSession = (metadata: SessionMetadata): boolean =>
  */
 const extractIntent = (session: ValidatedPaymentSession): BookingIntent => {
   const eventId = Number.parseInt(session.metadata.event_id, 10);
-  const quantity = Number.parseInt(session.metadata.quantity, 10) || 1;
+  const parsed = Number.parseInt(session.metadata.quantity, 10);
+  const quantity = Number.isNaN(parsed) ? 1 : parsed;
 
   if (!Number.isFinite(eventId) || eventId <= 0) {
     throw new Error(
