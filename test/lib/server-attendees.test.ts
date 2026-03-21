@@ -20,8 +20,8 @@ import {
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirect,
   expectRedirectWithFlash,
+  FLASH_TEST_ID,
   flashCookieHeader,
   getAttendeesRaw,
   mockFormRequest,
@@ -408,9 +408,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expectRedirect(`/admin/event/${event.id}`)(response);
-      expectFlash(response, expect.stringContaining(""), false);
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        undefined,
+        false,
+      )(response);
 
       // Verify attendee was NOT deleted (still exists)
       const rows = await getAttendeesRaw(event.id);
@@ -437,9 +439,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expectRedirect(`/admin/event/${event.id}`)(response);
-      expectFlash(response, expect.stringContaining(""), false);
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        undefined,
+        false,
+      )(response);
 
       // Verify attendee was NOT deleted
       const rows = await getAttendeesRaw(event.id);
@@ -945,18 +949,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("event page shows success message when flash cookie present", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie: `${cookie}; ${flashCookieHeader("Added Jane Doe")}`,
-      });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Added Jane Doe")}`,
+        },
+      );
       await expectHtmlResponse(response, 200, "Added Jane Doe");
     });
 
     test("event page shows error message when flash cookie present", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie: `${cookie}; ${flashCookieHeader("Not enough spots", false)}`,
-      });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Not enough spots", false)}`,
+        },
+      );
       await expectHtmlResponse(response, 200, "Not enough spots");
     });
   });
@@ -1384,9 +1394,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("event page shows edit success message", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie: `${cookie}; ${flashCookieHeader("Updated Jane Doe")}`,
-      });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Updated Jane Doe")}`,
+        },
+      );
       await expectHtmlResponse(response, 200, "Updated Jane Doe");
     });
 
@@ -2124,7 +2137,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const cookie = await testCookie();
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}`,
+        `/admin/attendees/${attendee.id}?flash=${FLASH_TEST_ID}`,
         {
           cookie: `${cookie}; ${flashCookieHeader("Payment status is up to date")}`,
         },

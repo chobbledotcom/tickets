@@ -26,6 +26,7 @@ import {
   createTestEvent,
   expectFlash,
   extractCsrfToken,
+  FLASH_TEST_ID,
   flashCookieHeader,
   mockRequest,
   resetDb,
@@ -254,13 +255,15 @@ describe("API Keys", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toBe("/admin/api-keys");
+      const locationUrl = new URL(location, "http://localhost");
+      locationUrl.searchParams.delete("flash");
+      expect(locationUrl.pathname).toBe("/admin/api-keys");
       expectFlash(response, expect.stringContaining("API key created\n"));
 
       // Follow the redirect and verify the key is shown
       const flashCookie = response.headers
         .getSetCookie()
-        .find((c) => c.startsWith("flash="))!;
+        .find((c) => c.startsWith("flash_"))!;
       const redirectResponse = await handleRequest(
         mockRequest(location, {
           headers: { cookie: `${cookie}; ${flashCookie.split(";")[0]}` },
@@ -386,7 +389,7 @@ describe("API Keys", () => {
     test("GET /admin/api-keys shows success message from flash cookie", async () => {
       const cookie = await testCookie();
       const response = await handleRequest(
-        mockRequest("/admin/api-keys", {
+        mockRequest(`/admin/api-keys?flash=${FLASH_TEST_ID}`, {
           headers: { cookie: `${cookie}; ${flashCookieHeader("done")}` },
         }),
       );
@@ -398,7 +401,7 @@ describe("API Keys", () => {
     test("GET /admin/api-keys shows error message from flash cookie", async () => {
       const cookie = await testCookie();
       const response = await handleRequest(
-        mockRequest("/admin/api-keys", {
+        mockRequest(`/admin/api-keys?flash=${FLASH_TEST_ID}`, {
           headers: {
             cookie: `${cookie}; ${flashCookieHeader("key failed", false)}`,
           },
