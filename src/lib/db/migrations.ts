@@ -731,6 +731,16 @@ export const initDb = async (): Promise<void> => {
   await runMigration(
     "CREATE INDEX idx_event_questions_event_id ON event_questions(event_id)",
   );
+
+  // Migration: replace single-column indexes with composite indexes matching query access patterns
+  await runMigration("DROP INDEX IF EXISTS idx_answers_question_id");
+  await runMigration(
+    "CREATE INDEX idx_answers_question_id_sort ON answers(question_id, sort_order)",
+  );
+  await runMigration("DROP INDEX IF EXISTS idx_event_questions_event_id");
+  await runMigration(
+    "CREATE INDEX idx_event_questions_event_id_sort ON event_questions(event_id, sort_order, question_id)",
+  );
   await runMigration(
     "CREATE INDEX idx_attendee_answers_attendee_id ON attendee_answers(attendee_id)",
   );
