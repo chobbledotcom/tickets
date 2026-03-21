@@ -19,7 +19,6 @@ import {
   createTestDb,
   describeWithEnv,
   resetDb,
-  setTestEnv,
   withMocks,
 } from "#test-utils";
 
@@ -59,21 +58,6 @@ const stubFetchWithRecorder = (
     },
   );
 
-/** Set up BUNNY_API_KEY and ALLOWED_DOMAIN env vars for a describe block */
-const useBunnyEnv = () => {
-  let restoreEnv: () => void;
-
-  beforeEach(() => {
-    restoreEnv = setTestEnv({ BUNNY_API_KEY: "test-bunny-key" });
-    setAllowedDomainForTest("mysite.bunny.run");
-  });
-
-  afterEach(() => {
-    restoreEnv();
-    resetAllowedDomain();
-  });
-};
-
 /** Build a pull zone Items response */
 const pullZoneResponse = (
   items: { Id: number; hostname: string }[],
@@ -86,67 +70,70 @@ const pullZoneResponse = (
   HasMoreItems: hasMore,
 });
 
-describe("bunny-cdn", () => {
-  describeWithEnv(
-    "isBunnyCdnEnabled",
-    { env: { BUNNY_API_KEY: undefined } },
-    () => {
-      test("returns false when BUNNY_API_KEY is not set", () => {
-        expect(isBunnyCdnEnabled()).toBe(false);
-      });
+describeWithEnv(
+  "isBunnyCdnEnabled",
+  { env: { BUNNY_API_KEY: undefined } },
+  () => {
+    test("returns false when BUNNY_API_KEY is not set", () => {
+      expect(isBunnyCdnEnabled()).toBe(false);
+    });
 
-      test("returns true when BUNNY_API_KEY is set", () => {
-        Deno.env.set("BUNNY_API_KEY", "test-key");
-        expect(isBunnyCdnEnabled()).toBe(true);
-      });
-    },
-  );
+    test("returns true when BUNNY_API_KEY is set", () => {
+      Deno.env.set("BUNNY_API_KEY", "test-key");
+      expect(isBunnyCdnEnabled()).toBe(true);
+    });
+  },
+);
 
-  describe("getCdnHostname", () => {
+describe("getCdnHostname", () => {
+  afterEach(() => resetAllowedDomain());
+
+  test("replaces .bunny.run with .b-cdn.net", () => {
+    setAllowedDomainForTest("mysite.bunny.run");
+    expect(getCdnHostname()).toBe("mysite.b-cdn.net");
+  });
+
+  test("returns domain unchanged when not .bunny.run", () => {
+    setAllowedDomainForTest("example.com");
+    expect(getCdnHostname()).toBe("example.com");
+  });
+});
+
+describe("validateCustomDomain", () => {
+  test("delegates to bunnyCdnApi.validateCustomDomain", async () => {
+    const mockResult = { ok: true as const };
+    await withMockValidate(mockResult, async () => {
+      const result = await validateCustomDomain("test.example.com");
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  test("returns error from bunnyCdnApi", async () => {
+    const mockResult = { ok: false as const, error: "test error" };
+    await withMockValidate(mockResult, async () => {
+      const result = await validateCustomDomain("test.example.com");
+      expect(result).toEqual(mockResult);
+    });
+  });
+});
+
+describeWithEnv(
+  "getBunnyApiKey",
+  { env: { BUNNY_API_KEY: undefined } },
+  () => {
+    test("getBunnyApiKey returns the env var value", () => {
+      Deno.env.set("BUNNY_API_KEY", "my-api-key");
+      expect(getBunnyApiKey()).toBe("my-api-key");
+    });
+  },
+);
+
+describeWithEnv(
+  "findPullZoneId",
+  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  () => {
+    beforeEach(() => setAllowedDomainForTest("mysite.bunny.run"));
     afterEach(() => resetAllowedDomain());
-
-    test("replaces .bunny.run with .b-cdn.net", () => {
-      setAllowedDomainForTest("mysite.bunny.run");
-      expect(getCdnHostname()).toBe("mysite.b-cdn.net");
-    });
-
-    test("returns domain unchanged when not .bunny.run", () => {
-      setAllowedDomainForTest("example.com");
-      expect(getCdnHostname()).toBe("example.com");
-    });
-  });
-
-  describe("validateCustomDomain", () => {
-    test("delegates to bunnyCdnApi.validateCustomDomain", async () => {
-      const mockResult = { ok: true as const };
-      await withMockValidate(mockResult, async () => {
-        const result = await validateCustomDomain("test.example.com");
-        expect(result).toEqual(mockResult);
-      });
-    });
-
-    test("returns error from bunnyCdnApi", async () => {
-      const mockResult = { ok: false as const, error: "test error" };
-      await withMockValidate(mockResult, async () => {
-        const result = await validateCustomDomain("test.example.com");
-        expect(result).toEqual(mockResult);
-      });
-    });
-  });
-
-  describeWithEnv(
-    "getBunnyApiKey",
-    { env: { BUNNY_API_KEY: undefined } },
-    () => {
-      test("getBunnyApiKey returns the env var value", () => {
-        Deno.env.set("BUNNY_API_KEY", "my-api-key");
-        expect(getBunnyApiKey()).toBe("my-api-key");
-      });
-    },
-  );
-
-  describe("findPullZoneId", () => {
-    useBunnyEnv();
 
     test("returns pull zone ID when matching hostname is found", async () => {
       await withMocks(
@@ -244,10 +231,15 @@ describe("bunny-cdn", () => {
         },
       );
     });
-  });
+  },
+);
 
-  describe("validateCustomDomain (real implementation)", () => {
-    useBunnyEnv();
+describeWithEnv(
+  "validateCustomDomain (real implementation)",
+  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  () => {
+    beforeEach(() => setAllowedDomainForTest("mysite.bunny.run"));
+    afterEach(() => resetAllowedDomain());
 
     /** Helper: stub findPullZoneId to return a fixed ID */
     const withFixedPullZoneId = (fn: () => Promise<void>): Promise<void> => {
@@ -501,42 +493,42 @@ describe("bunny-cdn", () => {
         );
       });
     });
+  },
+);
+
+describe("custom domain settings", () => {
+  beforeEach(async () => {
+    await createTestDb();
   });
 
-  describe("custom domain settings", () => {
-    beforeEach(async () => {
-      await createTestDb();
-    });
+  afterEach(() => {
+    resetDb();
+  });
 
-    afterEach(() => {
-      resetDb();
-    });
+  test("getCustomDomainFromDb returns null when not set", async () => {
+    expect(await getCustomDomainFromDb()).toBeNull();
+  });
 
-    test("getCustomDomainFromDb returns null when not set", async () => {
-      expect(await getCustomDomainFromDb()).toBeNull();
-    });
+  test("updateCustomDomain stores and retrieves domain", async () => {
+    await updateCustomDomain("tickets.example.com");
+    expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+  });
 
-    test("updateCustomDomain stores and retrieves domain", async () => {
-      await updateCustomDomain("tickets.example.com");
-      expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
-    });
+  test("updateCustomDomain with empty string clears domain", async () => {
+    await updateCustomDomain("tickets.example.com");
+    await updateCustomDomain("");
+    expect(await getCustomDomainFromDb()).toBeNull();
+  });
 
-    test("updateCustomDomain with empty string clears domain", async () => {
-      await updateCustomDomain("tickets.example.com");
-      await updateCustomDomain("");
-      expect(await getCustomDomainFromDb()).toBeNull();
-    });
+  test("getCustomDomainLastValidatedFromDb returns null when not set", async () => {
+    expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
+  });
 
-    test("getCustomDomainLastValidatedFromDb returns null when not set", async () => {
-      expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
-    });
-
-    test("updateCustomDomainLastValidated stores a timestamp", async () => {
-      await updateCustomDomainLastValidated();
-      const value = await getCustomDomainLastValidatedFromDb();
-      expect(value).not.toBeNull();
-      // Should be a valid ISO 8601 date
-      expect(new Date(value!).toISOString()).toBe(value);
-    });
+  test("updateCustomDomainLastValidated stores a timestamp", async () => {
+    await updateCustomDomainLastValidated();
+    const value = await getCustomDomainLastValidatedFromDb();
+    expect(value).not.toBeNull();
+    // Should be a valid ISO 8601 date
+    expect(new Date(value!).toISOString()).toBe(value);
   });
 });

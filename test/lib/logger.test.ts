@@ -25,6 +25,8 @@ import {
   setTestEnv,
 } from "#test-utils";
 
+// Outer describe ensures sequential execution — logError's fire-and-forget
+// promises must settle before later blocks spy on the same console methods.
 describe("logger", () => {
   describe("redactPath", () => {
     test("redacts ticket slugs", () => {
