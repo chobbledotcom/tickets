@@ -12,7 +12,7 @@ import {
   getAllQuestionsWithAnswers,
   getNextAnswerSortOrder,
   getQuestion,
-  getQuestionsForEvent,
+  getEventQuestionIds,
   getQuestionWithAnswers,
   type QuestionWithAnswers,
   questionsTable,
@@ -228,15 +228,15 @@ const handleDeleteAnswerPost = answerFormRoute(
 const handleEventQuestionsGet = ownerGetById(
   getEventWithCount,
   async (event, session) => {
-    const [allQuestions, assigned] = await Promise.all([
+    const [allQuestions, assignedIds] = await Promise.all([
       getAllQuestionsWithAnswers(),
-      getQuestionsForEvent(event.id),
+      getEventQuestionIds(event.id),
     ]);
     return htmlResponse(
       adminEventQuestionsPage(
         event,
         allQuestions,
-        new Set(assigned.map((q) => q.id)),
+        new Set(assignedIds),
         session,
       ),
     );
