@@ -22,6 +22,7 @@ import {
   setupStripe,
   stubWebhookVerify,
   webhookMeta,
+  withExpectedError,
 } from "#test-utils";
 
 describeWithEnv("server (webhooks)", { db: true }, () => {
@@ -351,8 +352,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        const response = await withExpectedError(() =>
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          )
         );
         // Corrupt metadata from a verified origin is a bug — surfaces as 503
         expect(response.status).toBe(503);
@@ -1703,8 +1706,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        const response = await withExpectedError(() =>
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          )
         );
         // Corrupt metadata from a verified origin is a bug — surfaces as 503
         expect(response.status).toBe(503);
@@ -3470,8 +3475,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        const response = await withExpectedError(() =>
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          )
         );
         // Corrupt metadata from a verified origin is a bug — surfaces as 503
         expect(response.status).toBe(503);
@@ -3517,8 +3524,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        const response = await withExpectedError(() =>
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          )
         );
         // Corrupt metadata from a verified origin is a bug — surfaces as 503
         expect(response.status).toBe(503);
