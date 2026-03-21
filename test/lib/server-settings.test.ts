@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import {
@@ -18,8 +19,10 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
-  expectRedirect,
+  expectRedirectWithFlash,
+  flashCookieHeader,
   installUrlHandler,
   invalidateTestDbCache,
   mockAdminLoginRequest,
@@ -60,18 +63,19 @@ describe("server (admin settings)", () => {
     });
 
     test("does not display success when form param is missing", async () => {
-      const response = await awaitTestRequest(
-        "/admin/settings?success=Test+success+message",
-        { cookie: await testCookie() },
-      );
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: `${await testCookie()}; ${flashCookieHeader("Test success message")}`,
+      });
       const html = await response.text();
       expect(html).not.toContain('class="success"');
     });
 
     test("displays success message on the matching form when form param is provided", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings?success=Country+updated&form=settings-country",
-        { cookie: await testCookie() },
+        "/admin/settings?form=settings-country",
+        {
+          cookie: `${await testCookie()}; ${flashCookieHeader("Country updated")}`,
+        },
       );
       const html = await response.text();
       expect(html).toContain('id="settings-country"');
@@ -84,8 +88,10 @@ describe("server (admin settings)", () => {
 
     test("does not show success on non-matching forms", async () => {
       const response = await awaitTestRequest(
-        "/admin/settings?success=Country+updated&form=settings-country",
-        { cookie: await testCookie() },
+        "/admin/settings?form=settings-country",
+        {
+          cookie: `${await testCookie()}; ${flashCookieHeader("Country updated")}`,
+        },
       );
       const html = await response.text();
       // The theme form should not contain the success message
@@ -228,11 +234,12 @@ describe("server (admin settings)", () => {
       // Should redirect to admin login with success message and session cleared
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toContain("/admin?success=");
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Password changed",
-      );
-      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+      expect(location).toContain("/admin");
+      expectFlash(response, expect.stringContaining("Password changed"));
+      const sessionCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+      expect(sessionCookie).toContain("Max-Age=0");
 
       // Verify old session is invalidated
       const dashboardResponse = await awaitTestRequest("/admin/", {
@@ -248,7 +255,7 @@ describe("server (admin settings)", () => {
           password: "newpassword123",
         }),
       );
-      expectRedirect("/admin?success=Logged+in")(newLoginResponse);
+      expectRedirectWithFlash("/admin", "Logged in")(newLoginResponse);
     });
 
     test("returns error when password update fails", async () => {
@@ -374,13 +381,9 @@ describe("server (admin settings)", () => {
 
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(location).toContain("/admin/settings?success=");
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-            "Stripe key updated",
-          );
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-            "webhook configured",
-          );
+          expect(location).toContain("/admin/settings");
+          expectFlash(response, expect.stringContaining("Stripe key updated"));
+          expectFlash(response, expect.stringContaining("webhook configured"));
         },
       );
     });
@@ -642,9 +645,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Embed host restrictions removed",
+      expectFlash(
+        response,
+        expect.stringContaining("Embed host restrictions removed"),
       );
       expect(await getEmbedHostsFromDb()).toBe(null);
     });
@@ -674,9 +677,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Allowed embed hosts updated",
+      expectFlash(
+        response,
+        expect.stringContaining("Allowed embed hosts updated"),
       );
       expect(await getEmbedHostsFromDb()).toBe(
         "example.com, *.sub.example.com",
@@ -754,9 +757,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Square credentials updated",
+      expectFlash(
+        response,
+        expect.stringContaining("Square credentials updated"),
       );
     });
 
@@ -833,9 +836,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Square webhook signature key updated",
+      expectFlash(
+        response,
+        expect.stringContaining("Square webhook signature key updated"),
       );
     });
   });
@@ -978,9 +981,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Payment provider set to square",
+      expectFlash(
+        response,
+        expect.stringContaining("Payment provider set to square"),
       );
     });
   });
@@ -1006,9 +1009,9 @@ describe("server (admin settings)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Payment provider set to stripe",
+      expectFlash(
+        response,
+        expect.stringContaining("Payment provider set to stripe"),
       );
     });
 
@@ -1024,9 +1027,9 @@ describe("server (admin settings)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Payment provider disabled",
+      expectFlash(
+        response,
+        expect.stringContaining("Payment provider disabled"),
       );
     });
 
@@ -1146,9 +1149,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Terms and conditions updated",
+      expectFlash(
+        response,
+        expect.stringContaining("Terms and conditions updated"),
       );
     });
 
@@ -1180,9 +1183,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Terms and conditions updated",
+      expectFlash(
+        response,
+        expect.stringContaining("Terms and conditions updated"),
       );
     });
 
@@ -1212,9 +1215,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Terms and conditions removed",
+      expectFlash(
+        response,
+        expect.stringContaining("Terms and conditions removed"),
       );
     });
 
@@ -1228,9 +1231,9 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Terms and conditions removed",
+      expectFlash(
+        response,
+        expect.stringContaining("Terms and conditions removed"),
       );
     });
 
@@ -1330,10 +1333,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Business email updated",
-      );
+      expectFlash(response, expect.stringContaining("Business email updated"));
 
       const saved = await getBusinessEmailFromDb();
       expect(saved).toBe("contact@example.com");
@@ -1361,10 +1361,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Business email cleared",
-      );
+      expectFlash(response, expect.stringContaining("Business email cleared"));
 
       const saved = await getBusinessEmailFromDb();
       expect(saved).toBe("");
@@ -1628,7 +1625,7 @@ describe("server (admin settings)", () => {
           ),
         );
 
-        expectRedirect("/setup/?success=Database+reset")(response);
+        expectRedirectWithFlash("/setup/", "Database reset")(response);
         expect(
           deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
         ).toBe(true);
@@ -1706,10 +1703,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Theme updated to dark",
-      );
+      expectFlash(response, expect.stringContaining("Theme updated to dark"));
     });
 
     test("updates theme to light successfully", async () => {
@@ -1725,10 +1719,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Theme updated to light",
-      );
+      expectFlash(response, expect.stringContaining("Theme updated to light"));
     });
 
     test("theme setting persists in database", async () => {
@@ -1807,10 +1798,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Public site enabled",
-      );
+      expectFlash(response, expect.stringContaining("Public site enabled"));
     });
 
     test("disables public site", async () => {
@@ -1826,10 +1814,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Public site disabled",
-      );
+      expectFlash(response, expect.stringContaining("Public site disabled"));
     });
 
     test("setting persists in database", async () => {
@@ -1902,10 +1887,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Country updated",
-      );
+      expectFlash(response, expect.stringContaining("Country updated"));
     });
 
     test("rejects invalid country code", async () => {
@@ -2008,9 +1990,9 @@ describe("server (admin settings)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Booking fee updated to 1.5%",
+      expectFlash(
+        response,
+        expect.stringContaining("Booking fee updated to 1.5%"),
       );
 
       const { settingsApi } = await import("#lib/db/settings.ts");
@@ -2029,9 +2011,9 @@ describe("server (admin settings)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-        "Booking fee updated to 0%",
+      expectFlash(
+        response,
+        expect.stringContaining("Booking fee updated to 0%"),
       );
     });
 
@@ -2265,11 +2247,7 @@ describe("server (admin settings)", () => {
           );
 
           expect(response.status).toBe(302);
-          expect(
-            decodeURIComponent(
-              response.headers.get("location")!.replaceAll("+", " "),
-            ),
-          ).toContain("unchanged");
+          expectFlash(response, expect.stringContaining("unchanged"));
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_original");
         },
       );
@@ -2342,11 +2320,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(
-        decodeURIComponent(
-          response.headers.get("location")!.replaceAll("+", " "),
-        ),
-      ).toContain("unchanged");
+      expectFlash(response, expect.stringContaining("unchanged"));
     });
 
     test("submitting sentinel for email API key does not overwrite existing key", async () => {
@@ -2464,11 +2438,7 @@ describe("server (admin settings)", () => {
           );
 
           expect(response.status).toBe(302);
-          expect(
-            decodeURIComponent(
-              response.headers.get("location")!.replaceAll("+", " "),
-            ),
-          ).toContain("unchanged");
+          expectFlash(response, expect.stringContaining("unchanged"));
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_keep_me");
         },
       );

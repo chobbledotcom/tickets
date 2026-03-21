@@ -17,7 +17,9 @@ import {
   deleteTestGroup,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
   mockRequest,
@@ -121,9 +123,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toMatch(
-        /\/admin\/group\/\d+\?success=Group\+created$/,
-      );
+      expect(response.headers.get("location")).toMatch(/\/admin\/group\/\d+$/);
+      expectFlash(response, "Group created");
     });
 
     test("creates group with auto-generated slug", async () => {
@@ -194,9 +195,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/group/${group.id}?success=Group+updated`,
-      );
+      expectRedirectWithFlash(
+        `/admin/group/${group.id}`,
+        "Group updated",
+      )(response);
     });
 
     test("updates group", async () => {
@@ -274,9 +276,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toMatch(
-        /\/admin\/groups\?success=Group\+deleted$/,
-      );
+      expect(response.headers.get("location")).toMatch(/\/admin\/groups$/);
+      expectFlash(response, "Group deleted");
     });
 
     test("rejects deletion when name confirmation is wrong", async () => {
@@ -627,6 +628,25 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expectAdminRedirect(response);
     });
 
+    test("accessible to managers", async () => {
+      const group = await createTestGroup({
+        name: "Add Allow",
+        slug: "add-allow",
+      });
+      const cookie = await createTestManagerSession("mgr-add-events");
+      const csrfToken = await signCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/group/${group.id}/add-events`,
+          {
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+    });
+
     test("returns 404 for non-existent group", async () => {
       const { response } = await adminFormPost("/admin/group/999/add-events", {
         event_ids: "1",
@@ -658,9 +678,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/group/${group.id}?success=Events+added+to+group`,
-      );
+      expectRedirectWithFlash(
+        `/admin/group/${group.id}`,
+        "Events added to group",
+      )(response);
 
       const { getEvent } = await import("#lib/db/events.ts");
       const updated1 = await getEvent(event1.id);
@@ -686,9 +707,50 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/group/${group.id}?success=Events+added+to+group`,
+      expectRedirectWithFlash(
+        `/admin/group/${group.id}`,
+        "Events added to group",
+      )(response);
+    });
+
+    test("rejects adding event with mismatched type", async () => {
+      const group = await createTestGroup({
+        name: "Type Check",
+        slug: "type-check",
+      });
+      await createTestEvent({
+        name: "Standard In Group",
+        groupId: group.id,
+        eventType: "standard",
+      });
+      const dailyEvent = await createTestEvent({
+        name: "Daily Ungrouped",
+        eventType: "daily",
+      });
+
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/group/${group.id}/add-events`,
+          {
+            event_ids: String(dailyEvent.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        "This group already contains standard events — all events in a group must be the same type",
+        false,
+      );
+
+      // Verify event was NOT assigned
+      const { getEvent } = await import("#lib/db/events.ts");
+      const unchanged = await getEvent(dailyEvent.id);
+      expect(unchanged?.group_id).toBe(0);
     });
   });
 
@@ -709,7 +771,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location") ?? "";
-      expect(location).toMatch(/\/admin\/group\/\d+\?success=Group\+created$/);
+      expect(location).toMatch(/\/admin\/group\/\d+$/);
+      expectFlash(response, "Group created");
     });
 
     test("edit redirects to group detail page", async () => {
@@ -732,9 +795,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        `/admin/group/${group.id}?success=Group+updated`,
-      );
+      expectRedirectWithFlash(
+        `/admin/group/${group.id}`,
+        "Group updated",
+      )(response);
     });
   });
 

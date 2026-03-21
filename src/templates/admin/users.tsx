@@ -32,8 +32,8 @@ const userStatus = (user: DisplayUser): string => {
  */
 export interface UsersPageOpts {
   inviteLink: string;
-  success: string;
-  error: string;
+  success?: string;
+  error?: string;
   currentUserId: number;
 }
 

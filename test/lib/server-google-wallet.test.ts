@@ -18,6 +18,7 @@ import {
   createTestAttendeeWithToken,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   generateGoogleTestCreds,
   loginAsAdmin,
@@ -271,10 +272,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     );
 
     expect(response.status).toBe(302);
-    const location = response.headers.get("location")!;
-    expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-      "Google Wallet settings updated",
-    );
+    expectFlash(response, "Google Wallet settings updated");
 
     expect(await hasGoogleWalletConfig()).toBe(true);
     expect(await getGoogleWalletIssuerIdFromDb()).toBe("1234567890");
@@ -302,10 +300,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     );
 
     expect(response.status).toBe(302);
-    const location = response.headers.get("location")!;
-    expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
-      "Google Wallet configuration cleared",
-    );
+    expectFlash(response, "Google Wallet configuration cleared");
     expect(await hasGoogleWalletDbConfig()).toBe(false);
   });
 

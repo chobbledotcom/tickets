@@ -27,8 +27,11 @@ import {
   saveAttendeeAnswers,
 } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
+/* jscpd:ignore-start */
+import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
+/* jscpd:ignore-end */
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import {
@@ -467,7 +470,7 @@ const processRefundAll = async (
       event.id,
     );
     return htmlResponse(
-      adminRefundAllAttendeesPage(event, refundable.length, session, msg),
+      adminRefundAllAttendeesPage(event, refundable.length - refundedCount, session, msg),
       400,
     );
   }
@@ -629,7 +632,7 @@ const handleEditAttendeeGet = (
           session,
           undefined,
           getReturnUrl(request),
-          getSearchParam(request, "success"),
+          getFlash().success,
         ),
       ),
     ),

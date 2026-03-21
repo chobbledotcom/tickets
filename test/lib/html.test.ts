@@ -192,13 +192,18 @@ describe("html", () => {
         testAttendee({ id: 1, event_id: 1, name: "Alice" }),
         testAttendee({ id: 2, event_id: 1, name: "Bob" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
+      const html = adminDashboardPage(
+        events,
+        TEST_SESSION,
+        undefined,
+        attendees,
+      );
       expect(html).toContain("<details open");
       expect(html).toContain("Newest 2 Attendees");
     });
 
     test("newest attendees section not shown when no attendees", () => {
-      const html = adminDashboardPage([], TEST_SESSION, null, []);
+      const html = adminDashboardPage([], TEST_SESSION, undefined, []);
       expect(html).not.toContain("Newest");
       expect(html).not.toContain("<details open");
     });
@@ -206,14 +211,24 @@ describe("html", () => {
     test("newest attendees shows singular for single attendee", () => {
       const events = [testEventWithCount({ id: 1 })];
       const attendees = [testAttendee({ id: 1, event_id: 1 })];
-      const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
+      const html = adminDashboardPage(
+        events,
+        TEST_SESSION,
+        undefined,
+        attendees,
+      );
       expect(html).toContain("Newest 1 Attendee</summary>");
     });
 
     test("newest attendees shows event column", () => {
       const events = [testEventWithCount({ id: 1, name: "Workshop" })];
       const attendees = [testAttendee({ id: 1, event_id: 1 })];
-      const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
+      const html = adminDashboardPage(
+        events,
+        TEST_SESSION,
+        undefined,
+        attendees,
+      );
       expect(html).toContain("<th>Event</th>");
       expect(html).toContain("Workshop");
     });
@@ -221,7 +236,12 @@ describe("html", () => {
     test("newest attendees not shown when all attendees have unknown event_id", () => {
       const events = [testEventWithCount({ id: 1 })];
       const attendees = [testAttendee({ id: 1, event_id: 999 })];
-      const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
+      const html = adminDashboardPage(
+        events,
+        TEST_SESSION,
+        undefined,
+        attendees,
+      );
       expect(html).not.toContain("Newest");
       expect(html).not.toContain("<details open");
     });
@@ -232,7 +252,12 @@ describe("html", () => {
         testAttendee({ id: 1, event_id: 1, name: "Valid" }),
         testAttendee({ id: 2, event_id: 999, name: "Orphan" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
+      const html = adminDashboardPage(
+        events,
+        TEST_SESSION,
+        undefined,
+        attendees,
+      );
       expect(html).toContain("Valid");
       expect(html).not.toContain("Orphan");
       expect(html).toContain("Newest 1 Attendee</summary>");
@@ -1673,16 +1698,30 @@ describe("html", () => {
 
   describe("adminDashboardPage active event statistics", () => {
     test("shows stats section when stats provided", () => {
-      const html = adminDashboardPage([], TEST_SESSION, null, [], null, {
-        income: 1000,
-        tickets: 5,
-        attendees: 10,
-      });
+      const html = adminDashboardPage(
+        [],
+        TEST_SESSION,
+        undefined,
+        [],
+        undefined,
+        {
+          income: 1000,
+          tickets: 5,
+          attendees: 10,
+        },
+      );
       expect(html).toContain("Active Event Statistics");
     });
 
     test("does not show stats section when stats is null", () => {
-      const html = adminDashboardPage([], TEST_SESSION, null, [], null, null);
+      const html = adminDashboardPage(
+        [],
+        TEST_SESSION,
+        undefined,
+        [],
+        undefined,
+        null,
+      );
       expect(html).not.toContain("Active Event Statistics");
     });
 

@@ -17,6 +17,7 @@ import {
   createTestDbWithSetup,
   createTestManagerSession,
   describeWithEnv,
+  expectFlash,
   expectHtmlResponse,
   mockFormRequest,
   mockMultipartRequest,
@@ -362,11 +363,7 @@ describeWithEnv(
         try {
           const response = await submitHeaderJpeg("logo.jpg");
           expect(response.status).toBe(302);
-          const location = response.headers.get("location") ?? "";
-          expect(location).toContain("error=");
-          expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
-            "upload failed",
-          );
+          expectFlash(response, "Header image upload failed", false);
         } finally {
           globalThis.fetch = originalFetch;
         }
@@ -413,11 +410,7 @@ describeWithEnv(
         try {
           const response = await submitHeaderImageDelete();
           expect(response.status).toBe(302);
-          const location = response.headers.get("location") ?? "";
-          expect(location).toContain("error=");
-          expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
-            "removal failed",
-          );
+          expectFlash(response, "Header image removal failed", false);
 
           // DB record should NOT be cleared when CDN delete fails
           const url = await getHeaderImageUrlFromDb();

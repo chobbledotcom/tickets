@@ -21,7 +21,7 @@ import {
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
-  expectRedirect,
+  expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
   mockMultipartRequest,
@@ -84,7 +84,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirect("/admin?success=Event+created")(response);
+      expectRedirectWithFlash("/admin", "Event created")(response);
 
       // Verify event was actually created
       const { getEvent } = await import("#lib/db/events.ts");
@@ -109,7 +109,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirect("/admin?success=Event+created")(response);
+      expectRedirectWithFlash("/admin", "Event created")(response);
 
       // Verify webhook_url was cleared
       const { getEvent } = await import("#lib/db/events.ts");
@@ -137,7 +137,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirect("/admin?success=Event+created")(response);
+      expectRedirectWithFlash("/admin", "Event created")(response);
 
       const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
@@ -271,7 +271,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         ),
       );
       // Slug auto-generated so creation succeeds
-      expectRedirect("/admin?success=Event+created")(response);
+      expectRedirectWithFlash("/admin", "Event created")(response);
     });
   });
 
@@ -799,7 +799,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect("/admin/event/1?success=Event+updated")(response);
+      expectRedirectWithFlash("/admin/event/1", "Event updated")(response);
 
       // Verify the event was updated
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -831,7 +831,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect("/admin/event/1?success=Event+updated")(response);
+      expectRedirectWithFlash("/admin/event/1", "Event updated")(response);
 
       // Verify webhook_url was cleared
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -867,9 +867,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
-        response,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Event updated",
+      )(response);
 
       const { getEvent } = await import("#lib/db/events.ts");
       const updated = await getEvent(event.id);
@@ -964,9 +965,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
-        response,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Event updated",
+      )(response);
     });
 
     test("updates event slug", async () => {
@@ -990,9 +992,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
-        response,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Event updated",
+      )(response);
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
@@ -1018,9 +1021,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
-        response,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Event updated",
+      )(response);
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
@@ -1133,9 +1137,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
-        response,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Event updated",
+      )(response);
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
@@ -1209,7 +1214,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect("/admin/event/1?success=Event+deactivated")(response);
+      expectRedirectWithFlash("/admin/event/1", "Event deactivated")(response);
 
       // Verify event is now inactive
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -1285,7 +1290,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect("/admin/event/1?success=Event+reactivated")(response);
+      expectRedirectWithFlash("/admin/event/1", "Event reactivated")(response);
 
       // Verify event is now active
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -1438,7 +1443,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event+deleted")(response);
+      expectRedirectWithFlash("/admin", "Event deleted")(response);
 
       // Verify event was deleted
       const { getEvent } = await import("#lib/db/events.ts");
@@ -1463,7 +1468,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event+deleted")(response);
+      expectRedirectWithFlash("/admin", "Event deleted")(response);
     });
 
     test("deletes event and all attendees", async () => {
@@ -2014,7 +2019,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event+deleted")(response);
+      expectRedirectWithFlash("/admin", "Event deleted")(response);
 
       const { getEvent: getEventFn } = await import("#lib/db/events.ts");
       const deleted = await getEventFn(event.id);
@@ -2067,7 +2072,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event+deleted")(response);
+      expectRedirectWithFlash("/admin", "Event deleted")(response);
 
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);

@@ -13,6 +13,7 @@ import {
   createTestManagerSession,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   extractCsrfToken,
   mockFormRequest,
@@ -94,16 +95,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(location).toContain("success=");
-
-      // Follow redirect and verify success message
-      const redirect = await handleRequest(
-        mockRequest(location, { headers: { cookie } }),
-      );
-      const html = await redirect.text();
-      expect(html).toContain('class="success"');
-      expect(html).toContain("Created 2 event(s) with 0 attendee(s) total.");
+      expectFlash(response, "Created 2 event(s) with 0 attendee(s) total.");
 
       const events = await getAllEvents();
       expect(events.length).toBe(2);
@@ -123,7 +115,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("Created+2+event");
+      expectFlash(response, expect.stringContaining("Created 2 event"));
 
       const events = await getAllEvents();
       expect(events.length).toBe(2);
@@ -166,8 +158,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        `Created+${MAX_SEED_EVENTS}+event`,
+      expectFlash(
+        response,
+        expect.stringContaining(`Created ${MAX_SEED_EVENTS} event`),
       );
     });
 
@@ -185,8 +178,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        `${SEED_MAX_ATTENDEES}+attendee`,
+      expectFlash(
+        response,
+        expect.stringContaining(`${SEED_MAX_ATTENDEES} attendee`),
       );
     });
 
@@ -204,7 +198,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("Created+1+event");
+      expectFlash(response, expect.stringContaining("Created 1 event"));
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -256,8 +250,10 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        "error=Failed+to+create+seed+data",
+      expectFlash(
+        response,
+        "Failed to create seed data. Ensure setup is complete.",
+        false,
       );
     });
 
@@ -275,7 +271,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("Created+1+event");
+      expectFlash(response, expect.stringContaining("Created 1 event"));
     });
 
     test("handles non-numeric attendees per event as 0", async () => {
@@ -292,7 +288,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("Created+1+event");
+      expectFlash(response, expect.stringContaining("Created 1 event"));
     });
 
     test("throws when public key is not configured", async () => {

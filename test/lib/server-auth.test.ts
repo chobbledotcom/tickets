@@ -9,6 +9,8 @@ import {
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
+  expectRedirectWithFlash,
+  flashCookieHeader,
   loginAsAdmin,
   mockAdminLoginRequest,
   mockFormRequest,
@@ -52,10 +54,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/login", { cookie });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin?success=Already+logged+in",
-      );
+      expectRedirectWithFlash("/admin", "Already logged in")(response);
     });
   });
 
@@ -82,11 +81,11 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({ username: "testadmin", password }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin?success=Logged+in");
-      expect(response.headers.get("set-cookie")).toContain(
-        `${getSessionCookieName()}=`,
-      );
+      expectRedirectWithFlash("/admin", "Logged in")(response);
+      const sessionCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+      expect(sessionCookie).toBeDefined();
     });
 
     test("rejects login when CSRF token is missing from form", async () => {
@@ -194,11 +193,11 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin?success=Logged+out",
-      );
-      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+      expectRedirectWithFlash("/admin", "Logged out")(response);
+      const sessionCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+      expect(sessionCookie).toContain("Max-Age=0");
     });
   });
 
@@ -284,13 +283,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(response.status).toBe(403);
     });
 
-    test("displays success message from query param on sessions page", async () => {
+    test("displays success message from flash cookie on sessions page", async () => {
       const { cookie } = await loginAsAdmin();
 
-      const response = await awaitTestRequest(
-        "/admin/sessions?success=Logged+out+of+all+other+sessions",
-        { cookie },
-      );
+      const response = await awaitTestRequest("/admin/sessions", {
+        cookie: `${cookie}; ${flashCookieHeader("Logged out of all other sessions")}`,
+      });
       await expectHtmlResponse(
         response,
         200,
@@ -309,9 +307,10 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
       );
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(location).toContain("success=Logged+out+of+all+other+sessions");
+      expectRedirectWithFlash(
+        "/admin/sessions",
+        "Logged out of all other sessions",
+      )(response);
 
       // Verify other sessions are deleted
       const other1 = await getSession("other1");
@@ -444,8 +443,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         }),
       );
       const elapsed = Date.now() - start;
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin?success=Logged+in");
+      expectRedirectWithFlash("/admin", "Logged in")(response);
       expect(elapsed).toBeGreaterThanOrEqual(100);
     });
   });
