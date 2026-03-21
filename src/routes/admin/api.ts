@@ -7,27 +7,25 @@
  *   - Session cookie + x-csrf-token header
  */
 
+import { map } from "#fp";
 import { getAllEvents } from "#lib/db/events.ts";
+import type { AdminEvent, EventWithCount } from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { jsonResponse, withAdminApi } from "#routes/utils.ts";
+
+/** Strip internal fields from an event, returning the admin API shape */
+export const toAdminEvent = ({
+  slug_index: _,
+  ...event
+}: EventWithCount): AdminEvent => event;
 
 /** GET /api/admin/events — list all events with counts */
 const handleListEvents = (request: Request): Promise<Response> =>
   withAdminApi(request, async (session) => {
     const events = await getAllEvents();
     return jsonResponse({
-      events: events.map((e) => ({
-        id: e.id,
-        name: e.name,
-        slug: e.slug,
-        active: e.active,
-        maxAttendees: e.max_attendees,
-        attendeeCount: e.attendee_count,
-        unitPrice: e.unit_price,
-        eventType: e.event_type,
-        hidden: e.hidden,
-      })),
-      adminLevel: session.adminLevel,
+      events: map(toAdminEvent)(events),
+      admin_level: session.adminLevel,
     });
   });
 

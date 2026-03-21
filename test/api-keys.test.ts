@@ -627,7 +627,15 @@ describe("API Keys", () => {
       const body = await response.json();
       expect(body.events).toBeDefined();
       expect(body.events.length).toBeGreaterThan(0);
-      expect(body.adminLevel).toBe("owner");
+      expect(body.admin_level).toBe("owner");
+
+      // Verify snake_case keys and no internal fields
+      const event = body.events[0];
+      expect(event.name).toBe("Test Event");
+      expect(event.max_attendees).toBeDefined();
+      expect(event.attendee_count).toBeDefined();
+      expect(event.event_type).toBeDefined();
+      expect(event.slug_index).toBeUndefined();
     });
 
     test("GET /api/admin/events returns events via cookie+CSRF", async () => {

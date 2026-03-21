@@ -169,3 +169,10 @@ export interface Group {
 export interface EventWithCount extends Event {
   attendee_count: number;
 }
+
+/**
+ * Admin API event shape — all event fields except internal indices.
+ * Used by both admin JSON API and admin templates to ensure consistent
+ * field exposure. Snake_case keys match the DB schema.
+ */
+export type AdminEvent = Omit<EventWithCount, "slug_index">;
