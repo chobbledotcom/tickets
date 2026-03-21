@@ -47,8 +47,8 @@ export class SessionKeyError extends Error {
  * bypasses the runtime's string-to-UTF8 path entirely.
  */
 const encoder = new TextEncoder();
-export const encodeBody = (text: string): BodyInit =>
-  encoder.encode(text) as unknown as BodyInit;
+export const encodeBody = (text: string): ArrayBuffer =>
+  encoder.encode(text).buffer as ArrayBuffer;
 
 /**
  * Get client IP from request

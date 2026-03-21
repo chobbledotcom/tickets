@@ -218,8 +218,20 @@ export const createRouter = (
 /**
  * Define routes with typed params inferred from route pattern strings.
  * Params ending in "Id" or named "id" are typed as number; all others as string.
+ *
+ * Uses overloads to bridge typed handlers and the runtime handler map without
+ * `as unknown as`. The call signature enforces per-route param types at the
+ * call site; the implementation signature accepts the general RouteHandlerFn
+ * map that createRouter expects.
  */
-export const defineRoutes = <T extends string>(
+export function defineRoutes<T extends string>(
   routes: { [K in T]: TypedRouteHandler<K> },
-): Record<string, RouteHandlerFn> =>
-  routes as unknown as Record<string, RouteHandlerFn>;
+): Record<string, RouteHandlerFn>;
+// Implementation accepts any function-valued record; the overload signature
+// above enforces type safety at call sites.
+export function defineRoutes(
+  // deno-lint-ignore ban-types
+  routes: Record<string, Function>,
+): Record<string, RouteHandlerFn> {
+  return routes as Record<string, RouteHandlerFn>;
+}
