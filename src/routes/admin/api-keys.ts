@@ -17,7 +17,6 @@ import {
   jsonResponse,
   orNotFound,
   redirect,
-  redirectResponse,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -77,10 +76,11 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
     );
 
     // Redirect back with the key in the URL (shown once on the GET page)
-    const u = new URL("/admin/api-keys", "http://localhost");
-    u.searchParams.set("success", "API key created");
-    u.searchParams.set("key", apiKey);
-    return redirectResponse(u.pathname + u.search);
+    return redirect(
+      `/admin/api-keys?key=${encodeURIComponent(apiKey)}`,
+      "API key created",
+      true,
+    );
   });
 
 /**
