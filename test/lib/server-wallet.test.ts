@@ -25,6 +25,7 @@ import {
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -417,35 +418,36 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 });
 
-const WALLET_ENV_KEYS = [
-  "APPLE_WALLET_PASS_TYPE_ID",
-  "APPLE_WALLET_TEAM_ID",
-  "APPLE_WALLET_SIGNING_CERT",
-  "APPLE_WALLET_SIGNING_KEY",
-  "APPLE_WALLET_WWDR_CERT",
-] as const;
-
-/** Set all Apple Wallet env vars using cached test certificates */
-const setWalletEnvVars = () => {
-  Deno.env.set("APPLE_WALLET_PASS_TYPE_ID", "pass.com.env.tickets");
-  Deno.env.set("APPLE_WALLET_TEAM_ID", "ENVTEAM001");
-  Deno.env.set("APPLE_WALLET_SIGNING_CERT", testCerts.signingCert);
-  Deno.env.set("APPLE_WALLET_SIGNING_KEY", testCerts.signingKey);
-  Deno.env.set("APPLE_WALLET_WWDR_CERT", testCerts.wwdrCert);
-};
-
-/** Clear all Apple Wallet env vars */
-const clearWalletEnvVars = () => {
-  for (const key of WALLET_ENV_KEYS) Deno.env.delete(key);
-};
-
-describe("getHostAppleWalletConfig", () => {
-  afterEach(() => {
-    clearWalletEnvVars();
+/** Set all Apple Wallet env vars and return restore function */
+const setWalletEnvVars = () =>
+  setTestEnv({
+    APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.tickets",
+    APPLE_WALLET_TEAM_ID: "ENVTEAM001",
+    APPLE_WALLET_SIGNING_CERT: testCerts.signingCert,
+    APPLE_WALLET_SIGNING_KEY: testCerts.signingKey,
+    APPLE_WALLET_WWDR_CERT: testCerts.wwdrCert,
   });
 
+/** Clear all Apple Wallet env vars and return restore function */
+const clearWalletEnvVars = () =>
+  setTestEnv({
+    APPLE_WALLET_PASS_TYPE_ID: undefined,
+    APPLE_WALLET_TEAM_ID: undefined,
+    APPLE_WALLET_SIGNING_CERT: undefined,
+    APPLE_WALLET_SIGNING_KEY: undefined,
+    APPLE_WALLET_WWDR_CERT: undefined,
+  });
+
+describe("getHostAppleWalletConfig", () => {
+  let restoreEnv: () => void;
+
+  beforeEach(() => {
+    restoreEnv = clearWalletEnvVars();
+  });
+
+  afterEach(() => restoreEnv());
+
   test("returns null when no env vars are set", () => {
-    clearWalletEnvVars();
     expect(getHostAppleWalletConfig()).toBeNull();
   });
 
@@ -468,14 +470,17 @@ describe("getHostAppleWalletConfig", () => {
 });
 
 describe("Apple Wallet env var fallback", () => {
+  let restoreEnv: () => void;
+
   beforeEach(async () => {
+    restoreEnv = clearWalletEnvVars();
     resetTestSlugCounter();
     await createTestDbWithSetup();
   });
 
   afterEach(() => {
     resetDb();
-    clearWalletEnvVars();
+    restoreEnv();
   });
 
   test("hasAppleWalletConfig returns true with env vars when DB not configured", async () => {

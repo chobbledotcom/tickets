@@ -26,6 +26,7 @@ import {
   createTestDbWithSetup,
   makeTestEntry as makeEntry,
   resetDb,
+  setTestEnv,
 } from "#test-utils";
 
 const testConfig: EmailConfig = {
@@ -528,11 +529,17 @@ describe("email", () => {
   });
 
   describe("getHostEmailConfig", () => {
-    afterEach(() => {
-      Deno.env.delete("HOST_EMAIL_PROVIDER");
-      Deno.env.delete("HOST_EMAIL_API_KEY");
-      Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+    let restoreEnv: () => void;
+
+    beforeEach(() => {
+      restoreEnv = setTestEnv({
+        HOST_EMAIL_PROVIDER: undefined,
+        HOST_EMAIL_API_KEY: undefined,
+        HOST_EMAIL_FROM_ADDRESS: undefined,
+      });
     });
+
+    afterEach(() => restoreEnv());
 
     test("returns null when no env vars set", () => {
       expect(getHostEmailConfig()).toBeNull();
@@ -594,11 +601,17 @@ describe("email", () => {
   });
 
   describe("sendRegistrationEmails", () => {
-    afterEach(() => {
-      Deno.env.delete("HOST_EMAIL_PROVIDER");
-      Deno.env.delete("HOST_EMAIL_API_KEY");
-      Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+    let restoreEnv: () => void;
+
+    beforeEach(() => {
+      restoreEnv = setTestEnv({
+        HOST_EMAIL_PROVIDER: undefined,
+        HOST_EMAIL_API_KEY: undefined,
+        HOST_EMAIL_FROM_ADDRESS: undefined,
+      });
     });
+
+    afterEach(() => restoreEnv());
 
     test("skips when attendee has no email address", async () => {
       await setupAndSendRegistration({}, [makeEntry({}, { email: "" })]);

@@ -13,6 +13,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
   setupTestEncryptionKey,
   withFetchMock,
 } from "#test-utils";
@@ -49,15 +50,20 @@ describe("getMimeType", () => {
 });
 
 describe("GET /attachment/:id", () => {
+  let restoreEnv: () => void;
+
   beforeEach(async () => {
+    restoreEnv = setTestEnv({
+      STORAGE_ZONE_NAME: undefined,
+      STORAGE_ZONE_KEY: undefined,
+    });
     setupTestEncryptionKey();
     resetTestSlugCounter();
     await createTestDbWithSetup();
   });
 
   afterEach(() => {
-    Deno.env.delete("STORAGE_ZONE_NAME");
-    Deno.env.delete("STORAGE_ZONE_KEY");
+    restoreEnv();
     resetDb();
   });
 

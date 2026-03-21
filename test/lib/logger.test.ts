@@ -17,7 +17,12 @@ import {
   redactPath,
   runWithRequestId,
 } from "#lib/logger.ts";
-import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
+import {
+  createTestDbWithSetup,
+  createTestEvent,
+  resetDb,
+  setTestEnv,
+} from "#test-utils";
 
 describe("logger", () => {
   describe("redactPath", () => {
@@ -64,14 +69,16 @@ describe("logger", () => {
 
   describe("logRequest", () => {
     let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
+    let restoreEnv: () => void;
 
     beforeEach(() => {
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
+      restoreEnv = setTestEnv({ TEST_SUPPRESS_REQUEST_LOGS: undefined });
       debugSpy = spy(console, "debug");
     });
 
     afterEach(() => {
       debugSpy.restore();
+      restoreEnv();
     });
 
     test("logs request with redacted path", () => {
@@ -122,12 +129,9 @@ describe("logger", () => {
       });
 
       expect(debugSpy.calls.length).toBe(0);
-
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
     });
 
     test("logs normally when TEST_SUPPRESS_REQUEST_LOGS is not set", () => {
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
 
       logRequest({
         method: "POST",
@@ -205,7 +209,7 @@ describe("logger", () => {
     });
 
     test("sends ntfy notification when NTFY_URL is configured", () => {
-      Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
+      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );
@@ -218,7 +222,7 @@ describe("logger", () => {
       expect(options.body).toBe("E_DB_QUERY");
 
       fetchStub.restore();
-      Deno.env.delete("NTFY_URL");
+      restore();
     });
 
     describe("activity log persistence", () => {
@@ -303,7 +307,7 @@ describe("logger", () => {
     });
 
     test("does not send ntfy notification", () => {
-      Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
+      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );
@@ -313,7 +317,7 @@ describe("logger", () => {
       expect(fetchStub.calls.length).toBe(0);
 
       fetchStub.restore();
-      Deno.env.delete("NTFY_URL");
+      restore();
     });
   });
 
@@ -436,9 +440,13 @@ describe("logger", () => {
   });
 
   describe("runWithRequestId", () => {
+    let restoreEnv: () => void;
+
     beforeEach(() => {
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
+      restoreEnv = setTestEnv({ TEST_SUPPRESS_REQUEST_LOGS: undefined });
     });
+
+    afterEach(() => restoreEnv());
 
     test("prefixes logRequest with 4-char hex ID", () => {
       const debugSpy = spy(console, "debug");

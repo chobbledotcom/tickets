@@ -67,6 +67,7 @@ import {
 } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import {
+  setTestEnv,
   setupTestEncryptionKey,
   testAttendee,
   testEvent,
@@ -3515,14 +3516,12 @@ describe("html", () => {
   });
 
   describe("event images", () => {
+    let cleanupStorage: () => void;
     const setupStorage = () => {
-      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
-    };
-
-    const cleanupStorage = () => {
-      Deno.env.delete("STORAGE_ZONE_NAME");
-      Deno.env.delete("STORAGE_ZONE_KEY");
+      cleanupStorage = setTestEnv({
+        STORAGE_ZONE_NAME: "testzone",
+        STORAGE_ZONE_KEY: "testkey",
+      });
     };
 
     describe("renderEventImage", () => {

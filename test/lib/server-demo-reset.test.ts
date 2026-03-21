@@ -20,6 +20,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
   testCookie,
   testCsrfToken,
   withFetchMock,
@@ -150,8 +151,10 @@ describe("server (demo reset)", () => {
 
     test("deletes storage files for all events during reset", async () => {
       setDemoModeForTest(true);
-      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+      const restore = setTestEnv({
+        STORAGE_ZONE_NAME: "testzone",
+        STORAGE_ZONE_KEY: "testkey",
+      });
 
       const event = await createTestEvent({ maxAttendees: 10 });
       await eventsTable.update(event.id, {
@@ -185,8 +188,7 @@ describe("server (demo reset)", () => {
         ).toBe(true);
       });
 
-      Deno.env.delete("STORAGE_ZONE_NAME");
-      Deno.env.delete("STORAGE_ZONE_KEY");
+      restore();
       invalidateTestDbCache();
     });
   });

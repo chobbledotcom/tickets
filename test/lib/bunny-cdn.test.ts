@@ -15,18 +15,7 @@ import {
   updateCustomDomain,
   updateCustomDomainLastValidated,
 } from "#lib/db/settings.ts";
-import { createTestDb, resetDb, withMocks } from "#test-utils";
-
-/** Save and restore an env var around tests */
-const withEnvVar = (name: string) => {
-  const orig = Deno.env.get(name);
-  return {
-    restore() {
-      if (orig) Deno.env.set(name, orig);
-      else Deno.env.delete(name);
-    },
-  };
-};
+import { createTestDb, resetDb, setTestEnv, withMocks } from "#test-utils";
 
 /** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
 const withMockValidate = async (
@@ -66,15 +55,15 @@ const stubFetchWithRecorder = (
 
 /** Set up BUNNY_API_KEY and ALLOWED_DOMAIN env vars for a describe block */
 const useBunnyEnv = () => {
-  const envApiKey = withEnvVar("BUNNY_API_KEY");
+  let restoreEnv: () => void;
 
   beforeEach(() => {
-    Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
+    restoreEnv = setTestEnv({ BUNNY_API_KEY: "test-bunny-key" });
     setAllowedDomainForTest("mysite.bunny.run");
   });
 
   afterEach(() => {
-    envApiKey.restore();
+    restoreEnv();
     resetAllowedDomain();
   });
 };
@@ -93,12 +82,15 @@ const pullZoneResponse = (
 
 describe("bunny-cdn", () => {
   describe("isBunnyCdnEnabled", () => {
-    const envApiKey = withEnvVar("BUNNY_API_KEY");
+    let restoreEnv: () => void;
 
-    afterEach(() => envApiKey.restore());
+    beforeEach(() => {
+      restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
+    });
+
+    afterEach(() => restoreEnv());
 
     test("returns false when BUNNY_API_KEY is not set", () => {
-      Deno.env.delete("BUNNY_API_KEY");
       expect(isBunnyCdnEnabled()).toBe(false);
     });
 
@@ -141,9 +133,13 @@ describe("bunny-cdn", () => {
   });
 
   describe("getBunnyApiKey", () => {
-    const envApiKey = withEnvVar("BUNNY_API_KEY");
+    let restoreEnv: () => void;
 
-    afterEach(() => envApiKey.restore());
+    beforeEach(() => {
+      restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
+    });
+
+    afterEach(() => restoreEnv());
 
     test("getBunnyApiKey returns the env var value", () => {
       Deno.env.set("BUNNY_API_KEY", "my-api-key");

@@ -25,6 +25,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
 } from "#test-utils";
 
 describe("server (admin debug)", () => {
@@ -215,30 +216,19 @@ describe("server (admin debug)", () => {
   });
 
   describe("GET /admin/debug with Apple Wallet env vars", () => {
-    const envKeys = [
-      "APPLE_WALLET_PASS_TYPE_ID",
-      "APPLE_WALLET_TEAM_ID",
-      "APPLE_WALLET_SIGNING_CERT",
-      "APPLE_WALLET_SIGNING_KEY",
-      "APPLE_WALLET_WWDR_CERT",
-    ] as const;
+    let restoreEnv: () => void;
 
-    const origValues = envKeys.map((k) => [k, Deno.env.get(k)] as const);
-
-    afterEach(() => {
-      for (const [key, val] of origValues) {
-        if (val) Deno.env.set(key, val);
-        else Deno.env.delete(key);
-      }
-    });
+    afterEach(() => restoreEnv());
 
     test("shows Environment variables as source when env configured", async () => {
       const certs = generateTestCerts();
-      Deno.env.set("APPLE_WALLET_PASS_TYPE_ID", "pass.com.env.test");
-      Deno.env.set("APPLE_WALLET_TEAM_ID", "ENVTEAM01");
-      Deno.env.set("APPLE_WALLET_SIGNING_CERT", certs.signingCert);
-      Deno.env.set("APPLE_WALLET_SIGNING_KEY", certs.signingKey);
-      Deno.env.set("APPLE_WALLET_WWDR_CERT", certs.wwdrCert);
+      restoreEnv = setTestEnv({
+        APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.test",
+        APPLE_WALLET_TEAM_ID: "ENVTEAM01",
+        APPLE_WALLET_SIGNING_CERT: certs.signingCert,
+        APPLE_WALLET_SIGNING_KEY: certs.signingKey,
+        APPLE_WALLET_WWDR_CERT: certs.wwdrCert,
+      });
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("Environment variables");
@@ -247,25 +237,16 @@ describe("server (admin debug)", () => {
   });
 
   describe("GET /admin/debug with host email env vars", () => {
-    const envKeys = [
-      "HOST_EMAIL_PROVIDER",
-      "HOST_EMAIL_API_KEY",
-      "HOST_EMAIL_FROM_ADDRESS",
-    ] as const;
+    let restoreEnv: () => void;
 
-    const origValues = envKeys.map((k) => [k, Deno.env.get(k)] as const);
-
-    afterEach(() => {
-      for (const [key, val] of origValues) {
-        if (val) Deno.env.set(key, val);
-        else Deno.env.delete(key);
-      }
-    });
+    afterEach(() => restoreEnv());
 
     test("shows host email provider when env configured", async () => {
-      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
-      Deno.env.set("HOST_EMAIL_API_KEY", "re_test_key");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "test@example.com");
+      restoreEnv = setTestEnv({
+        HOST_EMAIL_PROVIDER: "resend",
+        HOST_EMAIL_API_KEY: "re_test_key",
+        HOST_EMAIL_FROM_ADDRESS: "test@example.com",
+      });
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("resend");
@@ -313,32 +294,18 @@ describe("server (admin debug)", () => {
   });
 
   describe("GET /admin/debug with Google Wallet env vars", () => {
-    const envKeys = [
-      "GOOGLE_WALLET_ISSUER_ID",
-      "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
-      "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
-    ] as const;
+    let restoreEnv: () => void;
 
-    const origValues = envKeys.map((k) => [k, Deno.env.get(k)] as const);
-
-    afterEach(() => {
-      for (const [key, val] of origValues) {
-        if (val) Deno.env.set(key, val);
-        else Deno.env.delete(key);
-      }
-    });
+    afterEach(() => restoreEnv());
 
     test("shows Environment variables as source when env configured", async () => {
       const creds = await generateGoogleTestCreds();
-      Deno.env.set("GOOGLE_WALLET_ISSUER_ID", "9876543210");
-      Deno.env.set(
-        "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
-        "env@test.iam.gserviceaccount.com",
-      );
-      Deno.env.set(
-        "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
-        creds.serviceAccountKey,
-      );
+      restoreEnv = setTestEnv({
+        GOOGLE_WALLET_ISSUER_ID: "9876543210",
+        GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL:
+          "env@test.iam.gserviceaccount.com",
+        GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: creds.serviceAccountKey,
+      });
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("Environment variables");
@@ -347,15 +314,12 @@ describe("server (admin debug)", () => {
   });
 
   describe("GET /admin/debug with Bunny CDN enabled", () => {
-    const origApiKey = Deno.env.get("BUNNY_API_KEY");
+    let restoreEnv: () => void;
 
-    afterEach(() => {
-      if (origApiKey) Deno.env.set("BUNNY_API_KEY", origApiKey);
-      else Deno.env.delete("BUNNY_API_KEY");
-    });
+    afterEach(() => restoreEnv());
 
     test("shows CDN as configured when Bunny CDN is enabled", async () => {
-      Deno.env.set("BUNNY_API_KEY", "test-key");
+      restoreEnv = setTestEnv({ BUNNY_API_KEY: "test-key" });
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("badge-ok");

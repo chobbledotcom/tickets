@@ -24,6 +24,7 @@ import {
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
+  setTestEnv,
   withMocks,
 } from "#test-utils";
 
@@ -89,9 +90,11 @@ describe("server (admin settings-advanced)", () => {
     });
 
     test("shows host email label when host email is configured", async () => {
-      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
-      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
+      const restore = setTestEnv({
+        HOST_EMAIL_PROVIDER: "resend",
+        HOST_EMAIL_API_KEY: "key-123",
+        HOST_EMAIL_FROM_ADDRESS: "noreply@example.com",
+      });
       try {
         const response = await awaitTestRequest("/admin/settings-advanced", {
           cookie: await testCookie(),
@@ -100,9 +103,7 @@ describe("server (admin settings-advanced)", () => {
         expect(html).toContain("Host Resend (noreply@example.com)");
         expect(html).not.toContain("None (disabled)");
       } finally {
-        Deno.env.delete("HOST_EMAIL_PROVIDER");
-        Deno.env.delete("HOST_EMAIL_API_KEY");
-        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+        restore();
       }
     });
 
@@ -611,19 +612,20 @@ describe("server (admin settings-advanced)", () => {
   });
 
   describe("custom domain", () => {
+    let restoreEnv: () => void;
+
     const setBunnyEnv = () => {
       Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
     };
-    const clearBunnyEnv = () => {
-      Deno.env.delete("BUNNY_API_KEY");
-    };
 
-    afterEach(() => {
-      clearBunnyEnv();
+    beforeEach(() => {
+      restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
     });
 
+    afterEach(() => restoreEnv());
+
     test("does not show custom domain form when Bunny CDN is not configured", async () => {
-      clearBunnyEnv();
+      Deno.env.delete("BUNNY_API_KEY");
       const response = await awaitTestRequest("/admin/settings-advanced", {
         cookie: await testCookie(),
       });
@@ -699,7 +701,7 @@ describe("server (admin settings-advanced)", () => {
 
     describe("POST /admin/settings/custom-domain", () => {
       test("rejects when Bunny CDN is not configured", async () => {
-        clearBunnyEnv();
+        Deno.env.delete("BUNNY_API_KEY");
         const response = await handleRequest(
           mockFormRequest(
             "/admin/settings/custom-domain",
@@ -903,7 +905,7 @@ describe("server (admin settings-advanced)", () => {
 
     describe("POST /admin/settings/custom-domain/validate", () => {
       test("rejects when Bunny CDN is not configured", async () => {
-        clearBunnyEnv();
+        Deno.env.delete("BUNNY_API_KEY");
         const response = await handleRequest(
           mockFormRequest(
             "/admin/settings/custom-domain/validate",

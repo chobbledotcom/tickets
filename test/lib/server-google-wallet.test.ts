@@ -24,6 +24,7 @@ import {
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
 } from "#test-utils";
 
 /** Reuse cached creds for all wallet configuration */
@@ -344,38 +345,35 @@ describe("POST /admin/settings/google-wallet", () => {
   });
 });
 
-const GOOGLE_WALLET_ENV_KEYS = [
-  "GOOGLE_WALLET_ISSUER_ID",
-  "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
-  "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
-] as const;
-
-/** Set all Google Wallet env vars */
+/** Set all Google Wallet env vars and return restore function */
 const setGoogleWalletEnvVars = async () => {
   await ensureCreds();
-  Deno.env.set("GOOGLE_WALLET_ISSUER_ID", "9876543210");
-  Deno.env.set(
-    "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
-    "env@env-project.iam.gserviceaccount.com",
-  );
-  Deno.env.set(
-    "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
-    testCreds.serviceAccountKey,
-  );
+  return setTestEnv({
+    GOOGLE_WALLET_ISSUER_ID: "9876543210",
+    GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL:
+      "env@env-project.iam.gserviceaccount.com",
+    GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: testCreds.serviceAccountKey,
+  });
 };
 
-/** Clear all Google Wallet env vars */
-const clearGoogleWalletEnvVars = () => {
-  for (const key of GOOGLE_WALLET_ENV_KEYS) Deno.env.delete(key);
-};
-
-describe("getHostGoogleWalletConfig", () => {
-  afterEach(() => {
-    clearGoogleWalletEnvVars();
+/** Clear all Google Wallet env vars and return restore function */
+const clearGoogleWalletEnvVars = () =>
+  setTestEnv({
+    GOOGLE_WALLET_ISSUER_ID: undefined,
+    GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: undefined,
+    GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: undefined,
   });
 
+describe("getHostGoogleWalletConfig", () => {
+  let restoreEnv: () => void;
+
+  beforeEach(() => {
+    restoreEnv = clearGoogleWalletEnvVars();
+  });
+
+  afterEach(() => restoreEnv());
+
   test("returns null when no env vars are set", () => {
-    clearGoogleWalletEnvVars();
     expect(getHostGoogleWalletConfig()).toBeNull();
   });
 
@@ -397,7 +395,10 @@ describe("getHostGoogleWalletConfig", () => {
 });
 
 describe("Google Wallet env var fallback", () => {
+  let restoreEnv: () => void;
+
   beforeEach(async () => {
+    restoreEnv = clearGoogleWalletEnvVars();
     resetTestSlugCounter();
     await createTestDbWithSetup();
     await ensureCreds();
@@ -405,7 +406,7 @@ describe("Google Wallet env var fallback", () => {
 
   afterEach(() => {
     resetDb();
-    clearGoogleWalletEnvVars();
+    restoreEnv();
   });
 
   test("hasGoogleWalletConfig returns true with env vars when DB not configured", async () => {

@@ -32,6 +32,7 @@ import {
   setupStripe,
   submitMultiTicketForm,
   submitTicketForm,
+  setTestEnv,
   testCookie,
   updateTestEvent,
 } from "#test-utils";
@@ -1713,9 +1714,11 @@ describe("server (public routes)", () => {
     });
 
     test("shows email notice when email sending is configured", async () => {
-      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
-      Deno.env.set("HOST_EMAIL_API_KEY", "re_test123");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "tickets@mysite.com");
+      const restore = setTestEnv({
+        HOST_EMAIL_PROVIDER: "resend",
+        HOST_EMAIL_API_KEY: "re_test123",
+        HOST_EMAIL_FROM_ADDRESS: "tickets@mysite.com",
+      });
       try {
         const response = await handleRequest(
           mockRequest("/ticket/reserved?tokens=abc123"),
@@ -1723,9 +1726,7 @@ describe("server (public routes)", () => {
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");
         expect(html).toContain("tickets@mysite.com");
       } finally {
-        Deno.env.delete("HOST_EMAIL_PROVIDER");
-        Deno.env.delete("HOST_EMAIL_API_KEY");
-        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+        restore();
       }
     });
 

@@ -445,6 +445,37 @@ export const installUrlHandler = (
 };
 
 /**
+ * Set env vars for a test and return a restore function that puts them back.
+ * Saves originals so cleanup restores the exact prior state (or deletes if unset).
+ * Pass `undefined` as a value to delete the key (useful for ensuring a clean slate).
+ *
+ * @example
+ * let restoreEnv: () => void;
+ * beforeEach(() => { restoreEnv = setTestEnv({ STORAGE_ZONE_NAME: "z", STORAGE_ZONE_KEY: "k" }); });
+ * afterEach(() => restoreEnv());
+ *
+ * // Delete keys to start with a clean slate:
+ * restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
+ */
+export const setTestEnv = (
+  vars: Record<string, string | undefined>,
+): (() => void) => {
+  const saved: [string, string | undefined][] = [];
+  for (const key of Object.keys(vars)) {
+    saved.push([key, Deno.env.get(key)]);
+    const value = vars[key];
+    if (value !== undefined) Deno.env.set(key, value);
+    else Deno.env.delete(key);
+  }
+  return () => {
+    for (const [key, orig] of saved) {
+      if (orig !== undefined) Deno.env.set(key, orig);
+      else Deno.env.delete(key);
+    }
+  };
+};
+
+/**
  * Wait for a specified number of milliseconds
  */
 export const wait = (ms: number): Promise<void> =>

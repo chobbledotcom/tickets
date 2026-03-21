@@ -14,6 +14,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
@@ -197,17 +198,20 @@ const proxyRequest = (ext = "jpg"): Promise<Response> =>
   handleRequest(mockRequest(`${PROXY_PATH}.${ext}`));
 
 describe("server (event images)", () => {
+  let restoreEnv: () => void;
+
   beforeEach(async () => {
     resetTestSlugCounter();
     await createTestDbWithSetup();
-    Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-    Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+    restoreEnv = setTestEnv({
+      STORAGE_ZONE_NAME: "testzone",
+      STORAGE_ZONE_KEY: "testkey",
+    });
   });
 
   afterEach(() => {
     resetDb();
-    Deno.env.delete("STORAGE_ZONE_NAME");
-    Deno.env.delete("STORAGE_ZONE_KEY");
+    restoreEnv();
   });
 
   describe("POST /admin/event/:id/edit (image upload via edit form)", () => {

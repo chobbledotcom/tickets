@@ -27,7 +27,11 @@ import {
   wrapKey,
   wrapKeyWithToken,
 } from "#lib/crypto.ts";
-import { clearTestEncryptionKey, setupTestEncryptionKey } from "#test-utils";
+import {
+  clearTestEncryptionKey,
+  setTestEnv,
+  setupTestEncryptionKey,
+} from "#test-utils";
 
 describe("constantTimeEqual", () => {
   it("returns true for equal strings", () => {
@@ -243,14 +247,13 @@ describe("password hashing", () => {
     });
 
     it("uses production iterations when TEST_PBKDF2_ITERATIONS is unset", async () => {
-      const saved = Deno.env.get("TEST_PBKDF2_ITERATIONS");
-      Deno.env.delete("TEST_PBKDF2_ITERATIONS");
+      const restore = setTestEnv({ TEST_PBKDF2_ITERATIONS: undefined });
       try {
         const hash = await hashPassword("password");
         const iterations = Number(hash.split(":")[1]);
         expect(iterations).toBe(600000);
       } finally {
-        if (saved !== undefined) Deno.env.set("TEST_PBKDF2_ITERATIONS", saved);
+        restore();
       }
     });
   });
@@ -514,15 +517,14 @@ describe("RSA key pair and hybrid encryption", () => {
     });
 
     it("uses production key size when TEST_RSA_KEY_SIZE is unset", async () => {
-      const saved = Deno.env.get("TEST_RSA_KEY_SIZE");
-      Deno.env.delete("TEST_RSA_KEY_SIZE");
+      const restore = setTestEnv({ TEST_RSA_KEY_SIZE: undefined });
       try {
         const pair = await generateKeyPair();
         const jwk = JSON.parse(pair.publicKey);
         // 2048-bit RSA key: n (modulus) is 256 bytes = 344 base64url chars
         expect(jwk.n.length).toBeGreaterThan(300);
       } finally {
-        if (saved !== undefined) Deno.env.set("TEST_RSA_KEY_SIZE", saved);
+        restore();
       }
     });
 

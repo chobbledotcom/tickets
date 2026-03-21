@@ -14,18 +14,19 @@ import {
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
-import { installUrlHandler, withFetchMock } from "#test-utils";
+import { installUrlHandler, setTestEnv, withFetchMock } from "#test-utils";
 
 describe("storage", () => {
+  let restoreEnv: () => void;
+
   beforeEach(() => {
-    Deno.env.delete("STORAGE_ZONE_NAME");
-    Deno.env.delete("STORAGE_ZONE_KEY");
+    restoreEnv = setTestEnv({
+      STORAGE_ZONE_NAME: undefined,
+      STORAGE_ZONE_KEY: undefined,
+    });
   });
 
-  afterEach(() => {
-    Deno.env.delete("STORAGE_ZONE_NAME");
-    Deno.env.delete("STORAGE_ZONE_KEY");
-  });
+  afterEach(() => restoreEnv());
 
   describe("isStorageEnabled", () => {
     test("returns false when neither env var is set", () => {

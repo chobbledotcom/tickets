@@ -22,6 +22,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -210,19 +211,22 @@ describe("header image settings DB", () => {
 });
 
 describe("server (header image settings)", () => {
+  let restoreEnv: () => void;
+
   beforeEach(async () => {
     resetTestSlugCounter();
     resetHeaderImage();
     await createTestDbWithSetup();
-    Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-    Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+    restoreEnv = setTestEnv({
+      STORAGE_ZONE_NAME: "testzone",
+      STORAGE_ZONE_KEY: "testkey",
+    });
   });
 
   afterEach(() => {
     resetDb();
     resetHeaderImage();
-    Deno.env.delete("STORAGE_ZONE_NAME");
-    Deno.env.delete("STORAGE_ZONE_KEY");
+    restoreEnv();
   });
 
   describe("GET /admin/settings (header image section)", () => {
@@ -352,8 +356,6 @@ describe("server (header image settings)", () => {
 
     test("reports error when upload fails", async () => {
       const originalFetch = globalThis.fetch;
-      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
       globalThis.fetch = (): Promise<Response> => {
         return Promise.reject(new Error("CDN unreachable"));
       };
@@ -368,8 +370,6 @@ describe("server (header image settings)", () => {
         );
       } finally {
         globalThis.fetch = originalFetch;
-        Deno.env.delete("STORAGE_ZONE_NAME");
-        Deno.env.delete("STORAGE_ZONE_KEY");
       }
     });
 
