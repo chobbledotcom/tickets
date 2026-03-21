@@ -15,7 +15,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "recreate processed_payments table";
+export const LATEST_UPDATE = "add api_keys table";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -665,6 +665,25 @@ export const initDb = async (): Promise<void> => {
     "ALTER TABLE groups ADD COLUMN max_attendees INTEGER NOT NULL DEFAULT 0",
   );
 
+  // Create api_keys table for programmatic admin access
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      key_index TEXT NOT NULL,
+      wrapped_data_key TEXT NOT NULL,
+      name TEXT NOT NULL,
+      created TEXT NOT NULL,
+      last_used TEXT NOT NULL DEFAULT '',
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create unique index on key_index for fast lookups
+  await runMigration(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_key_index ON api_keys(key_index)",
+  );
+
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -676,6 +695,7 @@ export const initDb = async (): Promise<void> => {
  * All database tables in order for safe dropping (respects foreign key constraints)
  */
 const ALL_TABLES = [
+  "api_keys",
   "groups",
   "holidays",
   "activity_log",

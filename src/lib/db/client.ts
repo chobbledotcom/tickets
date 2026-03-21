@@ -2,7 +2,7 @@
  * Database client setup and core utilities
  *
  * When query logging is enabled (admin debug footer), the core query
- * functions (queryOne, queryAll, queryBatch, executeByField) time each
+ * functions (queryOne, queryAll, queryBatch, deleteByField) time each
  * call and record the SQL via the query-log module.
  */
 
@@ -69,8 +69,8 @@ export const queryAll = async <T>(
   return resultRows<T>(result);
 };
 
-/** Execute delete by field */
-export const executeByField = async (
+/** Delete rows matching a field value */
+export const deleteByField = async (
   table: string,
   field: string,
   value: InValue,
@@ -78,6 +78,17 @@ export const executeByField = async (
   const sql = `DELETE FROM ${table} WHERE ${field} = ?`;
   await trackQuery(sql, () => getDb().execute({ sql, args: [value] }));
 };
+
+/** Delete rows from multiple tables in a single batch transaction */
+export const deleteByFieldBatch = (
+  deletes: Array<{ table: string; field: string; value: InValue }>,
+): Promise<void> =>
+  executeBatch(
+    deletes.map(({ table, field, value }) => ({
+      sql: `DELETE FROM ${table} WHERE ${field} = ?`,
+      args: [value],
+    })),
+  );
 
 /** Execute a batch with optional query logging and timing */
 const trackedBatch = async (

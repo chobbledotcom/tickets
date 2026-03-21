@@ -159,6 +159,12 @@ const loadApiRoutes = once(async () => {
   return routeApi;
 });
 
+/** Lazy-load admin API routes */
+const loadAdminApiRoutes = once(async () => {
+  const { adminApiRoutes } = await import("#routes/admin/api.ts");
+  return createRouter(adminApiRoutes);
+});
+
 export type { PaymentCspConfig } from "#routes/middleware.ts";
 // Re-export middleware functions for testing
 export {
@@ -223,10 +229,20 @@ const prefixHandlers: Record<string, RouterFn> = {
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   v1: lazyRoute(loadWalletWebserviceRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
-  api: async (request, path, method, server) =>
-    (await getShowPublicApiFromDb())
+  api: async (request, path, method, server) => {
+    // Admin API is always available (auth-protected)
+    const adminResult = await (await loadAdminApiRoutes())(
+      request,
+      path,
+      method,
+      server,
+    );
+    if (adminResult) return adminResult;
+    // Public API requires feature flag
+    return (await getShowPublicApiFromDb())
       ? (await loadApiRoutes())(request, path, method, server)
-      : null,
+      : null;
+  },
 };
 
 /**

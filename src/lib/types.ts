@@ -140,6 +140,16 @@ export interface User {
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
 }
 
+export interface ApiKey {
+  id: number;
+  user_id: number;
+  key_index: string; // HMAC hash for lookup
+  wrapped_data_key: string; // DATA_KEY wrapped with the API key token
+  name: string; // encrypted label
+  created: string;
+  last_used: string; // ISO 8601 or empty string
+}
+
 export interface Holiday {
   id: number;
   name: string;
@@ -159,3 +169,10 @@ export interface Group {
 export interface EventWithCount extends Event {
   attendee_count: number;
 }
+
+/**
+ * Admin API event shape — all event fields except internal indices.
+ * Used by both admin JSON API and admin templates to ensure consistent
+ * field exposure. Snake_case keys match the DB schema.
+ */
+export type AdminEvent = Omit<EventWithCount, "slug_index">;

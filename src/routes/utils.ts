@@ -4,12 +4,17 @@
 
 import { compact, map, pipe, reduce } from "#fp";
 import { getSessionCookieName } from "#lib/cookies.ts";
-import { generateSecureToken, getPrivateKeyFromSession } from "#lib/crypto.ts";
+import {
+  generateSecureToken,
+  getPrivateKeyFromSession,
+  unwrapKeyWithToken,
+} from "#lib/crypto.ts";
 import {
   CSRF_INVALID_FORM_MESSAGE,
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#lib/csrf.ts";
+import { getApiKeyByToken, touchApiKeyLastUsed } from "#lib/db/api-keys.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
@@ -140,6 +145,73 @@ export const getAuthenticatedSession = async (
     token,
     wrappedDataKey: session.wrapped_data_key,
     userId: session.user_id,
+    adminLevel,
+  };
+  setCachedSession(result);
+  return result;
+};
+
+/**
+ * Extract Bearer token from Authorization header.
+ */
+const getBearerToken = (request: Request): string | null => {
+  const auth = request.headers.get("authorization");
+  if (!auth?.startsWith("Bearer ")) return null;
+  return auth.slice(7);
+};
+
+/**
+ * Authenticate via API key (Bearer token).
+ * Returns an AuthSession (compatible with session-based auth) or null.
+ * API key auth bypasses CSRF since the key itself is the secret.
+ */
+export const getAuthenticatedApiKey = async (
+  request: Request,
+): Promise<AuthSession | null> => {
+  const token = getBearerToken(request);
+  if (!token) return null;
+
+  const apiKeyRow = await getApiKeyByToken(token);
+  if (!apiKeyRow) {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "Bearer token does not match any API key",
+    });
+    return null;
+  }
+
+  const user = await getUserById(apiKeyRow.user_id);
+  if (!user) {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "API key references non-existent user",
+    });
+    return null;
+  }
+
+  try {
+    await unwrapKeyWithToken(apiKeyRow.wrapped_data_key, token);
+  } catch {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "API key wrapped data key corrupted",
+    });
+    return null;
+  }
+
+  // Re-wrap DATA_KEY with the token so getPrivateKey() works
+  // (it expects token + wrappedDataKey in the same format as sessions)
+  const wrappedDataKey = apiKeyRow.wrapped_data_key;
+
+  const adminLevel = await decryptAdminLevel(user);
+
+  // Fire-and-forget last_used update
+  touchApiKeyLastUsed(apiKeyRow.id).catch(() => {});
+
+  const result: AuthSession = {
+    token,
+    wrappedDataKey,
+    userId: apiKeyRow.user_id,
     adminLevel,
   };
   setCachedSession(result);
@@ -420,7 +492,9 @@ export type AuthSession = {
 };
 
 /**
- * Handle request with authenticated session
+ * Handle request with authenticated cookie session.
+ * Only checks cookie-based auth. API key auth is intentionally excluded —
+ * Bearer tokens should only authenticate /api/* endpoints via withAdminApi.
  */
 export const withSession = async (
   request: Request,
@@ -621,6 +695,42 @@ type JsonHandler = (
   body: Record<string, unknown>,
 ) => Response | Promise<Response>;
 
+/** Parse JSON body from request, returning empty object for non-JSON or GET requests */
+const parseJsonBody = async (
+  request: Request,
+): Promise<
+  | { ok: true; body: Record<string, unknown> }
+  | { ok: false; response: Response }
+> => {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) return { ok: true, body: {} };
+  try {
+    return { ok: true, body: await request.json() };
+  } catch {
+    logError({
+      code: ErrorCode.VALIDATION_FORM,
+      detail: "Malformed JSON body",
+    });
+    return {
+      ok: false,
+      response: jsonResponse(
+        { status: "error", message: "Invalid request body" },
+        400,
+      ),
+    };
+  }
+};
+
+/** Parse JSON body and invoke handler with session */
+const runJsonHandler = async (
+  request: Request,
+  session: AuthSession,
+  handler: JsonHandler,
+): Promise<Response> => {
+  const parsed = await parseJsonBody(request);
+  return parsed.ok ? handler(session, parsed.body) : parsed.response;
+};
+
 /**
  * Handle JSON API request with auth + CSRF validation (from x-csrf-token header).
  * Mirrors withAuthForm but for JSON endpoints.
@@ -640,19 +750,25 @@ export async function withAuthJson(
     return jsonResponse({ status: "error", message: "Forbidden" }, 403);
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    logError({
-      code: ErrorCode.VALIDATION_FORM,
-      detail: "Malformed JSON body",
-    });
-    return jsonResponse(
-      { status: "error", message: "Invalid request body" },
-      400,
-    );
-  }
+  return runJsonHandler(request, session, handler);
+}
 
-  return handler(session, body);
+/**
+ * Handle admin API request with either cookie+CSRF or API key auth.
+ * Cookie-based requests require x-csrf-token header.
+ * API key requests (Bearer token) skip CSRF since the key is the secret.
+ */
+export async function withAdminApi(
+  request: Request,
+  handler: JsonHandler,
+): Promise<Response> {
+  // Try API key auth first — getAuthenticatedApiKey returns null for
+  // non-Bearer requests (falling through to cookie+CSRF auth below)
+  // or when the key is invalid (returning 401).
+  const apiKeySession = await getAuthenticatedApiKey(request);
+  if (apiKeySession) return runJsonHandler(request, apiKeySession, handler);
+  if (getBearerToken(request)) {
+    return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
+  }
+  return withAuthJson(request, handler);
 }

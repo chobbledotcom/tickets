@@ -3,7 +3,7 @@
  */
 
 import { hmacHash } from "#lib/crypto.ts";
-import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
+import { deleteByField, getDb, queryOne } from "#lib/db/client.ts";
 import { nowMs } from "#lib/now.ts";
 
 /**
@@ -43,7 +43,7 @@ const checkLockout = async (
 
   // If lockout expired, reset
   if (row.locked_until && row.locked_until <= currentMs) {
-    await executeByField("login_attempts", "ip", hashedIp);
+    await deleteByField("login_attempts", "ip", hashedIp);
   }
 
   return false;
@@ -90,5 +90,5 @@ export const recordFailedLogin = (ip: string): Promise<boolean> =>
  */
 export const clearLoginAttempts = async (ip: string): Promise<void> => {
   const hashedIp = await hmacHash(ip);
-  await executeByField("login_attempts", "ip", hashedIp);
+  await deleteByField("login_attempts", "ip", hashedIp);
 };

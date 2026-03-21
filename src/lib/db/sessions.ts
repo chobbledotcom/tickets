@@ -4,7 +4,7 @@
 
 import { registerCache } from "#lib/cache-registry.ts";
 import { hashSessionToken } from "#lib/crypto.ts";
-import { executeByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
+import { deleteByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
 
 import type { Session } from "#lib/types.ts";
 
@@ -121,7 +121,7 @@ export const getSession = async (token: string): Promise<Session | null> => {
 export const deleteSession = async (token: string): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
   invalidateSessionCache(tokenHash);
-  await executeByField("sessions", "token", tokenHash);
+  await deleteByField("sessions", "token", tokenHash);
 };
 
 /**
