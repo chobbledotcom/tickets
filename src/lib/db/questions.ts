@@ -218,9 +218,11 @@ export const getEventQuestionIds = async (eventId: number): Promise<number[]> =>
 /** Map from question ID to the set of event IDs that use it */
 export type QuestionEventMap = Map<number, number[]>;
 
+/** Joined row including the comma-separated event IDs from GROUP_CONCAT */
+type JoinedRowWithEvents = JoinedRow & { event_ids: string };
+
 /** Get questions for multiple events with event-ID mapping (for conditional display).
- * Uses two queries to avoid row multiplication: event_questions links are
- * orthogonal to answers, so a 3-way JOIN would read answers × events rows. */
+ * Uses a single query with a subquery filter to avoid row multiplication. */
 export const getQuestionsWithEventIds = async (
   eventIds: number[],
 ): Promise<{
@@ -230,35 +232,27 @@ export const getQuestionsWithEventIds = async (
   if (eventIds.length === 0)
     return { questions: [], questionEventMap: new Map() };
 
-  // 1. Lightweight query: just the event↔question mapping (no encrypted text)
-  const links = await queryAll<{ event_id: number; question_id: number }>(
-    `SELECT event_id, question_id FROM event_questions
-     WHERE event_id IN (${inPlaceholders(eventIds)})
-     ORDER BY sort_order`,
-    eventIds,
+  const ph = inPlaceholders(eventIds);
+  const rows = await queryAll<JoinedRowWithEvents>(
+    `SELECT ${QA_COLS},
+            (SELECT GROUP_CONCAT(eq.event_id) FROM event_questions eq
+             WHERE eq.question_id = q.id AND eq.event_id IN (${ph})) AS event_ids
+     FROM ${QA_JOIN}
+     WHERE q.id IN (SELECT question_id FROM event_questions WHERE event_id IN (${ph}))
+     ORDER BY a.sort_order`,
+    [...eventIds, ...eventIds],
   );
-  if (links.length === 0) return { questions: [], questionEventMap: new Map() };
 
-  // Build event map and collect distinct question IDs
+  if (rows.length === 0) return { questions: [], questionEventMap: new Map() };
+
   const questionEventMap: QuestionEventMap = new Map();
-  for (const { question_id, event_id } of links) {
-    const existing = questionEventMap.get(question_id);
-    if (existing) {
-      if (!existing.includes(event_id)) existing.push(event_id);
-    } else {
-      questionEventMap.set(question_id, [event_id]);
+  for (const row of rows) {
+    if (!questionEventMap.has(row.q_id)) {
+      questionEventMap.set(row.q_id, map(Number)(row.event_ids.split(",")));
     }
   }
-  const questionIds = [...questionEventMap.keys()];
 
-  // 2. Fetch only the needed questions + answers (no duplication from events)
-  const questions = await groupJoinedRows(
-    await fetchQuestions(
-      `WHERE q.id IN (${inPlaceholders(questionIds)})`,
-      questionIds,
-    ),
-  );
-
+  const questions = await groupJoinedRows(rows);
   return { questions, questionEventMap };
 };
 
