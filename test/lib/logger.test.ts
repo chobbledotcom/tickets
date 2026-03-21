@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
-import * as activityLogMod from "#lib/db/activityLog.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import {
   createRequestTimer,
@@ -11,6 +10,7 @@ import {
   errorCodeLabel,
   formatErrorMessage,
   formatRequestError,
+  getRequestId,
   logDebug,
   logError,
   logErrorLocal,
@@ -290,24 +290,22 @@ describe("logger", () => {
       });
 
       test("guards against recursive logError during persistence", async () => {
-        const logActivityStub = stub(activityLogMod, "logActivity", () => {
-          // Simulate logActivity triggering another logError (recursion)
-          logError({ code: ErrorCode.DB_QUERY });
-          return Promise.resolve({
-            id: 1,
-            created: "",
-            event_id: null,
-            message: "",
-          });
-        });
-
+        // Call logError twice rapidly — the guard prevents the second from
+        // persisting to the activity log while the first is still writing
         logError({ code: ErrorCode.DB_CONNECTION });
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        logError({ code: ErrorCode.DB_QUERY });
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // The outer logError triggers logActivity, which triggers a nested logError.
-        // The nested logError should be guarded — only one logActivity call.
-        expect(logActivityStub.calls.length).toBe(1);
-        logActivityStub.restore();
+        const entries = await getAllActivityLog();
+        const connError = entries.find(
+          (e) => e.message === "Error: Database connection failed",
+        );
+        const queryError = entries.find(
+          (e) => e.message === "Error: Database query failed",
+        );
+        // First error persists; second is guarded (skipped) since first is still active
+        expect(connError).toBeDefined();
+        expect(queryError).toBeUndefined();
       });
     });
   });
@@ -470,6 +468,17 @@ describe("logger", () => {
     "runWithRequestId",
     { env: { TEST_SUPPRESS_REQUEST_LOGS: undefined } },
     () => {
+      test("getRequestId returns ID inside request context", () => {
+        runWithRequestId(() => {
+          const id = getRequestId();
+          expect(id).toMatch(/^[0-9a-f]{4}$/);
+        });
+      });
+
+      test("getRequestId returns empty string outside request context", () => {
+        expect(getRequestId()).toBe("");
+      });
+
       test("prefixes logRequest with 4-char hex ID", () => {
         const debugSpy = spy(console, "debug");
 

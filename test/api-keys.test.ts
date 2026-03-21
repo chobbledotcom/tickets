@@ -255,7 +255,9 @@ describe("API Keys", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toBe("/admin/api-keys");
+      const locationUrl = new URL(location, "http://localhost");
+      locationUrl.searchParams.delete("flash");
+      expect(locationUrl.pathname).toBe("/admin/api-keys");
       expectFlash(response, expect.stringContaining("API key created\n"));
 
       // Follow the redirect and verify the key is shown
