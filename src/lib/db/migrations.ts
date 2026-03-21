@@ -15,7 +15,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add api_keys table";
+export const LATEST_UPDATE = "add question tables";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -684,6 +684,71 @@ export const initDb = async (): Promise<void> => {
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_key_index ON api_keys(key_index)",
   );
 
+  // Create questions table for custom event questions
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT NOT NULL,
+      question_type TEXT NOT NULL DEFAULT 'text'
+    )
+  `);
+
+  // Create answers table for predefined answer options (e.g., multiple choice)
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS answers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question_id INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Composite index: queries fetch answers by question ordered by sort_order
+  await runMigration(
+    "CREATE INDEX IF NOT EXISTS idx_answers_question_sort ON answers(question_id, sort_order)",
+  );
+
+  // Create event_questions junction table linking questions to events
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS event_questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      question_id INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      required INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Composite index: event pages fetch questions by event ordered by sort_order,
+  // covering question_id to avoid table lookups for joins
+  await runMigration(
+    "CREATE INDEX IF NOT EXISTS idx_event_questions_event_sort ON event_questions(event_id, sort_order, question_id)",
+  );
+
+  // Create attendee_answers table for storing attendee responses
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS attendee_answers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      attendee_id INTEGER NOT NULL,
+      answer_id INTEGER NOT NULL,
+      FOREIGN KEY (attendee_id) REFERENCES attendees(id) ON DELETE CASCADE,
+      FOREIGN KEY (answer_id) REFERENCES answers(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Index for looking up all answers for an attendee
+  await runMigration(
+    "CREATE INDEX IF NOT EXISTS idx_attendee_answers_attendee ON attendee_answers(attendee_id)",
+  );
+
+  // Index for looking up all attendees who selected a specific answer
+  await runMigration(
+    "CREATE INDEX IF NOT EXISTS idx_attendee_answers_answer ON attendee_answers(answer_id)",
+  );
+
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -695,6 +760,10 @@ export const initDb = async (): Promise<void> => {
  * All database tables in order for safe dropping (respects foreign key constraints)
  */
 const ALL_TABLES = [
+  "attendee_answers",
+  "event_questions",
+  "answers",
+  "questions",
   "api_keys",
   "groups",
   "holidays",
