@@ -72,16 +72,11 @@ const isCartSession = (metadata: SessionMetadata): boolean =>
 const parseAnswerIds = (json: string): number[] =>
   json ? JSON.parse(json) : [];
 
-/** Parse answer_ids from metadata, detecting per-event object vs legacy flat array.
- * Returns { eventAnswerIds } for object format, { answerIds } for array format. */
-const parseAnswerData = (
+/** Parse per-event answer IDs from metadata JSON string (object format) */
+const parseEventAnswerIds = (
   json: string,
-): { answerIds: number[]; eventAnswerIds?: Record<string, number[]> } => {
-  if (!json) return { answerIds: [] };
-  const parsed = JSON.parse(json);
-  if (Array.isArray(parsed)) return { answerIds: parsed };
-  return { answerIds: [], eventAnswerIds: parsed };
-};
+): Record<string, number[]> | undefined =>
+  json ? JSON.parse(json) : undefined;
 
 /**
  * Extract registration intent from validated session metadata (single-ticket).
@@ -457,7 +452,6 @@ const extractBookingIntent = (
   const items = parseBookingItems(metadata.items);
   if (!items || items.length === 0) return null;
 
-  const answerData = parseAnswerData(metadata.answer_ids);
   return {
     name: metadata.name,
     email: metadata.email,
@@ -466,7 +460,8 @@ const extractBookingIntent = (
     special_instructions: metadata.special_instructions,
     date: metadata.date || null,
     items,
-    ...answerData,
+    answerIds: [],
+    eventAnswerIds: parseEventAnswerIds(metadata.answer_ids),
   };
 };
 
@@ -638,9 +633,8 @@ const processPaymentSession = async (
     return { success: false, error, refunded };
   }
 
-  // Save custom question answers
+  // Save per-event question answers for each attendee
   if (intent.eventAnswerIds) {
-    // Per-event answers: save only relevant answers for each attendee
     for (const { attendee, event } of createdAttendees) {
       const answers = intent.eventAnswerIds[String(event.id)];
       if (answers && answers.length > 0) {
@@ -648,7 +642,7 @@ const processPaymentSession = async (
       }
     }
   } else if (intent.answerIds.length > 0) {
-    // Legacy flat format: save all answers for all attendees
+    // Single-ticket path: one event, flat answer list
     const attendeeIds = createdAttendees.map(({ attendee }) => attendee.id);
     await saveAttendeeAnswers(attendeeIds, intent.answerIds);
   }
