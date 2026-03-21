@@ -27,6 +27,9 @@ const getLogPrefix = (): string => {
   return id ? `[${id}] ` : "";
 };
 
+/** Get the current request ID, or empty string if outside request context */
+export const getRequestId = (): string => requestIdStorage.getStore() ?? "";
+
 /** Run a function with a request-scoped random ID for log correlation */
 export const runWithRequestId = <T>(fn: () => T): T =>
   requestIdStorage.run(generateRequestId(), () => runWithPendingWork(fn));

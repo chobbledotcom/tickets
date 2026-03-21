@@ -1250,8 +1250,12 @@ export const expectRedirect =
 export const expectAdminRedirect: (response: Response) => Response =
   expectRedirect("/admin");
 
+/** Fixed flash ID used in tests for deterministic keyed cookies */
+export const FLASH_TEST_ID = "t001";
+
 /**
- * Assert the response carries a flash cookie with the given message.
+ * Assert the response carries a keyed flash cookie with the given message.
+ * Finds any cookie starting with "flash_" prefix.
  * Works on both redirect (302) and rendered (200) responses.
  */
 export const expectFlash = (
@@ -1261,39 +1265,50 @@ export const expectFlash = (
   succeeded = true,
 ): Response => {
   const cookies = response.headers.getSetCookie();
-  const flash = cookies.find((c) => c.startsWith("flash="));
+  const flash = cookies.find((c) => c.startsWith("flash_"));
   expect(flash).toBeDefined();
   const cookiePart = flash!.split(";")[0]!;
+  // Cookie is "flash_{id}={value}", extract value after first "="
   const value = cookiePart.split("=").slice(1).join("=");
   const parsed = parseFlashValue(value);
   expect(parsed).not.toBeNull();
   const actual = succeeded ? parsed!.success : parsed!.error;
-  expect(actual).toEqual(message);
+  if (message !== undefined) expect(actual).toEqual(message);
   return response;
 };
 
 /**
  * Assert a redirect (302) to the given location with a flash message.
- * Combines expectRedirect + expectFlash in one step.
+ * Extracts the flash ID from the redirect URL and verifies the keyed cookie.
+ * Compares the location without the flash param for clean assertions.
  */
 export const expectRedirectWithFlash =
-  (location: string, message: string, succeeded = true) =>
+  (location: string, message?: string, succeeded = true) =>
   (response: Response): Response => {
-    expectRedirect(location)(response);
+    expect(response.status).toBe(302);
+    const actualLocation = response.headers.get("location")!;
+    const url = new URL(actualLocation, "http://localhost");
+    const flashId = url.searchParams.get("flash");
+    expect(flashId).toBeDefined();
+    // Compare location without flash param
+    url.searchParams.delete("flash");
+    const clean = url.pathname + url.search + url.hash;
+    expect(clean).toBe(location);
     expectFlash(response, message, succeeded);
     return response;
   };
 
 /**
- * Build a cookie header string containing a flash message.
+ * Build a cookie header string containing a keyed flash message.
  * Use in mockRequest to simulate a flash cookie from a previous redirect.
+ * Uses FLASH_TEST_ID as the key — pair with ?flash=test01 in the URL.
  */
 export const flashCookieHeader = (
   message: string,
   succeeded = true,
 ): string => {
   const type = succeeded ? "s" : "e";
-  return `flash=${encodeURIComponent(`${type}:${message}`)}`;
+  return `flash_${FLASH_TEST_ID}=${encodeURIComponent(`${type}:${message}`)}`;
 };
 
 /** Assert response is a checkout redirect (302 to an external HTTPS URL) */

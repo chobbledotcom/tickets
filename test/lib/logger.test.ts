@@ -10,6 +10,7 @@ import {
   errorCodeLabel,
   formatErrorMessage,
   formatRequestError,
+  getRequestId,
   logDebug,
   logError,
   logErrorLocal,
@@ -287,6 +288,25 @@ describe("logger", () => {
         );
         expect(match).toBeDefined();
       });
+
+      test("guards against recursive logError during persistence", async () => {
+        // Call logError twice rapidly — the guard prevents the second from
+        // persisting to the activity log while the first is still writing
+        logError({ code: ErrorCode.DB_CONNECTION });
+        logError({ code: ErrorCode.DB_QUERY });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const entries = await getAllActivityLog();
+        const connError = entries.find(
+          (e) => e.message === "Error: Database connection failed",
+        );
+        const queryError = entries.find(
+          (e) => e.message === "Error: Database query failed",
+        );
+        // First error persists; second is guarded (skipped) since first is still active
+        expect(connError).toBeDefined();
+        expect(queryError).toBeUndefined();
+      });
     });
   });
 
@@ -448,6 +468,17 @@ describe("logger", () => {
     "runWithRequestId",
     { env: { TEST_SUPPRESS_REQUEST_LOGS: undefined } },
     () => {
+      test("getRequestId returns ID inside request context", () => {
+        runWithRequestId(() => {
+          const id = getRequestId();
+          expect(id).toMatch(/^[0-9a-f]{4}$/);
+        });
+      });
+
+      test("getRequestId returns empty string outside request context", () => {
+        expect(getRequestId()).toBe("");
+      });
+
       test("prefixes logRequest with 4-char hex ID", () => {
         const debugSpy = spy(console, "debug");
 
