@@ -335,8 +335,10 @@ describe("code quality", () => {
       "lib/db/settings.ts:resetTimezoneTestOverride",
       // Timezone validation utility (timezone now derived from country, but still useful for tests)
       "lib/timezone.ts:isValidTimezone",
-      // Attachment size constant used in production (validateAttachment) but test pattern doesn't detect same-file usage
+      // Attachment size constant (now re-exported from limits.ts, not detected by export patterns)
       "lib/storage.ts:MAX_ATTACHMENT_SIZE",
+      // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
+      "lib/limits.ts:readLimit",
     ];
 
     /**

@@ -12,6 +12,11 @@ import {
 } from "#lib/event-fields.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { type Field, validateForm } from "#lib/forms.tsx";
+import {
+  formatBytes,
+  MAX_ATTACHMENT_SIZE,
+  MAX_IMAGE_SIZE,
+} from "#lib/limits.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 import { isValidDatetime } from "#lib/timezone.ts";
 import {
@@ -498,7 +503,7 @@ export const holidayFields: Field[] = [
 /** Image upload field for event forms (appended when storage is enabled) */
 export const imageField: Field = {
   name: "image",
-  label: "Event Image (JPEG, PNG, GIF, WebP \u2014 max 256KB)",
+  label: `Event Image (JPEG, PNG, GIF, WebP \u2014 max ${formatBytes(MAX_IMAGE_SIZE)})`,
   type: "file",
   accept: "image/jpeg,image/png,image/gif,image/webp",
 };
@@ -506,7 +511,7 @@ export const imageField: Field = {
 /** Attachment upload field for event forms (appended when storage is enabled) */
 export const attachmentField: Field = {
   name: "attachment",
-  label: "Attachment (any file \u2014 max 25MB)",
+  label: `Attachment (any file \u2014 max ${formatBytes(MAX_ATTACHMENT_SIZE)})`,
   type: "file",
 };
 
