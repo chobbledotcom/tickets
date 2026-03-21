@@ -13,7 +13,7 @@
     "jsr:@std/testing@1": "1.0.17",
     "npm:@biomejs/biome@*": "2.4.8",
     "npm:@bunny.net/edgescript-sdk@0.12": "0.12.1",
-    "npm:@bunny.net/storage-sdk@0.2.1": "0.2.1",
+    "npm:@bunny.net/storage-sdk@0.3": "0.3.1",
     "npm:@iframe-resizer/child@5": "5.5.9",
     "npm:@iframe-resizer/core@5": "5.5.9",
     "npm:@iframe-resizer/parent@5": "5.5.9",
@@ -152,8 +152,8 @@
         "hono"
       ]
     },
-    "@bunny.net/storage-sdk@0.2.1": {
-      "integrity": "sha512-pIHu+s941Pg5AbX3lqOi+OulLhZObt2LiHGFivPesl5KWDXLDJGyr0PZSpcNqPrHU69NH6gTQlXRzwFWSerxOA==",
+    "@bunny.net/storage-sdk@0.3.1": {
+      "integrity": "sha512-nHD+e+CxYBcSoZERkxI/7Qir/kZaCfBTT+ULgZNUitNSyZ4mWD3DbTy+sHwVfRyc6wQ0XYD//6LImi2PU9JoWg==",
       "dependencies": [
         "dotenv",
         "zod"
@@ -1393,7 +1393,7 @@
       "jsr:@std/path@1",
       "jsr:@std/testing@1",
       "npm:@bunny.net/edgescript-sdk@0.12",
-      "npm:@bunny.net/storage-sdk@0.2.1",
+      "npm:@bunny.net/storage-sdk@0.3",
       "npm:@iframe-resizer/child@5",
       "npm:@iframe-resizer/core@5",
       "npm:@iframe-resizer/parent@5",
