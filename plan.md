@@ -5,6 +5,56 @@ Extract business logic from route handlers into reusable functions, then expose 
 
 ---
 
+## Completed: API Key Infrastructure
+
+### What's built
+- **API key CRUD** — create, list, delete with encrypted names at rest
+- **Bearer token auth** — HMAC-indexed lookup, DATA_KEY wrapped per-token
+- **Scoped auth** — Bearer tokens only work on `/api/admin/*` (via `withAdminApi`). Cookie-based session helpers (`withSession`, `requireSessionOr`, `requireOwnerOr`) are cookie-only; API keys cannot authenticate admin HTML pages.
+- **Admin JSON API** — `GET /api/admin/events` returns events via `withAdminApi`
+- **Delete confirmation** — "Type the name" flow matching events/attendees pattern
+- **Cascade cleanup** — user deletion removes API keys via `deleteByFieldBatch`
+- **Error logging** — invalid Bearer attempts, orphaned keys, corrupted wrapped data all logged
+
+### Key files
+| File | Purpose |
+|------|---------|
+| `src/lib/db/api-keys.ts` | DB operations: create, lookup, list, delete, count |
+| `src/routes/admin/api-keys.ts` | Admin UI routes: key management pages |
+| `src/routes/admin/api.ts` | JSON API routes (currently just events list) |
+| `src/routes/utils.ts` | `getAuthenticatedApiKey`, `withAdminApi` |
+| `src/templates/admin/api-keys.tsx` | Key list page + delete confirmation page |
+| `test/api-keys.test.ts` | 54 tests covering DB, UI, auth scope, JSON API |
+
+### Auth flow
+```
+/api/admin/* request
+  → withAdminApi()
+    → getAuthenticatedApiKey(request)
+      → getBearerToken() extracts token
+      → getApiKeyByToken() HMAC lookup
+      → getUserById() loads user
+      → unwrapKeyWithToken() validates token can decrypt wrapped key
+      → decryptAdminLevel() gets role
+      → returns AuthSession
+    → if valid: handle request
+    → if Bearer present but invalid: 401
+    → if no Bearer: fall through to cookie+CSRF via withAuthJson()
+```
+
+### Design decisions
+- **No key rotation** — keys are immutable; delete and recreate instead
+- **No scope restrictions** — keys inherit full admin_level from parent user
+- **No rate limiting on auth** — relies on external rate limiting (edge CDN)
+- **Nav link hidden** — API Keys page exists but isn't linked from admin nav yet (waiting for feature completion)
+- **`apiKeysApi` stub exported** — follows existing codebase pattern for test mocking (matches `usersApi` etc.)
+
+### What's NOT built yet
+- Admin nav link to `/admin/api-keys` (hidden until feature complete)
+- Remaining API endpoints beyond `GET /api/admin/events`
+
+---
+
 ## Phase 1: Extract business logic from tangled handlers
 
 ### 1a. `src/lib/attendees-actions.ts` (new file)
@@ -51,16 +101,12 @@ Extract from `src/routes/admin/settings.ts`:
 
 ## Phase 2: Admin API routes
 
-### New file: `src/routes/admin/api.ts`
-
-Uses existing infrastructure: `withAuthJson`, `defineRoutes`, `createRouter`, `jsonResponse`.
-
-Auth: same session cookie auth as admin UI. CSRF via `x-csrf-token` header (already supported by `withAuthJson`).
+Extends `src/routes/admin/api.ts`. All endpoints use `withAdminApi` for dual auth (Bearer token or cookie+CSRF).
 
 ### Priority endpoints (highest value for external tooling):
 
 **Events CRUD:**
-- `GET /api/admin/events` → list all events with counts
+- `GET /api/admin/events` → list all events with counts *(done)*
 - `GET /api/admin/events/:eventId` → single event detail
 - `POST /api/admin/events` → create event (JSON body)
 - `PUT /api/admin/events/:eventId` → update event
@@ -95,9 +141,6 @@ Auth: same session cookie auth as admin UI. CSRF via `x-csrf-token` header (alre
 - Calendar data endpoint
 - CSV export as JSON
 
-### Registration in router
-Add `"api/admin"` prefix to `src/routes/index.ts` lazy loader, pointing to `src/routes/admin/api.ts`.
-
 ---
 
 ## Phase 3: Tests
@@ -111,7 +154,7 @@ Add `"api/admin"` prefix to `src/routes/index.ts` lazy loader, pointing to `src/
 ## What this enables
 
 After Phase 2, users can:
-- Build CLI tools for event management (`curl -X POST /api/admin/events`)
+- Build CLI tools for event management (`curl -H "Authorization: Bearer KEY" /api/admin/events`)
 - Script bulk operations (import attendees from CSV via API)
 - Build custom dashboards pulling from the API
 - Wire up Zapier/n8n to admin operations
