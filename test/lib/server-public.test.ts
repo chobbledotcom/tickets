@@ -1190,6 +1190,24 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await expectHtmlResponse(response, 403, "Invalid or expired form");
     });
 
+    test("preserves form data on CSRF failure", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockFormRequest(`/ticket/${event.slug}`, {
+          name: "John Doe",
+          email: "john@example.com",
+        }),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid or expired form");
+      expect(html).toContain('value="John Doe"');
+      expect(html).toContain('value="john@example.com"');
+    });
+
     test("validates required fields", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
