@@ -9,8 +9,8 @@ import { handleRequest } from "#routes";
 import {
   adminGet,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
+  expectRedirect,
   mockRequest,
 } from "#test-utils";
 
@@ -18,7 +18,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
   describe("GET /admin/guide", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/guide"));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("renders guide page when authenticated", async () => {
