@@ -1,0 +1,19 @@
+{
+  "nav.events": "Events",
+  "nav.calendar": "Calendar",
+  "nav.users": "Users",
+  "nav.site": "Site",
+  "nav.settings": "Settings",
+  "nav.log": "Log",
+  "nav.groups": "Groups",
+  "nav.holidays": "Holidays",
+  "nav.guide": "Guide",
+  "nav.logout": "Logout",
+  "nav.sub.users": "Users",
+  "nav.sub.sessions": "Sessions",
+  "nav.sub.api_keys": "API Keys",
+  "nav.public.home": "Home",
+  "nav.public.events": "Events",
+  "nav.public.terms": "T&Cs",
+  "nav.public.contact": "Contact"
+}

@@ -1,0 +1,43 @@
+{
+  "public.home": "Home",
+  "public.terms_and_conditions": "Terms & Conditions",
+  "public.contact": "Contact",
+  "public.no_content": "No content.",
+  "public.no_events_listed": "No events listed.",
+  "public.all_bookable_events": "All bookable events",
+  "public.sold_out": "Sold Out",
+  "public.registration_closed": "Registration Closed",
+  "public.book_now": "Book now",
+
+  "public.ticket.date_label": "Date:",
+  "public.ticket.location_label": "Location:",
+  "public.ticket.registration_closed": "Registration closed.",
+  "public.ticket.event_full": "Sorry, this event is full.",
+  "public.ticket.select_date": "Select Date",
+  "public.ticket.select_date_placeholder": "— Select a date —",
+  "public.ticket.no_dates_available": "No dates are currently available for booking.",
+  "public.ticket.number_of_tickets": "Number of Tickets",
+  "public.ticket.agree_terms": "I agree to the terms above",
+  "public.ticket.reserve_ticket": "Reserve Ticket",
+  "public.ticket.reserve_tickets": "Reserve Tickets",
+
+  "public.ticket.your_name": "Your Name",
+  "public.ticket.your_email": "Your Email",
+  "public.ticket.your_phone": "Your Phone Number",
+  "public.ticket.your_address": "Your Address",
+  "public.ticket.special_instructions": "Special Instructions",
+  "public.ticket.your_price_min": "Your Price ({min} minimum)",
+  "public.ticket.your_price_optional": "Your Price (optional, up to {max})",
+
+  "public.multi.title": "Reserve Tickets",
+  "public.multi.registration_closed": "Registration closed.",
+  "public.multi.all_sold_out": "Sorry, all events are sold out.",
+  "public.multi.select_tickets": "Select Tickets",
+  "public.multi.reserve_tickets": "Reserve Tickets",
+
+  "public.not_found.title": "Not Found",
+  "public.not_found.heading": "Not Found",
+  "public.temporary_error.title": "Temporary Error",
+  "public.temporary_error.heading": "Temporary Error",
+  "public.temporary_error.message": "Something went wrong loading this page. Retrying automatically\u2026"
+}

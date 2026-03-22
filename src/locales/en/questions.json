@@ -1,0 +1,38 @@
+{
+  "questions.title": "Custom Questions",
+  "questions.heading": "Custom Questions",
+  "questions.breadcrumb": "Dashboard",
+  "questions.new_label": "New Question",
+  "questions.new_placeholder": "e.g. What is your T-shirt size?",
+  "questions.add_submit": "Add Question",
+  "questions.no_questions": "No custom questions yet.",
+
+  "questions.edit.breadcrumb": "Questions",
+  "questions.edit.text_label": "Question Text",
+  "questions.edit.update": "Update",
+  "questions.edit.answers_heading": "Answer Options",
+  "questions.edit.new_answer_label": "New Answer",
+  "questions.edit.new_answer_placeholder": "e.g. Medium",
+  "questions.edit.add_answer": "Add Answer",
+  "questions.edit.no_answers": "No answers yet. Add at least 2 answer options.",
+  "questions.edit.delete_answer": "Delete",
+
+  "questions.delete.link": "Delete Question",
+  "questions.delete.heading": "Delete Question",
+  "questions.delete.warning": "This will permanently delete the question, all its answers, and all attendee responses.",
+  "questions.delete.confirm_prompt": "To delete this question, type its text \"{text}\" into the box below:",
+  "questions.delete.confirm_label": "Question text",
+  "questions.delete.submit": "Delete Question",
+
+  "questions.delete_answer.title": "Delete Answer",
+  "questions.delete_answer.heading": "Delete Answer",
+  "questions.delete_answer.warning": "This will permanently delete the answer \"{answerText}\" from the question \"{questionText}\" and remove all attendee responses for it.",
+  "questions.delete_answer.confirm_prompt": "To delete this answer, type its text \"{text}\" into the box below:",
+  "questions.delete_answer.confirm_label": "Answer text",
+  "questions.delete_answer.submit": "Delete Answer",
+
+  "questions.event.heading": "Questions for {event}",
+  "questions.event.no_questions": "No questions created yet. Create questions first.",
+  "questions.event.manage": "Manage Questions",
+  "questions.event.save": "Save"
+}
