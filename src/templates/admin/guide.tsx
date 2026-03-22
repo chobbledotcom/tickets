@@ -1608,6 +1608,15 @@ export const adminGuidePage = (
             database fields.
           </p>
         </Q>
+
+        <Q q="Where can I find the full API reference?">
+          <p>
+            The{" "}
+            <a href="/admin/api-keys/docs">API documentation page</a> has a
+            complete reference for both public and admin API endpoints, with
+            example request and response payloads for each.
+          </p>
+        </Q>
       </Section>
 
       <Section title="Customising Your Site">

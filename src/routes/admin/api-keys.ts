@@ -14,13 +14,17 @@ import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   htmlResponse,
-  jsonResponse,
   orNotFound,
   redirect,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
 import {
+  ADMIN_API_ENDPOINTS,
+  PUBLIC_API_ENDPOINTS,
+} from "#lib/admin-api-example.ts";
+import {
+  adminApiDocsPage,
   adminApiKeysPage,
   adminDeleteApiKeyPage,
 } from "#templates/admin/api-keys.tsx";
@@ -131,23 +135,16 @@ const handleApiKeyDelete: TypedRouteHandler<
   });
 
 /**
- * Handle GET /admin/api-keys/docs — simple API docs page
+ * Handle GET /admin/api-keys/docs — API documentation page
  */
 const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
   request,
 ) =>
-  requireOwnerOr(request, (_session) => {
-    return jsonResponse({
-      message: "Admin API documentation",
-      authentication:
-        "Add 'Authorization: Bearer YOUR_API_KEY' header to requests",
-      endpoints: {
-        "GET /api/admin/events": "List all events",
-        "GET /api/admin/events/:id": "Get event details",
-        "GET /api/admin/events/:id/attendees": "List attendees for event",
-      },
-    });
-  });
+  requireOwnerOr(request, (session) =>
+    htmlResponse(
+      adminApiDocsPage(session, PUBLIC_API_ENDPOINTS, ADMIN_API_ENDPOINTS),
+    ),
+  );
 
 export const apiKeysRoutes = defineRoutes({
   "GET /admin/api-keys": handleApiKeysGet,
