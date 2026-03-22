@@ -11,6 +11,7 @@ import {
   getStripeSecretKey,
   getStripeWebhookSecret,
 } from "#lib/config.ts";
+import { getStripeWebhookEndpointId } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -436,6 +437,9 @@ export const stripeApi: {
     }
 
     // Step 2: List all webhook endpoints
+    const ownEndpointId = await getStripeWebhookEndpointId();
+    result.ownEndpointId = ownEndpointId;
+
     try {
       const endpoints = await client.webhookEndpoints.list({ limit: 100 });
       result.webhooks = endpoints.data.map((ep) => ({
@@ -563,6 +567,7 @@ export type StripeConnectionTestResult = {
   ok: boolean;
   apiKey: { valid: boolean; error?: string; mode?: string };
   webhooks: WebhookEndpointStatus[];
+  ownEndpointId?: string | null;
   webhookError?: string;
 };
 

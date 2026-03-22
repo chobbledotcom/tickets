@@ -570,6 +570,7 @@ describe("server (admin settings)", () => {
             Promise.resolve({
               ok: true,
               apiKey: { valid: true, mode: "test" },
+              ownEndpointId: "we_test_123",
               webhooks: [
                 {
                   endpointId: "we_test_123",

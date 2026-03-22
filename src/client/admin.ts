@@ -284,7 +284,11 @@ setupTestButton(
     } else if (data.webhooks && data.webhooks.length > 0) {
       lines.push(`Webhooks: ${data.webhooks.length} endpoint(s)`);
       for (const wh of data.webhooks) {
-        lines.push(`  ${wh.status} - ${wh.url}`);
+        const ours =
+          data.ownEndpointId && wh.endpointId === data.ownEndpointId
+            ? " (tickets)"
+            : "";
+        lines.push(`  ${wh.status} - ${wh.url}${ours}`);
         lines.push(`  Events: ${wh.enabledEvents.join(", ")}`);
       }
     } else {

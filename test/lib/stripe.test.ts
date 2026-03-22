@@ -743,6 +743,10 @@ describeWithEnv(
 
       test("returns full success when API key valid and webhooks exist", async () => {
         await updateStripeKey("sk_test_mock");
+        await setStripeWebhookConfig({
+          secret: "whsec_test",
+          endpointId: "we_test_valid",
+        });
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -781,6 +785,7 @@ describeWithEnv(
             expect(result.ok).toBe(true);
             expect(result.apiKey.valid).toBe(true);
             expect(result.apiKey.mode).toBe("test");
+            expect(result.ownEndpointId).toBe("we_test_valid");
             expect(result.webhooks).toHaveLength(2);
             const [first, second] = result.webhooks;
             expect(first!.endpointId).toBe("we_test_valid");
