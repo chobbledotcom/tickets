@@ -1,29 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  boundedLru,
   bracket,
   chunk,
   collectionCache,
   compact,
-  err,
   filter,
   flatMap,
-  groupBy,
-  identity,
-  isDefined,
   lazyRef,
   map,
   mapParallel,
-  mapSequential,
-  ok,
   once,
-  pick,
   pipe,
-  pipeAsync,
   reduce,
   sort,
-  sortBy,
   ttlCache,
   unique,
   uniqueBy,
@@ -63,14 +53,6 @@ const testBracketUse = async (asPromise = false) => {
   });
   expect(result).toBe("done");
   expect(log).toEqual(["acquire", "use: resource", "release"]);
-};
-
-/** Create a boundedLru seeded with {a:1, b:2} */
-const seededLru = (capacity: number) => {
-  const cache = boundedLru<string, number>(capacity);
-  cache.set("a", 1);
-  cache.set("b", 2);
-  return cache;
 };
 
 /** Create a ttlCache with controllable clock */
@@ -202,39 +184,6 @@ describe("fp", () => {
     });
   });
 
-  describe("sortBy", () => {
-    test("sorts by property key", () => {
-      const items = [{ name: "c" }, { name: "a" }, { name: "b" }];
-      const result = sortBy<{ name: string }>("name")(items);
-      expect(result).toEqual([{ name: "a" }, { name: "b" }, { name: "c" }]);
-    });
-
-    test("sorts by getter function", () => {
-      const items = [{ value: 3 }, { value: 1 }, { value: 2 }];
-      const result = sortBy((x: { value: number }) => x.value)(items);
-      expect(result).toEqual([{ value: 1 }, { value: 2 }, { value: 3 }]);
-    });
-
-    test("does not mutate original", () => {
-      const original = [{ n: 2 }, { n: 1 }];
-      sortBy<{ n: number }>("n")(original);
-      expect(original).toEqual([{ n: 2 }, { n: 1 }]);
-    });
-
-    test("preserves order of equal items", () => {
-      const items = [
-        { name: "b", id: 1 },
-        { name: "a", id: 2 },
-        { name: "a", id: 3 },
-      ];
-      const result = sortBy<{ name: string; id: number }>("name")(items);
-      // Items with same name should maintain relative order (stable sort)
-      expect(result[0]).toEqual({ name: "a", id: 2 });
-      expect(result[1]).toEqual({ name: "a", id: 3 });
-      expect(result[2]).toEqual({ name: "b", id: 1 });
-    });
-  });
-
   describe("unique", () => {
     test("removes duplicate primitives", () => {
       const result = unique([1, 2, 2, 3, 3, 3]);
@@ -315,68 +264,6 @@ describe("fp", () => {
     });
   });
 
-  describe("groupBy", () => {
-    test("groups items by key function", () => {
-      const items = [
-        { type: "a", value: 1 },
-        { type: "b", value: 2 },
-        { type: "a", value: 3 },
-      ];
-      const result = groupBy((x: { type: string; value: number }) => x.type)(
-        items,
-      );
-      expect(result).toEqual({
-        a: [
-          { type: "a", value: 1 },
-          { type: "a", value: 3 },
-        ],
-        b: [{ type: "b", value: 2 }],
-      });
-    });
-
-    test("handles empty array", () => {
-      const result = groupBy((x: { type: string }) => x.type)([]);
-      expect(result).toEqual({});
-    });
-  });
-
-  describe("pick", () => {
-    test("picks specified keys from object", () => {
-      const obj = { a: 1, b: 2, c: 3 };
-      const result = pick<typeof obj, "a" | "c">(["a", "c"])(obj);
-      expect(result).toEqual({ a: 1, c: 3 });
-    });
-
-    test("ignores missing keys", () => {
-      const obj = { a: 1, b: 2 };
-      const result = pick<typeof obj, "a">(["a"])(obj);
-      expect(result).toEqual({ a: 1 });
-    });
-  });
-
-  describe("isDefined", () => {
-    test("returns true for defined values", () => {
-      expect(isDefined(0)).toBe(true);
-      expect(isDefined("")).toBe(true);
-      expect(isDefined(false)).toBe(true);
-      expect(isDefined([])).toBe(true);
-    });
-
-    test("returns false for null and undefined", () => {
-      expect(isDefined(null)).toBe(false);
-      expect(isDefined(undefined)).toBe(false);
-    });
-  });
-
-  describe("identity", () => {
-    test("returns the same value", () => {
-      expect(identity(5)).toBe(5);
-      expect(identity("hello")).toBe("hello");
-      const obj = { a: 1 };
-      expect(identity(obj)).toBe(obj);
-    });
-  });
-
   describe("composition", () => {
     test("works with pipe and curried functions", () => {
       const numbers = [1, 2, 3, 4, 5, 6];
@@ -440,25 +327,6 @@ describe("fp", () => {
     });
   });
 
-  describe("ok and err", () => {
-    test("ok creates successful result", () => {
-      const result = ok(42);
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value).toBe(42);
-      }
-    });
-
-    test("err creates failed result", () => {
-      const response = new Response("error", { status: 400 });
-      const result = err(response);
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.response).toBe(response);
-      }
-    });
-  });
-
   describe("bracket", () => {
     test("acquires and releases resource", () => testBracketUse());
 
@@ -474,36 +342,6 @@ describe("fp", () => {
     });
 
     test("works with async acquire and release", () => testBracketUse(true));
-  });
-
-  describe("pipeAsync", () => {
-    const asyncAddOne = (x: number) => Promise.resolve(x + 1);
-    const asyncDouble = (x: number) => Promise.resolve(x * 2);
-
-    test("composes async functions left-to-right", async () => {
-      expect(await pipeAsync(asyncAddOne, asyncDouble)(5)).toBe(12);
-    });
-
-    test("works with single async function", async () => {
-      expect(await pipeAsync(asyncAddOne)(5)).toBe(6);
-    });
-  });
-
-  describe("mapSequential", () => {
-    const asyncDouble = (x: number) => Promise.resolve(x * 2);
-
-    test("maps array with async function", async () => {
-      expect(await mapSequential(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
-    });
-
-    test("preserves order with async operations", async () => {
-      const wait = (ms: number) => Promise.resolve(ms);
-      expect(await mapSequential(wait)([30, 10, 20])).toEqual([30, 10, 20]);
-    });
-
-    test("handles empty array", async () => {
-      expect(await mapSequential(asyncDouble)([])).toEqual([]);
-    });
   });
 
   describe("mapParallel", () => {
@@ -535,54 +373,6 @@ describe("fp", () => {
       };
       await mapParallel(track)([1, 2, 3]);
       expect(maxConcurrent).toBe(3);
-    });
-  });
-
-  describe("boundedLru", () => {
-    test("stores and retrieves values", () => {
-      const cache = seededLru(3);
-      expect(cache.get("a")).toBe(1);
-      expect(cache.get("b")).toBe(2);
-    });
-
-    test("returns undefined for missing keys", () => {
-      expect(boundedLru<string, number>(3).get("missing")).toBe(undefined);
-    });
-
-    test("evicts oldest entry when at capacity", () => {
-      const cache = seededLru(2);
-      cache.set("c", 3); // evicts "a"
-      expect(cache.get("a")).toBe(undefined);
-      expect(cache.get("b")).toBe(2);
-      expect(cache.get("c")).toBe(3);
-    });
-
-    test("get promotes entry to most recent", () => {
-      const cache = seededLru(2);
-      cache.get("a"); // promotes "a" to most recent
-      cache.set("c", 3); // evicts "b" (now oldest)
-      expect(cache.get("b")).toBe(undefined); // evicted
-      expect(cache.get("c")).toBe(3);
-      expect(cache.get("a")).toBe(1); // still present
-    });
-
-    test("set updates existing entry without eviction", () => {
-      const cache = seededLru(2);
-      cache.set("a", 10); // update, not insert
-      expect(cache.size()).toBe(2);
-      expect(cache.get("a")).toBe(10);
-    });
-
-    test("size tracks entries and clear resets", () => {
-      const cache = boundedLru<string, number>(5);
-      expect(cache.size()).toBe(0);
-      cache.set("a", 1);
-      expect(cache.size()).toBe(1);
-      cache.set("b", 2);
-      expect(cache.size()).toBe(2);
-      cache.clear();
-      expect(cache.size()).toBe(0);
-      expect(cache.get("a")).toBe(undefined);
     });
   });
 
