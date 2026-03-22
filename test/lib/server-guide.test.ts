@@ -35,6 +35,16 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       expect(html).toContain("Check-in");
     });
 
+    test("contains booking questions section", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Booking Questions");
+      expect(html).toContain("multiple-choice");
+      expect(html).toContain("must select one");
+      expect(html).toContain("shared across multiple events");
+      expect(html).toContain("attendee table on event and group pages");
+    });
+
     test("contains public links section", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();
