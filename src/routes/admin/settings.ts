@@ -621,7 +621,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
 
   // Require a token when none is configured
   if (tokenField.action === "cleared" && !(await hasSquareToken())) {
-    return errorPage("Square Access Token is required", 400, "settings-square");
+    return errorPage(t("error.square_token_required"), 400, "settings-square");
   }
 
   // Only update the token when a new value is provided
@@ -639,7 +639,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   await logActivity("Square credentials configured");
   return redirect(
     "/admin/settings",
-    "Square credentials updated successfully",
+    t("success.square_updated"),
     true,
     { formId: "settings-square" },
   );
@@ -654,7 +654,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
   if (field.action === "unchanged") {
     return redirect(
       "/admin/settings",
-      "Square webhook settings unchanged",
+      t("success.square_webhook_unchanged"),
       true,
       { formId: "settings-square-webhook" },
     );
@@ -662,7 +662,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
 
   if (field.action === "cleared") {
     return errorPage(
-      "Webhook Signature Key is required",
+      t("error.square_webhook_key_required"),
       400,
       "settings-square-webhook",
     );
@@ -673,7 +673,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
   await logActivity("Square webhook signature key configured");
   return redirect(
     "/admin/settings",
-    "Square webhook signature key updated successfully",
+    t("success.square_webhook_updated"),
     true,
     { formId: "settings-square-webhook" },
   );
@@ -708,7 +708,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
     await updateEmbedHosts("");
     return redirect(
       "/admin/settings",
-      "Embed host restrictions removed",
+      t("success.embed_hosts_removed"),
       true,
       { formId: "settings-embed-hosts" },
     );
@@ -722,7 +722,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
   // Normalize: trim, lowercase, rejoin
   const normalized = parseEmbedHosts(trimmed).join(", ");
   await updateEmbedHosts(normalized);
-  return redirect("/admin/settings", "Allowed embed hosts updated", true, {
+  return redirect("/admin/settings", t("success.embed_hosts_updated"), true, {
     formId: "settings-embed-hosts",
   });
 });
