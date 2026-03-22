@@ -1,163 +1,163 @@
-# API-First Refactor Plan
+# i18n Implementation Plan
 
-## Principle
-Extract business logic from route handlers into reusable functions, then expose those functions via admin API endpoints. Each phase is independently shippable. No existing behavior changes.
+## Architecture
+
+**Library:** `@formatjs/intl-messageformat` (~6KB) — bundled into the edge output via esbuild (already handles npm resolution from Deno's cache).
+
+**Locale files:** JSON per locale, namespaced by feature area. Loaded at runtime so locale can switch without rebuilding.
+
+**Locale detection:** `Accept-Language` header → admin-configured default → `"en"`.
 
 ---
 
-## Completed: API Key Infrastructure
+## Namespace Structure
 
-### What's built
-- **API key CRUD** — create, list, delete with encrypted names at rest
-- **Bearer token auth** — HMAC-indexed lookup, DATA_KEY wrapped per-token
-- **Scoped auth** — Bearer tokens only work on `/api/admin/*` (via `withAdminApi`). Cookie-based session helpers (`withSession`, `requireSessionOr`, `requireOwnerOr`) are cookie-only; API keys cannot authenticate admin HTML pages.
-- **Admin JSON API** — `GET /api/admin/events` returns events via `withAdminApi`
-- **Delete confirmation** — "Type the name" flow matching events/attendees pattern
-- **Cascade cleanup** — user deletion removes API keys via `deleteByFieldBatch`
-- **Error logging** — invalid Bearer attempts, orphaned keys, corrupted wrapped data all logged
+Given the volume of strings, keys use dot-namespaced flat JSON:
 
-### Key files
-| File | Purpose |
-|------|---------|
-| `src/lib/db/api-keys.ts` | DB operations: create, lookup, list, delete, count |
-| `src/routes/admin/api-keys.ts` | Admin UI routes: key management pages |
-| `src/routes/admin/api.ts` | JSON API routes (currently just events list) |
-| `src/routes/utils.ts` | `getAuthenticatedApiKey`, `withAdminApi` |
-| `src/templates/admin/api-keys.tsx` | Key list page + delete confirmation page |
-| `test/api-keys.test.ts` | 54 tests covering DB, UI, auth scope, JSON API |
-
-### Auth flow
 ```
-/api/admin/* request
-  → withAdminApi()
-    → getAuthenticatedApiKey(request)
-      → getBearerToken() extracts token
-      → getApiKeyByToken() HMAC lookup
-      → getUserById() loads user
-      → unwrapKeyWithToken() validates token can decrypt wrapped key
-      → decryptAdminLevel() gets role
-      → returns AuthSession
-    → if valid: handle request
-    → if Bearer present but invalid: 401
-    → if no Bearer: fall through to cookie+CSRF via withAuthJson()
+src/locales/
+  en.json
 ```
 
-### Design decisions
-- **No key rotation** — keys are immutable; delete and recreate instead
-- **No scope restrictions** — keys inherit full admin_level from parent user
-- **No rate limiting on auth** — relies on external rate limiting (edge CDN)
-- **Nav link hidden** — API Keys page exists but isn't linked from admin nav yet (waiting for feature completion)
-- **`apiKeysApi` stub exported** — follows existing codebase pattern for test mocking (matches `usersApi` etc.)
+```json
+{
+  "nav.events": "Events",
+  "nav.calendar": "Calendar",
+  "nav.logout": "Logout",
 
-### What's NOT built yet
-- Admin nav link to `/admin/api-keys` (hidden until feature complete)
-- Remaining API endpoints beyond `GET /api/admin/events`
+  "guide.title": "Guide",
+  "guide.getting_started.title": "Getting Started",
+  "guide.getting_started.create_event_q": "How do I create an event?",
+  "guide.getting_started.create_event_a": "From the <b>Events</b> page, fill in the form...",
 
----
+  "fields.event.name_label": "Event Name",
+  "fields.event.name_hint": "Displayed to attendees on the ticket page",
+  "fields.event.name_placeholder": "Village Quiz Night",
 
-## Phase 1: Extract business logic from tangled handlers
+  "errors.invalid_csrf": "Invalid or expired form. Please try again.",
+  "errors.slug_taken": "Slug is already in use by another event",
 
-### 1a. `src/lib/attendees-actions.ts` (new file)
-Extract from `src/routes/admin/attendees.ts`:
+  "tickets.booking_date": "Booking Date: {date}",
+  "tickets.quantity": "Quantity: {count}",
+  "tickets.remaining": "{count, plural, one {# ticket left} other {# tickets left}}",
 
-- **`isIncompleteAttendee(attendee, event)`** → boolean
-  - Currently inline in `handleDeleteIncomplete` (~3 lines of logic)
+  "setup.title": "Initial Setup",
+  "setup.welcome": "Welcome! Please configure your ticket reservation system.",
 
-- **`refundAttendeesBatch(attendees, provider)`** → `{ refunded: number, failed: number }`
-  - Currently a loop inside `processRefundAll` with counter tracking
+  "email.confirmation_subject": "Your tickets for {eventNames}",
 
-- **`calculateSpotsNeeded(oldQty, newQty, oldEventId, newEventId)`** → number
-  - Currently inline in `editAttendeeHandler` with conditional logic
+  "admin.settings.title": "Settings",
+  "admin.events.active": "Active",
+  "admin.events.inactive": "Inactive",
 
-### 1b. `src/lib/settings-actions.ts` (new file)
-Extract from `src/routes/admin/settings.ts`:
+  "payment.title": "Complete Your Payment",
+  "payment.cancelled_title": "Payment Cancelled",
 
-- **`configureStripe(secretKey, existingKey, domain)`** → `{ ok: true } | { ok: false, error: string }`
-  - Currently ~60 lines inline: key format detection, webhook setup, multi-field storage
+  "wallet.event": "EVENT",
+  "wallet.date": "DATE",
+  "wallet.location": "LOCATION"
+}
+```
 
-- **`configureSquare(token, locationId, sandbox, existingToken)`** → same result type
-  - Currently ~40 lines inline
-
-- **`configureAppleWallet(input)`** → same result type
-  - Currently ~60 lines inline: all-clear detection, required field checks, PEM validation
-
-- **`configureGoogleWallet(input)`** → same result type
-  - Currently ~70 lines inline
-
-- **`validateEmailTemplates(subject, html, text)`** → `string | null`
-  - Currently two inline loops doing length + syntax validation
-
-### 1c. Minor extraction in `src/routes/admin/events.ts`
-- **`validateEventSlug(slug, excludeId?)`** → `string | null`
-  - Currently a lambda inside the route handler
-
-### After Phase 1
-- All route handlers become: parse input → call extracted function → format response
-- All existing behavior unchanged
-- Extracted functions are independently testable
-- Tests updated to cover extracted functions directly
+Namespaces: `nav`, `guide`, `fields`, `errors`, `tickets`, `setup`, `email`, `admin`, `payment`, `wallet`, `common`, `demo`, `limits`.
 
 ---
 
-## Phase 2: Admin API routes
+## Implementation Steps
 
-Extends `src/routes/admin/api.ts`. All endpoints use `withAdminApi` for dual auth (Bearer token or cookie+CSRF).
+### Step 1: Add dependency and create the i18n module
 
-### Priority endpoints (highest value for external tooling):
+1. Add `"@formatjs/intl-messageformat": "npm:@formatjs/intl-messageformat@^10"` to `deno.json` imports
+2. Create `src/lib/i18n.ts` with:
+   - `addLocale(locale, messages)` — register a locale's message map
+   - `t(locale, key, values?)` — translate a key with optional ICU params, falling back to English then to the key itself
+   - Compiled `IntlMessageFormat` cache for performance
+3. Create `src/locales/en.json` with all extracted strings (namespaced keys)
+4. Add `"#i18n": "./src/lib/i18n.ts"` and `"#locales/": "./src/locales/"` to deno.json imports
+5. Register English messages at app startup (import the JSON, call `addLocale("en", messages)`)
 
-**Events CRUD:**
-- `GET /api/admin/events` → list all events with counts *(done)*
-- `GET /api/admin/events/:eventId` → single event detail
-- `POST /api/admin/events` → create event (JSON body)
-- `PUT /api/admin/events/:eventId` → update event
-- `DELETE /api/admin/events/:eventId` → delete event (requires `{ confirmName }`)
-- `POST /api/admin/events/:eventId/deactivate` → deactivate
-- `POST /api/admin/events/:eventId/reactivate` → reactivate
+### Step 2: Thread locale through the request context
 
-**Attendees:**
-- `GET /api/admin/events/:eventId/attendees` → list attendees (decrypted)
-- `POST /api/admin/events/:eventId/attendees` → add attendee manually
-- `PUT /api/admin/attendees/:attendeeId` → edit attendee
-- `DELETE /api/admin/attendees/:attendeeId` → delete attendee
-- `POST /api/admin/attendees/:attendeeId/checkin` → toggle check-in
-- `POST /api/admin/attendees/:attendeeId/refund` → refund single
-- `POST /api/admin/events/:eventId/refund-all` → batch refund
+1. Add a `locale` field to the existing request context / admin session types
+2. Parse `Accept-Language` header in the router to determine locale, falling back to `"en"`
+3. Optionally add an admin setting for the default locale
+4. Update `<html lang="en">` in `layout.tsx` to use the resolved locale
 
-**Groups:**
-- `GET /api/admin/groups` → list groups
-- `POST /api/admin/groups` → create group
-- `PUT /api/admin/groups/:groupId` → update group
-- `DELETE /api/admin/groups/:groupId` → delete group
+### Step 3: Extract strings — fields.ts (largest structured source)
 
-**Dashboard/Read-only:**
-- `GET /api/admin/dashboard` → dashboard summary data
-- `GET /api/admin/events/:eventId/activity` → activity log
-- `GET /api/admin/activity` → global activity log
+1. Replace all `label`, `hint`, `placeholder`, and validation error strings in `fields.ts` with `t(locale, "fields.event.name_label")` calls
+2. This requires threading `locale` into field-generating functions (they'll need to accept it as a parameter)
+3. Validation error messages move to locale keys under `errors.*` or `fields.*.validation_*`
 
-### Lower priority (Phase 2b):
-- Settings endpoints (payment provider config, email templates, branding)
-- User management endpoints
-- Holiday management endpoints
-- Calendar data endpoint
-- CSV export as JSON
+### Step 4: Extract strings — templates
+
+Work through each template file, replacing hard-coded strings with `t()` calls:
+
+1. **nav.tsx** — navigation labels (`nav.*`)
+2. **layout.tsx** — lang attribute
+3. **public.tsx** — public page titles and nav (`public.*`)
+4. **tickets.tsx** — ticket card text (`tickets.*`)
+5. **payment.tsx** — payment page text (`payment.*`)
+6. **setup.tsx** — setup page and data controller agreement (`setup.*`)
+7. **admin/*.tsx** — admin page titles and UI text (`admin.*`)
+
+### Step 5: Extract strings — guide.tsx (special handling)
+
+The guide has ~1000 lines of prose. Strategy:
+
+- Each `<Q>` gets a key pair: `guide.{section}.{topic}_q` and `guide.{section}.{topic}_a`
+- Section titles: `guide.{section}.title`
+- Answer values store HTML directly in the locale JSON — rendered with `Raw` in JSX
+- This keeps prose coherent for translators rather than fragmenting into tiny pieces
+
+### Step 6: Extract strings — route error messages
+
+1. Replace all hard-coded error/success strings in `src/routes/` with `t(locale, "errors.*")` calls
+2. Locale is available from Step 2's request context
+
+### Step 7: Extract strings — lib modules
+
+- `demo.ts` — demo banner text (`demo.*`)
+- `email.ts` — provider labels (`email.*`)
+- `limits.ts` — limit entry labels (`limits.*`)
+- `apple-wallet.ts` — wallet field labels (`wallet.*`)
+- `google-wallet.ts` — hard-coded `"en-US"` → use resolved locale
+
+### Step 8: Email template defaults
+
+- Move default Liquid template subject/body strings in `email/defaults.ts` to locale keys
+- User-customized email templates (stored in DB) are NOT translated — they're already user-controlled
+
+### Step 9: Tests
+
+1. Create `test/lib/i18n.test.ts` — test `t()` function, fallback behavior, ICU plural/select
+2. Update existing tests that assert on specific string content to use locale-aware assertions or import from locale files
+3. Ensure 100% coverage of the new `i18n.ts` module
+
+### Step 10: Build verification
+
+1. Run `deno task build:edge` — confirm `@formatjs/intl-messageformat` bundles correctly via the existing npm resolver
+2. Verify bundle size stays under 10MB limit
+3. Run full `deno task precommit`
 
 ---
 
-## Phase 3: Tests
+## What's NOT in scope (initially)
 
-- Unit tests for all extracted functions in Phase 1 (test the business logic directly)
-- Integration tests for Phase 2 API endpoints (mock DB, verify JSON responses)
-- Maintain 100% coverage requirement
+- **Additional locale files** (de.json, fr.json, etc.) — only the `en.json` extraction. Adding languages is then just adding JSON files and registering them.
+- **Admin UI for locale selection** — defer; Accept-Language is sufficient to start.
+- **Client-side JS strings** — the admin.js / scanner.js have minimal user-facing text; can be done later.
+- **Pluralization of existing messages** — only add ICU plural syntax where it already matters (e.g., ticket counts). Don't over-engineer existing simple strings.
 
 ---
 
-## What this enables
+## Key decisions
 
-After Phase 2, users can:
-- Build CLI tools for event management (`curl -H "Authorization: Bearer KEY" /api/admin/events`)
-- Script bulk operations (import attendees from CSV via API)
-- Build custom dashboards pulling from the API
-- Wire up Zapier/n8n to admin operations
-- Build a mobile admin app against the same backend
-
-The web admin UI continues working exactly as before — it just shares business logic with the API.
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Runtime vs build-time | Runtime | Locale switching without rebuild |
+| Library | `@formatjs/intl-messageformat` | ICU standard, ~6KB, no framework coupling |
+| Key format | Dot-namespaced flat JSON | Simple, greppable, no nested object traversal |
+| Locale detection | Accept-Language header | Zero config, works immediately |
+| Guide content | HTML in locale values + `Raw` | Avoids fragmenting prose into dozens of tiny keys |
+| Fallback chain | requested locale → `"en"` → key name | Makes missing translations obvious during dev |
