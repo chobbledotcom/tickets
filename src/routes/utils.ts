@@ -541,13 +541,16 @@ export const requireCsrfForm = async (
   const form = await parseFormData(request);
   const formCsrf = form.getString("csrf_token");
 
+  // Always save form data so validation errors can restore user input.
+  // This clears any stale data from a prior request and makes the current
+  // submission available to renderFields/getSavedValue during re-rendering.
+  setSavedFormData(form);
+
   if (formCsrf && (await verifySignedCsrfToken(formCsrf))) {
-    setSavedFormData(form);
     return { ok: true, form };
   }
 
   await signCsrfToken();
-  setSavedFormData(form);
   return { ok: false, response: onInvalid() };
 };
 
