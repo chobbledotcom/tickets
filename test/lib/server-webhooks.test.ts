@@ -108,7 +108,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("returns 400 for invalid session data in webhook", async () => {
+    test("acknowledges webhook with unrecognized session metadata", async () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -126,7 +126,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   id: "cs_test",
                   payment_status: "paid",
                   amount_total: 0,
-                  metadata: {}, // Missing required fields
+                  metadata: {}, // Missing required fields — not our session
                 },
               },
             },
@@ -137,7 +137,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        await expectHtmlResponse(response, 400, "Invalid session data");
+        // Returns 200 to prevent provider retries
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
       } finally {
         mockVerify.restore();
       }
@@ -745,7 +748,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook with missing items in multi-ticket metadata returns null", async () => {
+    test("webhook with missing items in multi-ticket metadata acknowledges without processing", async () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -780,7 +783,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        await expectHtmlResponse(response, 400, "Invalid session data");
+        // Returns 200 to prevent provider retries
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
       } finally {
         mockVerify.restore();
       }
@@ -2009,7 +2015,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook with checkout event type but no extractable session falls back with no sessionId", async () => {
+    test("webhook with checkout event type but no extractable session acknowledges without processing", async () => {
       await setupStripe();
 
       // Event type matches checkoutCompletedEventType but data lacks metadata
@@ -2039,9 +2045,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toBe("Invalid session data");
+        // Returns 200 to prevent provider retries
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
       } finally {
         mockVerify.restore();
       }
@@ -2084,7 +2091,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook returns 400 when resolveWebhookSession returns null", async () => {
+    test("webhook acknowledges when resolveWebhookSession returns null", async () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -2111,9 +2118,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toBe("Invalid session data");
+        // Returns 200 to prevent provider retries
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
       } finally {
         mockVerify.restore();
         mockResolve.restore();
