@@ -47,6 +47,7 @@ import {
   getShowPublicSiteFromDb,
   getSquareSandboxFromDb,
   getStripeKeyModeFromDb,
+  getStripeSecretKeyFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
   getThemeFromDb,
@@ -196,9 +197,22 @@ const getSettingsPageState = async () => {
     getHeaderImageUrlFromDb(),
   ]);
 
+  // Backfill: if a Stripe key exists but mode was never stored (e.g. key
+  // was configured before mode tracking was added), derive it now and persist.
+  let resolvedStripeKeyMode = stripeKeyMode;
+  if (stripeKeyConfigured && !stripeKeyMode) {
+    const key = await getStripeSecretKeyFromDb();
+    if (key) {
+      resolvedStripeKeyMode = detectStripeKeyMode(key);
+      if (resolvedStripeKeyMode) {
+        await updateStripeKeyMode(resolvedStripeKeyMode);
+      }
+    }
+  }
+
   return {
     stripeKeyConfigured,
-    stripeKeyMode,
+    stripeKeyMode: resolvedStripeKeyMode,
     paymentProvider: paymentProvider ?? "",
     squareTokenConfigured,
     squareSandbox,
