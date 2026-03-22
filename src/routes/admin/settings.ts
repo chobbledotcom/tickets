@@ -736,7 +736,7 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
 
   if (trimmed.length > MAX_TERMS_LENGTH) {
     return errorPage(
-      `Terms must be ${MAX_TERMS_LENGTH} characters or fewer (currently ${trimmed.length})`,
+      t("error.terms_length", { max: MAX_TERMS_LENGTH, current: trimmed.length }),
       400,
       "settings-terms",
     );
@@ -746,12 +746,12 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
 
   if (trimmed === "") {
     await logActivity("Terms and conditions removed");
-    return redirect("/admin/settings", "Terms and conditions removed", true, {
+    return redirect("/admin/settings", t("success.terms_removed"), true, {
       formId: "settings-terms",
     });
   }
   await logActivity("Terms and conditions updated");
-  return redirect("/admin/settings", "Terms and conditions updated", true, {
+  return redirect("/admin/settings", t("success.terms_updated"), true, {
     formId: "settings-terms",
   });
 });
@@ -761,7 +761,7 @@ const processCountryForm: SettingsFormHandler = async (form, errorPage) => {
   const trimmed = form.getString("country").toUpperCase();
 
   if (trimmed === "") {
-    return errorPage("Country is required", 400, "settings-country");
+    return errorPage(t("error.country_required"), 400, "settings-country");
   }
 
   if (!isValidCountry(trimmed)) {
