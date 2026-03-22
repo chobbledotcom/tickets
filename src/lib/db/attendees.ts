@@ -920,16 +920,23 @@ export const migrateAttendeeBatch = async (
   // Process each row: decrypt old fields, build blob, prepare update
   for (const row of rows) {
     // Decrypt all PII fields from old columns
-    const [name, email, phone, address, special_instructions, payment_id, ticket_token] =
-      await Promise.all([
-        decryptAttendeePII(row.name, privateKey),
-        decryptAttendeePII(row.email, privateKey),
-        decryptAttendeePII(row.phone, privateKey),
-        decryptAttendeePII(row.address, privateKey),
-        decryptAttendeePII(row.special_instructions, privateKey),
-        decryptAttendeePII(row.payment_id, privateKey),
-        decryptAttendeePII(row.ticket_token, privateKey),
-      ]);
+    const [
+      name,
+      email,
+      phone,
+      address,
+      special_instructions,
+      payment_id,
+      ticket_token,
+    ] = await Promise.all([
+      decryptAttendeePII(row.name, privateKey),
+      decryptAttendeePII(row.email, privateKey),
+      decryptAttendeePII(row.phone, privateKey),
+      decryptAttendeePII(row.address, privateKey),
+      decryptAttendeePII(row.special_instructions, privateKey),
+      decryptAttendeePII(row.payment_id, privateKey),
+      decryptAttendeePII(row.ticket_token, privateKey),
+    ]);
 
     // Decrypt status fields from old columns
     const [checkedInStr, refundedStr, pricePaidStr] = await Promise.all([
@@ -952,7 +959,7 @@ export const migrateAttendeeBatch = async (
 
     // Write new columns
     await getDb().execute({
-      sql: `UPDATE attendees SET pii_blob = ?, checked_in_v2 = ?, refunded_v2 = ?, price_paid_v2 = ? WHERE id = ?`,
+      sql: "UPDATE attendees SET pii_blob = ?, checked_in_v2 = ?, refunded_v2 = ?, price_paid_v2 = ? WHERE id = ?",
       args: [
         encryptedBlob,
         checkedInStr === "true" ? 1 : 0,

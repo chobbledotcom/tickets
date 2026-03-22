@@ -11,6 +11,7 @@ import {
   getAttendeesRaw,
   getMigrationProgress,
   MIGRATE_BATCH_SIZE,
+  markRefunded,
   migrateAttendeeBatch,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
@@ -24,7 +25,6 @@ import {
   setAttendeeBlobMigrated,
   setSetting,
 } from "#lib/db/settings.ts";
-import { markRefunded } from "#lib/db/attendees.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import {
   adminFormPost,
