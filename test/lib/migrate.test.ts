@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   decryptWithKey,
   deriveKEK,
@@ -17,6 +17,7 @@ import {
 } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
 import {
+  clearAttendeeBlobMigrated,
   getWrappedPrivateKey,
   isAttendeeBlobMigrated,
   setAttendeeBlobMigrated,
@@ -51,6 +52,11 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
 };
 
 describeWithEnv("attendee blob migration", { db: true }, () => {
+  // createTestDbWithSetup marks migration as complete; clear it for migration tests
+  beforeEach(async () => {
+    await clearAttendeeBlobMigrated();
+  });
+
   describe("isAttendeeBlobMigrated", () => {
     test("returns false when setting is empty", async () => {
       expect(await isAttendeeBlobMigrated()).toBe(false);
@@ -336,21 +342,24 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
   });
 
-  describe("dashboard migration banner", () => {
-    test("shows migration banner when not migrated", async () => {
-      const { response } = await adminGet("/admin/");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Run migration");
-      expect(html).toContain("/admin/migrate");
+  describe("admin gating behind migration", () => {
+    test("redirects to /admin/migrate when not migrated", async () => {
+      const { response } = await adminGet("/admin/event/1");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/migrate");
     });
 
-    test("hides migration banner after migration", async () => {
+    test("allows dashboard after migration", async () => {
       await setAttendeeBlobMigrated();
       const { response } = await adminGet("/admin/");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("Run migration");
+    });
+
+    test("allows /admin/migrate when not migrated", async () => {
+      const { response } = await adminGet("/admin/migrate");
+      expect(response.status).toBe(200);
     });
   });
 });

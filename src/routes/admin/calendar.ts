@@ -10,10 +10,7 @@ import {
   getAvailableDates,
 } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
-import {
-  decryptAttendees,
-  decryptAttendeesForTable,
-} from "#lib/db/attendees.ts";
+import { decryptAttendees } from "#lib/db/attendees.ts";
 import {
   getAllDailyEvents,
   getAllStandardEvents,
@@ -23,7 +20,6 @@ import {
 } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
-import { mergeEventFields } from "#lib/event-fields.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import {
@@ -167,14 +163,8 @@ const loadStandardEventAttendees = async (
     const matchingEvents = standardEvents.filter((e) =>
       matchingEventIds.includes(e.id),
     );
-    const fields = mergeEventFields(matchingEvents.map((e) => e.fields));
     const hasPaidEvent = matchingEvents.some(isPaidEvent);
-    return decryptAttendeesForTable(
-      rawStandardAttendees,
-      privateKey,
-      fields,
-      hasPaidEvent,
-    );
+    return decryptAttendees(rawStandardAttendees, privateKey, hasPaidEvent);
   }
   return decryptAttendees(rawStandardAttendees, privateKey);
 };
@@ -196,7 +186,6 @@ const handleAdminCalendarGet = (request: Request) =>
     let attendees: CalendarAttendeeRow[] = [];
     if (dateFilter) {
       const privateKey = (await getPrivateKey(session))!;
-      const dailyFields = mergeEventFields(dailyEvents.map((e) => e.fields));
       const [rawDailyAttendees, standardAttendees] = await Promise.all([
         getDailyEventAttendeesByDate(dateFilter),
         loadStandardEventAttendees(
@@ -207,10 +196,9 @@ const handleAdminCalendarGet = (request: Request) =>
         ),
       ]);
       const hasPaidDailyEvent = dailyEvents.some(isPaidEvent);
-      const dailyAttendees = await decryptAttendeesForTable(
+      const dailyAttendees = await decryptAttendees(
         rawDailyAttendees,
         privateKey,
-        dailyFields,
         hasPaidDailyEvent,
       );
       const sortedAttendees = sortAttendeesByCreatedDesc([

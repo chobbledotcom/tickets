@@ -15,6 +15,7 @@ import {
 } from "#lib/db/settings.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { AuthSession } from "#routes/utils.ts";
 import {
   htmlResponse,
   jsonResponse,
@@ -23,46 +24,57 @@ import {
 } from "#routes/utils.ts";
 import { adminMigratePage } from "#templates/admin/migrate.tsx";
 
+/** Run handler only when migration is incomplete; return doneResponse otherwise */
+const whenNotMigrated =
+  <T>(doneResponse: (session: AuthSession) => Response | Promise<Response>) =>
+  (handler: (session: AuthSession) => Promise<T>) =>
+  async (session: AuthSession): Promise<T | Response> => {
+    const migrated = await isAttendeeBlobMigrated();
+    if (migrated) return doneResponse(session);
+    return handler(session);
+  };
+
 /**
  * Handle GET /admin/migrate — show migration status page
  */
 const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
-  requireOwnerOr(request, async (session) => {
-    const migrated = await isAttendeeBlobMigrated();
-    if (migrated) {
-      return htmlResponse(adminMigratePage(session, { done: true }));
-    }
-    const progress = await getMigrationProgress();
-    return htmlResponse(
-      adminMigratePage(session, {
-        done: false,
-        total: progress.total,
-        remaining: progress.remaining,
-        batchSize: MIGRATE_BATCH_SIZE,
-      }),
-    );
-  });
+  requireOwnerOr(
+    request,
+    whenNotMigrated((session) =>
+      htmlResponse(adminMigratePage(session, { done: true })),
+    )(async (session) => {
+      const progress = await getMigrationProgress();
+      return htmlResponse(
+        adminMigratePage(session, {
+          done: false,
+          total: progress.total,
+          remaining: progress.remaining,
+          batchSize: MIGRATE_BATCH_SIZE,
+        }),
+      );
+    }),
+  );
 
 /**
  * Handle POST /admin/migrate — process one batch of attendees
  */
 const handleMigratePost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session) => {
-    const migrated = await isAttendeeBlobMigrated();
-    if (migrated) {
-      return jsonResponse({ done: true, migrated: 0, remaining: 0 });
-    }
+  withOwnerAuthForm(
+    request,
+    whenNotMigrated(() =>
+      jsonResponse({ done: true, migrated: 0, remaining: 0 }),
+    )(async (session) => {
+      const privateKey = await requirePrivateKey(session);
+      const result = await migrateAttendeeBatch(privateKey);
 
-    const privateKey = await requirePrivateKey(session);
-    const result = await migrateAttendeeBatch(privateKey);
+      if (result.remaining === 0) {
+        await setAttendeeBlobMigrated();
+        return jsonResponse({ done: true, ...result });
+      }
 
-    if (result.remaining === 0) {
-      await setAttendeeBlobMigrated();
-      return jsonResponse({ done: true, ...result });
-    }
-
-    return jsonResponse({ done: false, ...result });
-  });
+      return jsonResponse({ done: false, ...result });
+    }),
+  );
 
 /** Migration routes */
 export const migrateRoutes = defineRoutes({

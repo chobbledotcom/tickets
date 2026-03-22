@@ -55,7 +55,6 @@ import type {
 } from "#lib/types.ts";
 import {
   csvResponse,
-  type DecryptMode,
   getDateFilter,
   verifyIdentifier,
   withEventAttendeesAuth,
@@ -296,13 +295,9 @@ const withEventAttendees = (
     attendees: Attendee[];
     session: AdminSession;
   }) => Response | Promise<Response>,
-  mode: DecryptMode = "full",
 ): Promise<Response> =>
-  withEventAttendeesAuth(
-    request,
-    eventId,
-    (event, attendees, session) => handler({ event, attendees, session }),
-    mode,
+  withEventAttendeesAuth(request, eventId, (event, attendees, session) =>
+    handler({ event, attendees, session }),
   );
 
 /**
@@ -399,44 +394,39 @@ const renderEventPage = async (
   // which doesn't affect the attendees query. Saves 1 HTTP round-trip.
   const [, response] = await Promise.all([
     deleteAllStaleReservations(),
-    withEventAttendees(
-      request,
-      id,
-      async ({ event, attendees, session }) => {
-        const { dateFilter, availableDates, filteredByDate } = applyDateFilter(
+    withEventAttendees(request, id, async ({ event, attendees, session }) => {
+      const { dateFilter, availableDates, filteredByDate } = applyDateFilter(
+        event,
+        attendees,
+        request,
+      );
+      const attendeeIds = filteredByDate.map((a) => a.id);
+      const [flash, phonePrefix, questions, attendeeAnswerMap] =
+        await Promise.all([
+          Promise.resolve(getFlash()),
+          getPhonePrefixFromDb(),
+          getQuestionsForEvent(event.id),
+          getAttendeeAnswersBatch(attendeeIds),
+        ]);
+      const questionData =
+        questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
+      return htmlResponse(
+        adminEventPage({
           event,
-          attendees,
-          request,
-        );
-        const attendeeIds = filteredByDate.map((a) => a.id);
-        const [flash, phonePrefix, questions, attendeeAnswerMap] =
-          await Promise.all([
-            Promise.resolve(getFlash()),
-            getPhonePrefixFromDb(),
-            getQuestionsForEvent(event.id),
-            getAttendeeAnswersBatch(attendeeIds),
-          ]);
-        const questionData =
-          questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
-        return htmlResponse(
-          adminEventPage({
-            event,
-            attendees: filteredByDate,
-            allowedDomain: getAllowedDomain(),
-            session,
-            checkinMessage: getCheckinMessage(request),
-            activeFilter,
-            dateFilter,
-            availableDates,
-            errorMessage: flash.error,
-            phonePrefix,
-            successMessage: flash.success,
-            questionData,
-          }),
-        );
-      },
-      "table",
-    ),
+          attendees: filteredByDate,
+          allowedDomain: getAllowedDomain(),
+          session,
+          checkinMessage: getCheckinMessage(request),
+          activeFilter,
+          dateFilter,
+          availableDates,
+          errorMessage: flash.error,
+          phonePrefix,
+          successMessage: flash.success,
+          questionData,
+        }),
+      );
+    }),
   ]);
   return response;
 };

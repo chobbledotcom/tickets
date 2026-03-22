@@ -1,41 +1,69 @@
 # Gate admin behind migration + simplify PII decryption
 
-## Context
+## What was done
 
-The codebase has dual-path decryption (pre-migration individual fields vs post-migration pii_blob). Since PII is only ever read from admin pages (it's write-only for public routes), we can gate admin access behind migration completion and remove the legacy read path entirely.
+### 1. Gate admin access behind migration (`src/routes/admin/index.ts`)
 
-## Changes
+`routeAdmin` now checks `isAttendeeBlobMigrated()` for authenticated sessions.
+If not migrated, all routes except `/admin`, `/admin/login`, `/admin/logout`, and
+`/admin/migrate` redirect to `/admin/migrate`.
 
-### 1. Gate admin access behind migration in `routeAdmin` (`src/routes/admin/index.ts`)
+### 2. Curried migration guard (`src/routes/admin/migrate.ts`)
 
-In `routeAdmin`, after auth check, check `isAttendeeBlobMigrated()`. If not migrated, only allow `/admin/migrate` and auth routes (`/admin`, `/admin/login`, `/admin/logout`) through — redirect everything else to `/admin/migrate`.
+Extracted `whenNotMigrated(doneResponse)(handler)` — a curried helper that checks
+migration status and returns `doneResponse` if already complete. Used by both GET
+and POST handlers.
 
-### 2. Extract migration guard helper in `src/routes/admin/migrate.ts`
+### 3. Removed pre-migration read path (`src/lib/db/attendees.ts`)
 
-Create a curried `whenNotMigrated` helper that checks `isAttendeeBlobMigrated()` and returns an "already done" response if migrated, otherwise calls through. Both GET and POST handlers use this to eliminate the duplicated guard.
+Deleted:
+- `encryptContactFields` — no longer writes to individual encrypted columns
+- `decryptBoolField` — only used by pre-migration path
+- `decryptField` — only used by pre-migration path
+- Pre-migration branch in `decryptAttendeeFields`
+- `decryptAttendeesForTable` and `DecryptMode` concept
+- `activeFields` parameter from `decryptAttendeeFields`
 
-### 3. Remove pre-migration read path from `decryptAttendeeFields` (`src/lib/db/attendees.ts`)
+`decryptAttendeeFields` now only reads from `pii_blob` + v2 columns.
 
-Since admin is gated behind migration, `decryptAttendeeFields` only sees rows with `pii_blob`. Remove:
-- The entire pre-migration branch (lines 152-199)
-- `decryptField` helper (line 115)
-- `decryptBoolField` helper (line 108)
-- The `activeFields` parameter (blob decryption gets all fields for free)
+### 4. Stopped writing to legacy columns
 
-### 4. Simplify `getActiveEventStats` (`src/lib/db/attendees.ts`)
+- `encryptAttendeeFields` now only produces `pii_blob` + `ticket_token_index`
+- INSERT only writes: `event_id`, `created`, `quantity`, `ticket_token_index`,
+  `date`, `pii_blob`, `checked_in_v2`, `refunded_v2`, `price_paid_v2`
+- Legacy columns get their DEFAULT values (empty strings / zeros)
+- `updateAttendee` only writes `pii_blob`, `event_id`, `quantity`
+- `markRefunded` / `updateCheckedIn` only write v2 integer columns
+- `updateEncryptedField` replaced with simpler `updateV2Field`
 
-Remove the pre-migration branch that decrypts `price_paid`. Always read from `price_paid_v2`.
+### 5. Simplified `getActiveEventStats`
 
-### 5. Simplify `decryptAttendeesForTable` → collapse with `decryptAttendees`
+Always reads `price_paid_v2` directly. Removed `isAttendeeBlobMigrated` branch
+and `decrypt(price_paid)` path.
 
-With blob decryption, selective field skipping is pointless (single decrypt gives all fields). Remove `DecryptMode` and `decryptAttendeesForTable`, use `decryptAttendees` everywhere.
+### 6. Removed dashboard migration banner
 
-### 6. Keep legacy columns and write path
+The banner in `adminDashboardPage` is unnecessary since admin is now gated.
+Removed `migrationNeeded` parameter and the banner markup.
 
-Continue writing to both old encrypted columns AND new blob/v2 columns on insert. Columns stay as disaster recovery fallback. Only the **read** path is simplified.
+### 7. Updated callers
 
-### 7. Update tests
+- `calendar.ts`, `groups.ts` — replaced `decryptAttendeesForTable` with
+  `decryptAttendees(rows, pk, paidEvent)`
+- `events.ts` — removed `DecryptMode` import and `"table"` argument
+- `utils.ts` — removed `DecryptMode`, simplified `withDecryptedAttendees` and
+  `withEventAttendeesAuth`
 
-- Remove/update tests exercising pre-migration read paths
-- Add tests for the admin gating logic
-- Ensure 100% coverage
+### 8. Test updates
+
+- `createTestDbWithSetup` now calls `setAttendeeBlobMigrated()` so admin routes
+  work in tests
+- `migrate.test.ts` clears the flag in `beforeEach` to test un-migrated state
+- Removed `decryptAttendeesForTable` test block from `db.test.ts`
+- Added admin gating tests (redirect when not migrated, allow after migration)
+
+### What's preserved
+
+- Legacy columns remain in the schema (disaster recovery)
+- `migrateAttendeeBatch` still reads/decrypts individual fields for migration
+- `decrypt` import kept for `migrateAttendeeBatch` price_paid decryption

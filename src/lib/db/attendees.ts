@@ -11,7 +11,6 @@ import {
   computeTicketTokenIndex,
   decrypt,
   decryptAttendeePII,
-  encrypt,
   encryptAttendeePII,
   generateTicketToken,
 } from "#lib/crypto.ts";
@@ -23,12 +22,10 @@ import {
   queryOne,
 } from "#lib/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
-import { getPublicKey, isAttendeeBlobMigrated } from "#lib/db/settings.ts";
-import { parseEventFields } from "#lib/event-fields.ts";
+import { getPublicKey } from "#lib/db/settings.ts";
 import { nowIso } from "#lib/now.ts";
 import type {
   Attendee,
-  ContactField,
   ContactFields,
   ContactInfo,
   EventWithCount,
@@ -85,116 +82,23 @@ const decryptPiiBlob = async (
   };
 };
 
-/** Encrypt all contact fields in parallel, returning a keyed record */
-const encryptContactFields = async (
-  info: ContactInfo,
-  publicKeyJwk: string,
-): Promise<ContactInfo> => {
-  const encrypt = (field: keyof ContactInfo) =>
-    encryptAttendeePII(info[field], publicKeyJwk);
-  const [name, email, phone, address, special_instructions] = await Promise.all(
-    [
-      encrypt("name"),
-      encrypt("email"),
-      encrypt("phone"),
-      encrypt("address"),
-      encrypt("special_instructions"),
-    ],
-  );
-  return { name, email, phone, address, special_instructions };
-};
-
-/** Decrypt a boolean-like field, returning "false" for empty/null values */
-const decryptBoolField = (
-  value: string,
-  privateKey: CryptoKey,
-): Promise<string> =>
-  value ? decryptAttendeePII(value, privateKey) : Promise.resolve("false");
-
-/** Conditionally decrypt a contact field, returning "" if not in the active set */
-const decryptField = (
-  value: string,
-  privateKey: CryptoKey,
-  field: ContactField,
-  activeFields: ReadonlySet<ContactField> | null,
-): Promise<string> =>
-  !activeFields || activeFields.has(field)
-    ? decryptAttendeePII(value, privateKey)
-    : Promise.resolve("");
-
 /**
- * Decrypt attendee fields using the private key.
- * When pii_blob is populated, decrypts the single blob (post-migration path).
- * Otherwise falls back to decrypting individual fields (pre-migration path).
- * When activeFields is provided, only those contact fields are decrypted.
+ * Decrypt attendee fields from the PII blob.
+ * Requires migration to be complete (admin is gated behind migration).
  * When paidEvent is false, payment_id and refunded are skipped.
  */
 const decryptAttendeeFields = async (
   row: Attendee,
   privateKey: CryptoKey,
-  activeFields: ReadonlySet<ContactField> | null,
   paidEvent = true,
 ): Promise<Attendee> => {
-  // Post-migration path: single blob decryption (no need for activeFields —
-  // all fields are already in the decrypted JSON, reading them is free)
-  if (row.pii_blob) {
-    const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidEvent);
-    return {
-      ...row,
-      ...pii,
-      price_paid: String(row.price_paid_v2),
-      checked_in: row.checked_in_v2 === 1,
-      refunded: paidEvent ? row.refunded_v2 === 1 : false,
-      attachment_downloads: row.attachment_downloads,
-    };
-  }
-
-  // Pre-migration path: decrypt individual fields
-  const [
-    name,
-    email,
-    phone,
-    address,
-    special_instructions,
-    payment_id,
-    price_paid,
-    checked_in,
-    refundedStr,
-    ticket_token,
-  ] = await Promise.all([
-    decryptAttendeePII(row.name, privateKey),
-    decryptField(row.email, privateKey, "email", activeFields),
-    decryptField(row.phone, privateKey, "phone", activeFields),
-    decryptField(row.address, privateKey, "address", activeFields),
-    decryptField(
-      row.special_instructions,
-      privateKey,
-      "special_instructions",
-      activeFields,
-    ),
-    paidEvent
-      ? decryptAttendeePII(row.payment_id, privateKey)
-      : Promise.resolve(""),
-    paidEvent ? decrypt(row.price_paid) : Promise.resolve("0"),
-    // Raw DB values are encrypted strings; cast needed since Attendee type declares boolean
-    decryptBoolField(row.checked_in as unknown as string, privateKey),
-    paidEvent
-      ? decryptBoolField(row.refunded as unknown as string, privateKey)
-      : Promise.resolve("false"),
-    decryptAttendeePII(row.ticket_token, privateKey),
-  ]);
+  const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidEvent);
   return {
     ...row,
-    name,
-    email,
-    phone,
-    address,
-    special_instructions,
-    payment_id,
-    price_paid,
-    checked_in: checked_in === "true",
-    refunded: refundedStr === "true",
-    ticket_token,
+    ...pii,
+    price_paid: String(row.price_paid_v2),
+    checked_in: row.checked_in_v2 === 1,
+    refunded: paidEvent ? row.refunded_v2 === 1 : false,
     attachment_downloads: row.attachment_downloads,
   };
 };
@@ -229,7 +133,7 @@ export type ActiveEventStats = {
  * Get aggregated statistics for active events.
  * Filters active events from the provided list, computes attendees
  * (sum of quantities) from cached EventWithCount data, and queries
- * ticket count (rows) and income (sum of decrypted price_paid).
+ * ticket count (rows) and income (sum of price_paid_v2).
  */
 export const getActiveEventStats = async (
   events: EventWithCount[],
@@ -244,32 +148,14 @@ export const getActiveEventStats = async (
     0,
   )(active);
 
-  const migrated = await isAttendeeBlobMigrated();
-  if (migrated) {
-    // Post-migration: read plaintext integer directly
-    const rows = await queryAll<{ price_paid_v2: number }>(
-      `SELECT price_paid_v2 FROM attendees WHERE event_id IN (${inPlaceholders(activeIds)})`,
-      activeIds,
-    );
-    const income = reduce(
-      (sum: number, r: { price_paid_v2: number }) => sum + r.price_paid_v2,
-      0,
-    )(rows);
-    return { income, tickets: rows.length, attendees };
-  }
-
-  // Pre-migration: decrypt encrypted price_paid
-  const rows = await queryAll<{ price_paid: string }>(
-    `SELECT price_paid FROM attendees WHERE event_id IN (${inPlaceholders(activeIds)})`,
+  const rows = await queryAll<{ price_paid_v2: number }>(
+    `SELECT price_paid_v2 FROM attendees WHERE event_id IN (${inPlaceholders(activeIds)})`,
     activeIds,
   );
-  const decrypted = await Promise.all(
-    map((r: { price_paid: string }) => decrypt(r.price_paid))(rows),
-  );
   const income = reduce(
-    (sum: number, v: string) => sum + (Number.parseInt(v, 10) || 0),
+    (sum: number, r: { price_paid_v2: number }) => sum + r.price_paid_v2,
     0,
-  )(decrypted);
+  )(rows);
   return { income, tickets: rows.length, attendees };
 };
 
@@ -280,9 +166,12 @@ export const getActiveEventStats = async (
 export const decryptAttendees = (
   rows: Attendee[],
   privateKey: CryptoKey,
+  paidEvent = true,
 ): Promise<Attendee[]> =>
   Promise.all(
-    map((row: Attendee) => decryptAttendeeFields(row, privateKey, null))(rows),
+    map((row: Attendee) => decryptAttendeeFields(row, privateKey, paidEvent))(
+      rows,
+    ),
   );
 
 /**
@@ -293,54 +182,23 @@ export const decryptAttendeeOrNull = (
   row: Attendee | null,
   privateKey: CryptoKey,
 ): Promise<Attendee | null> =>
-  row ? decryptAttendeeFields(row, privateKey, null) : Promise.resolve(null);
-
-/**
- * Decrypt attendees for table display, skipping contact fields
- * not configured on the event and payment fields for free events.
- * For a free event that only collects email, this skips up to 6
- * RSA decryptions per attendee (phone, address, special_instructions,
- * payment_id, refunded, plus 1 symmetric for price_paid).
- */
-export const decryptAttendeesForTable = (
-  rows: Attendee[],
-  privateKey: CryptoKey,
-  eventFields: string,
-  paidEvent = true,
-): Promise<Attendee[]> => {
-  const activeFields = new Set(parseEventFields(eventFields));
-  return Promise.all(
-    map((row: Attendee) =>
-      decryptAttendeeFields(row, privateKey, activeFields, paidEvent),
-    )(rows),
-  );
-};
+  row ? decryptAttendeeFields(row, privateKey) : Promise.resolve(null);
 
 /** Encrypted attendee data for insertion */
 type EncryptedAttendeeData = {
   created: string;
-  encryptedName: string;
-  encryptedEmail: string;
-  encryptedPhone: string;
-  encryptedAddress: string;
-  encryptedSpecialInstructions: string;
-  encryptedPaymentId: string;
-  encryptedPricePaid: string;
-  encryptedCheckedIn: string;
-  encryptedRefunded: string;
   ticketToken: string;
-  encryptedTicketToken: string;
   ticketTokenIndex: string;
   encryptedPiiBlob: string;
 };
 
-/** Input for encrypting attendee fields - all ContactInfo fields are guaranteed to be strings */
+/** Input for encrypting attendee fields */
 type EncryptInput = ContactInfo & {
   paymentId: string;
   pricePaid: number;
 };
 
-/** Encrypt attendee fields, returning null if key not configured */
+/** Encrypt attendee fields into a PII blob, returning null if key not configured */
 const encryptAttendeeFields = async (
   input: EncryptInput,
 ): Promise<EncryptedAttendeeData | null> => {
@@ -348,8 +206,6 @@ const encryptAttendeeFields = async (
   if (!publicKeyJwk) return null;
 
   const ticketToken = generateTicketToken();
-  const contact = await encryptContactFields(input, publicKeyJwk);
-
   const piiJson = buildPiiBlob({
     name: input.name,
     email: input.email,
@@ -360,37 +216,14 @@ const encryptAttendeeFields = async (
     ticket_token: ticketToken,
   });
 
-  const [
-    encryptedPaymentId,
-    encryptedPricePaid,
-    encryptedCheckedIn,
-    encryptedRefunded,
-    encryptedTicketToken,
-    ticketTokenIndex,
-    encryptedPiiBlob,
-  ] = await Promise.all([
-    encryptAttendeePII(input.paymentId, publicKeyJwk),
-    encrypt(String(input.pricePaid)),
-    encryptAttendeePII("false", publicKeyJwk),
-    encryptAttendeePII("false", publicKeyJwk),
-    encryptAttendeePII(ticketToken, publicKeyJwk),
+  const [ticketTokenIndex, encryptedPiiBlob] = await Promise.all([
     computeTicketTokenIndex(ticketToken),
     encryptPiiBlob(piiJson, publicKeyJwk),
   ]);
 
   return {
     created: nowIso(),
-    encryptedName: contact.name,
-    encryptedEmail: contact.email,
-    encryptedPhone: contact.phone,
-    encryptedAddress: contact.address,
-    encryptedSpecialInstructions: contact.special_instructions,
-    encryptedPaymentId,
-    encryptedPricePaid,
-    encryptedCheckedIn,
-    encryptedRefunded,
     ticketToken,
-    encryptedTicketToken,
     ticketTokenIndex,
     encryptedPiiBlob,
   };
@@ -452,7 +285,7 @@ export const getAttendee = async (
   privateKey: CryptoKey,
 ): Promise<Attendee | null> => {
   const row = await getAttendeeRaw(id);
-  return row ? decryptAttendeeFields(row, privateKey, null) : null;
+  return row ? decryptAttendeeFields(row, privateKey) : null;
 };
 
 /**
@@ -678,8 +511,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, created, quantity, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -687,18 +520,8 @@ export const attendeesApi = {
             )${groupCapacityCheck}`,
       args: [
         eventId,
-        enc.encryptedName,
-        enc.encryptedEmail,
-        enc.encryptedPhone,
-        enc.encryptedAddress,
-        enc.encryptedSpecialInstructions,
         enc.created,
-        enc.encryptedPaymentId,
         qty,
-        enc.encryptedPricePaid,
-        enc.encryptedCheckedIn,
-        enc.encryptedRefunded,
-        enc.encryptedTicketToken,
         enc.ticketTokenIndex,
         date,
         enc.encryptedPiiBlob,
@@ -781,37 +604,33 @@ export const getAttendeesByTokens = async (
   return map((idx: string) => byTokenIndex.get(idx) ?? null)(tokenIndexes);
 };
 
-/** Update a single encrypted PII field on an attendee, plus its v2 integer column */
-const updateEncryptedField =
-  (field: string, v2Field: string) =>
-  async (attendeeId: number, value: string): Promise<void> => {
-    const publicKeyJwk = (await getPublicKey())!;
-    const encrypted = await encryptAttendeePII(value, publicKeyJwk);
-    const v2Value = value === "true" ? 1 : 0;
-    await getDb().execute({
-      sql: `UPDATE attendees SET ${field} = ?, ${v2Field} = ? WHERE id = ?`,
-      args: [encrypted, v2Value, attendeeId],
+/** Update a v2 integer column on an attendee */
+const updateV2Field =
+  (field: string) =>
+  (attendeeId: number, value: number): Promise<void> =>
+    getDb().execute({
+      sql: `UPDATE attendees SET ${field} = ? WHERE id = ?`,
+      args: [value, attendeeId],
     });
-  };
 
-const setRefunded = updateEncryptedField("refunded", "refunded_v2");
-const setCheckedIn = updateEncryptedField("checked_in", "checked_in_v2");
+const setRefundedV2 = updateV2Field("refunded_v2");
+const setCheckedInV2 = updateV2Field("checked_in_v2");
 
 /**
- * Mark an attendee as refunded (set refunded to encrypted "true" + refunded_v2 = 1).
+ * Mark an attendee as refunded.
  * Keeps payment_id intact so payment details can still be viewed.
  */
 export const markRefunded = (attendeeId: number): Promise<void> =>
-  setRefunded(attendeeId, "true");
+  setRefundedV2(attendeeId, 1);
 
 /**
- * Update an attendee's checked_in status (both encrypted and v2 integer)
+ * Update an attendee's checked_in status
  * Caller must be authenticated admin (public key always exists after setup)
  */
 export const updateCheckedIn = (
   attendeeId: number,
   checkedIn: boolean,
-): Promise<void> => setCheckedIn(attendeeId, checkedIn ? "true" : "false");
+): Promise<void> => setCheckedInV2(attendeeId, checkedIn ? 1 : 0);
 
 /** Input for updating an attendee */
 export type UpdateAttendeeInput = {
@@ -823,9 +642,9 @@ export type UpdateAttendeeInput = {
   event_id: number;
   quantity: number;
   /** Decrypted payment_id for PII blob rebuild (from existing attendee) */
-  payment_id?: string;
+  payment_id: string;
   /** Decrypted ticket_token for PII blob rebuild (from existing attendee) */
-  ticket_token?: string;
+  ticket_token: string;
 };
 
 /**
@@ -842,7 +661,7 @@ export const incrementAttachmentDownloads = async (
 };
 
 /**
- * Update an attendee's information (encrypted fields)
+ * Update an attendee's information (encrypted PII blob)
  * Caller must be authenticated admin (public key always exists after setup)
  */
 export const updateAttendee = async (
@@ -850,38 +669,19 @@ export const updateAttendee = async (
   input: UpdateAttendeeInput,
 ): Promise<void> => {
   const publicKeyJwk = (await getPublicKey())!;
-  const enc = await encryptContactFields(input, publicKeyJwk);
+  const encryptedPiiBlob = await encryptPiiBlob(
+    buildPiiBlob({
+      ...input,
+      payment_id: input.payment_id,
+      ticket_token: input.ticket_token,
+    }),
+    publicKeyJwk,
+  );
 
-  // Build PII blob when payment_id and ticket_token are provided (from decrypted attendee)
-  const hasBlobFields =
-    input.payment_id !== undefined && input.ticket_token !== undefined;
-  const encryptedPiiBlob = hasBlobFields
-    ? await encryptPiiBlob(
-        buildPiiBlob({
-          ...input,
-          payment_id: input.payment_id!,
-          ticket_token: input.ticket_token!,
-        }),
-        publicKeyJwk,
-      )
-    : null;
-
-  const sql = encryptedPiiBlob
-    ? "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ?, quantity = ?, pii_blob = ? WHERE id = ?"
-    : "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ?, quantity = ? WHERE id = ?";
-  const args = [
-    enc.name,
-    enc.email,
-    enc.phone,
-    enc.address,
-    enc.special_instructions,
-    input.event_id,
-    input.quantity,
-    ...(encryptedPiiBlob ? [encryptedPiiBlob] : []),
-    attendeeId,
-  ];
-
-  await getDb().execute({ sql, args });
+  await getDb().execute({
+    sql: "UPDATE attendees SET event_id = ?, quantity = ?, pii_blob = ? WHERE id = ?",
+    args: [input.event_id, input.quantity, encryptedPiiBlob, attendeeId],
+  });
   invalidateEventsCache();
 };
 
@@ -939,9 +739,11 @@ export const migrateAttendeeBatch = async (
     ]);
 
     // Decrypt status fields from old columns
+    const decryptBool = (v: string) =>
+      v ? decryptAttendeePII(v, privateKey) : Promise.resolve("false");
     const [checkedInStr, refundedStr, pricePaidStr] = await Promise.all([
-      decryptBoolField(row.checked_in as unknown as string, privateKey),
-      decryptBoolField(row.refunded as unknown as string, privateKey),
+      decryptBool(row.checked_in as unknown as string),
+      decryptBool(row.refunded as unknown as string),
       decrypt(row.price_paid),
     ]);
 

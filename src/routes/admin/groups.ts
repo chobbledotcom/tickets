@@ -5,7 +5,7 @@
 import { map } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { decryptAttendeesForTable } from "#lib/db/attendees.ts";
+import { decryptAttendees } from "#lib/db/attendees.ts";
 import { getAttendeesByEventIds, getEvent } from "#lib/db/events.ts";
 import {
   assignEventsToGroup,
@@ -22,7 +22,6 @@ import {
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
-import { mergeEventFields } from "#lib/event-fields.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
@@ -160,18 +159,14 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
       let phonePrefix: string | undefined;
       if (eventIds.length > 0) {
         const privateKey = await requirePrivateKey(session);
-        const fields = mergeEventFields(
-          map((e: { fields: string }) => e.fields)(sortedEvents),
-        );
         const hasPaidEvent = sortedEvents.some(isPaidEvent);
         const [rawAttendees, prefix] = await Promise.all([
           getAttendeesByEventIds(eventIds),
           getPhonePrefixFromDb(),
         ]);
-        attendees = await decryptAttendeesForTable(
+        attendees = await decryptAttendees(
           rawAttendees,
           privateKey,
-          fields,
           hasPaidEvent,
         );
         phonePrefix = prefix;
