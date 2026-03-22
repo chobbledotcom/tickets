@@ -1368,7 +1368,7 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
     !isValidPemCertificate(wwdrField.value)
   ) {
     return errorPage(
-      "WWDR certificate is not a valid PEM certificate",
+      t("error.apple_wwdr_cert_invalid"),
       400,
       "settings-apple-wallet",
     );
@@ -1386,7 +1386,7 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   await logActivity("Apple Wallet configuration updated");
   return redirect(
     "/admin/settings-advanced",
-    "Apple Wallet settings updated",
+    t("success.apple_wallet_updated"),
     true,
     { formId: "settings-apple-wallet" },
   );
@@ -1416,7 +1416,7 @@ const handleGoogleWalletPost = advancedSettingsRoute(
       await logActivity("Google Wallet configuration cleared");
       return redirect(
         "/admin/settings-advanced",
-        "Google Wallet configuration cleared",
+        t("success.google_wallet_cleared"),
         true,
         { formId: "settings-google-wallet" },
       );
