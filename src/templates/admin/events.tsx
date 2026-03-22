@@ -287,7 +287,7 @@ export const adminEventPage = ({
       : "checkin-message-out";
 
   return String(
-    <Layout title={`Event: ${event.name}`} mainClass="stack-xl">
+    <Layout title={`Event: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
 
       <h1>{event.name}</h1>

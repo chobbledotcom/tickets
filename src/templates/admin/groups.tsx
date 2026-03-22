@@ -237,7 +237,7 @@ export const adminGroupDetailPage = (
   });
 
   return String(
-    <Layout title={group.name} mainClass="stack-xl">
+    <Layout title={group.name}>
       <AdminNav session={session} active="/admin/groups" />
       <h1>{group.name}</h1>
       <Raw html={renderSuccess(successMessage)} />

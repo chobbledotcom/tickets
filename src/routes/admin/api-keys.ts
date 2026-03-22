@@ -2,6 +2,10 @@
  * Admin API key management routes
  */
 
+import {
+  ADMIN_API_ENDPOINTS,
+  PUBLIC_API_ENDPOINTS,
+} from "#lib/admin-api-example.ts";
 import { generateSecureToken, unwrapKeyWithToken } from "#lib/crypto.ts";
 import {
   createApiKey,
@@ -19,10 +23,6 @@ import {
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
-import {
-  ADMIN_API_ENDPOINTS,
-  PUBLIC_API_ENDPOINTS,
-} from "#lib/admin-api-example.ts";
 import {
   adminApiDocsPage,
   adminApiKeysPage,
