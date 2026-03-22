@@ -11,8 +11,8 @@ import {
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
+  expectRedirect,
   expectRedirectWithFlash,
   mockFormRequest,
   mockProviderType,
@@ -135,7 +135,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(refundUrl(event.id, attendee.id)),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -234,7 +234,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           confirm_name: "John Doe",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -312,7 +312,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createPaidEvent();
       const response = await handleRequest(mockRequest(refundAllUrl(event.id)));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -375,7 +375,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("returns 404 for non-existent event", async () => {

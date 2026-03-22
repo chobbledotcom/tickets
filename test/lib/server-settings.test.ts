@@ -18,9 +18,9 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -53,7 +53,7 @@ describe("server (admin settings)", () => {
   describe("GET /admin/settings", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/settings"));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("shows settings page when authenticated", async () => {
@@ -138,7 +138,7 @@ describe("server (admin settings)", () => {
           new_password_confirm: "newpassword123",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -294,7 +294,7 @@ describe("server (admin settings)", () => {
           stripe_secret_key: "sk_test_123",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -512,7 +512,7 @@ describe("server (admin settings)", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/settings/stripe/test", {}),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -699,7 +699,7 @@ describe("server (admin settings)", () => {
           square_location_id: "L_test_123",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -810,7 +810,7 @@ describe("server (admin settings)", () => {
           square_webhook_signature_key: "sig_key_test",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects missing webhook signature key", async () => {
@@ -852,7 +852,7 @@ describe("server (admin settings)", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/settings/square/test", {}),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -998,7 +998,7 @@ describe("server (admin settings)", () => {
           payment_provider: "stripe",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("sets payment provider to stripe", async () => {
@@ -1122,7 +1122,7 @@ describe("server (admin settings)", () => {
           terms_and_conditions: "You must agree to our policy.",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1305,7 +1305,7 @@ describe("server (admin settings)", () => {
           business_email: "contact@example.com",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1650,7 +1650,7 @@ describe("server (admin settings)", () => {
           theme: "dark",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1772,7 +1772,7 @@ describe("server (admin settings)", () => {
           show_public_site: "true",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1861,7 +1861,7 @@ describe("server (admin settings)", () => {
           country: "US",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1979,7 +1979,7 @@ describe("server (admin settings)", () => {
           booking_fee: "1.5",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("saves valid booking fee", async () => {

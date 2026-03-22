@@ -16,9 +16,9 @@ import {
   createTestManagerSession,
   deleteTestGroup,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
@@ -40,7 +40,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   describe("GET /admin/groups", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/groups"));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("accessible to managers", async () => {
@@ -77,7 +77,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   describe("GET /admin/group/new", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/group/new"));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("accessible to managers", async () => {
@@ -105,7 +105,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/group", { name: "X" }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("accessible to managers", async () => {
@@ -363,7 +363,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   describe("GET /admin/group/:id", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/group/1"));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("accessible to managers", async () => {
@@ -656,7 +656,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/group/1/add-events", { event_ids: "1" }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("accessible to managers", async () => {

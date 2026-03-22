@@ -13,8 +13,8 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
+  expectRedirect,
   mockFormRequest,
   testCookie,
   testCsrfToken,
@@ -142,7 +142,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
           subject: "test",
         }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("saves custom confirmation template", async () => {
