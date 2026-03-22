@@ -235,7 +235,7 @@ export const adminGroupDetailPage = (
   const tableRows = buildAttendeeRows(attendees, events);
 
   return String(
-    <Layout title={group.name}>
+    <Layout title={group.name} mainClass="stack-xl">
       <AdminNav session={session} active="/admin/groups" />
       <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>{group.name}</h1>

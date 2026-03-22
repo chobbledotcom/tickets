@@ -51,7 +51,7 @@ export const adminAdvancedSettingsPage = (
   s: AdvancedSettingsPageState,
 ): string =>
   String(
-    <Layout title="Advanced Settings" theme={s.theme}>
+    <Layout title="Advanced Settings" theme={s.theme} mainClass="stack-xl">
       <AdminNav session={session} active="/admin/settings" />
       <Breadcrumb href="/admin/settings" label="Settings" />
 
