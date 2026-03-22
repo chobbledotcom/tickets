@@ -139,8 +139,7 @@ const handleDeleteQuestionGet = ownerGetById(
 const handleDeleteQuestionPost = ownerFormById(async (id, session, form) => {
   const question = await getQuestion(id);
   if (!question) return notFoundResponse();
-  const confirm = form.get("confirm_identifier") ?? "";
-  if (!verifyIdentifier(question.text, confirm)) {
+  if (!verifyIdentifier(question.text, form.getString("confirm_identifier"))) {
     const questionWithAnswers = await getQuestionWithAnswers(id);
     return questionWithAnswers
       ? htmlResponse(
@@ -212,8 +211,7 @@ const handleDeleteAnswerGet = answerRoute((question, answer, session) =>
 /** Handle POST /admin/questions/:id/answers/:answerId/delete */
 const handleDeleteAnswerPost = answerFormRoute(
   async (question, answer, session, form) => {
-    const confirm = form.get("confirm_identifier") ?? "";
-    if (!verifyIdentifier(answer.text, confirm)) {
+    if (!verifyIdentifier(answer.text, form.getString("confirm_identifier"))) {
       return htmlResponse(
         adminAnswerDeletePage(question, answer, session, CONFIRM_TEXT_MSG),
         400,

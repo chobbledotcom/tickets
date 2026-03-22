@@ -54,7 +54,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
   request,
 ) =>
   withOwnerAuthForm(request, async (session, form) => {
-    const name = (form.get("name") ?? "").trim();
+    const name = form.getString("name");
     if (!name) {
       return redirect("/admin/api-keys", "Name is required", false);
     }
