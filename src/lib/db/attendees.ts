@@ -58,11 +58,10 @@ const encryptPiiBlob = (
   publicKeyJwk: string,
 ): Promise<string> => encryptAttendeePII(blobJson, publicKeyJwk);
 
-/** Decrypt a PII blob and extract contact fields */
+/** Decrypt a PII blob and extract all contact fields */
 const decryptPiiBlob = async (
   encrypted: string,
   privateKey: CryptoKey,
-  activeFields: ReadonlySet<ContactField> | null,
   paidEvent: boolean,
 ): Promise<{
   name: string;
@@ -75,14 +74,12 @@ const decryptPiiBlob = async (
 }> => {
   const json = await decryptAttendeePII(encrypted, privateKey);
   const blob = parsePiiBlob(json);
-  const skip = (field: ContactField) =>
-    activeFields !== null && !activeFields.has(field);
   return {
     name: blob.n,
-    email: skip("email") ? "" : blob.e,
-    phone: skip("phone") ? "" : blob.p,
-    address: skip("address") ? "" : blob.a,
-    special_instructions: skip("special_instructions") ? "" : blob.s,
+    email: blob.e,
+    phone: blob.p,
+    address: blob.a,
+    special_instructions: blob.s,
     payment_id: paidEvent ? blob.pi : "",
     ticket_token: blob.t,
   };
@@ -138,14 +135,10 @@ const decryptAttendeeFields = async (
   activeFields: ReadonlySet<ContactField> | null,
   paidEvent = true,
 ): Promise<Attendee> => {
-  // Post-migration path: single blob decryption
+  // Post-migration path: single blob decryption (no need for activeFields —
+  // all fields are already in the decrypted JSON, reading them is free)
   if (row.pii_blob) {
-    const pii = await decryptPiiBlob(
-      row.pii_blob,
-      privateKey,
-      activeFields,
-      paidEvent,
-    );
+    const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidEvent);
     return {
       ...row,
       ...pii,
