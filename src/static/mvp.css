@@ -163,6 +163,17 @@ article > *,
   margin-block: 0;
 }
 
+/* Vertical stack: flex column with standard gap */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+}
+
+.stack.row {
+  flex-direction: row;
+}
+
 /* Extra-large vertical stack for spacing between major page sections */
 .stack-xl {
   display: flex;

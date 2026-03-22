@@ -200,12 +200,14 @@ export const adminSettingsPage = (
               s.stripeKeyConfigured ? { stripe_secret_key: MASK_SENTINEL } : {},
             )}
           />
-          <button type="submit">Update Stripe Key</button>
-          {s.stripeKeyConfigured && (
-            <button type="button" id="stripe-test-btn" class="secondary">
-              Test Connection
-            </button>
-          )}
+          <div class="stack row">
+            <button type="submit">Update Stripe Key</button>
+            {s.stripeKeyConfigured && (
+              <button type="button" id="stripe-test-btn" class="secondary">
+                Test Connection
+              </button>
+            )}
+          </div>
           <div id="stripe-test-result" class="hidden"></div>
         </CsrfForm>
       )}
@@ -239,12 +241,14 @@ export const adminSettingsPage = (
             />
             Sandbox mode (use Square's test environment)
           </label>
-          <button type="submit">Update Square Credentials</button>
-          {s.squareTokenConfigured && (
-            <button type="button" id="square-test-btn" class="secondary">
-              Test Connection
-            </button>
-          )}
+          <div class="stack row">
+            <button type="submit">Update Square Credentials</button>
+            {s.squareTokenConfigured && (
+              <button type="button" id="square-test-btn" class="secondary">
+                Test Connection
+              </button>
+            )}
+          </div>
           <div id="square-test-result" class="hidden"></div>
         </CsrfForm>
       )}
