@@ -54,6 +54,33 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await expectHtmlResponse(response, 400, "Missing signature");
     });
 
+    test("handles trailing slash on webhook URL (body buffered correctly)", async () => {
+      await setupStripe();
+
+      // Trailing slash: /payment/webhook/ should still buffer body before
+      // async context wrappers, avoiding "Cannot read body as underlying
+      // resource unavailable" on the Bunny Edge runtime.
+      const request = new Request("http://localhost/payment/webhook/", {
+        method: "POST",
+        headers: {
+          host: "localhost",
+          "content-type": "application/json",
+          "stripe-signature": "sig_test",
+        },
+        body: JSON.stringify({ type: "checkout.session.completed" }),
+      });
+
+      const response = await handleRequest(request);
+      // Should reach the handler and process the body (not fail on body read)
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      // Any handler-level rejection proves the body was read successfully
+      expect(
+        text.includes("Invalid signature") ||
+          text.includes("Webhook secret not configured"),
+      ).toBe(true);
+    });
+
     test("returns 400 when signature verification fails", async () => {
       await setupStripe();
 

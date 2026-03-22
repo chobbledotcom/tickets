@@ -18,8 +18,8 @@ import {
   resetFlashContext,
   setFlashContext,
 } from "#lib/flash-context.ts";
-import { loadHeaderImage } from "#lib/header-image.ts";
 import { clearSavedFormData } from "#lib/forms.tsx";
+import { loadHeaderImage } from "#lib/header-image.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   createRequestTimer,
@@ -49,6 +49,7 @@ import { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
+  normalizePath,
   notFoundResponse,
   parseCookies,
   parseRequest,
@@ -328,9 +329,12 @@ export const handleRequest = async (
   // Buffer webhook body BEFORE entering async context wrappers. The Bunny Edge
   // runtime can garbage-collect the underlying request body resource during
   // awaits, so we must capture it while the resource is still alive.
+  // Use normalizePath on the raw pathname so trailing-slash variants like
+  // /payment/webhook/ are correctly detected (the router normalizes later,
+  // but by then the body resource may already be garbage-collected).
   const { pathname } = new URL(request.url);
   const webhookBody =
-    request.method === "POST" && isWebhookPath(pathname)
+    request.method === "POST" && isWebhookPath(normalizePath(pathname))
       ? new Uint8Array(await request.arrayBuffer())
       : undefined;
   const effectiveRequest = webhookBody
