@@ -25,7 +25,6 @@ export const escapeHtml = (str: string): string =>
 interface LayoutProps {
   title: string;
   bodyClass?: string;
-  mainClass?: string;
   headExtra?: string;
   children?: Child;
   theme?: Theme;
@@ -37,7 +36,6 @@ interface LayoutProps {
 export const Layout = ({
   title,
   bodyClass,
-  mainClass,
   headExtra,
   children,
   theme,
@@ -61,7 +59,7 @@ export const Layout = ({
         </head>
         <body class={bodyClass || undefined}>
           {isDemoMode() && <Raw html={DEMO_BANNER} />}
-          <main class={mainClass || undefined}>
+          <main>
             {headerImage && (
               <img
                 src={getImageProxyUrl(headerImage)}

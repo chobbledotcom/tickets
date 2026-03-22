@@ -46,7 +46,7 @@ export const adminSettingsPage = (
   s: SettingsPageState,
 ): string =>
   String(
-    <Layout title="Settings" theme={s.theme} mainClass="stack-xl">
+    <Layout title="Settings" theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
 
       {s.storageEnabled && (
