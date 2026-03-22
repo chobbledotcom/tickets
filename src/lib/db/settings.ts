@@ -41,8 +41,6 @@ export const CONFIG_KEYS = {
   STRIPE_SECRET_KEY: "stripe_secret_key",
   STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
   STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
-  // Stripe key mode (plaintext - "test" or "live")
-  STRIPE_KEY_MODE: "stripe_key_mode",
   // Square configuration (encrypted)
   SQUARE_ACCESS_TOKEN: "square_access_token",
   SQUARE_WEBHOOK_SIGNATURE_KEY: "square_webhook_signature_key",
@@ -453,9 +451,15 @@ const { get: getStripeSecretKeyFromDb, update: updateStripeKey } =
 
 export { getStripeSecretKeyFromDb, updateStripeKey };
 
-/** Stripe key mode: "test" or "live". Returns null if not configured. */
-export const { get: getStripeKeyModeFromDb, update: updateStripeKeyMode } =
-  textSetting(CONFIG_KEYS.STRIPE_KEY_MODE);
+/** Derive Stripe key mode from the stored key prefix. */
+export const getStripeKeyMode = async (): Promise<"test" | "live" | null> => {
+  const key = await getStripeSecretKeyFromDb();
+  if (!key) return null;
+  // Inline prefix check to avoid circular import with stripe.ts
+  if (key.startsWith("sk_test_")) return "test";
+  if (key.startsWith("sk_live_")) return "live";
+  return null;
+};
 
 export const getStripeWebhookSecretFromDb = encryptedSetting(
   CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,

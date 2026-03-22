@@ -46,8 +46,7 @@ import {
   getShowPublicApiFromDb,
   getShowPublicSiteFromDb,
   getSquareSandboxFromDb,
-  getStripeKeyModeFromDb,
-  getStripeSecretKeyFromDb,
+  getStripeKeyMode,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
   getThemeFromDb,
@@ -86,7 +85,6 @@ import {
   updateSquareSandbox,
   updateSquareWebhookSignatureKey,
   updateStripeKey,
-  updateStripeKeyMode,
   updateTermsAndConditions,
   updateTheme,
   updateUserPassword,
@@ -182,7 +180,7 @@ const getSettingsPageState = async () => {
     headerImageUrl,
   ] = await Promise.all([
     hasStripeKey(),
-    getStripeKeyModeFromDb(),
+    getStripeKeyMode(),
     getPaymentProviderFromDb(),
     hasSquareToken(),
     getSquareSandboxFromDb(),
@@ -197,22 +195,9 @@ const getSettingsPageState = async () => {
     getHeaderImageUrlFromDb(),
   ]);
 
-  // Backfill: if a Stripe key exists but mode was never stored (e.g. key
-  // was configured before mode tracking was added), derive it now and persist.
-  let resolvedStripeKeyMode = stripeKeyMode;
-  if (stripeKeyConfigured && !stripeKeyMode) {
-    const key = await getStripeSecretKeyFromDb();
-    if (key) {
-      resolvedStripeKeyMode = detectStripeKeyMode(key);
-      if (resolvedStripeKeyMode) {
-        await updateStripeKeyMode(resolvedStripeKeyMode);
-      }
-    }
-  }
-
   return {
     stripeKeyConfigured,
-    stripeKeyMode: resolvedStripeKeyMode,
+    stripeKeyMode,
     paymentProvider: paymentProvider ?? "",
     squareTokenConfigured,
     squareSandbox,
@@ -568,8 +553,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   }
 
   // Validate key format — must start with sk_test_ or sk_live_
-  const keyMode = detectStripeKeyMode(field.value);
-  if (!keyMode) {
+  if (!detectStripeKeyMode(field.value)) {
     return errorPage(
       "Invalid Stripe key format. Keys must start with sk_test_ (test mode) or sk_live_ (live mode).",
       400,
@@ -595,10 +579,9 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  // Store the Stripe key, webhook config, and key mode
+  // Store the Stripe key and webhook config
   await updateStripeKey(field.value);
   await setStripeWebhookConfig(webhookResult);
-  await updateStripeKeyMode(keyMode);
 
   // Auto-set payment provider to stripe when key is configured
   await setPaymentProvider("stripe");

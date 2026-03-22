@@ -81,6 +81,7 @@ import {
   getCurrencyCodeFromDb,
   getPublicKey,
   getSetting,
+  getStripeKeyMode,
   getStripeSecretKeyFromDb,
   getTimezoneCached,
   getTimezoneFromDb,
@@ -328,6 +329,25 @@ describeWithEnv("db", { db: true }, () => {
 
       await updateStripeKey("sk_test_second");
       expect(await getStripeSecretKeyFromDb()).toBe("sk_test_second");
+    });
+
+    test("getStripeKeyMode returns null when no key is set", async () => {
+      expect(await getStripeKeyMode()).toBeNull();
+    });
+
+    test("getStripeKeyMode returns test for sk_test_ key", async () => {
+      await updateStripeKey("sk_test_abc123");
+      expect(await getStripeKeyMode()).toBe("test");
+    });
+
+    test("getStripeKeyMode returns live for sk_live_ key", async () => {
+      await updateStripeKey("sk_live_abc123");
+      expect(await getStripeKeyMode()).toBe("live");
+    });
+
+    test("getStripeKeyMode returns null for unrecognised key prefix", async () => {
+      await updateStripeKey("rk_invalid_abc123");
+      expect(await getStripeKeyMode()).toBeNull();
     });
   });
 
