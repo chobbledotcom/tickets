@@ -1069,7 +1069,7 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
         const error = validateTemplate(value);
         if (error) {
           return errorPage(
-            `Invalid template syntax in ${name}: ${error}`,
+            t("error.template_syntax", { name, error }),
             400,
             formId,
           );
@@ -1083,12 +1083,14 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
       updateEmailTemplate(type, "text", text.trim()),
     ]);
 
-    const label =
-      type === "confirmation" ? "Confirmation" : "Admin notification";
-    await logActivity(`${label} email template updated`);
+    const successKey =
+      type === "confirmation"
+        ? "success.confirmation_template_updated"
+        : "success.admin_notification_template_updated";
+    await logActivity(t(successKey));
     return redirect(
       "/admin/settings-advanced",
-      `${label} email template updated`,
+      t(successKey),
       true,
       { formId },
     );
