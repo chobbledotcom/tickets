@@ -24,6 +24,11 @@
   --width-card-medium: 460px;
   --width-card-wide: 800px;
   --width-content: 1300px;
+  /* Spacing scale: s=tight, m=default, lg=breathing room, xl=major sections */
+  --space-s: 0.5rem;
+  --space-m: 1rem;
+  --space-lg: 2rem;
+  --space-xl: 4rem;
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
@@ -125,7 +130,6 @@ article aside {
   background: var(--color-secondary-accent);
   border-left: 4px solid var(--color-secondary);
   padding: 0.01rem 0.8rem;
-  margin-bottom: 2rem;
 }
 
 body {
@@ -143,14 +147,33 @@ header,
 main {
   margin: 0 auto;
   max-width: var(--width-content);
-  padding: 3rem 1rem;
+  padding: var(--space-lg) var(--space-m);
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* Stack reset: gap controls spacing, not browser default margins */
+main > *,
+article > *,
+.stack-xl > * {
+  margin-block: 0;
+}
+
+/* Extra-large vertical stack for spacing between major page sections */
+.stack-xl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
 }
 
 hr {
   background-color: var(--color-bg-secondary);
   border: none;
   height: 1px;
-  margin: 4rem 0;
   width: 100%;
 }
 
@@ -158,6 +181,7 @@ section {
   display: flex;
   flex-wrap: wrap;
   justify-content: var(--justify-important);
+  gap: var(--space-m);
 }
 
 section img,
@@ -173,8 +197,7 @@ section aside {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow) var(--color-shadow);
-  margin: 1rem;
-  padding: 1.25rem;
+  padding: var(--space-m);
   width: var(--width-card);
 }
 
@@ -205,10 +228,6 @@ header a strong {
   margin-right: 0.5rem;
 }
 
-header nav img {
-  margin: 1rem 0;
-}
-
 section header {
   padding-top: 0;
   width: 100%;
@@ -220,14 +239,13 @@ nav {
   display: flex;
   font-weight: bold;
   justify-content: center;
-  gap: 1.5rem;
-  margin-bottom: 7rem;
+  gap: var(--space-m);
 }
 
 nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  gap: var(--space-s) var(--space-m);
   list-style: none;
   padding: 0;
 }
@@ -291,7 +309,7 @@ nav ul li ul li a {
 /* Nav for Desktop */
 @media (min-width: 769px) {
   nav#main-nav {
-    margin: 0 auto 7rem;
+    margin: 0 auto;
     position: sticky;
     top: 1rem;
     background: var(--color-bg);
@@ -322,10 +340,6 @@ samp {
   padding: 0 0.5rem;
 }
 
-details {
-  margin: 1.3rem 0;
-}
-
 details summary {
   font-weight: bold;
   cursor: pointer;
@@ -351,15 +365,13 @@ ul li {
 }
 
 p {
-  margin: 0.75rem 0;
   padding: 0;
   width: 100%;
 }
 
 pre {
-  margin: 1rem 0;
   max-width: var(--width-card-wide);
-  padding: 1rem 0;
+  padding: var(--space-m) 0;
 }
 
 pre code,
@@ -412,8 +424,7 @@ input[type="submit"] {
   font-size: medium;
   font-weight: bold;
   line-height: var(--line-height);
-  margin: 0.5rem 0;
-  padding: 0.2rem 1rem;
+  padding: 0.2rem var(--space-m);
 }
 
 button,
@@ -447,7 +458,7 @@ a i {
   border-radius: var(--border-radius);
   color: var(--color-link);
   display: inline-block;
-  padding: 0.2rem 1rem;
+  padding: 0.2rem var(--space-m);
 }
 
 article aside a {
@@ -486,11 +497,12 @@ form {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow) var(--color-shadow);
-  display: block;
-  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
   max-width: var(--width-card-wide);
   min-width: var(--width-card);
-  padding: 1.5rem;
+  padding: var(--space-m);
   text-align: var(--justify-normal);
 }
 
@@ -502,8 +514,7 @@ form.one-button {
 }
 
 form header {
-  margin: 1.5rem 0;
-  padding: 1.5rem 0;
+  padding: var(--space-m) 0;
 }
 
 input,
@@ -537,16 +548,19 @@ select,
 textarea {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
-  margin-bottom: 1rem;
   padding: 0.4rem 0.8rem;
 }
 
 input[type="text"],
 input[type="password"],
 input[type="email"],
-textarea,
-input[type="file"] {
+textarea {
   width: 100%;
+  box-sizing: border-box;
+}
+
+input[type="file"] {
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -558,10 +572,9 @@ textarea[readonly] {
 label {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: var(--space-m);
   align-items: baseline;
   font-weight: bold;
-  margin-bottom: 0.2rem;
   font-size: inherit;
   max-width: var(--width-card-wide);
 }
@@ -581,7 +594,6 @@ label > small {
 label > select,
 label > input {
   flex: 1;
-  margin-bottom: 0;
 }
 
 label > input[type="date"],
@@ -663,13 +675,8 @@ dialog::backdrop {
   }
 }
 
-dialog hr {
-  margin-block: 1rem;
-}
-
 /* Tables */
 .table-scroll {
-  margin: 2rem 0 7rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -746,9 +753,9 @@ blockquote {
   display: block;
   font-size: x-large;
   line-height: var(--line-height);
-  margin: 1rem auto;
+  margin-inline: auto;
   max-width: var(--width-card-medium);
-  padding: 1.5rem 1rem;
+  padding: var(--space-m);
   text-align: var(--justify-important);
 }
 
@@ -757,7 +764,7 @@ blockquote footer {
   display: block;
   font-size: small;
   line-height: var(--line-height);
-  padding: 1.5rem 0;
+  padding: var(--space-m) 0;
 }
 
 /* Scrollbars */
@@ -781,13 +788,11 @@ blockquote footer {
   border-radius: 10px;
 }
 
-/* Article spacing and heading adjustments */
-article + article {
-  margin-top: 2rem;
-}
-
-article > h2:first-child {
-  margin-top: 0;
+/* Articles are vertical stacks */
+article {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
 }
 
 /* App-specific additions */
@@ -795,16 +800,14 @@ article > h2:first-child {
   background: #ffeeee;
   border-left: 4px solid #cc0000;
   color: #cc0000;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  padding: var(--space-m);
 }
 
 .success {
   background: #eeffee;
   border-left: 4px solid #006600;
   color: #006600;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  padding: var(--space-m);
 }
 
 [data-theme="dark"] .error {
@@ -846,11 +849,6 @@ input[type="submit"].danger:hover {
   --color-danger-hover: #cc0000;
 }
 
-/* Agreement/disclaimer styling */
-fieldset.agreement {
-  margin-top: 2rem;
-}
-
 .password-warning {
   color: #cc0000;
   font-weight: bold;
@@ -884,8 +882,7 @@ button.bulk-checkin,
 button.bulk-checkout {
   display: block;
   width: 100%;
-  padding: 0.75rem 1.5rem;
-  margin-bottom: 1rem;
+  padding: 0.75rem var(--space-m);
   border: none;
   border-radius: var(--border-radius);
   color: #fff;
@@ -972,7 +969,6 @@ body.iframe main {
 body.iframe form {
   border: none;
   box-shadow: none;
-  margin-bottom: 0;
   padding: 0;
 }
 
@@ -982,10 +978,6 @@ body.iframe form {
   padding-left: 0;
 }
 
-.multi-ticket-row {
-  margin-bottom: 2rem;
-}
-
 fieldset {
   border: 0;
 }
@@ -993,26 +985,18 @@ fieldset {
 .checkbox-group {
   border: 0;
   padding: 0;
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
 }
 
 .checkbox-group label {
   display: inline-block;
-  margin-right: 1rem;
   font-weight: normal;
-}
-
-form > label {
-  margin-bottom: 1rem;
 }
 
 label.terms-agree {
   display: block;
-}
-
-/* Remove button margins inside forms */
-form > button {
-  margin: 0;
 }
 
 /* Hide daily-only fields when event type is "standard" */
@@ -1039,24 +1023,20 @@ form:not(:has(input[name="can_pay_more"]:checked)) > label:has([name="max_price"
 
 .text-center {
   text-align: center;
-  margin: 1em 0;
 }
 
 .description {
   font-size: 0.9em;
-  margin: 0.5rem 0 1rem;
 }
 
 .description-compact {
   font-size: 0.9em;
-  margin: 0.25rem 0 0.5rem;
 }
 
 /* Event images */
 .event-image {
   max-width: min(100%, var(--width-card-wide));
   border-radius: 4px;
-  margin-bottom: 1rem;
 }
 
 .event-thumbnail {
@@ -1071,14 +1051,13 @@ form:not(:has(input[name="can_pay_more"]:checked)) > label:has([name="max_price"
 .event-image-preview {
   max-width: 300px;
   border-radius: 4px;
-  margin-bottom: 0.5rem;
 }
 
 /* Header image */
 .header-image {
   max-width: 100%;
   display: block;
-  margin: 0 auto 3rem;
+  margin-inline: auto;
 }
 
 /* Secondary button */
@@ -1103,39 +1082,35 @@ button.secondary:hover {
 .ticket-slider {
   display: flex;
   flex-direction: row;
-  gap: 1rem;
+  gap: var(--space-m);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
-  padding: 1rem 0;
-  margin: 2rem 0;
+  padding: var(--space-m) 0;
 }
 
 .ticket-card {
   flex: 0 0 auto;
   width: min(25rem, 100%);
-  padding: 0.5rem;
+  padding: var(--space-s);
   border-radius: var(--border-radius);
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
   scroll-snap-align: start;
   background: var(--color-bg);
   border: 1px solid var(--color-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
 }
 
 .ticket-card-name {
   font-weight: bold;
   font-size: 1.1em;
-  margin-bottom: 0.5rem;
 }
 
 .ticket-card-date {
   font-style: italic;
-  margin-bottom: 0.25rem;
   color: var(--color-text-secondary);
-}
-
-.ticket-card-location {
-  margin-bottom: 0.25rem;
 }
 
 .ticket-card-image {
@@ -1146,22 +1121,15 @@ button.secondary:hover {
 }
 
 .ticket-card-description {
-  margin-bottom: 0.5rem;
   color: var(--color-text-secondary);
   font-size: 0.95em;
 }
 
-.ticket-card-quantity {
-  margin-bottom: 0.5rem;
-}
-
 .ticket-card-price {
-  margin-bottom: 0.5rem;
   font-weight: bold;
 }
 
 .ticket-card-qr {
-  margin-top: 1rem;
   text-align: center;
 }
 
@@ -1177,7 +1145,7 @@ button.secondary:hover {
 
 /* Owner debug footer */
 .debug-footer {
-  margin-top: 5rem;
+  margin-top: auto;
   font-size: smaller;
   opacity: 0.6;
 }
@@ -1189,7 +1157,7 @@ button.secondary:hover {
 
 /* Homepage footer (Login link) */
 .homepage-footer {
-  margin-top: 5rem;
+  margin-top: auto;
   font-size: smaller;
   opacity: 0.6;
 }
@@ -1292,13 +1260,16 @@ button.secondary:hover {
   position: relative;
   border: none;
   border-radius: 8px;
-  padding: 1.5rem;
+  padding: var(--space-m);
   max-width: 90%;
   width: 320px;
   text-align: center;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
   background: var(--color-bg);
   color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
 }
 
 #scanner-confirm-close {
@@ -1315,13 +1286,12 @@ button.secondary:hover {
 }
 
 #scanner-confirm p {
-  margin: 0 0 1.25rem;
   font-size: 1.1rem;
 }
 
 .scanner-confirm-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-s);
   justify-content: center;
 }
 
@@ -1378,9 +1348,8 @@ button.secondary:hover {
     flex-wrap: wrap;
     overflow: visible;
     scroll-snap-type: none;
-    gap: 1rem;
+    gap: var(--space-m);
     padding: 0;
-    margin: 1rem 0;
   }
 
   .ticket-card {
@@ -1438,6 +1407,3 @@ button.secondary:hover {
 }
 
 /* Guide page */
-body.guide h3 {
-  margin-top: 3rem;
-}

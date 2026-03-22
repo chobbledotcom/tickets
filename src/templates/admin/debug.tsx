@@ -75,7 +75,7 @@ export const adminDebugPage = (
   s: DebugPageState,
 ): string =>
   String(
-    <Layout title="Debug Info" theme={s.theme}>
+    <Layout title="Debug Info" theme={s.theme} mainClass="stack-xl">
       <AdminNav session={session} active="/admin/settings" />
       <Breadcrumb href="/admin/settings" label="Settings" />
 
