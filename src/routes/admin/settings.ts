@@ -877,7 +877,7 @@ const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
 
   await updateBookingFee(String(value));
   await logActivity(`Booking fee set to ${value}%`);
-  return redirect("/admin/settings", `Booking fee updated to ${value}%`, true, {
+  return redirect("/admin/settings", t("success.booking_fee_updated", { fee: value }), true, {
     formId: "settings-booking-fee",
   });
 };
@@ -889,12 +889,12 @@ const handleBookingFeePost = settingsRoute(processBookingFeeForm);
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
   withOwnerAuthMultipartForm(request, async (session, formData) => {
     if (!isStorageEnabled()) {
-      return htmlResponse("Image storage is not configured", 400);
+      return htmlResponse(t("error.image_storage_not_configured"), 400);
     }
 
     const entry = formData.get("header_image");
     if (!(entry instanceof File) || entry.size === 0) {
-      setFormError("settings-header-image", "No image file provided");
+      setFormError("settings-header-image", t("error.no_image_provided"));
       return htmlResponse(await renderSettingsPage(session), 400);
     }
 
