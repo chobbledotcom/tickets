@@ -19,6 +19,7 @@ import {
   setFlashContext,
 } from "#lib/flash-context.ts";
 import { loadHeaderImage } from "#lib/header-image.ts";
+import { clearSavedFormData } from "#lib/forms.tsx";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   createRequestTimer,
@@ -346,6 +347,7 @@ export const handleRequest = async (
         const { url, path, method } = parseRequest(effectiveRequest);
         const getElapsed = createRequestTimer();
         detectIframeMode(effectiveRequest.url);
+        clearSavedFormData();
 
         try {
           // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
