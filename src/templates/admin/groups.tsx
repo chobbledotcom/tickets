@@ -23,7 +23,7 @@ import {
   buildSharedDetailRows,
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
@@ -105,7 +105,6 @@ export const adminGroupNewPage = (
   String(
     <Layout title="Add Group">
       <AdminNav session={session} active="/admin/groups" />
-      <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>Add Group</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/group">
@@ -126,7 +125,6 @@ export const adminGroupEditPage = (
   String(
     <Layout title="Edit Group">
       <AdminNav session={session} active="/admin/groups" />
-      <Breadcrumb href={`/admin/group/${group.id}`} label={group.name} />
       <h1>Edit Group</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action={`/admin/group/${group.id}/edit`}>
@@ -147,7 +145,6 @@ export const adminGroupDeletePage = (
   String(
     <Layout title="Delete Group">
       <AdminNav session={session} active="/admin/groups" />
-      <Breadcrumb href={`/admin/group/${group.id}`} label={group.name} />
       <h1>Delete Group</h1>
       <Raw html={renderError(error)} />
       <p>
@@ -244,7 +241,6 @@ export const adminGroupDetailPage = (
   return String(
     <Layout title={group.name} mainClass="stack-xl">
       <AdminNav session={session} active="/admin/groups" />
-      <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>{group.name}</h1>
       <Raw html={renderSuccess(successMessage)} />
       {group.terms_and_conditions && (
