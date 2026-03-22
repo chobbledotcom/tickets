@@ -42,6 +42,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       expect(html).toContain("multiple-choice");
       expect(html).toContain("must select one");
       expect(html).toContain("shared across multiple events");
+      expect(html).toContain("attendee table on event and group pages");
     });
 
     test("contains public links section", async () => {

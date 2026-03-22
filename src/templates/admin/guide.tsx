@@ -361,9 +361,10 @@ export const adminGuidePage = (
 
         <Q q="Where do I see the answers?">
           <p>
-            Each attendee's selected answer is shown on their detail page in the
-            admin area. Answers are also included in the CSV export and in
-            webhook payloads, so you can use them in external tools.
+            Answers appear in the attendee table on event and group pages, so
+            you can see at a glance what each attendee chose. They're also
+            shown on the individual attendee detail page, included in the CSV
+            export, and sent in webhook payloads.
           </p>
         </Q>
       </Section>
