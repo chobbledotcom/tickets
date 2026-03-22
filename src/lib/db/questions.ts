@@ -6,7 +6,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { map, reduce } from "#fp";
+import { filter, map, reduce } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { executeBatch, inPlaceholders, queryAll } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
@@ -160,6 +160,9 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   );
 };
 
+/** Keep only questions that have at least one answer */
+const withAnswers = filter((q: QuestionWithAnswers) => q.answers.length > 0);
+
 /** Decrypt a single question and its answers */
 const decryptQuestion = async (
   id: number,
@@ -190,19 +193,22 @@ export const getAllQuestionsWithAnswers = async (): Promise<
     ),
   );
 
-/** Get questions assigned to an event, ordered by sort_order */
+/** Get questions assigned to an event, ordered by sort_order.
+ * Questions with no answers are excluded (nothing useful to ask). */
 export const getQuestionsForEvent = async (
   eventId: number,
 ): Promise<QuestionWithAnswers[]> =>
-  groupJoinedRows(
-    await queryAll<JoinedRow>(
-      `SELECT ${QA_COLS}
+  withAnswers(
+    await groupJoinedRows(
+      await queryAll<JoinedRow>(
+        `SELECT ${QA_COLS}
        FROM event_questions eq
        JOIN questions q ON q.id = eq.question_id
        LEFT JOIN answers a ON a.question_id = q.id
        WHERE eq.event_id = ?
        ORDER BY eq.sort_order, a.sort_order`,
-      [eventId],
+        [eventId],
+      ),
     ),
   );
 
@@ -255,7 +261,7 @@ export const getQuestionsWithEventIds = async (
     new Map() as QuestionEventMap,
   )(rows);
 
-  const questions = await groupJoinedRows(rows);
+  const questions = withAnswers(await groupJoinedRows(rows));
   return { questions, questionEventMap };
 };
 
