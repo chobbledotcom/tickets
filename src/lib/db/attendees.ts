@@ -518,8 +518,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, created, quantity, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
-            SELECT ?, '', '', ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, created, quantity, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (

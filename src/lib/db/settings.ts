@@ -512,6 +512,10 @@ export const isAttendeeBlobMigrated = async (): Promise<boolean> => {
 export const setAttendeeBlobMigrated = (): Promise<void> =>
   setSetting(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED, new Date().toISOString());
 
+/** Clear the attendee blob migration flag (for testing) */
+export const clearAttendeeBlobMigrated = (): Promise<void> =>
+  setSetting(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED, "");
+
 /**
  * Update a user's password and re-wrap DATA_KEY with new KEK
  * Requires the user's old password hash (decrypted) and their user row
