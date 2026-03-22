@@ -2,7 +2,7 @@
  * Admin event management routes
  */
 
-import { compact, filter } from "#fp";
+import { compact, filter, map, pipe, sort, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { formatCurrency, toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
@@ -397,17 +397,15 @@ const filterByDate = (
   date ? filter((a: Attendee) => a.date === date)(attendees) : attendees;
 
 /** Collect unique dates from attendees, sorted ascending */
-const getUniqueDates = (
+const getUniqueDates: (
   attendees: Attendee[],
-): { value: string; label: string }[] => {
-  const dates = new Set<string>();
-  for (const a of attendees) {
-    if (a.date) dates.add(a.date);
-  }
-  return [...dates]
-    .sort()
-    .map((d) => ({ value: d, label: formatDateLabel(d) }));
-};
+) => { value: string; label: string }[] = pipe(
+  map((a: Attendee) => a.date),
+  (dates: (string | null)[]) => compact(dates),
+  (dates: string[]) => unique(dates),
+  sort((a: string, b: string) => a.localeCompare(b)),
+  map((d: string) => ({ value: d, label: formatDateLabel(d) })),
+);
 
 /** Get date filter and filtered attendees for daily events */
 const applyDateFilter = (

@@ -6,7 +6,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { map } from "#fp";
+import { map, reduce } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { executeBatch, inPlaceholders, queryAll } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
@@ -245,12 +245,15 @@ export const getQuestionsWithEventIds = async (
 
   if (rows.length === 0) return { questions: [], questionEventMap: new Map() };
 
-  const questionEventMap: QuestionEventMap = new Map();
-  for (const row of rows) {
-    if (!questionEventMap.has(row.q_id)) {
-      questionEventMap.set(row.q_id, map(Number)(row.event_ids.split(",")));
-    }
-  }
+  const questionEventMap = reduce(
+    (acc: QuestionEventMap, row: JoinedRowWithEvents) => {
+      if (!acc.has(row.q_id)) {
+        acc.set(row.q_id, map(Number)(row.event_ids.split(",")));
+      }
+      return acc;
+    },
+    new Map() as QuestionEventMap,
+  )(rows);
 
   const questions = await groupJoinedRows(rows);
   return { questions, questionEventMap };
@@ -309,13 +312,18 @@ export const getAttendeeAnswersBatch = async (
     attendeeIds,
   );
 
-  const result = new Map<number, number[]>();
-  for (const { attendee_id, answer_id } of rows) {
-    const list = result.get(attendee_id) ?? [];
-    list.push(answer_id);
-    result.set(attendee_id, list);
-  }
-  return result;
+  return reduce(
+    (
+      acc: Map<number, number[]>,
+      { attendee_id, answer_id }: { attendee_id: number; answer_id: number },
+    ) => {
+      const list = acc.get(attendee_id) ?? [];
+      list.push(answer_id);
+      acc.set(attendee_id, list);
+      return acc;
+    },
+    new Map<number, number[]>(),
+  )(rows);
 };
 
 /** Delete a question and all related data in a single batch.
@@ -372,11 +380,16 @@ export const getAnswerCountsForQuestion = async (
      GROUP BY a.id`,
     [questionId],
   );
-  const result = new Map<number, number>();
-  for (const { answer_id, cnt } of rows) {
-    result.set(answer_id, cnt);
-  }
-  return result;
+  return reduce(
+    (
+      acc: Map<number, number>,
+      { answer_id, cnt }: { answer_id: number; cnt: number },
+    ) => {
+      acc.set(answer_id, cnt);
+      return acc;
+    },
+    new Map<number, number>(),
+  )(rows);
 };
 
 /** Swap the sort_order of two answers by their IDs */

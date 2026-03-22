@@ -48,20 +48,16 @@ import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
 /** Build a map of YYYY-MM-DD → event IDs for standard events that have a date */
 const buildStandardEventDateMap = (
   events: EventWithCount[],
-): Map<string, number[]> => {
-  const dateMap = new Map<string, number[]>();
-  for (const event of events) {
+): Map<string, number[]> =>
+  reduce((acc: Map<string, number[]>, event: EventWithCount) => {
     const calDate = eventDateToCalendarDate(event.date);
-    if (!calDate) continue;
-    const ids = dateMap.get(calDate);
-    if (ids) {
+    if (calDate) {
+      const ids = acc.get(calDate) ?? [];
       ids.push(event.id);
-    } else {
-      dateMap.set(calDate, [event.id]);
+      acc.set(calDate, ids);
     }
-  }
-  return dateMap;
-};
+    return acc;
+  }, new Map<string, number[]>())(events);
 
 /** Compile all possible dates from events (available + existing attendee dates + standard event dates) */
 const compileDateOptions = (

@@ -2,7 +2,7 @@
  * Admin event page templates - detail, edit, delete
  */
 
-import { filter, map, pipe, reduce } from "#fp";
+import { filter, flatMap, map, pipe, reduce } from "#fp";
 import { getTz } from "#lib/config.ts";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
@@ -95,29 +95,39 @@ export const sumQuantity = reduce(
   0,
 );
 
+/** Count how many times each answer was selected across all attendees */
+const countAnswers = (attendeeAnswerMap: Map<number, number[]>) =>
+  pipe(
+    flatMap((ids: number[]) => ids),
+    reduce((counts: Map<number, number>, id: number) => {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+      return counts;
+    }, new Map<number, number>()),
+  )([...attendeeAnswerMap.values()]);
+
+/** Format a question's answers as "text (count), ..." */
+const formatAnswerParts = (answerCounts: Map<number, number>) =>
+  pipe(
+    map(
+      (a: { id: number; text: string }) =>
+        `${a.text} (${answerCounts.get(a.id) ?? 0})`,
+    ),
+    (parts: string[]) => parts.join(", "),
+  );
+
 /** Build answer count summary rows for the details table */
 export const buildAnswerSummaryRows = (
   questionData: TableQuestionData | undefined,
 ): string => {
   if (!questionData || questionData.questions.length === 0) return "";
-  // Count how many times each answer was selected
-  const answerCounts = new Map<number, number>();
-  for (const answerIds of questionData.attendeeAnswerMap.values()) {
-    for (const aid of answerIds) {
-      answerCounts.set(aid, (answerCounts.get(aid) ?? 0) + 1);
-    }
-  }
-  return questionData.questions
-    .map((q) => {
-      const parts = q.answers
-        .map((a) => {
-          const count = answerCounts.get(a.id) ?? 0;
-          return `${a.text} (${count})`;
-        })
-        .join(", ");
-      return `<tr><th>${q.text}</th><td>${parts}</td></tr>`;
-    })
-    .join("");
+  const answerCounts = countAnswers(questionData.attendeeAnswerMap);
+  return pipe(
+    map(
+      (q: { text: string; answers: { id: number; text: string }[] }) =>
+        `<tr><th>${q.text}</th><td>${formatAnswerParts(answerCounts)(q.answers)}</td></tr>`,
+    ),
+    joinStrings,
+  )(questionData.questions);
 };
 
 /** Concatenate strings (curried reducer for use in pipe) */

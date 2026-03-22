@@ -3,9 +3,9 @@
  * across the event detail, check-in, and calendar views.
  */
 
-import { map, pipe, reduce, sort } from "#fp";
+import { flatMap, map, pipe, reduce, sort } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { normalizePhone } from "#lib/phone.ts";
@@ -137,15 +137,14 @@ export const sortAttendeeRows: (
 /** Build answer text map from questions */
 const buildAnswerTextMap = (
   questions: QuestionWithAnswers[],
-): Map<number, string> => {
-  const m = new Map<number, string>();
-  for (const q of questions) {
-    for (const a of q.answers) {
+): Map<number, string> =>
+  pipe(
+    flatMap((q: QuestionWithAnswers) => q.answers),
+    reduce((m: Map<number, string>, a: Answer) => {
       m.set(a.id, a.text);
-    }
-  }
-  return m;
-};
+      return m;
+    }, new Map<number, string>()),
+  )(questions);
 
 /** Build answer question map (answer ID → question text) */
 const buildAnswerQuestionMap = (
