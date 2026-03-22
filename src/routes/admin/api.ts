@@ -8,20 +8,22 @@
  */
 
 import { map } from "#fp";
-import { formatCurrency } from "#lib/currency.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   computeSlugIndex,
-  deleteEvent,
   type EventInput,
   eventsTable,
   getAllEvents,
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
-import { groupsTable, validateGroupEventType } from "#lib/db/groups.ts";
-import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
-import { tryDeleteImage } from "#lib/storage.ts";
+import {
+  generateUniqueEventSlug,
+  performEventDelete,
+  toggleEventActive,
+  validateEventInput,
+} from "#lib/events-actions.ts";
+import { normalizeSlug } from "#lib/slug.ts";
 import type { AdminEvent, EventType, EventWithCount } from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { jsonResponse, withAdminApi } from "#routes/utils.ts";
@@ -35,42 +37,6 @@ export const toAdminEvent = ({
 /** Error response helper */
 const errorResponse = (message: string, status = 400): Response =>
   jsonResponse({ status: "error", message }, status);
-
-/** Generate a unique event slug, retrying on collision */
-const generateUniqueEventSlug = (excludeEventId?: number) =>
-  generateUniqueSlug(computeSlugIndex, (slug) =>
-    isSlugTaken(slug, excludeEventId),
-  );
-
-/** Validate max_price is at least unit_price + 100 cents */
-const validateMaxPrice = (input: EventInput): string | null => {
-  const minPrice = (input.unitPrice ?? 0) + 100;
-  return input.maxPrice < minPrice
-    ? `Maximum price must be at least ${formatCurrency(100)} more than the ticket price`
-    : null;
-};
-
-/** Validate event input (group exists, max price, etc.) */
-const validateEventInput = async (
-  input: EventInput,
-  existingId?: number,
-): Promise<string | null> => {
-  if (input.canPayMore) {
-    const maxPriceError = validateMaxPrice(input);
-    if (maxPriceError) return maxPriceError;
-  }
-  if (input.groupId && input.groupId !== 0) {
-    const group = await groupsTable.findById(input.groupId);
-    if (!group) return "Selected group does not exist";
-    const typeError = await validateGroupEventType(
-      input.groupId,
-      input.eventType!,
-      existingId ?? 0,
-    );
-    if (typeError) return typeError;
-  }
-  return null;
-};
 
 /** Extract an optional string field from JSON body (returns undefined if null/missing) */
 const optionalString = (value: unknown): string | undefined => {
@@ -312,16 +278,7 @@ const handleDeleteEvent = (
       );
     }
 
-    if (event.image_url) {
-      await tryDeleteImage(event.image_url, event.id, "event deletion");
-    }
-    if (event.attachment_url) {
-      await tryDeleteImage(event.attachment_url, event.id, "event deletion");
-    }
-    await deleteEvent(event.id);
-    await logActivity(
-      `Event '${event.name}' deleted (${event.attendee_count} attendee(s) removed)`,
-    );
+    await performEventDelete(event);
     return jsonResponse({ status: "ok" });
   });
 
@@ -333,12 +290,10 @@ const handleDeactivateEvent = (
   withAdminApi(request, async () => {
     const event = await getEventWithCount(eventId);
     if (!event) return errorResponse("Event not found", 404);
-    if (!event.active) return errorResponse("Event is already deactivated");
 
-    await eventsTable.update(eventId, { active: false });
-    await logActivity(`Event '${event.name}' deactivated`, eventId);
-    const updated = await getEventWithCount(eventId);
-    return jsonResponse({ event: toAdminEvent(updated!) });
+    const updated = await toggleEventActive(eventId, event, false);
+    if (!updated) return errorResponse("Event is already deactivated");
+    return jsonResponse({ event: toAdminEvent(updated) });
   });
 
 /** POST /api/admin/events/:eventId/reactivate — reactivate event */
@@ -349,12 +304,10 @@ const handleReactivateEvent = (
   withAdminApi(request, async () => {
     const event = await getEventWithCount(eventId);
     if (!event) return errorResponse("Event not found", 404);
-    if (event.active) return errorResponse("Event is already active");
 
-    await eventsTable.update(eventId, { active: true });
-    await logActivity(`Event '${event.name}' reactivated`, eventId);
-    const updated = await getEventWithCount(eventId);
-    return jsonResponse({ event: toAdminEvent(updated!) });
+    const updated = await toggleEventActive(eventId, event, true);
+    if (!updated) return errorResponse("Event is already active");
+    return jsonResponse({ event: toAdminEvent(updated) });
   });
 
 export const adminApiRoutes = defineRoutes({
