@@ -4,6 +4,7 @@
  */
 
 import { lazyRef, map } from "#fp";
+import { t } from "#i18n";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import { toBase64 } from "#lib/crypto.ts";
@@ -357,8 +358,8 @@ export const sendTestEmail = async (
 ): Promise<number | undefined> => {
   return await sendEmail(config, {
     to,
-    subject: "Test email from your ticket system",
-    html: "<p>This is a test email. Your email configuration is working correctly.</p>",
-    text: "This is a test email. Your email configuration is working correctly.",
+    subject: t("fields.email.test_subject"),
+    html: `<p>${t("fields.email.test_body")}</p>`,
+    text: t("fields.email.test_body"),
   });
 };

@@ -3,6 +3,7 @@
  */
 
 import { chunk, compact, filter, uniqueBy } from "#fp";
+import { t } from "#i18n";
 import { getCurrencyCode } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
@@ -75,12 +76,11 @@ import {
 type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
 
 /** Refund error messages */
-const NO_PAYMENT_ERROR = "This attendee has no payment to refund.";
-const NO_PROVIDER_ERROR = "No payment provider configured.";
-const NO_REFUNDABLE_ERROR = "No attendees have payments to refund.";
-const REFUND_FAILED_ERROR =
-  "Refund failed. The payment may have already been refunded.";
-const ALREADY_REFUNDED_ERROR = "This attendee has already been refunded.";
+const NO_PAYMENT_ERROR = t("error.no_payment_to_refund");
+const NO_PROVIDER_ERROR = t("error.no_payment_provider");
+const NO_REFUNDABLE_ERROR = t("error.no_attendees_to_refund");
+const REFUND_FAILED_ERROR = t("error.refund_failed");
+const ALREADY_REFUNDED_ERROR = t("error.already_refunded");
 
 /** Max refunds per request to stay within Bunny Edge fetch limits */
 const REFUND_BATCH_LIMIT = 30;
@@ -217,13 +217,13 @@ const handleAttendeeDelete = attendeeFormAction(
       session,
       form,
       adminDeleteAttendeePage,
-      "Attendee name does not match. Please type the exact name to confirm deletion.",
+      t("error.attendee_name_mismatch_delete"),
     );
     if (error) return error;
 
     await deleteAttendee(attendeeId);
     await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
-    return redirect(`/admin/event/${eventId}`, "Attendee deleted", true, {
+    return redirect(`/admin/event/${eventId}`, t("success.attendee_deleted"), true, {
       form,
     });
   },
@@ -245,7 +245,7 @@ const handleDeleteIncomplete = attendeeFormAction(
     if (!isIncomplete) {
       return redirect(
         `/admin/event/${eventId}`,
-        "Attendee does not have an incomplete payment",
+        t("error.attendee_no_incomplete_payment"),
         false,
       );
     }
@@ -257,7 +257,7 @@ const handleDeleteIncomplete = attendeeFormAction(
     );
     return redirect(
       `/admin/event/${eventId}`,
-      "Incomplete registration removed",
+      t("success.incomplete_removed"),
       true,
     );
   },
@@ -337,7 +337,7 @@ const handleAttendeeRefund = attendeeFormAction(
       session,
       form,
       adminRefundAttendeePage,
-      "Attendee name does not match. Please type the exact name to confirm refund.",
+      t("error.attendee_name_mismatch_refund"),
     );
     if (nameError) return nameError;
 
@@ -364,7 +364,7 @@ const handleAttendeeRefund = attendeeFormAction(
       `Refund issued for attendee '${data.attendee.name}'`,
       eventId,
     );
-    return redirect(`/admin/event/${eventId}`, "Refund issued", true, { form });
+    return redirect(`/admin/event/${eventId}`, t("success.refund_issued"), true, { form });
   },
 );
 
@@ -406,7 +406,7 @@ const processRefundAll = async (
         event,
         refundable.length,
         session,
-        "Event name does not match. Please type the exact name to confirm.",
+        t("error.event_name_mismatch_refund"),
       ),
       400,
     );
@@ -463,8 +463,8 @@ const processRefundAll = async (
   if (failedCount > 0) {
     const msg =
       remaining > 0
-        ? `${refundedCount} refund(s) succeeded, ${failedCount} failed. ${remaining} remaining — submit again to continue.`
-        : `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`;
+        ? t("success.refund_partial", { succeeded: refundedCount, failed: failedCount, remaining })
+        : t("success.refund_partial_done", { succeeded: refundedCount, failed: failedCount });
     await logActivity(
       `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
       event.id,
@@ -490,7 +490,7 @@ const processRefundAll = async (
         event,
         remaining,
         session,
-        `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
+        t("success.refund_batch", { count: refundedCount, remaining }),
       ),
     );
   }
@@ -499,7 +499,7 @@ const processRefundAll = async (
     `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
     event.id,
   );
-  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
+  return redirect(`/admin/event/${event.id}`, t("success.all_refunded"), true);
 };
 
 /** Handle POST /admin/event/:id/refund-all */
@@ -562,13 +562,13 @@ const handleAddAttendee = (
       }
       const errorMsg =
         result.reason === "capacity_exceeded"
-          ? "Not enough spots available"
-          : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
+          ? t("error.not_enough_spots")
+          : t("error.encryption_error");
       return redirect(`/admin/event/${eventId}`, errorMsg, false);
     }
 
     await logActivity(`Attendee '${name}' added manually`, eventId);
-    return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
+    return redirect(`/admin/event/${eventId}`, t("success.attendee_added", { name }), true);
   });
 
 /** Get all events (active + the current event), uniquified */
@@ -689,12 +689,12 @@ async function editAttendeeHandler(
   const special_instructions = form.getString("special_instructions");
   const event_id = Number(form.get("event_id")) || 0;
 
-  if (!name.trim()) return editError("Name is required");
-  if (!event_id) return editError("Event is required");
+  if (!name.trim()) return editError(t("error.name_required"));
+  if (!event_id) return editError(t("error.event_required"));
 
   const targetEvent =
     event_id === data.event.id ? data.event : await getEventWithCount(event_id);
-  if (!targetEvent) return editError("Event not found");
+  if (!targetEvent) return editError(t("error.event_not_found"));
 
   const quantity = parseQuantity(
     form.get("quantity") || "1",
@@ -712,7 +712,7 @@ async function editAttendeeHandler(
       spotsNeeded,
       data.attendee.date,
     );
-    if (!available) return editError("Not enough spots available");
+    if (!available) return editError(t("error.not_enough_spots"));
   }
 
   // Parse question answers
@@ -746,7 +746,7 @@ async function editAttendeeHandler(
 
   return redirect(
     `/admin/event/${event_id}#attendees`,
-    `Updated ${name}`,
+    t("success.attendee_updated", { name }),
     true,
     { form },
   );
@@ -774,7 +774,7 @@ const handleResendNotification = attendeeFormAction(
       session,
       form,
       adminResendNotificationPage,
-      "Attendee name does not match. Please type the exact name to confirm.",
+      t("error.attendee_name_mismatch"),
     );
     if (error) return error;
 
@@ -786,7 +786,7 @@ const handleResendNotification = attendeeFormAction(
         eventId,
       ),
     ]);
-    return redirect(`/admin/event/${eventId}`, "Notification re-sent", true, {
+    return redirect(`/admin/event/${eventId}`, t("success.notification_resent"), true, {
       form,
     });
   },
@@ -802,7 +802,7 @@ async function refreshPaymentHandler(
   if (!data.attendee.payment_id) {
     return redirect(
       `/admin/attendees/${attendeeId}`,
-      "No payment to refresh",
+      t("error.no_payment_to_refresh"),
       false,
     );
   }
@@ -824,14 +824,14 @@ async function refreshPaymentHandler(
     );
     return redirect(
       `/admin/attendees/${attendeeId}`,
-      "Payment status updated: refunded",
+      t("success.payment_status_refunded"),
       true,
     );
   }
 
   return redirect(
     `/admin/attendees/${attendeeId}`,
-    "Payment status is up to date",
+    t("success.payment_status_current"),
     true,
   );
 }

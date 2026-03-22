@@ -4,6 +4,7 @@
  */
 
 import { lazyRef } from "#fp";
+import { t } from "#i18n";
 import { getEnv } from "#lib/env.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { FieldValues } from "#lib/forms.tsx";
@@ -622,4 +623,4 @@ export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
 
 /** Demo mode banner HTML */
 export const DEMO_BANNER =
-  '<div class="demo-banner">Demo Mode &mdash; entered text is replaced with sample data</div>';
+  `<div class="demo-banner">${t("guide.demo_mode_notice")}</div>`;

@@ -10,6 +10,7 @@
 
 import { zipSync } from "fflate";
 import forge from "node-forge";
+import { t } from "#i18n";
 import { getDecimalPlaces } from "#lib/currency.ts";
 import { startOfHour } from "#lib/dates.ts";
 import { WALLET_ICONS } from "#lib/wallet-icons.ts";
@@ -114,7 +115,7 @@ type EventTicketFields = {
 /** Build the eventTicket field groups */
 const buildEventTicketFields = (data: PassData): EventTicketFields => {
   const fields: EventTicketFields = {
-    primaryFields: [{ key: "event", label: "EVENT", value: data.eventName }],
+    primaryFields: [{ key: "event", label: t("fields.wallet.apple.event_label"), value: data.eventName }],
     secondaryFields: [],
     auxiliaryFields: [],
     backFields: [],
@@ -123,7 +124,7 @@ const buildEventTicketFields = (data: PassData): EventTicketFields => {
   if (data.eventDate) {
     fields.secondaryFields.push({
       key: "date",
-      label: "DATE",
+      label: t("fields.wallet.apple.date_label"),
       value: data.eventDate,
       dateStyle: "PKDateStyleMedium",
       timeStyle: "PKDateStyleShort",
@@ -133,7 +134,7 @@ const buildEventTicketFields = (data: PassData): EventTicketFields => {
   if (data.eventLocation) {
     fields.secondaryFields.push({
       key: "location",
-      label: "LOCATION",
+      label: t("fields.wallet.apple.location_label"),
       value: data.eventLocation,
     });
   }
@@ -141,7 +142,7 @@ const buildEventTicketFields = (data: PassData): EventTicketFields => {
   if (data.attendeeDate) {
     fields.auxiliaryFields.push({
       key: "booking-date",
-      label: "BOOKING DATE",
+      label: t("fields.wallet.apple.booking_date_label"),
       value: data.attendeeDate,
     });
   }
@@ -149,7 +150,7 @@ const buildEventTicketFields = (data: PassData): EventTicketFields => {
   if (data.quantity > 1) {
     fields.auxiliaryFields.push({
       key: "qty",
-      label: "QTY",
+      label: t("fields.wallet.apple.qty_label"),
       value: data.quantity,
     });
   }
@@ -157,7 +158,7 @@ const buildEventTicketFields = (data: PassData): EventTicketFields => {
   if (data.pricePaid > 0) {
     fields.auxiliaryFields.push({
       key: "price",
-      label: "PRICE",
+      label: t("fields.wallet.apple.price_label"),
       value: data.pricePaid / 10 ** getDecimalPlaces(data.currencyCode),
       currencyCode: data.currencyCode,
     });

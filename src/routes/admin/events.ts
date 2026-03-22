@@ -61,6 +61,7 @@ import {
   withEventAttendeesAuth,
 } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { t } from "#i18n";
 import { defineRoutes } from "#routes/router.ts";
 import {
   authenticatedGetById,
@@ -336,7 +337,7 @@ const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
       formData,
       result.row.id,
       "/admin",
-      "Event created",
+      t("success.event_created"),
     );
   });
 
@@ -505,7 +506,7 @@ const handleAdminEventEditPost: TypedRouteHandler<
       nameField: "name",
       validate: async (input, existingId) => {
         const taken = await isSlugTaken(input.slug, Number(existingId));
-        if (taken) return "Slug is already in use by another event";
+        if (taken) return t("error.slug_in_use");
         return validateEventInput(input);
       },
     });
@@ -517,7 +518,7 @@ const handleAdminEventEditPost: TypedRouteHandler<
         formData,
         id,
         `/admin/event/${result.row.id}`,
-        "Event updated",
+        t("success.event_updated"),
         existing.image_url,
         existing.attachment_url,
       );
@@ -604,8 +605,7 @@ const handleEventWithConfirmation = (
     }),
   );
 
-const CONFIRM_NAME_MSG =
-  "Event name does not match. Please type the exact name to confirm.";
+const CONFIRM_NAME_MSG = t("error.event_name_mismatch");
 
 /** Factory for event toggle handlers (deactivate/reactivate) */
 const eventToggleHandler =
@@ -613,6 +613,7 @@ const eventToggleHandler =
     renderPage: typeof adminDeactivateEventPage,
     active: boolean,
     verb: string,
+    successMsg: string,
   ): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
   (request, { id }) =>
     handleEventWithConfirmation(
@@ -623,7 +624,7 @@ const eventToggleHandler =
       async (event) => {
         await eventsTable.update(id, { active });
         await logActivity(`Event '${event.name}' ${verb}`, id);
-        return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
+        return redirect(`/admin/event/${id}`, successMsg, true);
       },
     );
 
@@ -632,6 +633,7 @@ const handleAdminEventDeactivatePost = eventToggleHandler(
   adminDeactivateEventPage,
   false,
   "deactivated",
+  t("success.event_deactivated"),
 );
 
 /** Handle POST /admin/event/:id/reactivate */
@@ -639,6 +641,7 @@ const handleAdminEventReactivatePost = eventToggleHandler(
   adminReactivateEventPage,
   true,
   "reactivated",
+  t("success.event_reactivated"),
 );
 
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
@@ -659,7 +662,7 @@ const handleAdminEventLog = authenticatedGetById(null)(
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {
   await performEventDelete(event);
-  return redirect("/admin", "Event deleted", true);
+  return redirect("/admin", t("success.event_deleted"), true);
 };
 
 /** Handle DELETE /admin/event/:id (delete event with logging) */
@@ -671,7 +674,7 @@ const handleAdminEventDelete: TypedRouteHandler<
         request,
         id,
         adminDeleteEventPage,
-        "Event name does not match. Please type the exact name to confirm deletion.",
+        t("error.event_name_mismatch_delete"),
         performDelete,
       )
     : withAuthForm(request, () =>

@@ -19,6 +19,7 @@ import { nowMs } from "#lib/now.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
+import { t } from "#i18n";
 import {
   generateSecureToken,
   getAuthenticatedSession,
@@ -76,7 +77,7 @@ const handleAdminLogin = async (
   // Validate login CSRF token (signed token pattern)
   const csrfForm = form.getString("csrf_token");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
-    return loginResponse("Invalid or expired form. Please try again.", 403);
+    return loginResponse(t("error.csrf_invalid"), 403);
   }
 
   const clientIp = getClientIp(request, server);
@@ -84,7 +85,7 @@ const handleAdminLogin = async (
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
     return loginResponse(
-      "Too many login attempts. Please try again later.",
+      t("error.too_many_attempts"),
       429,
     );
   }
@@ -101,14 +102,14 @@ const handleAdminLogin = async (
   const user = await getUserByUsername(username);
   if (!user) {
     await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
+    return loginResponse(t("error.invalid_credentials"), 401);
   }
 
   // Verify password (decrypt stored hash, then verify)
   const passwordHash = await verifyUserPassword(user, password);
   if (!passwordHash) {
     await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
+    return loginResponse(t("error.invalid_credentials"), 401);
   }
 
   // Clear failed attempts on successful login
@@ -117,7 +118,7 @@ const handleAdminLogin = async (
   // Check if user has a wrapped data key (fully activated)
   if (!user.wrapped_data_key) {
     return loginResponse(
-      "Your account has not been activated yet. Please contact the site owner.",
+      t("error.account_not_activated"),
       403,
     );
   }
@@ -129,7 +130,7 @@ const handleAdminLogin = async (
     dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
     // KEK mismatch - this shouldn't happen if password verification passed
-    return loginResponse("Invalid credentials", 401);
+    return loginResponse(t("error.invalid_credentials"), 401);
   }
 
   return createLoginSession(dataKey, user.id);

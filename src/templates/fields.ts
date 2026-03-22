@@ -439,37 +439,37 @@ export const eventFields: Field[] = [
   },
   {
     name: "webhook_url",
-    label: "Webhook URL (optional)",
+    label: t("fields.event.webhook_url"),
     type: "url",
     placeholder: "https://example.com/webhook",
-    hint: "Receives POST with attendee name, email, and phone on registration",
+    hint: t("fields.event.webhook_url_hint"),
     validate: validateSafeUrl,
   },
   {
     name: "non_transferable",
-    label: "Non-Transferable Tickets",
+    label: t("fields.event.non_transferable"),
     type: "select",
-    hint: "Requires attendees to show ID matching the ticket name at entry",
+    hint: t("fields.event.non_transferable_hint"),
     options: [
-      { value: "", label: "No" },
-      { value: "1", label: "Yes" },
+      { value: "", label: t("common.no") },
+      { value: "1", label: t("common.yes") },
     ],
   },
   {
     name: "hidden",
-    label: "Hidden Event",
+    label: t("fields.event.hidden"),
     type: "checkbox-group",
-    hint: "Hide from the public events page and search engines. The event is still bookable via its direct link.",
-    options: [{ value: "1", label: "Hide from public events list" }],
+    hint: t("fields.event.hidden_hint"),
+    options: [{ value: "1", label: t("fields.event.hidden_label") }],
   },
 ];
 
 /** Validate date format (YYYY-MM-DD) */
 export const validateDate = (value: string): string | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
-    return "Please enter a valid date (YYYY-MM-DD)";
+    return t("error.date_format_invalid");
   const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return "Please enter a valid date";
+  if (Number.isNaN(date.getTime())) return t("error.date_invalid");
   return null;
 };
 
@@ -479,24 +479,24 @@ export const validateDate = (value: string): string | null => {
 export const holidayFields: Field[] = [
   {
     name: "name",
-    label: "Holiday Name",
+    label: t("holidays.fields.name"),
     type: "text",
     required: true,
-    placeholder: "Bank Holiday",
+    placeholder: t("holidays.fields.name_placeholder"),
   },
   {
     name: "start_date",
-    label: "Start Date",
+    label: t("holidays.fields.start_date"),
     type: "date",
     required: true,
     validate: validateDate,
   },
   {
     name: "end_date",
-    label: "End Date",
+    label: t("holidays.fields.end_date"),
     type: "date",
     required: true,
-    hint: "Must be on or after the start date",
+    hint: t("holidays.fields.end_date_hint"),
     validate: validateDate,
   },
 ];
@@ -504,7 +504,7 @@ export const holidayFields: Field[] = [
 /** Image upload field for event forms (appended when storage is enabled) */
 export const imageField: Field = {
   name: "image",
-  label: `Event Image (JPEG, PNG, GIF, WebP \u2014 max ${formatBytes(MAX_IMAGE_SIZE)})`,
+  label: t("fields.event.image", { size: formatBytes(MAX_IMAGE_SIZE) }),
   type: "file",
   accept: "image/jpeg,image/png,image/gif,image/webp",
 };
@@ -512,50 +512,50 @@ export const imageField: Field = {
 /** Attachment upload field for event forms (appended when storage is enabled) */
 export const attachmentField: Field = {
   name: "attachment",
-  label: `Attachment (any file \u2014 max ${formatBytes(MAX_ATTACHMENT_SIZE)})`,
+  label: t("fields.event.attachment", { size: formatBytes(MAX_ATTACHMENT_SIZE) }),
   type: "file",
 };
 
 /** Slug field for event/group edit pages */
 export const slugField: Field = {
   name: "slug",
-  label: "Slug",
+  label: t("fields.event.slug"),
   type: "text",
   required: true,
-  hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
+  hint: t("fields.event.slug_hint"),
   validate: (value: string) => validateSlug(normalizeSlug(value)),
 };
 
 /** Group selection field (validated even when rendered manually) */
 export const groupIdField: Field = {
   name: "group_id",
-  label: "Group",
+  label: t("fields.event.group"),
   type: "text",
 };
 
 /** Max attendees field for group forms */
 const groupMaxAttendeesField: Field = {
   name: "max_attendees",
-  label: "Max Attendees (optional)",
+  label: t("groups.fields.max_attendees"),
   type: "number",
-  hint: "Limits total attendees across all events in this group. Leave blank for no limit. Works best when all events in the group are the same type (daily or standard).",
+  hint: t("groups.fields.max_attendees_hint"),
 };
 
 /** Group form fields for creation (no slug - auto-generated) */
 export const groupCreateFields: Field[] = [
   {
     name: "name",
-    label: "Group Name",
+    label: t("groups.fields.name"),
     type: "text",
     required: true,
-    placeholder: "Summer Fete",
+    placeholder: t("groups.fields.name_placeholder"),
   },
   groupMaxAttendeesField,
   {
     name: "terms_and_conditions",
-    label: "Terms and Conditions (optional)",
+    label: t("groups.fields.terms"),
     type: "textarea",
-    hint: "If set, overrides the global terms and conditions for this group ticket page",
+    hint: t("groups.fields.terms_hint"),
     hintHtml: FORMATTING_HINT,
   },
 ];
@@ -571,7 +571,7 @@ export const groupFields: Field[] = [
 /** Name field shown on all ticket forms */
 const nameField: Field = {
   name: "name",
-  label: "Your Name",
+  label: t("public.ticket.your_name"),
   type: "text",
   required: true,
   autocomplete: "name",
@@ -580,7 +580,7 @@ const nameField: Field = {
 /** Email field for ticket forms */
 const emailField: Field = {
   name: "email",
-  label: "Your Email",
+  label: t("public.ticket.your_email"),
   type: "email",
   required: true,
   autocomplete: "email",
@@ -590,7 +590,7 @@ const emailField: Field = {
 /** Phone field for ticket forms */
 const phoneField: Field = {
   name: "phone",
-  label: "Your Phone Number",
+  label: t("public.ticket.your_phone"),
   type: "text",
   required: true,
   autocomplete: "tel",
@@ -603,13 +603,13 @@ const MAX_ADDRESS_LENGTH = 250;
 /** Validate address length */
 export const validateAddress = (value: string): string | null =>
   value.length > MAX_ADDRESS_LENGTH
-    ? `Address must be ${MAX_ADDRESS_LENGTH} characters or fewer`
+    ? t("error.address_length")
     : null;
 
 /** Address field for ticket forms (textarea) */
 const addressField: Field = {
   name: "address",
-  label: "Your Address",
+  label: t("public.ticket.your_address"),
   type: "textarea",
   required: true,
   autocomplete: "street-address",
@@ -622,13 +622,13 @@ const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
 /** Validate special instructions length */
 export const validateSpecialInstructions = (value: string): string | null =>
   value.length > MAX_SPECIAL_INSTRUCTIONS_LENGTH
-    ? `Special instructions must be ${MAX_SPECIAL_INSTRUCTIONS_LENGTH} characters or fewer`
+    ? t("error.special_instructions_length")
     : null;
 
 /** Special instructions field for ticket forms (textarea) */
 const specialInstructionsField: Field = {
   name: "special_instructions",
-  label: "Special Instructions",
+  label: t("public.ticket.special_instructions"),
   type: "textarea",
   required: true,
   validate: validateSpecialInstructions,
@@ -692,7 +692,7 @@ export const extractContact = (values: TicketFormValues): ContactInfo => ({
 /** Quantity field for admin add-attendee form */
 const addAttendeeQuantityField: Field = {
   name: "quantity",
-  label: "Quantity",
+  label: t("admin.attendees.edit.quantity"),
   type: "number",
   required: true,
   min: 1,
@@ -701,7 +701,7 @@ const addAttendeeQuantityField: Field = {
 /** Date field for admin add-attendee form (daily events only) */
 const addAttendeeDateField: Field = {
   name: "date",
-  label: "Date",
+  label: t("admin.attendee_table.col.date"),
   type: "date",
   required: true,
   validate: validateDate,
@@ -728,24 +728,24 @@ export const getAddAttendeeFields = (
 export const setupFields: Field[] = [
   {
     name: "admin_username",
-    label: "Admin Username *",
+    label: t("fields.setup.username"),
     type: "text",
     required: true,
-    hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
+    hint: t("fields.setup.username_hint"),
     autocomplete: "username",
     validate: validateUsername,
   },
   {
     name: "admin_password",
-    label: "Admin Password *",
+    label: t("fields.setup.password"),
     type: "password",
     required: true,
-    hint: "Minimum 8 characters",
+    hint: t("fields.setup.password_hint"),
     autocomplete: "new-password",
   },
   {
     name: "admin_password_confirm",
-    label: "Confirm Admin Password *",
+    label: t("fields.setup.confirm_password"),
     type: "password",
     required: true,
     autocomplete: "new-password",
@@ -758,22 +758,22 @@ export const setupFields: Field[] = [
 export const changePasswordFields: Field[] = [
   {
     name: "current_password",
-    label: "Current Password",
+    label: t("password.current"),
     type: "password",
     required: true,
     autocomplete: "current-password",
   },
   {
     name: "new_password",
-    label: "New Password",
+    label: t("password.new"),
     type: "password",
     required: true,
-    hint: "Minimum 8 characters",
+    hint: t("password.new_hint"),
     autocomplete: "new-password",
   },
   {
     name: "new_password_confirm",
-    label: "Confirm New Password",
+    label: t("password.confirm"),
     type: "password",
     required: true,
     autocomplete: "new-password",
@@ -786,11 +786,11 @@ export const changePasswordFields: Field[] = [
 export const stripeKeyFields: Field[] = [
   {
     name: "stripe_secret_key",
-    label: "Stripe Secret Key",
+    label: t("fields.stripe.secret_key"),
     type: "password",
     required: true,
-    placeholder: "sk_live_... or sk_test_...",
-    hint: "Enter a new key to update",
+    placeholder: t("fields.stripe.secret_key_placeholder"),
+    hint: t("fields.stripe.secret_key_hint"),
   },
 ];
 
@@ -800,19 +800,19 @@ export const stripeKeyFields: Field[] = [
 export const squareAccessTokenFields: Field[] = [
   {
     name: "square_access_token",
-    label: "Square Access Token",
+    label: t("fields.square.access_token"),
     type: "password",
     required: true,
     placeholder: "EAAAl...",
-    hint: "Your Square application's access token",
+    hint: t("fields.square.access_token_hint"),
   },
   {
     name: "square_location_id",
-    label: "Location ID",
+    label: t("fields.square.location_id"),
     type: "text",
     required: true,
     placeholder: "L...",
-    hint: "Your Square location ID (found in Square Dashboard under Locations)",
+    hint: t("fields.square.location_id_hint"),
   },
 ];
 
@@ -822,10 +822,10 @@ export const squareAccessTokenFields: Field[] = [
 export const squareWebhookFields: Field[] = [
   {
     name: "square_webhook_signature_key",
-    label: "Webhook Signature Key",
+    label: t("fields.square.webhook_key"),
     type: "password",
     required: true,
-    hint: "The signature key from your Square webhook subscription",
+    hint: t("fields.square.webhook_key_hint"),
   },
 ];
 
@@ -835,17 +835,17 @@ export const squareWebhookFields: Field[] = [
 export const inviteUserFields: Field[] = [
   {
     ...usernameFieldBase,
-    hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
+    hint: t("users.invite_fields.username_hint"),
     validate: validateUsername,
   },
   {
     name: "admin_level",
-    label: "Role",
+    label: t("users.invite_fields.role"),
     type: "select",
     required: true,
     options: [
-      { value: "manager", label: "Manager" },
-      { value: "owner", label: "Owner" },
+      { value: "manager", label: t("users.invite_fields.role_manager") },
+      { value: "owner", label: t("users.invite_fields.role_owner") },
     ],
   },
 ];
@@ -856,15 +856,15 @@ export const inviteUserFields: Field[] = [
 export const joinFields: Field[] = [
   {
     name: "password",
-    label: "Password",
+    label: t("join.set_password.password"),
     type: "password",
     required: true,
-    hint: "Minimum 8 characters",
+    hint: t("join.set_password.min_chars"),
     autocomplete: "new-password",
   },
   {
     name: "password_confirm",
-    label: "Confirm Password",
+    label: t("join.set_password.confirm_password"),
     type: "password",
     required: true,
     autocomplete: "new-password",

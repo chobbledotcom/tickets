@@ -28,6 +28,7 @@ import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
+import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { loadQuestionData, requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
@@ -101,8 +102,7 @@ const crudConfig = {
   renderEdit: adminGroupEditPage,
   renderDelete: adminGroupDeletePage,
   getName: (g: Group) => g.name,
-  deleteConfirmError:
-    "Group name does not match. Please type the exact name to confirm deletion.",
+  deleteConfirmError: t("error.group_name_mismatch"),
 } as const;
 
 /** Groups resource for REST create operations (auto-generated slug) */
@@ -122,7 +122,7 @@ const groupsResource = defineNamedResource({
   nameField: "name",
   validate: async (input, id) => {
     const taken = await isGroupSlugTaken(input.slug, Number(id));
-    return taken ? "Slug is already in use" : null;
+    return taken ? t("error.slug_in_use_group") : null;
   },
   onDelete: deleteGroup,
 });
@@ -228,7 +228,7 @@ const handleAddEventsToGroup: TypedRouteHandler<
           `${eventIds.length} event(s) added to group '${group.name}'`,
         );
       }
-      return redirect(`/admin/group/${id}`, "Events added to group", true);
+      return redirect(`/admin/group/${id}`, t("success.events_added_to_group"), true);
     }),
   );
 

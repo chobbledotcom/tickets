@@ -114,6 +114,7 @@ import {
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
 import { getFlash } from "#lib/flash-context.ts";
+import { t } from "#i18n";
 import type { FormParams } from "#lib/form-data.ts";
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
@@ -429,11 +430,11 @@ const validateChangePasswordForm = (
   if (new_password.length < 8) {
     return {
       valid: false,
-      error: "New password must be at least 8 characters",
+      error: t("error.new_password_min"),
     };
   }
   if (new_password !== new_password_confirm) {
-    return { valid: false, error: "New passwords do not match" };
+    return { valid: false, error: t("error.new_passwords_mismatch") };
   }
 
   return {
@@ -462,7 +463,7 @@ const handleAdminSettingsPost = settingsRoute(
     );
     if (!passwordHash) {
       return errorPage(
-        "Current password is incorrect",
+        t("error.current_password_incorrect"),
         401,
         "settings-password",
       );
@@ -475,11 +476,11 @@ const handleAdminSettingsPost = settingsRoute(
       validation.newPassword,
     );
     if (!success) {
-      return errorPage("Failed to update password", 500, "settings-password");
+      return errorPage(t("error.password_update_failed"), 500, "settings-password");
     }
 
     await logActivity("Password changed");
-    return redirect("/admin", "Password changed — please log in again", true, {
+    return redirect("/admin", t("success.password_changed"), true, {
       cookie: clearSessionCookie(),
     });
   },
@@ -498,14 +499,14 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   if (provider === "none") {
     await clearPaymentProvider();
     await logActivity("Payment provider disabled");
-    return redirect("/admin/settings", "Payment provider disabled", true, {
+    return redirect("/admin/settings", t("success.payment_provider_disabled"), true, {
       formId: "settings-payment-provider",
     });
   }
 
   if (!isPaymentProvider(provider)) {
     return errorPage(
-      "Invalid payment provider",
+      t("error.invalid_payment_provider"),
       400,
       "settings-payment-provider",
     );
@@ -516,7 +517,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
 
   return redirect(
     "/admin/settings",
-    `Payment provider set to ${provider}`,
+    t("success.payment_provider_set", { provider }),
     true,
     { formId: "settings-payment-provider" },
   );
@@ -528,7 +529,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
 const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   if (isDemoMode()) {
     return errorPage(
-      "Cannot configure Stripe in demo mode",
+      t("error.stripe_demo_mode"),
       400,
       "settings-stripe",
     );
@@ -537,7 +538,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   const field = processSecretField(form, "stripe_secret_key");
 
   if (field.action === "unchanged") {
-    return redirect("/admin/settings", "Stripe settings unchanged", true, {
+    return redirect("/admin/settings", t("success.stripe_unchanged"), true, {
       formId: "settings-stripe",
     });
   }
@@ -545,10 +546,10 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   if (field.action === "cleared") {
     // Require a key when none is configured
     if (!(await hasStripeKey())) {
-      return errorPage("Stripe Secret Key is required", 400, "settings-stripe");
+      return errorPage(t("error.stripe_key_required"), 400, "settings-stripe");
     }
     // Empty with existing key = no change
-    return redirect("/admin/settings", "Stripe settings unchanged", true, {
+    return redirect("/admin/settings", t("success.stripe_unchanged"), true, {
       formId: "settings-stripe",
     });
   }
@@ -557,7 +558,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   const keyMode = detectStripeKeyMode(field.value);
   if (!keyMode) {
     return errorPage(
-      "Invalid Stripe key format. Keys must start with sk_test_ (test mode) or sk_live_ (live mode).",
+      t("error.stripe_key_format"),
       400,
       "settings-stripe",
     );
@@ -575,7 +576,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
 
   if (!webhookResult.success) {
     return errorPage(
-      `Failed to set up Stripe webhook: ${webhookResult.error}`,
+      t("error.stripe_webhook_failed", { error: webhookResult.error }),
       400,
       "settings-stripe",
     );
@@ -592,7 +593,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   await logActivity("Stripe key configured");
   return redirect(
     "/admin/settings",
-    "Stripe key updated and webhook configured successfully",
+    t("success.stripe_updated"),
     true,
     { formId: "settings-stripe" },
   );
@@ -604,7 +605,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
 const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   if (isDemoMode()) {
     return errorPage(
-      "Cannot configure Square in demo mode",
+      t("error.square_demo_mode"),
       400,
       "settings-square",
     );
@@ -615,7 +616,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   const sandbox = form.get("square_sandbox") === "on";
 
   if (!locationId) {
-    return errorPage("Location ID is required", 400, "settings-square");
+    return errorPage(t("error.square_location_required"), 400, "settings-square");
   }
 
   // Require a token when none is configured

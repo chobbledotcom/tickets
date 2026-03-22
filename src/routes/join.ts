@@ -2,6 +2,7 @@
  * Join routes - public invite acceptance flow
  */
 
+import { t } from "#i18n";
 import { signCsrfToken } from "#lib/csrf.ts";
 import {
   decryptUsername,
@@ -23,14 +24,14 @@ const validateInvite = async (
   const user = await getUserByInviteCode(code);
   if (!user) {
     return htmlResponse(
-      joinErrorPage("This invite link is invalid or has already been used."),
+      joinErrorPage(t("error.invite_invalid")),
       404,
     );
   }
 
   const valid = await isInviteValid(user);
   if (!valid) {
-    return htmlResponse(joinErrorPage("This invite link has expired."), 410);
+    return htmlResponse(joinErrorPage(t("error.invite_expired")), 410);
   }
 
   return { user, username: await decryptUsername(user) };
@@ -90,14 +91,14 @@ const handleJoinPost = (
 
         if (password.length < 8) {
           return htmlResponse(
-            joinPage(code, username, "Password must be at least 8 characters"),
+            joinPage(code, username, t("error.password_min")),
             400,
           );
         }
 
         if (password !== passwordConfirm) {
           return htmlResponse(
-            joinPage(code, username, "Passwords do not match"),
+            joinPage(code, username, t("error.passwords_mismatch")),
             400,
           );
         }

@@ -2,6 +2,7 @@
  * Admin holiday management routes - owner only
  */
 
+import { t } from "#i18n";
 import {
   getAllHolidays,
   type HolidayInput,
@@ -32,7 +33,7 @@ const extractHolidayInput = (
 const validateDateRange = (input: HolidayInput): Promise<string | null> =>
   Promise.resolve(
     input.endDate < input.startDate
-      ? "End date must be on or after the start date"
+      ? t("error.end_date_before_start")
       : null,
   );
 
@@ -55,8 +56,7 @@ const crud = createOwnerCrudHandlers({
   renderEdit: adminHolidayEditPage,
   renderDelete: adminHolidayDeletePage,
   getName: (h) => h.name,
-  deleteConfirmError:
-    "Holiday name does not match. Please type the exact name to confirm deletion.",
+  deleteConfirmError: t("error.holiday_name_mismatch"),
 });
 
 /** Holiday routes */

@@ -2,6 +2,7 @@
  * Setup routes - initial system configuration
  */
 
+import { t } from "#i18n";
 import { isValidCountry } from "#lib/countries.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -57,21 +58,21 @@ const validateSetupForm = (form: FormParams): SetupValidation => {
     logDebug("Setup", "Agreement not accepted");
     return {
       valid: false,
-      error: "You must accept the Data Controller Agreement to continue",
+      error: t("error.agreement_required"),
     };
   }
 
   if (password.length < 8) {
     logDebug("Setup", `Password too short: ${password.length}`);
-    return { valid: false, error: "Password must be at least 8 characters" };
+    return { valid: false, error: t("error.password_min") };
   }
   if (password !== passwordConfirm) {
     logDebug("Setup", "Passwords do not match");
-    return { valid: false, error: "Passwords do not match" };
+    return { valid: false, error: t("error.passwords_mismatch") };
   }
   if (!isValidCountry(country)) {
     logDebug("Setup", `Invalid country code: ${country}`);
-    return { valid: false, error: "Please select a valid country" };
+    return { valid: false, error: t("error.country_invalid") };
   }
 
   logDebug("Setup", "Validation passed");
@@ -123,7 +124,7 @@ const handleSetupPost = async (
   if (!formCsrf || !(await verifySignedCsrfToken(formCsrf))) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "setup form" });
     await signCsrfToken();
-    return setupResponse("Invalid or expired form. Please try again.", 403);
+    return setupResponse(t("error.csrf_invalid"), 403);
   }
 
   logDebug("Setup", "CSRF validation passed, validating form...");

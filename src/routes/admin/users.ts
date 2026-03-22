@@ -45,6 +45,7 @@ import {
   type InviteUserFormValues,
   inviteUserFields,
 } from "#templates/fields.ts";
+import { t } from "#i18n";
 
 /** Invite link expiry: 7 days */
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -135,13 +136,13 @@ const handleUsersPostForm = async (
   const { username, admin_level: adminLevel } = validation.values;
 
   if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
-    return htmlResponse(adminUserNewPage(session, "Invalid role"), 400);
+    return htmlResponse(adminUserNewPage(session, t("error.invalid_role")), 400);
   }
 
   // Check if username is taken
   if (await isUsernameTaken(username)) {
     return htmlResponse(
-      adminUserNewPage(session, "Username is already taken"),
+      adminUserNewPage(session, t("error.username_taken")),
       400,
     );
   }
@@ -159,7 +160,7 @@ const handleUsersPostForm = async (
   await logActivity(`User '${username}' invited as ${adminLevel}`);
   return redirect(
     `/admin/users?invite=${encodeURIComponent(inviteLink)}`,
-    "User invited",
+    t("success.user_invited"),
     true,
   );
 };
@@ -181,7 +182,7 @@ const withUserAction = (
     const errorPage: UserErrorPageFn = (error, status) =>
       usersErrorResponse(session, error, status);
     const user = await getUserById(userId);
-    if (!user) return errorPage("User not found", 404);
+    if (!user) return errorPage(t("error.user_not_found"), 404);
     return handler(user, session, errorPage);
   });
 
@@ -196,17 +197,17 @@ const handleUserActivate: UserActionHandler = async (
   // User must have a password set
   const userHasPassword = await hasPassword(user);
   if (!userHasPassword) {
-    return errorPage("User has not set their password yet", 400);
+    return errorPage(t("error.user_no_password"), 400);
   }
 
   // User must not already have a data key
   if (user.wrapped_data_key) {
-    return errorPage("User is already activated", 400);
+    return errorPage(t("error.user_already_activated"), 400);
   }
 
   // Get the data key from the current session
   if (!session.wrappedDataKey) {
-    return errorPage("Cannot activate: session lacks data key", 500);
+    return errorPage(t("error.session_lacks_key"), 500);
   }
 
   const dataKey = await unwrapKeyWithToken(
@@ -222,7 +223,7 @@ const handleUserActivate: UserActionHandler = async (
 
   const username = await decryptUsername(user);
   await logActivity(`User '${username}' activated`);
-  return redirect("/admin/users", "User activated successfully", true);
+  return redirect("/admin/users", t("success.user_activated"), true);
 };
 
 /**
@@ -234,7 +235,7 @@ const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (
 ) =>
   requireOwnerOr(request, async (session) => {
     if (id === session.userId) {
-      return usersErrorResponse(session, "Cannot delete your own account", 400);
+      return usersErrorResponse(session, t("error.cannot_delete_self"), 400);
     }
     const user = await getUserById(id);
     if (!user) return htmlResponse("Not Found", 404);
@@ -251,12 +252,12 @@ const handleUserDeletePost: TypedRouteHandler<
   withOwnerAuthForm(request, async (session, form) => {
     const user = await getUserById(id);
     if (!user) {
-      return usersErrorResponse(session, "User not found", 404);
+      return usersErrorResponse(session, t("error.user_not_found"), 404);
     }
 
     // Cannot delete your own account
     if (user.id === session.userId) {
-      return usersErrorResponse(session, "Cannot delete your own account", 400);
+      return usersErrorResponse(session, t("error.cannot_delete_self"), 400);
     }
 
     const username = await decryptUsername(user);
@@ -267,7 +268,7 @@ const handleUserDeletePost: TypedRouteHandler<
         adminUserDeletePage(
           displayUser,
           session,
-          "Username does not match. Please type the exact username to confirm deletion.",
+          t("error.username_mismatch"),
         ),
         400,
       );
@@ -276,7 +277,7 @@ const handleUserDeletePost: TypedRouteHandler<
     await deleteUser(user.id);
 
     await logActivity(`User '${username}' deleted`);
-    return redirect("/admin/users", "User deleted successfully", true);
+    return redirect("/admin/users", t("success.user_deleted"), true);
   });
 
 /** Create a route handler that runs a user action by ID */
