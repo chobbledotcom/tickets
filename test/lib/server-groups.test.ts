@@ -901,4 +901,21 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
   });
 
+  describe("nav link", () => {
+    test("groups link visible to owners", async () => {
+      const { response } = await adminGet("/admin/groups");
+      const html = await response.text();
+      expect(html).toContain("/admin/groups");
+      expect(html).toContain("Groups");
+    });
+
+    test("groups link visible to managers", async () => {
+      const response = await awaitTestRequest("/admin/", {
+        cookie: await createTestManagerSession("mgr-groups-nav"),
+      });
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("/admin/groups");
+    });
+  });
 });
