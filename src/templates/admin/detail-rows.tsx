@@ -2,7 +2,7 @@
  * Shared detail table rows for admin pages (event, group, calendar)
  */
 
-import { map, pipe, reduce } from "#fp";
+import { map, reduce } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
 import type { Attendee } from "#lib/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
@@ -18,27 +18,32 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /** Render an array of DetailRows as <tr><th>…</th><td>…</td></tr> HTML */
 export const renderDetailRows = (rows: DetailRow[]): string =>
-  pipe(
-    map((r: DetailRow) => `<tr><th>${r.key}</th><td>${r.value}</td></tr>`),
-    joinStrings,
-  )(rows);
+  joinStrings(
+    map((r: DetailRow) => `<tr><th>${r.key}</th><td>${r.value}</td></tr>`)(
+      rows,
+    ),
+  );
 
-/** Count how many people are checked in (summing quantity per registration) */
-export const countCheckedIn = (attendees: Attendee[]): number =>
-  pipe(
-    (list: Attendee[]) => list.filter((a) => a.checked_in),
-    reduce((sum: number, a: Attendee) => sum + a.quantity, 0),
-  )(attendees);
-
-/** Count how many attendee rows are checked in (ignoring quantity) */
-export const countCheckedInRows = (attendees: Attendee[]): number =>
-  attendees.filter((a) => a.checked_in).length;
+// ---------------------------------------------------------------------------
+// Attendee stats helpers
+// ---------------------------------------------------------------------------
 
 /** Sum the quantity field across a list of attendees */
 export const sumQuantity = reduce(
   (sum: number, a: Attendee) => sum + a.quantity,
   0,
 );
+
+/** Count how many people are checked in (summing quantity per registration) */
+export const countCheckedIn = (attendees: Attendee[]): number =>
+  reduce(
+    (sum: number, a: Attendee) => sum + a.quantity,
+    0,
+  )(attendees.filter((a) => a.checked_in));
+
+/** Count how many attendee rows are checked in (ignoring quantity) */
+export const countCheckedInRows = (attendees: Attendee[]): number =>
+  attendees.filter((a) => a.checked_in).length;
 
 /** Calculate total revenue in cents from attendees */
 export const calculateTotalRevenue = (attendees: Attendee[]): number =>
@@ -47,43 +52,103 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
     0,
   )(attendees);
 
-/** Count how many times each answer was selected across all attendees */
-const countAnswers = (attendeeAnswerMap: Map<number, number[]>) =>
-  pipe(
-    (m: Map<number, number[]>) => [...m.values()],
-    (vals: number[][]) => vals.flat(),
-    reduce((counts: Map<number, number>, id: number) => {
-      counts.set(id, (counts.get(id) ?? 0) + 1);
-      return counts;
-    }, new Map<number, number>()),
-  )(attendeeAnswerMap);
+// ---------------------------------------------------------------------------
+// Checked-in stats
+// ---------------------------------------------------------------------------
 
-/** Format a question's answers as "text (count), ..." */
-const formatAnswerParts = (answerCounts: Map<number, number>) =>
-  pipe(
-    map(
-      (a: { id: number; text: string }) =>
-        `${a.text} (${answerCounts.get(a.id) ?? 0})`,
-    ),
-    (parts: string[]) => parts.join(", "),
-  );
+/** Computed checked-in statistics for an attendee list */
+type CheckedInStats = {
+  ticketsCheckedIn: number;
+  ticketsTotal: number;
+  rowsCheckedIn: number;
+  rowsTotal: number;
+  hasMultiQuantity: boolean;
+};
+
+/** Compute checked-in stats from an attendee list */
+const getCheckedInStats = (attendees: Attendee[]): CheckedInStats => {
+  const ticketsTotal = sumQuantity(attendees);
+  return {
+    ticketsCheckedIn: countCheckedIn(attendees),
+    ticketsTotal,
+    rowsCheckedIn: countCheckedInRows(attendees),
+    rowsTotal: attendees.length,
+    hasMultiQuantity: ticketsTotal !== attendees.length,
+  };
+};
+
+/** Format "done / total — remaining remain" */
+const formatProgress = (done: number, total: number): string =>
+  `${done} / ${total} &mdash; ${total - done} remain`;
+
+/** Build the checked-in detail row(s) — splits into two when multi-quantity */
+const buildCheckedInRows = (
+  stats: CheckedInStats,
+  suffix: string,
+): DetailRow[] =>
+  stats.hasMultiQuantity
+    ? [
+        {
+          key: `Tickets Checked In${suffix}`,
+          value: formatProgress(stats.rowsCheckedIn, stats.rowsTotal),
+        },
+        {
+          key: `Attendees Checked In${suffix}`,
+          value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
+        },
+      ]
+    : [
+        {
+          key: `Checked In${suffix}`,
+          value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
+        },
+      ];
+
+// ---------------------------------------------------------------------------
+// Question answer summary
+// ---------------------------------------------------------------------------
+
+/** A question's answer option */
+type QuestionAnswer = { id: number; text: string };
+
+/** Count how many times each answer was selected across all attendees */
+const countAnswers = (
+  answerMap: Map<number, number[]>,
+): Map<number, number> =>
+  reduce(
+    (counts: Map<number, number>, ids: number[]) => {
+      for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+      return counts;
+    },
+    new Map<number, number>(),
+  )([...answerMap.values()]);
+
+/** Format answers as "text (count), text (count), ..." */
+const formatAnswerSummary = (
+  answers: QuestionAnswer[],
+  counts: Map<number, number>,
+): string =>
+  map((a: QuestionAnswer) => `${a.text} (${counts.get(a.id) ?? 0})`)(
+    answers,
+  ).join(", ");
 
 /** Build answer count summary as DetailRows */
 export const buildAnswerSummaryRows = (
   questionData: TableQuestionData | undefined,
 ): DetailRow[] => {
   if (!questionData || questionData.questions.length === 0) return [];
-  const answerCounts = countAnswers(questionData.attendeeAnswerMap);
+  const counts = countAnswers(questionData.attendeeAnswerMap);
   return map(
-    (q: {
-      text: string;
-      answers: { id: number; text: string }[];
-    }): DetailRow => ({
+    (q: { text: string; answers: QuestionAnswer[] }): DetailRow => ({
       key: q.text,
-      value: formatAnswerParts(answerCounts)(q.answers),
+      value: formatAnswerSummary(q.answers, counts),
     }),
   )(questionData.questions);
 };
+
+// ---------------------------------------------------------------------------
+// Shared detail rows builder
+// ---------------------------------------------------------------------------
 
 /** Input for building the shared detail rows shown on group, event, and calendar pages */
 export type SharedDetailInput = {
@@ -97,6 +162,22 @@ export type SharedDetailInput = {
   skipAttendees?: boolean;
 };
 
+/** Build a single attendee-count detail row */
+const buildAttendeeRow = (
+  count: number,
+  maxCapacity: number,
+  suffix: string,
+): DetailRow => ({
+  key: `Attendees${suffix}`,
+  value: maxCapacity > 0 ? `${count} / ${maxCapacity}` : String(count),
+});
+
+/** Build a revenue detail row */
+const buildRevenueRow = (attendees: Attendee[]): DetailRow => ({
+  key: "Total Revenue",
+  value: formatCurrency(calculateTotalRevenue(attendees)),
+});
+
 /** Build the shared detail rows: attendees, checked-in, revenue, question summary */
 export const buildSharedDetailRows = ({
   attendees,
@@ -106,52 +187,11 @@ export const buildSharedDetailRows = ({
   questionData,
   labelSuffix = "",
   skipAttendees = false,
-}: SharedDetailInput): DetailRow[] => {
-  const rows: DetailRow[] = [];
-
-  // Attendees count
-  if (!skipAttendees) {
-    const countDisplay =
-      maxCapacity > 0
-        ? `${attendeeCount} / ${maxCapacity}`
-        : String(attendeeCount);
-    rows.push({ key: `Attendees${labelSuffix}`, value: countDisplay });
-  }
-
-  // Checked In
-  const quantitySum = sumQuantity(attendees);
-  const hasMultiQuantity = quantitySum !== attendees.length;
-  const ticketsCheckedIn = countCheckedIn(attendees);
-  const checkedInRows = countCheckedInRows(attendees);
-
-  if (hasMultiQuantity) {
-    rows.push({
-      key: `Tickets Checked In${labelSuffix}`,
-      value: `${checkedInRows} / ${attendees.length} &mdash; ${attendees.length - checkedInRows} remain`,
-    });
-    rows.push({
-      key: `Attendees Checked In${labelSuffix}`,
-      value: `${ticketsCheckedIn} / ${quantitySum} &mdash; ${quantitySum - ticketsCheckedIn} remain`,
-    });
-  } else {
-    rows.push({
-      key: `Checked In${labelSuffix}`,
-      value: `${ticketsCheckedIn} / ${quantitySum} &mdash; ${quantitySum - ticketsCheckedIn} remain`,
-    });
-  }
-
-  // Revenue
-  if (hasPaidEvent) {
-    rows.push({
-      key: "Total Revenue",
-      value: formatCurrency(calculateTotalRevenue(attendees)),
-    });
-  }
-
-  // Question summary
-  for (const row of buildAnswerSummaryRows(questionData)) {
-    rows.push(row);
-  }
-
-  return rows;
-};
+}: SharedDetailInput): DetailRow[] => [
+  ...(skipAttendees
+    ? []
+    : [buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix)]),
+  ...buildCheckedInRows(getCheckedInStats(attendees), labelSuffix),
+  ...(hasPaidEvent ? [buildRevenueRow(attendees)] : []),
+  ...buildAnswerSummaryRows(questionData),
+];
