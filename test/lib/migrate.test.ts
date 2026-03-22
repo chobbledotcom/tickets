@@ -16,14 +16,10 @@ import {
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
-import { getAllEvents } from "#lib/db/events.ts";
 import {
-  getPublicKey,
-  getSetting,
   getWrappedPrivateKey,
   isAttendeeBlobMigrated,
   setAttendeeBlobMigrated,
-  setSetting,
 } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import {
@@ -102,7 +98,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const attendee = await createPaidTestAttendee(
+      await createPaidTestAttendee(
         event.id,
         "Alice Smith",
         "alice@test.com",
@@ -203,7 +199,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       expect(result.remaining).toBe(0);
     });
 
-    test("processes only MIGRATE_BATCH_SIZE attendees per call", async () => {
+    test("processes only MIGRATE_BATCH_SIZE attendees per call", () => {
       expect(MIGRATE_BATCH_SIZE).toBe(100);
     });
   });
