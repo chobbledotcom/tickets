@@ -19,10 +19,11 @@ import {
   awaitTestRequest,
   createTestAttendeeWithToken,
   describeWithEnv,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirect,
   generateTestCerts,
+  getHeader,
   mockFormRequest,
   setTestEnv,
   testCookie,
@@ -158,7 +159,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     );
 
     const response = await fetchPkpassResponse(token);
-    const disposition = response.headers.get("Content-Disposition")!;
+    const disposition = getHeader(response, "Content-Disposition");
     expect(disposition).toContain("inline");
     expect(disposition).toContain("ticket.pkpass");
   });
@@ -264,7 +265,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
         apple_wallet_pass_type_id: "pass.com.test",
       }),
     );
-    expectRedirect("/admin")(response);
+    expectAdminRedirect(response);
   });
 
   test("requires Pass Type ID", async () => {

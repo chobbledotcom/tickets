@@ -107,6 +107,12 @@ export const clearTestEncryptionKey = (): void => {
 /** Cached in-memory SQLite client, reused across tests */
 let cachedClient: Client | null = null;
 
+/** Get the cached client, throwing if not initialized */
+const getClient = (): Client => {
+  if (!cachedClient) throw new Error("Test client not initialized");
+  return cachedClient;
+};
+
 /** Snapshot of settings rows after completeSetup (avoids re-running crypto) */
 let cachedSetupSettings: Array<{ key: string; value: string }> | null = null;
 
@@ -187,7 +193,7 @@ export const createTestDb = async (): Promise<void> => {
   // Force helpers to restore/login again on the next authenticated request.
   resetTestSession();
   if (reused) {
-    await cachedClient!.execute({
+    await getClient().execute({
       sql: "INSERT INTO settings (key, value) VALUES ('latest_db_update', ?)",
       args: [LATEST_UPDATE],
     });
@@ -208,7 +214,7 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
 
   if (reused && cachedSetupSettings) {
     for (const row of cachedSetupSettings) {
-      await cachedClient!.execute({
+      await getClient().execute({
         sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
         args: [row.key, row.value],
       });
@@ -216,7 +222,7 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     // Restore users table
     if (cachedSetupUsers) {
       for (const row of cachedSetupUsers) {
-        await cachedClient!.execute({
+        await getClient().execute({
           sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
           args: [
             row.id as InValue,
@@ -243,23 +249,23 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
   setTimezoneForTest("UTC");
 
   // Snapshot settings AND users for reuse
-  const result = await cachedClient!.execute("SELECT key, value FROM settings");
+  const result = await getClient().execute("SELECT key, value FROM settings");
   cachedSetupSettings = result.rows.map((r) => ({
     key: r.key as string,
     value: r.value as string,
   }));
 
   // Also snapshot users table
-  const usersResult = await cachedClient!.execute("SELECT * FROM users");
+  const usersResult = await getClient().execute("SELECT * FROM users");
   cachedSetupUsers = usersResult.rows.map((r) => ({ ...r }));
 
   // Perform one admin login and cache the session for reuse
   const session = await loginAsAdmin();
-  const sessionsResult = await cachedClient!.execute(
+  const sessionsResult = await getClient().execute(
     "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions LIMIT 1",
   );
   if (sessionsResult.rows.length > 0) {
-    const row = sessionsResult.rows[0]!;
+    const row = sessionsResult.rows[0] as Row;
     cachedAdminSession = {
       cookie: session.cookie,
       sessionRow: {
@@ -840,7 +846,8 @@ export const loginAsAdmin = async (): Promise<{
   );
   const cookie = loginResponse.headers
     .getSetCookie()
-    .find((c) => c.startsWith(getSessionCookieName() + "="))!;
+    .find((c) => c.startsWith(getSessionCookieName() + "="));
+  if (!cookie) throw new Error("No session cookie in login response");
   const csrfToken = await signCsrfToken();
 
   return { cookie, csrfToken };
@@ -1018,7 +1025,7 @@ export const createTestEvent = (
       // Get the most recently created event (302 redirect guarantees creation succeeded)
       const { getAllEvents } = await import("#lib/db/events.ts");
       const events = await getAllEvents();
-      return events[0]!; // getAllEvents returns DESC by created
+      return events[0] as Event; // getAllEvents returns DESC by created
     },
     "create event",
   );
@@ -1237,14 +1244,28 @@ export const expectHtmlResponse = async (
   return html;
 };
 
-/** Assert a Response is a redirect (302) to the given location. */
-export const expectRedirect =
-  (location: string) =>
-  (response: Response): Response => {
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe(location);
-    return response;
-  };
+/** Assert a Response is a 302 redirect whose location matches all patterns.
+ *  Strings are checked with toContain, RegExps with toMatch.
+ *  Returns the location for further inspection. */
+export const expectRedirect = (
+  response: Response,
+  ...patterns: (string | RegExp)[]
+): string => {
+  expect(response.status).toBe(302);
+  const location = getRedirectLocation(response);
+  for (const p of patterns) {
+    if (typeof p === "string") {
+      expect(location).toContain(p);
+    } else {
+      expect(location).toMatch(p);
+    }
+  }
+  return location;
+};
+
+/** Shorthand: assert redirect to /admin */
+export const expectAdminRedirect = (response: Response): string =>
+  expectRedirect(response, "/admin");
 
 /** Fixed flash ID used in tests for deterministic keyed cookies */
 export const FLASH_TEST_ID = "t001";
@@ -1262,13 +1283,13 @@ export const expectFlash = (
 ): Response => {
   const cookies = response.headers.getSetCookie();
   const flash = cookies.find((c) => c.startsWith("flash_"));
-  expect(flash).toBeDefined();
-  const cookiePart = flash!.split(";")[0]!;
+  if (!flash) throw new Error("No flash cookie in response");
+  const cookiePart = flash.split(";")[0] ?? "";
   // Cookie is "flash_{id}={value}", extract value after first "="
   const value = cookiePart.split("=").slice(1).join("=");
   const parsed = parseFlashValue(value);
-  expect(parsed).not.toBeNull();
-  const actual = succeeded ? parsed!.success : parsed!.error;
+  if (!parsed) throw new Error("Failed to parse flash value");
+  const actual = succeeded ? parsed.success : parsed.error;
   if (message !== undefined) expect(actual).toEqual(message);
   return response;
 };
@@ -1281,8 +1302,7 @@ export const expectFlash = (
 export const expectRedirectWithFlash =
   (location: string, message?: string, succeeded = true) =>
   (response: Response): Response => {
-    expect(response.status).toBe(302);
-    const actualLocation = response.headers.get("location")!;
+    const actualLocation = expectRedirect(response);
     const url = new URL(actualLocation, "http://localhost");
     const flashId = url.searchParams.get("flash");
     expect(flashId).toBeDefined();
@@ -1308,22 +1328,14 @@ export const flashCookieHeader = (
 };
 
 /** Assert response is a checkout redirect (302 to an external HTTPS URL) */
-export const expectCheckoutRedirect = (response: Response): void => {
-  expect(response.status).toBe(302);
-  const location = response.headers.get("location");
-  expect(location).not.toBeNull();
-  expect(String(location).startsWith("https://")).toBe(true);
-};
+export const expectCheckoutRedirect = (response: Response): string =>
+  expectRedirect(response, /^https:\/\//);
 
 /** Follow a 302 redirect by making a new request to the location header. */
 export const followRedirect = (
   response: Response,
   handler: (request: Request) => Promise<Response>,
-): Promise<Response> => {
-  expect(response.status).toBe(302);
-  const location = response.headers.get("location")!;
-  return handler(mockRequest(location));
-};
+): Promise<Response> => handler(mockRequest(expectRedirect(response)));
 
 /** Assert a result object has ok:false with the expected error string. */
 export const expectResultError =
@@ -1345,6 +1357,30 @@ export const expectResultNotFound = <
   expect(result.ok).toBe(false);
   expect("notFound" in result && result.notFound).toBe(true);
   return result;
+};
+
+/** Get a response header, throwing if missing. */
+export const getHeader = (response: Response, name: string): string => {
+  const value = response.headers.get(name);
+  if (value === null) throw new Error(`Missing expected header: ${name}`);
+  return value;
+};
+
+/** Get the Location header from a response, throwing if missing. */
+const getRedirectLocation = (response: Response): string =>
+  getHeader(response, "location");
+
+/** Match a regex against text and return the given capture group, throwing if no match. */
+export const matchGroup = (
+  text: string,
+  pattern: RegExp,
+  group = 1,
+): string => {
+  const m = text.match(pattern);
+  if (!m?.[group]) {
+    throw new Error(`No match for ${pattern} group ${group}`);
+  }
+  return m[group];
 };
 
 /** Response factory: creates a callback returning a Response with given status/body. */
@@ -1568,7 +1604,8 @@ export const submitMultiTicketForm = async (
   const { handleRequest } = await import("#routes");
   const path = `/ticket/${slug}`;
   const getResponse = await handleRequest(mockRequest(path));
-  const csrfToken = extractCsrfToken(await getResponse.text())!;
+  const csrfToken = extractCsrfToken(await getResponse.text()) ?? "";
+  if (!csrfToken) throw new Error("No CSRF token found on multi-ticket page");
   return handleRequest(
     mockFormRequest(
       path,
@@ -1672,7 +1709,7 @@ export const createTestGroup = async (
     async () => {
       const { getAllGroups } = await import("#lib/db/groups.ts");
       const groups = await getAllGroups();
-      return groups[groups.length - 1]! as Group;
+      return groups[groups.length - 1] as Group;
     },
     "create group",
   );
@@ -2062,10 +2099,14 @@ export const createTestManagerSession = async (
   } = await import("#lib/db/users.ts");
 
   // Get the system DATA_KEY via the admin user (always exists after createTestDbWithSetup)
-  const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
-  const passwordHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
+  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+  if (!user) throw new Error("Admin user not found");
+  const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
+  if (!passwordHash) throw new Error("Admin password verification failed");
   const kek = await deriveKEK(passwordHash);
-  const dataKey = await unwrapKey(user.wrapped_data_key!, kek);
+  if (!user.wrapped_data_key)
+    throw new Error("Admin user has no wrapped data key");
+  const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
   // Create manager user with a properly wrapped data key
   const managerIdx = await hmacHash(username);
@@ -2090,7 +2131,7 @@ export const createTestManagerSession = async (
   const result = await getDb().execute(
     "SELECT id FROM users ORDER BY id DESC LIMIT 1",
   );
-  const userId = result.rows[0]!.id as number;
+  const userId = (result.rows[0] as Row).id as number;
 
   // Create session with properly wrapped data key
   const wrappedDataKey = await wrapKeyWithToken(dataKey, token);

@@ -10,6 +10,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   getEmbeddableTicketResponse,
+  getHeader,
   mockFormRequest,
   mockRequest,
 } from "#test-utils";
@@ -44,7 +45,7 @@ async function getTicketCsp(setupEmbedHosts?: string): Promise<string> {
     await updateEmbedHosts(setupEmbedHosts);
   }
   const response = await getEmbeddableTicketResponse();
-  return response.headers.get("content-security-policy")!;
+  return getHeader(response, "content-security-policy");
 }
 
 describeWithEnv("server (embed hosts)", { db: true }, () => {
@@ -163,7 +164,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       await updateEmbedHosts("example.com");
 
       const response = await handleRequest(mockRequest("/"));
-      const csp = response.headers.get("content-security-policy")!;
+      const csp = getHeader(response, "content-security-policy");
       expect(csp).toContain("frame-ancestors 'none'");
       expect(csp).not.toContain("example.com");
     });

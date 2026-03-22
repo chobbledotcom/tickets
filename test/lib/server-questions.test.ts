@@ -10,9 +10,9 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   createTestManagerSession,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirect,
   expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
@@ -65,7 +65,7 @@ describe("server (admin questions)", () => {
   describe("GET /admin/questions", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/questions"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 403 for non-owner", async () => {
@@ -92,7 +92,7 @@ describe("server (admin questions)", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/questions", { text: "Test?" }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("creates question and redirects", async () => {
@@ -121,7 +121,7 @@ describe("server (admin questions)", () => {
       const response = await handleRequest(
         mockRequest(`/admin/questions/${id}`),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent question", async () => {
@@ -150,7 +150,7 @@ describe("server (admin questions)", () => {
       const response = await handleRequest(
         mockFormRequest(`/admin/questions/${id}/edit`, { text: "Edited" }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("updates question text", async () => {
@@ -199,7 +199,7 @@ describe("server (admin questions)", () => {
       const response = await handleRequest(
         mockFormRequest(`/admin/questions/${id}/answers`, { text: "Yes" }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("adds answer and redirects", async () => {
@@ -247,7 +247,7 @@ describe("server (admin questions)", () => {
       const response = await handleRequest(
         mockRequest(`/admin/questions/${id}/delete`),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent question", async () => {
@@ -275,7 +275,7 @@ describe("server (admin questions)", () => {
           confirm_identifier: "Auth delete",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("deletes question with correct text confirmation", async () => {
@@ -375,7 +375,7 @@ describe("server (admin questions)", () => {
       const response = await handleRequest(
         mockRequest(`/admin/questions/${qId}/answers/${aId}/delete`),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent question", async () => {
@@ -417,7 +417,7 @@ describe("server (admin questions)", () => {
           confirm_identifier: "Post auth answer",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent question", async () => {
@@ -487,7 +487,7 @@ describe("server (admin questions)", () => {
       const response = await handleRequest(
         mockRequest(`/admin/event/${event.id}/questions`),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -548,7 +548,7 @@ describe("server (admin questions)", () => {
           question_ids: "1",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {

@@ -17,6 +17,7 @@ import {
   awaitTestRequest,
   createTestAttendeeWithToken,
   describeWithEnv,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
@@ -79,9 +80,7 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
     );
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
-    expect(response.status).toBe(302);
-    const location = response.headers.get("Location")!;
-    expect(location).toMatch(/^https:\/\/pay\.google\.com\/gp\/v\/save\//);
+    expectRedirect(response, /^https:\/\/pay\.google\.com\/gp\/v\/save\//);
   });
 
   test("redirect URL contains a valid JWT", async () => {
@@ -92,7 +91,10 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
     );
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
-    const location = response.headers.get("Location")!;
+    const location = expectRedirect(
+      response,
+      /^https:\/\/pay\.google\.com\/gp\/v\/save\//,
+    );
     const jwt = location.replace("https://pay.google.com/gp/v/save/", "");
     const parts = jwt.split(".");
     expect(parts).toHaveLength(3);
@@ -164,7 +166,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         google_wallet_issuer_id: "123",
       }),
     );
-    expectRedirect("/admin")(response);
+    expectAdminRedirect(response);
   });
 
   test("requires Issuer ID", async () => {
