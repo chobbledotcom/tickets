@@ -23,6 +23,7 @@ import {
   createTestInvite,
   createTestManagerSession,
   describeWithEnv,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
@@ -245,7 +246,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("GET /admin/users", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/users"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows users list when authenticated as owner", async () => {
@@ -291,7 +292,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("GET /admin/user/new", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/user/new"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("renders invite user form when authenticated as owner", async () => {
@@ -315,7 +316,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           admin_level: "manager",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("creates invited user and shows invite link", async () => {
@@ -332,7 +333,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = expectRedirect(response);
       expect(decodeURIComponent(location)).toContain("/join/");
 
       // Verify user was created in the database

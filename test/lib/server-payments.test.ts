@@ -542,7 +542,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Should redirect to thank you page
-      expectRedirect("https://example.com/thanks")(response);
+      expectRedirect(response, "https://example.com/thanks");
     });
 
     test("zero price ticket is treated as free", async () => {
@@ -561,7 +561,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Should redirect to thank you page (no payment required)
-      expectRedirect("https://example.com/thanks")(response);
+      expectRedirect(response, "https://example.com/thanks");
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
@@ -658,9 +658,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
 
           // Should redirect with tokens
-          expect(redirectResponse.status).toBe(302);
-          const location = redirectResponse.headers.get("location")!;
-          expect(location).toMatch(/^\/payment\/success\?tokens=.+$/);
+          expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
 
           // Follow the redirect
           const response = await followRedirect(
@@ -929,10 +927,11 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
-        expect(redirectResponse.status).toBe(302);
-        const location = redirectResponse.headers.get("location")!;
         // Multi-ticket should have multiple tokens joined by + (URL-encoded as %2B)
-        expect(location).toMatch(/^\/payment\/success\?tokens=.+%2B.+$/);
+        expectRedirect(
+          redirectResponse,
+          /^\/payment\/success\?tokens=.+%2B.+$/,
+        );
 
         const response = await followRedirect(redirectResponse, handleRequest);
         const html = await expectHtmlResponse(
@@ -1443,8 +1442,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_token_verify"),
         );
-        expect(redirectResponse.status).toBe(302);
-        const location = redirectResponse.headers.get("location")!;
+        const location = expectRedirect(redirectResponse);
 
         // Follow redirect to verify tokens and render page
         const response = await followRedirect(redirectResponse, handleRequest);

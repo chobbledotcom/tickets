@@ -16,9 +16,9 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   describeWithEnv,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -49,7 +49,7 @@ describe("server (admin settings-advanced)", () => {
       const response = await handleRequest(
         mockRequest("/admin/settings-advanced"),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows advanced settings page when authenticated", async () => {
@@ -132,7 +132,7 @@ describe("server (admin settings-advanced)", () => {
           show_public_api: "true",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -220,7 +220,7 @@ describe("server (admin settings-advanced)", () => {
           email_provider: "resend",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("saves email provider settings", async () => {
@@ -505,7 +505,7 @@ describe("server (admin settings-advanced)", () => {
             "The site will be fully reset and all data will be lost.",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {

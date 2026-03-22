@@ -10,8 +10,8 @@ import {
   createTestHoliday,
   deleteTestHoliday,
   describeWithEnv,
+  expectAdminRedirect,
   expectHtmlResponse,
-  expectRedirect,
   expectRedirectWithFlash,
   expectStatus,
   mockAdminLoginRequest,
@@ -28,7 +28,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   describe("GET /admin/holidays", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/holidays"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 403 for non-owner", async () => {
@@ -134,7 +134,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   describe("GET /admin/holiday/new", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/holiday/new"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows create holiday form", async () => {
@@ -159,7 +159,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
           end_date: "2026-12-25",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("creates holiday and redirects", async () => {
@@ -240,7 +240,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(`/admin/holiday/${holiday.id}/edit`),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows edit form with pre-filled values", async () => {
@@ -276,7 +276,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
           end_date: "2026-12-25",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("updates holiday", async () => {
@@ -334,7 +334,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(`/admin/holiday/${holiday.id}/delete`),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows delete confirmation page", async () => {
@@ -365,7 +365,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
           confirm_identifier: "Test Holiday",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("deletes holiday with correct name confirmation", async () => {
