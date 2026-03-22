@@ -24,7 +24,12 @@ import {
   validateEventInput,
 } from "#lib/events-actions.ts";
 import { normalizeSlug } from "#lib/slug.ts";
-import type { AdminEvent, EventType, EventWithCount } from "#lib/types.ts";
+import type {
+  AdminEvent,
+  AdminSession,
+  EventType,
+  EventWithCount,
+} from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { jsonResponse, withAdminApi } from "#routes/utils.ts";
 
@@ -162,10 +167,35 @@ export const toAdminEvent = ({
 const errorResponse = (message: string, status = 400): Response =>
   jsonResponse({ status: "error", message }, status);
 
+/** Result type for body parsing */
+type BodyParseResult =
+  | { ok: true; input: EventInput }
+  | { ok: false; error: string };
+
+/**
+ * Auth + event lookup helper.
+ * Calls withAdminApi, fetches the event, and passes it to the callback.
+ * Returns 404 automatically if the event doesn't exist.
+ */
+const withEventApi = (
+  request: Request,
+  eventId: number,
+  handler: (
+    event: EventWithCount,
+    session: AdminSession,
+    body: Record<string, unknown>,
+  ) => Promise<Response>,
+): Promise<Response> =>
+  withAdminApi(request, async (session, body) => {
+    const event = await getEventWithCount(eventId);
+    if (!event) return errorResponse("Event not found", 404);
+    return handler(event, session, body);
+  });
+
 /** Convert JSON body to EventInput for create (auto-generates slug) */
 export const bodyToCreateInput = async (
   body: Record<string, unknown>,
-): Promise<{ ok: true; input: EventInput } | { ok: false; error: string }> => {
+): Promise<BodyParseResult> => {
   if (typeof body.name !== "string" || body.name.trim() === "") {
     return { ok: false, error: "name is required" };
   }
@@ -192,7 +222,7 @@ export const bodyToCreateInput = async (
 export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
   existing: EventWithCount,
-): Promise<{ ok: true; input: EventInput } | { ok: false; error: string }> => {
+): Promise<BodyParseResult> => {
   const name = body.name != null ? String(body.name).trim() : existing.name;
   if (name === "") return { ok: false, error: "name cannot be empty" };
 
@@ -239,15 +269,19 @@ const handleListEvents = (request: Request): Promise<Response> =>
     });
   });
 
-/** GET /api/admin/events/:eventId — single event detail */
-const handleGetEvent = (
+/** Toggle event active/inactive state */
+const handleToggleActive = (
   request: Request,
-  { eventId }: { eventId: number },
+  eventId: number,
+  active: boolean,
 ): Promise<Response> =>
-  withAdminApi(request, async () => {
-    const event = await getEventWithCount(eventId);
-    if (!event) return errorResponse("Event not found", 404);
-    return jsonResponse({ event: toAdminEvent(event) });
+  withEventApi(request, eventId, async (event) => {
+    const updated = await toggleEventActive(eventId, event, active);
+    if (!updated)
+      return errorResponse(
+        `Event is already ${active ? "active" : "deactivated"}`,
+      );
+    return jsonResponse({ event: toAdminEvent(updated) });
   });
 
 /** POST /api/admin/events — create event */
@@ -265,90 +299,47 @@ const handleCreateEvent = (request: Request): Promise<Response> =>
     return jsonResponse({ event: toAdminEvent(event!) }, 201);
   });
 
-/** PUT /api/admin/events/:eventId — update event */
-const handleUpdateEvent = (
-  request: Request,
-  { eventId }: { eventId: number },
-): Promise<Response> =>
-  withAdminApi(request, async (_session, body) => {
-    const existing = await getEventWithCount(eventId);
-    if (!existing) return errorResponse("Event not found", 404);
-
-    const parsed = await bodyToUpdateInput(body, existing);
-    if (!parsed.ok) return errorResponse(parsed.error);
-
-    // Check slug uniqueness if changed
-    if (parsed.input.slug !== existing.slug) {
-      const taken = await isSlugTaken(parsed.input.slug, eventId);
-      if (taken)
-        return errorResponse("Slug is already in use by another event");
-    }
-
-    const validationError = await validateEventInput(parsed.input, eventId);
-    if (validationError) return errorResponse(validationError);
-
-    // Event existence verified above; update always returns a row
-    const row = (await eventsTable.update(eventId, parsed.input))!;
-    const updated = await getEventWithCount(row.id);
-    await logActivity(`Event '${row.name}' updated`, row);
-    return jsonResponse({ event: toAdminEvent(updated!) });
-  });
-
-/** DELETE /api/admin/events/:eventId — delete event (requires confirm_name) */
-const handleDeleteEvent = (
-  request: Request,
-  { eventId }: { eventId: number },
-): Promise<Response> =>
-  withAdminApi(request, async (_session, body) => {
-    const event = await getEventWithCount(eventId);
-    if (!event) return errorResponse("Event not found", 404);
-
-    const confirmName =
-      typeof body.confirm_name === "string" ? body.confirm_name.trim() : "";
-    if (confirmName.toLowerCase() !== event.name.trim().toLowerCase()) {
-      return errorResponse(
-        "Event name does not match. Please provide the exact event name in confirm_name.",
-      );
-    }
-
-    await performEventDelete(event);
-    return jsonResponse({ status: "ok" });
-  });
-
-/** POST /api/admin/events/:eventId/deactivate — deactivate event */
-const handleDeactivateEvent = (
-  request: Request,
-  { eventId }: { eventId: number },
-): Promise<Response> =>
-  withAdminApi(request, async () => {
-    const event = await getEventWithCount(eventId);
-    if (!event) return errorResponse("Event not found", 404);
-
-    const updated = await toggleEventActive(eventId, event, false);
-    if (!updated) return errorResponse("Event is already deactivated");
-    return jsonResponse({ event: toAdminEvent(updated) });
-  });
-
-/** POST /api/admin/events/:eventId/reactivate — reactivate event */
-const handleReactivateEvent = (
-  request: Request,
-  { eventId }: { eventId: number },
-): Promise<Response> =>
-  withAdminApi(request, async () => {
-    const event = await getEventWithCount(eventId);
-    if (!event) return errorResponse("Event not found", 404);
-
-    const updated = await toggleEventActive(eventId, event, true);
-    if (!updated) return errorResponse("Event is already active");
-    return jsonResponse({ event: toAdminEvent(updated) });
-  });
-
 export const adminApiRoutes = defineRoutes({
   "GET /api/admin/events": handleListEvents,
-  "GET /api/admin/events/:eventId": handleGetEvent,
+  "GET /api/admin/events/:eventId": (request, { eventId }) =>
+    withEventApi(request, eventId, (event) =>
+      Promise.resolve(jsonResponse({ event: toAdminEvent(event) })),
+    ),
   "POST /api/admin/events": handleCreateEvent,
-  "PUT /api/admin/events/:eventId": handleUpdateEvent,
-  "DELETE /api/admin/events/:eventId": handleDeleteEvent,
-  "POST /api/admin/events/:eventId/deactivate": handleDeactivateEvent,
-  "POST /api/admin/events/:eventId/reactivate": handleReactivateEvent,
+  "PUT /api/admin/events/:eventId": (request, { eventId }) =>
+    withEventApi(request, eventId, async (existing, _session, body) => {
+      const parsed = await bodyToUpdateInput(body, existing);
+      if (!parsed.ok) return errorResponse(parsed.error);
+
+      if (parsed.input.slug !== existing.slug) {
+        const taken = await isSlugTaken(parsed.input.slug, eventId);
+        if (taken)
+          return errorResponse("Slug is already in use by another event");
+      }
+
+      const validationError = await validateEventInput(parsed.input, eventId);
+      if (validationError) return errorResponse(validationError);
+
+      const row = (await eventsTable.update(eventId, parsed.input))!;
+      const updated = await getEventWithCount(row.id);
+      await logActivity(`Event '${row.name}' updated`, row);
+      return jsonResponse({ event: toAdminEvent(updated!) });
+    }),
+  "DELETE /api/admin/events/:eventId": (request, { eventId }) =>
+    withEventApi(request, eventId, async (event, _session, body) => {
+      const confirmName =
+        typeof body.confirm_name === "string" ? body.confirm_name.trim() : "";
+      if (confirmName.toLowerCase() !== event.name.trim().toLowerCase()) {
+        return errorResponse(
+          "Event name does not match. Please provide the exact event name in confirm_name.",
+        );
+      }
+
+      await performEventDelete(event);
+      return jsonResponse({ status: "ok" });
+    }),
+  "POST /api/admin/events/:eventId/deactivate": (request, { eventId }) =>
+    handleToggleActive(request, eventId, false),
+  "POST /api/admin/events/:eventId/reactivate": (request, { eventId }) =>
+    handleToggleActive(request, eventId, true),
 });

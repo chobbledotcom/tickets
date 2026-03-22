@@ -46,9 +46,9 @@ export type DeleteResult = SuccessResult<object> | ErrorResult | NotFoundResult;
 /** Result type for input parsing */
 export type ParseResult<Input> = SuccessResult<{ input: Input }> | ErrorResult;
 
-/** Validation function type */
-type ValidateFn<Input> =
-  | ((input: Input, id?: InValue) => Promise<string | null>)
+/** Validation function type — Id defaults to InValue for broad compatibility */
+type ValidateFn<Input, Id = InValue> =
+  | ((input: Input, id?: Id) => Promise<string | null>)
   | undefined;
 
 /**
@@ -75,6 +75,7 @@ export interface Resource<
 export interface ResourceConfig<
   Row,
   Input,
+  Id = InValue,
   Values extends FieldValues = FieldValues,
 > {
   table: Table<Row, Input>;
@@ -84,7 +85,7 @@ export interface ResourceConfig<
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
-  validate?: (input: Input, id?: InValue) => Promise<string | null>;
+  validate?: ValidateFn<Input, Id>;
 }
 
 /** Validate form and convert to result type */
@@ -109,10 +110,10 @@ const requireExists = async <Row, Input>(
 };
 
 /** Run async validation, return error result or null */
-const runValidation = async <Input>(
-  validate: ValidateFn<Input>,
+const runValidation = async <Input, Id>(
+  validate: ValidateFn<Input, Id>,
   input: Input,
-  id?: InValue,
+  id?: Id,
 ): Promise<ErrorResult | null> => {
   if (!validate) return null;
   const error = await validate(input, id);
@@ -124,11 +125,11 @@ const toUpdateResult = <Row>(row: Row | null): UpdateResult<Row> =>
   row ? { ok: true, row } : { ok: false, notFound: true };
 
 /** Parse and validate input, returning parsed input or error */
-const parseAndValidate = async <Input>(
+const parseAndValidate = async <Input, Id>(
   form: FormParams,
   parseInput: (form: FormParams) => Promise<ParseResult<Input>>,
-  validate: ValidateFn<Input>,
-  id?: InValue,
+  validate: ValidateFn<Input, Id>,
+  id?: Id,
 ): Promise<ParseResult<Input>> => {
   const parsed = await parseInput(form);
   if (!parsed.ok) return parsed;
@@ -151,9 +152,10 @@ export type NamedResource<
 export const defineResource = <
   Row,
   Input,
+  Id = InValue,
   Values extends FieldValues = FieldValues,
 >(
-  config: ResourceConfig<Row, Input, Values>,
+  config: ResourceConfig<Row, Input, Id, Values>,
 ): Resource<Row, Input, Values> => {
   const { table, fields, toInput, nameField } = config;
 
@@ -186,7 +188,7 @@ export const defineResource = <
       form,
       parseInput,
       config.validate,
-      id,
+      id as Id,
     );
     return result.ok
       ? toUpdateResult(await table.update(id, result.input))
@@ -230,8 +232,11 @@ export const defineResource = <
 export const defineNamedResource = <
   Row,
   Input,
+  Id = InValue,
   V extends FieldValues = FieldValues,
 >(
-  config: ResourceConfig<Row, Input, V> & { nameField: keyof Row & string },
+  config: ResourceConfig<Row, Input, Id, V> & {
+    nameField: keyof Row & string;
+  },
 ): NamedResource<Row, Input, V> =>
   defineResource(config) as NamedResource<Row, Input, V>;
