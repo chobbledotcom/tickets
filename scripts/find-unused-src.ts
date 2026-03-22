@@ -99,7 +99,12 @@ function extractImports(
     const specifier = match[4]!;
     const names = namedImports
       .split(",")
-      .map((n: string) => n.trim().replace(/\s+as\s+\w+/, "").trim())
+      .map((n: string) =>
+        n
+          .trim()
+          .replace(/\s+as\s+\w+/, "")
+          .trim(),
+      )
       .filter(Boolean);
     imports.push({ specifier, names });
   }
@@ -115,7 +120,12 @@ function extractImports(
     const specifier = match[2]!;
     const names = namedImports
       .split(",")
-      .map((n: string) => n.trim().replace(/\s+as\s+\w+/, "").trim())
+      .map((n: string) =>
+        n
+          .trim()
+          .replace(/\s+as\s+\w+/, "")
+          .trim(),
+      )
       .filter(Boolean);
     imports.push({ specifier, names });
   }
@@ -137,9 +147,7 @@ function extractExports(filePath: string): string[] {
   for (const m of content.matchAll(/export\s+class\s+(\w+)/g)) {
     exports.push(m[1]!);
   }
-  for (const m of content.matchAll(
-    /export\s+(?:type|interface)\s+(\w+)/g,
-  )) {
+  for (const m of content.matchAll(/export\s+(?:type|interface)\s+(\w+)/g)) {
     exports.push(m[1]!);
   }
   for (const m of content.matchAll(/export\s+enum\s+(\w+)/g)) {
@@ -147,7 +155,10 @@ function extractExports(filePath: string): string[] {
   }
   for (const m of content.matchAll(/export\s+\{([^}]+)\}(?!\s*from)/g)) {
     for (const name of m[1]!.split(",")) {
-      const trimmed = name.trim().replace(/\s+as\s+\w+/, "").trim();
+      const trimmed = name
+        .trim()
+        .replace(/\s+as\s+\w+/, "")
+        .trim();
       if (trimmed) exports.push(trimmed);
     }
   }
@@ -212,10 +223,7 @@ for (const file of allFiles) {
     if (file.startsWith("test/") || file.startsWith("src/test-utils/")) {
       if (!importedByTest.has(target)) importedByTest.set(target, []);
       importedByTest.get(target)!.push(info);
-    } else if (
-      file.startsWith("src/") ||
-      file.startsWith("scripts/")
-    ) {
+    } else if (file.startsWith("src/") || file.startsWith("scripts/")) {
       if (!importedBySrc.has(target)) importedBySrc.set(target, []);
       importedBySrc.get(target)!.push(info);
     }
@@ -225,7 +233,9 @@ for (const file of allFiles) {
 // ---- Check 1: Files only imported from tests ----
 console.log("═══════════════════════════════════════════════════════════════");
 console.log("  FILES imported by test/ but NEVER by other src/ files");
-console.log("═══════════════════════════════════════════════════════════════\n");
+console.log(
+  "═══════════════════════════════════════════════════════════════\n",
+);
 
 let fileCount = 0;
 for (const srcFile of srcFiles) {
@@ -255,7 +265,9 @@ if (fileCount === 0) {
 // ---- Check 2: Individual exports only used in tests ----
 console.log("═══════════════════════════════════════════════════════════════");
 console.log("  EXPORTS used in test/ but NEVER in other src/ files");
-console.log("═══════════════════════════════════════════════════════════════\n");
+console.log(
+  "═══════════════════════════════════════════════════════════════\n",
+);
 
 let exportCount = 0;
 for (const srcFile of srcFiles) {
@@ -300,7 +312,9 @@ if (exportCount === 0) {
 // ---- Check 3: Files not imported by anything (dead code) ----
 console.log("═══════════════════════════════════════════════════════════════");
 console.log("  FILES not imported by anything (potential dead code)");
-console.log("═══════════════════════════════════════════════════════════════\n");
+console.log(
+  "═══════════════════════════════════════════════════════════════\n",
+);
 
 let deadCount = 0;
 for (const srcFile of srcFiles) {
