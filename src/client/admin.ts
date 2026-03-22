@@ -279,14 +279,16 @@ setupTestButton(
         `API Key: Invalid${data.apiKey.error ? ` - ${data.apiKey.error}` : ""}`,
       );
     }
-    lines.push(
-      formatWebhookLine(data.webhook, data.webhook.status || "configured"),
-    );
-    if (data.webhook.configured) {
-      lines.push(`URL: ${data.webhook.url}`);
-      if (data.webhook.enabledEvents) {
-        lines.push(`Events: ${data.webhook.enabledEvents.join(", ")}`);
+    if (data.webhookError) {
+      lines.push(`Webhooks: Error - ${data.webhookError}`);
+    } else if (data.webhooks && data.webhooks.length > 0) {
+      lines.push(`Webhooks: ${data.webhooks.length} endpoint(s)`);
+      for (const wh of data.webhooks) {
+        lines.push(`  ${wh.status} - ${wh.url}`);
+        lines.push(`  Events: ${wh.enabledEvents.join(", ")}`);
       }
+    } else {
+      lines.push("Webhooks: None configured");
     }
     return lines;
   },
