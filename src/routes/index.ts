@@ -329,10 +329,12 @@ export const handleRequest = async (
   // Buffer webhook body BEFORE entering async context wrappers. The Bunny Edge
   // runtime can garbage-collect the underlying request body resource during
   // awaits, so we must capture it while the resource is still alive.
+  // Use normalizePath on the raw pathname so trailing-slash variants like
+  // /payment/webhook/ are correctly detected (the router normalizes later,
+  // but by then the body resource may already be garbage-collected).
   const { pathname } = new URL(request.url);
-  const normalizedPathname = normalizePath(pathname);
   const webhookBody =
-    request.method === "POST" && isWebhookPath(normalizedPathname)
+    request.method === "POST" && isWebhookPath(normalizePath(pathname))
       ? new Uint8Array(await request.arrayBuffer())
       : undefined;
   const effectiveRequest = webhookBody
