@@ -545,9 +545,13 @@ textarea {
 input[type="text"],
 input[type="password"],
 input[type="email"],
-textarea,
-input[type="file"] {
+textarea {
   width: 100%;
+  box-sizing: border-box;
+}
+
+input[type="file"] {
+  max-width: 100%;
   box-sizing: border-box;
 }
 
