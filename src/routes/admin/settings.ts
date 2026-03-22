@@ -1246,7 +1246,7 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
   async (_form, errorPage) => {
     if (!isBunnyCdnEnabled()) {
       return errorPage(
-        "Bunny CDN is not configured",
+        t("error.bunny_cdn_not_configured"),
         400,
         "settings-custom-domain-validate",
       );
@@ -1255,7 +1255,7 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
     const customDomain = await getCustomDomainFromDb();
     if (!customDomain) {
       return errorPage(
-        "No custom domain is configured",
+        t("error.no_custom_domain"),
         400,
         "settings-custom-domain-validate",
       );
@@ -1270,7 +1270,7 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
     await logActivity(`Custom domain validated: ${customDomain}`);
     return redirect(
       "/admin/settings-advanced",
-      "Custom domain validated successfully",
+      t("success.custom_domain_validated"),
       true,
       { formId: "settings-custom-domain-validate" },
     );
@@ -1305,7 +1305,7 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
     await logActivity("Apple Wallet configuration cleared");
     return redirect(
       "/admin/settings-advanced",
-      "Apple Wallet configuration cleared",
+      t("success.apple_wallet_cleared"),
       true,
       { formId: "settings-apple-wallet" },
     );
