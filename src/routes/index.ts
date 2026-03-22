@@ -19,6 +19,7 @@ import {
   setFlashContext,
 } from "#lib/flash-context.ts";
 import { clearSavedFormData } from "#lib/forms.tsx";
+import { parseAcceptLanguage, runWithLocale } from "#i18n";
 import { loadHeaderImage } from "#lib/header-image.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
@@ -345,10 +346,15 @@ export const handleRequest = async (
       })
     : request;
 
-  return runWithRequestId(() =>
-    runWithQueryLogContext(() =>
-      runWithSessionContext(async () => {
-        const { url, path, method } = parseRequest(effectiveRequest);
+  const locale = parseAcceptLanguage(
+    effectiveRequest.headers.get("accept-language"),
+  );
+
+  return runWithLocale(locale, () =>
+    runWithRequestId(() =>
+      runWithQueryLogContext(() =>
+        runWithSessionContext(async () => {
+          const { url, path, method } = parseRequest(effectiveRequest);
         const getElapsed = createRequestTimer();
         detectIframeMode(effectiveRequest.url);
         clearSavedFormData();
@@ -460,7 +466,8 @@ export const handleRequest = async (
         } finally {
           await flushPendingWork();
         }
-      }),
+        }),
+      ),
     ),
   );
 };
