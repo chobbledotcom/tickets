@@ -6,7 +6,6 @@
 
 import { signAttachmentUrl } from "#lib/attachment-url.ts";
 import { getAllowedDomain } from "#lib/config.ts";
-import { decrypt } from "#lib/crypto.ts";
 import {
   hasAppleWalletConfig,
   hasGoogleWalletConfig,
@@ -56,7 +55,7 @@ const handleTicketView = async (
     hasGoogleWalletConfig(),
   ]);
   for (const entry of entries) {
-    entry.attendee.price_paid = await decrypt(entry.attendee.price_paid);
+    entry.attendee.price_paid = String(entry.attendee.price_paid_v2);
   }
   const cards = await Promise.all(
     entries.map((entry, index) => buildTicketCard(entry, tokens[index]!)),

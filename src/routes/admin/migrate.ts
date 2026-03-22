@@ -26,9 +26,9 @@ import { adminMigratePage } from "#templates/admin/migrate.tsx";
 
 /** Run handler only when migration is incomplete; return doneResponse otherwise */
 const whenNotMigrated =
-  <T>(doneResponse: (session: AuthSession) => Response | Promise<Response>) =>
-  (handler: (session: AuthSession) => Promise<T>) =>
-  async (session: AuthSession): Promise<T | Response> => {
+  (doneResponse: (session: AuthSession) => Response | Promise<Response>) =>
+  (handler: (session: AuthSession) => Promise<Response>) =>
+  async (session: AuthSession): Promise<Response> => {
     const migrated = await isAttendeeBlobMigrated();
     if (migrated) return doneResponse(session);
     return handler(session);
@@ -66,13 +66,9 @@ const handleMigratePost = (request: Request): Promise<Response> =>
     )(async (session) => {
       const privateKey = await requirePrivateKey(session);
       const result = await migrateAttendeeBatch(privateKey);
-
-      if (result.remaining === 0) {
-        await setAttendeeBlobMigrated();
-        return jsonResponse({ done: true, ...result });
-      }
-
-      return jsonResponse({ done: false, ...result });
+      const done = result.remaining === 0;
+      if (done) await setAttendeeBlobMigrated();
+      return jsonResponse({ done, ...result });
     }),
   );
 

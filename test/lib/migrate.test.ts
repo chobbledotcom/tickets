@@ -3,6 +3,8 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   decryptWithKey,
   deriveKEK,
+  encrypt,
+  encryptAttendeePII,
   importPrivateKey,
   unwrapKey,
 } from "#lib/crypto.ts";
@@ -17,10 +19,11 @@ import {
 } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
 import {
-  clearAttendeeBlobMigrated,
+  getPublicKey,
   getWrappedPrivateKey,
   isAttendeeBlobMigrated,
   setAttendeeBlobMigrated,
+  setSetting,
 } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import {
@@ -51,10 +54,68 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
   return importPrivateKey(privateKeyJwk);
 };
 
+/** Insert a legacy-format attendee row with per-field encryption (no pii_blob) */
+const insertLegacyAttendee = async (
+  eventId: number,
+  fields: {
+    name: string;
+    email: string;
+    phone?: string;
+    paymentId?: string;
+    pricePaid?: number;
+    checkedIn?: boolean;
+    refunded?: boolean;
+  },
+) => {
+  const pubKey = (await getPublicKey())!;
+  const [encName, encEmail, encPhone, encPaymentId, encPricePaid] =
+    await Promise.all([
+      encryptAttendeePII(fields.name, pubKey),
+      encryptAttendeePII(fields.email, pubKey),
+      encryptAttendeePII(fields.phone ?? "", pubKey),
+      encryptAttendeePII(fields.paymentId ?? "", pubKey),
+      encrypt(String(fields.pricePaid ?? 0)),
+    ]);
+  const encCheckedIn = fields.checkedIn
+    ? await encryptAttendeePII("true", pubKey)
+    : await encryptAttendeePII("false", pubKey);
+  const encRefunded = fields.refunded
+    ? await encryptAttendeePII("true", pubKey)
+    : await encryptAttendeePII("false", pubKey);
+  const encToken = await encryptAttendeePII("tok_legacy", pubKey);
+  await getDb().execute({
+    sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, created, quantity)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1)`,
+    args: [
+      eventId,
+      encName,
+      encEmail,
+      encPhone,
+      await encryptAttendeePII("", pubKey),
+      await encryptAttendeePII("", pubKey),
+      encPaymentId,
+      encPricePaid,
+      encCheckedIn,
+      encRefunded,
+      encToken,
+    ],
+  });
+};
+
+/** Create a test event with the migration gate temporarily enabled */
+const createTestEventForMigration = async (
+  overrides: Parameters<typeof createTestEvent>[0] = {},
+) => {
+  await setAttendeeBlobMigrated();
+  const event = await createTestEvent(overrides);
+  await setSetting("attendee_blob_migrated", "");
+  return event;
+};
+
 describeWithEnv("attendee blob migration", { db: true }, () => {
   // createTestDbWithSetup marks migration as complete; clear it for migration tests
   beforeEach(async () => {
-    await clearAttendeeBlobMigrated();
+    await setSetting("attendee_blob_migrated", "");
   });
 
   describe("isAttendeeBlobMigrated", () => {
@@ -75,7 +136,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("counts unmigrated attendees", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Alice", "a@test.com");
       await createTestAttendee(event.id, event.slug, "Bob", "b@test.com");
 
@@ -87,7 +148,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("counts attendees with empty pii_blob as unmigrated", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Alice", "a@test.com");
       // Simulate pre-migration state by clearing pii_blob
       await getDb().execute("UPDATE attendees SET pii_blob = ''");
@@ -100,22 +161,13 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
   describe("migrateAttendeeBatch", () => {
     test("migrates attendees from per-field to blob encryption", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 10,
-        unitPrice: 500,
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await insertLegacyAttendee(event.id, {
+        name: "Alice Smith",
+        email: "alice@test.com",
+        paymentId: "pi_123",
+        pricePaid: 1500,
       });
-      await createPaidTestAttendee(
-        event.id,
-        "Alice Smith",
-        "alice@test.com",
-        "pi_123",
-        1500,
-      );
-
-      // Simulate pre-migration: clear pii_blob and v2 columns
-      await getDb().execute(
-        "UPDATE attendees SET pii_blob = '', checked_in_v2 = 0, refunded_v2 = 0, price_paid_v2 = 0",
-      );
 
       const privateKey = await getTestPrivateKey();
       const result = await migrateAttendeeBatch(privateKey);
@@ -132,26 +184,15 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("preserves checked_in and refunded status during migration", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 10,
-        unitPrice: 500,
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await insertLegacyAttendee(event.id, {
+        name: "Bob",
+        email: "bob@test.com",
+        paymentId: "pi_456",
+        pricePaid: 2000,
+        checkedIn: true,
+        refunded: true,
       });
-      const attendee = await createPaidTestAttendee(
-        event.id,
-        "Bob",
-        "bob@test.com",
-        "pi_456",
-        2000,
-      );
-
-      // Check in and refund
-      await updateCheckedIn(attendee.id, true);
-      await markRefunded(attendee.id);
-
-      // Simulate pre-migration: clear blob + v2 columns
-      await getDb().execute(
-        "UPDATE attendees SET pii_blob = '', checked_in_v2 = 0, refunded_v2 = 0, price_paid_v2 = 0",
-      );
 
       const privateKey = await getTestPrivateKey();
       await migrateAttendeeBatch(privateKey);
@@ -163,22 +204,14 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("decrypts correctly from blob after migration", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 10,
-        unitPrice: 500,
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await insertLegacyAttendee(event.id, {
+        name: "Charlie",
+        email: "charlie@test.com",
+        paymentId: "pi_789",
+        pricePaid: 3000,
       });
-      await createPaidTestAttendee(
-        event.id,
-        "Charlie",
-        "charlie@test.com",
-        "pi_789",
-        3000,
-      );
 
-      // Simulate pre-migration and migrate
-      await getDb().execute(
-        "UPDATE attendees SET pii_blob = '', checked_in_v2 = 0, refunded_v2 = 0, price_paid_v2 = 0",
-      );
       const privateKey = await getTestPrivateKey();
       await migrateAttendeeBatch(privateKey);
 
@@ -195,7 +228,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("returns zero migrated when all attendees already migrated", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Done", "done@test.com");
 
       const privateKey = await getTestPrivateKey();
@@ -212,7 +245,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
   describe("new attendees write pii_blob", () => {
     test("createAttendeeAtomic populates pii_blob", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(
         event.id,
         event.slug,
@@ -225,7 +258,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("createAttendeeAtomic sets v2 integer columns", async () => {
-      const event = await createTestEvent({
+      const event = await createTestEventForMigration({
         maxAttendees: 10,
         unitPrice: 1000,
       });
@@ -246,7 +279,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
   describe("updateCheckedIn writes v2 column", () => {
     test("sets checked_in_v2 to 1 when checking in", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -261,7 +294,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("sets checked_in_v2 back to 0 when unchecking", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -279,7 +312,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
   describe("markRefunded writes v2 column", () => {
     test("sets refunded_v2 to 1", async () => {
-      const event = await createTestEvent({
+      const event = await createTestEventForMigration({
         maxAttendees: 10,
         unitPrice: 500,
       });
@@ -307,6 +340,20 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       expect(html).toContain("Process next batch");
     });
 
+    test("shows progress bar when there are unmigrated attendees", async () => {
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await insertLegacyAttendee(event.id, {
+        name: "Pending",
+        email: "pending@test.com",
+      });
+
+      const { response } = await adminGet("/admin/migrate");
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("<progress");
+      expect(html).toContain("1 remaining");
+    });
+
     test("shows completion message when already migrated", async () => {
       await setAttendeeBlobMigrated();
       const { response } = await adminGet("/admin/migrate");
@@ -318,7 +365,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
   describe("POST /admin/migrate", () => {
     test("processes a batch and returns progress", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Mig", "mig@test.com");
       // Simulate pre-migration
       await getDb().execute(
