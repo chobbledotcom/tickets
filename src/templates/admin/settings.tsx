@@ -50,7 +50,7 @@ export const adminSettingsPage = (
       <AdminNav session={session} active="/admin/settings" />
 
       {s.storageEnabled && (
-        <div>
+        <div class="stack">
           {s.headerImageUrl && (
             <div>
               <img
