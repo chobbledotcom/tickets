@@ -1213,6 +1213,47 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(html).toContain('value="john@example.com"');
     });
 
+    test("does not leak saved form data into subsequent GET request", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      // First: POST with invalid CSRF to save form data
+      await handleRequest(
+        mockFormRequest(`/ticket/${event.slug}`, {
+          name: "Stale Name",
+          email: "stale@example.com",
+        }),
+      );
+      // Second: GET the same page — stale values must not appear
+      const getResponse = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      const html = await getResponse.text();
+      expect(html).not.toContain("Stale Name");
+      expect(html).not.toContain("stale@example.com");
+    });
+
+    test("does not leak saved form data from validation error into next POST", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      // First: POST with missing name to trigger validation error
+      await submitTicketForm(event.slug, {
+        name: "",
+        email: "first@example.com",
+      });
+      // Second: POST with different data and its own validation error
+      const response = await submitTicketForm(event.slug, {
+        name: "",
+        email: "second@example.com",
+      });
+      const html = await response.text();
+      expect(html).not.toContain("first@example.com");
+      expect(html).toContain('value="second@example.com"');
+    });
+
     test("validates required fields", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
