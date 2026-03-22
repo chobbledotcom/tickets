@@ -142,7 +142,7 @@ body {
   padding: 0;
 }
 
-footer,
+body > footer,
 header,
 main {
   margin: 0 auto;
@@ -168,10 +168,6 @@ article > *,
   display: flex;
   flex-direction: column;
   gap: var(--space-m);
-}
-
-.stack.row {
-  flex-direction: row;
 }
 
 /* Extra-large vertical stack for spacing between major page sections */
@@ -534,6 +530,13 @@ form > button {
 
 form header {
   padding: var(--space-m) 0;
+}
+
+form footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  justify-content: flex-start;
 }
 
 input,
