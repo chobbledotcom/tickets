@@ -177,6 +177,23 @@ describe("custom questions", () => {
       const questions = await getQuestionsForEvent(event.id);
       expect(questions).toEqual([]);
     });
+
+    test("skips questions with no answers", async () => {
+      const qWithAnswers = await questionsTable.insert({ text: "Has answers" });
+      const qNoAnswers = await questionsTable.insert({ text: "No answers" });
+      await answersTable.insert({
+        questionId: qWithAnswers.id,
+        text: "Yes",
+        sortOrder: 0,
+      });
+
+      const event = await createTestEvent();
+      await setEventQuestions(event.id, [qWithAnswers.id, qNoAnswers.id]);
+
+      const questions = await getQuestionsForEvent(event.id);
+      expect(questions).toHaveLength(1);
+      expect(questions[0]!.text).toBe("Has answers");
+    });
   });
 
   describe("getEventQuestionIds", () => {
@@ -260,6 +277,23 @@ describe("custom questions", () => {
       );
       expect(questions).toEqual([]);
       expect(questionEventMap.size).toBe(0);
+    });
+
+    test("skips questions with no answers", async () => {
+      const qWithAnswers = await questionsTable.insert({ text: "Has answers" });
+      const qNoAnswers = await questionsTable.insert({ text: "No answers" });
+      await answersTable.insert({
+        questionId: qWithAnswers.id,
+        text: "Yes",
+        sortOrder: 0,
+      });
+
+      const event = await createTestEvent();
+      await setEventQuestions(event.id, [qWithAnswers.id, qNoAnswers.id]);
+
+      const { questions } = await getQuestionsWithEventIds([event.id]);
+      expect(questions).toHaveLength(1);
+      expect(questions[0]!.text).toBe("Has answers");
     });
   });
 

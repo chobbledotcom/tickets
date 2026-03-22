@@ -582,10 +582,10 @@ describe("server (admin questions)", () => {
       )(response);
 
       // Verify the questions are assigned
-      const { getQuestionsForEvent } = await import("#lib/db/questions.ts");
-      const assigned = await getQuestionsForEvent(event.id);
+      const { getEventQuestionIds } = await import("#lib/db/questions.ts");
+      const assigned = await getEventQuestionIds(event.id);
       expect(assigned.length).toBe(1);
-      expect(assigned[0]!.id).toBe(q1);
+      expect(assigned[0]).toBe(q1);
     });
 
     test("assigns no questions when none selected", async () => {
@@ -599,8 +599,8 @@ describe("server (admin questions)", () => {
         "Questions updated",
       )(response);
 
-      const { getQuestionsForEvent } = await import("#lib/db/questions.ts");
-      const assigned = await getQuestionsForEvent(event.id);
+      const { getEventQuestionIds } = await import("#lib/db/questions.ts");
+      const assigned = await getEventQuestionIds(event.id);
       expect(assigned.length).toBe(0);
     });
 
@@ -610,7 +610,7 @@ describe("server (admin questions)", () => {
       const q2 = await createQuestion("New question?");
 
       // Assign q1 first
-      const { setEventQuestions, getQuestionsForEvent } = await import(
+      const { setEventQuestions, getEventQuestionIds } = await import(
         "#lib/db/questions.ts"
       );
       await setEventQuestions(event.id, [q1]);
@@ -630,9 +630,9 @@ describe("server (admin questions)", () => {
       );
       expect(response.status).toBe(302);
 
-      const assigned = await getQuestionsForEvent(event.id);
+      const assigned = await getEventQuestionIds(event.id);
       expect(assigned.length).toBe(1);
-      expect(assigned[0]!.id).toBe(q2);
+      expect(assigned[0]).toBe(q2);
     });
 
     test("logs activity with singular when 1 question assigned", async () => {
