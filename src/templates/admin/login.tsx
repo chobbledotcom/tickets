@@ -5,6 +5,7 @@
 import { isDemoMode } from "#lib/demo.ts";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { t } from "#i18n";
 import { loginFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -13,15 +14,15 @@ import { Layout } from "#templates/layout.tsx";
  */
 export const adminLoginPage = (error?: string): string =>
   String(
-    <Layout title="Login">
+    <Layout title={t("login.title")}>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/login">
         <Raw html={renderFields(loginFields)} />
-        <button type="submit">Login</button>
+        <button type="submit">{t("login.submit")}</button>
       </CsrfForm>
       {isDemoMode() && (
         <p>
-          <a href="/demo/reset">Reset database</a>
+          <a href="/demo/reset">{t("login.reset_database")}</a>
         </p>
       )}
     </Layout>,

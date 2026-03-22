@@ -9,6 +9,7 @@ import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
+import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 export type AdvancedSettingsPageState = {
@@ -51,16 +52,14 @@ export const adminAdvancedSettingsPage = (
   s: AdvancedSettingsPageState,
 ): string =>
   String(
-    <Layout title="Advanced Settings" theme={s.theme} mainClass="stack-xl">
+    <Layout title={t("settings.advanced.title")} theme={s.theme} mainClass="stack-xl">
       <AdminNav session={session} active="/admin/settings" />
-      <Breadcrumb href="/admin/settings" label="Settings" />
+      <Breadcrumb href="/admin/settings" label={t("settings.title")} />
 
       <article>
         <aside>
           <p>
-            Be careful changing settings on this page. You can break your site
-            in ways that can be hard to diagnose. Test your booking process
-            after making a change.
+            {t("settings.advanced.warning")}
           </p>
         </aside>
       </article>
@@ -69,11 +68,9 @@ export const adminAdvancedSettingsPage = (
         action="/admin/settings/show-public-api"
         id="settings-show-public-api"
       >
-        <h2>Enable public API?</h2>
+        <h2>{t("settings.advanced.public_api")}</h2>
         <p>
-          Exposes a JSON API for listing events, checking availability, and
-          creating bookings. See the <a href="/admin/guide#api">API guide</a>{" "}
-          for details.
+          {t("settings.advanced.public_api_hint")}
         </p>
         <fieldset>
           <label>
@@ -83,7 +80,7 @@ export const adminAdvancedSettingsPage = (
               value="true"
               checked={s.showPublicApi === true}
             />
-            Yes
+            {t("common.yes")}
           </label>
           <label>
             <input
@@ -92,20 +89,19 @@ export const adminAdvancedSettingsPage = (
               value="false"
               checked={s.showPublicApi !== true}
             />
-            No
+            {t("common.no")}
           </label>
         </fieldset>
-        <button type="submit">Save</button>
+        <button type="submit">{t("common.save")}</button>
       </CsrfForm>
 
       <CsrfForm
         action="/admin/settings/apple-wallet"
         id="settings-apple-wallet"
       >
-        <h2>Apple Wallet</h2>
+        <h2>{t("settings.advanced.apple_wallet")}</h2>
         <p>
-          Configure Apple Wallet pass signing to show an &ldquo;Add to Apple
-          Wallet&rdquo; button on ticket pages.
+          {t("settings.advanced.apple_wallet_hint")}
           {s.hostAppleWalletLabel && !s.appleWalletConfigured
             ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
             : s.hostAppleWalletLabel && s.appleWalletConfigured
@@ -113,7 +109,7 @@ export const adminAdvancedSettingsPage = (
               : ""}
         </p>
         <label>
-          Pass Type ID
+          {t("settings.advanced.apple_pass_type_id")}
           <input
             type="text"
             name="apple_wallet_pass_type_id"
@@ -123,7 +119,7 @@ export const adminAdvancedSettingsPage = (
           />
         </label>
         <label>
-          Team ID
+          {t("settings.advanced.apple_team_id")}
           <input
             type="text"
             name="apple_wallet_team_id"
@@ -133,7 +129,7 @@ export const adminAdvancedSettingsPage = (
           />
         </label>
         <label>
-          Signing Certificate (PEM)
+          {t("settings.advanced.apple_signing_cert")}
           <textarea
             name="apple_wallet_signing_cert"
             rows={4}
@@ -143,7 +139,7 @@ export const adminAdvancedSettingsPage = (
           </textarea>
         </label>
         <label>
-          Signing Private Key (PEM)
+          {t("settings.advanced.apple_signing_key")}
           <textarea
             name="apple_wallet_signing_key"
             rows={4}
@@ -153,7 +149,7 @@ export const adminAdvancedSettingsPage = (
           </textarea>
         </label>
         <label>
-          WWDR Certificate (PEM)
+          {t("settings.advanced.apple_wwdr_cert")}
           <textarea
             name="apple_wallet_wwdr_cert"
             rows={4}
@@ -162,18 +158,16 @@ export const adminAdvancedSettingsPage = (
             {s.appleWalletConfigured ? MASK_SENTINEL : ""}
           </textarea>
         </label>
-        <button type="submit">Save Apple Wallet Settings</button>
+        <button type="submit">{t("settings.advanced.save_apple_wallet")}</button>
       </CsrfForm>
 
       <CsrfForm
         action="/admin/settings/google-wallet"
         id="settings-google-wallet"
       >
-        <h2>Google Wallet</h2>
+        <h2>{t("settings.advanced.google_wallet")}</h2>
         <p>
-          Configure Google Wallet to show an &ldquo;Add to Google Wallet&rdquo;
-          button on ticket pages. Requires a Google Cloud service account with
-          the Google Wallet API enabled.
+          {t("settings.advanced.google_wallet_hint")}
           {s.hostGoogleWalletLabel && !s.googleWalletConfigured
             ? ` Currently using: ${s.hostGoogleWalletLabel}. Override below or leave empty to keep using host config.`
             : s.hostGoogleWalletLabel && s.googleWalletConfigured
@@ -181,7 +175,7 @@ export const adminAdvancedSettingsPage = (
               : ""}
         </p>
         <label>
-          Issuer ID
+          {t("settings.advanced.google_issuer_id")}
           <input
             type="text"
             name="google_wallet_issuer_id"
@@ -191,7 +185,7 @@ export const adminAdvancedSettingsPage = (
           />
         </label>
         <label>
-          Service Account Email
+          {t("settings.advanced.google_service_email")}
           <input
             type="email"
             name="google_wallet_service_account_email"
@@ -201,7 +195,7 @@ export const adminAdvancedSettingsPage = (
           />
         </label>
         <label>
-          Service Account Private Key (PEM)
+          {t("settings.advanced.google_service_key")}
           <textarea
             name="google_wallet_service_account_key"
             rows={4}
@@ -210,23 +204,19 @@ export const adminAdvancedSettingsPage = (
             {s.googleWalletConfigured ? MASK_SENTINEL : ""}
           </textarea>
         </label>
-        <button type="submit">Save Google Wallet Settings</button>
+        <button type="submit">{t("settings.advanced.save_google_wallet")}</button>
       </CsrfForm>
 
       <CsrfForm
         action="/admin/settings/email-templates/confirmation"
         id="settings-email-tpl-confirmation"
       >
-        <h2>Confirmation Email Template</h2>
+        <h2>{t("settings.advanced.confirmation_email")}</h2>
         <p>
-          Customise the registration confirmation email sent to attendees. Uses{" "}
-          <a href="https://liquidjs.com/" target="_blank" rel="noopener">
-            Liquid
-          </a>{" "}
-          template syntax. Leave blank to use the default template.
+          {t("settings.advanced.confirmation_email_hint")}
         </p>
         <details>
-          <summary>Available variables</summary>
+          <summary>{t("settings.advanced.available_variables")}</summary>
           <table>
             <tr>
               <td>
@@ -315,7 +305,7 @@ export const adminAdvancedSettingsPage = (
           </table>
         </details>
         <label>
-          Subject
+          {t("settings.advanced.subject")}
           <input
             type="text"
             name="subject"

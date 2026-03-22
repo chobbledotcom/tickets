@@ -4,6 +4,7 @@
 
 import { getShowPublicSiteCached } from "#lib/db/settings.ts";
 import { CsrfForm } from "#lib/forms.tsx";
+import { t } from "#i18n";
 import type { AdminSession } from "#lib/types.ts";
 
 interface AdminNavProps {
@@ -26,23 +27,23 @@ const navLink = (href: string, label: string, active: string): JSX.Element => (
 export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
   <nav id="main-nav">
     <ul>
-      {navLink("/admin/", "Events", active)}
-      {navLink("/admin/calendar", "Calendar", active)}
+      {navLink("/admin/", t("nav.events"), active)}
+      {navLink("/admin/calendar", t("nav.calendar"), active)}
       {session.adminLevel === "owner" &&
-        navLink("/admin/users", "Users", active)}
+        navLink("/admin/users", t("nav.users"), active)}
       {session.adminLevel === "owner" &&
         getShowPublicSiteCached() &&
-        navLink("/admin/site", "Site", active)}
+        navLink("/admin/site", t("nav.site"), active)}
       {session.adminLevel === "owner" &&
-        navLink("/admin/settings", "Settings", active)}
-      {navLink("/admin/log", "Log", active)}
-      {navLink("/admin/groups", "Groups", active)}
+        navLink("/admin/settings", t("nav.settings"), active)}
+      {navLink("/admin/log", t("nav.log"), active)}
+      {navLink("/admin/groups", t("nav.groups"), active)}
       {session.adminLevel === "owner" &&
-        navLink("/admin/holidays", "Holidays", active)}
-      {navLink("/admin/guide", "Guide", active)}
+        navLink("/admin/holidays", t("nav.holidays"), active)}
+      {navLink("/admin/guide", t("nav.guide"), active)}
       <li>
         <CsrfForm action="/admin/logout" class="inline">
-          <button type="submit">Logout</button>
+          <button type="submit">{t("nav.logout")}</button>
         </CsrfForm>
       </li>
     </ul>
@@ -54,13 +55,13 @@ export const UsersSubNav = (): JSX.Element => (
   <nav>
     <ul>
       <li>
-        <a href="/admin/users">Users</a>
+        <a href="/admin/users">{t("nav.sub.users")}</a>
       </li>
       <li>
-        <a href="/admin/sessions">Sessions</a>
+        <a href="/admin/sessions">{t("nav.sub.sessions")}</a>
       </li>
       <li>
-        <a href="/admin/api-keys">API Keys</a>
+        <a href="/admin/api-keys">{t("nav.sub.api_keys")}</a>
       </li>
     </ul>
   </nav>

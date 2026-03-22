@@ -3,6 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { t } from "#i18n";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
@@ -26,11 +27,11 @@ const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
       <td>
         {apiKey.lastUsed
           ? new Date(apiKey.lastUsed).toLocaleDateString()
-          : "Never"}
+          : t("api_keys.never")}
       </td>
       <td>
         <a href={`/admin/api-keys/${apiKey.id}/delete`} class="danger small">
-          Delete
+          {t("api_keys.delete")}
         </a>
       </td>
     </tr>,
@@ -50,10 +51,10 @@ export const adminApiKeysPage = (
           map((k: ApiKeyDisplay) => ApiKeyRow({ apiKey: k })),
           joinStrings,
         )(keys)
-      : '<tr><td colspan="4">No API keys</td></tr>';
+      : `<tr><td colspan="4">${t("api_keys.no_keys")}</td></tr>`;
 
   return String(
-    <Layout title="API Keys">
+    <Layout title={t("api_keys.title")}>
       <AdminNav session={adminSession} active="/admin/users" />
       <UsersSubNav />
 
@@ -62,12 +63,12 @@ export const adminApiKeysPage = (
 
       {opts.newKey && (
         <div class="warning">
-          <strong>Copy your API key now — it won't be shown again:</strong>
+          <strong>{t("api_keys.copy_notice")}</strong>
           <pre>
             <code>{opts.newKey}</code>
           </pre>
           <p>
-            Use it with: <code>Authorization: Bearer YOUR_KEY</code>
+            {t("api_keys.usage_hint")}
           </p>
         </div>
       )}
@@ -76,9 +77,9 @@ export const adminApiKeysPage = (
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Created</th>
-              <th>Last used</th>
+              <th>{t("api_keys.col.name")}</th>
+              <th>{t("api_keys.col.created")}</th>
+              <th>{t("api_keys.col.last_used")}</th>
               <th></th>
             </tr>
           </thead>
@@ -92,18 +93,18 @@ export const adminApiKeysPage = (
 
       <CsrfForm action="/admin/api-keys">
         <fieldset>
-          <legend>Create API key</legend>
+          <legend>{t("api_keys.create_legend")}</legend>
           <label>
-            Name
+            {t("api_keys.name_label")}
             <input
               type="text"
               name="name"
-              placeholder="e.g. CI Pipeline"
+              placeholder={t("api_keys.name_placeholder")}
               required
               maxLength={100}
             />
           </label>
-          <button type="submit">Create key</button>
+          <button type="submit">{t("api_keys.create_submit")}</button>
         </fieldset>
       </CsrfForm>
     </Layout>,
@@ -126,19 +127,17 @@ export const adminDeleteApiKeyPage = (
       <article>
         <aside>
           <p>
-            <strong>Warning:</strong> This will permanently delete this API key.
-            Any integrations using it will stop working immediately.
+            {t("api_keys.delete_warning")}
           </p>
         </aside>
       </article>
 
       <p>
-        To delete this API key, type its name &quot;{apiKey.name}&quot; into the
-        box below:
+        {t("api_keys.delete_confirm", { name: apiKey.name })}
       </p>
 
       <CsrfForm action={`/admin/api-keys/${apiKey.id}/delete`}>
-        <label for="confirm_identifier">API key name</label>
+        <label for="confirm_identifier">{t("api_keys.delete_label")}</label>
         <input
           type="text"
           id="confirm_identifier"
@@ -148,7 +147,7 @@ export const adminDeleteApiKeyPage = (
           required
         />
         <button type="submit" class="danger">
-          Delete API Key
+          {t("api_keys.delete_submit")}
         </button>
       </CsrfForm>
     </Layout>,

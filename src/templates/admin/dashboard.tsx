@@ -8,6 +8,7 @@ import { formatCurrency } from "#lib/currency.ts";
 import type { ActiveEventStats } from "#lib/db/attendees.ts";
 import { renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { t } from "#i18n";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -28,7 +29,7 @@ export const EventRow = ({ e }: { e: EventWithCount }): string => {
         <a href={`/admin/event/${e.id}`}>{e.name}</a>
       </td>
       <td class="cell-description">{e.description}</td>
-      <td>{isInactive ? "Inactive" : "Active"}</td>
+      <td>{isInactive ? t("common.inactive") : t("common.active")}</td>
       <td>
         {e.attendee_count} / {e.max_attendees}
       </td>
@@ -61,12 +62,12 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
 
   return String(
     <details>
-      <summary>Multi-booking link</summary>
-      <p>Select events to generate a combined booking link:</p>
+      <summary>{t("admin.dashboard.multi_booking_link")}</summary>
+      <p>{t("admin.dashboard.multi_booking_desc")}</p>
       <ul class="multi-booking-list">
         <Raw html={checkboxes} />
       </ul>
-      <label for="multi-booking-url">Booking link</label>
+      <label for="multi-booking-url">{t("admin.dashboard.booking_link")}</label>
       <input
         type="text"
         id="multi-booking-url"
@@ -74,25 +75,25 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
         data-select-on-click
         data-multi-booking-url
         data-domain={getAllowedDomain()}
-        placeholder="Select two or more events"
+        placeholder={t("admin.dashboard.select_two_or_more")}
       />
-      <label for="multi-booking-embed-script">Embed Script</label>
+      <label for="multi-booking-embed-script">{t("admin.dashboard.embed_script")}</label>
       <input
         type="text"
         id="multi-booking-embed-script"
         readonly
         data-select-on-click
         data-multi-booking-embed-script
-        placeholder="Select two or more events"
+        placeholder={t("admin.dashboard.select_two_or_more")}
       />
-      <label for="multi-booking-embed-iframe">Embed Iframe</label>
+      <label for="multi-booking-embed-iframe">{t("admin.dashboard.embed_iframe")}</label>
       <input
         type="text"
         id="multi-booking-embed-iframe"
         readonly
         data-select-on-click
         data-multi-booking-embed-iframe
-        placeholder="Select two or more events"
+        placeholder={t("admin.dashboard.select_two_or_more")}
       />
     </details>,
   );
@@ -102,16 +103,16 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
 export const activeEventStatsSection = (stats: ActiveEventStats): string =>
   String(
     <details>
-      <summary>Active Event Statistics</summary>
+      <summary>{t("admin.dashboard.stats_heading")}</summary>
       <ul>
         <li>
-          <strong>Income:</strong> {formatCurrency(stats.income)}
+          <strong>{t("admin.dashboard.income")}</strong> {formatCurrency(stats.income)}
         </li>
         <li>
-          <strong>Tickets:</strong> {stats.tickets}
+          <strong>{t("admin.dashboard.tickets")}</strong> {stats.tickets}
         </li>
         <li>
-          <strong>Attendees:</strong> {stats.attendees}
+          <strong>{t("admin.dashboard.attendees")}</strong> {stats.attendees}
         </li>
       </ul>
     </details>,
@@ -142,7 +143,7 @@ const newestAttendeesSection = (
   return String(
     <details open>
       <summary>
-        Newest {count} Attendee{count !== 1 ? "s" : ""}
+        {t("admin.dashboard.newest_attendees", { count })}
       </summary>
       <div class="table-scroll">
         <Raw
@@ -177,12 +178,12 @@ export const adminDashboardPage = (
           map((e: EventWithCount) => EventRow({ e })),
           joinStrings,
         )(events)
-      : '<tr><td colspan="5">No events yet</td></tr>';
+      : `<tr><td colspan="5">${t("admin.dashboard.no_events")}</td></tr>`;
 
   const activeEvents = filter((e: EventWithCount) => e.active)(events);
 
   return String(
-    <Layout title="Events" mainClass="stack-xl">
+    <Layout title={t("admin.dashboard.title")} mainClass="stack-xl">
       <AdminNav session={session} active="/admin/" />
 
       <Raw html={renderSuccess(successMessage)} />
@@ -190,18 +191,18 @@ export const adminDashboardPage = (
       {imageError && <p class="error">{imageError}</p>}
 
       <p>
-        <a href="/admin/event/new">Add Event</a>
+        <a href="/admin/event/new">{t("admin.dashboard.add_event")}</a>
       </p>
 
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Event Name</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Attendees</th>
-              <th>Created</th>
+              <th>{t("admin.dashboard.col.event_name")}</th>
+              <th>{t("admin.dashboard.col.description")}</th>
+              <th>{t("admin.dashboard.col.status")}</th>
+              <th>{t("admin.dashboard.col.attendees")}</th>
+              <th>{t("admin.dashboard.col.created")}</th>
             </tr>
           </thead>
           <tbody>

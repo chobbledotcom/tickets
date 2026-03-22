@@ -21,6 +21,7 @@ import {
   isPaidEvent,
 } from "#lib/types.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
+import { t } from "#i18n";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Public site navigation */
@@ -28,16 +29,16 @@ const PublicNav = (): JSX.Element => (
   <nav>
     <ul>
       <li>
-        <a href="/">Home</a>
+        <a href="/">{t("nav.public.home")}</a>
       </li>
       <li>
-        <a href="/events">Events</a>
+        <a href="/events">{t("nav.public.events")}</a>
       </li>
       <li>
-        <a href="/terms">T&amp;Cs</a>
+        <a href="/terms">{t("nav.public.terms")}</a>
       </li>
       <li>
-        <a href="/contact">Contact</a>
+        <a href="/contact">{t("nav.public.contact")}</a>
       </li>
     </ul>
   </nav>
@@ -55,9 +56,9 @@ export const publicSitePage = (
   content?: string | null,
 ): string => {
   const titles: Record<PublicPageType, string> = {
-    home: "Home",
-    terms: "Terms & Conditions",
-    contact: "Contact",
+    home: t("public.home"),
+    terms: t("public.terms_and_conditions"),
+    contact: t("public.contact"),
   };
   const pageTitle = websiteTitle
     ? `${titles[pageType]} - ${websiteTitle}`
@@ -71,12 +72,12 @@ export const publicSitePage = (
         <Raw html={renderMarkdown(content)} />
       ) : (
         <p>
-          <em>No content.</em>
+          <em>{t("public.no_content")}</em>
         </p>
       )}
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,
@@ -98,10 +99,10 @@ const renderEventListing = (info: MultiTicketEvent): string => {
     ? `<p>${renderMarkdownInline(event.description)}</p>`
     : "";
   const linkHtml = isSoldOut
-    ? "<p><strong>Sold Out</strong></p>"
+    ? `<p><strong>${escapeHtml(t("public.sold_out"))}</strong></p>`
     : isClosed
-      ? "<p><strong>Registration Closed</strong></p>"
-      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>Book now</strong></a></p>`;
+      ? `<p><strong>${escapeHtml(t("public.registration_closed"))}</strong></p>`
+      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>${escapeHtml(t("public.book_now"))}</strong></a></p>`;
 
   return `<h2>${escapeHtml(event.name)}</h2>${detailsHtml}${descriptionHtml}${linkHtml}`;
 };
@@ -129,11 +130,11 @@ export const homepagePage = (
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav />
         <p>
-          <em>No events listed.</em>
+          <em>{t("public.no_events_listed")}</em>
         </p>
         <footer class="homepage-footer">
           <p>
-            <a href="/admin/login">Login</a>
+            <a href="/admin/login">{t("common.login")}</a>
           </p>
         </footer>
       </Layout>,
@@ -148,11 +149,11 @@ export const homepagePage = (
     <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav />
-      <h2>All bookable events</h2>
+      <h2>{t("public.all_bookable_events")}</h2>
       <Raw html={eventListings} />
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,
@@ -194,10 +195,10 @@ export const buildOgTags = (
 /** Render a date selector dropdown for daily events */
 const renderDateSelector = (dates: string[]): string =>
   dates.length === 0
-    ? `<div class="error">No dates are currently available for booking.</div>`
-    : `<label for="date">Select Date</label>
+    ? `<div class="error">${escapeHtml(t("public.ticket.no_dates_available"))}</div>`
+    : `<label for="date">${escapeHtml(t("public.ticket.select_date"))}</label>
        <select name="date" id="date" required>
-         <option value="">— Select a date —</option>
+         <option value="">${escapeHtml(t("public.ticket.select_date_placeholder"))}</option>
          ${dates.map((d) => `<option value="${d}">${formatDateLabel(d)}</option>`).join("")}
        </select>`;
 
@@ -221,8 +222,8 @@ const renderPayMoreInput = (
   const maxPrice = event.max_price;
   const rangeHint =
     minPrice > 0
-      ? `Your Price (${formatCurrency(minPrice)} minimum)`
-      : `Your Price (optional, up to ${formatCurrency(maxPrice)})`;
+      ? t("public.ticket.your_price_min", { min: formatCurrency(minPrice) })
+      : t("public.ticket.your_price_optional", { max: formatCurrency(maxPrice) });
   return (
     `<label>${rangeHint}` +
     `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}"${minPrice > 0 ? " required" : ""} /></label>`
@@ -232,7 +233,7 @@ const renderPayMoreInput = (
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
   `<div class="terms">${renderMarkdown(terms)}</div>` +
-  `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
+  `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> ${escapeHtml(t("public.ticket.agree_terms"))}</label>`;
 
 /** Render custom multiple-choice question fields (radio buttons).
  * When questionEventMap is provided (multi-ticket), adds data-event-ids
@@ -298,12 +299,12 @@ export const ticketPage = (
           )}
           {event.date && (
             <p>
-              <strong>Date:</strong> {formatDatetimeLabel(event.date)}
+              <strong>{t("public.ticket.date_label")}</strong> {formatDatetimeLabel(event.date)}
             </p>
           )}
           {event.location && (
             <p>
-              <strong>Location:</strong> {event.location}
+              <strong>{t("public.ticket.location_label")}</strong> {event.location}
             </p>
           )}
         </>
@@ -311,9 +312,9 @@ export const ticketPage = (
       <Raw html={renderError(error)} />
 
       {isClosed ? (
-        <div class="error">Registration closed.</div>
+        <div class="error">{t("public.ticket.registration_closed")}</div>
       ) : isFull ? (
-        <div class="error">Sorry, this event is full.</div>
+        <div class="error">{t("public.ticket.event_full")}</div>
       ) : (
         <CsrfForm action={`/ticket/${event.slug}`}>
           <Raw html={renderFields(fields)} />
@@ -322,7 +323,7 @@ export const ticketPage = (
           )}
           {showQuantity ? (
             <label>
-              Number of Tickets
+              {t("public.ticket.number_of_tickets")}
               <select name="quantity">
                 <Raw html={quantityOptions(maxPurchasable)} />
               </select>
@@ -337,7 +338,7 @@ export const ticketPage = (
           {termsAndConditions && (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}
-          <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
+          <button type="submit">{showQuantity ? t("public.ticket.reserve_tickets") : t("public.ticket.reserve_ticket")}</button>
         </CsrfForm>
       )}
     </Layout>,
@@ -349,8 +350,8 @@ export const ticketPage = (
  */
 export const notFoundPage = (): string =>
   String(
-    <Layout title="Not Found">
-      <h1>Not Found</h1>
+    <Layout title={t("public.not_found.title")}>
+      <h1>{t("public.not_found.heading")}</h1>
     </Layout>,
   );
 
@@ -361,12 +362,12 @@ export const notFoundPage = (): string =>
 export const temporaryErrorPage = (): string =>
   String(
     <Layout
-      title="Temporary Error"
+      title={t("public.temporary_error.title")}
       headExtra='<meta http-equiv="refresh" content="2" />'
     >
-      <h1>Temporary Error</h1>
+      <h1>{t("public.temporary_error.heading")}</h1>
       <p>
-        Something went wrong loading this page. Retrying automatically&hellip;
+        {t("public.temporary_error.message")}
       </p>
     </Layout>,
   );
@@ -411,7 +412,7 @@ const renderMultiEventRow = (
       <div class="multi-ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
-        <span class="sold-out-label">Registration Closed</span>
+        <span class="sold-out-label">${escapeHtml(t("public.registration_closed"))}</span>
       </div>
     `;
   }
@@ -422,7 +423,7 @@ const renderMultiEventRow = (
         ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
         ${renderMultiEventDescription(event.description)}
-        <span class="sold-out-label">Sold Out</span>
+        <span class="sold-out-label">${escapeHtml(t("public.sold_out"))}</span>
       </div>
     `;
   }
@@ -495,14 +496,14 @@ export const multiTicketPage = ({
     .join("");
 
   return String(
-    <Layout title="Reserve Tickets" bodyClass={inIframe ? "iframe" : undefined}>
+    <Layout title={t("public.multi.title")} bodyClass={inIframe ? "iframe" : undefined}>
       <Raw html={renderError(error)} />
 
       {allUnavailable ? (
         <div class="error">
           {allClosed
-            ? "Registration closed."
-            : "Sorry, all events are sold out."}
+            ? t("public.multi.registration_closed")
+            : t("public.multi.all_sold_out")}
         </div>
       ) : (
         <CsrfForm action={`/ticket/${slugs.join("+")}`}>
@@ -513,7 +514,7 @@ export const multiTicketPage = ({
             <Raw html={eventRows} />
           ) : (
             <fieldset class="multi-ticket-events">
-              <legend>Select Tickets</legend>
+              <legend>{t("public.multi.select_tickets")}</legend>
               <Raw html={eventRows} />
             </fieldset>
           )}
@@ -522,7 +523,7 @@ export const multiTicketPage = ({
             <Raw html={renderQuestions(questions, questionEventMap)} />
           )}
           {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
-          <button type="submit">Reserve Tickets</button>
+          <button type="submit">{t("public.multi.reserve_tickets")}</button>
         </CsrfForm>
       )}
     </Layout>,

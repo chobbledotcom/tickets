@@ -17,6 +17,7 @@ import {
   squareWebhookFields,
   stripeKeyFields,
 } from "#templates/fields.ts";
+import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 export type SettingsPageState = {
@@ -46,7 +47,7 @@ export const adminSettingsPage = (
   s: SettingsPageState,
 ): string =>
   String(
-    <Layout title="Settings" theme={s.theme} mainClass="stack-xl">
+    <Layout title={t("settings.title")} theme={s.theme} mainClass="stack-xl">
       <AdminNav session={session} active="/admin/settings" />
 
       {s.storageEnabled && (
@@ -62,7 +63,7 @@ export const adminSettingsPage = (
                 action="/admin/settings/header-image/delete"
                 id="settings-header-image-delete"
               >
-                <button type="submit">Remove Image</button>
+                <button type="submit">{t("settings.remove_image")}</button>
               </CsrfForm>
             </div>
           )}
@@ -71,29 +72,28 @@ export const adminSettingsPage = (
             enctype="multipart/form-data"
             id="settings-header-image"
           >
-            <h2>Header Image</h2>
+            <h2>{t("settings.header_image")}</h2>
             <p>
-              An optional image displayed at the top of every page. JPEG, PNG,
-              GIF, or WebP — max {formatBytes(MAX_IMAGE_SIZE)}.
+              {t("settings.header_image_hint", { size: formatBytes(MAX_IMAGE_SIZE) })}
             </p>
             <label>
-              {s.headerImageUrl ? "Replace Image" : "Upload Image"}
+              {s.headerImageUrl ? t("settings.replace_image") : t("settings.upload_image")}
               <input
                 type="file"
                 name="header_image"
                 accept="image/jpeg,image/png,image/gif,image/webp"
               />
             </label>
-            <button type="submit">Upload</button>
+            <button type="submit">{t("settings.upload")}</button>
           </CsrfForm>
         </div>
       )}
 
       <CsrfForm action="/admin/settings/country" id="settings-country">
-        <h2>Your Country</h2>
-        <p>Sets your timezone, currency, and phone prefix.</p>
+        <h2>{t("settings.country_heading")}</h2>
+        <p>{t("settings.country_hint")}</p>
         <label>
-          Country
+          {t("settings.country_label")}
           <select name="country" required>
             {Object.entries(COUNTRIES).map(
               ([code, data]: [string, CountryData]) => (
@@ -104,20 +104,19 @@ export const adminSettingsPage = (
             )}
           </select>
         </label>
-        <button type="submit">Save Country</button>
+        <button type="submit">{t("settings.save_country")}</button>
       </CsrfForm>
 
       <CsrfForm
         action="/admin/settings/business-email"
         id="settings-business-email"
       >
-        <h2>Business Email</h2>
+        <h2>{t("settings.business_email")}</h2>
         <p>
-          This email will be included in webhook notifications and used as the
-          reply-to address for automated emails.
+          {t("settings.business_email_hint")}
         </p>
         <label>
-          Business Email
+          {t("settings.business_email")}
           <input
             type="email"
             name="business_email"
@@ -126,15 +125,15 @@ export const adminSettingsPage = (
             autocomplete="email"
           />
         </label>
-        <button type="submit">Save Business Email</button>
+        <button type="submit">{t("settings.save_business_email")}</button>
       </CsrfForm>
 
       <CsrfForm
         action="/admin/settings/payment-provider"
         id="settings-payment-provider"
       >
-        <h2>Payment Provider</h2>
-        <p>Choose which payment provider to use for paid events.</p>
+        <h2>{t("settings.payment_provider")}</h2>
+        <p>{t("settings.payment_provider_hint")}</p>
         <fieldset>
           <label>
             <input
@@ -143,7 +142,7 @@ export const adminSettingsPage = (
               value="none"
               checked={!s.paymentProvider}
             />
-            None (payments disabled)
+            {t("settings.payment_none")}
           </label>
           <label>
             <input
@@ -152,7 +151,7 @@ export const adminSettingsPage = (
               value="stripe"
               checked={s.paymentProvider === "stripe"}
             />
-            Stripe
+            {t("settings.payment_stripe")}
           </label>
           <label>
             <input
@@ -161,37 +160,33 @@ export const adminSettingsPage = (
               value="square"
               checked={s.paymentProvider === "square"}
             />
-            Square
+            {t("settings.payment_square")}
           </label>
         </fieldset>
-        <button type="submit">Save Payment Provider</button>
+        <button type="submit">{t("settings.save_payment_provider")}</button>
       </CsrfForm>
 
       {s.paymentProvider === "stripe" && (
         <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
-          <h2>Stripe Settings</h2>
+          <h2>{t("settings.stripe.heading")}</h2>
           <p>
             {s.stripeKeyConfigured
-              ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
-              : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
+              ? t("settings.stripe.configured_hint")
+              : t("settings.stripe.not_configured_hint")}
           </p>
           {s.stripeKeyConfigured && s.stripeKeyMode === "test" && (
             <p class="notice warning">
-              <strong>Test mode:</strong> You are using a Stripe test key (
-              <code>sk_test_</code>). No real charges will be made. Switch to a
-              live key (<code>sk_live_</code>) when you are ready to accept real
-              payments.
+              {t("settings.stripe.test_mode_warning")}
             </p>
           )}
           {s.stripeKeyConfigured && s.stripeKeyMode === "live" && (
             <p class="notice">
-              <strong>Live mode:</strong> You are using a Stripe live key.
-              Payments will be charged for real.
+              {t("settings.stripe.live_mode_warning")}
             </p>
           )}
           <p>
             <small>
-              <a href="/admin/guide#payment-setup">Where do I find this?</a>
+              <a href="/admin/guide#payment-setup">{t("settings.stripe.where_to_find")}</a>
             </small>
           </p>
           <Raw
@@ -201,10 +196,10 @@ export const adminSettingsPage = (
             )}
           />
           <footer>
-            <button type="submit">Update Stripe Key</button>
+            <button type="submit">{t("settings.stripe.update_key")}</button>
             {s.stripeKeyConfigured && (
               <button type="button" id="stripe-test-btn" class="secondary">
-                Test Connection
+                {t("settings.stripe.test_connection")}
               </button>
             )}
           </footer>
@@ -214,15 +209,15 @@ export const adminSettingsPage = (
 
       {s.paymentProvider === "square" && (
         <CsrfForm action="/admin/settings/square" id="settings-square">
-          <h2>Square Settings</h2>
+          <h2>{t("settings.square.heading")}</h2>
           <p>
             {s.squareTokenConfigured
-              ? "A Square access token is currently configured. Enter new credentials below to replace them."
-              : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
+              ? t("settings.square.configured_hint")
+              : t("settings.square.not_configured_hint")}
           </p>
           <p>
             <small>
-              <a href="/admin/guide#payment-setup">Where do I find these?</a>
+              <a href="/admin/guide#payment-setup">{t("settings.square.where_to_find")}</a>
             </small>
           </p>
           <Raw
@@ -239,10 +234,10 @@ export const adminSettingsPage = (
               name="square_sandbox"
               checked={s.squareSandbox}
             />
-            Sandbox mode (use Square's test environment)
+            {t("settings.square.sandbox_mode")}
           </label>
           <footer>
-            <button type="submit">Update Square Credentials</button>
+            <button type="submit">{t("settings.square.update_credentials")}</button>
             {s.squareTokenConfigured && (
               <button type="button" id="square-test-btn" class="secondary">
                 Test Connection

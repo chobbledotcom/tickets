@@ -8,6 +8,7 @@ import type { AdminLevel, AdminSession } from "#lib/types.ts";
 import { AdminNav, Breadcrumb, UsersSubNav } from "#templates/admin/nav.tsx";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+import { t } from "#i18n";
 
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
@@ -21,10 +22,10 @@ export interface DisplayUser {
 
 /** Status label for a user */
 const userStatus = (user: DisplayUser): string => {
-  if (user.hasDataKey && user.hasPassword) return "Active";
-  if (user.hasPassword && !user.hasDataKey) return "Pending Activation";
-  if (user.inviteExpired) return "Invite Expired";
-  return "Invited";
+  if (user.hasDataKey && user.hasPassword) return t("users.status.active");
+  if (user.hasPassword && !user.hasDataKey) return t("users.status.pending");
+  if (user.inviteExpired) return t("users.status.expired");
+  return t("users.status.invited");
 };
 
 /**
@@ -43,42 +44,41 @@ export const adminUsersPage = (
   opts: UsersPageOpts,
 ): string =>
   String(
-    <Layout title="Users">
+    <Layout title={t("users.title")}>
       <AdminNav session={session} active="/admin/users" />
       <UsersSubNav />
-      <h1>Users</h1>
+      <h1>{t("users.heading")}</h1>
       <p>
-        <a href="/admin/sessions">Click here</a> to view your currently logged
-        in sessions.
+        <a href="/admin/sessions">{t("users.sessions_link")}</a>
       </p>
       <p>
-        <a href="/admin/guide#user-classes">User roles and permissions</a>
+        <a href="/admin/guide#user-classes">{t("users.roles_link")}</a>
       </p>
       <Raw html={renderError(opts.error)} />
       {opts.success && <div class="success">{opts.success}</div>}
 
       {opts.inviteLink && (
         <div class="success">
-          <p>Invite link (share this with the new user):</p>
+          <p>{t("users.invite_link_label")}</p>
           <code>{opts.inviteLink}</code>
           <p>
-            <small>This link expires in 7 days.</small>
+            <small>{t("users.invite_expires")}</small>
           </p>
         </div>
       )}
 
       <p>
-        <a href="/admin/user/new">Invite User</a>
+        <a href="/admin/user/new">{t("users.invite_user")}</a>
       </p>
 
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>{t("users.col.username")}</th>
+              <th>{t("users.col.role")}</th>
+              <th>{t("users.col.status")}</th>
+              <th>{t("users.col.actions")}</th>
               <th></th>
             </tr>
           </thead>
@@ -94,13 +94,13 @@ export const adminUsersPage = (
                       class="inline"
                       action={`/admin/users/${user.id}/activate`}
                     >
-                      <button type="submit">Activate</button>
+                      <button type="submit">{t("users.activate")}</button>
                     </CsrfForm>
                   )}
                 </td>
                 <td>
                   {user.id !== opts.currentUserId && (
-                    <a href={`/admin/users/${user.id}/delete`}>Delete</a>
+                    <a href={`/admin/users/${user.id}/delete`}>{t("users.delete")}</a>
                   )}
                 </td>
               </tr>
@@ -120,29 +120,26 @@ export const adminUserDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Delete User: ${user.username}`}>
+    <Layout title={`${t("users.delete_user.heading")}: ${user.username}`}>
       <AdminNav session={session} active="/admin/users" />
-      <Breadcrumb href="/admin/users" label="Users" />
-      <h1>Delete User</h1>
+      <Breadcrumb href="/admin/users" label={t("users.heading")} />
+      <h1>{t("users.delete_user.heading")}</h1>
       <Raw html={renderError(error)} />
 
       <article>
         <aside>
           <p>
-            <strong>Warning:</strong> This will permanently delete the user{" "}
-            <strong>{user.username}</strong> ({user.adminLevel}) and all their
-            sessions.
+            {t("users.delete_user.warning", { username: user.username, level: user.adminLevel })}
           </p>
         </aside>
       </article>
 
       <p>
-        To delete this user, type their username &quot;{user.username}&quot;
-        into the box below:
+        {t("users.delete_user.confirm_prompt", { username: user.username })}
       </p>
 
       <CsrfForm action={`/admin/users/${user.id}/delete`}>
-        <label for="confirm_identifier">Username</label>
+        <label for="confirm_identifier">{t("users.delete_user.confirm_label")}</label>
         <input
           type="text"
           id="confirm_identifier"
@@ -152,7 +149,7 @@ export const adminUserDeletePage = (
           required
         />
         <button type="submit" class="danger">
-          Delete User
+          {t("users.delete_user.submit")}
         </button>
       </CsrfForm>
     </Layout>,
@@ -166,14 +163,14 @@ export const adminUserNewPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Invite User">
+    <Layout title={t("users.invite.title")}>
       <AdminNav session={session} active="/admin/users" />
-      <Breadcrumb href="/admin/users" label="Users" />
-      <h1>Invite User</h1>
+      <Breadcrumb href="/admin/users" label={t("users.heading")} />
+      <h1>{t("users.invite.heading")}</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/users">
         <Raw html={renderFields(inviteUserFields)} />
-        <button type="submit">Create Invite</button>
+        <button type="submit">{t("users.invite.submit")}</button>
       </CsrfForm>
     </Layout>,
   );

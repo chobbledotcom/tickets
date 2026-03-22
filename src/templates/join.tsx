@@ -4,6 +4,7 @@
 
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { t } from "#i18n";
 import { joinFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -16,13 +17,13 @@ export const joinPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Set Your Password">
-      <h1>Welcome, {username}</h1>
-      <p>Set your password to complete your account setup.</p>
+    <Layout title={t("join.set_password.title")}>
+      <h1>{t("join.set_password.welcome", { username })}</h1>
+      <p>{t("join.set_password.instructions")}</p>
       <Raw html={renderError(error)} />
       <CsrfForm action={`/join/${code}`}>
         <Raw html={renderFields(joinFields)} />
-        <button type="submit">Set Password</button>
+        <button type="submit">{t("join.set_password.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -32,13 +33,12 @@ export const joinPage = (
  */
 export const joinCompletePage = (): string =>
   String(
-    <Layout title="Account Created">
-      <h1>Password Set</h1>
+    <Layout title={t("join.success.title")}>
+      <h1>{t("join.success.heading")}</h1>
       <div class="success">
-        <p>Your password has been set successfully.</p>
+        <p>{t("join.success.message")}</p>
         <p>
-          Please wait for the site owner to activate your account before logging
-          in.
+          {t("join.success.wait_activation")}
         </p>
       </div>
     </Layout>,
@@ -49,8 +49,8 @@ export const joinCompletePage = (): string =>
  */
 export const joinErrorPage = (message: string): string =>
   String(
-    <Layout title="Invalid Invite">
-      <h1>Invalid Invite</h1>
+    <Layout title={t("join.invalid.title")}>
+      <h1>{t("join.invalid.heading")}</h1>
       <div class="error">{message}</div>
     </Layout>,
   );

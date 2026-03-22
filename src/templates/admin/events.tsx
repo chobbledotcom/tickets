@@ -3,6 +3,7 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
+import { t } from "#i18n";
 import { getTz } from "#lib/config.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
@@ -112,7 +113,7 @@ const FailedPaymentRow = ({
           class="inline"
         >
           <button type="submit" class="link-button danger">
-            Delete
+            {t("admin.events.delete")}
           </button>
         </CsrfForm>
       </td>
@@ -131,9 +132,9 @@ const FailedPaymentsTable = ({
     <table>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Qty</th>
-          <th>Registered</th>
+          <th>{t("admin.events.col.name")}</th>
+          <th>{t("admin.events.col.qty")}</th>
+          <th>{t("admin.events.col.registered")}</th>
           <th></th>
         </tr>
       </thead>
@@ -195,7 +196,7 @@ const DateSelector = ({
 }): string => {
   const suffix = filterSuffix(activeFilter);
   const options = [
-    `<option value="${basePath}${suffix}#attendees"${!dateFilter ? " selected" : ""}>All dates</option>`,
+    `<option value="${basePath}${suffix}#attendees"${!dateFilter ? " selected" : ""}>${t("admin.events.all_dates")}</option>`,
     ...dates.map(
       (d) =>
         `<option value="${basePath}${suffix}?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`,
@@ -294,48 +295,48 @@ export const adminEventPage = ({
       <nav>
         <ul>
           <li>
-            <a href={`/admin/event/${event.id}/edit`}>Edit</a>
+            <a href={`/admin/event/${event.id}/edit`}>{t("admin.events.edit")}</a>
           </li>
           <li>
-            <a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a>
+            <a href={`/admin/event/${event.id}/duplicate`}>{t("admin.events.duplicate")}</a>
           </li>
           <li>
-            <a href={`/admin/event/${event.id}/log`}>Log</a>
+            <a href={`/admin/event/${event.id}/log`}>{t("admin.events.log")}</a>
           </li>
           <li>
-            <a href={`/admin/event/${event.id}/scanner`}>Scanner</a>
+            <a href={`/admin/event/${event.id}/scanner`}>{t("admin.events.scanner")}</a>
           </li>
           <li>
-            <a href={`/admin/event/${event.id}/questions`}>Questions</a>
+            <a href={`/admin/event/${event.id}/questions`}>{t("admin.events.questions")}</a>
           </li>
           <li>
             <a
               href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}
             >
-              Export CSV
+              {t("admin.events.export_csv")}
             </a>
           </li>
           {hasPaidEvent && (
             <li>
               <a href={`/admin/event/${event.id}/refund-all`} class="danger">
-                Refund All
+                {t("admin.events.refund_all")}
               </a>
             </li>
           )}
           {event.active ? (
             <li>
               <a href={`/admin/event/${event.id}/deactivate`} class="danger">
-                Deactivate
+                {t("admin.events.deactivate")}
               </a>
             </li>
           ) : (
             <li>
-              <a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a>
+              <a href={`/admin/event/${event.id}/reactivate`}>{t("admin.events.reactivate")}</a>
             </li>
           )}
           <li>
             <a href={`/admin/event/${event.id}/delete`} class="danger">
-              Delete
+              {t("admin.events.delete")}
             </a>
           </li>
         </ul>
@@ -344,19 +345,19 @@ export const adminEventPage = ({
       <Raw html={renderSuccess(successMessage)} />
 
       {!event.active && (
-        <div class="error">This event is deactivated and cannot be booked</div>
+        <div class="error">{t("admin.events.deactivated_notice")}</div>
       )}
 
       {errorMessage && <p class="error">{errorMessage}</p>}
 
       <article>
-        <h2>Event Details</h2>
+        <h2>{t("admin.events.event_details")}</h2>
         <div class="table-scroll">
           <table class="event-details-table">
             <tbody>
               {event.date && (
                 <tr>
-                  <th>Event Date</th>
+                  <th>{t("admin.events.event_date")}</th>
                   <td>
                     <span>
                       <a
@@ -373,46 +374,46 @@ export const adminEventPage = ({
               )}
               {event.location && (
                 <tr>
-                  <th>Location</th>
+                  <th>{t("admin.events.location")}</th>
                   <td>{event.location}</td>
                 </tr>
               )}
               <tr>
-                <th>Event Type</th>
-                <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
+                <th>{t("admin.events.event_type")}</th>
+                <td>{event.event_type === "daily" ? t("admin.events.type_daily") : t("admin.events.type_standard")}</td>
               </tr>
               {event.non_transferable && (
                 <tr>
-                  <th>Non-Transferable</th>
-                  <td>Yes &mdash; ID verification required at entry</td>
+                  <th>{t("admin.events.non_transferable")}</th>
+                  <td>{t("admin.events.non_transferable_yes")}</td>
                 </tr>
               )}
               {event.hidden && (
                 <tr>
-                  <th>Hidden</th>
-                  <td>Yes &mdash; not shown in public events list</td>
+                  <th>{t("admin.events.hidden")}</th>
+                  <td>{t("admin.events.hidden_yes")}</td>
                 </tr>
               )}
               {event.event_type === "daily" && (
                 <tr>
-                  <th>Bookable Days</th>
+                  <th>{t("admin.events.bookable_days")}</th>
                   <td>{formatBookableDays(event.bookable_days)}</td>
                 </tr>
               )}
               {event.event_type === "daily" && (
                 <tr>
-                  <th>Booking Window</th>
+                  <th>{t("admin.events.booking_window")}</th>
                   <td>
-                    {event.minimum_days_before} to{" "}
+                    {event.minimum_days_before} {t("admin.events.booking_window_to")}{" "}
                     {event.maximum_days_after === 0
-                      ? "unlimited"
+                      ? t("admin.events.booking_window_unlimited")
                       : event.maximum_days_after}{" "}
-                    days from today
+                    {t("admin.events.booking_window_days")}
                   </td>
                 </tr>
               )}
               <tr>
-                <th>Registration Closes</th>
+                <th>{t("admin.events.registration_closes")}</th>
                 <td>
                   {event.closes_at ? (
                     <span>
@@ -422,19 +423,19 @@ export const adminEventPage = ({
                       </small>
                     </span>
                   ) : (
-                    <em>No deadline</em>
+                    <em>{t("admin.events.no_deadline")}</em>
                   )}
                 </td>
               </tr>
               <tr>
-                <th>Public URL</th>
+                <th>{t("admin.events.public_url")}</th>
                 <td>
                   <a
                     href={ticketUrl}
                   >{`${allowedDomain}/ticket/${event.slug}`}</a>
                   <small>
                     {" "}
-                    (<a href={`/ticket/${event.slug}/qr`}>QR Code</a>)
+                    (<a href={`/ticket/${event.slug}/qr`}>{t("admin.events.qr_code")}</a>)
                   </small>
                 </td>
               </tr>
@@ -442,7 +443,7 @@ export const adminEventPage = ({
                 <tr>
                   <th>
                     <label for={`thank-you-url-${event.id}`}>
-                      Thank You URL
+                      {t("admin.events.thank_you_url")}
                     </label>
                   </th>
                   <td>
@@ -459,7 +460,7 @@ export const adminEventPage = ({
               {event.webhook_url && (
                 <tr>
                   <th>
-                    <label for={`webhook-url-${event.id}`}>Webhook URL</label>
+                    <label for={`webhook-url-${event.id}`}>{t("admin.events.webhook_url")}</label>
                   </th>
                   <td>
                     <input
@@ -474,7 +475,7 @@ export const adminEventPage = ({
               )}
               <tr>
                 <th>
-                  <label for={`embed-script-${event.id}`}>Embed Script</label>
+                  <label for={`embed-script-${event.id}`}>{t("admin.events.embed_script")}</label>
                 </th>
                 <td>
                   <input
@@ -488,7 +489,7 @@ export const adminEventPage = ({
               </tr>
               <tr>
                 <th>
-                  <label for={`embed-iframe-${event.id}`}>Embed Iframe</label>
+                  <label for={`embed-iframe-${event.id}`}>{t("admin.events.embed_iframe")}</label>
                 </th>
                 <td>
                   <input
@@ -512,7 +513,7 @@ export const adminEventPage = ({
                       }
                     >
                       {completeQuantitySum} / {event.max_attendees} &mdash;{" "}
-                      {event.max_attendees - completeQuantitySum} remain
+                      {event.max_attendees - completeQuantitySum} {t("admin.events.remain")}
                     </span>
                   ) : (
                     <span
@@ -527,7 +528,7 @@ export const adminEventPage = ({
                         <>
                           {" "}
                           / {event.max_attendees} &mdash;{" "}
-                          {event.max_attendees - adjustedCount} remain
+                          {event.max_attendees - adjustedCount} {t("admin.events.remain")}
                         </>
                       )}
                     </span>
@@ -536,7 +537,7 @@ export const adminEventPage = ({
                     <>
                       {" "}
                       <small>
-                        Capacity of {event.max_attendees} applies per date
+                        {t("admin.events.capacity_per_date", { n: event.max_attendees })}
                       </small>
                     </>
                   )}
@@ -549,10 +550,10 @@ export const adminEventPage = ({
       </article>
 
       <article>
-        <h2 id="attendees">Attendees</h2>
+        <h2 id="attendees">{t("admin.events.attendees_heading")}</h2>
         {checkinMessage && (
           <p id="message" class={checkedInClass}>
-            Checked {checkinMessage.name} {checkedInLabel}
+            {t("admin.events.checked_status", { name: checkinMessage.name, direction: checkedInLabel })}
           </p>
         )}
         {isDaily && availableDates.length > 0 && (
@@ -569,7 +570,7 @@ export const adminEventPage = ({
           <Raw
             html={FilterLink({
               href: `${basePath}${dateQs}#attendees`,
-              label: "All",
+              label: t("admin.events.all"),
               active: activeFilter === "all",
             })}
           />
@@ -577,7 +578,7 @@ export const adminEventPage = ({
           <Raw
             html={FilterLink({
               href: `${basePath}/in${dateQs}#attendees`,
-              label: "Checked In",
+              label: t("admin.events.checked_in"),
               active: activeFilter === "in",
             })}
           />
@@ -585,7 +586,7 @@ export const adminEventPage = ({
           <Raw
             html={FilterLink({
               href: `${basePath}/out${dateQs}#attendees`,
-              label: "Checked Out",
+              label: t("admin.events.checked_out"),
               active: activeFilter === "out",
             })}
           />

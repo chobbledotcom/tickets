@@ -6,6 +6,7 @@ import { map, pipe } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { t } from "#i18n";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
@@ -22,15 +23,15 @@ export type TicketCard = {
 
 /** Pluralize ticket count */
 const ticketCount = (count: number): string =>
-  count === 1 ? "1 Ticket" : `${count} Tickets`;
+  t("tickets.count", { count });
 
 /** Render an "Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
 const renderAppleWalletLink = (token: string): string =>
-  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">Apple Wallet</a>`;
+  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">${escapeHtml(t("tickets.apple_wallet"))}</a>`;
 
 /** Render a "Google Wallet" link for a token */
 const renderGoogleWalletLink = (token: string): string =>
-  `<a href="/gwallet/${escapeHtml(token)}" class="wallet-link">Google Wallet</a>`;
+  `<a href="/gwallet/${escapeHtml(token)}" class="wallet-link">${escapeHtml(t("tickets.google_wallet"))}</a>`;
 
 /** Render a single ticket card */
 const renderTicketCard = (
@@ -54,17 +55,17 @@ const renderTicketCard = (
     : "";
 
   const attendeeDateHtml = attendee.date
-    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(formatDateLabel(attendee.date))}</div>`
+    ? `<div class="ticket-card-date">${escapeHtml(t("tickets.booking_date"))} ${escapeHtml(formatDateLabel(attendee.date))}</div>`
     : "";
 
   const pricePaid = Number(attendee.price_paid);
   const priceHtml =
     pricePaid > 0
-      ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
+      ? `<div class="ticket-card-price">${escapeHtml(t("tickets.price"))} ${escapeHtml(formatCurrency(pricePaid))}</div>`
       : "";
 
   const nonTransferableHtml = event.non_transferable
-    ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
+    ? `<div class="ticket-card-notice">${escapeHtml(t("tickets.non_transferable"))}</div>`
     : "";
 
   const walletLinks = [
@@ -74,11 +75,11 @@ const renderTicketCard = (
     .filter(Boolean)
     .join(" / ");
   const walletHtml = walletLinks
-    ? `<div class="ticket-card-wallet">Add to: ${walletLinks}</div>`
+    ? `<div class="ticket-card-wallet">${escapeHtml(t("tickets.add_to"))} ${walletLinks}</div>`
     : "";
 
   const attachmentHtml = attachmentUrl
-    ? `<a href="${escapeHtml(attachmentUrl)}" class="attachment-link">Download: ${escapeHtml(event.attachment_name)}</a>`
+    ? `<a href="${escapeHtml(attachmentUrl)}" class="attachment-link">${escapeHtml(t("tickets.download"))} ${escapeHtml(event.attachment_name)}</a>`
     : "";
 
   return `
@@ -90,7 +91,7 @@ const renderTicketCard = (
       ${descriptionHtml}
       ${nonTransferableHtml}
       ${attendeeDateHtml}
-      <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
+      <div class="ticket-card-quantity">${escapeHtml(t("tickets.quantity"))} ${attendee.quantity}</div>
       ${priceHtml}
       ${attachmentHtml}
       <div class="ticket-card-qr"><img src="/t/${escapeHtml(token)}/svg" alt="QR code" /></div>
@@ -117,7 +118,7 @@ export const ticketViewPage = (
   )(cards);
 
   return String(
-    <Layout title="Your Tickets">
+    <Layout title={t("tickets.title")}>
       <h1>{ticketCount(cards.length)}</h1>
       <div class="ticket-slider">
         <Raw html={cardHtml} />

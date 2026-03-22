@@ -6,6 +6,7 @@ import { map, pipe, reduce } from "#fp";
 import type { ActivityLogEntry } from "#lib/db/activityLog.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import { t } from "#i18n";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -26,7 +27,7 @@ const activityLogRows = (entries: ActivityLogEntry[]): string =>
         map((entry: ActivityLogEntry) => ActivityLogRow({ entry })),
         joinStrings,
       )(entries)
-    : '<tr><td colspan="2">No activity recorded yet</td></tr>';
+    : `<tr><td colspan="2">${t("admin.log.no_activity")}</td></tr>`;
 
 /**
  * Admin activity log page for a specific event
@@ -37,15 +38,15 @@ export const adminEventActivityLogPage = (
   session: AdminSession,
 ): string =>
   String(
-    <Layout title={`Log: ${event.name}`}>
+    <Layout title={`${t("admin.log.heading")}: ${event.name}`}>
       <AdminNav session={session} active="/admin/log" />
-      <h2>Log</h2>
+      <h2>{t("admin.log.heading")}</h2>
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Activity</th>
+              <th>{t("admin.log.col.time")}</th>
+              <th>{t("admin.log.col.activity")}</th>
             </tr>
           </thead>
           <tbody>
@@ -65,15 +66,15 @@ export const adminGlobalActivityLogPage = (
   session: AdminSession,
 ): string =>
   String(
-    <Layout title="Log">
+    <Layout title={t("admin.log.heading")}>
       <AdminNav session={session} active="/admin/log" />
-      <h2>Log</h2>
+      <h2>{t("admin.log.heading")}</h2>
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Activity</th>
+              <th>{t("admin.log.col.time")}</th>
+              <th>{t("admin.log.col.activity")}</th>
             </tr>
           </thead>
           <tbody>
@@ -81,6 +82,6 @@ export const adminGlobalActivityLogPage = (
           </tbody>
         </table>
       </div>
-      {truncated && <p>Showing the most recent 200 entries.</p>}
+      {truncated && <p>{t("admin.log.recent_entries")}</p>}
     </Layout>,
   );

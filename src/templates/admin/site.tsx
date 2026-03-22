@@ -7,6 +7,7 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
+import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 /** Sub-navigation for site editor pages */
@@ -14,10 +15,10 @@ const SiteSubNav = (): JSX.Element => (
   <nav>
     <ul>
       <li>
-        <a href="/admin/site">Homepage</a>
+        <a href="/admin/site">{t("site.sub_nav.homepage")}</a>
       </li>
       <li>
-        <a href="/admin/site/contact">Contact</a>
+        <a href="/admin/site/contact">{t("site.sub_nav.contact")}</a>
       </li>
     </ul>
   </nav>
@@ -41,14 +42,13 @@ export const adminSiteHomePage = (
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
 
-      <h2>Home Page</h2>
+      <h2>{t("site.home.heading")}</h2>
 
       <CsrfForm action="/admin/site">
-        <label for="website_title">Website Title</label>
+        <label for="website_title">{t("site.home.title_label")}</label>
         <p>
           <small>
-            Displayed as the main heading on all public pages (max 128
-            characters).
+            {t("site.home.title_hint")}
           </small>
         </p>
         <input
@@ -60,10 +60,10 @@ export const adminSiteHomePage = (
           autocomplete="off"
         />
 
-        <label for="homepage_text">Homepage Text</label>
+        <label for="homepage_text">{t("site.home.text_label")}</label>
         <p>
           <small>
-            Text displayed on the public homepage (max 2048 characters).{" "}
+            {t("site.home.text_hint")}{" "}
             <Raw html={FORMATTING_HINT} />
           </small>
         </p>
@@ -71,12 +71,12 @@ export const adminSiteHomePage = (
           id="homepage_text"
           name="homepage_text"
           rows="4"
-          placeholder="Welcome to our site..."
+          placeholder={t("site.home.text_placeholder")}
         >
           {homepageText ?? ""}
         </textarea>
 
-        <button type="submit">Save</button>
+        <button type="submit">{t("site.home.save")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -98,13 +98,13 @@ export const adminSiteContactPage = (
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
 
-      <h2>Contact Page</h2>
+      <h2>{t("site.contact.heading")}</h2>
 
       <CsrfForm action="/admin/site/contact">
-        <label for="contact_page_text">Contact Page Text</label>
+        <label for="contact_page_text">{t("site.contact.text_label")}</label>
         <p>
           <small>
-            Text displayed on the public contact page (max 2048 characters).{" "}
+            {t("site.contact.text_hint")}{" "}
             <Raw html={FORMATTING_HINT} />
           </small>
         </p>
@@ -112,12 +112,12 @@ export const adminSiteContactPage = (
           id="contact_page_text"
           name="contact_page_text"
           rows="4"
-          placeholder="Get in touch with us..."
+          placeholder={t("site.contact.text_placeholder")}
         >
           {contactPageText ?? ""}
         </textarea>
 
-        <button type="submit">Save</button>
+        <button type="submit">{t("site.contact.save")}</button>
       </CsrfForm>
     </Layout>,
   );

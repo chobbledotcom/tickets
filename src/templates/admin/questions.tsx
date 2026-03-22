@@ -3,6 +3,7 @@
  */
 
 import { map } from "#fp";
+import { t } from "#i18n";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm, renderError } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -17,29 +18,29 @@ export const adminQuestionsPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Custom Questions">
+    <Layout title={t("questions.title")}>
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href="/admin" label="Dashboard" />
+      <Breadcrumb href="/admin" label={t("questions.breadcrumb")} />
 
-      <h1>Custom Questions</h1>
+      <h1>{t("questions.heading")}</h1>
       <Raw html={renderError(error)} />
 
       <CsrfForm action="/admin/questions" id="new-question">
         <label>
-          New Question
+          {t("questions.new_label")}
           <input
             type="text"
             name="text"
             required
-            placeholder="e.g. What is your T-shirt size?"
+            placeholder={t("questions.new_placeholder")}
           />
         </label>
-        <button type="submit">Add Question</button>
+        <button type="submit">{t("questions.add_submit")}</button>
       </CsrfForm>
 
       {questions.length === 0 ? (
         <p>
-          <em>No custom questions yet.</em>
+          <em>{t("questions.no_questions")}</em>
         </p>
       ) : (
         <ul class="question-list">
@@ -67,34 +68,34 @@ export const adminQuestionPage = (
   String(
     <Layout title={`Question: ${question.text}`}>
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href="/admin/questions" label="Questions" />
+      <Breadcrumb href="/admin/questions" label={t("questions.edit.breadcrumb")} />
 
       <h1>{question.text}</h1>
       <Raw html={renderError(error)} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <label>
-          Question Text
+          {t("questions.edit.text_label")}
           <input type="text" name="text" required value={question.text} />
         </label>
-        <button type="submit">Update</button>
+        <button type="submit">{t("questions.edit.update")}</button>
       </CsrfForm>
 
-      <h2>Answer Options</h2>
+      <h2>{t("questions.edit.answers_heading")}</h2>
       <CsrfForm
         action={`/admin/questions/${question.id}/answers`}
         id="add-answer"
       >
         <label>
-          New Answer
-          <input type="text" name="text" required placeholder="e.g. Medium" />
+          {t("questions.edit.new_answer_label")}
+          <input type="text" name="text" required placeholder={t("questions.edit.new_answer_placeholder")} />
         </label>
-        <button type="submit">Add Answer</button>
+        <button type="submit">{t("questions.edit.add_answer")}</button>
       </CsrfForm>
 
       {question.answers.length === 0 ? (
         <p>
-          <em>No answers yet. Add at least 2 answer options.</em>
+          <em>{t("questions.edit.no_answers")}</em>
         </p>
       ) : (
         <ul class="answer-list">
@@ -128,7 +129,7 @@ export const adminQuestionPage = (
                 href={`/admin/questions/${question.id}/answers/${a.id}/delete`}
                 class="danger small"
               >
-                Delete
+                {t("questions.edit.delete_answer")}
               </a>
             </li>
           ))}
@@ -137,7 +138,7 @@ export const adminQuestionPage = (
 
       <p>
         <a href={`/admin/questions/${question.id}/delete`} class="danger">
-          Delete Question
+          {t("questions.delete.link")}
         </a>
       </p>
     </Layout>,
@@ -150,32 +151,30 @@ export const adminQuestionDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Question">
+    <Layout title={t("questions.delete.heading")}>
       <AdminNav session={session} active="/admin/questions" />
       <Breadcrumb
         href={`/admin/questions/${question.id}`}
         label={question.text}
       />
 
-      <h1>Delete Question</h1>
+      <h1>{t("questions.delete.heading")}</h1>
       <Raw html={renderError(error)} />
 
       <article>
         <aside>
           <p>
-            This will permanently delete the question, all its answers, and all
-            attendee responses.
+            {t("questions.delete.warning")}
           </p>
         </aside>
       </article>
 
       <p>
-        To delete this question, type its text "{question.text}" into the box
-        below:
+        {t("questions.delete.confirm_prompt", { text: question.text })}
       </p>
 
       <CsrfForm action={`/admin/questions/${question.id}/delete`}>
-        <label for="confirm_identifier">Question text</label>
+        <label for="confirm_identifier">{t("questions.delete.confirm_label")}</label>
         <input
           type="text"
           id="confirm_identifier"
@@ -185,7 +184,7 @@ export const adminQuestionDeletePage = (
           required
         />
         <button type="submit" class="danger">
-          Delete Question
+          {t("questions.delete.submit")}
         </button>
       </CsrfForm>
     </Layout>,
@@ -199,33 +198,32 @@ export const adminAnswerDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Answer">
+    <Layout title={t("questions.delete_answer.title")}>
       <AdminNav session={session} active="/admin/questions" />
       <Breadcrumb
         href={`/admin/questions/${question.id}`}
         label={question.text}
       />
 
-      <h1>Delete Answer</h1>
+      <h1>{t("questions.delete_answer.heading")}</h1>
       <Raw html={renderError(error)} />
 
       <article>
         <aside>
           <p>
-            This will permanently delete the answer "{answer.text}" from the
-            question "{question.text}" and remove all attendee responses for it.
+            {t("questions.delete_answer.warning", { answerText: answer.text, questionText: question.text })}
           </p>
         </aside>
       </article>
 
       <p>
-        To delete this answer, type its text "{answer.text}" into the box below:
+        {t("questions.delete_answer.confirm_prompt", { text: answer.text })}
       </p>
 
       <CsrfForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
       >
-        <label for="confirm_identifier">Answer text</label>
+        <label for="confirm_identifier">{t("questions.delete_answer.confirm_label")}</label>
         <input
           type="text"
           id="confirm_identifier"
@@ -235,7 +233,7 @@ export const adminAnswerDeletePage = (
           required
         />
         <button type="submit" class="danger">
-          Delete Answer
+          {t("questions.delete_answer.submit")}
         </button>
       </CsrfForm>
     </Layout>,
@@ -254,13 +252,12 @@ export const adminEventQuestionsPage = (
       <AdminNav session={session} active="/admin/" />
       <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
 
-      <h1>Questions for {event.name}</h1>
+      <h1>{t("questions.event.heading", { event: event.name })}</h1>
       <Raw html={renderError(error)} />
 
       {allQuestions.length === 0 ? (
         <p>
-          No questions created yet.{" "}
-          <a href="/admin/questions">Create questions</a> first.
+          {t("questions.event.no_questions")}
         </p>
       ) : (
         <CsrfForm action={`/admin/event/${event.id}/questions`}>
@@ -283,11 +280,11 @@ export const adminEventQuestionsPage = (
               </small>
             </label>
           ))(allQuestions)}
-          <button type="submit">Save</button>
+          <button type="submit">{t("questions.event.save")}</button>
         </CsrfForm>
       )}
       <p>
-        <a href="/admin/questions">Manage Questions</a>
+        <a href="/admin/questions">{t("questions.event.manage")}</a>
       </p>
     </Layout>,
   );

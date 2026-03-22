@@ -4,6 +4,7 @@
  */
 
 import { CsrfForm, renderError } from "#lib/forms.tsx";
+import { t } from "#i18n";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -24,20 +25,19 @@ export const ResetDatabaseForm = ({
   id?: string;
 }): JSX.Element => (
   <CsrfForm action={action} id={id}>
-    <h2>Reset Database</h2>
+    <h2>{t("settings.advanced.database_reset.heading")}</h2>
     <article>
       <aside>
         <p>
-          <strong>Warning:</strong> This will permanently delete all events,
-          attendees, settings, and other data. This action cannot be undone.
+          <strong>Warning:</strong> {t("settings.advanced.database_reset.warning")}
         </p>
       </aside>
     </article>
-    <p>To reset the database, type the following phrase into the box below:</p>
+    <p>{t("settings.advanced.database_reset.confirm_intro")}</p>
     <p>
       <strong>"{RESET_DATABASE_PHRASE}"</strong>
     </p>
-    <label for="confirm_phrase">Confirmation phrase</label>
+    <label for="confirm_phrase">{t("settings.advanced.database_reset.confirm_label")}</label>
     <input
       type="text"
       id="confirm_phrase"
@@ -46,7 +46,7 @@ export const ResetDatabaseForm = ({
       required
     />
     <button type="submit" class="danger">
-      Reset Database
+      {t("settings.advanced.database_reset.submit")}
     </button>
   </CsrfForm>
 );
@@ -56,11 +56,11 @@ export const ResetDatabaseForm = ({
  */
 export const demoResetPage = (error?: string): string =>
   String(
-    <Layout title="Reset Database">
+    <Layout title={t("settings.advanced.database_reset.heading")}>
       <Raw html={renderError(error)} />
       <ResetDatabaseForm action="/demo/reset" />
       <p>
-        <a href="/admin">Back to login</a>
+        <a href="/admin">{t("settings.advanced.database_reset.back_to_login")}</a>
       </p>
     </Layout>,
   );

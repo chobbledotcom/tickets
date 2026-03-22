@@ -3,6 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { t } from "#i18n";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import {
   CsrfForm,
@@ -30,7 +31,7 @@ import {
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -43,23 +44,23 @@ export const adminGroupsPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title="Groups">
+    <Layout title={t("groups.heading")}>
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Groups</h1>
+      <h1>{t("groups.heading")}</h1>
       <Raw html={renderSuccess(successMessage)} />
       <p>
-        <a href="/admin/group/new">Add Group</a>
+        <a href="/admin/group/new">{t("groups.add_group")}</a>
       </p>
       {groups.length === 0 ? (
-        <p>No groups configured.</p>
+        <p>{t("groups.no_groups")}</p>
       ) : (
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Slug</th>
-                <th>Actions</th>
+                <th>{t("groups.col.name")}</th>
+                <th>{t("groups.col.slug")}</th>
+                <th>{t("groups.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -70,8 +71,8 @@ export const adminGroupsPage = (
                   </td>
                   <td>{g.slug}</td>
                   <td>
-                    <a href={`/admin/group/${g.id}/edit`}>Edit</a>{" "}
-                    <a href={`/admin/group/${g.id}/delete`}>Delete</a>
+                    <a href={`/admin/group/${g.id}/edit`}>{t("groups.edit")}</a>{" "}
+                    <a href={`/admin/group/${g.id}/delete`}>{t("groups.delete")}</a>
                   </td>
                 </tr>
               ))}
@@ -103,13 +104,13 @@ export const adminGroupNewPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Add Group">
+    <Layout title={t("groups.add.heading")}>
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Add Group</h1>
+      <h1>{t("groups.add.heading")}</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/group">
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
-        <button type="submit">Create Group</button>
+        <button type="submit">{t("groups.add.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -123,13 +124,13 @@ export const adminGroupEditPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Edit Group">
+    <Layout title={t("groups.edit.heading")}>
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Edit Group</h1>
+      <h1>{t("groups.edit.heading")}</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action={`/admin/group/${group.id}/edit`}>
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
-        <button type="submit">Save Changes</button>
+        <button type="submit">{t("groups.edit.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -143,25 +144,26 @@ export const adminGroupDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Group">
+    <Layout title={t("groups.delete.heading")}>
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Delete Group</h1>
+      <h1>{t("groups.delete.heading")}</h1>
       <Raw html={renderError(error)} />
       <p>
-        Are you sure you want to delete the group <strong>{group.name}</strong>{" "}
-        ({group.slug})?
+        <Raw
+          html={t("groups.delete.confirm", {
+            name: `<strong>${escapeHtml(group.name)}</strong>`,
+            slug: escapeHtml(group.slug),
+          })}
+        />
       </p>
-      <p>
-        Events in this group will not be deleted -- they will be moved out of
-        the group.
-      </p>
-      <p>Type the group name to confirm:</p>
+      <p>{t("groups.delete.events_note")}</p>
+      <p>{t("groups.delete.confirm_prompt")}</p>
       <CsrfForm action={`/admin/group/${group.id}/delete`}>
         <label>
-          Group Name
+          {t("groups.delete.confirm_label")}
           <input type="text" name="confirm_identifier" required />
         </label>
-        <button type="submit">Delete Group</button>
+        <button type="submit">{t("groups.delete.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -218,7 +220,7 @@ export const adminGroupDetailPage = (
           map((e: EventWithCount) => EventRow({ e })),
           joinStrings,
         )(events)
-      : '<tr><td colspan="5">No events in this group</td></tr>';
+      : `<tr><td colspan="5">${escapeHtml(t("groups.detail.no_events"))}</td></tr>`;
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -244,33 +246,33 @@ export const adminGroupDetailPage = (
       <h1>{group.name}</h1>
       <Raw html={renderSuccess(successMessage)} />
       {group.terms_and_conditions && (
-        <p>Terms and Conditions: {group.terms_and_conditions}</p>
+        <p>{t("groups.detail.terms_label")} {group.terms_and_conditions}</p>
       )}
       <p>
-        <a href={`/admin/group/${group.id}/edit`}>Edit Group</a>{" "}
-        <a href={`/admin/group/${group.id}/delete`}>Delete Group</a>
+        <a href={`/admin/group/${group.id}/edit`}>{t("groups.detail.edit_group")}</a>{" "}
+        <a href={`/admin/group/${group.id}/delete`}>{t("groups.detail.delete_group")}</a>
       </p>
 
       <article>
-        <h2>Group Details</h2>
+        <h2>{t("groups.detail.group_details")}</h2>
         <div class="table-scroll">
           <table class="event-details-table">
             <tbody>
               <tr>
-                <th>Public URL</th>
+                <th>{t("groups.detail.public_url")}</th>
                 <td>
                   <a
                     href={ticketUrl}
                   >{`${allowedDomain}/ticket/${group.slug}`}</a>
                   <small>
                     {" "}
-                    (<a href={`/ticket/${group.slug}/qr`}>QR Code</a>)
+                    (<a href={`/ticket/${group.slug}/qr`}>{t("groups.detail.qr_code")}</a>)
                   </small>
                 </td>
               </tr>
               <tr>
                 <th>
-                  <label for={`embed-script-${group.id}`}>Embed Script</label>
+                  <label for={`embed-script-${group.id}`}>{t("groups.detail.embed_script")}</label>
                 </th>
                 <td>
                   <input
@@ -284,7 +286,7 @@ export const adminGroupDetailPage = (
               </tr>
               <tr>
                 <th>
-                  <label for={`embed-iframe-${group.id}`}>Embed Iframe</label>
+                  <label for={`embed-iframe-${group.id}`}>{t("groups.detail.embed_iframe")}</label>
                 </th>
                 <td>
                   <input
@@ -302,7 +304,7 @@ export const adminGroupDetailPage = (
         </div>
       </article>
 
-      <h2>Events</h2>
+      <h2>{t("groups.detail.events_heading")}</h2>
       <div class="table-scroll">
         <table>
           <thead>

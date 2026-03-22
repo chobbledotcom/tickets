@@ -4,12 +4,14 @@
  */
 
 import { flatMap, map, pipe, reduce, sort } from "#fp";
+import { t } from "#i18n";
 import { formatDateLabel } from "#lib/dates.ts";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { normalizePhone } from "#lib/phone.ts";
 import type { Attendee } from "#lib/types.ts";
+import { escapeHtml } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -198,7 +200,7 @@ const CheckinButton = ({
   returnUrl: string | undefined;
 }): string => {
   const isCheckedIn = a.checked_in;
-  const label = isCheckedIn ? "Check out" : "Check in";
+  const label = isCheckedIn ? t("admin.attendee_table.check_out") : t("admin.attendee_table.check_in");
   const buttonClass = isCheckedIn
     ? "link-button checkout"
     : "link-button checkin";
@@ -237,21 +239,21 @@ const ActionsCell = ({
           href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`}
           class="danger"
         >
-          Refund
+          {t("admin.attendee_table.refund")}
         </a>
       )}
       {isRefundable(row) && " "}
-      <a href={`/admin/attendees/${a.id}${suffix}`}>Edit</a>{" "}
+      <a href={`/admin/attendees/${a.id}${suffix}`}>{t("admin.attendee_table.edit")}</a>{" "}
       <a
         href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`}
         class="danger"
       >
-        Delete
+        {t("admin.attendee_table.delete")}
       </a>{" "}
       <a
         href={`/admin/event/${row.eventId}/attendee/${a.id}/resend-notification${suffix}`}
       >
-        Re-send Notification
+        {t("admin.attendee_table.resend_notification")}
       </a>
     </>,
   );
@@ -266,7 +268,7 @@ const StatusCell = ({
   opts: AttendeeTableOptions;
 }): string => {
   if (row.attendee.refunded) {
-    return String(<span class="badge-refunded">Refunded</span>);
+    return String(<span class="badge-refunded">{t("admin.attendee_table.refunded_badge")}</span>);
   }
   return CheckinButton({
     a: row.attendee,
@@ -392,24 +394,24 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           ),
           joinStrings,
         )(orderedRows)
-      : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
+      : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? escapeHtml(t("admin.attendee_table.no_attendees"))}</td></tr>`;
 
   return String(
     <table>
       <thead>
         <tr>
           {showActions && <th></th>}
-          {vis.showEvent && <th>Event</th>}
-          {vis.showDate && <th>Date</th>}
-          <th>Name</th>
-          {vis.showEmail && <th>Email</th>}
-          {vis.showPhone && <th>Phone</th>}
-          {vis.showAddress && <th>Address</th>}
-          {vis.showSpecialInstructions && <th>Special Instructions</th>}
-          {vis.showAnswers && <th>Answers</th>}
-          <th>Qty</th>
-          <th>Ticket</th>
-          <th>Registered</th>
+          {vis.showEvent && <th>{t("admin.attendee_table.col.event")}</th>}
+          {vis.showDate && <th>{t("admin.attendee_table.col.date")}</th>}
+          <th>{t("admin.attendee_table.col.name")}</th>
+          {vis.showEmail && <th>{t("admin.attendee_table.col.email")}</th>}
+          {vis.showPhone && <th>{t("admin.attendee_table.col.phone")}</th>}
+          {vis.showAddress && <th>{t("admin.attendee_table.col.address")}</th>}
+          {vis.showSpecialInstructions && <th>{t("admin.attendee_table.col.special_instructions")}</th>}
+          {vis.showAnswers && <th>{t("admin.attendee_table.col.answers")}</th>}
+          <th>{t("admin.attendee_table.col.qty")}</th>
+          <th>{t("admin.attendee_table.col.ticket")}</th>
+          <th>{t("admin.attendee_table.col.registered")}</th>
           {showActions && <th></th>}
         </tr>
       </thead>

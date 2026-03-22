@@ -12,6 +12,7 @@ import {
   AttendeeTable,
   type AttendeeTableRow,
 } from "#templates/attendee-table.tsx";
+import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 /** Re-export for backwards compatibility */
@@ -39,13 +40,13 @@ export const checkinAdminPage = (
   )(entries);
 
   const allCheckedIn = entries.every((e) => e.attendee.checked_in);
-  const buttonLabel = allCheckedIn ? "Check Out All" : "Check In All";
+  const buttonLabel = allCheckedIn ? t("admin.checkin.check_out_all") : t("admin.checkin.check_in_all");
   const buttonClass = allCheckedIn ? "bulk-checkout" : "bulk-checkin";
   const nextValue = allCheckedIn ? "false" : "true";
 
   return String(
-    <Layout title="Check-in">
-      <h1>Check-in</h1>
+    <Layout title={t("admin.checkin.title")}>
+      <h1>{t("admin.checkin.heading")}</h1>
       {message && <p class="success">{message}</p>}
       <CsrfForm action={checkinPath}>
         <input type="hidden" name="check_in" value={nextValue} />
@@ -74,8 +75,8 @@ export const checkinAdminPage = (
  */
 export const checkinPublicPage = (): string =>
   String(
-    <Layout title="Check-in">
-      <h1>Check-in</h1>
-      <p>Please show this QR code to an event administrator to check in.</p>
+    <Layout title={t("admin.checkin.public_title")}>
+      <h1>{t("admin.checkin.public_heading")}</h1>
+      <p>{t("admin.checkin.public_instructions")}</p>
     </Layout>,
   );

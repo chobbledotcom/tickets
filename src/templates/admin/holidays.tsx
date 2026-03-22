@@ -12,6 +12,7 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { holidayFields } from "#templates/fields.ts";
+import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -23,24 +24,24 @@ export const adminHolidaysPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title="Holidays">
+    <Layout title={t("holidays.heading")}>
       <AdminNav session={session} active="/admin/holidays" />
-      <h1>Holidays</h1>
+      <h1>{t("holidays.heading")}</h1>
       <Raw html={renderSuccess(successMessage)} />
       <p>
-        <a href="/admin/holiday/new">Add Holiday</a>
+        <a href="/admin/holiday/new">{t("holidays.add_holiday")}</a>
       </p>
       {holidays.length === 0 ? (
-        <p>No holidays configured.</p>
+        <p>{t("holidays.no_holidays")}</p>
       ) : (
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th>Actions</th>
+                <th>{t("holidays.col.name")}</th>
+                <th>{t("holidays.col.start_date")}</th>
+                <th>{t("holidays.col.end_date")}</th>
+                <th>{t("holidays.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -50,8 +51,8 @@ export const adminHolidaysPage = (
                   <td>{holiday.start_date}</td>
                   <td>{holiday.end_date}</td>
                   <td>
-                    <a href={`/admin/holiday/${holiday.id}/edit`}>Edit</a>{" "}
-                    <a href={`/admin/holiday/${holiday.id}/delete`}>Delete</a>
+                    <a href={`/admin/holiday/${holiday.id}/edit`}>{t("holidays.edit")}</a>{" "}
+                    <a href={`/admin/holiday/${holiday.id}/delete`}>{t("holidays.delete")}</a>
                   </td>
                 </tr>
               ))}
@@ -81,14 +82,14 @@ export const adminHolidayNewPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Add Holiday">
+    <Layout title={t("holidays.add.title")}>
       <AdminNav session={session} active="/admin/holidays" />
-      <Breadcrumb href="/admin/holidays" label="Holidays" />
-      <h1>Add Holiday</h1>
+      <Breadcrumb href="/admin/holidays" label={t("holidays.heading")} />
+      <h1>{t("holidays.add.heading")}</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/holiday">
         <Raw html={renderFields(holidayFields)} />
-        <button type="submit">Create Holiday</button>
+        <button type="submit">{t("holidays.add.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -102,16 +103,16 @@ export const adminHolidayEditPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Edit Holiday">
+    <Layout title={t("holidays.edit.title")}>
       <AdminNav session={session} active="/admin/holidays" />
-      <Breadcrumb href="/admin/holidays" label="Holidays" />
-      <h1>Edit Holiday</h1>
+      <Breadcrumb href="/admin/holidays" label={t("holidays.heading")} />
+      <h1>{t("holidays.edit.heading")}</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action={`/admin/holiday/${holiday.id}/edit`}>
         <Raw
           html={renderFields(holidayFields, holidayToFieldValues(holiday))}
         />
-        <button type="submit">Save Changes</button>
+        <button type="submit">{t("holidays.edit.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -125,23 +126,21 @@ export const adminHolidayDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Holiday">
+    <Layout title={t("holidays.delete.heading")}>
       <AdminNav session={session} active="/admin/holidays" />
-      <Breadcrumb href="/admin/holidays" label="Holidays" />
-      <h1>Delete Holiday</h1>
+      <Breadcrumb href="/admin/holidays" label={t("holidays.heading")} />
+      <h1>{t("holidays.delete.heading")}</h1>
       <Raw html={renderError(error)} />
       <p>
-        Are you sure you want to delete the holiday{" "}
-        <strong>{holiday.name}</strong> ({holiday.start_date} to{" "}
-        {holiday.end_date})?
+        {t("holidays.delete.confirm", { name: holiday.name, start: holiday.start_date, end: holiday.end_date })}
       </p>
-      <p>Type the holiday name to confirm:</p>
+      <p>{t("holidays.delete.confirm_prompt")}</p>
       <CsrfForm action={`/admin/holiday/${holiday.id}/delete`}>
         <label>
-          Holiday Name
+          {t("holidays.delete.confirm_label")}
           <input type="text" name="confirm_identifier" required />
         </label>
-        <button type="submit">Delete Holiday</button>
+        <button type="submit">{t("holidays.delete.submit")}</button>
       </CsrfForm>
     </Layout>,
   );

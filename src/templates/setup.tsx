@@ -5,6 +5,7 @@
 import { COUNTRIES, DEFAULT_COUNTRY } from "#lib/countries.ts";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { t } from "#i18n";
 import { setupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -14,45 +15,34 @@ import { Layout } from "#templates/layout.tsx";
  */
 const DataControllerAgreement = (): JSX.Element => (
   <fieldset class="agreement">
-    <legend>Data Controller Agreement</legend>
-    <p>By completing setup, you confirm:</p>
+    <legend>{t("setup.agreement.title")}</legend>
+    <p>{t("setup.agreement.intro")}</p>
     <ol>
       <li>
-        <strong>You are the data controller</strong> - You decide what data to
-        collect and are responsible for your own GDPR/data protection compliance
+        <strong>{t("setup.agreement.controller_title")}</strong> - {t("setup.agreement.controller_text")}
       </li>
       <li>
-        <strong>We are a data processor</strong> - We store your encrypted data
-        but cannot access attendee information without your admin password
+        <strong>{t("setup.agreement.processor_title")}</strong> - {t("setup.agreement.processor_text")}
       </li>
       <li>
-        <strong>Your data is encrypted</strong> - Attendee names, emails, and
-        payment references are encrypted at rest. Only you can decrypt them by
-        logging in
+        <strong>{t("setup.agreement.encrypted_title")}</strong> - {t("setup.agreement.encrypted_text")}
       </li>
       <li>
-        <strong>Your responsibilities</strong> - You are responsible for
-        providing a privacy policy, having lawful basis for collecting data,
-        responding to data subject requests, and compliance with your local data
-        protection laws
+        <strong>{t("setup.agreement.responsibilities_title")}</strong> - {t("setup.agreement.responsibilities_text")}
       </li>
       <li>
-        <strong>Breach notification</strong> - We will notify you promptly if we
-        detect a security incident affecting your data
+        <strong>{t("setup.agreement.breach_title")}</strong> - {t("setup.agreement.breach_text")}
       </li>
       <li>
-        <strong>Deletion</strong> - Your data is deleted when you delete your
-        events or close your account
+        <strong>{t("setup.agreement.deletion_title")}</strong> - {t("setup.agreement.deletion_text")}
       </li>
     </ol>
     <p class="password-warning">
-      If you lose your password you will be <u>permanently</u> unable to view
-      attendee lists. Do not lose your password.
+      {t("setup.agreement.password_warning")}
     </p>
     <div class="field">
       <label>
-        <input type="checkbox" name="accept_agreement" value="yes" required />I
-        understand and accept these terms
+        <input type="checkbox" name="accept_agreement" value="yes" required />{t("setup.agreement.accept")}
       </label>
     </div>
   </fieldset>
@@ -63,15 +53,15 @@ const DataControllerAgreement = (): JSX.Element => (
  */
 export const setupPage = (error?: string): string =>
   String(
-    <Layout title="Setup">
-      <h1>Initial Setup</h1>
-      <p>Welcome! Please configure your ticket reservation system.</p>
+    <Layout title={t("setup.title")}>
+      <h1>{t("setup.heading")}</h1>
+      <p>{t("setup.welcome")}</p>
       <Raw html={renderError(error)} />
       <CsrfForm action="/setup/">
         <Raw html={renderFields(setupFields)} />
         <div class="field">
           <label>
-            Your Country
+            {t("setup.country_label")}
             <select name="country" required>
               {Object.entries(COUNTRIES).map(([code, data]) => (
                 <option value={code} selected={code === DEFAULT_COUNTRY}>
@@ -80,10 +70,10 @@ export const setupPage = (error?: string): string =>
               ))}
             </select>
           </label>
-          <p class="hint">Sets your timezone, currency, and phone prefix.</p>
+          <p class="hint">{t("setup.country_hint")}</p>
         </div>
         <DataControllerAgreement />
-        <button type="submit">Complete Setup</button>
+        <button type="submit">{t("setup.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -93,14 +83,14 @@ export const setupPage = (error?: string): string =>
  */
 export const setupCompletePage = (): string =>
   String(
-    <Layout title="Setup Complete">
-      <h1>Setup Complete!</h1>
+    <Layout title={t("setup.complete.title")}>
+      <h1>{t("setup.complete.heading")}</h1>
       <div class="success">
-        <p>Your ticket reservation system has been configured successfully.</p>
+        <p>{t("setup.complete.message")}</p>
       </div>
       <p>
         <a href="/admin/">
-          <b>Go to Admin Dashboard</b>
+          <b>{t("setup.complete.dashboard_link")}</b>
         </a>
       </p>
     </Layout>,

@@ -7,6 +7,7 @@ import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
+import { t } from "#i18n";
 
 /**
  * Scanner page - camera feed with auto check-in
@@ -21,7 +22,7 @@ export const adminScannerPage = (
       headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
     >
       <AdminNav session={session} active="/admin/" />
-      <h1>Scanner</h1>
+      <h1>{t("admin.scanner.heading")}</h1>
       <p>
         <a href={`/admin/event/${event.id}`}>&larr; {event.name}</a>
       </p>
@@ -49,10 +50,10 @@ export const adminScannerPage = (
               <p id="scanner-confirm-message"></p>
               <div class="scanner-confirm-actions">
                 <button id="scanner-confirm-yes" type="button">
-                  Yes
+                  {t("common.yes")}
                 </button>
                 <button id="scanner-confirm-no" type="button">
-                  No
+                  {t("common.no")}
                 </button>
               </div>
             </div>
@@ -60,7 +61,7 @@ export const adminScannerPage = (
         </div>
 
         <button id="scanner-start" type="button">
-          Start Camera
+          {t("admin.scanner.start_camera")}
         </button>
       </article>
     </Layout>,

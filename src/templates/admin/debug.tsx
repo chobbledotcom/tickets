@@ -6,6 +6,7 @@ import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
+import { t } from "#i18n";
 
 export type DebugPageState = {
   appleWallet: {
@@ -62,9 +63,9 @@ export type DebugPageState = {
 
 const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
   ok ? (
-    <span class="badge-ok">Configured</span>
+    <span class="badge-ok">{t("common.configured")}</span>
   ) : (
-    <span class="badge-missing">Not configured</span>
+    <span class="badge-missing">{t("common.not_configured")}</span>
   );
 
 /**
@@ -75,18 +76,17 @@ export const adminDebugPage = (
   s: DebugPageState,
 ): string =>
   String(
-    <Layout title="Debug Info" theme={s.theme} mainClass="stack-xl">
+    <Layout title={t("debug.title")} theme={s.theme} mainClass="stack-xl">
       <AdminNav session={session} active="/admin/settings" />
       <Breadcrumb href="/admin/settings" label="Settings" />
 
-      <h1>Debug Info</h1>
+      <h1>{t("debug.heading")}</h1>
       <p>
-        Configuration status overview for troubleshooting. No secrets or keys
-        are shown.
+        {t("debug.description")}
       </p>
 
       <article>
-        <h2>Build</h2>
+        <h2>{t("debug.section.build")}</h2>
         <table>
           <tbody>
             <tr>
