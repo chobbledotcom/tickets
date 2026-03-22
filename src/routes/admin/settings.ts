@@ -1312,11 +1312,11 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   }
 
   if (!passTypeId) {
-    return errorPage("Pass Type ID is required", 400, "settings-apple-wallet");
+    return errorPage(t("error.apple_pass_type_id_required"), 400, "settings-apple-wallet");
   }
 
   if (!teamId) {
-    return errorPage("Team ID is required", 400, "settings-apple-wallet");
+    return errorPage(t("error.apple_team_id_required"), 400, "settings-apple-wallet");
   }
 
   // For initial setup, require all three PEM fields
@@ -1324,7 +1324,7 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   if (!isConfigured) {
     if (certField.action !== "provided") {
       return errorPage(
-        "Signing certificate is required",
+        t("error.apple_signing_cert_required"),
         400,
         "settings-apple-wallet",
       );
