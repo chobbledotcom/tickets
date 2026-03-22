@@ -3,8 +3,9 @@
  * across the event detail, check-in, and calendar views.
  */
 
-import { map, pipe, reduce, sort } from "#fp";
+import { flatMap, map, pipe, reduce, sort } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
+import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { normalizePhone } from "#lib/phone.ts";
@@ -17,6 +18,12 @@ export type AttendeeTableRow = {
   attendee: Attendee;
   eventId: number;
   eventName: string;
+};
+
+/** Question data for displaying answers in the attendee table */
+export type TableQuestionData = {
+  questions: QuestionWithAnswers[];
+  attendeeAnswerMap: Map<number, number[]>;
 };
 
 /** Options for the unified AttendeeTable component */
@@ -33,6 +40,8 @@ export type AttendeeTableOptions = {
   showActions?: boolean;
   /** Skip default sort and use rows as-is (default: false) */
   presorted?: boolean;
+  /** Question data for the Answers column */
+  questionData?: TableQuestionData;
 };
 
 /** Column visibility flags computed from data */
@@ -43,6 +52,7 @@ type Visibility = {
   showPhone: boolean;
   showAddress: boolean;
   showSpecialInstructions: boolean;
+  showAnswers: boolean;
 };
 
 /** Format a multi-line address for inline display */
@@ -75,6 +85,7 @@ const computeVisibility = (
   showPhone: rows.some((r) => !!r.attendee.phone),
   showAddress: rows.some((r) => !!r.attendee.address),
   showSpecialInstructions: rows.some((r) => !!r.attendee.special_instructions),
+  showAnswers: !!opts.questionData && opts.questionData.questions.length > 0,
 });
 
 /** Count visible columns for colspan on empty row */
@@ -87,6 +98,7 @@ const countColumns = (vis: Visibility, showActions: boolean): number => {
   if (vis.showPhone) count++;
   if (vis.showAddress) count++;
   if (vis.showSpecialInstructions) count++;
+  if (vis.showAnswers) count++;
   return count;
 };
 
@@ -121,6 +133,53 @@ const compareAttendeeRows = (
 export const sortAttendeeRows: (
   rows: AttendeeTableRow[],
 ) => AttendeeTableRow[] = sort(compareAttendeeRows);
+
+/** Build answer text map from questions */
+const buildAnswerTextMap = (
+  questions: QuestionWithAnswers[],
+): Map<number, string> =>
+  pipe(
+    flatMap((q: QuestionWithAnswers) => q.answers),
+    reduce((m: Map<number, string>, a: Answer) => {
+      m.set(a.id, a.text);
+      return m;
+    }, new Map<number, string>()),
+  )(questions);
+
+/** Build answer question map (answer ID → question text) */
+const buildAnswerQuestionMap = (
+  questions: QuestionWithAnswers[],
+): Map<number, string> => {
+  const m = new Map<number, string>();
+  for (const q of questions) {
+    for (const a of q.answers) {
+      m.set(a.id, q.text);
+    }
+  }
+  return m;
+};
+
+/** Get attendee answer display: short text (comma-separated answers) and tooltip (key: value) */
+const getAttendeeAnswerDisplay = (
+  attendeeId: number,
+  questionData: TableQuestionData,
+  answerTextMap: Map<number, string>,
+  answerQuestionMap: Map<number, string>,
+): { short: string; tooltip: string } => {
+  const answerIds = questionData.attendeeAnswerMap.get(attendeeId) ?? [];
+  const answerTexts: string[] = [];
+  const tooltipParts: string[] = [];
+  for (const aid of answerIds) {
+    const text = answerTextMap.get(aid);
+    const qText = answerQuestionMap.get(aid);
+    if (text) answerTexts.push(text);
+    if (text && qText) tooltipParts.push(`${qText}: ${text}`);
+  }
+  return {
+    short: answerTexts.join(", "),
+    tooltip: tooltipParts.join(", "),
+  };
+};
 
 /** Build a return_url query suffix for action links */
 const returnSuffix = (returnUrl: string | undefined): string =>
@@ -222,10 +281,14 @@ const AttendeeRow = ({
   row,
   vis,
   opts,
+  answerTextMap,
+  answerQuestionMap,
 }: {
   row: AttendeeTableRow;
   vis: Visibility;
   opts: AttendeeTableOptions;
+  answerTextMap: Map<number, string>;
+  answerQuestionMap: Map<number, string>;
 }): string => {
   const a = row.attendee;
   const showActions = opts.showActions !== false;
@@ -261,6 +324,16 @@ const AttendeeRow = ({
       {vis.showSpecialInstructions && (
         <td>{formatInstructionsInline(a.special_instructions)}</td>
       )}
+      {vis.showAnswers && (
+        <Raw
+          html={renderAnswerCell(
+            a.id,
+            opts.questionData!,
+            answerTextMap,
+            answerQuestionMap,
+          )}
+        />
+      )}
       <td>{a.quantity}</td>
       <td>
         <a href={`https://${opts.allowedDomain}/t/${a.ticket_token}`}>
@@ -277,6 +350,26 @@ const AttendeeRow = ({
   );
 };
 
+/** Render an answer cell for an attendee */
+const renderAnswerCell = (
+  attendeeId: number,
+  questionData: TableQuestionData,
+  answerTextMap: Map<number, string>,
+  answerQuestionMap: Map<number, string>,
+): string => {
+  const { short, tooltip } = getAttendeeAnswerDisplay(
+    attendeeId,
+    questionData,
+    answerTextMap,
+    answerQuestionMap,
+  );
+  return String(
+    <td class="answers-cell" title={tooltip}>
+      {short}
+    </td>,
+  );
+};
+
 /** Render the unified attendee table */
 export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const orderedRows = opts.presorted ? opts.rows : sortAttendeeRows(opts.rows);
@@ -284,10 +377,19 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const showActions = opts.showActions !== false;
   const colCount = countColumns(vis, showActions);
 
+  const answerTextMap = vis.showAnswers
+    ? buildAnswerTextMap(opts.questionData!.questions)
+    : new Map<number, string>();
+  const answerQuestionMap = vis.showAnswers
+    ? buildAnswerQuestionMap(opts.questionData!.questions)
+    : new Map<number, string>();
+
   const rows =
     orderedRows.length > 0
       ? pipe(
-          map((row: AttendeeTableRow) => AttendeeRow({ row, vis, opts })),
+          map((row: AttendeeTableRow) =>
+            AttendeeRow({ row, vis, opts, answerTextMap, answerQuestionMap }),
+          ),
           joinStrings,
         )(orderedRows)
       : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
@@ -304,6 +406,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           {vis.showPhone && <th>Phone</th>}
           {vis.showAddress && <th>Address</th>}
           {vis.showSpecialInstructions && <th>Special Instructions</th>}
+          {vis.showAnswers && <th>Answers</th>}
           <th>Qty</th>
           <th>Ticket</th>
           <th>Registered</th>

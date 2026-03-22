@@ -725,4 +725,88 @@ describe("server (admin questions)", () => {
       expect(body).toContain("deleted");
     });
   });
+
+  describe("move answer order", () => {
+    test("move-down swaps answer with next", async () => {
+      const qId = await createQuestion("Ordering Q");
+      const aId1 = await addAnswer(qId, "First");
+      await addAnswer(qId, "Second");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId1}/move-down`,
+        {},
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}`,
+        "Answer moved",
+      )(response);
+
+      // Verify order changed
+      const { response: getResp } = await adminGet(`/admin/questions/${qId}`);
+      const body = await getResp.text();
+      const firstIdx = body.indexOf("Second");
+      const secondIdx = body.indexOf("First");
+      expect(firstIdx).toBeLessThan(secondIdx);
+    });
+
+    test("move-up swaps answer with previous", async () => {
+      const qId = await createQuestion("Up Q");
+      await addAnswer(qId, "Alpha");
+      const aId2 = await addAnswer(qId, "Beta");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId2}/move-up`,
+        {},
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}`,
+        "Answer moved",
+      )(response);
+
+      const { response: getResp } = await adminGet(`/admin/questions/${qId}`);
+      const body = await getResp.text();
+      const betaIdx = body.indexOf("Beta");
+      const alphaIdx = body.indexOf("Alpha");
+      expect(betaIdx).toBeLessThan(alphaIdx);
+    });
+
+    test("move-up on first answer is a no-op", async () => {
+      const qId = await createQuestion("NoOp Q");
+      const aId1 = await addAnswer(qId, "Only");
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId1}/move-up`,
+        {},
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}`,
+        "Answer moved",
+      )(response);
+    });
+
+    test("move-down on last answer is a no-op", async () => {
+      const qId = await createQuestion("Last Q");
+      const aId1 = await addAnswer(qId, "Only");
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId1}/move-down`,
+        {},
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}`,
+        "Answer moved",
+      )(response);
+    });
+  });
+
+  describe("question detail page with answer counts", () => {
+    test("shows answer counts on question detail page", async () => {
+      const qId = await createQuestion("Count Q");
+      await addAnswer(qId, "Yes");
+      await addAnswer(qId, "No");
+
+      const { response } = await adminGet(`/admin/questions/${qId}`);
+      const body = await response.text();
+      // Should show counts (0 for both since no attendees)
+      expect(body).toContain("(0)");
+    });
+  });
 });

@@ -10,6 +10,7 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
+  type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -62,6 +63,7 @@ export const adminCalendarPage = (
   availableDates: CalendarDateOption[],
   today: string,
   phonePrefix?: string,
+  questionData?: TableQuestionData,
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
@@ -116,6 +118,7 @@ export const adminCalendarPage = (
               returnUrl,
               emptyMessage,
               phonePrefix,
+              questionData,
             })}
           />
         </div>

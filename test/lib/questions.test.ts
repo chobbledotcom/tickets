@@ -6,6 +6,7 @@ import {
   deleteAnswer,
   deleteQuestion,
   getAllQuestionsWithAnswers,
+  getAnswerCountsForQuestion,
   getAttendeeAnswersBatch,
   getEventQuestionIds,
   getNextAnswerSortOrder,
@@ -16,6 +17,7 @@ import {
   questionsTable,
   saveAttendeeAnswers,
   setEventQuestions,
+  swapAnswerOrder,
 } from "#lib/db/questions.ts";
 import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
 
@@ -411,6 +413,68 @@ describe("custom questions", () => {
       await answersTable.insert({ questionId: q.id, text: "A1", sortOrder: 0 });
       await answersTable.insert({ questionId: q.id, text: "A2", sortOrder: 1 });
       expect(await getNextAnswerSortOrder(q.id)).toBe(2);
+    });
+  });
+
+  describe("getAnswerCountsForQuestion", () => {
+    test("returns zero counts when no attendees have answered", async () => {
+      const q = await questionsTable.insert({ text: "Color?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Red",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Blue",
+        sortOrder: 1,
+      });
+      const counts = await getAnswerCountsForQuestion(q.id);
+      expect(counts.get(a1.id)).toBe(0);
+      expect(counts.get(a2.id)).toBe(0);
+    });
+
+    test("counts attendee answers correctly", async () => {
+      const event = await createTestEvent();
+      const q = await questionsTable.insert({ text: "Size?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "S",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "M",
+        sortOrder: 1,
+      });
+      const att1 = await createAttendee(event.id, "Alice");
+      const att2 = await createAttendee(event.id, "Bob");
+      await saveAttendeeAnswers([att1.id], [a1.id]);
+      await saveAttendeeAnswers([att2.id], [a1.id]);
+      const counts = await getAnswerCountsForQuestion(q.id);
+      expect(counts.get(a1.id)).toBe(2);
+      expect(counts.get(a2.id)).toBe(0);
+    });
+  });
+
+  describe("swapAnswerOrder", () => {
+    test("swaps sort_order of two answers", async () => {
+      const q = await questionsTable.insert({ text: "Q" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "First",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Second",
+        sortOrder: 1,
+      });
+      await swapAnswerOrder(a1.id, 0, a2.id, 1);
+      const updated = await getQuestionWithAnswers(q.id);
+      // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
+      expect(updated!.answers[0]!.text).toBe("Second");
+      expect(updated!.answers[1]!.text).toBe("First");
     });
   });
 });

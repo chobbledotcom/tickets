@@ -10,6 +10,7 @@ import {
   deleteAnswer,
   deleteQuestion,
   getAllQuestionsWithAnswers,
+  getAnswerCountsForQuestion,
   getEventQuestionIds,
   getNextAnswerSortOrder,
   getQuestion,
@@ -17,11 +18,13 @@ import {
   type QuestionWithAnswers,
   questionsTable,
   setEventQuestions,
+  swapAnswerOrder,
 } from "#lib/db/questions.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  type FormParams,
   htmlResponse,
   notFoundResponse,
   ownerFormById,
@@ -38,18 +41,14 @@ import {
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
 
-/** Extract trimmed text value from a form */
-const extractText = (form: URLSearchParams): string =>
-  (form.get("text") || "").trim();
-
 /** Validate text is non-empty, returning error page if blank */
 const requireTextOrError = async (
-  form: URLSearchParams,
+  form: FormParams,
   questionId: number,
   session: AdminSession,
   errorMsg: string,
 ): Promise<string | Response> => {
-  const text = extractText(form);
+  const text = form.getString("text");
   if (text) return text;
   const question = await getQuestionWithAnswers(questionId);
   return question
@@ -68,7 +67,7 @@ const handleQuestionsGet = (request: Request): Promise<Response> =>
 /** Handle POST /admin/questions (create question) */
 const handleQuestionsPost = (request: Request) =>
   withOwnerAuthForm(request, async (session, form) => {
-    const text = extractText(form);
+    const text = form.getString("text");
     if (!text) {
       return htmlResponse(
         adminQuestionsPage(
@@ -85,8 +84,12 @@ const handleQuestionsPost = (request: Request) =>
   });
 
 /** Handle GET /admin/questions/:id */
-const handleQuestionGet = ownerGetById(getQuestionWithAnswers, (q, session) =>
-  htmlResponse(adminQuestionPage(q, session)),
+const handleQuestionGet = ownerGetById(
+  getQuestionWithAnswers,
+  async (q, session) => {
+    const answerCounts = await getAnswerCountsForQuestion(q.id);
+    return htmlResponse(adminQuestionPage(q, session, undefined, answerCounts));
+  },
 );
 
 /** Shared handler for question-scoped text submit actions (edit/add answer) */
@@ -136,8 +139,7 @@ const handleDeleteQuestionGet = ownerGetById(
 const handleDeleteQuestionPost = ownerFormById(async (id, session, form) => {
   const question = await getQuestion(id);
   if (!question) return notFoundResponse();
-  const confirm = form.get("confirm_identifier") ?? "";
-  if (!verifyIdentifier(question.text, confirm)) {
+  if (!verifyIdentifier(question.text, form.getString("confirm_identifier"))) {
     const questionWithAnswers = await getQuestionWithAnswers(id);
     return questionWithAnswers
       ? htmlResponse(
@@ -209,8 +211,7 @@ const handleDeleteAnswerGet = answerRoute((question, answer, session) =>
 /** Handle POST /admin/questions/:id/answers/:answerId/delete */
 const handleDeleteAnswerPost = answerFormRoute(
   async (question, answer, session, form) => {
-    const confirm = form.get("confirm_identifier") ?? "";
-    if (!verifyIdentifier(answer.text, confirm)) {
+    if (!verifyIdentifier(answer.text, form.getString("confirm_identifier"))) {
       return htmlResponse(
         adminAnswerDeletePage(question, answer, session, CONFIRM_TEXT_MSG),
         400,
@@ -223,6 +224,28 @@ const handleDeleteAnswerPost = answerFormRoute(
     return redirect(`/admin/questions/${question.id}`, "Answer deleted", true);
   },
 );
+
+/** Factory for move-up/move-down handlers */
+const moveAnswerHandler = (direction: -1 | 1) =>
+  answerFormRoute(async (question, answer, _session) => {
+    const idx = question.answers.findIndex((a) => a.id === answer.id);
+    const neighbor = question.answers[idx + direction];
+    if (neighbor) {
+      await swapAnswerOrder(
+        answer.id,
+        answer.sort_order,
+        neighbor.id,
+        neighbor.sort_order,
+      );
+    }
+    return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
+  });
+
+/** Handle POST /admin/questions/:id/answers/:answerId/move-up */
+const handleMoveAnswerUp = moveAnswerHandler(-1);
+
+/** Handle POST /admin/questions/:id/answers/:answerId/move-down */
+const handleMoveAnswerDown = moveAnswerHandler(1);
 
 /** Handle GET /admin/event/:id/questions */
 const handleEventQuestionsGet = ownerGetById(
@@ -270,6 +293,8 @@ export const questionsRoutes = defineRoutes({
   "POST /admin/questions/:id/delete": handleDeleteQuestionPost,
   "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
   "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
+  "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
+  "POST /admin/questions/:id/answers/:answerId/move-down": handleMoveAnswerDown,
   "GET /admin/event/:id/questions": handleEventQuestionsGet,
   "POST /admin/event/:id/questions": handleEventQuestionsPost,
 });
