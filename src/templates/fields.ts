@@ -213,7 +213,7 @@ export const validateUsername = (value: string): string | null => {
 /** Base username field shared across login and invite forms */
 const usernameFieldBase: Field = {
   name: "username",
-  label: "Username",
+  label: t("login.username"),
   type: "text",
   required: true,
 };
@@ -225,7 +225,7 @@ export const loginFields: Field[] = [
   { ...usernameFieldBase, autocomplete: "username" },
   {
     name: "password",
-    label: "Password",
+    label: t("login.password"),
     type: "password",
     required: true,
     autocomplete: "current-password",
@@ -290,12 +290,12 @@ const MAX_DESCRIPTION_LENGTH = 256;
 /** Validate description length */
 const validateDescription = (value: string): string | null =>
   value.length > MAX_DESCRIPTION_LENGTH
-    ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
+    ? t("error.description_length")
     : null;
 
 /** Validate a datetime value is parseable */
 const validateDatetime = (value: string): string | null =>
-  isValidDatetime(value) ? null : "Please enter a valid date and time";
+  isValidDatetime(value) ? null : t("error.datetime_invalid");
 
 /**
  * Event form field definitions (shared between create and edit)
@@ -303,54 +303,54 @@ const validateDatetime = (value: string): string | null =>
 export const eventFields: Field[] = [
   {
     name: "name",
-    label: "Event Name",
+    label: t("fields.event.name"),
     type: "text",
     required: true,
-    placeholder: "Village Quiz Night",
-    hint: "Displayed to attendees on the ticket page",
+    placeholder: t("fields.event.name_placeholder"),
+    hint: t("fields.event.name_hint"),
   },
   {
     name: "event_type",
-    label: "Event Type",
+    label: t("fields.event.type"),
     type: "select",
-    hint: "Daily events require attendees to select a specific date when booking",
+    hint: t("fields.event.type_hint"),
     options: [
-      { value: "standard", label: "Standard" },
-      { value: "daily", label: "Daily" },
+      { value: "standard", label: t("fields.event.type_standard") },
+      { value: "daily", label: t("fields.event.type_daily") },
     ],
     validate: validateEventType,
   },
   {
     name: "description",
-    label: "Description (optional)",
+    label: t("fields.event.description"),
     type: "text",
-    placeholder: "A short description of the event",
-    hint: "Shown on the ticket page. Max 256 characters.",
+    placeholder: t("fields.event.description_placeholder"),
+    hint: t("fields.event.description_hint"),
     hintHtml: FORMATTING_HINT,
     maxlength: MAX_DESCRIPTION_LENGTH,
     validate: validateDescription,
   },
   {
     name: "date",
-    label: "Event Date (optional)",
+    label: t("fields.event.date"),
     type: "datetime",
-    hint: "When the event takes place. Times are in your configured timezone.",
+    hint: t("fields.event.date_hint"),
     validate: validateDatetime,
   },
   {
     name: "location",
-    label: "Location (optional)",
+    label: t("fields.event.location"),
     type: "text",
-    placeholder: "e.g. Village Hall, Main Street",
-    hint: "Where the event takes place. Shown on the ticket page.",
+    placeholder: t("fields.event.location_placeholder"),
+    hint: t("fields.event.location_hint"),
   },
   {
     name: "max_attendees",
-    label: "Max Attendees",
+    label: t("fields.event.max_attendees"),
     type: "number",
     required: true,
     min: 1,
-    hint: "For daily events, this limit applies per date",
+    hint: t("fields.event.max_attendees_hint"),
   },
   {
     name: "max_quantity",
