@@ -231,20 +231,7 @@ const setupWebhookEndpointImpl = async (
       }
     }
 
-    // Check if a webhook already exists for this exact URL
-    const existingEndpoints = await client.webhookEndpoints.list({
-      limit: 100,
-    });
-    const existingForUrl = existingEndpoints.data.find(
-      (ep) => ep.url === webhookUrl,
-    );
-
-    if (existingForUrl) {
-      // Delete existing endpoint to recreate with fresh secret
-      await client.webhookEndpoints.del(existingForUrl.id);
-    }
-
-    // Create new webhook endpoint
+    // Create new webhook endpoint (preserves any existing webhooks)
     const endpoint = await client.webhookEndpoints.create({
       url: webhookUrl,
       enabled_events: ["checkout.session.completed"],
@@ -421,12 +408,12 @@ export const stripeApi: {
     return session;
   },
 
-  /** Test Stripe connection: verify API key and webhook endpoint */
+  /** Test Stripe connection: verify API key and list all webhook endpoints */
   testStripeConnection: async (): Promise<StripeConnectionTestResult> => {
     const result: StripeConnectionTestResult = {
       ok: false,
       apiKey: { valid: false },
-      webhook: { configured: false },
+      webhooks: [],
     };
 
     // Step 1: Test API key by retrieving balance
@@ -449,32 +436,25 @@ export const stripeApi: {
       return result;
     }
 
-    // Step 2: Test webhook endpoint
-    const endpointId = await getStripeWebhookEndpointId();
-    if (!endpointId) {
-      result.webhook = {
-        configured: false,
-        error: "No webhook endpoint ID stored",
-      };
-      return result;
-    }
+    // Step 2: List all webhook endpoints
+    const ownEndpointId = await getStripeWebhookEndpointId();
+    result.ownEndpointId = ownEndpointId;
 
     try {
-      const endpoint = await client.webhookEndpoints.retrieve(endpointId);
-      result.webhook = {
-        configured: true,
-        endpointId: endpoint.id,
-        url: endpoint.url,
-        status: endpoint.status,
-        enabledEvents: endpoint.enabled_events,
-      };
+      const endpoints = await client.webhookEndpoints.list({ limit: 100 });
+      result.webhooks = endpoints.data.map((ep) => ({
+        endpointId: ep.id,
+        url: ep.url,
+        status: ep.status,
+        enabledEvents: ep.enabled_events,
+      }));
     } catch (err) {
       const message = errorMessage(err);
-      result.webhook = { configured: false, endpointId, error: message };
+      result.webhookError = message;
       return result;
     }
 
-    result.ok = result.apiKey.valid && result.webhook.configured;
+    result.ok = result.apiKey.valid && result.webhooks.length > 0;
     return result;
   },
 
@@ -574,18 +554,21 @@ const computeSignature = async (
 export type StripeWebhookEvent = WebhookEvent;
 export type { WebhookSetupResult, WebhookVerifyResult };
 
+/** A single webhook endpoint's status */
+export type WebhookEndpointStatus = {
+  endpointId: string;
+  url: string;
+  status: string;
+  enabledEvents: string[];
+};
+
 /** Result of testing the Stripe connection */
 export type StripeConnectionTestResult = {
   ok: boolean;
   apiKey: { valid: boolean; error?: string; mode?: string };
-  webhook: {
-    configured: boolean;
-    endpointId?: string;
-    url?: string;
-    status?: string;
-    enabledEvents?: string[];
-    error?: string;
-  };
+  webhooks: WebhookEndpointStatus[];
+  ownEndpointId?: string | null;
+  webhookError?: string;
 };
 
 /**

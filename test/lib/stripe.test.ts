@@ -656,63 +656,8 @@ describeWithEnv(
         );
       });
 
-      test("returns test mode when API key is valid and webhook not configured", async () => {
+      test("returns test mode when API key is valid and no webhooks exist", async () => {
         await updateStripeKey("sk_test_mock");
-        const client = await getStripeClient();
-        if (!client) throw new Error("Expected client to be defined");
-
-        await withMocks(
-          () =>
-            stub(client.balance, "retrieve", () =>
-              Promise.resolve({
-                livemode: false,
-                available: [],
-                pending: [],
-                object: "balance",
-              } as never),
-            ),
-          async () => {
-            const result = await testStripeConnection();
-            expect(result.ok).toBe(false);
-            expect(result.apiKey.valid).toBe(true);
-            expect(result.apiKey.mode).toBe("test");
-            expect(result.webhook.configured).toBe(false);
-            expect(result.webhook.error).toContain(
-              "No webhook endpoint ID stored",
-            );
-          },
-        );
-      });
-
-      test("returns live mode for live key", async () => {
-        await updateStripeKey("sk_live_mock");
-        const client = await getStripeClient();
-        if (!client) throw new Error("Expected client to be defined");
-
-        await withMocks(
-          () =>
-            stub(client.balance, "retrieve", () =>
-              Promise.resolve({
-                livemode: true,
-                available: [],
-                pending: [],
-                object: "balance",
-              } as never),
-            ),
-          async () => {
-            const result = await testStripeConnection();
-            expect(result.apiKey.valid).toBe(true);
-            expect(result.apiKey.mode).toBe("live");
-          },
-        );
-      });
-
-      test("returns webhook error when endpoint retrieval fails", async () => {
-        await updateStripeKey("sk_test_mock");
-        await setStripeWebhookConfig({
-          secret: "whsec_test",
-          endpointId: "we_test_missing",
-        });
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -726,23 +671,77 @@ describeWithEnv(
                 object: "balance",
               } as never),
             ),
-            webhookSpy: stub(client.webhookEndpoints, "retrieve", () =>
-              Promise.reject(
-                new Error("No such webhook endpoint: we_test_missing"),
-              ),
-            ),
+            listSpy: stub(client.webhookEndpoints, "list", (() =>
+              Promise.resolve({ data: [] })) as never),
           }),
           async () => {
             const result = await testStripeConnection();
             expect(result.ok).toBe(false);
             expect(result.apiKey.valid).toBe(true);
-            expect(result.webhook.configured).toBe(false);
-            expect(result.webhook.error).toContain("No such webhook endpoint");
+            expect(result.apiKey.mode).toBe("test");
+            expect(result.webhooks).toHaveLength(0);
           },
         );
       });
 
-      test("returns full success when API key and webhook are both valid", async () => {
+      test("returns live mode for live key", async () => {
+        await updateStripeKey("sk_live_mock");
+        const client = await getStripeClient();
+        if (!client) throw new Error("Expected client to be defined");
+
+        await withMocks(
+          () => ({
+            balanceSpy: stub(client.balance, "retrieve", () =>
+              Promise.resolve({
+                livemode: true,
+                available: [],
+                pending: [],
+                object: "balance",
+              } as never),
+            ),
+            listSpy: stub(client.webhookEndpoints, "list", (() =>
+              Promise.resolve({ data: [] })) as never),
+          }),
+          async () => {
+            const result = await testStripeConnection();
+            expect(result.apiKey.valid).toBe(true);
+            expect(result.apiKey.mode).toBe("live");
+          },
+        );
+      });
+
+      test("returns webhook error when list fails", async () => {
+        await updateStripeKey("sk_test_mock");
+        const client = await getStripeClient();
+        if (!client) throw new Error("Expected client to be defined");
+
+        await withMocks(
+          () => ({
+            balanceSpy: stub(client.balance, "retrieve", () =>
+              Promise.resolve({
+                livemode: false,
+                available: [],
+                pending: [],
+                object: "balance",
+              } as never),
+            ),
+            listSpy: stub(client.webhookEndpoints, "list", (() =>
+              Promise.reject(
+                new Error("Failed to list webhook endpoints"),
+              )) as never),
+          }),
+          async () => {
+            const result = await testStripeConnection();
+            expect(result.ok).toBe(false);
+            expect(result.apiKey.valid).toBe(true);
+            expect(result.webhookError).toContain(
+              "Failed to list webhook endpoints",
+            );
+          },
+        );
+      });
+
+      test("returns full success when API key valid and webhooks exist", async () => {
         await updateStripeKey("sk_test_mock");
         await setStripeWebhookConfig({
           secret: "whsec_test",
@@ -761,30 +760,42 @@ describeWithEnv(
                 object: "balance",
               } as never),
             ),
-            webhookSpy: stub(client.webhookEndpoints, "retrieve", () =>
+            listSpy: stub(client.webhookEndpoints, "list", (() =>
               Promise.resolve({
-                id: "we_test_valid",
-                url: "https://example.com/payment/webhook",
-                status: "enabled",
-                enabled_events: ["checkout.session.completed"],
-                object: "webhook_endpoint",
-              } as never),
-            ),
+                data: [
+                  {
+                    id: "we_test_valid",
+                    url: "https://example.com/payment/webhook",
+                    status: "enabled",
+                    enabled_events: ["checkout.session.completed"],
+                    object: "webhook_endpoint",
+                  },
+                  {
+                    id: "we_test_other",
+                    url: "https://other.com/webhook",
+                    status: "enabled",
+                    enabled_events: ["payment_intent.succeeded"],
+                    object: "webhook_endpoint",
+                  },
+                ],
+              })) as never),
           }),
           async () => {
             const result = await testStripeConnection();
             expect(result.ok).toBe(true);
             expect(result.apiKey.valid).toBe(true);
             expect(result.apiKey.mode).toBe("test");
-            expect(result.webhook.configured).toBe(true);
-            expect(result.webhook.endpointId).toBe("we_test_valid");
-            expect(result.webhook.url).toBe(
-              "https://example.com/payment/webhook",
-            );
-            expect(result.webhook.status).toBe("enabled");
-            expect(result.webhook.enabledEvents).toContain(
+            expect(result.ownEndpointId).toBe("we_test_valid");
+            expect(result.webhooks).toHaveLength(2);
+            const [first, second] = result.webhooks;
+            expect(first!.endpointId).toBe("we_test_valid");
+            expect(first!.url).toBe("https://example.com/payment/webhook");
+            expect(first!.status).toBe("enabled");
+            expect(first!.enabledEvents).toContain(
               "checkout.session.completed",
             );
+            expect(second!.endpointId).toBe("we_test_other");
+            expect(second!.url).toBe("https://other.com/webhook");
           },
         );
       });
@@ -1107,12 +1118,8 @@ describeWithEnv(
         }
       });
 
-      test("handles non-Error thrown value in webhook retrieval", async () => {
+      test("handles non-Error thrown value in webhook list", async () => {
         await updateStripeKey("sk_test_mock");
-        await setStripeWebhookConfig({
-          secret: "whsec_test",
-          endpointId: "we_test_nonerror",
-        });
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -1125,18 +1132,16 @@ describeWithEnv(
           } as never),
         );
 
-        const webhookSpy = stub(client.webhookEndpoints, "retrieve", () =>
-          Promise.reject("webhook string error"),
-        );
+        const listSpy = stub(client.webhookEndpoints, "list", (() =>
+          Promise.reject("webhook string error")) as never);
 
         try {
           const result = await testStripeConnection();
           expect(result.ok).toBe(false);
-          expect(result.webhook.configured).toBe(false);
-          expect(result.webhook.error).toBe("Unknown error");
+          expect(result.webhookError).toBe("Unknown error");
         } finally {
           balanceSpy.restore();
-          webhookSpy.restore();
+          listSpy.restore();
         }
       });
     });
@@ -1236,16 +1241,15 @@ describeWithEnv(
     });
 
     describe("setupWebhookEndpoint - stripe-mock paths", () => {
-      test("deletes existing endpoint for same URL before recreating", async () => {
+      test("creates new endpoint without deleting existing ones for same URL", async () => {
         // stripe-mock has a default endpoint at https://example.com/my/webhook/endpoint
-        // Calling setupWebhookEndpoint with that URL should find it via list and delete it
+        // Calling setupWebhookEndpoint with that URL should create a new one without deleting existing
         const result = await setupWebhookEndpoint(
           "sk_test_mock",
           "https://example.com/my/webhook/endpoint",
         );
 
         // stripe-mock doesn't return secret, so this hits the "no secret" error path
-        // but the important thing is it exercises the "delete existing for URL" code path (lines 368-371)
         expect(result).toBeDefined();
         expect(typeof result.success).toBe("boolean");
       });
@@ -1331,33 +1335,6 @@ describeWithEnv(
           // The function should continue past the failed delete and still attempt to create
           expect(result).toBeDefined();
           expect(typeof result.success).toBe("boolean");
-        });
-      });
-
-      test("returns error when list endpoints throws", async () => {
-        // Mock fetch so that the list call (GET) throws, exercising the outer catch
-        await withFetchMock(async (originalFetch) => {
-          installUrlHandler(originalFetch, (url, init) => {
-            if (
-              (init?.method ?? "GET") === "GET" &&
-              url.includes("/v1/webhook_endpoints")
-            ) {
-              throw new Error("List endpoints failed");
-            }
-            return null;
-          });
-
-          const result = await setupWebhookEndpoint(
-            "sk_test_mock",
-            "https://example.com/webhook/list-error-test",
-          );
-
-          expect(result.success).toBe(false);
-          if (!result.success) {
-            // Stripe SDK wraps connection errors with retry info
-            expect(typeof result.error).toBe("string");
-            expect(result.error!.length > 0).toBe(true);
-          }
         });
       });
 

@@ -535,7 +535,7 @@ describe("server (admin settings)", () => {
                 valid: false,
                 error: "No Stripe secret key configured",
               },
-              webhook: { configured: false },
+              webhooks: [],
             }),
           ),
         async () => {
@@ -562,20 +562,22 @@ describe("server (admin settings)", () => {
       );
     });
 
-    test("returns success when API key and webhook are valid", async () => {
+    test("returns success when API key and webhooks are valid", async () => {
       await withMocks(
         () =>
           stub(stripeApi, "testStripeConnection", () =>
             Promise.resolve({
               ok: true,
               apiKey: { valid: true, mode: "test" },
-              webhook: {
-                configured: true,
-                endpointId: "we_test_123",
-                url: "https://example.com/payment/webhook",
-                status: "enabled",
-                enabledEvents: ["checkout.session.completed"],
-              },
+              ownEndpointId: "we_test_123",
+              webhooks: [
+                {
+                  endpointId: "we_test_123",
+                  url: "https://example.com/payment/webhook",
+                  status: "enabled",
+                  enabledEvents: ["checkout.session.completed"],
+                },
+              ],
             }),
           ),
         async () => {
@@ -593,27 +595,26 @@ describe("server (admin settings)", () => {
           expect(json.ok).toBe(true);
           expect(json.apiKey.valid).toBe(true);
           expect(json.apiKey.mode).toBe("test");
-          expect(json.webhook.configured).toBe(true);
-          expect(json.webhook.url).toBe("https://example.com/payment/webhook");
-          expect(json.webhook.status).toBe("enabled");
-          expect(json.webhook.enabledEvents).toContain(
+          expect(json.webhooks).toHaveLength(1);
+          expect(json.webhooks[0].url).toBe(
+            "https://example.com/payment/webhook",
+          );
+          expect(json.webhooks[0].status).toBe("enabled");
+          expect(json.webhooks[0].enabledEvents).toContain(
             "checkout.session.completed",
           );
         },
       );
     });
 
-    test("returns partial failure when API key valid but webhook missing", async () => {
+    test("returns partial failure when API key valid but no webhooks", async () => {
       await withMocks(
         () =>
           stub(stripeApi, "testStripeConnection", () =>
             Promise.resolve({
               ok: false,
               apiKey: { valid: true, mode: "test" },
-              webhook: {
-                configured: false,
-                error: "No webhook endpoint ID stored",
-              },
+              webhooks: [],
             }),
           ),
         async () => {
@@ -630,8 +631,7 @@ describe("server (admin settings)", () => {
           const json = await response.json();
           expect(json.ok).toBe(false);
           expect(json.apiKey.valid).toBe(true);
-          expect(json.webhook.configured).toBe(false);
-          expect(json.webhook.error).toContain("No webhook endpoint ID stored");
+          expect(json.webhooks).toHaveLength(0);
         },
       );
     });
