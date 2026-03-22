@@ -513,6 +513,14 @@ form.one-button {
   padding-right: 0;
 }
 
+form > * {
+  margin: 0;
+}
+
+form > button {
+  width: fit-content;
+}
+
 form header {
   padding: var(--space-m) 0;
 }
