@@ -198,6 +198,21 @@ type EncryptInput = ContactInfo & {
   pricePaid: number;
 };
 
+/** Extract ContactInfo fields from an object */
+const contactFields = ({
+  name,
+  email,
+  phone,
+  address,
+  special_instructions,
+}: ContactInfo): ContactInfo => ({
+  name,
+  email,
+  phone,
+  address,
+  special_instructions,
+});
+
 /** Encrypt attendee fields into a PII blob, returning null if key not configured */
 const encryptAttendeeFields = async (
   input: EncryptInput,
@@ -207,11 +222,7 @@ const encryptAttendeeFields = async (
 
   const ticketToken = generateTicketToken();
   const piiJson = buildPiiBlob({
-    name: input.name,
-    email: input.email,
-    phone: input.phone,
-    address: input.address,
-    special_instructions: input.special_instructions,
+    ...contactFields(input),
     payment_id: input.paymentId,
     ticket_token: ticketToken,
   });
@@ -246,11 +257,7 @@ type BuildAttendeeInput = ContactInfo & {
 const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   id: Number(input.insertId),
   event_id: input.eventId,
-  name: input.name,
-  email: input.email,
-  phone: input.phone,
-  address: input.address,
-  special_instructions: input.special_instructions,
+  ...contactFields(input),
   created: input.created,
   payment_id: input.paymentId,
   quantity: input.quantity,
@@ -511,8 +518,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, created, quantity, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, created, quantity, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
+            SELECT ?, '', '', ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -607,11 +614,12 @@ export const getAttendeesByTokens = async (
 /** Update a v2 integer column on an attendee */
 const updateV2Field =
   (field: string) =>
-  (attendeeId: number, value: number): Promise<void> =>
-    getDb().execute({
+  async (attendeeId: number, value: number): Promise<void> => {
+    await getDb().execute({
       sql: `UPDATE attendees SET ${field} = ? WHERE id = ?`,
       args: [value, attendeeId],
     });
+  };
 
 const setRefundedV2 = updateV2Field("refunded_v2");
 const setCheckedInV2 = updateV2Field("checked_in_v2");
@@ -719,7 +727,9 @@ export const migrateAttendeeBatch = async (
 
   // Process each row: decrypt old fields, build blob, prepare update
   for (const row of rows) {
-    // Decrypt all PII fields from old columns
+    // Decrypt all PII fields from old columns (empty strings = unset fields)
+    const decryptOrEmpty = (v: string) =>
+      v ? decryptAttendeePII(v, privateKey) : Promise.resolve("");
     const [
       name,
       email,
@@ -729,13 +739,13 @@ export const migrateAttendeeBatch = async (
       payment_id,
       ticket_token,
     ] = await Promise.all([
-      decryptAttendeePII(row.name, privateKey),
-      decryptAttendeePII(row.email, privateKey),
-      decryptAttendeePII(row.phone, privateKey),
-      decryptAttendeePII(row.address, privateKey),
-      decryptAttendeePII(row.special_instructions, privateKey),
-      decryptAttendeePII(row.payment_id, privateKey),
-      decryptAttendeePII(row.ticket_token, privateKey),
+      decryptOrEmpty(row.name),
+      decryptOrEmpty(row.email),
+      decryptOrEmpty(row.phone),
+      decryptOrEmpty(row.address),
+      decryptOrEmpty(row.special_instructions),
+      decryptOrEmpty(row.payment_id),
+      decryptOrEmpty(row.ticket_token),
     ]);
 
     // Decrypt status fields from old columns
@@ -744,7 +754,7 @@ export const migrateAttendeeBatch = async (
     const [checkedInStr, refundedStr, pricePaidStr] = await Promise.all([
       decryptBool(row.checked_in as unknown as string),
       decryptBool(row.refunded as unknown as string),
-      decrypt(row.price_paid),
+      row.price_paid ? decrypt(row.price_paid) : Promise.resolve("0"),
     ]);
 
     // Build and encrypt the PII blob
