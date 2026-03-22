@@ -12,9 +12,9 @@ import {
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirect,
   extractCsrfToken,
   mockFormRequest,
   mockRequest,
@@ -26,7 +26,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
   describe("GET /admin/seeds", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/seeds"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 403 for non-owner", async () => {
@@ -65,7 +65,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
           attendees_per_event: "0",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 403 for non-owner", async () => {

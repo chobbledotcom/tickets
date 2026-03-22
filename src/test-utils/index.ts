@@ -2104,7 +2104,8 @@ export const createTestManagerSession = async (
   const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
   if (!passwordHash) throw new Error("Admin password verification failed");
   const kek = await deriveKEK(passwordHash);
-  if (!user.wrapped_data_key) throw new Error("Admin user has no wrapped data key");
+  if (!user.wrapped_data_key)
+    throw new Error("Admin user has no wrapped data key");
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
   // Create manager user with a properly wrapped data key

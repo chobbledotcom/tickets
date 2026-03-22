@@ -23,8 +23,8 @@ import {
 import {
   adminGet,
   describeWithEnv,
+  expectAdminRedirect,
   expectHtmlResponse,
-  expectRedirect,
   generateGoogleTestCreds,
   generateTestCerts,
   mockRequest,
@@ -35,7 +35,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/debug"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("renders debug page when authenticated", async () => {

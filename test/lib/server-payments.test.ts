@@ -9,6 +9,7 @@ import {
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
+  expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
@@ -928,7 +929,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
         // Multi-ticket should have multiple tokens joined by + (URL-encoded as %2B)
-        expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+%2B.+$/);
+        expectRedirect(
+          redirectResponse,
+          /^\/payment\/success\?tokens=.+%2B.+$/,
+        );
 
         const response = await followRedirect(redirectResponse, handleRequest);
         const html = await expectHtmlResponse(
@@ -1439,7 +1443,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_token_verify"),
         );
-        expectRedirect(redirectResponse);
+        const location = expectRedirect(redirectResponse);
 
         // Follow redirect to verify tokens and render page
         const response = await followRedirect(redirectResponse, handleRequest);

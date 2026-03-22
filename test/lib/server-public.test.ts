@@ -27,6 +27,7 @@ import {
   createTestHoliday,
   deactivateTestEvent,
   describeWithEnv,
+  expectAdminRedirect,
   expectCheckoutRedirect,
   expectHtmlResponse,
   expectRedirect,
@@ -889,10 +890,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       const html = await getResponse.text();
-      const signedToken = matchGroup(
-        html,
-        /name="csrf_token" value="([^"]+)"/,
-      );
+      const signedToken = matchGroup(html, /name="csrf_token" value="([^"]+)"/);
       expect(signedToken.startsWith("s1.")).toBe(true);
 
       // POST without any cookie - signed tokens are the only CSRF mechanism
@@ -1518,10 +1516,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`${path}?iframe=true`),
       );
       const html = await getResponse.text();
-      const signedToken = matchGroup(
-        html,
-        /name="csrf_token" value="([^"]+)"/,
-      );
+      const signedToken = matchGroup(html, /name="csrf_token" value="([^"]+)"/);
 
       const response = await handleRequest(
         mockFormRequest(`${path}?iframe=true`, {

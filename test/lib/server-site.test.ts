@@ -15,6 +15,7 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   describeWithEnv,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
@@ -28,7 +29,7 @@ import {
 
 /** Assert a 302 redirect with a flash cookie containing the given text */
 const expectRedirectContaining = (response: Response, text: string) => {
-  expect(response.status).toBe(302);
+  expectRedirect(response);
   expectFlash(response, text);
 };
 
@@ -36,7 +37,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   describe("GET /admin/site", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/site"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows homepage editor when authenticated", async () => {
@@ -85,7 +86,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
           homepage_text: "Hello",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -189,7 +190,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   describe("GET /admin/site/contact", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/site/contact"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows contact editor when authenticated", async () => {
@@ -234,7 +235,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
           contact_page_text: "Hello",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {

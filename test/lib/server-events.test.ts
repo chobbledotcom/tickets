@@ -19,8 +19,8 @@ import {
   createTestManagerSession,
   deactivateTestEvent,
   describeWithEnv,
+  expectAdminRedirect,
   expectHtmlResponse,
-  expectRedirect,
   expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
@@ -43,7 +43,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("GET /admin/event/new", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/event/new"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("renders create event form when authenticated", async () => {
@@ -67,7 +67,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           thank_you_url: "https://example.com",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("creates event when authenticated", async () => {
@@ -325,7 +325,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/duplicate"),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -497,7 +497,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/export"),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -661,7 +661,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(mockRequest("/admin/event/1/edit"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -711,7 +711,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           thank_you_url: "https://example.com/updated",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1158,7 +1158,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/deactivate"),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1198,7 +1198,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/event/1/deactivate", {}),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("deactivates event and redirects", async () => {
@@ -1249,7 +1249,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/reactivate"),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows reactivate confirmation page when authenticated", async () => {
@@ -1327,7 +1327,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/delete"),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1369,7 +1369,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           confirm_identifier: event.name,
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1743,7 +1743,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("GET /admin/log", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/log"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("shows log page when authenticated", async () => {
@@ -1784,7 +1784,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("GET /admin/event/:id/log", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/event/1/log"));
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {

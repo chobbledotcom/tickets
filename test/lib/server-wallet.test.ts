@@ -19,9 +19,9 @@ import {
   awaitTestRequest,
   createTestAttendeeWithToken,
   describeWithEnv,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirect,
   generateTestCerts,
   getHeader,
   mockFormRequest,
@@ -265,7 +265,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
         apple_wallet_pass_type_id: "pass.com.test",
       }),
     );
-    expectRedirect("/admin")(response);
+    expectAdminRedirect(response);
   });
 
   test("requires Pass Type ID", async () => {

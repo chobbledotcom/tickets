@@ -17,6 +17,7 @@ import {
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
+  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
@@ -53,7 +54,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete`),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -154,7 +155,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           },
         ),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -354,7 +355,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           {},
         ),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("deletes incomplete attendee without name confirmation", async () => {
@@ -517,7 +518,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           {},
         ),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -556,14 +557,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("checks in an attendee and redirects with message", async () => {
       const { response, event } = await checkinAction({})();
-      expectRedirect(response, `/admin/event/${event.id}`, "checkin_status=in", "checkin_name=John", "#message");
+      expectRedirect(
+        response,
+        `/admin/event/${event.id}`,
+        "checkin_status=in",
+        "checkin_name=John",
+        "#message",
+      );
     });
 
     test("redirects to filtered page when return_filter is set", async () => {
       const { response, event } = await checkinAction({
         return_filter: "in",
       })();
-      expectRedirect(response, `/admin/event/${event.id}/in?`, "checkin_status=in");
+      expectRedirect(
+        response,
+        `/admin/event/${event.id}/in?`,
+        "checkin_status=in",
+      );
     });
 
     test("redirects to out filtered page when return_filter is out", async () => {
@@ -577,7 +588,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(response, `/admin/event/${event.id}/out?`, "checkin_status=out");
+      expectRedirect(
+        response,
+        `/admin/event/${event.id}/out?`,
+        "checkin_status=out",
+      );
     });
 
     test("redirects to unfiltered page when return_filter is all", async () => {
@@ -593,7 +608,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await checkinAction({
         return_url: "/admin/calendar?date=2026-03-15#attendees",
       })();
-      expectRedirect(response, "/admin/calendar", "date=2026-03-15", "#attendees");
+      expectRedirect(
+        response,
+        "/admin/calendar",
+        "date=2026-03-15",
+        "#attendees",
+      );
       expectFlash(response, expect.stringContaining("checked"));
     });
 
@@ -677,7 +697,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           quantity: "1",
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -963,7 +983,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(`/admin/attendees/${attendee.id}`),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1093,7 +1113,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           event_id: String(event.id),
         }),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1319,7 +1339,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirect(response, "/admin/calendar", "date=2026-03-15", "#attendees");
+      expectRedirect(
+        response,
+        "/admin/calendar",
+        "date=2026-03-15",
+        "#attendees",
+      );
       expectFlash(response, expect.stringContaining("John Doe"));
     });
 
@@ -1843,7 +1868,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           `/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`,
         ),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1948,7 +1973,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           },
         ),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -2150,7 +2175,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(`/admin/attendees/${attendee.id}/refresh-payment`, {}),
       );
-      expectRedirect("/admin")(response);
+      expectAdminRedirect(response);
     });
 
     test("redirects to edit page when attendee has no payment", async () => {
