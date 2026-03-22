@@ -18,8 +18,8 @@ import {
   resetFlashContext,
   setFlashContext,
 } from "#lib/flash-context.ts";
-import { loadHeaderImage } from "#lib/header-image.ts";
 import { clearSavedFormData } from "#lib/forms.tsx";
+import { loadHeaderImage } from "#lib/header-image.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   createRequestTimer,

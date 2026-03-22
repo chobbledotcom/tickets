@@ -3,7 +3,6 @@
  */
 
 import { map, pipe, reduce } from "#fp";
-import { formatCurrency } from "#lib/currency.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import {
   CsrfForm,
@@ -21,12 +20,9 @@ import {
 } from "#lib/types.ts";
 import { EventRow } from "#templates/admin/dashboard.tsx";
 import {
-  buildAnswerSummaryRows,
-  calculateTotalRevenue,
-  countCheckedIn,
-  countCheckedInRows,
-  sumQuantity,
-} from "#templates/admin/events.tsx";
+  buildSharedDetailRows,
+  renderDetailRows,
+} from "#templates/admin/detail-rows.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
@@ -225,14 +221,15 @@ export const adminGroupDetailPage = (
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
   const hasPaidEvent = events.some(isPaidEvent);
-  const attendeeQuantitySum = sumQuantity(attendees);
-  const hasMultiQuantity = attendeeQuantitySum !== attendees.length;
-  const ticketsCheckedIn = countCheckedIn(attendees);
-  const ticketsCheckedInRemaining = attendeeQuantitySum - ticketsCheckedIn;
-  const attendeesCheckedIn = countCheckedInRows(attendees);
-  const attendeesCheckedInRemaining = attendees.length - attendeesCheckedIn;
   const totalCount = totalAttendeeCount(events);
   const tableRows = buildAttendeeRows(attendees, events);
+  const sharedRows = buildSharedDetailRows({
+    attendees,
+    attendeeCount: totalCount,
+    maxCapacity: group.max_attendees,
+    hasPaidEvent,
+    questionData,
+  });
 
   return String(
     <Layout title={group.name}>
@@ -266,47 +263,6 @@ export const adminGroupDetailPage = (
                 </td>
               </tr>
               <tr>
-                <th>Attendees</th>
-                <td>
-                  {group.max_attendees > 0
-                    ? `${totalCount} / ${group.max_attendees}`
-                    : totalCount}
-                </td>
-              </tr>
-              {hasMultiQuantity ? (
-                <>
-                  <tr>
-                    <th>Tickets Checked In</th>
-                    <td>
-                      {attendeesCheckedIn} / {attendees.length} &mdash;{" "}
-                      {attendeesCheckedInRemaining} remain
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Attendees Checked In</th>
-                    <td>
-                      {ticketsCheckedIn} / {attendeeQuantitySum} &mdash;{" "}
-                      {ticketsCheckedInRemaining} remain
-                    </td>
-                  </tr>
-                </>
-              ) : (
-                <tr>
-                  <th>Checked In</th>
-                  <td>
-                    {ticketsCheckedIn} / {attendeeQuantitySum} &mdash;{" "}
-                    {ticketsCheckedInRemaining} remain
-                  </td>
-                </tr>
-              )}
-              {hasPaidEvent && (
-                <tr>
-                  <th>Total Revenue</th>
-                  <td>{formatCurrency(calculateTotalRevenue(attendees))}</td>
-                </tr>
-              )}
-              <Raw html={buildAnswerSummaryRows(questionData)} />
-              <tr>
                 <th>
                   <label for={`embed-script-${group.id}`}>Embed Script</label>
                 </th>
@@ -334,6 +290,7 @@ export const adminGroupDetailPage = (
                   />
                 </td>
               </tr>
+              <Raw html={renderDetailRows(sharedRows)} />
             </tbody>
           </table>
         </div>

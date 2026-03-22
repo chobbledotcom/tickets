@@ -6,6 +6,10 @@ import { map, pipe } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee } from "#lib/types.ts";
+import {
+  buildSharedDetailRows,
+  renderDetailRows,
+} from "#templates/admin/detail-rows.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
@@ -64,6 +68,7 @@ export const adminCalendarPage = (
   today: string,
   phonePrefix?: string,
   questionData?: TableQuestionData,
+  hasPaidEvent = false,
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
@@ -82,6 +87,17 @@ export const adminCalendarPage = (
   const emptyMessage = dateFilter
     ? "No attendees for this date"
     : "Select a date above to view attendees";
+
+  const sharedRows =
+    dateFilter && attendees.length > 0
+      ? buildSharedDetailRows({
+          attendees,
+          attendeeCount: attendees.length,
+          maxCapacity: 0,
+          hasPaidEvent,
+          questionData,
+        })
+      : [];
 
   return String(
     <Layout title="Calendar">
@@ -107,6 +123,15 @@ export const adminCalendarPage = (
           <p>
             <a href={`/admin/calendar/export?date=${dateFilter}`}>Export CSV</a>
           </p>
+        )}
+        {sharedRows.length > 0 && (
+          <div class="table-scroll">
+            <table class="event-details-table">
+              <tbody>
+                <Raw html={renderDetailRows(sharedRows)} />
+              </tbody>
+            </table>
+          </div>
         )}
         <div class="table-scroll">
           <Raw
