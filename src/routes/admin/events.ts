@@ -15,11 +15,6 @@ import {
   isSlugTaken,
 } from "#lib/db/events.ts";
 import { getAllGroups } from "#lib/db/groups.ts";
-import {
-  generateUniqueEventSlug,
-  performEventDelete,
-  validateEventInput,
-} from "#lib/events-actions.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   getAttendeeAnswersBatch,
@@ -31,6 +26,11 @@ import {
   EVENT_DEMO_FIELDS,
   isDemoMode,
 } from "#lib/demo.ts";
+import {
+  generateUniqueEventSlug,
+  performEventDelete,
+  validateEventInput,
+} from "#lib/events-actions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { defineResource } from "#lib/rest/resource.ts";

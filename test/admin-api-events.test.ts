@@ -9,9 +9,9 @@ import {
   invalidateEventsCache,
 } from "#lib/db/events.ts";
 import { getSession } from "#lib/db/sessions.ts";
-import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
-import { handleRequest } from "#routes";
 import type { EventWithCount } from "#lib/types.ts";
+import { handleRequest } from "#routes";
+import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
 import {
   createTestDbWithSetup,
   createTestEvent,
@@ -104,9 +104,7 @@ describe("Admin API - Events", () => {
     });
 
     test("returns 401 without auth", async () => {
-      const response = await handleRequest(
-        mockRequest("/api/admin/events/1"),
-      );
+      const response = await handleRequest(mockRequest("/api/admin/events/1"));
 
       expect(response.status).toBe(401);
     });
@@ -432,10 +430,9 @@ describe("Admin API - Events", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await apiRequest(
-        "/api/admin/events/99999/deactivate",
-        { method: "POST" },
-      );
+      const response = await apiRequest("/api/admin/events/99999/deactivate", {
+        method: "POST",
+      });
 
       expect(response.status).toBe(404);
     });
@@ -478,10 +475,9 @@ describe("Admin API - Events", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await apiRequest(
-        "/api/admin/events/99999/reactivate",
-        { method: "POST" },
-      );
+      const response = await apiRequest("/api/admin/events/99999/reactivate", {
+        method: "POST",
+      });
 
       expect(response.status).toBe(404);
     });
@@ -679,9 +675,7 @@ describe("Admin API - Events", () => {
       const result = await bodyToCreateInput({ name: "Test" });
       expect(result.ok).toBe(false);
       if (!result.ok)
-        expect(result.error).toBe(
-          "max_attendees is required and must be >= 1",
-        );
+        expect(result.error).toBe("max_attendees is required and must be >= 1");
     });
 
     test("handles all field types correctly", async () => {
