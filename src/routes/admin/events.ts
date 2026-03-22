@@ -4,22 +4,17 @@
 
 import { compact, filter, map, pipe, sort, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
-import { formatCurrency, toMinorUnits } from "#lib/currency.ts";
+import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import { getEventWithActivityLog, logActivity } from "#lib/db/activityLog.ts";
 import {
   computeSlugIndex,
-  deleteEvent,
   type EventInput,
   eventsTable,
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
-import {
-  getAllGroups,
-  groupsTable,
-  validateGroupEventType,
-} from "#lib/db/groups.ts";
+import { getAllGroups } from "#lib/db/groups.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   getAttendeeAnswersBatch,
@@ -31,10 +26,15 @@ import {
   EVENT_DEMO_FIELDS,
   isDemoMode,
 } from "#lib/demo.ts";
+import {
+  generateUniqueEventSlug,
+  performEventDelete,
+  validateEventInput,
+} from "#lib/events-actions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { defineResource } from "#lib/rest/resource.ts";
-import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
+import { normalizeSlug } from "#lib/slug.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
   deleteImage,
@@ -98,12 +98,6 @@ import {
   splitCsv,
 } from "#templates/fields.ts";
 
-/** Generate a unique event slug, retrying on collision */
-const generateUniqueEventSlug = (excludeEventId?: number) =>
-  generateUniqueSlug(computeSlugIndex, (slug) =>
-    isSlugTaken(slug, excludeEventId),
-  );
-
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>
   value ? splitCsv(value) : undefined;
@@ -158,36 +152,6 @@ const extractEventUpdateInput = async (
   const slug = normalizeSlug(values.slug);
   const slugIndex = await computeSlugIndex(slug);
   return { ...extractCommonFields(values), slug, slugIndex };
-};
-
-/** Validate that the referenced group exists (when group_id is non-zero) */
-/** Validate max_price is at least unit_price + 100 cents */
-const validateMaxPrice = (input: EventInput): string | null => {
-  if (input.maxPrice < (input.unitPrice ?? 0) + 100) {
-    return `Maximum price must be at least ${formatCurrency(100)} more than the ticket price`;
-  }
-  return null;
-};
-
-const validateEventInput = async (
-  input: EventInput,
-  existingId?: Parameters<typeof eventsTable.findById>[0],
-): Promise<string | null> => {
-  if (input.canPayMore) {
-    const maxPriceError = validateMaxPrice(input);
-    if (maxPriceError) return maxPriceError;
-  }
-  if (input.groupId && input.groupId !== 0) {
-    const group = await groupsTable.findById(input.groupId);
-    if (!group) return "Selected group does not exist";
-    const typeError = await validateGroupEventType(
-      input.groupId,
-      input.eventType!,
-      Number(existingId),
-    );
-    if (typeError) return typeError;
-  }
-  return null;
 };
 
 /** Events resource for REST create operations */
@@ -694,17 +658,7 @@ const handleAdminEventLog = authenticatedGetById(null)(
 
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {
-  const attendeeCount = event.attendee_count;
-  if (event.image_url) {
-    await tryDeleteImage(event.image_url, event.id, "event deletion");
-  }
-  if (event.attachment_url) {
-    await tryDeleteImage(event.attachment_url, event.id, "event deletion");
-  }
-  await deleteEvent(event.id);
-  await logActivity(
-    `Event '${event.name}' deleted (${attendeeCount} attendee(s) removed)`,
-  );
+  await performEventDelete(event);
   return redirect("/admin", "Event deleted", true);
 };
 
