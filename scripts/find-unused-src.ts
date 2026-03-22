@@ -6,6 +6,9 @@
  * 2. Export-level: individual named exports from src/ only used in test/
  * 3. Dead code: src/ files not imported by anything
  *
+ * Handles both static imports and dynamic `await import("...")` calls.
+ * Also scans scripts/ for build entry points.
+ *
  * Usage: deno task find-unused-src
  */
 
@@ -73,20 +76,43 @@ function collectFiles(dir: string): string[] {
   return files.sort();
 }
 
-/** Extract import specifiers from a file */
+/** Extract both static and dynamic import specifiers from a file */
 function extractImports(
   filePath: string,
 ): { specifier: string; names: string[] }[] {
   const content = fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
   const imports: { specifier: string; names: string[] }[] = [];
 
-  const importRegex =
+  // Static imports/exports:
+  //   import { a, b } from "specifier"
+  //   import name from "specifier"
+  //   import * as name from "specifier"
+  //   import "specifier"
+  //   import type { a } from "specifier"
+  //   export { a } from "specifier"
+  const staticRegex =
     /(?:import|export)\s+(?:type\s+)?(?:\{([^}]*)\}|(\*\s+as\s+\w+)|\w+)?\s*(?:,\s*\{([^}]*)\})?\s*(?:from\s+)?["']([^"']+)["']/g;
 
   let match;
-  while ((match = importRegex.exec(content)) !== null) {
+  while ((match = staticRegex.exec(content)) !== null) {
     const namedImports = (match[1] || "") + (match[3] || "");
     const specifier = match[4]!;
+    const names = namedImports
+      .split(",")
+      .map((n: string) => n.trim().replace(/\s+as\s+\w+/, "").trim())
+      .filter(Boolean);
+    imports.push({ specifier, names });
+  }
+
+  // Dynamic imports:
+  //   const { a, b } = await import("specifier")
+  //   await import("specifier")
+  const dynamicRegex =
+    /(?:const\s+\{([^}]*)\}\s*=\s*)?await\s+import\(\s*["']([^"']+)["']\s*\)/g;
+
+  while ((match = dynamicRegex.exec(content)) !== null) {
+    const namedImports = match[1] || "";
+    const specifier = match[2]!;
     const names = namedImports
       .split(",")
       .map((n: string) => n.trim().replace(/\s+as\s+\w+/, "").trim())
@@ -137,11 +163,29 @@ function extractExports(filePath: string): string[] {
 console.log("Scanning codebase...\n");
 
 const srcFiles = collectFiles("src").filter(
-  (f) => !f.startsWith("src/test-utils/") && !f.startsWith("src/static/"),
+  (f) =>
+    !f.startsWith("src/test-utils/") &&
+    !f.startsWith("src/static/") &&
+    !f.endsWith(".d.ts"),
 );
 const testUtilFiles = collectFiles("src/test-utils");
 const testFiles = collectFiles("test");
-const allFiles = [...srcFiles, ...testFiles, ...testUtilFiles];
+const scriptFiles = collectFiles("scripts");
+const allFiles = [...srcFiles, ...testFiles, ...testUtilFiles, ...scriptFiles];
+
+// Known entry points that are used outside the import graph
+const entryPoints = new Set([
+  "src/index.ts", // deno task start
+  "src/edge.ts", // esbuild entry for Bunny CDN
+  "src/fp.ts", // import map root alias
+  "src/routes/index.ts", // import map root alias
+  "src/doc.ts", // deno doc generation
+  "src/lib/jsx/jsx-dev-runtime.ts", // jsxImportSource compiler config
+]);
+
+// Docs files are used by deno doc via src/doc.ts - mark as known
+const docsFiles = srcFiles.filter((f) => f.startsWith("src/docs/"));
+for (const f of docsFiles) entryPoints.add(f);
 
 type ImportInfo = { file: string; names: string[] };
 const importedBySrc = new Map<string, ImportInfo[]>();
@@ -168,7 +212,10 @@ for (const file of allFiles) {
     if (file.startsWith("test/") || file.startsWith("src/test-utils/")) {
       if (!importedByTest.has(target)) importedByTest.set(target, []);
       importedByTest.get(target)!.push(info);
-    } else if (file.startsWith("src/")) {
+    } else if (
+      file.startsWith("src/") ||
+      file.startsWith("scripts/")
+    ) {
       if (!importedBySrc.has(target)) importedBySrc.set(target, []);
       importedBySrc.get(target)!.push(info);
     }
@@ -179,12 +226,6 @@ for (const file of allFiles) {
 console.log("═══════════════════════════════════════════════════════════════");
 console.log("  FILES imported by test/ but NEVER by other src/ files");
 console.log("═══════════════════════════════════════════════════════════════\n");
-
-const entryPoints = new Set([
-  "src/index.ts",
-  "src/fp.ts",
-  "src/routes/index.ts",
-]);
 
 let fileCount = 0;
 for (const srcFile of srcFiles) {
