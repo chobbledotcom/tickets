@@ -1331,14 +1331,14 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
     }
     if (keyField.action !== "provided") {
       return errorPage(
-        "Signing private key is required",
+        t("error.apple_signing_key_required"),
         400,
         "settings-apple-wallet",
       );
     }
     if (wwdrField.action !== "provided") {
       return errorPage(
-        "WWDR certificate is required",
+        t("error.apple_wwdr_cert_required"),
         400,
         "settings-apple-wallet",
       );
@@ -1351,14 +1351,14 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
     !isValidPemCertificate(certField.value)
   ) {
     return errorPage(
-      "Signing certificate is not a valid PEM certificate",
+      t("error.apple_signing_cert_invalid"),
       400,
       "settings-apple-wallet",
     );
   }
   if (keyField.action === "provided" && !isValidPemPrivateKey(keyField.value)) {
     return errorPage(
-      "Signing private key is not a valid PEM private key",
+      t("error.apple_signing_key_invalid"),
       400,
       "settings-apple-wallet",
     );
