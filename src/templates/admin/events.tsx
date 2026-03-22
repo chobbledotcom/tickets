@@ -609,9 +609,9 @@ export const adminEventPage = ({
 
       {incompleteAttendees.length > 0 && (
         <article>
-          <h2 id="failed-payments">Failed Payments</h2>
+          <h2 id="failed-payments">{t("admin.events.failed_payments")}</h2>
           <p>
-            {incompleteAttendees.length} attendee(s) with unresolved payments
+            {t("admin.events.failed_payments_count", { count: incompleteAttendees.length })}
           </p>
           <div class="table-scroll">
             <Raw
@@ -625,14 +625,14 @@ export const adminEventPage = ({
       )}
 
       <article>
-        <h2 id="add-attendee">Add Attendee</h2>
+        <h2 id="add-attendee">{t("admin.events.add_attendee")}</h2>
         <CsrfForm action={`/admin/event/${event.id}/attendee`}>
           <Raw
             html={renderFields(
               getAddAttendeeFields(event.fields, event.event_type === "daily"),
             )}
           />
-          <button type="submit">Add Attendee</button>
+          <button type="submit">{t("admin.events.add_attendee")}</button>
         </CsrfForm>
       </article>
     </Layout>,
@@ -690,15 +690,15 @@ export const adminEventNewPage = (
     ? [...eventFields, imageField, attachmentField]
     : eventFields;
   return String(
-    <Layout title="Add Event">
+    <Layout title={t("admin.events.add_event.title")}>
       <AdminNav session={session} active="/admin/" />
-      <Breadcrumb href="/admin/" label="Events" />
-      <h1>Add Event</h1>
+      <Breadcrumb href="/admin/" label={t("admin.events.add_event.breadcrumb")} />
+      <h1>{t("admin.events.add_event.title")}</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
         <Raw html={renderFields(fields)} />
         <EventGroupSelect groups={groups} selectedGroupId={0} />
-        <button type="submit">Create Event</button>
+        <button type="submit">{t("admin.events.add_event.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -718,14 +718,14 @@ export const adminDuplicateEventPage = (
   return String(
     <Layout title={`Duplicate: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      <h2>Duplicate Event</h2>
+      <h2>{t("admin.events.duplicate_event.title")}</h2>
       <p>
-        Creating a new event based on <strong>{event.name}</strong>.
+        {t("admin.events.duplicate_event.message", { name: event.name })}
       </p>
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
         <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
         <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
-        <button type="submit">Create Event</button>
+        <button type="submit">{t("admin.events.duplicate_event.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -758,23 +758,23 @@ export const adminEventEditPage = (
         {storageEnabled && event.image_url && (
           <Raw html={renderEventImage(event, "event-image-full")} />
         )}
-        <button type="submit">Save Changes</button>
+        <button type="submit">{t("admin.events.edit_event.submit")}</button>
       </CsrfForm>
       {storageEnabled && event.image_url && (
         <CsrfForm action={`/admin/event/${event.id}/image/delete`}>
           <button type="submit" class="secondary">
-            Remove Image
+            {t("admin.events.remove_image")}
           </button>
         </CsrfForm>
       )}
       {storageEnabled && event.attachment_name && (
         <div class="attachment-info">
           <p>
-            Current attachment: <strong>{event.attachment_name}</strong>
+            {t("admin.events.current_attachment")} <strong>{event.attachment_name}</strong>
           </p>
           <CsrfForm action={`/admin/event/${event.id}/attachment/delete`}>
             <button type="submit" class="secondary">
-              Remove Attachment
+              {t("admin.events.remove_attachment")}
             </button>
           </CsrfForm>
         </div>
@@ -799,19 +799,17 @@ export const adminDeleteEventPage = (
       <article>
         <aside>
           <p>
-            <strong>Warning:</strong> This will permanently delete the event,
-            all {event.attendee_count} attendee(s), any associated payment
-            records, and all activity log entries for this event.
+            {t("admin.events.delete_event.warning", { count: event.attendee_count })}
           </p>
         </aside>
       </article>
 
       <p>
-        To delete this event, type its name "{event.name}" into the box below:
+        {t("admin.events.delete_event.confirm_prompt", { name: event.name })}
       </p>
 
       <CsrfForm action={`/admin/event/${event.id}/delete`}>
-        <label for="confirm_identifier">Event name</label>
+        <label for="confirm_identifier">{t("admin.events.delete_event.label")}</label>
         <input
           type="text"
           id="confirm_identifier"
@@ -821,7 +819,7 @@ export const adminDeleteEventPage = (
           required
         />
         <button type="submit" class="danger">
-          Delete Event
+          {t("admin.events.delete_event.submit")}
         </button>
       </CsrfForm>
     </Layout>,
@@ -843,14 +841,14 @@ export const adminDeactivateEventPage = (
       <article>
         <aside>
           <p>
-            <strong>Warning:</strong> Deactivating this event will:
+            {t("admin.events.deactivate_event.warning")}
           </p>
           <ul>
-            <li>Return a 404 error on the public ticket page</li>
-            <li>Prevent new registrations</li>
-            <li>Reject any pending payments</li>
+            <li>{t("admin.events.deactivate_event.effect_404")}</li>
+            <li>{t("admin.events.deactivate_event.effect_registrations")}</li>
+            <li>{t("admin.events.deactivate_event.effect_payments")}</li>
           </ul>
-          <p>Existing attendees will not be affected.</p>
+          <p>{t("admin.events.deactivate_event.existing_note")}</p>
         </aside>
       </article>
 

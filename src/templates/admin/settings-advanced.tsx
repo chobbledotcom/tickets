@@ -315,50 +315,49 @@ export const adminAdvancedSettingsPage = (
           />
         </label>
         <label>
-          HTML Body
+          {t("settings.advanced.html_body")}
           <textarea
             id="confirmation_html"
             name="html"
             rows="8"
-            placeholder="Leave blank to use default template"
+            placeholder={t("settings.advanced.leave_blank_default")}
             data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
           >
             {s.confirmationTemplates.html}
           </textarea>
         </label>
         <a href="#" data-fill-default="confirmation_html">
-          <small>Edit default template</small>
+          <small>{t("settings.advanced.edit_default_template")}</small>
         </a>
         <label>
-          Plain Text Body
+          {t("settings.advanced.plain_text_body")}
           <textarea
             id="confirmation_text"
             name="text"
             rows="6"
-            placeholder="Leave blank to use default template"
+            placeholder={t("settings.advanced.leave_blank_default")}
             data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
           >
             {s.confirmationTemplates.text}
           </textarea>
         </label>
         <a href="#" data-fill-default="confirmation_text">
-          <small>Edit default template</small>
+          <small>{t("settings.advanced.edit_default_template")}</small>
         </a>
         <br />
-        <button type="submit">Save Confirmation Template</button>
+        <button type="submit">{t("settings.advanced.save_confirmation_template")}</button>
       </CsrfForm>
 
       <CsrfForm
         action="/admin/settings/email-templates/admin"
         id="settings-email-tpl-admin"
       >
-        <h2>Admin Notification Email Template</h2>
+        <h2>{t("settings.advanced.admin_notification_email")}</h2>
         <p>
-          Customise the notification email sent to the business email when a
-          registration comes in. Leave blank to use the default template.
+          {t("settings.advanced.admin_notification_email_hint")}
         </p>
         <label>
-          Subject
+          {t("settings.advanced.subject")}
           <input
             type="text"
             name="subject"
@@ -368,50 +367,49 @@ export const adminAdvancedSettingsPage = (
           />
         </label>
         <label>
-          HTML Body
+          {t("settings.advanced.html_body")}
           <textarea
             id="admin_html"
             name="html"
             rows="8"
-            placeholder="Leave blank to use default template"
+            placeholder={t("settings.advanced.leave_blank_default")}
             data-default-tpl={DEFAULT_TEMPLATES.admin.html}
           >
             {s.adminTemplates.html}
           </textarea>
         </label>
         <a href="#" data-fill-default="admin_html">
-          <small>Edit default template</small>
+          <small>{t("settings.advanced.edit_default_template")}</small>
         </a>
         <label>
-          Plain Text Body
+          {t("settings.advanced.plain_text_body")}
           <textarea
             id="admin_text"
             name="text"
             rows="6"
-            placeholder="Leave blank to use default template"
+            placeholder={t("settings.advanced.leave_blank_default")}
             data-default-tpl={DEFAULT_TEMPLATES.admin.text}
           >
             {s.adminTemplates.text}
           </textarea>
         </label>
         <a href="#" data-fill-default="admin_text">
-          <small>Edit default template</small>
+          <small>{t("settings.advanced.edit_default_template")}</small>
         </a>
         <br />
-        <button type="submit">Save Admin Notification Template</button>
+        <button type="submit">{t("settings.advanced.save_admin_notification_template")}</button>
       </CsrfForm>
 
       <CsrfForm action="/admin/settings/email" id="settings-email">
-        <h2>Email Notifications</h2>
+        <h2>{t("settings.advanced.email_notifications")}</h2>
         <p>
-          Send confirmation emails to attendees and admin notifications when
-          registrations come in.
+          {t("settings.advanced.email_notifications_hint")}
         </p>
         <label>
-          Email Provider
+          {t("settings.advanced.email_provider")}
           <select name="email_provider">
             <option value="" selected={!s.emailProvider}>
-              {s.hostEmailLabel || "None (disabled)"}
+              {s.hostEmailLabel || t("settings.advanced.email_none")}
             </option>
             {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
               <option value={p} selected={s.emailProvider === p}>
@@ -421,7 +419,7 @@ export const adminAdvancedSettingsPage = (
           </select>
         </label>
         <label>
-          API Key
+          {t("settings.advanced.api_key")}
           <input
             type="password"
             name="email_api_key"

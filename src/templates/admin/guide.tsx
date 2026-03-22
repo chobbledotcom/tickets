@@ -16,6 +16,7 @@ import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 /** Host-level configuration info passed from the route */
@@ -55,22 +56,15 @@ export const adminGuidePage = (
   hostConfig?: GuideHostConfig,
 ): string =>
   String(
-    <Layout title="Guide" bodyClass="guide">
+    <Layout title={t("guide.title")} bodyClass="guide">
       <AdminNav session={adminSession} active="/admin/guide" />
 
-      <h2>Guide</h2>
+      <h2>{t("guide.title")}</h2>
 
-      <p class="search-hint">
-        Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
-        on Mac) to{" "}
-        <a href="#" data-find-in-page>
-          search this page
-        </a>
-        .
-      </p>
+      <p class="search-hint">{t("guide.search_hint")}</p>
 
-      <Section title="Getting Started">
-        <Q q="How do I create an event?">
+      <Section title={t("guide.sections.getting_started")}>
+        <Q q={t("guide.q.create_event")}>
           <p>
             From the <strong>Events</strong> page, fill in the form at the
             bottom. Give your event a name, set the capacity, and choose which
@@ -81,7 +75,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I set up payments?">
+        <Q q={t("guide.q.setup_payments")}>
           <p>
             Go to <strong>Settings</strong> and choose Stripe or Square as your
             payment provider. Paste in your API key and save. For Stripe, the
@@ -91,8 +85,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Dashboard">
-        <Q q="What is the dashboard?">
+      <Section title={t("guide.sections.dashboard")}>
+        <Q q={t("guide.q.what_is_dashboard")}>
           <p>
             The <strong>Events</strong> page is your dashboard. It lists all
             your events with attendee counts, booking links, and quick actions.
@@ -104,8 +98,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Testing Your System">
-        <Q q="Should I test after changing settings?">
+      <Section title={t("guide.sections.testing_your_system")}>
+        <Q q={t("guide.q.test_after_changing_settings")}>
           <p>
             Yes. After changing any setting &mdash; especially payment
             configuration, event capacity, or booking fields &mdash; you should
@@ -115,7 +109,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I report a bug?">
+        <Q q={t("guide.q.report_bug")}>
           <p>
             This project is early in development (started January 2026) and bugs
             are expected. If you find something that doesn&apos;t work
@@ -127,8 +121,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Events">
-        <Q q="What's the difference between standard and daily events?">
+      <Section title={t("guide.sections.events")}>
+        <Q q={t("guide.q.standard_vs_daily_events")}>
           <p>
             A <strong>standard event</strong> is a one-off &mdash; attendees
             book a place and the capacity applies to the whole event. A{" "}
@@ -138,7 +132,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I combine multiple events into one booking?">
+        <Q q={t("guide.q.combine_multiple_events")}>
           <p>
             Join event slugs with a <code>+</code> in the URL, e.g.{" "}
             <code>/ticket/event-one+event-two</code>. Attendees see a single
@@ -153,7 +147,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What are groups?">
+        <Q q={t("guide.q.what_are_groups")}>
           <p>
             Groups let you bundle related events under a single URL. Create a
             group from the <strong>Groups</strong> page, then assign events to
@@ -164,7 +158,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What are the event date and location fields for?">
+        <Q q={t("guide.q.event_date_and_location")}>
           <p>
             These are optional fields you can fill in when creating or editing
             an event. The date is when the event takes place (in your configured
@@ -175,7 +169,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What does 'max tickets per purchase' do?">
+        <Q q={t("guide.q.max_tickets_per_purchase")}>
           <p>
             It controls how many tickets one person can book in a single
             transaction. For example, setting it to 4 lets someone book up to 4
@@ -184,7 +178,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What does 'Allow Pay More' do?">
+        <Q q={t("guide.q.allow_pay_more")}>
           <p>
             When enabled, attendees can choose their own price instead of paying
             a fixed amount. The ticket price becomes a minimum. You can set a
@@ -195,7 +189,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do registration deadlines work?">
+        <Q q={t("guide.q.registration_deadlines")}>
           <p>
             Set a "closes at" date and time on your event. After that moment,
             the booking form shows a "registration closed" message and no
@@ -204,7 +198,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I embed the booking form on my website?">
+        <Q q={t("guide.q.embed_booking_form")}>
           <p>
             You only need <strong>one</strong> of the two embed codes shown on
             your event page &mdash; not both:
@@ -227,7 +221,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I manually add an attendee?">
+        <Q q={t("guide.q.manually_add_attendee")}>
           <p>
             Open the event page and scroll down to <strong>Add Attendee</strong>
             . Fill in the name and contact details, set the quantity, and
@@ -237,7 +231,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I set a custom redirect after booking?">
+        <Q q={t("guide.q.custom_redirect_after_booking")}>
           <p>
             When creating or editing an event, enter a URL in the "thank you
             URL" field. After a successful booking or payment, attendees are
@@ -246,7 +240,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I add an image to an event?">
+        <Q q={t("guide.q.add_event_image")}>
           <p>
             When creating or editing an event, use the image upload field to
             attach a picture. The image is displayed on the booking page and in
@@ -254,7 +248,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I add a file attachment to an event?">
+        <Q q={t("guide.q.add_file_attachment")}>
           <p>
             When creating or editing an event, use the attachment upload field
             to attach a file. This can be any type of file &mdash; PDFs, Word
@@ -273,7 +267,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Where can I find the event QR code?">
+        <Q q={t("guide.q.event_qr_code")}>
           <p>
             On the admin event page, click the <strong>QR code</strong> link
             next to the public URL. This opens an SVG image of the QR code that
@@ -282,7 +276,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I duplicate an event?">
+        <Q q={t("guide.q.duplicate_event")}>
           <p>
             Open the event and click <strong>Duplicate</strong>. This creates a
             new event with the same settings (name, capacity, price, fields,
@@ -290,7 +284,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I deactivate an event?">
+        <Q q={t("guide.q.deactivate_event")}>
           <p>
             Open the event and click <strong>Deactivate</strong>. Deactivated
             events no longer accept bookings and are hidden from the public
@@ -299,7 +293,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What are non-transferable tickets?">
+        <Q q={t("guide.q.non_transferable_tickets")}>
           <p>
             When you enable <strong>Non-Transferable</strong> on an event,
             attendees see a notice on their ticket saying "Non-transferable — ID
@@ -309,7 +303,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I edit an attendee?">
+        <Q q={t("guide.q.edit_attendee")}>
           <p>
             Open the event's attendee list, find the attendee, and click{" "}
             <strong>Edit</strong>. You can update their name, email, phone,
@@ -320,7 +314,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I add terms and conditions?">
+        <Q q={t("guide.q.add_terms_and_conditions")}>
           <p>
             In <strong>Settings</strong>, enter your terms in the "Terms and
             Conditions" box. When set, attendees must tick an agreement checkbox
@@ -330,8 +324,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Booking Questions">
-        <Q q="What are custom booking questions?">
+      <Section title={t("guide.sections.booking_questions")}>
+        <Q q={t("guide.q.what_are_custom_booking_questions")}>
           <p>
             Custom booking questions let you ask attendees a multiple-choice
             question during the booking process. Each question has a set of
@@ -340,7 +334,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I create a question?">
+        <Q q={t("guide.q.create_question")}>
           <p>
             Go to <strong>Questions</strong> in the admin menu, type your
             question text, and click <strong>Add Question</strong>. Then open
@@ -349,7 +343,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I add a question to an event?">
+        <Q q={t("guide.q.add_question_to_event")}>
           <p>
             Open the event in the admin area and click{" "}
             <strong>Questions</strong>. Tick the questions you want to appear on
@@ -359,7 +353,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Can I share questions between events?">
+        <Q q={t("guide.q.share_questions_between_events")}>
           <p>
             Yes. Questions are created independently and then assigned to
             events, so a single question can appear on as many events as you
@@ -368,7 +362,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Where do I see the answers?">
+        <Q q={t("guide.q.where_to_see_answers")}>
           <p>
             Answers appear in the attendee table on event and group pages, so
             you can see at a glance what each attendee chose. They're also shown
@@ -378,8 +372,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Public Links">
-        <Q q="Why do I get a 403 error when sharing my link on Facebook?">
+      <Section title={t("guide.sections.public_links")}>
+        <Q q={t("guide.q.facebook_403_error")}>
           <p>
             When you first share a link from a new domain on Facebook, Facebook
             may return a 403 error. This is because Facebook doesn't recognise
@@ -398,8 +392,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Public Site">
-        <Q q="What is the public site?">
+      <Section title={t("guide.sections.public_site")}>
+        <Q q={t("guide.q.what_is_public_site")}>
           <p>
             When enabled in <strong>Settings</strong>, your domain shows a
             public website with navigation for Home, Events, Terms &amp;
@@ -410,7 +404,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Can I hide an event from the public list?">
+        <Q q={t("guide.q.hide_event_from_public_list")}>
           <p>
             Yes. When editing an event, tick the <strong>Hidden Event</strong>{" "}
             checkbox. Hidden events won&apos;t appear on the public Events page
@@ -421,7 +415,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I edit the homepage and contact page?">
+        <Q q={t("guide.q.edit_homepage_and_contact")}>
           <p>
             Enable the public site in <strong>Settings</strong>, then open the{" "}
             <strong>Site</strong> section from the admin navigation. The
@@ -432,8 +426,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section id="text-formatting" title="Text Formatting">
-        <Q q="Which fields support formatting?">
+      <Section id="text-formatting" title={t("guide.sections.text_formatting")}>
+        <Q q={t("guide.q.fields_support_formatting")}>
           <p>
             Event descriptions, terms and conditions, homepage text, and contact
             page text all support{" "}
@@ -442,7 +436,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What formatting can I use?">
+        <Q q={t("guide.q.what_formatting_can_i_use")}>
           <p>
             <strong>Bold</strong> with <code>**bold**</code>, <em>italic</em>{" "}
             with <code>*italic*</code>, links with{" "}
@@ -456,8 +450,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Payments">
-        <Q q="Which payment providers are supported?">
+      <Section title={t("guide.sections.payments")}>
+        <Q q={t("guide.q.supported_payment_providers")}>
           <p>
             <strong>Stripe</strong> and <strong>Square</strong>. Choose one in
             Settings and enter your API credentials. You can switch between them
@@ -465,7 +459,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Which payment provider do you recommend?">
+        <Q q={t("guide.q.recommended_payment_provider")}>
           <p>
             <strong>Stripe</strong>. The setup is a fair bit easier &mdash; you
             just paste in your secret key and the webhook is created
@@ -476,7 +470,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What happens when someone books a paid ticket?">
+        <Q q={t("guide.q.paid_ticket_booking_flow")}>
           <p>
             They fill in the booking form, then are redirected to your payment
             provider's checkout page. Their place is held for 5 minutes while
@@ -485,7 +479,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What's the 5-minute reservation window?">
+        <Q q={t("guide.q.reservation_window")}>
           <p>
             When someone starts paying for a ticket, their place is reserved for
             5 minutes. If they don't complete payment within that time, the
@@ -494,7 +488,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What if the event sells out while someone is paying?">
+        <Q q={t("guide.q.event_sells_out_while_paying")}>
           <p>
             If someone completes payment but the event has since sold out, they
             are automatically refunded. They'll see a message explaining the
@@ -502,14 +496,14 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do refunds work?">
+        <Q q={t("guide.q.how_refunds_work")}>
           <p>
             See the <strong>Refunds</strong> section below for full details on
             automatic refunds, admin-issued refunds, and bulk refunds.
           </p>
         </Q>
 
-        <Q q="What is the booking fee?">
+        <Q q={t("guide.q.what_is_booking_fee")}>
           <p>
             The booking fee is an optional percentage-based charge added to
             ticket prices at checkout. For example, if you set a 2% booking fee
@@ -526,8 +520,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section id="payment-setup" title="Payment Setup">
-        <Q q="How do I find my Stripe secret key?">
+      <Section id="payment-setup" title={t("guide.sections.payment_setup")}>
+        <Q q={t("guide.q.find_stripe_secret_key")}>
           <ol>
             <li>
               Log in to your{" "}
@@ -559,7 +553,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Do I need to set up a Stripe webhook myself?">
+        <Q q={t("guide.q.stripe_webhook_setup")}>
           <p>
             No. When you save your Stripe secret key in{" "}
             <a href="/admin/settings">Settings</a>, the system automatically
@@ -570,7 +564,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I create a Square application?">
+        <Q q={t("guide.q.create_square_application")}>
           <p>
             Before you can accept payments with Square, you need to create an
             application in the Square Developer Dashboard. This gives you the
@@ -598,7 +592,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I find my Square access token?">
+        <Q q={t("guide.q.find_square_access_token")}>
           <ol>
             <li>
               Log in to the{" "}
@@ -621,7 +615,7 @@ export const adminGuidePage = (
           </ol>
         </Q>
 
-        <Q q="How do I find my Square location ID?">
+        <Q q={t("guide.q.find_square_location_id")}>
           <ol>
             <li>
               Log in to the{" "}
@@ -647,7 +641,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I set up the Square webhook?">
+        <Q q={t("guide.q.setup_square_webhook")}>
           <p>
             Unlike Stripe, the Square webhook must be configured manually. After
             saving your Square access token and location ID:
@@ -688,7 +682,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What is the difference between Stripe test and live keys?">
+        <Q q={t("guide.q.stripe_test_vs_live_keys")}>
           <p>
             Stripe provides two completely separate environments, each with its
             own set of API keys:
@@ -719,7 +713,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Should I use test or live credentials?">
+        <Q q={t("guide.q.test_or_live_credentials")}>
           <p>
             Start with test credentials to make sure everything is working
             before accepting real payments. Both Stripe and Square provide
@@ -755,8 +749,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Refunds">
-        <Q q="When do automatic refunds happen?">
+      <Section title={t("guide.sections.refunds")}>
+        <Q q={t("guide.q.automatic_refunds")}>
           <p>
             Automatic refunds happen in two scenarios. First, when an event
             sells out while someone is completing payment. Their place is held
@@ -772,7 +766,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I refund an individual attendee?">
+        <Q q={t("guide.q.refund_individual_attendee")}>
           <p>
             Open the event's attendee list, find the attendee, and click{" "}
             <strong>Refund</strong>. You'll see a confirmation page showing
@@ -783,7 +777,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I refund all attendees for an event?">
+        <Q q={t("guide.q.refund_all_attendees")}>
           <p>
             On the event page, click <strong>Refund All</strong> in the
             navigation bar. Type the event name to confirm. Each attendee with a
@@ -793,7 +787,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Are partial refunds supported?">
+        <Q q={t("guide.q.partial_refunds")}>
           <p>
             No. The system always issues a full refund for the total amount
             paid. If you need to issue a partial refund, do it directly through
@@ -801,7 +795,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What happens to the attendee after a refund?">
+        <Q q={t("guide.q.attendee_after_refund")}>
           <p>
             The attendee <strong>remains registered</strong>. A refund only
             clears their payment record &mdash; it does not remove them from the
@@ -810,14 +804,14 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Can I refund an attendee who booked a free event?">
+        <Q q={t("guide.q.refund_free_event")}>
           <p>
             No. The Refund button only appears for attendees who have a recorded
             payment. Free-event attendees have no payment to refund.
           </p>
         </Q>
 
-        <Q q="What if a refund fails?">
+        <Q q={t("guide.q.refund_fails")}>
           <p>
             The most common reason is that the payment was already refunded
             directly through Stripe or Square. You'll see an error message like
@@ -827,7 +821,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Can I refund the same attendee twice?">
+        <Q q={t("guide.q.refund_same_attendee_twice")}>
           <p>
             No. After a successful refund the attendee's payment record is
             cleared, so the Refund button no longer appears. If you attempt to
@@ -838,8 +832,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Daily Events &amp; Holidays">
-        <Q q="How do daily events work?">
+      <Section title={t("guide.sections.daily_events_and_holidays")}>
+        <Q q={t("guide.q.how_daily_events_work")}>
           <p>
             Daily events let attendees choose a specific date when booking. You
             set which days of the week are available (e.g. Monday to Friday) and
@@ -848,7 +842,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What are bookable days?">
+        <Q q={t("guide.q.what_are_bookable_days")}>
           <p>
             These are the days of the week your daily event runs on. If you only
             tick Monday and Wednesday, those are the only days that appear in
@@ -856,7 +850,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What are holidays?">
+        <Q q={t("guide.q.what_are_holidays")}>
           <p>
             Holidays are date ranges when no daily events can be booked. Add
             them from the <strong>Holidays</strong> page. Any dates falling
@@ -866,8 +860,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Check-in &amp; QR Scanner">
-        <Q q="How does check-in work?">
+      <Section title={t("guide.sections.check_in_and_qr_scanner")}>
+        <Q q={t("guide.q.how_checkin_works")}>
           <p>
             Each ticket has a unique QR code. When an attendee arrives, they
             show their QR code to a member of staff. The staff member scans it
@@ -877,7 +871,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What's the QR code for?">
+        <Q q={t("guide.q.qr_code_purpose")}>
           <p>
             The QR code links to the ticket's check-in page. Scanning it opens
             the page in a browser. Non-admin visitors see a message to show the
@@ -886,7 +880,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I use the QR scanner?">
+        <Q q={t("guide.q.use_qr_scanner")}>
           <p>
             Open an event and click <strong>Scanner</strong>. Tap{" "}
             <strong>Start Camera</strong> to begin (grants camera permission on
@@ -896,7 +890,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Why doesn't the scanner check people out?">
+        <Q q={t("guide.q.scanner_no_checkout")}>
           <p>
             The scanner is intentionally one-way: it only checks people{" "}
             <strong>in</strong>, never out. This prevents accidental check-outs
@@ -905,7 +899,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What if a QR code is for a different event?">
+        <Q q={t("guide.q.qr_different_event")}>
           <p>
             If you scan a ticket registered for a different event, you'll be
             prompted to confirm before checking them in. This lets you handle
@@ -913,7 +907,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What do the scanner status messages mean?">
+        <Q q={t("guide.q.scanner_status_messages")}>
           <p>
             <strong>Checked in</strong> &mdash; shows the attendee's name and
             ticket count (e.g. "Jo checked in (2 tickets)").{" "}
@@ -930,8 +924,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Apple Wallet">
-        <Q q="What is Apple Wallet integration?">
+      <Section title={t("guide.sections.apple_wallet")}>
+        <Q q={t("guide.q.what_is_apple_wallet")}>
           <p>
             When configured, attendees see an{" "}
             <strong>Add to Apple Wallet</strong> button on their ticket page.
@@ -942,7 +936,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I set up Apple Wallet?">
+        <Q q={t("guide.q.setup_apple_wallet")}>
           {hostConfig?.hostAppleWalletPassTypeId && (
             <p>
               Apple Wallet is already configured by your server administrator
@@ -987,7 +981,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Do wallet passes update automatically?">
+        <Q q={t("guide.q.wallet_passes_update")}>
           <p>
             Yes. Apple Wallet periodically polls the server (roughly once a day)
             and re-downloads the pass with the latest details. There are no push
@@ -998,8 +992,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section id="user-classes" title="Users &amp; Permissions">
-        <Q q="What's the difference between an owner and a manager?">
+      <Section id="user-classes" title={t("guide.sections.users_and_permissions")}>
+        <Q q={t("guide.q.owner_vs_manager")}>
           <p>
             <strong>Owners</strong> have full access: events, calendar, groups,
             users, settings, holidays, sessions, and the activity log.{" "}
@@ -1009,7 +1003,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I invite another admin?">
+        <Q q={t("guide.q.invite_admin")}>
           <p>
             Go to <strong>Users</strong>, enter a username and choose their role
             (owner or manager). You'll receive an invite link to send them. They
@@ -1017,7 +1011,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How long do invite links last?">
+        <Q q={t("guide.q.invite_link_expiry")}>
           <p>
             Invite links expire after <strong>7 days</strong>. If the link
             expires before the person uses it, you'll need to delete the pending
@@ -1026,8 +1020,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Data &amp; Privacy">
-        <Q q="How is attendee data protected?">
+      <Section title={t("guide.sections.data_and_privacy")}>
+        <Q q={t("guide.q.attendee_data_protection")}>
           <p>
             All personal information (names, email addresses, phone numbers,
             postal addresses) is encrypted before being stored. Even if the
@@ -1037,7 +1031,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What happens if I lose my password?">
+        <Q q={t("guide.q.lost_password")}>
           <p>
             There is <strong>no password recovery</strong>. If you lose your
             password, you cannot log in or decrypt any data. Keep your password
@@ -1046,7 +1040,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Can I export attendee data?">
+        <Q q={t("guide.q.export_attendee_data")}>
           <p>
             Yes. On any event's attendee list, click <strong>Export CSV</strong>
             . The export includes name, email, phone, address, special
@@ -1056,7 +1050,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What does 'reset database' do?">
+        <Q q={t("guide.q.reset_database")}>
           <p>
             It permanently deletes <strong>everything</strong>: all events,
             attendees, users, payment configuration, and sessions. The system
@@ -1066,8 +1060,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Webhooks">
-        <Q q="What are webhooks for?">
+      <Section title={t("guide.sections.webhooks")}>
+        <Q q={t("guide.q.what_are_webhooks")}>
           <p>
             Webhooks send an automatic notification to a URL of your choice
             whenever someone registers for an event. You can use them to connect
@@ -1076,7 +1070,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I set up a webhook?">
+        <Q q={t("guide.q.setup_webhook")}>
           <p>
             Add a webhook URL when creating or editing an event. Every time
             someone books that event, a POST request is sent to your URL with
@@ -1084,7 +1078,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What does the webhook JSON look like?">
+        <Q q={t("guide.q.webhook_json_format")}>
           <p>
             Each webhook is an HTTP POST with{" "}
             <code>Content-Type: application/json</code>. Here is an example
@@ -1103,8 +1097,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Sessions">
-        <Q q="What are sessions?">
+      <Section title={t("guide.sections.sessions")}>
+        <Q q={t("guide.q.what_are_sessions")}>
           <p>
             A session is created each time an admin logs in. Sessions expire
             after 24 hours. You can view all active sessions from the{" "}
@@ -1112,7 +1106,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I log out other users?">
+        <Q q={t("guide.q.logout_other_users")}>
           <p>
             On the <strong>Sessions</strong> page, click "Log out of all other
             sessions". This ends every session except your own, forcing all
@@ -1122,8 +1116,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Calendar">
-        <Q q="What is the calendar page?">
+      <Section title={t("guide.sections.calendar")}>
+        <Q q={t("guide.q.what_is_calendar")}>
           <p>
             The <strong>Calendar</strong> page lets you pick a date and see
             every attendee booked across all events on that day. This is
@@ -1134,8 +1128,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Activity Log">
-        <Q q="What is the activity log?">
+      <Section title={t("guide.sections.activity_log")}>
+        <Q q={t("guide.q.what_is_activity_log")}>
           <p>
             The <strong>Log</strong> page shows a chronological list of admin
             actions such as event creation, attendee changes, and settings
@@ -1146,8 +1140,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Email Notifications">
-        <Q q="What are email notifications?">
+      <Section title={t("guide.sections.email_notifications")}>
+        <Q q={t("guide.q.what_are_email_notifications")}>
           <p>
             When configured, the system can send up to two emails after each
             successful registration: a <strong>confirmation email</strong> to
@@ -1159,7 +1153,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Which email providers are supported?">
+        <Q q={t("guide.q.supported_email_providers")}>
           <p>
             Five providers are supported, all using HTTP APIs (no SMTP
             required):
@@ -1188,7 +1182,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I set up email?">
+        <Q q={t("guide.q.setup_email")}>
           {hostConfig?.hostEmailProvider && (
             <p>
               Email is already configured by your server administrator using{" "}
@@ -1223,7 +1217,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I test that email is working?">
+        <Q q={t("guide.q.test_email_working")}>
           <p>
             After saving your email settings, a <strong>Send Test Email</strong>{" "}
             button appears. Click it to send a test email to your business email
@@ -1233,7 +1227,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What if email is not configured?">
+        <Q q={t("guide.q.email_not_configured")}>
           <p>
             Email is entirely optional. If no provider is selected, the system
             skips sending emails silently. Registrations, payments, webhooks,
@@ -1241,7 +1235,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What does the confirmation email contain?">
+        <Q q={t("guide.q.confirmation_email_content")}>
           <p>
             The attendee receives an email with the event name(s), quantity,
             price paid, and a clickable link to their ticket page. For
@@ -1251,7 +1245,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What does the admin notification email contain?">
+        <Q q={t("guide.q.admin_notification_email_content")}>
           <p>
             You receive an email showing the attendee's name, email, phone,
             address, and any special instructions, along with the event name(s),
@@ -1261,8 +1255,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Email Templates">
-        <Q q="Can I customise the emails that are sent?">
+      <Section title={t("guide.sections.email_templates")}>
+        <Q q={t("guide.q.customise_emails")}>
           <p>
             Yes. In <a href="/admin/settings">Settings</a>, scroll to the email
             template sections. You can customise both the{" "}
@@ -1276,7 +1270,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What variables can I use in templates?">
+        <Q q={t("guide.q.template_variables")}>
           <ul>
             <li>
               <code>{"{{ event_names }}"}</code> &mdash; all event names joined
@@ -1309,7 +1303,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What template filters are available?">
+        <Q q={t("guide.q.template_filters")}>
           <p>Two custom filters are built in:</p>
           <ul>
             <li>
@@ -1323,7 +1317,7 @@ export const adminGuidePage = (
           </ul>
         </Q>
 
-        <Q q="What happens if my template has an error?">
+        <Q q={t("guide.q.template_error")}>
           <p>
             If a custom template fails to render, the system falls back to the
             built-in default template automatically. The email is still sent
@@ -1332,8 +1326,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Custom Domain">
-        <Q q="How do I set up a custom domain?">
+      <Section title={t("guide.sections.custom_domain")}>
+        <Q q={t("guide.q.setup_custom_domain")}>
           <p>
             If your site runs on Bunny CDN and the <code>BUNNY_API_KEY</code>{" "}
             environment variable is configured, you'll see a{" "}
@@ -1344,7 +1338,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What does validation do?">
+        <Q q={t("guide.q.what_does_validation_do")}>
           <p>
             Validation checks that your DNS is set up correctly, registers the
             hostname with Bunny CDN, requests a free SSL certificate, and
@@ -1354,8 +1348,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Settings Overview">
-        <Q q="What settings are available?">
+      <Section title={t("guide.sections.settings_overview")}>
+        <Q q={t("guide.q.available_settings")}>
           <p>
             The <strong>Settings</strong> page (owners only) lets you configure:
           </p>
@@ -1396,7 +1390,7 @@ export const adminGuidePage = (
           </ul>
         </Q>
 
-        <Q q="What are Advanced Settings?">
+        <Q q={t("guide.q.advanced_settings")}>
           <p>
             The main Settings page has a link to{" "}
             <strong>Advanced Settings</strong> for less common configuration.
@@ -1430,7 +1424,7 @@ export const adminGuidePage = (
           </ul>
         </Q>
 
-        <Q q="What is the debug page?">
+        <Q q={t("guide.q.what_is_debug_page")}>
           <p>
             The debug page at <code>/admin/debug</code> shows the configuration
             status of all integrated services (payments, email, Apple Wallet,
@@ -1441,8 +1435,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Feeds &amp; Mobilizon">
-        <Q q="What event feeds are available?">
+      <Section title={t("guide.sections.feeds_and_mobilizon")}>
+        <Q q={t("guide.q.event_feeds")}>
           <p>
             When the public site is enabled, two machine-readable feeds are
             available:
@@ -1464,7 +1458,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I connect to Mobilizon?">
+        <Q q={t("guide.q.connect_to_mobilizon")}>
           <p>
             <a href="https://mobilizon.org/">Mobilizon</a> is a federated event
             platform. You can use its built-in importer to pull events from your
@@ -1493,8 +1487,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section id="api" title="Public API">
-        <Q q="What is the public API?">
+      <Section id="api" title={t("guide.sections.public_api")}>
+        <Q q={t("guide.q.what_is_public_api")}>
           <p>
             The system includes a JSON API that exposes the same data and
             booking functionality as the web interface. It lets you build custom
@@ -1504,7 +1498,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What endpoints are available?">
+        <Q q={t("guide.q.available_endpoints")}>
           <p>
             The base URL is your domain (e.g.{" "}
             <code>https://{getAllowedDomain()}</code>). All responses are JSON.
@@ -1535,7 +1529,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I list events?">
+        <Q q={t("guide.q.list_events_api")}>
           <pre>
             <code>{`GET /api/events\n\nResponse:\n${API_LIST_EXAMPLE_JSON}`}</code>
           </pre>
@@ -1546,7 +1540,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I get a single event?">
+        <Q q={t("guide.q.get_single_event_api")}>
           <pre>
             <code>{`GET /api/events/summer-workshop\n\nResponse:\n${API_SINGLE_EXAMPLE_JSON}`}</code>
           </pre>
@@ -1557,7 +1551,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I check availability?">
+        <Q q={t("guide.q.check_availability_api")}>
           <pre>
             <code>{`GET /api/events/summer-workshop/availability?quantity=2\n\nResponse:\n${API_AVAILABILITY_EXAMPLE_JSON}`}</code>
           </pre>
@@ -1567,7 +1561,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I create a booking?">
+        <Q q={t("guide.q.create_booking_api")}>
           <pre>
             <code>{`POST /api/events/summer-workshop/book\nContent-Type: application/json\n\n${API_BOOK_REQUEST_JSON}`}</code>
           </pre>
@@ -1598,7 +1592,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What data does the API expose?">
+        <Q q={t("guide.q.api_data_exposure")}>
           <p>
             The API exposes <strong>exactly the same data</strong> as the public
             booking pages &mdash; no more. Internal fields like capacity limits,
@@ -1610,8 +1604,8 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Customising Your Site">
-        <Q q="Can I customise this system?">
+      <Section title={t("guide.sections.customising_your_site")}>
+        <Q q={t("guide.q.customise_system")}>
           <p>
             Absolutely. This is open-source software, so you have full control.
             You can{" "}
@@ -1623,7 +1617,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Can you customise it for me?">
+        <Q q={t("guide.q.customise_for_me")}>
           <p>
             Yes. I offer customisation at a transparent flat rate &mdash; see{" "}
             <a href="https://chobble.com/prices">chobble.com/prices</a> for
@@ -1635,7 +1629,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Do you help with hosting and images?">
+        <Q q={t("guide.q.hosting_and_images")}>
           <p>
             Yes to both. I can set you up on your own Bunny CDN account (or
             another host) and handle the technical configuration. I also design

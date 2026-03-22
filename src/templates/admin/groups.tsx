@@ -309,11 +309,11 @@ export const adminGroupDetailPage = (
         <table>
           <thead>
             <tr>
-              <th>Event Name</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Attendees</th>
-              <th>Created</th>
+              <th>{t("groups.detail.col.event_name")}</th>
+              <th>{t("groups.detail.col.description")}</th>
+              <th>{t("groups.detail.col.status")}</th>
+              <th>{t("groups.detail.col.attendees")}</th>
+              <th>{t("groups.detail.col.created")}</th>
             </tr>
           </thead>
           <tbody>
@@ -323,7 +323,7 @@ export const adminGroupDetailPage = (
       </div>
 
       <article>
-        <h2 id="attendees">Attendees</h2>
+        <h2 id="attendees">{t("groups.detail.attendees_heading")}</h2>
         <div class="table-scroll">
           <Raw
             html={AttendeeTable({
@@ -341,7 +341,7 @@ export const adminGroupDetailPage = (
 
       {ungroupedEvents.length > 0 && (
         <>
-          <h2>Add Events to Group</h2>
+          <h2>{t("groups.detail.add_events")}</h2>
           <CsrfForm action={`/admin/group/${group.id}/add-events`}>
             {ungroupedEvents.map((e) => (
               <label>
@@ -350,7 +350,7 @@ export const adminGroupDetailPage = (
               </label>
             ))}
             <br />
-            <button type="submit">Add Selected Events</button>
+            <button type="submit">{t("groups.detail.add_events_submit")}</button>
           </CsrfForm>
         </>
       )}

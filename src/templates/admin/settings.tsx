@@ -240,7 +240,7 @@ export const adminSettingsPage = (
             <button type="submit">{t("settings.square.update_credentials")}</button>
             {s.squareTokenConfigured && (
               <button type="button" id="square-test-btn" class="secondary">
-                Test Connection
+                {t("settings.square.test_connection")}
               </button>
             )}
           </footer>
@@ -253,15 +253,14 @@ export const adminSettingsPage = (
           action="/admin/settings/square-webhook"
           id="settings-square-webhook"
         >
-          <h2>Square Webhook</h2>
+          <h2>{t("settings.square.webhook_heading")}</h2>
           <p>
-            <a href="/admin/guide#payment-setup">See the full setup guide</a>
+            <a href="/admin/guide#payment-setup">{t("settings.square.webhook_guide_link")}</a>
           </p>
           <article>
             <aside>
               <p>
-                To receive payment notifications, set up a webhook in your
-                Square Developer Dashboard:
+                {t("settings.square.webhook_instructions")}
               </p>
               <ol>
                 <li>
@@ -292,8 +291,8 @@ export const adminSettingsPage = (
           </article>
           <p>
             {s.squareWebhookConfigured
-              ? "A webhook signature key is currently configured. Enter a new key below to replace it."
-              : "No webhook signature key is configured. Follow the steps above to set one up."}
+              ? t("settings.square.webhook_configured_hint")
+              : t("settings.square.webhook_not_configured_hint")}
           </p>
           <Raw
             html={renderFields(
@@ -303,7 +302,7 @@ export const adminSettingsPage = (
                 : {},
             )}
           />
-          <button type="submit">Update Webhook Key</button>
+          <button type="submit">{t("settings.square.update_webhook_key")}</button>
         </CsrfForm>
       )}
 
@@ -312,13 +311,12 @@ export const adminSettingsPage = (
           action="/admin/settings/booking-fee"
           id="settings-booking-fee"
         >
-          <h2>Booking Fee</h2>
+          <h2>{t("settings.booking_fee")}</h2>
           <p>
-            Percentage fee added at checkout (e.g. 1.5 for 1.5%). Set to 0 to
-            disable. Max 10.
+            {t("settings.booking_fee_hint")}
           </p>
           <label>
-            Booking Fee (%)
+            {t("settings.booking_fee_label")}
             <input
               type="number"
               name="booking_fee"
@@ -329,18 +327,17 @@ export const adminSettingsPage = (
               required
             />
           </label>
-          <button type="submit">Save Booking Fee</button>
+          <button type="submit">{t("settings.save_booking_fee")}</button>
         </CsrfForm>
       )}
 
       <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts">
-        <h2>Only allow embedding on these hosts</h2>
+        <h2>{t("settings.embed_hosts")}</h2>
         <p>
-          Restrict which websites can embed your booking forms in an iframe.
-          Leave blank to allow embedding from any site.
+          {t("settings.embed_hosts_hint")}
         </p>
         <label>
-          Hosts (comma-separated)
+          {t("settings.embed_hosts_label")}
           <input
             type="text"
             name="embed_hosts"
@@ -351,18 +348,17 @@ export const adminSettingsPage = (
         </label>
         <p>
           <small>
-            Use <code>*.example.com</code> to allow all subdomains. Direct
-            visits to the booking page are always allowed.
+            {t("settings.embed_hosts_wildcard_hint")}
           </small>
         </p>
-        <button type="submit">Save Embed Hosts</button>
+        <button type="submit">{t("settings.save_embed_hosts")}</button>
       </CsrfForm>
 
       <CsrfForm action="/admin/settings/terms" id="settings-terms">
-        <h2>Terms and Conditions</h2>
-        <p>If set, users must agree to these terms before reserving tickets.</p>
+        <h2>{t("settings.terms")}</h2>
+        <p>{t("settings.terms_hint")}</p>
         <label>
-          Terms and Conditions
+          {t("settings.terms")}
           <p>
             <small>
               <Raw html={FORMATTING_HINT} />
@@ -371,29 +367,28 @@ export const adminSettingsPage = (
           <textarea
             name="terms_and_conditions"
             rows="4"
-            placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."
+            placeholder={t("settings.terms_placeholder")}
           >
             {s.termsAndConditions}
           </textarea>
         </label>
-        <button type="submit">Save Terms</button>
+        <button type="submit">{t("settings.save_terms")}</button>
       </CsrfForm>
 
       <CsrfForm action="/admin/settings" id="settings-password">
-        <h2>Change Password</h2>
-        <p>Changing your password will log you out of all sessions.</p>
+        <h2>{t("settings.change_password")}</h2>
+        <p>{t("settings.change_password_hint")}</p>
         <Raw html={renderFields(changePasswordFields)} />
-        <button type="submit">Change Password</button>
+        <button type="submit">{t("settings.change_password")}</button>
       </CsrfForm>
 
       <CsrfForm
         action="/admin/settings/show-public-site"
         id="settings-show-public-site"
       >
-        <h2>Show public site?</h2>
+        <h2>{t("settings.show_public_site")}</h2>
         <p>
-          When enabled, the homepage will show a public website with navigation
-          for Home, Events, T&amp;Cs and Contact pages.
+          {t("settings.show_public_site_hint")}
         </p>
         <fieldset>
           <label>

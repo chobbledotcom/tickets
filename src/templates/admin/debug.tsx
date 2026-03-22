@@ -102,7 +102,7 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Apple Wallet</h2>
+        <h2>{t("debug.section.apple_wallet")}</h2>
         <table>
           <tbody>
             <tr>
@@ -119,7 +119,7 @@ export const adminDebugPage = (
             </tr>
             <tr>
               <td>Active source</td>
-              <td>{s.appleWallet.source || "None"}</td>
+              <td>{s.appleWallet.source || t("common.none")}</td>
             </tr>
             <tr>
               <td>Pass Type ID</td>
@@ -142,7 +142,7 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Google Wallet</h2>
+        <h2>{t("debug.section.google_wallet")}</h2>
         <table>
           <tbody>
             <tr>
@@ -159,7 +159,7 @@ export const adminDebugPage = (
             </tr>
             <tr>
               <td>Active source</td>
-              <td>{s.googleWallet.source || "None"}</td>
+              <td>{s.googleWallet.source || t("common.none")}</td>
             </tr>
             <tr>
               <td>Issuer ID</td>
@@ -174,12 +174,12 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Payments</h2>
+        <h2>{t("debug.section.payments")}</h2>
         <table>
           <tbody>
             <tr>
               <td>Provider</td>
-              <td>{s.payment.provider || "None"}</td>
+              <td>{s.payment.provider || t("common.none")}</td>
             </tr>
             <tr>
               <td>API key</td>
@@ -198,12 +198,12 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Email</h2>
+        <h2>{t("debug.section.email")}</h2>
         <table>
           <tbody>
             <tr>
               <td>Provider (DB)</td>
-              <td>{s.email.provider || "None"}</td>
+              <td>{s.email.provider || t("common.none")}</td>
             </tr>
             <tr>
               <td>API key</td>
@@ -217,14 +217,14 @@ export const adminDebugPage = (
             </tr>
             <tr>
               <td>Host provider (env)</td>
-              <td>{s.email.hostProvider || "None"}</td>
+              <td>{s.email.hostProvider || t("common.none")}</td>
             </tr>
           </tbody>
         </table>
       </article>
 
       <article>
-        <h2>Notifications (ntfy)</h2>
+        <h2>{t("debug.section.notifications")}</h2>
         <table>
           <tbody>
             <tr>
@@ -238,7 +238,7 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Bunny Storage (images)</h2>
+        <h2>{t("debug.section.bunny_storage")}</h2>
         <table>
           <tbody>
             <tr>
@@ -252,7 +252,7 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Bunny CDN</h2>
+        <h2>{t("debug.section.bunny_cdn")}</h2>
         <table>
           <tbody>
             <tr>
@@ -274,7 +274,7 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Database</h2>
+        <h2>{t("debug.section.database")}</h2>
         <table>
           <tbody>
             <tr>
@@ -288,7 +288,7 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Domain</h2>
+        <h2>{t("debug.section.domain")}</h2>
         <table>
           <tbody>
             <tr>
@@ -300,18 +300,17 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Limits</h2>
+        <h2>{t("debug.section.limits")}</h2>
         <p>
-          Override any limit with the corresponding environment variable. Values
-          must be positive integers.
+          {t("debug.limits_hint")}
         </p>
         <table>
           <thead>
             <tr>
-              <th>Setting</th>
-              <th>Env var</th>
-              <th>Default</th>
-              <th>Current</th>
+              <th>{t("debug.col.setting")}</th>
+              <th>{t("debug.col.env_var")}</th>
+              <th>{t("debug.col.default")}</th>
+              <th>{t("debug.col.current")}</th>
             </tr>
           </thead>
           <tbody>
@@ -327,7 +326,7 @@ export const adminDebugPage = (
                     <span>{formatLimitValue(l.current, l.unit)}</span>
                   ) : (
                     <strong>
-                      {formatLimitValue(l.current, l.unit)} (overridden)
+                      {formatLimitValue(l.current, l.unit)} {t("debug.overridden")}
                     </strong>
                   )}
                 </td>
