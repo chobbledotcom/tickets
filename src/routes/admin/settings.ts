@@ -1022,7 +1022,7 @@ const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   }
   return redirect(
     "/admin/settings-advanced",
-    `Test email sent (status ${status})`,
+    t("success.test_email_sent", { status }),
     true,
     { formId: "settings-email-test" },
   );
@@ -1052,7 +1052,7 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
     ] as const) {
       if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
         return errorPage(
-          `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`,
+          t("error.template_too_long", { name, max: MAX_EMAIL_TEMPLATE_LENGTH }),
           400,
           formId,
         );
