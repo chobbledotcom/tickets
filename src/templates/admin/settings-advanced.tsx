@@ -52,7 +52,7 @@ export const adminAdvancedSettingsPage = (
   s: AdvancedSettingsPageState,
 ): string =>
   String(
-    <Layout title={t("settings.advanced.title")} theme={s.theme} mainClass="stack-xl">
+    <Layout title={t("settings.advanced.title")} theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
       <Breadcrumb href="/admin/settings" label={t("settings.title")} />
 
@@ -72,26 +72,24 @@ export const adminAdvancedSettingsPage = (
         <p>
           {t("settings.advanced.public_api_hint")}
         </p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="show_public_api"
-              value="true"
-              checked={s.showPublicApi === true}
-            />
-            {t("common.yes")}
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="show_public_api"
-              value="false"
-              checked={s.showPublicApi !== true}
-            />
-            {t("common.no")}
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="show_public_api"
+            value="true"
+            checked={s.showPublicApi === true}
+          />
+          {t("common.yes")}
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="show_public_api"
+            value="false"
+            checked={s.showPublicApi !== true}
+          />
+          {t("common.no")}
+        </label>
         <button type="submit">{t("common.save")}</button>
       </CsrfForm>
 

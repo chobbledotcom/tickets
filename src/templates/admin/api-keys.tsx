@@ -4,6 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import { t } from "#i18n";
+import type { EndpointDoc } from "#lib/admin-api-example.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
@@ -92,20 +93,18 @@ export const adminApiKeysPage = (
       <br />
 
       <CsrfForm action="/admin/api-keys">
-        <fieldset>
-          <legend>{t("api_keys.create_legend")}</legend>
-          <label>
-            {t("api_keys.name_label")}
-            <input
-              type="text"
-              name="name"
-              placeholder={t("api_keys.name_placeholder")}
-              required
-              maxLength={100}
-            />
-          </label>
-          <button type="submit">{t("api_keys.create_submit")}</button>
-        </fieldset>
+        <h2>{t("api_keys.create_legend")}</h2>
+        <label>
+          {t("api_keys.name_label")}
+          <input
+            type="text"
+            name="name"
+            placeholder={t("api_keys.name_placeholder")}
+            required
+            maxLength={100}
+          />
+        </label>
+        <button type="submit">{t("api_keys.create_submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -150,5 +149,76 @@ export const adminDeleteApiKeyPage = (
           {t("api_keys.delete_submit")}
         </button>
       </CsrfForm>
+    </Layout>,
+  );
+
+const EndpointEntry = ({ endpoint }: { endpoint: EndpointDoc }): string =>
+  String(
+    <details>
+      <summary>
+        <code>
+          {endpoint.method} {endpoint.path}
+        </code>{" "}
+        &mdash; {endpoint.description}
+      </summary>
+      {endpoint.request && (
+        <>
+          <p>
+            <strong>Request:</strong>
+          </p>
+          <pre>
+            <code>{endpoint.request}</code>
+          </pre>
+        </>
+      )}
+      <p>
+        <strong>Response:</strong>
+      </p>
+      <pre>
+        <code>{endpoint.response}</code>
+      </pre>
+    </details>,
+  );
+
+const EndpointList = ({ endpoints }: { endpoints: EndpointDoc[] }): string =>
+  pipe(
+    map((e: EndpointDoc) => EndpointEntry({ endpoint: e })),
+    joinStrings,
+  )(endpoints);
+
+/**
+ * Admin API documentation page
+ */
+export const adminApiDocsPage = (
+  session: AdminSession,
+  publicEndpoints: EndpointDoc[],
+  adminEndpoints: EndpointDoc[],
+): string =>
+  String(
+    <Layout title="API Documentation">
+      <AdminNav session={session} active="/admin/users" />
+      <UsersSubNav />
+
+      <h3>Authentication</h3>
+      <p>
+        Admin API endpoints require authentication via API key or session
+        cookie:
+      </p>
+      <pre>
+        <code>Authorization: Bearer YOUR_API_KEY</code>
+      </pre>
+      <p>
+        Public API endpoints require no authentication. All responses are JSON.
+      </p>
+
+      <h3>Public API</h3>
+      <p>No API key required. All endpoints support CORS.</p>
+      <Raw html={EndpointList({ endpoints: publicEndpoints })} />
+
+      <h3>Admin API</h3>
+      <p>
+        Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
+      </p>
+      <Raw html={EndpointList({ endpoints: adminEndpoints })} />
     </Layout>,
   );

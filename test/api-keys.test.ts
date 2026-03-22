@@ -623,15 +623,16 @@ describe("API Keys", () => {
       expectFlash(response, "Session key unavailable", false);
     });
 
-    test("GET /admin/api-keys/docs returns JSON via cookie auth", async () => {
+    test("GET /admin/api-keys/docs returns HTML docs via cookie auth", async () => {
       const cookie = await testCookie();
       const response = await handleRequest(
         mockRequest("/admin/api-keys/docs", { headers: { cookie } }),
       );
 
       expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.authentication).toContain("Bearer");
+      const html = await response.text();
+      expect(html).toContain("API Documentation");
+      expect(html).toContain("Bearer");
     });
   });
 

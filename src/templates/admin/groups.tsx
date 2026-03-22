@@ -229,9 +229,7 @@ export const adminGroupDetailPage = (
   const totalCount = totalAttendeeCount(events);
   const tableRows = buildAttendeeRows(attendees, events);
   const effectiveCapacity =
-    group.max_attendees > 0
-      ? group.max_attendees
-      : totalMaxAttendees(events);
+    group.max_attendees > 0 ? group.max_attendees : totalMaxAttendees(events);
   const sharedRows = buildSharedDetailRows({
     attendees,
     attendeeCount: totalCount,
@@ -241,7 +239,7 @@ export const adminGroupDetailPage = (
   });
 
   return String(
-    <Layout title={group.name} mainClass="stack-xl">
+    <Layout title={group.name}>
       <AdminNav session={session} active="/admin/groups" />
       <h1>{group.name}</h1>
       <Raw html={renderSuccess(successMessage)} />

@@ -47,7 +47,7 @@ export const adminSettingsPage = (
   s: SettingsPageState,
 ): string =>
   String(
-    <Layout title={t("settings.title")} theme={s.theme} mainClass="stack-xl">
+    <Layout title={t("settings.title")} theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
 
       {s.storageEnabled && (
@@ -134,35 +134,33 @@ export const adminSettingsPage = (
       >
         <h2>{t("settings.payment_provider")}</h2>
         <p>{t("settings.payment_provider_hint")}</p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="payment_provider"
-              value="none"
-              checked={!s.paymentProvider}
-            />
-            {t("settings.payment_none")}
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="payment_provider"
-              value="stripe"
-              checked={s.paymentProvider === "stripe"}
-            />
-            {t("settings.payment_stripe")}
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="payment_provider"
-              value="square"
-              checked={s.paymentProvider === "square"}
-            />
-            {t("settings.payment_square")}
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="none"
+            checked={!s.paymentProvider}
+          />
+          {t("settings.payment_none")}
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="stripe"
+            checked={s.paymentProvider === "stripe"}
+          />
+          {t("settings.payment_stripe")}
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="square"
+            checked={s.paymentProvider === "square"}
+          />
+          {t("settings.payment_square")}
+        </label>
         <button type="submit">{t("settings.save_payment_provider")}</button>
       </CsrfForm>
 
@@ -390,52 +388,48 @@ export const adminSettingsPage = (
         <p>
           {t("settings.show_public_site_hint")}
         </p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="show_public_site"
-              value="true"
-              checked={s.showPublicSite === true}
-            />
-            {t("common.yes")}
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="show_public_site"
-              value="false"
-              checked={s.showPublicSite !== true}
-            />
-            {t("common.no")}
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="show_public_site"
+            value="true"
+            checked={s.showPublicSite === true}
+          />
+          {t("common.yes")}
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="show_public_site"
+            value="false"
+            checked={s.showPublicSite !== true}
+          />
+          {t("common.no")}
+        </label>
         <button type="submit">{t("common.save")}</button>
       </CsrfForm>
 
       <CsrfForm action="/admin/settings/theme" id="settings-theme">
         <h2>{t("settings.theme")}</h2>
         <p>{t("settings.theme_hint")}</p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="theme"
-              value="light"
-              checked={s.theme === "light"}
-            />
-            {t("settings.theme_light")}
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="theme"
-              value="dark"
-              checked={s.theme === "dark"}
-            />
-            {t("settings.theme_dark")}
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="theme"
+            value="light"
+            checked={s.theme === "light"}
+          />
+          {t("settings.theme_light")}
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="theme"
+            value="dark"
+            checked={s.theme === "dark"}
+          />
+          {t("settings.theme_dark")}
+        </label>
         <button type="submit">{t("settings.save_theme")}</button>
       </CsrfForm>
 

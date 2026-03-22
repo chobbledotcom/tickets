@@ -183,7 +183,7 @@ export const adminDashboardPage = (
   const activeEvents = filter((e: EventWithCount) => e.active)(events);
 
   return String(
-    <Layout title={t("admin.dashboard.title")} mainClass="stack-xl">
+    <Layout title={t("admin.dashboard.title")}>
       <AdminNav session={session} active="/admin/" />
 
       <Raw html={renderSuccess(successMessage)} />

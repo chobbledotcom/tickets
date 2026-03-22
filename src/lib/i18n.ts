@@ -6,7 +6,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import IntlMessageFormat from "intl-messageformat";
+import { IntlMessageFormat } from "intl-messageformat";
 
 /** Message map: flat dot-namespaced keys → ICU message strings */
 type Messages = Record<string, string>;
