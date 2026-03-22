@@ -1246,10 +1246,6 @@ export const expectRedirect =
     return response;
   };
 
-/** Shorthand: assert redirect to /admin */
-export const expectAdminRedirect: (response: Response) => Response =
-  expectRedirect("/admin");
-
 /** Fixed flash ID used in tests for deterministic keyed cookies */
 export const FLASH_TEST_ID = "t001";
 

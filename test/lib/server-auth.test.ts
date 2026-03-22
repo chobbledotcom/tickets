@@ -7,8 +7,8 @@ import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
 import {
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
+  expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -172,7 +172,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/logout", { csrf_token: "invalid" }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token when authenticated", async () => {
@@ -212,7 +212,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("GET /admin/sessions", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/sessions"));
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("shows sessions page when authenticated", async () => {
@@ -268,7 +268,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/sessions", { csrf_token: "test" }),
       );
-      expectAdminRedirect(response);
+      expectRedirect("/admin")(response);
     });
 
     test("rejects invalid CSRF token", async () => {
