@@ -3761,6 +3761,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(html).toContain("maximum");
     });
 
+    test("POST preserves form values when price exceeds maximum", async () => {
+      const event = await payMoreEvent();
+      const response = await submitTicketForm(event.slug, {
+        name: "Preserved Name",
+        email: "preserved@example.com",
+        quantity: "1",
+        custom_price: "150.00",
+      });
+      const html = await response.text();
+      expect(html).toContain("maximum");
+      expect(html).toContain('value="Preserved Name"');
+      expect(html).toContain('value="preserved@example.com"');
+    });
+
     test("POST accepts price at maximum", async () => {
       await setupStripe();
       const event = await payMoreEvent();

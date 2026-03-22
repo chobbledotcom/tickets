@@ -20,7 +20,7 @@ import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { FormParams } from "#lib/form-data.ts";
-import { clearSavedFormData, setSavedFormData } from "#lib/forms.tsx";
+import { setSavedFormData } from "#lib/forms.tsx";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { ErrorCode, getRequestId, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -542,7 +542,7 @@ export const requireCsrfForm = async (
   const formCsrf = form.getString("csrf_token");
 
   if (formCsrf && (await verifySignedCsrfToken(formCsrf))) {
-    clearSavedFormData();
+    setSavedFormData(form);
     return { ok: true, form };
   }
 
