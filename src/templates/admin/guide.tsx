@@ -60,6 +60,15 @@ export const adminGuidePage = (
 
       <h2>Guide</h2>
 
+      <p class="search-hint">
+        Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
+        on Mac) to{" "}
+        <a href="#" data-find-in-page>
+          search this page
+        </a>
+        .
+      </p>
+
       <Section title="Getting Started">
         <Q q="How do I create an event?">
           <p>
