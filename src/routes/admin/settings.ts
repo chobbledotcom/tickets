@@ -822,7 +822,7 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
 
   await updateTheme(theme);
   await logActivity(`Theme set to ${theme}`);
-  return redirect("/admin/settings", `Theme updated to ${theme}`, true, {
+  return redirect("/admin/settings", t("success.theme_updated", { theme }), true, {
     formId: "settings-theme",
   });
 };
@@ -837,7 +837,7 @@ const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
   await logActivity(`Public site ${value ? "enabled" : "disabled"}`);
   return redirect(
     "/admin/settings",
-    value ? "Public site enabled" : "Public site disabled",
+    value ? t("success.public_site_enabled") : t("success.public_site_disabled"),
     true,
     { formId: "settings-show-public-site" },
   );
@@ -853,7 +853,7 @@ const processShowPublicApiForm: SettingsFormHandler = async (form) => {
   await logActivity(`Public API ${value ? "enabled" : "disabled"}`);
   return redirect(
     "/admin/settings-advanced",
-    value ? "Public API enabled" : "Public API disabled",
+    value ? t("success.public_api_enabled") : t("success.public_api_disabled"),
     true,
     { formId: "settings-show-public-api" },
   );
@@ -869,7 +869,7 @@ const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
 
   if (!Number.isFinite(value) || value < 0 || value > 10) {
     return errorPage(
-      "Booking fee must be a number between 0 and 10",
+      t("error.booking_fee_range"),
       400,
       "settings-booking-fee",
     );
