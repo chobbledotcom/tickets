@@ -952,7 +952,7 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   }
   const deleteDetail = `Header image removal failed: ${String(deleteResult.reason)}`;
   logError({ code: ErrorCode.STORAGE_DELETE, detail: deleteDetail });
-  return redirect("/admin/settings", "Header image removal failed", false, {
+  return redirect("/admin/settings", t("success.header_image_removal_failed"), false, {
     formId: "settings-header-image-delete",
   });
 });
@@ -970,14 +970,14 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
     await logActivity("Email provider disabled");
     return redirect(
       "/admin/settings-advanced",
-      "Email provider disabled",
+      t("success.email_provider_disabled"),
       true,
       { formId: "settings-email" },
     );
   }
 
   if (!isEmailProvider(provider)) {
-    return errorPage("Invalid email provider", 400, "settings-email");
+    return errorPage(t("error.invalid_email_provider"), 400, "settings-email");
   }
 
   if (fromAddress && !isValidBusinessEmail(fromAddress)) {
