@@ -982,7 +982,7 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
 
   if (fromAddress && !isValidBusinessEmail(fromAddress)) {
     return errorPage(
-      "Invalid from-address format. Please use format: name@domain.com",
+      t("error.from_address_format"),
       400,
       "settings-email",
     );
@@ -993,7 +993,7 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
     await updateEmailApiKey(apiKeyField.value);
   if (fromAddress) await updateEmailFromAddress(fromAddress);
   await logActivity(`Email provider set to ${provider}`);
-  return redirect("/admin/settings-advanced", "Email settings updated", true, {
+  return redirect("/admin/settings-advanced", t("success.email_settings_updated"), true, {
     formId: "settings-email",
   });
 });
@@ -1001,7 +1001,7 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
 /** Handle POST /admin/settings/email/test - send test email to business email */
 const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
-  if (!config) return errorPage("Email not configured", 400, "settings-email");
+  if (!config) return errorPage(t("error.email_not_configured"), 400, "settings-email");
   const businessEmail = await getBusinessEmailFromDb();
   if (!businessEmail)
     return errorPage("No business email set", 400, "settings-email-test");
