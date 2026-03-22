@@ -158,7 +158,7 @@ describe("detail-rows", () => {
       expect(attendeeRow!.value).toBe("5");
     });
 
-    test("includes attendees row with count and capacity", () => {
+    test("includes attendees row with count, capacity, and remain", () => {
       const rows = buildSharedDetailRows({
         attendees: [],
         attendeeCount: 5,
@@ -166,7 +166,41 @@ describe("detail-rows", () => {
         hasPaidEvent: false,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).toBe("5 / 20");
+      expect(attendeeRow!.value).toContain("5 / 20");
+      expect(attendeeRow!.value).toContain("15 remain");
+    });
+
+    test("shows danger-text when near capacity", () => {
+      const rows = buildSharedDetailRows({
+        attendees: [],
+        attendeeCount: 19,
+        maxCapacity: 20,
+        hasPaidEvent: false,
+      });
+      const attendeeRow = rows.find((r) => r.key === "Attendees");
+      expect(attendeeRow!.value).toContain("danger-text");
+    });
+
+    test("does not show danger-text when well below capacity", () => {
+      const rows = buildSharedDetailRows({
+        attendees: [],
+        attendeeCount: 5,
+        maxCapacity: 20,
+        hasPaidEvent: false,
+      });
+      const attendeeRow = rows.find((r) => r.key === "Attendees");
+      expect(attendeeRow!.value).not.toContain("danger-text");
+    });
+
+    test("does not show danger-text when no capacity set", () => {
+      const rows = buildSharedDetailRows({
+        attendees: [],
+        attendeeCount: 100,
+        maxCapacity: 0,
+        hasPaidEvent: false,
+      });
+      const attendeeRow = rows.find((r) => r.key === "Attendees");
+      expect(attendeeRow!.value).not.toContain("danger-text");
     });
 
     test("skips attendees row when skipAttendees is true", () => {

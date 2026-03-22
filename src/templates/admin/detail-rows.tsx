@@ -162,15 +162,29 @@ export type SharedDetailInput = {
   skipAttendees?: boolean;
 };
 
-/** Build a single attendee-count detail row */
+/** Whether a count is at or above 90% of capacity */
+const isNearCapacity = (count: number, capacity: number): boolean =>
+  capacity > 0 && count >= capacity * 0.9;
+
+/** Wrap text in a danger-text span when near capacity */
+const wrapDanger = (text: string, danger: boolean): string =>
+  danger ? `<span class="danger-text">${text}</span>` : text;
+
+/** Build a single attendee-count detail row, with danger styling near capacity */
 const buildAttendeeRow = (
   count: number,
   maxCapacity: number,
   suffix: string,
-): DetailRow => ({
-  key: `Attendees${suffix}`,
-  value: maxCapacity > 0 ? `${count} / ${maxCapacity}` : String(count),
-});
+): DetailRow => {
+  const display =
+    maxCapacity > 0
+      ? `${count} / ${maxCapacity} &mdash; ${maxCapacity - count} remain`
+      : String(count);
+  return {
+    key: `Attendees${suffix}`,
+    value: wrapDanger(display, isNearCapacity(count, maxCapacity)),
+  };
+};
 
 /** Build a revenue detail row */
 const buildRevenueRow = (attendees: Attendee[]): DetailRow => ({

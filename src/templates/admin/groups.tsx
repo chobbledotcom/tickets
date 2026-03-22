@@ -195,6 +195,12 @@ const totalAttendeeCount = reduce(
   0,
 );
 
+/** Sum max_attendees across all events in the group */
+const totalMaxAttendees = reduce(
+  (sum: number, e: EventWithCount) => sum + e.max_attendees,
+  0,
+);
+
 /**
  * Admin group detail page - shows group info, events in group, and add-events form
  */
@@ -223,10 +229,14 @@ export const adminGroupDetailPage = (
   const hasPaidEvent = events.some(isPaidEvent);
   const totalCount = totalAttendeeCount(events);
   const tableRows = buildAttendeeRows(attendees, events);
+  const effectiveCapacity =
+    group.max_attendees > 0
+      ? group.max_attendees
+      : totalMaxAttendees(events);
   const sharedRows = buildSharedDetailRows({
     attendees,
     attendeeCount: totalCount,
-    maxCapacity: group.max_attendees,
+    maxCapacity: effectiveCapacity,
     hasPaidEvent,
     questionData,
   });
