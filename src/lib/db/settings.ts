@@ -97,6 +97,8 @@ export const CONFIG_KEYS = {
   GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
   GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
+  // Attendee blob migration (plaintext ISO timestamp when complete, empty = not migrated)
+  ATTENDEE_BLOB_MIGRATED: "attendee_blob_migrated",
 } as const;
 
 /**
@@ -495,6 +497,16 @@ export const getPublicKey = (): Promise<string | null> => {
 export const getWrappedPrivateKey = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.WRAPPED_PRIVATE_KEY);
 };
+
+/** Check whether the attendee blob migration has been completed */
+export const isAttendeeBlobMigrated = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED);
+  return value !== null && value !== "";
+};
+
+/** Mark the attendee blob migration as complete */
+export const setAttendeeBlobMigrated = (): Promise<void> =>
+  setSetting(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED, new Date().toISOString());
 
 /**
  * Update a user's password and re-wrap DATA_KEY with new KEK

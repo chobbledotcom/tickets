@@ -90,9 +90,9 @@ The migration endpoint processes attendees in chunks:
           price_paid_v2 = ?
       WHERE id = ?
       ```
-3. **Return progress** to the browser (e.g., "migrated 50/1200 attendees")
-4. The page auto-continues with the next batch via fetch until all rows are processed
-5. When no more rows have `pii_blob = ''`, write `attendee_blob_migrated` setting to current ISO timestamp
+3. **Return progress** as JSON (e.g., `{ migrated: 100, remaining: 1100, done: false }`)
+4. The admin presses the "Process next batch" button again to process the next 100 (manual batching avoids Bunny Edge processing time limits)
+5. When no more rows have `pii_blob = ''`, the endpoint writes `attendee_blob_migrated` setting to current ISO timestamp and returns `{ done: true }`
 
 #### Blob JSON Keys
 

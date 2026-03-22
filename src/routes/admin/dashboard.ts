@@ -11,6 +11,7 @@ import {
 } from "#lib/db/attendees.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
+import { isAttendeeBlobMigrated } from "#lib/db/settings.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
@@ -42,12 +43,14 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     request,
     async (session) => {
       const { error: imageError, success: successMessage } = getFlash();
-      const [events, holidays, newestRaw, privateKey] = await Promise.all([
-        getAllEvents(),
-        getActiveHolidays(),
-        getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
-        requirePrivateKey(session),
-      ]);
+      const [events, holidays, newestRaw, privateKey, blobMigrated] =
+        await Promise.all([
+          getAllEvents(),
+          getActiveHolidays(),
+          getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
+          requirePrivateKey(session),
+          isAttendeeBlobMigrated(),
+        ]);
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedEvents = sortEvents(events, holidays);
       const stats = await getActiveEventStats(sortedEvents);
@@ -59,6 +62,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           newestAttendees,
           successMessage,
           stats,
+          !blobMigrated,
         ),
       );
     },

@@ -170,6 +170,7 @@ export const adminDashboardPage = (
   newestAttendees: Attendee[] = [],
   successMessage?: string,
   stats?: ActiveEventStats | null,
+  migrationNeeded = false,
 ): string => {
   const eventRows =
     events.length > 0
@@ -186,6 +187,13 @@ export const adminDashboardPage = (
       <AdminNav session={session} active="/admin/" />
 
       <Raw html={renderSuccess(successMessage)} />
+
+      {migrationNeeded && (
+        <p class="notice">
+          A database migration is available to improve performance.{" "}
+          <a href="/admin/migrate">Run migration</a>
+        </p>
+      )}
 
       {imageError && <p class="error">{imageError}</p>}
 
