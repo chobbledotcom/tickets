@@ -23,6 +23,7 @@ import {
   generateGoogleTestCreds,
   loginAsAdmin,
   mockFormRequest,
+  getRedirectLocation,
   setTestEnv,
 } from "#test-utils";
 
@@ -80,7 +81,7 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
     expect(response.status).toBe(302);
-    const location = response.headers.get("Location")!;
+    const location = getRedirectLocation(response);
     expect(location).toMatch(/^https:\/\/pay\.google\.com\/gp\/v\/save\//);
   });
 
@@ -92,7 +93,7 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
     );
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
-    const location = response.headers.get("Location")!;
+    const location = getRedirectLocation(response);
     const jwt = location.replace("https://pay.google.com/gp/v/save/", "");
     const parts = jwt.split(".");
     expect(parts).toHaveLength(3);

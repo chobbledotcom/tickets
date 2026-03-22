@@ -23,6 +23,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   generateTestCerts,
+  getHeader,
   mockFormRequest,
   setTestEnv,
   testCookie,
@@ -158,7 +159,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     );
 
     const response = await fetchPkpassResponse(token);
-    const disposition = response.headers.get("Content-Disposition")!;
+    const disposition = getHeader(response, "Content-Disposition");
     expect(disposition).toContain("inline");
     expect(disposition).toContain("ticket.pkpass");
   });

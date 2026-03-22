@@ -23,6 +23,8 @@ import {
   expectFlash,
   expectHtmlResponse,
   getEmbeddableTicketResponse,
+  getHeader,
+  getRedirectLocation,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
@@ -127,7 +129,7 @@ describe("server (misc)", () => {
         await setPaymentProvider("square");
         await updateSquareSandbox(true);
         const response = await handleRequest(mockRequest("/"));
-        const csp = response.headers.get("content-security-policy")!;
+        const csp = getHeader(response, "content-security-policy");
         expect(csp).toContain("squareupsandbox.com");
       });
     });
@@ -291,7 +293,7 @@ describe("server (misc)", () => {
   describe("routes/utils.ts (redirect)", () => {
     /** Parse the redirect location, stripping the flash param for comparison */
     const parseRedirectLocation = (response: Response) => {
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       const url = new URL(location, "http://localhost");
       expect(url.searchParams.has("flash")).toBe(true);
       url.searchParams.delete("flash");
@@ -326,7 +328,7 @@ describe("server (misc)", () => {
         const response = redirect("/admin/settings", "A & B", true, {
           formId: "form&id",
         });
-        const location = response.headers.get("location")!;
+        const location = getRedirectLocation(response);
         expect(location).not.toContain("success=");
         expect(location).toContain("form=form%26id");
         expect(location).toContain("#form&id");
@@ -375,7 +377,7 @@ describe("server (misc)", () => {
     test("uses request ID as flash key in redirect URL", () =>
       withRequestContext(() => {
         const response = redirect("/admin/settings", "Saved", true);
-        const location = response.headers.get("location")!;
+        const location = getRedirectLocation(response);
         const url = new URL(location, "http://localhost");
         const flashId = url.searchParams.get("flash");
         expect(flashId).toBeDefined();
@@ -385,7 +387,7 @@ describe("server (misc)", () => {
     test("keys flash cookie by the flash ID in the URL", () =>
       withRequestContext(() => {
         const response = redirect("/admin/settings", "Saved", true);
-        const location = response.headers.get("location")!;
+        const location = getRedirectLocation(response);
         const url = new URL(location, "http://localhost");
         const flashId = url.searchParams.get("flash")!;
         const cookies = response.headers.getSetCookie();
@@ -821,7 +823,7 @@ describe("server (misc)", () => {
 
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe("/admin");
-        const setCookie = response.headers.get("set-cookie")!;
+        const setCookie = getHeader(response, "set-cookie");
         expect(setCookie).toContain("session=");
         expect(setCookie).toContain("Max-Age=0");
       });

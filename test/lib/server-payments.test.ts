@@ -12,6 +12,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
+  getRedirectLocation,
   mockRequest,
   setTestEnv,
   setupStripe,
@@ -659,7 +660,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
           // Should redirect with tokens
           expect(redirectResponse.status).toBe(302);
-          const location = redirectResponse.headers.get("location")!;
+          const location = getRedirectLocation(redirectResponse);
           expect(location).toMatch(/^\/payment\/success\?tokens=.+$/);
 
           // Follow the redirect
@@ -930,7 +931,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
         expect(redirectResponse.status).toBe(302);
-        const location = redirectResponse.headers.get("location")!;
+        const location = getRedirectLocation(redirectResponse);
         // Multi-ticket should have multiple tokens joined by + (URL-encoded as %2B)
         expect(location).toMatch(/^\/payment\/success\?tokens=.+%2B.+$/);
 
@@ -1444,7 +1445,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_token_verify"),
         );
         expect(redirectResponse.status).toBe(302);
-        const location = redirectResponse.headers.get("location")!;
+        const location = getRedirectLocation(redirectResponse);
 
         // Follow redirect to verify tokens and render page
         const response = await followRedirect(redirectResponse, handleRequest);

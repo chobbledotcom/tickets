@@ -28,6 +28,8 @@ import {
   extractCsrfToken,
   FLASH_TEST_ID,
   flashCookieHeader,
+  getRedirectLocation,
+  matchGroup,
   mockRequest,
   resetDb,
   testCookie,
@@ -37,10 +39,10 @@ import {
 /** Helper to get the DATA_KEY from the test session */
 const getTestDataKey = async (): Promise<CryptoKey> => {
   const cookie = await testCookie();
-  const sessionMatch = cookie.match(
+  const token = matchGroup(
+    cookie,
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
   );
-  const token = sessionMatch![1]!;
   const session = await getSession(token);
   return unwrapKeyWithToken(session!.wrapped_data_key!, token);
 };
@@ -254,7 +256,7 @@ describe("API Keys", () => {
       );
 
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       const locationUrl = new URL(location, "http://localhost");
       locationUrl.searchParams.delete("flash");
       expect(locationUrl.pathname).toBe("/admin/api-keys");

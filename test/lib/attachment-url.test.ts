@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { signAttachmentUrl, verifyAttachmentUrl } from "#lib/attachment-url.ts";
-import { setupTestEncryptionKey } from "#test-utils";
+import { matchGroup, setupTestEncryptionKey } from "#test-utils";
 
 describe("signAttachmentUrl", () => {
   let fakeTime: FakeTime;
@@ -23,9 +23,7 @@ describe("signAttachmentUrl", () => {
 
   test("includes numeric expiry timestamp roughly 3600s in the future", async () => {
     const url = await signAttachmentUrl(1, 2);
-    const expMatch = url.match(/exp=(\d+)/);
-    expect(expMatch).not.toBeNull();
-    const exp = Number.parseInt(expMatch![1]!, 10);
+    const exp = Number.parseInt(matchGroup(url, /exp=(\d+)/), 10);
     const nowS = Math.floor(1700000000000 / 1000);
     expect(exp - nowS).toBe(3600);
   });

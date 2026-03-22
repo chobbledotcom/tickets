@@ -31,6 +31,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
   getTicketCsrfToken,
+  matchGroup,
   mockFormRequest,
   mockRequest,
   setTestEnv,
@@ -888,9 +889,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       const html = await getResponse.text();
-      const match = html.match(/name="csrf_token" value="([^"]+)"/);
-      expect(match).not.toBe(null);
-      const signedToken = match![1]!;
+      const signedToken = matchGroup(
+        html,
+        /name="csrf_token" value="([^"]+)"/,
+      );
       expect(signedToken.startsWith("s1.")).toBe(true);
 
       // POST without any cookie - signed tokens are the only CSRF mechanism
@@ -1516,9 +1518,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`${path}?iframe=true`),
       );
       const html = await getResponse.text();
-      const match = html.match(/name="csrf_token" value="([^"]+)"/);
-      expect(match).not.toBe(null);
-      const signedToken = match![1]!;
+      const signedToken = matchGroup(
+        html,
+        /name="csrf_token" value="([^"]+)"/,
+      );
 
       const response = await handleRequest(
         mockFormRequest(`${path}?iframe=true`, {

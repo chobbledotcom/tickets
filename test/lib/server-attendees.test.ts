@@ -24,6 +24,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   getAttendeesRaw,
+  getRedirectLocation,
   mockFormRequest,
   mockProviderType,
   mockRequest,
@@ -557,7 +558,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("checks in an attendee and redirects with message", async () => {
       const { response, event } = await checkinAction({})();
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       expect(location).toContain(`/admin/event/${event.id}`);
       expect(location).toContain("checkin_status=in");
       expect(location).toContain("checkin_name=John");
@@ -569,7 +570,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         return_filter: "in",
       })();
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       expect(location).toContain(`/admin/event/${event.id}/in?`);
       expect(location).toContain("checkin_status=in");
     });
@@ -586,7 +587,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       expect(location).toContain(`/admin/event/${event.id}/out?`);
       expect(location).toContain("checkin_status=out");
     });
@@ -596,7 +597,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         return_filter: "all",
       })();
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       expect(location).toContain(`/admin/event/${event.id}?`);
       expect(location).not.toContain("/in?");
       expect(location).not.toContain("/out?");
@@ -607,7 +608,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         return_url: "/admin/calendar?date=2026-03-15#attendees",
       })();
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       expect(location).toContain("/admin/calendar");
       expect(location).toContain("date=2026-03-15");
       expect(location).toContain("#attendees");
@@ -627,7 +628,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       expect(location).toContain("checkin_status=out");
     });
 
@@ -752,7 +753,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       expect(location).toContain(`/admin/event/${event.id}`);
       expectFlash(response, expect.stringContaining("Added"));
 
@@ -1341,7 +1342,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
+      const location = getRedirectLocation(response);
       expect(location).toContain("/admin/calendar");
       expect(location).toContain("date=2026-03-15");
       expect(location).toContain("#attendees");
