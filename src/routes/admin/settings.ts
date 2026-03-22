@@ -804,7 +804,7 @@ const processBusinessEmailForm: SettingsFormHandler = async (
 
   await updateBusinessEmail(trimmed);
   await logActivity("Business email updated");
-  return redirect("/admin/settings", "Business email updated", true, {
+  return redirect("/admin/settings", t("success.business_email_updated"), true, {
     formId: "settings-business-email",
   });
 };
@@ -817,7 +817,7 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
   const theme = form.getString("theme");
 
   if (theme !== "light" && theme !== "dark") {
-    return errorPage("Invalid theme selection", 400, "settings-theme");
+    return errorPage(t("error.invalid_theme"), 400, "settings-theme");
   }
 
   await updateTheme(theme);
