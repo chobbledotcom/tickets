@@ -60,6 +60,15 @@ export const adminGuidePage = (
 
       <h2>Guide</h2>
 
+      <p class="search-hint">
+        Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
+        on Mac) to{" "}
+        <a href="#" onclick="window.find?.(); return false">
+          search this page
+        </a>
+        .
+      </p>
+
       <Section title="Getting Started">
         <Q q="How do I create an event?">
           <p>
@@ -362,9 +371,9 @@ export const adminGuidePage = (
         <Q q="Where do I see the answers?">
           <p>
             Answers appear in the attendee table on event and group pages, so
-            you can see at a glance what each attendee chose. They're also
-            shown on the individual attendee detail page, included in the CSV
-            export, and sent in webhook payloads.
+            you can see at a glance what each attendee chose. They're also shown
+            on the individual attendee detail page, included in the CSV export,
+            and sent in webhook payloads.
           </p>
         </Q>
       </Section>
