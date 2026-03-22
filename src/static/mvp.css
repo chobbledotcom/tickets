@@ -24,10 +24,11 @@
   --width-card-medium: 460px;
   --width-card-wide: 800px;
   --width-content: 1300px;
-  /* Spacing scale: s=tight, m=default, lg=breathing room */
+  /* Spacing scale: s=tight, m=default, lg=breathing room, xl=major sections */
   --space-s: 0.5rem;
   --space-m: 1rem;
   --space-lg: 2rem;
+  --space-xl: 4rem;
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
@@ -157,8 +158,16 @@ main {
 
 /* Stack reset: gap controls spacing, not browser default margins */
 main > *,
-article > * {
+article > *,
+.stack-xl > * {
   margin-block: 0;
+}
+
+/* Extra-large vertical stack for spacing between major page sections */
+.stack-xl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
 }
 
 hr {
