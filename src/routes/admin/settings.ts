@@ -1464,7 +1464,7 @@ const handleGoogleWalletPost = advancedSettingsRoute(
     await logActivity("Google Wallet configuration updated");
     return redirect(
       "/admin/settings-advanced",
-      "Google Wallet settings updated",
+      t("success.google_wallet_updated"),
       true,
       { formId: "settings-google-wallet" },
     );
@@ -1487,7 +1487,7 @@ const handleResetDatabasePost = advancedSettingsRoute(
     await resetDatabase();
 
     // Redirect to setup page since the database is now empty
-    return redirect("/setup/", "Database reset", true, {
+    return redirect("/setup/", t("success.database_reset"), true, {
       cookie: clearSessionCookie(),
     });
   },
