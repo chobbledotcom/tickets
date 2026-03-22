@@ -234,6 +234,8 @@ const handleAdminCalendarGet = (request: Request) =>
       attendees.map((a) => a.id),
     );
 
+    const hasPaidEvent = allEvents.some(isPaidEvent);
+
     return htmlResponse(
       adminCalendarPage(
         attendees,
@@ -244,6 +246,7 @@ const handleAdminCalendarGet = (request: Request) =>
         todayInTz(getTz()),
         phonePrefix,
         questionData,
+        hasPaidEvent,
       ),
     );
   });
