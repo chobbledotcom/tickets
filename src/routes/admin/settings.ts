@@ -1423,12 +1423,12 @@ const handleGoogleWalletPost = advancedSettingsRoute(
     }
 
     if (!issuerId) {
-      return errorPage("Issuer ID is required", 400, "settings-google-wallet");
+      return errorPage(t("error.google_issuer_id_required"), 400, "settings-google-wallet");
     }
 
     if (!email) {
       return errorPage(
-        "Service account email is required",
+        t("error.google_service_email_required"),
         400,
         "settings-google-wallet",
       );
@@ -1438,7 +1438,7 @@ const handleGoogleWalletPost = advancedSettingsRoute(
     const isConfigured = await hasGoogleWalletDbConfig();
     if (!isConfigured && keyField.action !== "provided") {
       return errorPage(
-        "Service account private key is required",
+        t("error.google_service_key_required"),
         400,
         "settings-google-wallet",
       );
@@ -1450,7 +1450,7 @@ const handleGoogleWalletPost = advancedSettingsRoute(
       !(await isValidGooglePrivateKey(keyField.value))
     ) {
       return errorPage(
-        "Service account private key is not a valid PEM private key",
+        t("error.google_service_key_invalid"),
         400,
         "settings-google-wallet",
       );
