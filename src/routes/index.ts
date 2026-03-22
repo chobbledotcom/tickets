@@ -18,8 +18,8 @@ import {
   resetFlashContext,
   setFlashContext,
 } from "#lib/flash-context.ts";
-import { loadHeaderImage } from "#lib/header-image.ts";
 import { clearSavedFormData } from "#lib/forms.tsx";
+import { loadHeaderImage } from "#lib/header-image.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   createRequestTimer,
@@ -49,6 +49,7 @@ import { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
+  normalizePath,
   notFoundResponse,
   parseCookies,
   parseRequest,
@@ -329,8 +330,9 @@ export const handleRequest = async (
   // runtime can garbage-collect the underlying request body resource during
   // awaits, so we must capture it while the resource is still alive.
   const { pathname } = new URL(request.url);
+  const normalizedPathname = normalizePath(pathname);
   const webhookBody =
-    request.method === "POST" && isWebhookPath(pathname)
+    request.method === "POST" && isWebhookPath(normalizedPathname)
       ? new Uint8Array(await request.arrayBuffer())
       : undefined;
   const effectiveRequest = webhookBody
