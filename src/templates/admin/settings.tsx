@@ -56,7 +56,7 @@ export const adminSettingsPage = (
             <div>
               <img
                 src={getImageProxyUrl(s.headerImageUrl)}
-                alt="Header image"
+                alt={t("settings.header_image")}
                 class="event-image-preview"
               />
               <CsrfForm
@@ -398,7 +398,7 @@ export const adminSettingsPage = (
               value="true"
               checked={s.showPublicSite === true}
             />
-            Yes
+            {t("common.yes")}
           </label>
           <label>
             <input
@@ -407,15 +407,15 @@ export const adminSettingsPage = (
               value="false"
               checked={s.showPublicSite !== true}
             />
-            No
+            {t("common.no")}
           </label>
         </fieldset>
-        <button type="submit">Save</button>
+        <button type="submit">{t("common.save")}</button>
       </CsrfForm>
 
       <CsrfForm action="/admin/settings/theme" id="settings-theme">
-        <h2>Site Theme</h2>
-        <p>Choose between light and dark themes for the site interface.</p>
+        <h2>{t("settings.theme")}</h2>
+        <p>{t("settings.theme_hint")}</p>
         <fieldset>
           <label>
             <input
@@ -424,7 +424,7 @@ export const adminSettingsPage = (
               value="light"
               checked={s.theme === "light"}
             />
-            Light
+            {t("settings.theme_light")}
           </label>
           <label>
             <input
@@ -433,20 +433,18 @@ export const adminSettingsPage = (
               value="dark"
               checked={s.theme === "dark"}
             />
-            Dark
+            {t("settings.theme_dark")}
           </label>
         </fieldset>
-        <button type="submit">Save Theme</button>
+        <button type="submit">{t("settings.save_theme")}</button>
       </CsrfForm>
 
       <p>
-        For advanced settings including public API, Apple Wallet, custom email
-        templates, mail provider, timezone, custom domain, and database reset,{" "}
-        <a href="/admin/settings-advanced">click here</a>.
+        <a href="/admin/settings-advanced">{t("settings.advanced_link")}</a>
       </p>
 
       <p>
-        For nerdy debug info <a href="/admin/debug">click here</a>.
+        <a href="/admin/debug">{t("settings.debug_link")}</a>
       </p>
     </Layout>,
   );

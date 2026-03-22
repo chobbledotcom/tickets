@@ -61,6 +61,16 @@ export type DebugPageState = {
   theme: Theme;
 };
 
+const LIMIT_LABEL_KEYS: Record<string, string> = {
+  "Max image size": "debug.limits.max_image_size",
+  "Max attachment size": "debug.limits.max_attachment_size",
+  "Attachment URL max age": "debug.limits.attachment_url_max_age",
+  "Session max age": "debug.limits.session_max_age",
+  "Stale reservation threshold": "debug.limits.stale_reservation_threshold",
+  "Max login attempts": "debug.limits.max_login_attempts",
+  "Login lockout duration": "debug.limits.login_lockout_duration",
+};
+
 const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
   ok ? (
     <span class="badge-ok">{t("common.configured")}</span>
@@ -316,7 +326,7 @@ export const adminDebugPage = (
           <tbody>
             {s.limits.map((l) => (
               <tr>
-                <td>{l.label}</td>
+                <td>{t(LIMIT_LABEL_KEYS[l.label] ?? l.label)}</td>
                 <td>
                   <code>{l.envKey}</code>
                 </td>

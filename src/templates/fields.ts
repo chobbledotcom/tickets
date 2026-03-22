@@ -12,6 +12,7 @@ import {
 } from "#lib/event-fields.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { type Field, validateForm } from "#lib/forms.tsx";
+import { t } from "#i18n";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
@@ -156,11 +157,11 @@ const validateSafeUrl = (value: string): string | null => {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:") {
-      return "URL must use https://";
+      return t("error.url_https");
     }
     return null;
   } catch {
-    return "Invalid URL format";
+    return t("error.url_invalid");
   }
 };
 
@@ -170,7 +171,7 @@ const validateSafeUrl = (value: string): string | null => {
 const validateNonNegativePrice = (value: string): string | null => {
   const num = Number.parseFloat(value);
   if (Number.isNaN(num) || num < 0) {
-    return "Price must be 0 or greater";
+    return t("error.price_negative");
   }
   return null;
 };
@@ -182,7 +183,7 @@ export const validateEmail = (value: string): string | null => {
   // Basic email format check - more permissive than strict RFC but catches common issues
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(value)) {
-    return "Please enter a valid email address";
+    return t("error.email_invalid");
   }
   return null;
 };
@@ -194,17 +195,17 @@ export const validatePhone = (value: string): string | null => {
   // Allow digits, spaces, hyphens, parentheses, plus sign
   const phoneRegex = /^[+\d][\d\s\-()]{5,}$/;
   if (!phoneRegex.test(value)) {
-    return "Please enter a valid phone number";
+    return t("error.phone_invalid");
   }
   return null;
 };
 
 /** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
 export const validateUsername = (value: string): string | null => {
-  if (value.length < 2) return "Username must be at least 2 characters";
-  if (value.length > 32) return "Username must be 32 characters or fewer";
+  if (value.length < 2) return t("error.username_min");
+  if (value.length > 32) return t("error.username_max");
   if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-    return "Username may only contain letters, numbers, hyphens, and underscores";
+    return t("error.username_chars");
   }
   return null;
 };
@@ -239,7 +240,7 @@ const validateEventFields = (value: string): string | null => {
     .filter((v) => v);
   for (const part of parts) {
     if (!isContactField(part)) {
-      return `Invalid contact field: ${part}`;
+      return t("error.contact_field_invalid", { field: part });
     }
   }
   return null;
@@ -248,7 +249,7 @@ const validateEventFields = (value: string): string | null => {
 /** Validate event type setting */
 const validateEventType = (value: string): string | null => {
   if (!isEventType(value)) {
-    return "Event Type must be standard or daily";
+    return t("error.event_type_invalid");
   }
   return null;
 };
@@ -270,10 +271,10 @@ export const splitCsv = (value: string): string[] =>
 /** Validate bookable days (comma-separated day names) */
 export const validateBookableDays = (value: string): string | null => {
   const days = splitCsv(value);
-  if (days.length === 0) return "At least one day is required";
+  if (days.length === 0) return t("error.day_required");
   for (const day of days) {
     if (!isValidDayName(day)) {
-      return `Invalid day: ${day}. Use: ${VALID_DAY_NAMES.join(", ")}`;
+      return t("error.day_invalid", { day, days: VALID_DAY_NAMES.join(", ") });
     }
   }
   return null;

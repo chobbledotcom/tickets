@@ -423,13 +423,13 @@ export const adminAdvancedSettingsPage = (
           <input
             type="password"
             name="email_api_key"
-            placeholder="Enter API key"
+            placeholder={t("settings.advanced.api_key_placeholder")}
             value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
             autocomplete="off"
           />
         </label>
         <label>
-          From Address
+          {t("settings.advanced.from_address")}
           <input
             type="email"
             name="email_from_address"
@@ -438,12 +438,12 @@ export const adminAdvancedSettingsPage = (
             autocomplete="off"
           />
         </label>
-        <button type="submit">Save Email Settings</button>
+        <button type="submit">{t("settings.advanced.save_email_settings")}</button>
       </CsrfForm>
       {s.emailProvider && (
         <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
           <button type="submit" class="secondary">
-            Send Test Email
+            {t("settings.advanced.send_test_email")}
           </button>
         </CsrfForm>
       )}
@@ -454,10 +454,10 @@ export const adminAdvancedSettingsPage = (
             action="/admin/settings/custom-domain"
             id="settings-custom-domain"
           >
-            <h2>Custom Domain</h2>
-            <p>Set a custom domain for your booking site.</p>
+            <h2>{t("settings.advanced.custom_domain")}</h2>
+            <p>{t("settings.advanced.custom_domain_hint")}</p>
             <label>
-              Domain
+              {t("settings.advanced.domain_label")}
               <input
                 type="text"
                 name="custom_domain"
@@ -466,7 +466,7 @@ export const adminAdvancedSettingsPage = (
                 autocomplete="off"
               />
             </label>
-            <button type="submit">Save Custom Domain</button>
+            <button type="submit">{t("settings.advanced.save_custom_domain")}</button>
           </CsrfForm>
 
           {s.customDomain && (
@@ -478,8 +478,7 @@ export const adminAdvancedSettingsPage = (
                 <article>
                   <aside role="alert">
                     <p>
-                      <strong>Your custom domain is not yet validated.</strong>{" "}
-                      It will not work until validation is complete.
+                      <strong>{t("settings.advanced.domain_not_validated")}</strong>
                     </p>
                   </aside>
                 </article>
@@ -487,15 +486,14 @@ export const adminAdvancedSettingsPage = (
               <article>
                 <aside>
                   <p>
-                    To use your custom domain, create a <strong>CNAME</strong>{" "}
-                    record:
+                    {t("settings.advanced.domain_cname_instructions")}
                   </p>
                   <table>
                     <thead>
                       <tr>
-                        <th>Type</th>
-                        <th>Name</th>
-                        <th>Value</th>
+                        <th>{t("settings.advanced.domain_col_type")}</th>
+                        <th>{t("settings.advanced.domain_col_name")}</th>
+                        <th>{t("settings.advanced.domain_col_value")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -511,17 +509,16 @@ export const adminAdvancedSettingsPage = (
                     </tbody>
                   </table>
                   <p>
-                    Once the DNS record is in place, click the button below to
-                    validate and enable SSL.
+                    {t("settings.advanced.domain_dns_hint")}
                   </p>
                 </aside>
               </article>
               {s.customDomainLastValidated && (
                 <p>
-                  <small>Last validated: {s.customDomainLastValidated}</small>
+                  <small>{t("settings.advanced.domain_last_validated")} {s.customDomainLastValidated}</small>
                 </p>
               )}
-              <button type="submit">Validate Custom Domain</button>
+              <button type="submit">{t("settings.advanced.validate_custom_domain")}</button>
             </CsrfForm>
           )}
         </div>

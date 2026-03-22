@@ -502,7 +502,7 @@ export const adminEventPage = ({
                 </td>
               </tr>
               <tr>
-                <th>Attendees{dailySuffix}</th>
+                <th>{t("admin.events.attendees_heading")}{dailySuffix}</th>
                 <td>
                   {isDaily && dateFilter ? (
                     <span
@@ -853,12 +853,11 @@ export const adminDeactivateEventPage = (
       </article>
 
       <p>
-        To deactivate this event, type its name "{event.name}" into the box
-        below:
+        {t("admin.events.deactivate_event.confirm_prompt", { name: event.name })}
       </p>
 
       <CsrfForm action={`/admin/event/${event.id}/deactivate`}>
-        <label for="confirm_identifier">Event name</label>
+        <label for="confirm_identifier">{t("admin.events.delete_event.label")}</label>
         <input
           type="text"
           id="confirm_identifier"
@@ -868,7 +867,7 @@ export const adminDeactivateEventPage = (
           required
         />
         <button type="submit" class="danger">
-          Deactivate Event
+          {t("admin.events.deactivate_event.submit")}
         </button>
       </CsrfForm>
     </Layout>,
@@ -890,23 +889,20 @@ export const adminReactivateEventPage = (
       <article>
         <aside>
           <p>
-            Reactivating this event will make it available for registrations
-            again.
+            {t("admin.events.reactivate_event.message")}
           </p>
           <p>
-            The public ticket page will be accessible and new attendees can
-            register.
+            {t("admin.events.reactivate_event.details")}
           </p>
         </aside>
       </article>
 
       <p>
-        To reactivate this event, type its name "{event.name}" into the box
-        below:
+        {t("admin.events.reactivate_event.confirm_prompt", { name: event.name })}
       </p>
 
       <CsrfForm action={`/admin/event/${event.id}/reactivate`}>
-        <label for="confirm_identifier">Event name</label>
+        <label for="confirm_identifier">{t("admin.events.delete_event.label")}</label>
         <input
           type="text"
           id="confirm_identifier"
@@ -915,7 +911,7 @@ export const adminReactivateEventPage = (
           autocomplete="off"
           required
         />
-        <button type="submit">Reactivate Event</button>
+        <button type="submit">{t("admin.events.reactivate_event.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
