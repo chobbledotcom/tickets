@@ -227,9 +227,7 @@ export const adminGroupDetailPage = (
   const totalCount = totalAttendeeCount(events);
   const tableRows = buildAttendeeRows(attendees, events);
   const effectiveCapacity =
-    group.max_attendees > 0
-      ? group.max_attendees
-      : totalMaxAttendees(events);
+    group.max_attendees > 0 ? group.max_attendees : totalMaxAttendees(events);
   const sharedRows = buildSharedDetailRows({
     attendees,
     attendeeCount: totalCount,
