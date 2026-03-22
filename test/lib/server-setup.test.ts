@@ -6,7 +6,6 @@ import {
   awaitTestRequest,
   createTestDb,
   createTestDbWithSetup,
-  expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
   getSetupCsrfToken,

@@ -9,7 +9,6 @@ import {
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,

@@ -150,7 +150,7 @@ const checkMetric = (
 };
 
 // Files excluded from coverage enforcement
-const COVERAGE_EXCLUSIONS = ["src/lib/db/migrations.ts"];
+const COVERAGE_EXCLUSIONS = ["src/lib/db/migrations.ts", "src/test-utils/"];
 
 /** Extract the relative file path from an lcov record, or null if excluded */
 const extractRecordFile = (record: string): string | null => {

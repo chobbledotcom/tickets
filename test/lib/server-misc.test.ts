@@ -20,7 +20,6 @@ import {
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,

@@ -781,7 +781,7 @@ export const withMocks = async <
     await body(mocks);
   } finally {
     if (typeof (mocks as Restorable).restore === "function") {
-      (mocks as Restorable).restore();
+      (mocks as Restorable).restore!();
     } else {
       for (const mock of Object.values(mocks as Record<string, Restorable>)) {
         mock.restore?.();

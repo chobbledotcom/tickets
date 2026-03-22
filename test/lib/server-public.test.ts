@@ -27,7 +27,6 @@ import {
   createTestHoliday,
   deactivateTestEvent,
   describeWithEnv,
-  expectAdminRedirect,
   expectCheckoutRedirect,
   expectHtmlResponse,
   expectRedirect,

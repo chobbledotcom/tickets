@@ -24,7 +24,6 @@ import { handleRequest } from "#routes";
 import {
   createTestDbWithSetup,
   createTestEvent,
-  expectAdminRedirect,
   expectFlash,
   expectRedirect,
   extractCsrfToken,
