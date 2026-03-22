@@ -982,6 +982,10 @@ body.iframe form {
   padding-left: 0;
 }
 
+.multi-ticket-row {
+  margin-bottom: 2rem;
+}
+
 fieldset {
   border: 0;
 }
