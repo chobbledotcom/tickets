@@ -936,10 +936,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   if (!sessionResult) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: "Webhook event missing session data",
+      detail: "Ignoring webhook for unrecognized payment session",
     });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse("Invalid session data", 400);
+    logDebug("Webhook", `Ignored payload: ${payload}`);
+    return webhookAckResponse();
   }
 
   const session = sessionResult;
