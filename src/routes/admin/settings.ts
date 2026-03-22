@@ -765,12 +765,12 @@ const processCountryForm: SettingsFormHandler = async (form, errorPage) => {
   }
 
   if (!isValidCountry(trimmed)) {
-    return errorPage("Please select a valid country", 400, "settings-country");
+    return errorPage(t("error.country_invalid"), 400, "settings-country");
   }
 
   await updateCountry(trimmed);
   await logActivity(`Country set to ${trimmed}`);
-  return redirect("/admin/settings", "Country updated", true, {
+  return redirect("/admin/settings", t("success.country_updated"), true, {
     formId: "settings-country",
   });
 };
@@ -789,14 +789,14 @@ const processBusinessEmailForm: SettingsFormHandler = async (
   if (trimmed === "") {
     await updateBusinessEmail("");
     await logActivity("Business email cleared");
-    return redirect("/admin/settings", "Business email cleared", true, {
+    return redirect("/admin/settings", t("success.business_email_cleared"), true, {
       formId: "settings-business-email",
     });
   }
 
   if (!isValidBusinessEmail(trimmed)) {
     return errorPage(
-      "Invalid email format. Please use format: name@domain.com",
+      t("error.email_format"),
       400,
       "settings-business-email",
     );
