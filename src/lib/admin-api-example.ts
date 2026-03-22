@@ -6,11 +6,11 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import type { AdminEvent, EventWithCount } from "#lib/types.ts";
 import {
   API_EXAMPLE_EVENT,
   API_EXAMPLE_PUBLIC_EVENT,
 } from "#lib/api-example.ts";
+import type { AdminEvent, EventWithCount } from "#lib/types.ts";
 import {
   type CreateEventBody,
   type DeleteEventBody,

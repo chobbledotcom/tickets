@@ -181,11 +181,7 @@ const EndpointEntry = ({ endpoint }: { endpoint: EndpointDoc }): string =>
     </details>,
   );
 
-const EndpointList = ({
-  endpoints,
-}: {
-  endpoints: EndpointDoc[];
-}): string =>
+const EndpointList = ({ endpoints }: { endpoints: EndpointDoc[] }): string =>
   pipe(
     map((e: EndpointDoc) => EndpointEntry({ endpoint: e })),
     joinStrings,
@@ -217,9 +213,7 @@ export const adminApiDocsPage = (
       </p>
 
       <h3>Public API</h3>
-      <p>
-        No API key required. All endpoints support CORS.
-      </p>
+      <p>No API key required. All endpoints support CORS.</p>
       <Raw html={EndpointList({ endpoints: publicEndpoints })} />
 
       <h3>Admin API</h3>
