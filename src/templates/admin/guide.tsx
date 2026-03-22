@@ -321,6 +321,53 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
+      <Section title="Booking Questions">
+        <Q q="What are custom booking questions?">
+          <p>
+            Custom booking questions let you ask attendees a multiple-choice
+            question during the booking process. Each question has a set of
+            answers you define, and the attendee must select one before they can
+            complete their booking.
+          </p>
+        </Q>
+
+        <Q q="How do I create a question?">
+          <p>
+            Go to <strong>Questions</strong> in the admin menu, type your
+            question text, and click <strong>Add Question</strong>. Then open
+            the question and add your answer options. You can reorder answers
+            using the move-up and move-down buttons.
+          </p>
+        </Q>
+
+        <Q q="How do I add a question to an event?">
+          <p>
+            Open the event in the admin area and click{" "}
+            <strong>Questions</strong>. Tick the questions you want to appear on
+            that event's booking form and save. The same question can be shared
+            across multiple events &mdash; create it once and assign it wherever
+            you need it.
+          </p>
+        </Q>
+
+        <Q q="Can I share questions between events?">
+          <p>
+            Yes. Questions are created independently and then assigned to
+            events, so a single question can appear on as many events as you
+            like. Updating the question text or answers updates it everywhere
+            it's used.
+          </p>
+        </Q>
+
+        <Q q="Where do I see the answers?">
+          <p>
+            Each attendee's selected answer is shown on their detail page in the
+            admin area. Answers are also included in the CSV export and in
+            webhook payloads, so you can use them in external tools.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Public Links">
         <Q q="Why do I get a 403 error when sharing my link on Facebook?">
           <p>
