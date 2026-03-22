@@ -63,7 +63,7 @@ export const adminGuidePage = (
       <p class="search-hint">
         Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
         on Mac) to{" "}
-        <a href="#" onclick="window.find?.(); return false">
+        <a href="#" data-find-in-page>
           search this page
         </a>
         .
