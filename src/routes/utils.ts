@@ -20,7 +20,7 @@ import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { FormParams } from "#lib/form-data.ts";
-import { clearSavedFormData, setSavedFormData } from "#lib/forms.tsx";
+import { setSavedFormData } from "#lib/forms.tsx";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { ErrorCode, getRequestId, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -541,13 +541,16 @@ export const requireCsrfForm = async (
   const form = await parseFormData(request);
   const formCsrf = form.getString("csrf_token");
 
+  // Always save form data so validation errors can restore user input.
+  // This clears any stale data from a prior request and makes the current
+  // submission available to renderFields/getSavedValue during re-rendering.
+  setSavedFormData(form);
+
   if (formCsrf && (await verifySignedCsrfToken(formCsrf))) {
-    clearSavedFormData();
     return { ok: true, form };
   }
 
   await signCsrfToken();
-  setSavedFormData(form);
   return { ok: false, response: onInvalid() };
 };
 
