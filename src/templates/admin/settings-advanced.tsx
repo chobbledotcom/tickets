@@ -75,26 +75,24 @@ export const adminAdvancedSettingsPage = (
           creating bookings. See the <a href="/admin/guide#api">API guide</a>{" "}
           for details.
         </p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="show_public_api"
-              value="true"
-              checked={s.showPublicApi === true}
-            />
-            Yes
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="show_public_api"
-              value="false"
-              checked={s.showPublicApi !== true}
-            />
-            No
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="show_public_api"
+            value="true"
+            checked={s.showPublicApi === true}
+          />
+          Yes
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="show_public_api"
+            value="false"
+            checked={s.showPublicApi !== true}
+          />
+          No
+        </label>
         <button type="submit">Save</button>
       </CsrfForm>
 

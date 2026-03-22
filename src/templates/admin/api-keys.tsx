@@ -91,20 +91,18 @@ export const adminApiKeysPage = (
       <br />
 
       <CsrfForm action="/admin/api-keys">
-        <fieldset>
-          <legend>Create API key</legend>
-          <label>
-            Name
-            <input
-              type="text"
-              name="name"
-              placeholder="e.g. CI Pipeline"
-              required
-              maxLength={100}
-            />
-          </label>
-          <button type="submit">Create key</button>
-        </fieldset>
+        <h2>Create API key</h2>
+        <label>
+          Name
+          <input
+            type="text"
+            name="name"
+            placeholder="e.g. CI Pipeline"
+            required
+            maxLength={100}
+          />
+        </label>
+        <button type="submit">Create key</button>
       </CsrfForm>
     </Layout>,
   );
