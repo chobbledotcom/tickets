@@ -7,6 +7,10 @@ import {
   decryptAttendeesForTable,
 } from "#lib/db/attendees.ts";
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
+import {
+  getAttendeeAnswersBatch,
+  getQuestionsWithEventIds,
+} from "#lib/db/questions.ts";
 import type { validateForm } from "#lib/forms.tsx";
 import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import {
@@ -17,6 +21,7 @@ import {
   requireSessionOr,
   SessionKeyError,
 } from "#routes/utils.ts";
+import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** Form field definition type */
 export type FormFields = Parameters<typeof validateForm>[1];
@@ -105,3 +110,16 @@ export const withEventAttendeesAuth = (
   requireSessionOr(request, (session) =>
     withDecryptedAttendees(session, eventId, handler, mode),
   );
+
+/** Load question data for attendees across multiple events */
+export const loadQuestionData = async (
+  eventIds: number[],
+  attendeeIds: number[],
+): Promise<TableQuestionData | undefined> => {
+  if (attendeeIds.length === 0 || eventIds.length === 0) return undefined;
+  const [{ questions }, attendeeAnswerMap] = await Promise.all([
+    getQuestionsWithEventIds(eventIds),
+    getAttendeeAnswersBatch(attendeeIds),
+  ]);
+  return questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
+};

@@ -21,6 +21,7 @@ import {
 } from "#lib/types.ts";
 import { EventRow } from "#templates/admin/dashboard.tsx";
 import {
+  buildAnswerSummaryRows,
   calculateTotalRevenue,
   countCheckedIn,
   countCheckedInRows,
@@ -30,6 +31,7 @@ import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
+  type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -209,6 +211,7 @@ export const adminGroupDetailPage = (
   allowedDomain: string,
   phonePrefix?: string,
   successMessage?: string,
+  questionData?: TableQuestionData,
 ): string => {
   const eventRows =
     events.length > 0
@@ -302,6 +305,7 @@ export const adminGroupDetailPage = (
                   <td>{formatCurrency(calculateTotalRevenue(attendees))}</td>
                 </tr>
               )}
+              <Raw html={buildAnswerSummaryRows(questionData)} />
               <tr>
                 <th>
                   <label for={`embed-script-${group.id}`}>Embed Script</label>
@@ -364,6 +368,7 @@ export const adminGroupDetailPage = (
               showDate: events.some((e) => e.event_type === "daily"),
               returnUrl: `/admin/group/${group.id}#attendees`,
               phonePrefix,
+              questionData,
             })}
           />
         </div>

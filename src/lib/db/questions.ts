@@ -6,7 +6,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { map } from "#fp";
+import { map, reduce } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { executeBatch, inPlaceholders, queryAll } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
@@ -245,12 +245,15 @@ export const getQuestionsWithEventIds = async (
 
   if (rows.length === 0) return { questions: [], questionEventMap: new Map() };
 
-  const questionEventMap: QuestionEventMap = new Map();
-  for (const row of rows) {
-    if (!questionEventMap.has(row.q_id)) {
-      questionEventMap.set(row.q_id, map(Number)(row.event_ids.split(",")));
-    }
-  }
+  const questionEventMap = reduce(
+    (acc: QuestionEventMap, row: JoinedRowWithEvents) => {
+      if (!acc.has(row.q_id)) {
+        acc.set(row.q_id, map(Number)(row.event_ids.split(",")));
+      }
+      return acc;
+    },
+    new Map() as QuestionEventMap,
+  )(rows);
 
   const questions = await groupJoinedRows(rows);
   return { questions, questionEventMap };
@@ -309,13 +312,18 @@ export const getAttendeeAnswersBatch = async (
     attendeeIds,
   );
 
-  const result = new Map<number, number[]>();
-  for (const { attendee_id, answer_id } of rows) {
-    const list = result.get(attendee_id) ?? [];
-    list.push(answer_id);
-    result.set(attendee_id, list);
-  }
-  return result;
+  return reduce(
+    (
+      acc: Map<number, number[]>,
+      { attendee_id, answer_id }: { attendee_id: number; answer_id: number },
+    ) => {
+      const list = acc.get(attendee_id) ?? [];
+      list.push(answer_id);
+      acc.set(attendee_id, list);
+      return acc;
+    },
+    new Map<number, number[]>(),
+  )(rows);
 };
 
 /** Delete a question and all related data in a single batch.
@@ -358,6 +366,49 @@ export const getQuestionWithAnswers = async (
   if (rows.length === 0) return null;
   // rows is non-empty so groupJoinedRows always returns at least one entry
   return (await groupJoinedRows(rows))[0]!;
+};
+
+/** Get total counts for each answer across all bookings */
+export const getAnswerCountsForQuestion = async (
+  questionId: number,
+): Promise<Map<number, number>> => {
+  const rows = await queryAll<{ answer_id: number; cnt: number }>(
+    `SELECT a.id AS answer_id, COUNT(aa.id) AS cnt
+     FROM answers a
+     LEFT JOIN attendee_answers aa ON aa.answer_id = a.id
+     WHERE a.question_id = ?
+     GROUP BY a.id`,
+    [questionId],
+  );
+  return reduce(
+    (
+      acc: Map<number, number>,
+      { answer_id, cnt }: { answer_id: number; cnt: number },
+    ) => {
+      acc.set(answer_id, cnt);
+      return acc;
+    },
+    new Map<number, number>(),
+  )(rows);
+};
+
+/** Swap the sort_order of two answers by their IDs */
+export const swapAnswerOrder = async (
+  answerId1: number,
+  sortOrder1: number,
+  answerId2: number,
+  sortOrder2: number,
+): Promise<void> => {
+  await executeBatch([
+    {
+      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
+      args: [sortOrder2, answerId1],
+    },
+    {
+      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
+      args: [sortOrder1, answerId2],
+    },
+  ]);
 };
 
 /** Get the next sort_order for a new answer in a question */

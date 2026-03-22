@@ -531,6 +531,35 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain(`/admin/event/${event.id}`);
     });
 
+    test("shows question answer summary in group details", async () => {
+      const group = await createTestGroup({
+        name: "Q Group",
+        slug: "q-group",
+      });
+      const event = await createTestEvent({
+        name: "Q Event",
+        groupId: group.id,
+        maxAttendees: 10,
+      });
+      await createTestAttendee(event.id, event.slug, "Dave", "dave@test.com");
+      const { questionsTable, answersTable, setEventQuestions } = await import(
+        "#lib/db/questions.ts"
+      );
+      const q = await questionsTable.insert({ text: "Color" });
+      await answersTable.insert({
+        questionId: q.id,
+        text: "Red",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("<th>Color</th>");
+      expect(html).toContain("Red (0)");
+    });
+
     test("shows total revenue for paid events", async () => {
       const group = await createTestGroup({
         name: "Revenue Group",

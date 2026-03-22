@@ -2,7 +2,7 @@
  * Admin event page templates - detail, edit, delete
  */
 
-import { filter, map, pipe, reduce } from "#fp";
+import { filter, flatMap, map, pipe, reduce } from "#fp";
 import { getTz } from "#lib/config.ts";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
@@ -32,6 +32,7 @@ import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
+  type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
   attachmentField,
@@ -93,6 +94,41 @@ export const sumQuantity = reduce(
   (sum: number, a: Attendee) => sum + a.quantity,
   0,
 );
+
+/** Count how many times each answer was selected across all attendees */
+const countAnswers = (attendeeAnswerMap: Map<number, number[]>) =>
+  pipe(
+    flatMap((ids: number[]) => ids),
+    reduce((counts: Map<number, number>, id: number) => {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+      return counts;
+    }, new Map<number, number>()),
+  )([...attendeeAnswerMap.values()]);
+
+/** Format a question's answers as "text (count), ..." */
+const formatAnswerParts = (answerCounts: Map<number, number>) =>
+  pipe(
+    map(
+      (a: { id: number; text: string }) =>
+        `${a.text} (${answerCounts.get(a.id) ?? 0})`,
+    ),
+    (parts: string[]) => parts.join(", "),
+  );
+
+/** Build answer count summary rows for the details table */
+export const buildAnswerSummaryRows = (
+  questionData: TableQuestionData | undefined,
+): string => {
+  if (!questionData || questionData.questions.length === 0) return "";
+  const answerCounts = countAnswers(questionData.attendeeAnswerMap);
+  return pipe(
+    map(
+      (q: { text: string; answers: { id: number; text: string }[] }) =>
+        `<tr><th>${q.text}</th><td>${formatAnswerParts(answerCounts)(q.answers)}</td></tr>`,
+    ),
+    joinStrings,
+  )(questionData.questions);
+};
 
 /** Concatenate strings (curried reducer for use in pipe) */
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
@@ -221,6 +257,7 @@ export type AdminEventPageOptions = {
   errorMessage?: string;
   phonePrefix?: string;
   successMessage?: string;
+  questionData?: TableQuestionData;
 };
 
 export const adminEventPage = ({
@@ -235,6 +272,7 @@ export const adminEventPage = ({
   errorMessage,
   phonePrefix,
   successMessage,
+  questionData,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -515,6 +553,7 @@ export const adminEventPage = ({
                   </td>
                 </tr>
               )}
+              <Raw html={buildAnswerSummaryRows(questionData)} />
               <tr>
                 <th>Registration Closes</th>
                 <td>
@@ -661,6 +700,7 @@ export const adminEventPage = ({
               activeFilter,
               returnUrl,
               phonePrefix,
+              questionData,
             })}
           />
         </div>
