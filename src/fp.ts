@@ -88,26 +88,6 @@ export const sort =
     [...array].sort(comparator);
 
 /**
- * Sort by a key or getter function
- */
-export const sortBy =
-  <T>(keyOrFn: keyof T | ((item: T) => string | number)) =>
-  (array: T[]): T[] => {
-    const getValue = (item: T): string | number =>
-      typeof keyOrFn === "function"
-        ? keyOrFn(item)
-        : (item[keyOrFn] as string | number);
-
-    return [...array].sort((a, b) => {
-      const aVal = getValue(a);
-      const bVal = getValue(b);
-      if (aVal < bVal) return -1;
-      if (aVal > bVal) return 1;
-      return 0;
-    });
-  };
-
-/**
  * Remove duplicate values (by reference/value equality)
  */
 export const unique = <T>(array: T[]): T[] => [...new Set(array)];
@@ -135,23 +115,6 @@ export const uniqueBy =
  */
 export const compact = <T>(array: (T | null | undefined)[]): T[] =>
   array.filter((x): x is T => x !== null && x !== undefined);
-
-/**
- * Group array items by a key function
- */
-export const groupBy =
-  <T>(fn: (item: T) => string) =>
-  (array: T[]): Record<string, T[]> => {
-    const result: Record<string, T[]> = {};
-    for (const item of array) {
-      const key = fn(item);
-      if (!result[key]) {
-        result[key] = [];
-      }
-      result[key].push(item);
-    }
-    return result;
-  };
 
 /**
  * Lazy evaluation - compute once on first call, cache forever.
@@ -197,52 +160,6 @@ export const lazyRef = <T>(
 };
 
 /**
- * Pick specific keys from an object
- */
-export const pick =
-  <T extends object, K extends keyof T>(keys: K[]) =>
-  (obj: T): Pick<T, K> => {
-    const result = {} as Pick<T, K>;
-    for (const key of keys) {
-      if (key in obj) {
-        result[key] = obj[key];
-      }
-    }
-    return result;
-  };
-
-/**
- * Check if value is not null or undefined
- */
-export const isDefined = <T>(value: T | null | undefined): value is T =>
-  value !== null && value !== undefined;
-
-/**
- * Identity function
- */
-export const identity = <T>(value: T): T => value;
-
-/**
- * Result type for operations that can fail with a Response
- */
-export type Result<T> =
-  | { ok: true; value: T }
-  | { ok: false; response: Response };
-
-/**
- * Create a successful result
- */
-export const ok = <T>(value: T): Result<T> => ({ ok: true, value });
-
-/**
- * Create a failed result
- */
-export const err = (response: Response): Result<never> => ({
-  ok: false,
-  response,
-});
-
-/**
  * Resource management pattern (like Haskell's bracket or try-with-resources).
  * Ensures cleanup happens even if the operation throws.
  *
@@ -264,59 +181,6 @@ export const bracket =
     }
   };
 
-// --- Async pipe type helpers ---
-
-/** A single-arg async function */
-// deno-lint-ignore no-explicit-any
-type AsyncFn = (arg: any) => Promise<any>;
-
-/** Validates that each async fn's Awaited return matches the next fn's parameter */
-type ValidAsyncChain<Fns extends AsyncFn[]> = Fns extends [AsyncFn]
-  ? true
-  : Fns extends [
-        infer A extends AsyncFn,
-        infer B extends AsyncFn,
-        ...infer Rest extends AsyncFn[],
-      ]
-    ? Awaited<ReturnType<A>> extends Parameters<B>[0]
-      ? ValidAsyncChain<[B, ...Rest]>
-      : false
-    : true;
-
-/** Extracts the Awaited return type of the last async fn */
-type LastAsyncReturn<Fns extends AsyncFn[]> = Fns extends [
-  ...AsyncFn[],
-  infer L extends AsyncFn,
-]
-  ? Awaited<ReturnType<L>>
-  : never;
-
-/** Computes pipeAsync's return type, returning a non-callable error type on mismatch */
-type PipeAsyncReturn<Fns extends [AsyncFn, ...AsyncFn[]]> =
-  ValidAsyncChain<Fns> extends true
-    ? (arg: Parameters<Fns[0]>[0]) => Promise<LastAsyncReturn<Fns>>
-    : (invalid: never) => Promise<never>;
-
-/**
- * Async pipe - compose async functions left-to-right
- * Each function receives the awaited result of the previous one.
- * Uses recursive conditional types for arbitrary-length type safety.
- */
-export function pipeAsync<Fns extends [AsyncFn, ...AsyncFn[]]>(
-  ...fns: [...Fns]
-): PipeAsyncReturn<Fns>;
-export function pipeAsync(
-  ...fns: Array<(arg: unknown) => Promise<unknown>>
-): (value: unknown) => Promise<unknown> {
-  return async (value: unknown): Promise<unknown> => {
-    let result = value;
-    for (const fn of fns) {
-      result = await fn(result);
-    }
-    return result;
-  };
-}
-
 /**
  * Split an array into chunks of a given size
  */
@@ -331,93 +195,12 @@ export const chunk =
   };
 
 /**
- * Map over a promise-returning function sequentially (one at a time)
- */
-export const mapSequential =
-  <T, U>(fn: (item: T) => Promise<U>) =>
-  async (array: T[]): Promise<U[]> => {
-    const results: U[] = [];
-    for (const item of array) {
-      results.push(await fn(item));
-    }
-    return results;
-  };
-
-/**
  * Map over a promise-returning function in parallel (Promise.all)
  */
 export const mapParallel =
   <T, U>(fn: (item: T) => Promise<U>) =>
   (array: T[]): Promise<U[]> =>
     Promise.all(array.map(fn));
-
-/** Bounded LRU cache returned by boundedLru() */
-export type BoundedLru<K, V> = {
-  get: (key: K) => V | undefined;
-  set: (key: K, value: V) => void;
-  clear: () => void;
-  size: () => number;
-};
-
-/**
- * Create a bounded LRU (Least Recently Used) cache.
- * Evicts the least-recently-used entry when capacity is reached.
- * Uses a doubly-linked list for O(1) LRU tracking so that
- * get() does not mutate the key-value index.
- */
-export const boundedLru = <K, V>(maxSize: number): BoundedLru<K, V> => {
-  type Node = { key: K; value: V; prev: Node; next: Node };
-  const index = new Map<K, Node>();
-  // Sentinel nodes eliminate null-checks in detach/append
-  const head = {} as Node;
-  const tail = {} as Node;
-  head.next = tail;
-  tail.prev = head;
-
-  const detach = (n: Node): void => {
-    n.prev.next = n.next;
-    n.next.prev = n.prev;
-  };
-  const append = (n: Node): void => {
-    n.prev = tail.prev;
-    n.next = tail;
-    tail.prev.next = n;
-    tail.prev = n;
-  };
-
-  return {
-    get: (key: K): V | undefined => {
-      const node = index.get(key);
-      if (!node) return undefined;
-      detach(node);
-      append(node);
-      return node.value;
-    },
-    set: (key: K, value: V): void => {
-      const existing = index.get(key);
-      if (existing) {
-        detach(existing);
-        existing.value = value;
-        append(existing);
-      } else {
-        if (index.size >= maxSize) {
-          const oldest = head.next;
-          detach(oldest);
-          index.delete(oldest.key);
-        }
-        const node = { key, value } as Node;
-        append(node);
-        index.set(key, node);
-      }
-    },
-    clear: (): void => {
-      index.clear();
-      head.next = tail;
-      tail.prev = head;
-    },
-    size: (): number => index.size,
-  };
-};
 
 /** Collection cache returned by collectionCache() */
 export type CollectionCache<T> = {
