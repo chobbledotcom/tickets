@@ -28,6 +28,130 @@ import type { AdminEvent, EventType, EventWithCount } from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { jsonResponse, withAdminApi } from "#routes/utils.ts";
 
+// =============================================================================
+// Published API types — the contract for callers
+// =============================================================================
+
+/** JSON body accepted by POST /api/admin/events */
+export type CreateEventBody = {
+  name: string;
+  max_attendees: number;
+  max_price?: number;
+  description?: string;
+  date?: string | null;
+  location?: string;
+  group_id?: number;
+  unit_price?: number;
+  max_quantity?: number;
+  thank_you_url?: string;
+  webhook_url?: string;
+  active?: boolean;
+  fields?: string;
+  closes_at?: string | null;
+  event_type?: EventType;
+  bookable_days?: string[];
+  minimum_days_before?: number;
+  maximum_days_after?: number;
+  non_transferable?: boolean;
+  can_pay_more?: boolean;
+  hidden?: boolean;
+};
+
+/** JSON body accepted by PUT /api/admin/events/:eventId (all fields optional) */
+export type UpdateEventBody = Partial<CreateEventBody> & { slug?: string };
+
+/** JSON body accepted by DELETE /api/admin/events/:eventId */
+export type DeleteEventBody = { confirm_name: string };
+
+// =============================================================================
+// Schema-driven field extraction
+// =============================================================================
+
+/** Field type tag for runtime checking */
+type FieldType = "string" | "number" | "boolean" | "string[]";
+
+/**
+ * Field mapping: [apiKey, eventInputKey, type]
+ *
+ * Single source of truth for the snake_case → camelCase mapping.
+ * Drives both bodyToCreateInput (extract from JSON body) and
+ * bodyToUpdateInput (defaults from existing event).
+ */
+type FieldMapping = readonly [string, string, FieldType];
+
+const optionalFields: FieldMapping[] = [
+  ["description", "description", "string"],
+  ["date", "date", "string"],
+  ["location", "location", "string"],
+  ["group_id", "groupId", "number"],
+  ["unit_price", "unitPrice", "number"],
+  ["max_quantity", "maxQuantity", "number"],
+  ["thank_you_url", "thankYouUrl", "string"],
+  ["webhook_url", "webhookUrl", "string"],
+  ["active", "active", "boolean"],
+  ["fields", "fields", "string"],
+  ["closes_at", "closesAt", "string"],
+  ["event_type", "eventType", "string"],
+  ["bookable_days", "bookableDays", "string[]"],
+  ["minimum_days_before", "minimumDaysBefore", "number"],
+  ["maximum_days_after", "maximumDaysAfter", "number"],
+  ["non_transferable", "nonTransferable", "boolean"],
+  ["can_pay_more", "canPayMore", "boolean"],
+  ["hidden", "hidden", "boolean"],
+];
+
+/** Check whether a value matches the expected field type */
+const matchesType = (val: unknown, type: FieldType): boolean =>
+  type === "string"
+    ? typeof val === "string"
+    : type === "number"
+      ? typeof val === "number"
+      : type === "boolean"
+        ? typeof val === "boolean"
+        : Array.isArray(val);
+
+/**
+ * Extract typed fields from a JSON body using field mappings.
+ * Skips fields that are missing or have the wrong type.
+ * Null values are included as empty strings (explicit clear).
+ */
+const pickTypedFields = (
+  body: Record<string, unknown>,
+  fields: FieldMapping[],
+): Record<string, unknown> => {
+  const result: Record<string, unknown> = {};
+  for (const [apiKey, outKey, type] of fields) {
+    const val = body[apiKey];
+    if (val === undefined) continue;
+    if (val === null) {
+      result[outKey] = "";
+      continue;
+    }
+    if (matchesType(val, type)) result[outKey] = val;
+  }
+  return result;
+};
+
+/**
+ * Build EventInput defaults from an existing event (for updates).
+ * Maps snake_case Event fields to camelCase EventInput keys.
+ */
+const existingToDefaults = (
+  existing: EventWithCount,
+): Record<string, unknown> => {
+  const record = existing as unknown as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const [apiKey, outKey] of optionalFields) {
+    const val = record[apiKey];
+    result[outKey] = val === null ? "" : val;
+  }
+  return result;
+};
+
+// =============================================================================
+// Body → EventInput converters
+// =============================================================================
+
 /** Strip internal fields from an event, returning the admin API shape */
 export const toAdminEvent = ({
   slug_index: _,
@@ -38,73 +162,33 @@ export const toAdminEvent = ({
 const errorResponse = (message: string, status = 400): Response =>
   jsonResponse({ status: "error", message }, status);
 
-/** Extract an optional string field from JSON body (returns undefined if null/missing) */
-const optionalString = (value: unknown): string | undefined => {
-  if (value == null || value === "") return undefined;
-  return String(value);
-};
-
 /** Convert JSON body to EventInput for create (auto-generates slug) */
 export const bodyToCreateInput = async (
   body: Record<string, unknown>,
 ): Promise<{ ok: true; input: EventInput } | { ok: false; error: string }> => {
-  const name = body.name;
-  if (typeof name !== "string" || name.trim() === "") {
+  if (typeof body.name !== "string" || body.name.trim() === "") {
     return { ok: false, error: "name is required" };
   }
-  const maxAttendees = body.max_attendees;
-  if (typeof maxAttendees !== "number" || maxAttendees < 1) {
+  if (typeof body.max_attendees !== "number" || body.max_attendees < 1) {
     return { ok: false, error: "max_attendees is required and must be >= 1" };
   }
 
   const { slug, slugIndex } = await generateUniqueEventSlug();
 
-  const input: EventInput = {
-    name: String(name).trim(),
-    slug,
-    slugIndex,
-    maxAttendees,
-    maxPrice: typeof body.max_price === "number" ? body.max_price : 0,
-    description:
-      body.description != null ? String(body.description) : undefined,
-    date: optionalString(body.date),
-    location: body.location != null ? String(body.location) : undefined,
-    groupId: typeof body.group_id === "number" ? body.group_id : undefined,
-    unitPrice:
-      typeof body.unit_price === "number" ? body.unit_price : undefined,
-    maxQuantity:
-      typeof body.max_quantity === "number" ? body.max_quantity : undefined,
-    thankYouUrl:
-      body.thank_you_url != null ? String(body.thank_you_url) : undefined,
-    webhookUrl: body.webhook_url != null ? String(body.webhook_url) : undefined,
-    active: typeof body.active === "boolean" ? body.active : undefined,
-    fields: body.fields != null ? String(body.fields) : undefined,
-    closesAt: optionalString(body.closes_at),
-    eventType: body.event_type as EventType | undefined,
-    bookableDays: Array.isArray(body.bookable_days)
-      ? body.bookable_days
-      : undefined,
-    minimumDaysBefore:
-      typeof body.minimum_days_before === "number"
-        ? body.minimum_days_before
-        : undefined,
-    maximumDaysAfter:
-      typeof body.maximum_days_after === "number"
-        ? body.maximum_days_after
-        : undefined,
-    nonTransferable:
-      typeof body.non_transferable === "boolean"
-        ? body.non_transferable
-        : undefined,
-    canPayMore:
-      typeof body.can_pay_more === "boolean" ? body.can_pay_more : undefined,
-    hidden: typeof body.hidden === "boolean" ? body.hidden : undefined,
+  return {
+    ok: true,
+    input: {
+      ...pickTypedFields(body, optionalFields),
+      name: body.name.trim(),
+      slug,
+      slugIndex,
+      maxAttendees: body.max_attendees,
+      maxPrice: typeof body.max_price === "number" ? body.max_price : 0,
+    } as EventInput,
   };
-
-  return { ok: true, input };
 };
 
-/** Convert JSON body to EventInput for update (reads slug from body or keeps existing) */
+/** Convert JSON body to EventInput for update (merges with existing) */
 export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
   existing: EventWithCount,
@@ -120,76 +204,25 @@ export const bodyToUpdateInput = async (
     return { ok: false, error: "max_attendees must be >= 1" };
   }
 
-  // Slug: use provided slug or keep existing
   const rawSlug =
     body.slug != null ? normalizeSlug(String(body.slug)) : existing.slug;
   const slugIndex = await computeSlugIndex(rawSlug);
 
-  const input: EventInput = {
-    name,
-    slug: rawSlug,
-    slugIndex,
-    maxAttendees,
-    maxPrice:
-      typeof body.max_price === "number" ? body.max_price : existing.max_price,
-    description:
-      body.description != null
-        ? String(body.description)
-        : existing.description,
-    date:
-      body.date !== undefined
-        ? (optionalString(body.date) ?? "")
-        : existing.date,
-    location: body.location != null ? String(body.location) : existing.location,
-    groupId:
-      typeof body.group_id === "number" ? body.group_id : existing.group_id,
-    unitPrice:
-      typeof body.unit_price === "number"
-        ? body.unit_price
-        : existing.unit_price,
-    maxQuantity:
-      typeof body.max_quantity === "number"
-        ? body.max_quantity
-        : existing.max_quantity,
-    thankYouUrl:
-      body.thank_you_url != null
-        ? String(body.thank_you_url)
-        : existing.thank_you_url,
-    webhookUrl:
-      body.webhook_url != null
-        ? String(body.webhook_url)
-        : existing.webhook_url,
-    active: typeof body.active === "boolean" ? body.active : existing.active,
-    fields: body.fields != null ? String(body.fields) : existing.fields,
-    closesAt:
-      body.closes_at !== undefined
-        ? (optionalString(body.closes_at) ?? "")
-        : (existing.closes_at ?? ""),
-    eventType:
-      (body.event_type as EventType | undefined) ?? existing.event_type,
-    bookableDays: Array.isArray(body.bookable_days)
-      ? body.bookable_days
-      : existing.bookable_days,
-    minimumDaysBefore:
-      typeof body.minimum_days_before === "number"
-        ? body.minimum_days_before
-        : existing.minimum_days_before,
-    maximumDaysAfter:
-      typeof body.maximum_days_after === "number"
-        ? body.maximum_days_after
-        : existing.maximum_days_after,
-    nonTransferable:
-      typeof body.non_transferable === "boolean"
-        ? body.non_transferable
-        : existing.non_transferable,
-    canPayMore:
-      typeof body.can_pay_more === "boolean"
-        ? body.can_pay_more
-        : existing.can_pay_more,
-    hidden: typeof body.hidden === "boolean" ? body.hidden : existing.hidden,
+  return {
+    ok: true,
+    input: {
+      ...existingToDefaults(existing),
+      ...pickTypedFields(body, optionalFields),
+      name,
+      slug: rawSlug,
+      slugIndex,
+      maxAttendees,
+      maxPrice:
+        typeof body.max_price === "number"
+          ? body.max_price
+          : existing.max_price,
+    } as EventInput,
   };
-
-  return { ok: true, input };
 };
 
 // =============================================================================
