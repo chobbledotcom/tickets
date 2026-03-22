@@ -52,7 +52,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/"));
-      expectRedirect("/admin/")(response);
+      expectRedirect(response, /^\/admin\/$/);
     });
 
     test("shows public homepage when enabled", async () => {
@@ -132,7 +132,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /events", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/events"));
-      expectRedirect("/admin/")(response);
+      expectRedirect(response, /^\/admin\/$/);
     });
 
     test("shows no events message when enabled but no events exist", async () => {
@@ -336,7 +336,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /terms", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/terms"));
-      expectRedirect("/admin/")(response);
+      expectRedirect(response, /^\/admin\/$/);
     });
 
     test("shows terms page when enabled", async () => {
@@ -376,7 +376,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /contact", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/contact"));
-      expectRedirect("/admin/")(response);
+      expectRedirect(response, /^\/admin\/$/);
     });
 
     test("shows contact page when enabled", async () => {
@@ -1261,7 +1261,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "John Doe",
         email: "john@example.com",
       });
-      expectRedirect("https://example.com/thanks")(response);
+      expectRedirect(response, "https://example.com/thanks");
     });
 
     test("rejects when event is full", async () => {
@@ -2021,7 +2021,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         phone: "555-1234",
       });
       // With fields="phone", email is not collected and extractContact returns "" for email
-      expectRedirect("https://example.com/thanks")(response);
+      expectRedirect(response, "https://example.com/thanks");
     });
 
     test("ticket form with invalid quantity falls back to minimum", async () => {
@@ -2038,7 +2038,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         quantity: "abc",
       });
       // Should still succeed with quantity falling back to 1
-      expectRedirect("https://example.com/thanks")(response);
+      expectRedirect(response, "https://example.com/thanks");
     });
 
     test("multi-ticket skips sold-out events in quantity parsing", async () => {
@@ -2998,7 +2998,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "daily@example.com",
         date: validDate,
       });
-      expectRedirect("https://example.com/thanks")(response);
+      expectRedirect(response, "https://example.com/thanks");
     });
 
     test("POST rejects daily event with missing date", async () => {
@@ -3505,7 +3505,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "john@example.com",
         agree_terms: "1",
       });
-      expectRedirect("https://example.com/thanks")(response);
+      expectRedirect(response, "https://example.com/thanks");
     });
 
     test("succeeds without checkbox when no terms configured", async () => {
@@ -3517,7 +3517,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "John Doe",
         email: "john@example.com",
       });
-      expectRedirect("https://example.com/thanks")(response);
+      expectRedirect(response, "https://example.com/thanks");
     });
   });
 

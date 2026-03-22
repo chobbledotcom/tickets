@@ -25,10 +25,10 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectFlash,
+  expectRedirect,
   extractCsrfToken,
   FLASH_TEST_ID,
   flashCookieHeader,
-  getRedirectLocation,
   matchGroup,
   mockRequest,
   resetDb,
@@ -255,8 +255,7 @@ describe("API Keys", () => {
         }),
       );
 
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
+      const location = expectRedirect(response);
       const locationUrl = new URL(location, "http://localhost");
       locationUrl.searchParams.delete("flash");
       expect(locationUrl.pathname).toBe("/admin/api-keys");

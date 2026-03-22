@@ -1244,18 +1244,28 @@ export const expectHtmlResponse = async (
   return html;
 };
 
-/** Assert a Response is a redirect (302) to the given location. */
-export const expectRedirect =
-  (location: string) =>
-  (response: Response): Response => {
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe(location);
-    return response;
-  };
+/** Assert a Response is a 302 redirect whose location matches all patterns.
+ *  Strings are checked with toContain, RegExps with toMatch.
+ *  Returns the location for further inspection. */
+export const expectRedirect = (
+  response: Response,
+  ...patterns: (string | RegExp)[]
+): string => {
+  expect(response.status).toBe(302);
+  const location = getRedirectLocation(response);
+  for (const p of patterns) {
+    if (typeof p === "string") {
+      expect(location).toContain(p);
+    } else {
+      expect(location).toMatch(p);
+    }
+  }
+  return location;
+};
 
 /** Shorthand: assert redirect to /admin */
-export const expectAdminRedirect: (response: Response) => Response =
-  expectRedirect("/admin");
+export const expectAdminRedirect = (response: Response): string =>
+  expectRedirect(response, "/admin");
 
 /** Fixed flash ID used in tests for deterministic keyed cookies */
 export const FLASH_TEST_ID = "t001";
@@ -1292,8 +1302,7 @@ export const expectFlash = (
 export const expectRedirectWithFlash =
   (location: string, message?: string, succeeded = true) =>
   (response: Response): Response => {
-    expect(response.status).toBe(302);
-    const actualLocation = getRedirectLocation(response);
+    const actualLocation = expectRedirect(response);
     const url = new URL(actualLocation, "http://localhost");
     const flashId = url.searchParams.get("flash");
     expect(flashId).toBeDefined();
@@ -1319,22 +1328,14 @@ export const flashCookieHeader = (
 };
 
 /** Assert response is a checkout redirect (302 to an external HTTPS URL) */
-export const expectCheckoutRedirect = (response: Response): void => {
-  expect(response.status).toBe(302);
-  const location = response.headers.get("location");
-  expect(location).not.toBeNull();
-  expect(String(location).startsWith("https://")).toBe(true);
-};
+export const expectCheckoutRedirect = (response: Response): string =>
+  expectRedirect(response, /^https:\/\//);
 
 /** Follow a 302 redirect by making a new request to the location header. */
 export const followRedirect = (
   response: Response,
   handler: (request: Request) => Promise<Response>,
-): Promise<Response> => {
-  expect(response.status).toBe(302);
-  const location = getRedirectLocation(response);
-  return handler(mockRequest(location));
-};
+): Promise<Response> => handler(mockRequest(expectRedirect(response)));
 
 /** Assert a result object has ok:false with the expected error string. */
 export const expectResultError =
@@ -1366,7 +1367,7 @@ export const getHeader = (response: Response, name: string): string => {
 };
 
 /** Get the Location header from a response, throwing if missing. */
-export const getRedirectLocation = (response: Response): string =>
+const getRedirectLocation = (response: Response): string =>
   getHeader(response, "location");
 
 /** Match a regex against text and return the given capture group, throwing if no match. */

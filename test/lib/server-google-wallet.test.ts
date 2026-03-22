@@ -20,10 +20,10 @@ import {
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   generateGoogleTestCreds,
   loginAsAdmin,
   mockFormRequest,
-  getRedirectLocation,
   setTestEnv,
 } from "#test-utils";
 
@@ -80,9 +80,7 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
     );
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
-    expect(response.status).toBe(302);
-    const location = getRedirectLocation(response);
-    expect(location).toMatch(/^https:\/\/pay\.google\.com\/gp\/v\/save\//);
+    expectRedirect(response, /^https:\/\/pay\.google\.com\/gp\/v\/save\//);
   });
 
   test("redirect URL contains a valid JWT", async () => {
@@ -93,7 +91,7 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
     );
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
-    const location = getRedirectLocation(response);
+    const location = expectRedirect(response, /^https:\/\/pay\.google\.com\/gp\/v\/save\//);
     const jwt = location.replace("https://pay.google.com/gp/v/save/", "");
     const parts = jwt.split(".");
     expect(parts).toHaveLength(3);

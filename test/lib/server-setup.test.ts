@@ -61,12 +61,12 @@ describe("server (setup)", () => {
 
       test("redirects home to /setup/", async () => {
         const response = await handleRequest(mockRequest("/"));
-        expectRedirect("/setup")(response);
+        expectRedirect(response, /^\/setup$/);
       });
 
       test("redirects admin to /setup/", async () => {
         const response = await handleRequest(mockRequest("/admin/"));
-        expectRedirect("/setup")(response);
+        expectRedirect(response, /^\/setup$/);
       });
 
       test("health check still works", async () => {
@@ -97,7 +97,7 @@ describe("server (setup)", () => {
         const response = await submitSetupFormWithDefaults({
           country: "US",
         });
-        expectRedirect("/setup/complete")(response);
+        expectRedirect(response, /^\/setup\/complete$/);
       });
 
       test("POST /setup/ without CSRF token rejects request", async () => {
@@ -172,7 +172,7 @@ describe("server (setup)", () => {
         const response = await submitSetupFormWithDefaults({
           country: "us",
         });
-        expectRedirect("/setup/complete")(response);
+        expectRedirect(response, /^\/setup\/complete$/);
       });
 
       test("POST /setup/ returns 503 when completeSetup fails", async () => {
@@ -211,7 +211,7 @@ describe("server (setup)", () => {
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
         const response = await awaitTestRequest("/setup/", { method: "PUT" });
         // PUT method falls through routeSetup (returns null), then redirects to /setup/
-        expectRedirect("/setup")(response);
+        expectRedirect(response, /^\/setup$/);
       });
 
       test("setup form works with full browser flow simulation", async () => {
@@ -247,7 +247,7 @@ describe("server (setup)", () => {
         );
 
         // This should succeed - the full flow should work
-        expectRedirect("/setup/complete")(postResponse);
+        expectRedirect(postResponse, /^\/setup\/complete$/);
       });
 
       test("setup form works when accessed via /setup (no trailing slash)", async () => {
@@ -276,19 +276,19 @@ describe("server (setup)", () => {
           ),
         );
 
-        expectRedirect("/setup/complete")(postResponse);
+        expectRedirect(postResponse, /^\/setup\/complete$/);
       });
 
       test("GET /setup/complete redirects to setup when not yet complete", async () => {
         const response = await handleRequest(mockRequest("/setup/complete"));
-        expectRedirect("/setup/")(response);
+        expectRedirect(response, /^\/setup\/$/);
       });
     });
 
     describe("when setup already complete", () => {
       test("GET /setup/ redirects to home", async () => {
         const response = await handleRequest(mockRequest("/setup/"));
-        expectRedirect("/")(response);
+        expectRedirect(response, /^\/$/);
       });
 
       test("POST /setup/ redirects to home", async () => {
@@ -299,7 +299,7 @@ describe("server (setup)", () => {
             country: "FR",
           }),
         );
-        expectRedirect("/")(response);
+        expectRedirect(response, /^\/$/);
       });
 
       test("GET /setup/complete shows success page when setup is done", async () => {
@@ -344,7 +344,7 @@ describe("server (setup)", () => {
       const response = await submitSetupFormWithDefaults({
         country: "", // Empty defaults to GB
       });
-      expectRedirect("/setup/complete")(response);
+      expectRedirect(response, /^\/setup\/complete$/);
     });
   });
 });

@@ -20,11 +20,11 @@ import {
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
   getAttendeesRaw,
-  getRedirectLocation,
   mockFormRequest,
   mockProviderType,
   mockRequest,
@@ -557,22 +557,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("checks in an attendee and redirects with message", async () => {
       const { response, event } = await checkinAction({})();
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain(`/admin/event/${event.id}`);
-      expect(location).toContain("checkin_status=in");
-      expect(location).toContain("checkin_name=John");
-      expect(location).toContain("#message");
+      expectRedirect(response, `/admin/event/${event.id}`, "checkin_status=in", "checkin_name=John", "#message");
     });
 
     test("redirects to filtered page when return_filter is set", async () => {
       const { response, event } = await checkinAction({
         return_filter: "in",
       })();
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain(`/admin/event/${event.id}/in?`);
-      expect(location).toContain("checkin_status=in");
+      expectRedirect(response, `/admin/event/${event.id}/in?`, "checkin_status=in");
     });
 
     test("redirects to out filtered page when return_filter is out", async () => {
@@ -586,19 +578,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain(`/admin/event/${event.id}/out?`);
-      expect(location).toContain("checkin_status=out");
+      expectRedirect(response, `/admin/event/${event.id}/out?`, "checkin_status=out");
     });
 
     test("redirects to unfiltered page when return_filter is all", async () => {
       const { response, event } = await checkinAction({
         return_filter: "all",
       })();
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain(`/admin/event/${event.id}?`);
+      const location = expectRedirect(response, `/admin/event/${event.id}?`);
       expect(location).not.toContain("/in?");
       expect(location).not.toContain("/out?");
     });
@@ -607,11 +594,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await checkinAction({
         return_url: "/admin/calendar?date=2026-03-15#attendees",
       })();
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain("/admin/calendar");
-      expect(location).toContain("date=2026-03-15");
-      expect(location).toContain("#attendees");
+      expectRedirect(response, "/admin/calendar", "date=2026-03-15", "#attendees");
       expectFlash(response, expect.stringContaining("checked"));
     });
 
@@ -627,9 +610,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain("checkin_status=out");
+      expectRedirect(response, "checkin_status=out");
     });
 
     test("event page shows Check in button for unchecked attendee", async () => {
@@ -752,9 +733,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain(`/admin/event/${event.id}`);
+      expectRedirect(response, `/admin/event/${event.id}`);
       expectFlash(response, expect.stringContaining("Added"));
 
       const attendees = await getAttendeesRaw(event.id);
@@ -1341,11 +1320,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain("/admin/calendar");
-      expect(location).toContain("date=2026-03-15");
-      expect(location).toContain("#attendees");
+      expectRedirect(response, "/admin/calendar", "date=2026-03-15", "#attendees");
       expectFlash(response, expect.stringContaining("John Doe"));
     });
 

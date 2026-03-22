@@ -21,6 +21,7 @@ import {
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -35,7 +36,6 @@ import {
   TEST_ADMIN_PASSWORD,
   testCookie,
   testCsrfToken,
-  getRedirectLocation,
   withFetchMock,
   withMocks,
 } from "#test-utils";
@@ -238,8 +238,7 @@ describe("server (admin settings)", () => {
 
       // Should redirect to admin login with success message and session cleared
       expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
-      expect(location).toContain("/admin");
+      expectRedirect(response, "/admin");
       expectFlash(response, expect.stringContaining("Password changed"));
       const sessionCookie = response.headers
         .getSetCookie()
@@ -385,8 +384,7 @@ describe("server (admin settings)", () => {
           );
 
           expect(response.status).toBe(302);
-          const location = getRedirectLocation(response);
-          expect(location).toContain("/admin/settings");
+          expectRedirect(response, "/admin/settings");
           expectFlash(response, expect.stringContaining("Stripe key updated"));
           expectFlash(response, expect.stringContaining("webhook configured"));
         },

@@ -22,9 +22,9 @@ import {
   createTestEvent,
   expectFlash,
   expectHtmlResponse,
+  expectRedirect,
   getEmbeddableTicketResponse,
   getHeader,
-  getRedirectLocation,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
@@ -293,7 +293,7 @@ describe("server (misc)", () => {
   describe("routes/utils.ts (redirect)", () => {
     /** Parse the redirect location, stripping the flash param for comparison */
     const parseRedirectLocation = (response: Response) => {
-      const location = getRedirectLocation(response);
+      const location = expectRedirect(response);
       const url = new URL(location, "http://localhost");
       expect(url.searchParams.has("flash")).toBe(true);
       url.searchParams.delete("flash");
@@ -328,10 +328,8 @@ describe("server (misc)", () => {
         const response = redirect("/admin/settings", "A & B", true, {
           formId: "form&id",
         });
-        const location = getRedirectLocation(response);
+        const location = expectRedirect(response, "form=form%26id", "#form&id");
         expect(location).not.toContain("success=");
-        expect(location).toContain("form=form%26id");
-        expect(location).toContain("#form&id");
         expectFlash(response, "A & B");
       }));
 
@@ -377,7 +375,7 @@ describe("server (misc)", () => {
     test("uses request ID as flash key in redirect URL", () =>
       withRequestContext(() => {
         const response = redirect("/admin/settings", "Saved", true);
-        const location = getRedirectLocation(response);
+        const location = expectRedirect(response);
         const url = new URL(location, "http://localhost");
         const flashId = url.searchParams.get("flash");
         expect(flashId).toBeDefined();
@@ -387,7 +385,7 @@ describe("server (misc)", () => {
     test("keys flash cookie by the flash ID in the URL", () =>
       withRequestContext(() => {
         const response = redirect("/admin/settings", "Saved", true);
-        const location = getRedirectLocation(response);
+        const location = expectRedirect(response);
         const url = new URL(location, "http://localhost");
         const flashId = url.searchParams.get("flash")!;
         const cookies = response.headers.getSetCookie();

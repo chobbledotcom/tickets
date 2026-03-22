@@ -29,7 +29,7 @@ import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
-  getRedirectLocation,
+  expectRedirect,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -333,7 +333,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const location = getRedirectLocation(response);
+      const location = expectRedirect(response);
       expect(decodeURIComponent(location)).toContain("/join/");
 
       // Verify user was created in the database
