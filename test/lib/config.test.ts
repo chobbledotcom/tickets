@@ -5,6 +5,7 @@ import {
   getAllowedDomain,
   getBookingFee,
   getCurrencyCode,
+  getEffectiveDomain,
   getPaymentProvider,
   getSquareAccessToken,
   getSquareLocationId,
@@ -13,8 +14,11 @@ import {
   getTz,
   isPaymentsEnabled,
   isSetupComplete,
+  loadEffectiveDomain,
   resetAllowedDomain,
+  resetEffectiveDomain,
   setAllowedDomainForTest,
+  setEffectiveDomainForTest,
 } from "#lib/config.ts";
 import {
   completeSetup,
@@ -22,6 +26,8 @@ import {
   setPaymentProvider,
   setSetting,
   updateBookingFee,
+  updateCustomDomain,
+  updateCustomDomainLastValidated,
   updateSquareAccessToken,
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
@@ -171,6 +177,76 @@ describe("config", () => {
     test("returns localhost when set for testing", () => {
       setAllowedDomainForTest("localhost");
       expect(getAllowedDomain()).toBe("localhost");
+    });
+  });
+
+  describe("getEffectiveDomain", () => {
+    afterEach(() => {
+      resetAllowedDomain();
+      resetEffectiveDomain();
+    });
+
+    test("returns ALLOWED_DOMAIN when no custom domain is set", async () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      const result = await loadEffectiveDomain();
+      expect(result).toBe("mysite.bunny.run");
+      expect(getEffectiveDomain()).toBe("mysite.bunny.run");
+    });
+
+    test("returns custom domain when set and validated in DB", async () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      await updateCustomDomain("tickets.example.com");
+      await updateCustomDomainLastValidated();
+      invalidateSettingsCache();
+      const result = await loadEffectiveDomain();
+      expect(result).toBe("tickets.example.com");
+      expect(getEffectiveDomain()).toBe("tickets.example.com");
+    });
+
+    test("falls back to ALLOWED_DOMAIN when custom domain is set but not validated", async () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      await updateCustomDomain("tickets.example.com");
+      invalidateSettingsCache();
+      const result = await loadEffectiveDomain();
+      expect(result).toBe("mysite.bunny.run");
+      expect(getEffectiveDomain()).toBe("mysite.bunny.run");
+    });
+
+    test("falls back to ALLOWED_DOMAIN after custom domain is cleared", async () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      await updateCustomDomain("tickets.example.com");
+      await updateCustomDomainLastValidated();
+      invalidateSettingsCache();
+      await loadEffectiveDomain();
+      expect(getEffectiveDomain()).toBe("tickets.example.com");
+
+      await updateCustomDomain("");
+      invalidateSettingsCache();
+      await loadEffectiveDomain();
+      expect(getEffectiveDomain()).toBe("mysite.bunny.run");
+    });
+
+    test("falls back to ALLOWED_DOMAIN before loadEffectiveDomain is called", () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      expect(getEffectiveDomain()).toBe("mysite.bunny.run");
+    });
+
+    test("setEffectiveDomainForTest overrides the cached value", () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      setEffectiveDomainForTest("custom.example.com");
+      expect(getEffectiveDomain()).toBe("custom.example.com");
+    });
+
+    test("resetEffectiveDomain clears the cached value", async () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      await updateCustomDomain("tickets.example.com");
+      await updateCustomDomainLastValidated();
+      invalidateSettingsCache();
+      await loadEffectiveDomain();
+      expect(getEffectiveDomain()).toBe("tickets.example.com");
+
+      resetEffectiveDomain();
+      expect(getEffectiveDomain()).toBe("mysite.bunny.run");
     });
   });
 

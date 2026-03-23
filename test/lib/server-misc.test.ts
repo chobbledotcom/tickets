@@ -788,8 +788,13 @@ describe("server (misc)", () => {
     test("rethrows unhandled errors in test mode", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       const { invalidateEventsCache } = await import("#lib/db/events.ts");
+      const { loadAllSettings } = await import("#lib/db/settings.ts");
       const db = getDbFn();
       invalidateEventsCache();
+      // Warm the settings cache so loadEffectiveDomain/isSetupComplete/etc.
+      // resolve from cache; the stub then only affects route-handler queries
+      // inside the inner try/catch.
+      await loadAllSettings();
       const executeStub = stub(db, "execute", () => {
         throw new Error("synthetic db failure");
       });

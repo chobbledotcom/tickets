@@ -4,7 +4,7 @@
  */
 
 import { map, pipe } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import {
@@ -60,7 +60,7 @@ const loadFeedData = async (): Promise<FeedData> => {
   );
   return {
     events,
-    domain: getAllowedDomain(),
+    domain: getEffectiveDomain(),
     title: websiteTitle || "Events",
   };
 };

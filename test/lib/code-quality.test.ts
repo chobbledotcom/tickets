@@ -317,6 +317,9 @@ describe("code quality", () => {
       // Reset cached allowed domain between tests
       "lib/config.ts:resetAllowedDomain",
       "lib/config.ts:setAllowedDomainForTest",
+      // Reset cached effective domain between tests
+      "lib/config.ts:resetEffectiveDomain",
+      "lib/config.ts:setEffectiveDomainForTest",
       // Reset cached demo mode between tests
       "lib/demo.ts:resetDemoMode",
       "lib/demo.ts:setDemoModeForTest",

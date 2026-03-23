@@ -3,7 +3,7 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { ActiveEventStats } from "#lib/db/attendees.ts";
 import { renderSuccess } from "#lib/forms.tsx";
@@ -73,7 +73,7 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
         readonly
         data-select-on-click
         data-multi-booking-url
-        data-domain={getAllowedDomain()}
+        data-domain={getEffectiveDomain()}
         placeholder="Select two or more events"
       />
       <label for="multi-booking-embed-script">Embed Script</label>
@@ -148,7 +148,7 @@ const newestAttendeesSection = (
         <Raw
           html={AttendeeTable({
             rows: tableRows,
-            allowedDomain: getAllowedDomain(),
+            allowedDomain: getEffectiveDomain(),
             showEvent: true,
             showDate: false,
             showActions: false,

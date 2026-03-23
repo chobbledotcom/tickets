@@ -4,7 +4,7 @@
  * Only includes domain and error code - no personal or encrypted data
  */
 
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logErrorLocal } from "#lib/logger.ts";
 
@@ -17,7 +17,7 @@ export const sendNtfyError = async (code: string): Promise<void> => {
   const ntfyUrl = getEnv("NTFY_URL");
   if (!ntfyUrl) return;
 
-  const domain = getAllowedDomain();
+  const domain = getEffectiveDomain();
 
   try {
     await fetch(ntfyUrl, {
