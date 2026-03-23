@@ -9,6 +9,7 @@ import {
   isValidPemCertificate,
   isValidPemPrivateKey,
   padAuthToken,
+  trimAuthToken,
   type PassData,
   sha1Hex,
   type SigningCredentials,
@@ -186,9 +187,9 @@ describe("apple-wallet", () => {
       const pass = generatePassJson(makePassData(), creds);
       expect(pass.webServiceURL).toBe("https://example.com");
       expect(pass.authenticationToken).toBe("ABC123----------");
-      expect(
-        (pass.authenticationToken as string).length,
-      ).toBeGreaterThanOrEqual(16);
+      expect((pass.authenticationToken as string).length).toBeGreaterThanOrEqual(
+        16,
+      );
     });
   });
 
