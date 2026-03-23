@@ -164,7 +164,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     expect(disposition).toContain("ticket.pkpass");
   });
 
-  test("does not set explicit Content-Length to avoid CDN content-encoding mismatch", async () => {
+  test("returns pkpass with Content-Length header for iOS compatibility", async () => {
     await configureAppleWallet();
     const { token } = await createTestAttendeeWithToken(
       "Alice",
@@ -172,7 +172,10 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     );
 
     const response = await fetchPkpassResponse(token);
-    expect(response.headers.get("Content-Length")).toBeNull();
+    const contentLength = response.headers.get("Content-Length");
+    expect(contentLength).not.toBeNull();
+    const body = new Uint8Array(await response.arrayBuffer());
+    expect(Number(contentLength)).toBe(body.byteLength);
   });
 
   test("pkpass is a valid ZIP containing pass.json, manifest.json, and signature", async () => {

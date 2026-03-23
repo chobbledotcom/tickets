@@ -62,6 +62,7 @@ export const buildPkpassForToken = async (
     headers: {
       "Content-Type": PKPASS_CONTENT_TYPE,
       "Content-Disposition": `inline; filename="ticket.pkpass"`,
+      "Content-Length": String(body.byteLength),
       "Cache-Control": WALLET_CACHE_CONTROL,
     },
   });
