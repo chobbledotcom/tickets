@@ -7,6 +7,7 @@ import { eventsTable } from "#lib/db/events.ts";
 import {
   getEmbedHostsFromDb,
   setPaymentProvider,
+  updateStripeKey,
   updateTermsAndConditions,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
@@ -503,6 +504,19 @@ describe("server (admin settings)", () => {
           expect(html).toContain("Payments will be charged for real");
         },
       );
+    });
+
+    test("backfills mode indicator when key exists but mode was never stored", async () => {
+      // Simulate pre-sentinel setup: key stored directly without mode
+      await updateStripeKey("sk_test_backfill");
+      await setPaymentProvider("stripe");
+
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("Test mode:");
+      expect(html).toContain("No real charges will be made");
     });
   });
 
