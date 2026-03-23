@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      script_id:
+        description: "Override Bunny script ID (defaults to BUNNY_SCRIPT_ID secret)"
+        required: false
+        type: string
 
 permissions:
   id-token: write
@@ -33,6 +38,6 @@ jobs:
       - name: Deploy Script to Bunny Edge Scripting
         uses: BunnyWay/actions/deploy-script@main
         with:
-          script_id: ${{ secrets.BUNNY_SCRIPT_ID }}
+          script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
           file: "bunny-script.ts"
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}

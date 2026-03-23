@@ -4,7 +4,7 @@
 
 import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type DebugPageState = {
@@ -75,9 +75,8 @@ export const adminDebugPage = (
   s: DebugPageState,
 ): string =>
   String(
-    <Layout title="Debug Info" theme={s.theme} mainClass="stack-xl">
+    <Layout title="Debug Info" theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
-      <Breadcrumb href="/admin/settings" label="Settings" />
 
       <h1>Debug Info</h1>
       <p>

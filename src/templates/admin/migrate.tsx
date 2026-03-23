@@ -19,7 +19,7 @@ export const adminMigratePage = (
   state: MigratePageState,
 ): string =>
   String(
-    <Layout title="Database Migration" mainClass="stack-xl">
+    <Layout title="Database Migration">
       <AdminNav session={session} active="" />
       <Breadcrumb href="/admin/" label="Events" />
 

@@ -46,7 +46,7 @@ export const adminSettingsPage = (
   s: SettingsPageState,
 ): string =>
   String(
-    <Layout title="Settings" theme={s.theme} mainClass="stack-xl">
+    <Layout title="Settings" theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
 
       {s.storageEnabled && (
@@ -135,35 +135,33 @@ export const adminSettingsPage = (
       >
         <h2>Payment Provider</h2>
         <p>Choose which payment provider to use for paid events.</p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="payment_provider"
-              value="none"
-              checked={!s.paymentProvider}
-            />
-            None (payments disabled)
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="payment_provider"
-              value="stripe"
-              checked={s.paymentProvider === "stripe"}
-            />
-            Stripe
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="payment_provider"
-              value="square"
-              checked={s.paymentProvider === "square"}
-            />
-            Square
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="none"
+            checked={!s.paymentProvider}
+          />
+          None (payments disabled)
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="stripe"
+            checked={s.paymentProvider === "stripe"}
+          />
+          Stripe
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="square"
+            checked={s.paymentProvider === "square"}
+          />
+          Square
+        </label>
         <button type="submit">Save Payment Provider</button>
       </CsrfForm>
 
@@ -400,52 +398,48 @@ export const adminSettingsPage = (
           When enabled, the homepage will show a public website with navigation
           for Home, Events, T&amp;Cs and Contact pages.
         </p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="show_public_site"
-              value="true"
-              checked={s.showPublicSite === true}
-            />
-            Yes
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="show_public_site"
-              value="false"
-              checked={s.showPublicSite !== true}
-            />
-            No
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="show_public_site"
+            value="true"
+            checked={s.showPublicSite === true}
+          />
+          Yes
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="show_public_site"
+            value="false"
+            checked={s.showPublicSite !== true}
+          />
+          No
+        </label>
         <button type="submit">Save</button>
       </CsrfForm>
 
       <CsrfForm action="/admin/settings/theme" id="settings-theme">
         <h2>Site Theme</h2>
         <p>Choose between light and dark themes for the site interface.</p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="theme"
-              value="light"
-              checked={s.theme === "light"}
-            />
-            Light
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="theme"
-              value="dark"
-              checked={s.theme === "dark"}
-            />
-            Dark
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="theme"
+            value="light"
+            checked={s.theme === "light"}
+          />
+          Light
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="theme"
+            value="dark"
+            checked={s.theme === "dark"}
+          />
+          Dark
+        </label>
         <button type="submit">Save Theme</button>
       </CsrfForm>
 

@@ -45,7 +45,6 @@ export const adminGroupsPage = (
   String(
     <Layout title="Groups">
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Groups</h1>
       <Raw html={renderSuccess(successMessage)} />
       <p>
         <a href="/admin/group/new">Add Group</a>
@@ -237,23 +236,21 @@ export const adminGroupDetailPage = (
   });
 
   return String(
-    <Layout title={group.name} mainClass="stack-xl">
+    <Layout title={group.name}>
       <AdminNav session={session} active="/admin/groups" />
-      <h1>{group.name}</h1>
       <Raw html={renderSuccess(successMessage)} />
-      {group.terms_and_conditions && (
-        <p>Terms and Conditions: {group.terms_and_conditions}</p>
-      )}
       <p>
         <a href={`/admin/group/${group.id}/edit`}>Edit Group</a>{" "}
         <a href={`/admin/group/${group.id}/delete`}>Delete Group</a>
       </p>
 
       <article>
-        <h2>Group Details</h2>
         <div class="table-scroll">
           <table class="event-details-table">
             <tbody>
+              <tr>
+                <th colspan="2">{group.name}</th>
+              </tr>
               <tr>
                 <th>Public URL</th>
                 <td>
