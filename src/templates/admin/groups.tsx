@@ -72,7 +72,9 @@ export const adminGroupsPage = (
                   <td>{g.slug}</td>
                   <td>
                     <a href={`/admin/group/${g.id}/edit`}>{t("groups.edit")}</a>{" "}
-                    <a href={`/admin/group/${g.id}/delete`}>{t("groups.delete")}</a>
+                    <a href={`/admin/group/${g.id}/delete`}>
+                      {t("groups.delete")}
+                    </a>
                   </td>
                 </tr>
               ))}
@@ -244,11 +246,17 @@ export const adminGroupDetailPage = (
       <h1>{group.name}</h1>
       <Raw html={renderSuccess(successMessage)} />
       {group.terms_and_conditions && (
-        <p>{t("groups.detail.terms_label")} {group.terms_and_conditions}</p>
+        <p>
+          {t("groups.detail.terms_label")} {group.terms_and_conditions}
+        </p>
       )}
       <p>
-        <a href={`/admin/group/${group.id}/edit`}>{t("groups.detail.edit_group")}</a>{" "}
-        <a href={`/admin/group/${group.id}/delete`}>{t("groups.detail.delete_group")}</a>
+        <a href={`/admin/group/${group.id}/edit`}>
+          {t("groups.detail.edit_group")}
+        </a>{" "}
+        <a href={`/admin/group/${group.id}/delete`}>
+          {t("groups.detail.delete_group")}
+        </a>
       </p>
 
       <article>
@@ -264,13 +272,19 @@ export const adminGroupDetailPage = (
                   >{`${allowedDomain}/ticket/${group.slug}`}</a>
                   <small>
                     {" "}
-                    (<a href={`/ticket/${group.slug}/qr`}>{t("groups.detail.qr_code")}</a>)
+                    (
+                    <a href={`/ticket/${group.slug}/qr`}>
+                      {t("groups.detail.qr_code")}
+                    </a>
+                    )
                   </small>
                 </td>
               </tr>
               <tr>
                 <th>
-                  <label for={`embed-script-${group.id}`}>{t("groups.detail.embed_script")}</label>
+                  <label for={`embed-script-${group.id}`}>
+                    {t("groups.detail.embed_script")}
+                  </label>
                 </th>
                 <td>
                   <input
@@ -284,7 +298,9 @@ export const adminGroupDetailPage = (
               </tr>
               <tr>
                 <th>
-                  <label for={`embed-iframe-${group.id}`}>{t("groups.detail.embed_iframe")}</label>
+                  <label for={`embed-iframe-${group.id}`}>
+                    {t("groups.detail.embed_iframe")}
+                  </label>
                 </th>
                 <td>
                   <input
@@ -348,7 +364,9 @@ export const adminGroupDetailPage = (
               </label>
             ))}
             <br />
-            <button type="submit">{t("groups.detail.add_events_submit")}</button>
+            <button type="submit">
+              {t("groups.detail.add_events_submit")}
+            </button>
           </CsrfForm>
         </>
       )}

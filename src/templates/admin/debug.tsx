@@ -2,11 +2,11 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
+import { t } from "#i18n";
 import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { t } from "#i18n";
 
 export type DebugPageState = {
   appleWallet: {
@@ -91,9 +91,7 @@ export const adminDebugPage = (
       <Breadcrumb href="/admin/settings" label="Settings" />
 
       <h1>{t("debug.heading")}</h1>
-      <p>
-        {t("debug.description")}
-      </p>
+      <p>{t("debug.description")}</p>
 
       <article>
         <h2>{t("debug.section.build")}</h2>
@@ -311,9 +309,7 @@ export const adminDebugPage = (
 
       <article>
         <h2>{t("debug.section.limits")}</h2>
-        <p>
-          {t("debug.limits_hint")}
-        </p>
+        <p>{t("debug.limits_hint")}</p>
         <table>
           <thead>
             <tr>
@@ -336,7 +332,8 @@ export const adminDebugPage = (
                     <span>{formatLimitValue(l.current, l.unit)}</span>
                   ) : (
                     <strong>
-                      {formatLimitValue(l.current, l.unit)} {t("debug.overridden")}
+                      {formatLimitValue(l.current, l.unit)}{" "}
+                      {t("debug.overridden")}
                     </strong>
                   )}
                 </td>

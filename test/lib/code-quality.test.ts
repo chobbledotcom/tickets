@@ -46,6 +46,8 @@ const ALLOWED_FILES_STATE = [
   ...TEST_UTILITY_FILES,
   // Session cache with 10s TTL - legitimate performance optimization
   "lib/db/sessions.ts",
+  // Compiled IntlMessageFormat cache - avoids re-parsing ICU strings
+  "lib/i18n.ts",
 ];
 
 /**
@@ -339,6 +341,8 @@ describe("code quality", () => {
       "lib/storage.ts:MAX_ATTACHMENT_SIZE",
       // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
       "lib/limits.ts:readLimit",
+      // addLocale is a public API for registering additional locales at runtime
+      "lib/i18n.ts:addLocale",
     ];
 
     /**

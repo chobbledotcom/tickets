@@ -3,6 +3,7 @@
  * Owner-only access enforced via requireOwnerOr / withOwnerAuthForm
  */
 
+import { t } from "#i18n";
 import {
   isValidPemCertificate,
   isValidPemPrivateKey,
@@ -114,7 +115,6 @@ import {
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
 import { getFlash } from "#lib/flash-context.ts";
-import { t } from "#i18n";
 import type { FormParams } from "#lib/form-data.ts";
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
@@ -476,7 +476,11 @@ const handleAdminSettingsPost = settingsRoute(
       validation.newPassword,
     );
     if (!success) {
-      return errorPage(t("error.password_update_failed"), 500, "settings-password");
+      return errorPage(
+        t("error.password_update_failed"),
+        500,
+        "settings-password",
+      );
     }
 
     await logActivity("Password changed");
@@ -499,9 +503,14 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   if (provider === "none") {
     await clearPaymentProvider();
     await logActivity("Payment provider disabled");
-    return redirect("/admin/settings", t("success.payment_provider_disabled"), true, {
-      formId: "settings-payment-provider",
-    });
+    return redirect(
+      "/admin/settings",
+      t("success.payment_provider_disabled"),
+      true,
+      {
+        formId: "settings-payment-provider",
+      },
+    );
   }
 
   if (!isPaymentProvider(provider)) {
@@ -528,11 +537,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
  */
 const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   if (isDemoMode()) {
-    return errorPage(
-      t("error.stripe_demo_mode"),
-      400,
-      "settings-stripe",
-    );
+    return errorPage(t("error.stripe_demo_mode"), 400, "settings-stripe");
   }
 
   const field = processSecretField(form, "stripe_secret_key");
@@ -557,11 +562,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   // Validate key format — must start with sk_test_ or sk_live_
   const keyMode = detectStripeKeyMode(field.value);
   if (!keyMode) {
-    return errorPage(
-      t("error.stripe_key_format"),
-      400,
-      "settings-stripe",
-    );
+    return errorPage(t("error.stripe_key_format"), 400, "settings-stripe");
   }
 
   // Set up webhook endpoint automatically
@@ -591,12 +592,9 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   await setPaymentProvider("stripe");
 
   await logActivity("Stripe key configured");
-  return redirect(
-    "/admin/settings",
-    t("success.stripe_updated"),
-    true,
-    { formId: "settings-stripe" },
-  );
+  return redirect("/admin/settings", t("success.stripe_updated"), true, {
+    formId: "settings-stripe",
+  });
 });
 
 /**
@@ -604,11 +602,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
  */
 const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   if (isDemoMode()) {
-    return errorPage(
-      t("error.square_demo_mode"),
-      400,
-      "settings-square",
-    );
+    return errorPage(t("error.square_demo_mode"), 400, "settings-square");
   }
 
   const tokenField = processSecretField(form, "square_access_token");
@@ -616,7 +610,11 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   const sandbox = form.get("square_sandbox") === "on";
 
   if (!locationId) {
-    return errorPage(t("error.square_location_required"), 400, "settings-square");
+    return errorPage(
+      t("error.square_location_required"),
+      400,
+      "settings-square",
+    );
   }
 
   // Require a token when none is configured
@@ -637,12 +635,9 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   await setPaymentProvider("square");
 
   await logActivity("Square credentials configured");
-  return redirect(
-    "/admin/settings",
-    t("success.square_updated"),
-    true,
-    { formId: "settings-square" },
-  );
+  return redirect("/admin/settings", t("success.square_updated"), true, {
+    formId: "settings-square",
+  });
 });
 
 /**
@@ -706,12 +701,9 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
   // Empty = clear restriction
   if (trimmed === "") {
     await updateEmbedHosts("");
-    return redirect(
-      "/admin/settings",
-      t("success.embed_hosts_removed"),
-      true,
-      { formId: "settings-embed-hosts" },
-    );
+    return redirect("/admin/settings", t("success.embed_hosts_removed"), true, {
+      formId: "settings-embed-hosts",
+    });
   }
 
   const error = validateEmbedHosts(trimmed);
@@ -736,7 +728,10 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
 
   if (trimmed.length > MAX_TERMS_LENGTH) {
     return errorPage(
-      t("error.terms_length", { max: MAX_TERMS_LENGTH, current: trimmed.length }),
+      t("error.terms_length", {
+        max: MAX_TERMS_LENGTH,
+        current: trimmed.length,
+      }),
       400,
       "settings-terms",
     );
@@ -789,24 +784,30 @@ const processBusinessEmailForm: SettingsFormHandler = async (
   if (trimmed === "") {
     await updateBusinessEmail("");
     await logActivity("Business email cleared");
-    return redirect("/admin/settings", t("success.business_email_cleared"), true, {
-      formId: "settings-business-email",
-    });
+    return redirect(
+      "/admin/settings",
+      t("success.business_email_cleared"),
+      true,
+      {
+        formId: "settings-business-email",
+      },
+    );
   }
 
   if (!isValidBusinessEmail(trimmed)) {
-    return errorPage(
-      t("error.email_format"),
-      400,
-      "settings-business-email",
-    );
+    return errorPage(t("error.email_format"), 400, "settings-business-email");
   }
 
   await updateBusinessEmail(trimmed);
   await logActivity("Business email updated");
-  return redirect("/admin/settings", t("success.business_email_updated"), true, {
-    formId: "settings-business-email",
-  });
+  return redirect(
+    "/admin/settings",
+    t("success.business_email_updated"),
+    true,
+    {
+      formId: "settings-business-email",
+    },
+  );
 };
 
 /** Handle POST /admin/settings/business-email - owner only */
@@ -822,9 +823,14 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
 
   await updateTheme(theme);
   await logActivity(`Theme set to ${theme}`);
-  return redirect("/admin/settings", t("success.theme_updated", { theme }), true, {
-    formId: "settings-theme",
-  });
+  return redirect(
+    "/admin/settings",
+    t("success.theme_updated", { theme }),
+    true,
+    {
+      formId: "settings-theme",
+    },
+  );
 };
 
 /** Handle POST /admin/settings/theme - owner only */
@@ -837,7 +843,9 @@ const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
   await logActivity(`Public site ${value ? "enabled" : "disabled"}`);
   return redirect(
     "/admin/settings",
-    value ? t("success.public_site_enabled") : t("success.public_site_disabled"),
+    value
+      ? t("success.public_site_enabled")
+      : t("success.public_site_disabled"),
     true,
     { formId: "settings-show-public-site" },
   );
@@ -868,18 +876,19 @@ const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
   const value = Number.parseFloat(raw);
 
   if (!Number.isFinite(value) || value < 0 || value > 10) {
-    return errorPage(
-      t("error.booking_fee_range"),
-      400,
-      "settings-booking-fee",
-    );
+    return errorPage(t("error.booking_fee_range"), 400, "settings-booking-fee");
   }
 
   await updateBookingFee(String(value));
   await logActivity(`Booking fee set to ${value}%`);
-  return redirect("/admin/settings", t("success.booking_fee_updated", { fee: value }), true, {
-    formId: "settings-booking-fee",
-  });
+  return redirect(
+    "/admin/settings",
+    t("success.booking_fee_updated", { fee: value }),
+    true,
+    {
+      formId: "settings-booking-fee",
+    },
+  );
 };
 
 /** Handle POST /admin/settings/booking-fee - owner only */
@@ -924,15 +933,25 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
     if (uploadResult.status === "fulfilled") {
       await updateHeaderImageUrl(uploadResult.value);
       await logActivity("Header image uploaded");
-      return redirect("/admin/settings", t("success.header_image_uploaded"), true, {
-        formId: "settings-header-image",
-      });
+      return redirect(
+        "/admin/settings",
+        t("success.header_image_uploaded"),
+        true,
+        {
+          formId: "settings-header-image",
+        },
+      );
     }
     const uploadDetail = `Header image upload failed: ${String(uploadResult.reason)}`;
     logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
-    return redirect("/admin/settings", t("success.header_image_upload_failed"), false, {
-      formId: "settings-header-image",
-    });
+    return redirect(
+      "/admin/settings",
+      t("success.header_image_upload_failed"),
+      false,
+      {
+        formId: "settings-header-image",
+      },
+    );
   });
 
 /** Handle POST /admin/settings/header-image/delete - owner only */
@@ -946,15 +965,25 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   if (deleteResult.status === "fulfilled") {
     await updateHeaderImageUrl("");
     await logActivity("Header image removed");
-    return redirect("/admin/settings", t("success.header_image_removed"), true, {
-      formId: "settings-header-image-delete",
-    });
+    return redirect(
+      "/admin/settings",
+      t("success.header_image_removed"),
+      true,
+      {
+        formId: "settings-header-image-delete",
+      },
+    );
   }
   const deleteDetail = `Header image removal failed: ${String(deleteResult.reason)}`;
   logError({ code: ErrorCode.STORAGE_DELETE, detail: deleteDetail });
-  return redirect("/admin/settings", t("success.header_image_removal_failed"), false, {
-    formId: "settings-header-image-delete",
-  });
+  return redirect(
+    "/admin/settings",
+    t("success.header_image_removal_failed"),
+    false,
+    {
+      formId: "settings-header-image-delete",
+    },
+  );
 });
 
 /** Handle POST /admin/settings/email - owner only */
@@ -981,11 +1010,7 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
   }
 
   if (fromAddress && !isValidBusinessEmail(fromAddress)) {
-    return errorPage(
-      t("error.from_address_format"),
-      400,
-      "settings-email",
-    );
+    return errorPage(t("error.from_address_format"), 400, "settings-email");
   }
 
   await updateEmailProvider(provider);
@@ -993,15 +1018,21 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
     await updateEmailApiKey(apiKeyField.value);
   if (fromAddress) await updateEmailFromAddress(fromAddress);
   await logActivity(`Email provider set to ${provider}`);
-  return redirect("/admin/settings-advanced", t("success.email_settings_updated"), true, {
-    formId: "settings-email",
-  });
+  return redirect(
+    "/admin/settings-advanced",
+    t("success.email_settings_updated"),
+    true,
+    {
+      formId: "settings-email",
+    },
+  );
 });
 
 /** Handle POST /admin/settings/email/test - send test email to business email */
 const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
-  if (!config) return errorPage(t("error.email_not_configured"), 400, "settings-email");
+  if (!config)
+    return errorPage(t("error.email_not_configured"), 400, "settings-email");
   const businessEmail = await getBusinessEmailFromDb();
   if (!businessEmail)
     return errorPage(t("error.no_business_email"), 400, "settings-email-test");
@@ -1052,7 +1083,10 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
     ] as const) {
       if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
         return errorPage(
-          t("error.template_too_long", { name, max: MAX_EMAIL_TEMPLATE_LENGTH }),
+          t("error.template_too_long", {
+            name,
+            max: MAX_EMAIL_TEMPLATE_LENGTH,
+          }),
           400,
           formId,
         );
@@ -1088,12 +1122,9 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
         ? "success.confirmation_template_updated"
         : "success.admin_notification_template_updated";
     await logActivity(t(successKey));
-    return redirect(
-      "/admin/settings-advanced",
-      t(successKey),
-      true,
-      { formId },
-    );
+    return redirect("/admin/settings-advanced", t(successKey), true, {
+      formId,
+    });
   });
 
 /** Sample booking data used for email template previews */
@@ -1213,7 +1244,11 @@ const handleCustomDomainPost = advancedSettingsRoute(
 
     // Basic domain validation: must look like a hostname
     if (!DOMAIN_PATTERN.test(raw)) {
-      return errorPage(t("error.invalid_domain_format"), 400, "settings-custom-domain");
+      return errorPage(
+        t("error.invalid_domain_format"),
+        400,
+        "settings-custom-domain",
+      );
     }
 
     await updateCustomDomain(raw);
@@ -1312,11 +1347,19 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   }
 
   if (!passTypeId) {
-    return errorPage(t("error.apple_pass_type_id_required"), 400, "settings-apple-wallet");
+    return errorPage(
+      t("error.apple_pass_type_id_required"),
+      400,
+      "settings-apple-wallet",
+    );
   }
 
   if (!teamId) {
-    return errorPage(t("error.apple_team_id_required"), 400, "settings-apple-wallet");
+    return errorPage(
+      t("error.apple_team_id_required"),
+      400,
+      "settings-apple-wallet",
+    );
   }
 
   // For initial setup, require all three PEM fields
@@ -1423,7 +1466,11 @@ const handleGoogleWalletPost = advancedSettingsRoute(
     }
 
     if (!issuerId) {
-      return errorPage(t("error.google_issuer_id_required"), 400, "settings-google-wallet");
+      return errorPage(
+        t("error.google_issuer_id_required"),
+        400,
+        "settings-google-wallet",
+      );
     }
 
     if (!email) {

@@ -3,8 +3,8 @@
  * The ResetDatabaseForm component is reused in admin settings.
  */
 
-import { CsrfForm, renderError } from "#lib/forms.tsx";
 import { t } from "#i18n";
+import { CsrfForm, renderError } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -29,7 +29,8 @@ export const ResetDatabaseForm = ({
     <article>
       <aside>
         <p>
-          <strong>Warning:</strong> {t("settings.advanced.database_reset.warning")}
+          <strong>Warning:</strong>{" "}
+          {t("settings.advanced.database_reset.warning")}
         </p>
       </aside>
     </article>
@@ -37,7 +38,9 @@ export const ResetDatabaseForm = ({
     <p>
       <strong>"{RESET_DATABASE_PHRASE}"</strong>
     </p>
-    <label for="confirm_phrase">{t("settings.advanced.database_reset.confirm_label")}</label>
+    <label for="confirm_phrase">
+      {t("settings.advanced.database_reset.confirm_label")}
+    </label>
     <input
       type="text"
       id="confirm_phrase"
@@ -60,7 +63,9 @@ export const demoResetPage = (error?: string): string =>
       <Raw html={renderError(error)} />
       <ResetDatabaseForm action="/demo/reset" />
       <p>
-        <a href="/admin">{t("settings.advanced.database_reset.back_to_login")}</a>
+        <a href="/admin">
+          {t("settings.advanced.database_reset.back_to_login")}
+        </a>
       </p>
     </Layout>,
   );

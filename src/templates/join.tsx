@@ -2,9 +2,9 @@
  * Join (invite) page templates
  */
 
+import { t } from "#i18n";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { t } from "#i18n";
 import { joinFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -37,9 +37,7 @@ export const joinCompletePage = (): string =>
       <h1>{t("join.success.heading")}</h1>
       <div class="success">
         <p>{t("join.success.message")}</p>
-        <p>
-          {t("join.success.wait_activation")}
-        </p>
+        <p>{t("join.success.wait_activation")}</p>
       </div>
     </Layout>,
   );

@@ -2,12 +2,12 @@
  * Admin QR scanner page template
  */
 
+import { t } from "#i18n";
 import { SCANNER_JS_PATH } from "#lib/asset-paths.ts";
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { t } from "#i18n";
 
 /**
  * Scanner page - camera feed with auto check-in

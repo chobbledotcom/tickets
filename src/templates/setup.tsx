@@ -2,10 +2,10 @@
  * Setup page templates - initial configuration
  */
 
+import { t } from "#i18n";
 import { COUNTRIES, DEFAULT_COUNTRY } from "#lib/countries.ts";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { t } from "#i18n";
 import { setupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -19,30 +19,35 @@ const DataControllerAgreement = (): JSX.Element => (
     <p>{t("setup.agreement.intro")}</p>
     <ol>
       <li>
-        <strong>{t("setup.agreement.controller_title")}</strong> - {t("setup.agreement.controller_text")}
+        <strong>{t("setup.agreement.controller_title")}</strong> -{" "}
+        {t("setup.agreement.controller_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.processor_title")}</strong> - {t("setup.agreement.processor_text")}
+        <strong>{t("setup.agreement.processor_title")}</strong> -{" "}
+        {t("setup.agreement.processor_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.encrypted_title")}</strong> - {t("setup.agreement.encrypted_text")}
+        <strong>{t("setup.agreement.encrypted_title")}</strong> -{" "}
+        {t("setup.agreement.encrypted_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.responsibilities_title")}</strong> - {t("setup.agreement.responsibilities_text")}
+        <strong>{t("setup.agreement.responsibilities_title")}</strong> -{" "}
+        {t("setup.agreement.responsibilities_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.breach_title")}</strong> - {t("setup.agreement.breach_text")}
+        <strong>{t("setup.agreement.breach_title")}</strong> -{" "}
+        {t("setup.agreement.breach_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.deletion_title")}</strong> - {t("setup.agreement.deletion_text")}
+        <strong>{t("setup.agreement.deletion_title")}</strong> -{" "}
+        {t("setup.agreement.deletion_text")}
       </li>
     </ol>
-    <p class="password-warning">
-      {t("setup.agreement.password_warning")}
-    </p>
+    <p class="password-warning">{t("setup.agreement.password_warning")}</p>
     <div class="field">
       <label>
-        <input type="checkbox" name="accept_agreement" value="yes" required />{t("setup.agreement.accept")}
+        <input type="checkbox" name="accept_agreement" value="yes" required />
+        {t("setup.agreement.accept")}
       </label>
     </div>
   </fieldset>

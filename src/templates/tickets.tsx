@@ -3,10 +3,10 @@
  */
 
 import { map, pipe } from "#fp";
+import { t } from "#i18n";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { t } from "#i18n";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
@@ -22,8 +22,7 @@ export type TicketCard = {
 };
 
 /** Pluralize ticket count */
-const ticketCount = (count: number): string =>
-  t("tickets.count", { count });
+const ticketCount = (count: number): string => t("tickets.count", { count });
 
 /** Render an "Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
 const renderAppleWalletLink = (token: string): string =>

@@ -3,6 +3,7 @@
  */
 
 import { map } from "#fp";
+import { t } from "#i18n";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendeesForTable } from "#lib/db/attendees.ts";
@@ -28,7 +29,6 @@ import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
-import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { loadQuestionData, requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
@@ -228,7 +228,11 @@ const handleAddEventsToGroup: TypedRouteHandler<
           `${eventIds.length} event(s) added to group '${group.name}'`,
         );
       }
-      return redirect(`/admin/group/${id}`, t("success.events_added_to_group"), true);
+      return redirect(
+        `/admin/group/${id}`,
+        t("success.events_added_to_group"),
+        true,
+      );
     }),
   );
 

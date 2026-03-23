@@ -23,10 +23,7 @@ const validateInvite = async (
 ): Promise<{ user: User; username: string } | Response> => {
   const user = await getUserByInviteCode(code);
   if (!user) {
-    return htmlResponse(
-      joinErrorPage(t("error.invite_invalid")),
-      404,
-    );
+    return htmlResponse(joinErrorPage(t("error.invite_invalid")), 404);
   }
 
   const valid = await isInviteValid(user);

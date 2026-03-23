@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { t } from "#i18n";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type {
@@ -21,7 +22,6 @@ import {
   isPaidEvent,
 } from "#lib/types.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
-import { t } from "#i18n";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Public site navigation */
@@ -223,7 +223,9 @@ const renderPayMoreInput = (
   const rangeHint =
     minPrice > 0
       ? t("public.ticket.your_price_min", { min: formatCurrency(minPrice) })
-      : t("public.ticket.your_price_optional", { max: formatCurrency(maxPrice) });
+      : t("public.ticket.your_price_optional", {
+          max: formatCurrency(maxPrice),
+        });
   return (
     `<label>${rangeHint}` +
     `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}"${minPrice > 0 ? " required" : ""} /></label>`
@@ -299,12 +301,14 @@ export const ticketPage = (
           )}
           {event.date && (
             <p>
-              <strong>{t("public.ticket.date_label")}</strong> {formatDatetimeLabel(event.date)}
+              <strong>{t("public.ticket.date_label")}</strong>{" "}
+              {formatDatetimeLabel(event.date)}
             </p>
           )}
           {event.location && (
             <p>
-              <strong>{t("public.ticket.location_label")}</strong> {event.location}
+              <strong>{t("public.ticket.location_label")}</strong>{" "}
+              {event.location}
             </p>
           )}
         </>
@@ -338,7 +342,11 @@ export const ticketPage = (
           {termsAndConditions && (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}
-          <button type="submit">{showQuantity ? t("public.ticket.reserve_tickets") : t("public.ticket.reserve_ticket")}</button>
+          <button type="submit">
+            {showQuantity
+              ? t("public.ticket.reserve_tickets")
+              : t("public.ticket.reserve_ticket")}
+          </button>
         </CsrfForm>
       )}
     </Layout>,
@@ -366,9 +374,7 @@ export const temporaryErrorPage = (): string =>
       headExtra='<meta http-equiv="refresh" content="2" />'
     >
       <h1>{t("public.temporary_error.heading")}</h1>
-      <p>
-        {t("public.temporary_error.message")}
-      </p>
+      <p>{t("public.temporary_error.message")}</p>
     </Layout>,
   );
 
@@ -496,7 +502,10 @@ export const multiTicketPage = ({
     .join("");
 
   return String(
-    <Layout title={t("public.multi.title")} bodyClass={inIframe ? "iframe" : undefined}>
+    <Layout
+      title={t("public.multi.title")}
+      bodyClass={inIframe ? "iframe" : undefined}
+    >
       <Raw html={renderError(error)} />
 
       {allUnavailable ? (

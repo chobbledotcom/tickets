@@ -115,7 +115,13 @@ type EventTicketFields = {
 /** Build the eventTicket field groups */
 const buildEventTicketFields = (data: PassData): EventTicketFields => {
   const fields: EventTicketFields = {
-    primaryFields: [{ key: "event", label: t("fields.wallet.apple.event_label"), value: data.eventName }],
+    primaryFields: [
+      {
+        key: "event",
+        label: t("fields.wallet.apple.event_label"),
+        value: data.eventName,
+      },
+    ],
     secondaryFields: [],
     auxiliaryFields: [],
     backFields: [],

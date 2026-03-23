@@ -68,9 +68,7 @@ export const adminApiKeysPage = (
           <pre>
             <code>{opts.newKey}</code>
           </pre>
-          <p>
-            {t("api_keys.usage_hint")}
-          </p>
+          <p>{t("api_keys.usage_hint")}</p>
         </div>
       )}
 
@@ -125,15 +123,11 @@ export const adminDeleteApiKeyPage = (
 
       <article>
         <aside>
-          <p>
-            {t("api_keys.delete_warning")}
-          </p>
+          <p>{t("api_keys.delete_warning")}</p>
         </aside>
       </article>
 
-      <p>
-        {t("api_keys.delete_confirm", { name: apiKey.name })}
-      </p>
+      <p>{t("api_keys.delete_confirm", { name: apiKey.name })}</p>
 
       <CsrfForm action={`/admin/api-keys/${apiKey.id}/delete`}>
         <label for="confirm_identifier">{t("api_keys.delete_label")}</label>

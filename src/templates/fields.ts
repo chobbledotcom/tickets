@@ -2,6 +2,7 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
+import { t } from "#i18n";
 import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
 import { CONFIG_KEYS, getSettingCached } from "#lib/db/settings.ts";
@@ -12,7 +13,6 @@ import {
 } from "#lib/event-fields.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { type Field, validateForm } from "#lib/forms.tsx";
-import { t } from "#i18n";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
@@ -289,9 +289,7 @@ const MAX_DESCRIPTION_LENGTH = 256;
 
 /** Validate description length */
 const validateDescription = (value: string): string | null =>
-  value.length > MAX_DESCRIPTION_LENGTH
-    ? t("error.description_length")
-    : null;
+  value.length > MAX_DESCRIPTION_LENGTH ? t("error.description_length") : null;
 
 /** Validate a datetime value is parseable */
 const validateDatetime = (value: string): string | null =>
@@ -391,7 +389,10 @@ export const eventFields: Field[] = [
       { value: "email", label: t("fields.event.contact_email") },
       { value: "phone", label: t("fields.event.contact_phone") },
       { value: "address", label: t("fields.event.contact_address") },
-      { value: "special_instructions", label: t("fields.event.contact_special") },
+      {
+        value: "special_instructions",
+        label: t("fields.event.contact_special"),
+      },
     ],
     validate: validateEventFields,
   },
@@ -466,8 +467,7 @@ export const eventFields: Field[] = [
 
 /** Validate date format (YYYY-MM-DD) */
 export const validateDate = (value: string): string | null => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
-    return t("error.date_format_invalid");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return t("error.date_format_invalid");
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return t("error.date_invalid");
   return null;
@@ -512,7 +512,9 @@ export const imageField: Field = {
 /** Attachment upload field for event forms (appended when storage is enabled) */
 export const attachmentField: Field = {
   name: "attachment",
-  label: t("fields.event.attachment", { size: formatBytes(MAX_ATTACHMENT_SIZE) }),
+  label: t("fields.event.attachment", {
+    size: formatBytes(MAX_ATTACHMENT_SIZE),
+  }),
   type: "file",
 };
 
@@ -602,9 +604,7 @@ const MAX_ADDRESS_LENGTH = 250;
 
 /** Validate address length */
 export const validateAddress = (value: string): string | null =>
-  value.length > MAX_ADDRESS_LENGTH
-    ? t("error.address_length")
-    : null;
+  value.length > MAX_ADDRESS_LENGTH ? t("error.address_length") : null;
 
 /** Address field for ticket forms (textarea) */
 const addressField: Field = {

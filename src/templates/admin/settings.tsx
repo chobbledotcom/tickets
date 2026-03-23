@@ -2,6 +2,7 @@
  * Admin settings page template
  */
 
+import { t } from "#i18n";
 import { COUNTRIES, type CountryData } from "#lib/countries.ts";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
@@ -17,7 +18,6 @@ import {
   squareWebhookFields,
   stripeKeyFields,
 } from "#templates/fields.ts";
-import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 export type SettingsPageState = {
@@ -74,10 +74,14 @@ export const adminSettingsPage = (
           >
             <h2>{t("settings.header_image")}</h2>
             <p>
-              {t("settings.header_image_hint", { size: formatBytes(MAX_IMAGE_SIZE) })}
+              {t("settings.header_image_hint", {
+                size: formatBytes(MAX_IMAGE_SIZE),
+              })}
             </p>
             <label>
-              {s.headerImageUrl ? t("settings.replace_image") : t("settings.upload_image")}
+              {s.headerImageUrl
+                ? t("settings.replace_image")
+                : t("settings.upload_image")}
               <input
                 type="file"
                 name="header_image"
@@ -112,9 +116,7 @@ export const adminSettingsPage = (
         id="settings-business-email"
       >
         <h2>{t("settings.business_email")}</h2>
-        <p>
-          {t("settings.business_email_hint")}
-        </p>
+        <p>{t("settings.business_email_hint")}</p>
         <label>
           {t("settings.business_email")}
           <input
@@ -178,13 +180,13 @@ export const adminSettingsPage = (
             </p>
           )}
           {s.stripeKeyConfigured && s.stripeKeyMode === "live" && (
-            <p class="notice">
-              {t("settings.stripe.live_mode_warning")}
-            </p>
+            <p class="notice">{t("settings.stripe.live_mode_warning")}</p>
           )}
           <p>
             <small>
-              <a href="/admin/guide#payment-setup">{t("settings.stripe.where_to_find")}</a>
+              <a href="/admin/guide#payment-setup">
+                {t("settings.stripe.where_to_find")}
+              </a>
             </small>
           </p>
           <Raw
@@ -215,7 +217,9 @@ export const adminSettingsPage = (
           </p>
           <p>
             <small>
-              <a href="/admin/guide#payment-setup">{t("settings.square.where_to_find")}</a>
+              <a href="/admin/guide#payment-setup">
+                {t("settings.square.where_to_find")}
+              </a>
             </small>
           </p>
           <Raw
@@ -235,7 +239,9 @@ export const adminSettingsPage = (
             {t("settings.square.sandbox_mode")}
           </label>
           <footer>
-            <button type="submit">{t("settings.square.update_credentials")}</button>
+            <button type="submit">
+              {t("settings.square.update_credentials")}
+            </button>
             {s.squareTokenConfigured && (
               <button type="button" id="square-test-btn" class="secondary">
                 {t("settings.square.test_connection")}
@@ -253,13 +259,13 @@ export const adminSettingsPage = (
         >
           <h2>{t("settings.square.webhook_heading")}</h2>
           <p>
-            <a href="/admin/guide#payment-setup">{t("settings.square.webhook_guide_link")}</a>
+            <a href="/admin/guide#payment-setup">
+              {t("settings.square.webhook_guide_link")}
+            </a>
           </p>
           <article>
             <aside>
-              <p>
-                {t("settings.square.webhook_instructions")}
-              </p>
+              <p>{t("settings.square.webhook_instructions")}</p>
               <ol>
                 <li>
                   Go to your <strong>Square Developer Dashboard</strong> and
@@ -300,7 +306,9 @@ export const adminSettingsPage = (
                 : {},
             )}
           />
-          <button type="submit">{t("settings.square.update_webhook_key")}</button>
+          <button type="submit">
+            {t("settings.square.update_webhook_key")}
+          </button>
         </CsrfForm>
       )}
 
@@ -310,9 +318,7 @@ export const adminSettingsPage = (
           id="settings-booking-fee"
         >
           <h2>{t("settings.booking_fee")}</h2>
-          <p>
-            {t("settings.booking_fee_hint")}
-          </p>
+          <p>{t("settings.booking_fee_hint")}</p>
           <label>
             {t("settings.booking_fee_label")}
             <input
@@ -331,9 +337,7 @@ export const adminSettingsPage = (
 
       <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts">
         <h2>{t("settings.embed_hosts")}</h2>
-        <p>
-          {t("settings.embed_hosts_hint")}
-        </p>
+        <p>{t("settings.embed_hosts_hint")}</p>
         <label>
           {t("settings.embed_hosts_label")}
           <input
@@ -345,9 +349,7 @@ export const adminSettingsPage = (
           />
         </label>
         <p>
-          <small>
-            {t("settings.embed_hosts_wildcard_hint")}
-          </small>
+          <small>{t("settings.embed_hosts_wildcard_hint")}</small>
         </p>
         <button type="submit">{t("settings.save_embed_hosts")}</button>
       </CsrfForm>
@@ -385,9 +387,7 @@ export const adminSettingsPage = (
         id="settings-show-public-site"
       >
         <h2>{t("settings.show_public_site")}</h2>
-        <p>
-          {t("settings.show_public_site_hint")}
-        </p>
+        <p>{t("settings.show_public_site_hint")}</p>
         <label>
           <input
             type="radio"

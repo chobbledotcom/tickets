@@ -68,7 +68,10 @@ export const adminQuestionPage = (
   String(
     <Layout title={`Question: ${question.text}`}>
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href="/admin/questions" label={t("questions.edit.breadcrumb")} />
+      <Breadcrumb
+        href="/admin/questions"
+        label={t("questions.edit.breadcrumb")}
+      />
 
       <h1>{question.text}</h1>
       <Raw html={renderError(error)} />
@@ -88,7 +91,12 @@ export const adminQuestionPage = (
       >
         <label>
           {t("questions.edit.new_answer_label")}
-          <input type="text" name="text" required placeholder={t("questions.edit.new_answer_placeholder")} />
+          <input
+            type="text"
+            name="text"
+            required
+            placeholder={t("questions.edit.new_answer_placeholder")}
+          />
         </label>
         <button type="submit">{t("questions.edit.add_answer")}</button>
       </CsrfForm>
@@ -163,18 +171,16 @@ export const adminQuestionDeletePage = (
 
       <article>
         <aside>
-          <p>
-            {t("questions.delete.warning")}
-          </p>
+          <p>{t("questions.delete.warning")}</p>
         </aside>
       </article>
 
-      <p>
-        {t("questions.delete.confirm_prompt", { text: question.text })}
-      </p>
+      <p>{t("questions.delete.confirm_prompt", { text: question.text })}</p>
 
       <CsrfForm action={`/admin/questions/${question.id}/delete`}>
-        <label for="confirm_identifier">{t("questions.delete.confirm_label")}</label>
+        <label for="confirm_identifier">
+          {t("questions.delete.confirm_label")}
+        </label>
         <input
           type="text"
           id="confirm_identifier"
@@ -211,7 +217,10 @@ export const adminAnswerDeletePage = (
       <article>
         <aside>
           <p>
-            {t("questions.delete_answer.warning", { answerText: answer.text, questionText: question.text })}
+            {t("questions.delete_answer.warning", {
+              answerText: answer.text,
+              questionText: question.text,
+            })}
           </p>
         </aside>
       </article>
@@ -223,7 +232,9 @@ export const adminAnswerDeletePage = (
       <CsrfForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
       >
-        <label for="confirm_identifier">{t("questions.delete_answer.confirm_label")}</label>
+        <label for="confirm_identifier">
+          {t("questions.delete_answer.confirm_label")}
+        </label>
         <input
           type="text"
           id="confirm_identifier"
@@ -256,9 +267,7 @@ export const adminEventQuestionsPage = (
       <Raw html={renderError(error)} />
 
       {allQuestions.length === 0 ? (
-        <p>
-          {t("questions.event.no_questions")}
-        </p>
+        <p>{t("questions.event.no_questions")}</p>
       ) : (
         <CsrfForm action={`/admin/event/${event.id}/questions`}>
           {map((q: QuestionWithAnswers) => (

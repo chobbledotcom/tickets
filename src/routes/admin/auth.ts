@@ -3,6 +3,7 @@
  */
 
 import { lazyRef } from "#fp";
+import { t } from "#i18n";
 import { buildSessionCookie, clearSessionCookie } from "#lib/cookies.ts";
 import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto.ts";
 import { verifySignedCsrfToken } from "#lib/csrf.ts";
@@ -19,7 +20,6 @@ import { nowMs } from "#lib/now.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { t } from "#i18n";
 import {
   generateSecureToken,
   getAuthenticatedSession,
@@ -84,10 +84,7 @@ const handleAdminLogin = async (
 
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
-    return loginResponse(
-      t("error.too_many_attempts"),
-      429,
-    );
+    return loginResponse(t("error.too_many_attempts"), 429);
   }
 
   const validation = validateForm<LoginFormValues>(form, loginFields);
@@ -117,10 +114,7 @@ const handleAdminLogin = async (
 
   // Check if user has a wrapped data key (fully activated)
   if (!user.wrapped_data_key) {
-    return loginResponse(
-      t("error.account_not_activated"),
-      403,
-    );
+    return loginResponse(t("error.account_not_activated"), 403);
   }
 
   // Unwrap DATA_KEY using password-derived KEK

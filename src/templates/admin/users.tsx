@@ -2,13 +2,13 @@
  * Admin user management page template
  */
 
+import { t } from "#i18n";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
 import { AdminNav, Breadcrumb, UsersSubNav } from "#templates/admin/nav.tsx";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { t } from "#i18n";
 
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
@@ -100,7 +100,9 @@ export const adminUsersPage = (
                 </td>
                 <td>
                   {user.id !== opts.currentUserId && (
-                    <a href={`/admin/users/${user.id}/delete`}>{t("users.delete")}</a>
+                    <a href={`/admin/users/${user.id}/delete`}>
+                      {t("users.delete")}
+                    </a>
                   )}
                 </td>
               </tr>
@@ -129,7 +131,10 @@ export const adminUserDeletePage = (
       <article>
         <aside>
           <p>
-            {t("users.delete_user.warning", { username: user.username, level: user.adminLevel })}
+            {t("users.delete_user.warning", {
+              username: user.username,
+              level: user.adminLevel,
+            })}
           </p>
         </aside>
       </article>
@@ -139,7 +144,9 @@ export const adminUserDeletePage = (
       </p>
 
       <CsrfForm action={`/admin/users/${user.id}/delete`}>
-        <label for="confirm_identifier">{t("users.delete_user.confirm_label")}</label>
+        <label for="confirm_identifier">
+          {t("users.delete_user.confirm_label")}
+        </label>
         <input
           type="text"
           id="confirm_identifier"

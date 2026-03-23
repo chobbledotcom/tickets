@@ -3,12 +3,12 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
+import { t } from "#i18n";
 import { getAllowedDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { ActiveEventStats } from "#lib/db/attendees.ts";
 import { renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { t } from "#i18n";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -77,7 +77,9 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
         data-domain={getAllowedDomain()}
         placeholder={t("admin.dashboard.select_two_or_more")}
       />
-      <label for="multi-booking-embed-script">{t("admin.dashboard.embed_script")}</label>
+      <label for="multi-booking-embed-script">
+        {t("admin.dashboard.embed_script")}
+      </label>
       <input
         type="text"
         id="multi-booking-embed-script"
@@ -86,7 +88,9 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
         data-multi-booking-embed-script
         placeholder={t("admin.dashboard.select_two_or_more")}
       />
-      <label for="multi-booking-embed-iframe">{t("admin.dashboard.embed_iframe")}</label>
+      <label for="multi-booking-embed-iframe">
+        {t("admin.dashboard.embed_iframe")}
+      </label>
       <input
         type="text"
         id="multi-booking-embed-iframe"
@@ -106,7 +110,8 @@ export const activeEventStatsSection = (stats: ActiveEventStats): string =>
       <summary>{t("admin.dashboard.stats_heading")}</summary>
       <ul>
         <li>
-          <strong>{t("admin.dashboard.income")}</strong> {formatCurrency(stats.income)}
+          <strong>{t("admin.dashboard.income")}</strong>{" "}
+          {formatCurrency(stats.income)}
         </li>
         <li>
           <strong>{t("admin.dashboard.tickets")}</strong> {stats.tickets}
@@ -142,9 +147,7 @@ const newestAttendeesSection = (
 
   return String(
     <details open>
-      <summary>
-        {t("admin.dashboard.newest_attendees", { count })}
-      </summary>
+      <summary>{t("admin.dashboard.newest_attendees", { count })}</summary>
       <div class="table-scroll">
         <Raw
           html={AttendeeTable({

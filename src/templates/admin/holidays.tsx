@@ -2,6 +2,7 @@
  * Admin holiday management page templates
  */
 
+import { t } from "#i18n";
 import {
   CsrfForm,
   renderError,
@@ -12,7 +13,6 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { holidayFields } from "#templates/fields.ts";
-import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -51,8 +51,12 @@ export const adminHolidaysPage = (
                   <td>{holiday.start_date}</td>
                   <td>{holiday.end_date}</td>
                   <td>
-                    <a href={`/admin/holiday/${holiday.id}/edit`}>{t("holidays.edit")}</a>{" "}
-                    <a href={`/admin/holiday/${holiday.id}/delete`}>{t("holidays.delete")}</a>
+                    <a href={`/admin/holiday/${holiday.id}/edit`}>
+                      {t("holidays.edit")}
+                    </a>{" "}
+                    <a href={`/admin/holiday/${holiday.id}/delete`}>
+                      {t("holidays.delete")}
+                    </a>
                   </td>
                 </tr>
               ))}
@@ -132,7 +136,11 @@ export const adminHolidayDeletePage = (
       <h1>{t("holidays.delete.heading")}</h1>
       <Raw html={renderError(error)} />
       <p>
-        {t("holidays.delete.confirm", { name: holiday.name, start: holiday.start_date, end: holiday.end_date })}
+        {t("holidays.delete.confirm", {
+          name: holiday.name,
+          start: holiday.start_date,
+          end: holiday.end_date,
+        })}
       </p>
       <p>{t("holidays.delete.confirm_prompt")}</p>
       <CsrfForm action={`/admin/holiday/${holiday.id}/delete`}>

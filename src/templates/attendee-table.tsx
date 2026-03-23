@@ -200,7 +200,9 @@ const CheckinButton = ({
   returnUrl: string | undefined;
 }): string => {
   const isCheckedIn = a.checked_in;
-  const label = isCheckedIn ? t("admin.attendee_table.check_out") : t("admin.attendee_table.check_in");
+  const label = isCheckedIn
+    ? t("admin.attendee_table.check_out")
+    : t("admin.attendee_table.check_in");
   const buttonClass = isCheckedIn
     ? "link-button checkout"
     : "link-button checkin";
@@ -243,7 +245,9 @@ const ActionsCell = ({
         </a>
       )}
       {isRefundable(row) && " "}
-      <a href={`/admin/attendees/${a.id}${suffix}`}>{t("admin.attendee_table.edit")}</a>{" "}
+      <a href={`/admin/attendees/${a.id}${suffix}`}>
+        {t("admin.attendee_table.edit")}
+      </a>{" "}
       <a
         href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`}
         class="danger"
@@ -268,7 +272,11 @@ const StatusCell = ({
   opts: AttendeeTableOptions;
 }): string => {
   if (row.attendee.refunded) {
-    return String(<span class="badge-refunded">{t("admin.attendee_table.refunded_badge")}</span>);
+    return String(
+      <span class="badge-refunded">
+        {t("admin.attendee_table.refunded_badge")}
+      </span>,
+    );
   }
   return CheckinButton({
     a: row.attendee,
@@ -407,7 +415,9 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           {vis.showEmail && <th>{t("admin.attendee_table.col.email")}</th>}
           {vis.showPhone && <th>{t("admin.attendee_table.col.phone")}</th>}
           {vis.showAddress && <th>{t("admin.attendee_table.col.address")}</th>}
-          {vis.showSpecialInstructions && <th>{t("admin.attendee_table.col.special_instructions")}</th>}
+          {vis.showSpecialInstructions && (
+            <th>{t("admin.attendee_table.col.special_instructions")}</th>
+          )}
           {vis.showAnswers && <th>{t("admin.attendee_table.col.answers")}</th>}
           <th>{t("admin.attendee_table.col.qty")}</th>
           <th>{t("admin.attendee_table.col.ticket")}</th>
