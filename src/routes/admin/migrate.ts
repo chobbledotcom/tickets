@@ -18,7 +18,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import type { AuthSession } from "#routes/utils.ts";
 import {
   htmlResponse,
-  jsonResponse,
+  redirectResponse,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -61,15 +61,14 @@ const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
 const handleMigratePost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(
     request,
-    whenNotMigrated(() =>
-      jsonResponse({ done: true, migrated: 0, remaining: 0 }),
-    )(async (session) => {
-      const privateKey = await requirePrivateKey(session);
-      const result = await migrateAttendeeBatch(privateKey);
-      const done = result.remaining === 0;
-      if (done) await setAttendeeBlobMigrated();
-      return jsonResponse({ done, ...result });
-    }),
+    whenNotMigrated(() => redirectResponse("/admin/migrate"))(
+      async (session) => {
+        const privateKey = await requirePrivateKey(session);
+        const result = await migrateAttendeeBatch(privateKey);
+        if (result.remaining === 0) await setAttendeeBlobMigrated();
+        return redirectResponse("/admin/migrate");
+      },
+    ),
   );
 
 /** Migration routes */
