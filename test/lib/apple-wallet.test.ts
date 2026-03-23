@@ -8,10 +8,10 @@ import {
   generatePassJson,
   isValidPemCertificate,
   isValidPemPrivateKey,
-  type PassData,
   padAuthToken,
-  type SigningCredentials,
+  type PassData,
   sha1Hex,
+  type SigningCredentials,
   signManifest,
   trimAuthToken,
 } from "#lib/apple-wallet.ts";
