@@ -5,8 +5,8 @@
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { type BookingResult, processBooking } from "#lib/booking.ts";
 import {
-  getAllowedDomain,
   getCurrencyCode,
+  getEffectiveDomain,
   isPaymentsEnabled,
 } from "#lib/config.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
@@ -1046,7 +1046,7 @@ const handleTicketPost = slugRoute(
 
 /** Generate a QR code SVG response for a given slug */
 const qrResponse = async (slug: string): Promise<Response> => {
-  const ticketUrl = `https://${getAllowedDomain()}/ticket/${slug}`;
+  const ticketUrl = `https://${getEffectiveDomain()}/ticket/${slug}`;
   const svg = await generateQrSvg(ticketUrl);
   return new Response(svg, {
     headers: { "content-type": "image/svg+xml" },

@@ -3,7 +3,7 @@
  */
 
 import { compact, map } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { getAttendeesByTokens } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { getCurrencyCodeFromDb } from "#lib/db/settings.ts";
@@ -39,7 +39,7 @@ export const buildWalletPassData = async (
   token: string,
 ): Promise<WalletPassData> => {
   const { event, attendee } = entry;
-  const domain = getAllowedDomain();
+  const domain = getEffectiveDomain();
   const currencyCode = await getCurrencyCodeFromDb();
   const pricePaid = attendee.price_paid_v2;
 

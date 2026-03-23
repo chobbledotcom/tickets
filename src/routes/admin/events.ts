@@ -3,7 +3,7 @@
  */
 
 import { compact, filter, map, pipe, sort, unique } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import { getEventWithActivityLog, logActivity } from "#lib/db/activityLog.ts";
@@ -414,7 +414,7 @@ const renderEventPage = async (
         adminEventPage({
           event,
           attendees: filteredByDate,
-          allowedDomain: getAllowedDomain(),
+          allowedDomain: getEffectiveDomain(),
           session,
           checkinMessage: getCheckinMessage(request),
           activeFilter,

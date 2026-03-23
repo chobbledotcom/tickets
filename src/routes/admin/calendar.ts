@@ -3,7 +3,7 @@
  */
 
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
-import { getAllowedDomain, getTz } from "#lib/config.ts";
+import { getEffectiveDomain, getTz } from "#lib/config.ts";
 import {
   eventDateToCalendarDate,
   formatDateLabel,
@@ -227,7 +227,7 @@ const handleAdminCalendarGet = (request: Request) =>
     return htmlResponse(
       adminCalendarPage(
         attendees,
-        getAllowedDomain(),
+        getEffectiveDomain(),
         session,
         dateFilter,
         availableDates,

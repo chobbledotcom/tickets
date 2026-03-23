@@ -5,7 +5,7 @@
 
 import { lazyRef, map } from "#fp";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { toBase64 } from "#lib/crypto.ts";
 import {
   getEmailApiKeyFromDb,
@@ -281,7 +281,7 @@ export const buildSvgTicketData = (
   quantity: entry.attendee.quantity,
   pricePaid: entry.attendee.price_paid,
   currency,
-  checkinUrl: `https://${getAllowedDomain()}/checkin/${entry.attendee.ticket_token}`,
+  checkinUrl: `https://${getEffectiveDomain()}/checkin/${entry.attendee.ticket_token}`,
 });
 
 /** Generate SVG ticket attachments for all entries */

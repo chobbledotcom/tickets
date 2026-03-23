@@ -14,8 +14,8 @@ import {
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import {
-  getAllowedDomain,
   getCdnHostname,
+  getEffectiveDomain,
   getSquareWebhookSignatureKey,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
@@ -154,7 +154,7 @@ import {
 
 /** Build the webhook URL from the configured domain */
 const getWebhookUrl = (): string => {
-  const domain = getAllowedDomain();
+  const domain = getEffectiveDomain();
   return `https://${domain}/payment/webhook`;
 };
 

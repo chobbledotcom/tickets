@@ -10,7 +10,7 @@ import {
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
 } from "#lib/api-example.ts";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
@@ -1478,7 +1478,7 @@ export const adminGuidePage = (
             </li>
             <li>
               Enter your ICS feed URL:{" "}
-              <code>https://{getAllowedDomain()}/feeds/events.ics</code>
+              <code>https://{getEffectiveDomain()}/feeds/events.ics</code>
             </li>
             <li>
               Set <strong>joinMode</strong> to <strong>external</strong> so the
@@ -1507,7 +1507,8 @@ export const adminGuidePage = (
         <Q q="What endpoints are available?">
           <p>
             The base URL is your domain (e.g.{" "}
-            <code>https://{getAllowedDomain()}</code>). All responses are JSON.
+            <code>https://{getEffectiveDomain()}</code>). All responses are
+            JSON.
           </p>
           <ul>
             <li>

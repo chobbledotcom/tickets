@@ -4,7 +4,7 @@
  */
 
 import { once } from "#fp";
-import { isSetupComplete } from "#lib/config.ts";
+import { isSetupComplete, loadEffectiveDomain } from "#lib/config.ts";
 import {
   clearFlashCookie,
   clearSessionCookie,
@@ -370,7 +370,11 @@ export const handleRequest = async (
             }
           }
 
-          // Domain validation: redirect requests from unauthorized domains to the allowed domain
+          // Load effective domain (custom_domain from DB if set, else ALLOWED_DOMAIN)
+          // before domain validation so redirects go to the right host.
+          await loadEffectiveDomain();
+
+          // Domain validation: redirect requests from unauthorized domains to the effective domain
           if (!isValidDomain(effectiveRequest)) {
             const redirectUrl = buildDomainRedirectUrl(effectiveRequest);
             logDebug(

@@ -3,7 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import type { Attendee } from "#lib/types.ts";
@@ -81,7 +81,7 @@ const buildCsv = <T>(
   toRow: (item: T, domain: string) => string[],
   items: T[],
 ): string => {
-  const domain = getAllowedDomain();
+  const domain = getEffectiveDomain();
   return pipe(
     map((item: T) => toRow(item, domain).join(",")),
     reduce((acc: string, row: string) => `${acc}\n${row}`, header),

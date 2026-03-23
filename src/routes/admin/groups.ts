@@ -3,7 +3,7 @@
  */
 
 import { map } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
 import { getAttendeesByEventIds, getEvent } from "#lib/db/events.ts";
@@ -171,7 +171,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
         );
         phonePrefix = prefix;
       }
-      const allowedDomain = getAllowedDomain();
+      const allowedDomain = getEffectiveDomain();
       const successMessage = getFlash().success;
       const questionData = await loadQuestionData(
         eventIds,
