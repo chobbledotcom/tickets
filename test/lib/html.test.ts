@@ -2082,7 +2082,7 @@ describe("html", () => {
         session: TEST_SESSION,
       });
       expect(html).toContain("Failed Payments");
-      expect(html).toContain("1 attendee(s) with unresolved payments");
+      expect(html).toContain("1 attendee with unresolved payments");
       expect(html).toContain("/delete-incomplete");
     });
 

@@ -363,7 +363,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         response,
         200,
         "Refund All",
-        "1 attendee(s) with payments",
+        "1 attendee with payments",
         "type the event name",
       );
     });
@@ -555,8 +555,8 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
             "1 refund(s) succeeded",
             "1 failed",
           );
-          expect(html).toContain("all 1 attendee(s)");
-          expect(html).not.toContain("all 2 attendee(s)");
+          expect(html).toContain("all 1 attendee with payments");
+          expect(html).not.toContain("all 2 attendees");
         },
       );
     });
@@ -601,7 +601,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await awaitTestRequest(refundAllUrl(event.id), {
         cookie: await testCookie(),
       });
-      await expectHtmlResponse(response, 200, "1 attendee(s) with payments");
+      await expectHtmlResponse(response, 200, "1 attendee with payments");
     });
 
     test("marks attendee as refunded after successful refund", async () => {

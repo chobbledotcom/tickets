@@ -7,12 +7,13 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { IntlMessageFormat } from "intl-messageformat";
+import en from "#locales/en/index.ts";
 
 /** Message map: flat dot-namespaced keys → ICU message strings */
 type Messages = Record<string, string>;
 
-/** Registered locale message maps */
-const locales: Record<string, Messages> = {};
+/** Registered locale message maps — English is built-in as the default fallback */
+const locales: Record<string, Messages> = { en };
 
 /** Register a locale's messages (called at startup) */
 export const addLocale = (locale: string, messages: Messages): void => {
@@ -65,7 +66,6 @@ export const parseAcceptLanguage = (header: string | null): string => {
   if (!header) return "en";
 
   const registered = getRegisteredLocales();
-  if (registered.length === 0) return "en";
 
   // Parse "en-GB,en;q=0.9,de;q=0.8" into sorted [{lang, q}]
   const entries = header
@@ -73,7 +73,10 @@ export const parseAcceptLanguage = (header: string | null): string => {
     .map((part) => {
       const [lang = "", ...rest] = part.trim().split(";");
       const qMatch = rest.join(";").match(/q\s*=\s*([\d.]+)/);
-      return { lang: lang.trim().toLowerCase(), q: qMatch ? Number(qMatch[1]) : 1 };
+      return {
+        lang: lang.trim().toLowerCase(),
+        q: qMatch ? Number(qMatch[1]) : 1,
+      };
     })
     .filter((e) => e.lang && e.q > 0)
     .sort((a, b) => b.q - a.q);

@@ -18,6 +18,8 @@
     "jsxImportSource": "#jsx",
     "paths": {
       "#fp": ["./src/fp.ts"],
+      "#i18n": ["./src/lib/i18n.ts"],
+      "#locales/*": ["./src/locales/*"],
       "#test-utils": ["./src/test-utils/index.ts"],
       "#test-utils/*": ["./src/test-utils/*"],
       "#src/*": ["./src/*"],
