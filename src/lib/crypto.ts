@@ -102,8 +102,6 @@ export const generateTicketToken = (): string => toUpperHex(getRandomBytes(5));
  */
 const ENCRYPTION_PREFIX = "enc:1:";
 
-type KeyCache = { key: CryptoKey; source: string };
-
 const decodeKeyBytes = (keyString: string): Uint8Array => {
   const keyBytes = fromBase64(keyString);
 
@@ -115,16 +113,6 @@ const decodeKeyBytes = (keyString: string): Uint8Array => {
 
   return keyBytes;
 };
-
-const [getKeyCache, setKeyCache] = lazyRef<KeyCache>(() => {
-  throw new Error("Key cache not initialized");
-});
-
-type HmacKeyCache = { key: CryptoKey; source: string };
-
-const [getHmacKeyCache, setHmacKeyCache] = lazyRef<HmacKeyCache>(() => {
-  throw new Error("HMAC key cache not initialized");
-});
 
 /**
  * Module-level override for the encryption key string.
@@ -142,6 +130,8 @@ const [getEncryptionKeyOverride, setEncryptionKeyOverride] = lazyRef<
  */
 export const setEncryptionKeyForTest = (key: string | null): void => {
   setEncryptionKeyOverride(key);
+  setEncKeyResolved(null);
+  setHmacKeyResolved(null);
 };
 
 /**
@@ -164,45 +154,37 @@ const getEncryptionKeyString = (): string => {
 };
 
 /**
- * Import a CryptoKey from DB_ENCRYPTION_KEY with caching.
- * Shared by both AES-GCM (encrypt/decrypt) and HMAC (blind indexes).
+ * Import a CryptoKey from DB_ENCRYPTION_KEY.
  */
-const importCachedKey = async (
-  getCache: () => KeyCache,
-  setCache: (v: KeyCache | null) => void,
+const importKey = async (
   algorithm: Parameters<SubtleCrypto["importKey"]>[2],
   usages: KeyUsage[],
 ): Promise<CryptoKey> => {
-  const keyString = getEncryptionKeyString();
-
-  // Return cached key if source hasn't changed
-  try {
-    const cached = getCache();
-    if (cached.source === keyString) {
-      return cached.key;
-    }
-  } catch {
-    // Cache not initialized yet
-  }
-
-  const keyBytes = decodeKeyBytes(keyString);
-  const key = await crypto.subtle.importKey(
+  const keyBytes = decodeKeyBytes(getEncryptionKeyString());
+  return await crypto.subtle.importKey(
     "raw",
     keyBytes as BufferSource,
     algorithm,
     false,
     usages,
   );
-
-  setCache({ key, source: keyString });
-  return key;
 };
 
-const importEncryptionKey = (): Promise<CryptoKey> =>
-  importCachedKey(getKeyCache, setKeyCache, { name: "AES-GCM" }, [
-    "encrypt",
-    "decrypt",
-  ]);
+/**
+ * Cached encryption key — avoids repeated async key imports and
+ * env reads when multiple columns are decrypted in parallel.
+ */
+const [getEncKeyResolved, setEncKeyResolved] = lazyRef<CryptoKey | undefined>(
+  () => undefined,
+);
+
+const importEncryptionKey = async (): Promise<CryptoKey> => {
+  const resolved = getEncKeyResolved();
+  if (resolved) return resolved;
+  const key = await importKey({ name: "AES-GCM" }, ["encrypt", "decrypt"]);
+  setEncKeyResolved(key);
+  return key;
+};
 
 /**
  * Validate encryption key is present and valid
@@ -374,8 +356,8 @@ export const decryptBytes = async (
  * Called on key rotation and during test setup/teardown
  */
 export const clearEncryptionKeyCache = (): void => {
-  setKeyCache(null);
-  setHmacKeyCache(null);
+  setEncKeyResolved(null);
+  setHmacKeyResolved(null);
   privateKeyCache.clear();
   hybridDecryptCache.clear();
 };
@@ -495,13 +477,17 @@ export const hashSessionToken = async (token: string): Promise<string> => {
   return toBase64(new Uint8Array(hashBuffer));
 };
 
-const importHmacKey = (): Promise<CryptoKey> =>
-  importCachedKey(
-    getHmacKeyCache,
-    setHmacKeyCache,
-    { name: "HMAC", hash: "SHA-256" },
-    ["sign"],
-  );
+const [getHmacKeyResolved, setHmacKeyResolved] = lazyRef<CryptoKey | undefined>(
+  () => undefined,
+);
+
+const importHmacKey = async (): Promise<CryptoKey> => {
+  const resolved = getHmacKeyResolved();
+  if (resolved) return resolved;
+  const key = await importKey({ name: "HMAC", hash: "SHA-256" }, ["sign"]);
+  setHmacKeyResolved(key);
+  return key;
+};
 
 /**
  * HMAC-SHA256 hash using DB_ENCRYPTION_KEY

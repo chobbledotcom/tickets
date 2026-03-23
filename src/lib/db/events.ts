@@ -3,7 +3,7 @@
  */
 
 import type { ResultSet } from "@libsql/client";
-import { collectionCache, filter as fpFilter } from "#fp";
+import { filter as fpFilter } from "#fp";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import {
   executeBatch,
@@ -21,7 +21,8 @@ import {
 } from "#lib/db/common-schema.ts";
 import { col } from "#lib/db/table.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import { nowIso, nowMs } from "#lib/now.ts";
+import { nowIso } from "#lib/now.ts";
+import { requestCache } from "#lib/request-cache.ts";
 import type {
   Attendee,
   Event,
@@ -120,13 +121,6 @@ const readClosesAt = async (v: string | null): Promise<string | null> => {
 /** Encrypt event date for DB storage */
 export const writeEventDate = (v: string): Promise<string> =>
   encryptDatetime(v, "date");
-
-/**
- * In-memory events cache. Loads all events with attendee counts
- * in a single query and serves subsequent reads from memory until
- * the TTL expires or a write invalidates the cache.
- */
-export const EVENTS_CACHE_TTL_MS = 60_000;
 
 /**
  * Events table definition
@@ -279,11 +273,7 @@ const queryEventsWithCounts = async (
   );
 };
 
-const eventsCache = collectionCache(
-  () => queryEventsWithCounts(),
-  EVENTS_CACHE_TTL_MS,
-  nowMs,
-);
+const eventsCache = requestCache(() => queryEventsWithCounts());
 
 registerCache(() => ({ name: "events", entries: eventsCache.size() }));
 
