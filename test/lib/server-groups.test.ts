@@ -386,7 +386,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const group = await createTestGroup({
         name: "Detail Group",
         slug: "detail-group",
-        termsAndConditions: "Some terms",
       });
       const event = await createTestEvent({
         name: "Grouped Event",
@@ -399,7 +398,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         200,
         "Detail Group",
         "detail-group",
-        "Some terms",
         "Grouped Event",
         `/admin/event/${event.id}`,
         "Edit Group",

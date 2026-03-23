@@ -10,7 +10,7 @@ import {
 } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { holidayFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -25,7 +25,6 @@ export const adminHolidaysPage = (
   String(
     <Layout title="Holidays">
       <AdminNav session={session} active="/admin/holidays" />
-      <h1>Holidays</h1>
       <Raw html={renderSuccess(successMessage)} />
       <p>
         <a href="/admin/holiday/new">Add Holiday</a>
@@ -83,7 +82,6 @@ export const adminHolidayNewPage = (
   String(
     <Layout title="Add Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Add Holiday</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/holiday">
@@ -104,7 +102,6 @@ export const adminHolidayEditPage = (
   String(
     <Layout title="Edit Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Edit Holiday</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action={`/admin/holiday/${holiday.id}/edit`}>
@@ -127,7 +124,6 @@ export const adminHolidayDeletePage = (
   String(
     <Layout title="Delete Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Delete Holiday</h1>
       <Raw html={renderError(error)} />
       <p>

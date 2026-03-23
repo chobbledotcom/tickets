@@ -290,7 +290,6 @@ export const adminEventPage = ({
     <Layout title={`Event: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
 
-      <h1>{event.name}</h1>
       <nav>
         <ul>
           <li>
@@ -350,10 +349,12 @@ export const adminEventPage = ({
       {errorMessage && <p class="error">{errorMessage}</p>}
 
       <article>
-        <h2>Event Details</h2>
         <div class="table-scroll">
           <table class="event-details-table">
             <tbody>
+              <tr>
+                <th colspan="2">{event.name}</th>
+              </tr>
               {event.date && (
                 <tr>
                   <th>Event Date</th>
