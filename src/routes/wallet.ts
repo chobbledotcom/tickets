@@ -5,7 +5,7 @@
  */
 
 import { buildPkpass, type SigningCredentials } from "#lib/apple-wallet.ts";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { getAppleWalletConfig } from "#lib/db/settings.ts";
 import {
   createTokenRoute,
@@ -49,7 +49,7 @@ export const buildPkpassForToken = async (
   const result = await lookupSingleTokenPassData([token]);
   if (!result.ok) return result.response;
 
-  const domain = getAllowedDomain();
+  const domain = getEffectiveDomain();
   const passData = {
     ...result.passData,
     description: `Ticket for ${result.passData.eventName}`,

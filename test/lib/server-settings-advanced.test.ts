@@ -24,6 +24,7 @@ import {
   flashCookieHeader,
   mockFormRequest,
   mockRequest,
+  mockRequestWithHost,
   resetDb,
   resetTestSlugCounter,
   setTestEnv,
@@ -675,11 +676,21 @@ describe("server (admin settings-advanced)", () => {
 
       test("shows last validated timestamp when domain has been validated", async () => {
         setBunnyEnv();
+        // Get session token before setting the validated custom domain,
+        // then re-format the cookie for the secure domain cookie name.
+        const cookie = await testCookie();
+        const token = cookie.split("=").slice(1).join("=");
         await updateCustomDomain("tickets.example.com");
         await updateCustomDomainLastValidated();
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
+        const response = await handleRequest(
+          mockRequestWithHost(
+            "/admin/settings-advanced",
+            "tickets.example.com",
+            {
+              headers: { cookie: `__Host-session=${token}` },
+            },
+          ),
+        );
         const html = await response.text();
         expect(html).toContain("Last validated:");
       });

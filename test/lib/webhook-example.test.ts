@@ -8,7 +8,12 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
+import {
+  resetAllowedDomain,
+  resetEffectiveDomain,
+  setAllowedDomainForTest,
+  setEffectiveDomainForTest,
+} from "#lib/config.ts";
 import { buildWebhookPayload, type RegistrationEntry } from "#lib/webhook.ts";
 import {
   EXAMPLE_ATTENDEE,
@@ -38,10 +43,14 @@ describe("webhook example", () => {
     const { updateBusinessEmail } = await import("#lib/business-email.ts");
     await updateBusinessEmail(EXAMPLE_BUSINESS_EMAIL);
 
-    // Set ALLOWED_DOMAIN to match the example domain
+    // Set ALLOWED_DOMAIN and effective domain to match the example domain
     setAllowedDomainForTest(exampleDomain);
+    setEffectiveDomainForTest(exampleDomain);
     domainStub = {
-      restore: () => resetAllowedDomain(),
+      restore: () => {
+        resetAllowedDomain();
+        resetEffectiveDomain();
+      },
     };
 
     // Fix time to match the example timestamp
