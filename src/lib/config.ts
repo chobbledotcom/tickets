@@ -9,6 +9,7 @@ import {
   getBookingFeeFromDb,
   getCurrencyCodeFromDb,
   getCustomDomainFromDb,
+  getCustomDomainLastValidatedFromDb,
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
   getSquareAccessTokenFromDb,
@@ -143,7 +144,11 @@ const effectiveDomainState = { domain: null as string | null };
 export const loadEffectiveDomain = async (): Promise<string> => {
   try {
     const custom = await getCustomDomainFromDb();
-    effectiveDomainState.domain = custom || getAllowedDomain();
+    const validated = custom
+      ? await getCustomDomainLastValidatedFromDb()
+      : null;
+    effectiveDomainState.domain =
+      custom && validated ? custom : getAllowedDomain();
   } catch {
     effectiveDomainState.domain = getAllowedDomain();
   }
