@@ -39,7 +39,6 @@ export const adminEventActivityLogPage = (
   String(
     <Layout title={`Log: ${event.name}`}>
       <AdminNav session={session} active="/admin/log" />
-      <h2>Log</h2>
       <div class="table-scroll">
         <table>
           <thead>
@@ -67,7 +66,6 @@ export const adminGlobalActivityLogPage = (
   String(
     <Layout title="Log">
       <AdminNav session={session} active="/admin/log" />
-      <h2>Log</h2>
       <div class="table-scroll">
         <table>
           <thead>
