@@ -2,12 +2,13 @@
  * Holidays table operations
  */
 
-import { collectionCache, filter } from "#fp";
+import { filter } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
 import { getTz } from "#lib/config.ts";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { queryAndMap } from "#lib/db/query.ts";
 import { col, defineTable } from "#lib/db/table.ts";
+import { requestCache } from "#lib/request-cache.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import type { Holiday } from "#lib/types.ts";
 
@@ -17,13 +18,6 @@ export type HolidayInput = {
   startDate: string;
   endDate: string;
 };
-
-/**
- * In-memory holidays cache. Loads all holidays in a single query and
- * serves subsequent reads from memory until the TTL expires or a
- * write invalidates the cache.
- */
-export const HOLIDAYS_CACHE_TTL_MS = 60_000;
 
 /** Raw holidays table with CRUD operations — name is encrypted, dates are plaintext */
 const rawHolidaysTable = defineTable<Holiday, HolidayInput>({
@@ -42,9 +36,8 @@ const queryHolidays = queryAndMap<Holiday, Holiday>((row) =>
   rawHolidaysTable.fromDb(row),
 );
 
-const holidaysCache = collectionCache(
-  () => queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
-  HOLIDAYS_CACHE_TTL_MS,
+const holidaysCache = requestCache(() =>
+  queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
 );
 
 registerCache(() => ({ name: "holidays", entries: holidaysCache.size() }));

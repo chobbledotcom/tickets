@@ -2,7 +2,6 @@
  * Users table operations
  */
 
-import { collectionCache } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
 import {
   decrypt,
@@ -16,22 +15,13 @@ import {
 } from "#lib/crypto.ts";
 import { deleteByFieldBatch, getDb, queryAll } from "#lib/db/client.ts";
 import { now } from "#lib/now.ts";
+import { requestCache } from "#lib/request-cache.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#lib/types.ts";
-
-/**
- * In-memory users cache. Loads all rows in a single query and
- * serves subsequent reads from memory until the TTL expires or a
- * write invalidates the cache.
- */
-export const USERS_CACHE_TTL_MS = 60_000;
 
 const USER_SELECT =
   "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";
 
-const usersCache = collectionCache(
-  () => queryAll<User>(USER_SELECT),
-  USERS_CACHE_TTL_MS,
-);
+const usersCache = requestCache(() => queryAll<User>(USER_SELECT));
 
 const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
 
