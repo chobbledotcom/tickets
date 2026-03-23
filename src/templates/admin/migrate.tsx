@@ -4,7 +4,7 @@
 
 import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 type MigratePageState =
@@ -21,12 +21,9 @@ export const adminMigratePage = (
   String(
     <Layout title="Database Migration">
       <AdminNav session={session} active="" />
-      <Breadcrumb href="/admin/" label="Events" />
-
-      <h2>Database Migration</h2>
-
       {state.done ? (
         <section class="stack-sm">
+          <h2>Database Migration</h2>
           <p>Migration complete. All attendee records have been upgraded.</p>
           <p>
             <a href="/admin/">Back to dashboard</a>
@@ -34,6 +31,7 @@ export const adminMigratePage = (
         </section>
       ) : (
         <section class="stack-sm">
+          <h2>Database Migration</h2>
           <p>
             We're restructuring the database to improve performance. Attendee
             data will be consolidated into a more efficient format, reducing
