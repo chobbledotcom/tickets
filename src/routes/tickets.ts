@@ -5,7 +5,7 @@
  */
 
 import { signAttachmentUrl } from "#lib/attachment-url.ts";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { decrypt } from "#lib/crypto.ts";
 import {
   hasAppleWalletConfig,
@@ -24,7 +24,7 @@ import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 
 /** Build the check-in URL for a single token */
 export const buildCheckinUrl = (token: string): string =>
-  `https://${getAllowedDomain()}/checkin/${token}`;
+  `https://${getEffectiveDomain()}/checkin/${token}`;
 
 /** Build a ticket card for a single token/entry pair */
 const buildTicketCard = async (

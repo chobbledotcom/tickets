@@ -9,8 +9,8 @@ import {
 } from "#lib/apple-wallet.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#lib/build-info.ts";
 import {
-  getAllowedDomain,
   getCdnHostname,
+  getEffectiveDomain,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
 import {
@@ -207,7 +207,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     database: {
       hostConfigured: !!getEnv("DB_URL"),
     },
-    domain: getAllowedDomain(),
+    domain: getEffectiveDomain(),
     limits: LIMIT_ENTRIES,
     theme,
   };

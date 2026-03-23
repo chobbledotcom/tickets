@@ -2,7 +2,7 @@
  * Admin user management routes - owner only
  */
 
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { unwrapKeyWithToken } from "#lib/crypto.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
@@ -153,7 +153,7 @@ const handleUsersPostForm = async (
 
   await createInvitedUser(username, adminLevel, codeHash, expiry);
 
-  const domain = getAllowedDomain();
+  const domain = getEffectiveDomain();
   const inviteLink = `https://${domain}/join/${inviteCode}`;
 
   await logActivity(`User '${username}' invited as ${adminLevel}`);
