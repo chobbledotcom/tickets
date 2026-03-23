@@ -364,7 +364,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
   });
 
   describe("POST /admin/migrate", () => {
-    test("processes a batch and returns progress", async () => {
+    test("processes a batch and redirects back", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Mig", "mig@test.com");
       // Simulate pre-migration
@@ -373,19 +373,19 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       );
 
       const { response } = await adminFormPost("/admin/migrate");
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.migrated).toBe(1);
-      expect(body.remaining).toBe(0);
-      expect(body.done).toBe(true);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/migrate");
+
+      // Verify the batch was actually processed
+      const progress = await getMigrationProgress();
+      expect(progress.remaining).toBe(0);
     });
 
-    test("returns done when already migrated", async () => {
+    test("redirects when already migrated", async () => {
       await setAttendeeBlobMigrated();
       const { response } = await adminFormPost("/admin/migrate");
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.done).toBe(true);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/migrate");
     });
   });
 
