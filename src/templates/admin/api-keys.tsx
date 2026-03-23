@@ -73,6 +73,11 @@ export const adminApiKeysPage = (
         </div>
       )}
 
+      <p>
+        <a href="/admin/api-keys/docs">Click here</a> to read the API
+        documentation.
+      </p>
+
       <div class="table-scroll">
         <table>
           <thead>
@@ -200,26 +205,33 @@ export const adminApiDocsPage = (
       <AdminNav session={session} active="/admin/users" />
       <UsersSubNav />
 
-      <h3>Authentication</h3>
-      <p>
-        Admin API endpoints require authentication via API key or session
-        cookie:
-      </p>
-      <pre>
-        <code>Authorization: Bearer YOUR_API_KEY</code>
-      </pre>
-      <p>
-        Public API endpoints require no authentication. All responses are JSON.
-      </p>
+      <div class="stack-md column">
+        <h3>Authentication</h3>
+        <p>
+          Admin API endpoints require authentication via API key or session
+          cookie:
+        </p>
+        <pre>
+          <code>Authorization: Bearer YOUR_API_KEY</code>
+        </pre>
+        <p>
+          Public API endpoints require no authentication. All responses are
+          JSON.
+        </p>
+      </div>
 
-      <h3>Public API</h3>
-      <p>No API key required. All endpoints support CORS.</p>
-      <Raw html={EndpointList({ endpoints: publicEndpoints })} />
+      <div class="stack-md column">
+        <h3>Public API</h3>
+        <p>No API key required. All endpoints support CORS.</p>
+        <Raw html={EndpointList({ endpoints: publicEndpoints })} />
+      </div>
 
-      <h3>Admin API</h3>
-      <p>
-        Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
-      </p>
-      <Raw html={EndpointList({ endpoints: adminEndpoints })} />
+      <div class="stack-md column">
+        <h3>Admin API</h3>
+        <p>
+          Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
+        </p>
+        <Raw html={EndpointList({ endpoints: adminEndpoints })} />
+      </div>
     </Layout>,
   );

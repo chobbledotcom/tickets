@@ -34,10 +34,10 @@ const Section = ({
   title: string;
   children?: Child;
 }): JSX.Element => (
-  <>
+  <div class="stack-md column">
     <h3 id={id}>{title}</h3>
     {children}
-  </>
+  </div>
 );
 
 const Q = ({ q, children }: { q: string; children?: Child }): JSX.Element => (
