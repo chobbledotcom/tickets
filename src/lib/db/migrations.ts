@@ -531,7 +531,7 @@ export const initDb = async (): Promise<void> => {
       }>(
         `SELECT id, name, email, phone, address, special_instructions, checked_in
          FROM attendees
-         WHERE pii_blob = '' AND (name = '' OR email = '' OR phone = '' OR address = '' OR special_instructions = '' OR checked_in = '')`,
+         WHERE name = '' OR email = '' OR phone = '' OR address = '' OR special_instructions = '' OR checked_in = ''`,
       );
 
       for (const attendee of invalidAttendees) {
