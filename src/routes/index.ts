@@ -31,6 +31,7 @@ import {
   runWithRequestId,
 } from "#lib/logger.ts";
 import { flushPendingWork } from "#lib/pending-work.ts";
+import { runWithRequestCache } from "#lib/request-cache.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
 import { loadTheme } from "#lib/theme.ts";
 import {
@@ -346,125 +347,127 @@ export const handleRequest = async (
     : request;
 
   return runWithRequestId(() =>
-    runWithQueryLogContext(() =>
-      runWithSessionContext(async () => {
-        const { url, path, method } = parseRequest(effectiveRequest);
-        const getElapsed = createRequestTimer();
-        detectIframeMode(effectiveRequest.url);
-        clearSavedFormData();
-
-        try {
-          // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
-          if (method === "GET") {
-            const cleanUrl = getCleanUrl(url);
-            if (cleanUrl) {
-              return logAndReturn(
-                new Response(null, {
-                  status: 301,
-                  headers: { location: cleanUrl },
-                }),
-                method,
-                path,
-                getElapsed,
-              );
-            }
-          }
-
-          // Load effective domain (custom_domain from DB if set, else ALLOWED_DOMAIN)
-          // before domain validation so redirects go to the right host.
-          await loadEffectiveDomain();
-
-          // Domain validation: redirect requests from unauthorized domains to the effective domain
-          if (!isValidDomain(effectiveRequest)) {
-            const redirectUrl = buildDomainRedirectUrl(effectiveRequest);
-            logDebug(
-              "Domain",
-              `Redirecting to ${redirectUrl} (${getDomainRejectionReason(effectiveRequest)})`,
-            );
-            return logAndReturn(
-              domainRedirectResponse(redirectUrl),
-              method,
-              path,
-              getElapsed,
-            );
-          }
-
-          const embeddable = isEmbeddablePath(path);
-
-          // Content-Type validation: reject POST requests without proper Content-Type
-          // (webhook endpoints accept JSON, all others require form-urlencoded)
-          if (!isValidContentType(effectiveRequest, path)) {
-            return logAndReturn(
-              contentTypeRejectionResponse(),
-              method,
-              path,
-              getElapsed,
-            );
-          }
+    runWithRequestCache(() =>
+      runWithQueryLogContext(() =>
+        runWithSessionContext(async () => {
+          const { url, path, method } = parseRequest(effectiveRequest);
+          const getElapsed = createRequestTimer();
+          detectIframeMode(effectiveRequest.url);
+          clearSavedFormData();
 
           try {
-            // Populate flash context from keyed cookie (flash ID in URL)
-            const flashId = new URL(effectiveRequest.url).searchParams.get(
-              "flash",
-            );
-            const flashRaw = flashId
-              ? parseCookies(effectiveRequest).get(`flash_${flashId}`)
-              : null;
-            const flash = flashRaw ? parseFlashValue(flashRaw) : null;
-            if (flash) setFlashContext(flash);
-
-            const response = await handleRequestInternal(
-              effectiveRequest,
-              path,
-              method,
-              server,
-            );
-
-            // Clear keyed flash cookie if one was consumed
-            if (flashId && flash && hasFlash()) {
-              withCookie(response, clearFlashCookie(flashId));
+            // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
+            if (method === "GET") {
+              const cleanUrl = getCleanUrl(url);
+              if (cleanUrl) {
+                return logAndReturn(
+                  new Response(null, {
+                    status: 301,
+                    headers: { location: cleanUrl },
+                  }),
+                  method,
+                  path,
+                  getElapsed,
+                );
+              }
             }
-            resetFlashContext();
 
-            return logAndReturn(
-              await applySecurityHeaders(response, embeddable),
-              method,
-              path,
-              getElapsed,
-            );
-          } catch (error) {
-            logError({
-              code: ErrorCode.CDN_REQUEST,
-              detail: formatRequestError(method, path, error),
-            });
-            // In tests, surface the real error instead of swallowing it
-            // behind a generic "Temporary Error" page
-            if (
-              Deno.env.get("TEST_RETHROW_ERRORS") &&
-              !(error instanceof SessionKeyError) &&
-              !Deno.env.get("TEST_EXPECT_ERROR")
-            ) {
-              throw error;
-            }
-            if (error instanceof SessionKeyError) {
+            // Load effective domain (custom_domain from DB if set, else ALLOWED_DOMAIN)
+            // before domain validation so redirects go to the right host.
+            await loadEffectiveDomain();
+
+            // Domain validation: redirect requests from unauthorized domains to the effective domain
+            if (!isValidDomain(effectiveRequest)) {
+              const redirectUrl = buildDomainRedirectUrl(effectiveRequest);
+              logDebug(
+                "Domain",
+                `Redirecting to ${redirectUrl} (${getDomainRejectionReason(effectiveRequest)})`,
+              );
               return logAndReturn(
-                redirectResponse("/admin", clearSessionCookie()),
+                domainRedirectResponse(redirectUrl),
                 method,
                 path,
                 getElapsed,
               );
             }
-            return logAndReturn(
-              temporaryErrorResponse(),
-              method,
-              path,
-              getElapsed,
-            );
+
+            const embeddable = isEmbeddablePath(path);
+
+            // Content-Type validation: reject POST requests without proper Content-Type
+            // (webhook endpoints accept JSON, all others require form-urlencoded)
+            if (!isValidContentType(effectiveRequest, path)) {
+              return logAndReturn(
+                contentTypeRejectionResponse(),
+                method,
+                path,
+                getElapsed,
+              );
+            }
+
+            try {
+              // Populate flash context from keyed cookie (flash ID in URL)
+              const flashId = new URL(effectiveRequest.url).searchParams.get(
+                "flash",
+              );
+              const flashRaw = flashId
+                ? parseCookies(effectiveRequest).get(`flash_${flashId}`)
+                : null;
+              const flash = flashRaw ? parseFlashValue(flashRaw) : null;
+              if (flash) setFlashContext(flash);
+
+              const response = await handleRequestInternal(
+                effectiveRequest,
+                path,
+                method,
+                server,
+              );
+
+              // Clear keyed flash cookie if one was consumed
+              if (flashId && flash && hasFlash()) {
+                withCookie(response, clearFlashCookie(flashId));
+              }
+              resetFlashContext();
+
+              return logAndReturn(
+                await applySecurityHeaders(response, embeddable),
+                method,
+                path,
+                getElapsed,
+              );
+            } catch (error) {
+              logError({
+                code: ErrorCode.CDN_REQUEST,
+                detail: formatRequestError(method, path, error),
+              });
+              // In tests, surface the real error instead of swallowing it
+              // behind a generic "Temporary Error" page
+              if (
+                Deno.env.get("TEST_RETHROW_ERRORS") &&
+                !(error instanceof SessionKeyError) &&
+                !Deno.env.get("TEST_EXPECT_ERROR")
+              ) {
+                throw error;
+              }
+              if (error instanceof SessionKeyError) {
+                return logAndReturn(
+                  redirectResponse("/admin", clearSessionCookie()),
+                  method,
+                  path,
+                  getElapsed,
+                );
+              }
+              return logAndReturn(
+                temporaryErrorResponse(),
+                method,
+                path,
+                getElapsed,
+              );
+            }
+          } finally {
+            await flushPendingWork();
           }
-        } finally {
-          await flushPendingWork();
-        }
-      }),
+        }),
+      ),
     ),
   );
 };

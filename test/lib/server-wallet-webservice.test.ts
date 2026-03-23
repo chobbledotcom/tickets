@@ -101,11 +101,11 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       await configureAppleWallet();
       const response = await walletRequest(
         "/v1/devices/abc123/registrations/pass.com.test.tickets",
-        { headers: { Authorization: "ApplePass my-serial-token" } },
+        { headers: { Authorization: "ApplePass my-serial------" } },
       );
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.serialNumbers).toEqual(["my-serial-token"]);
+      expect(body.serialNumbers).toEqual(["my-serial"]);
       expect(body.lastUpdated).toBeDefined();
     });
 
@@ -113,11 +113,11 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       await configureAppleWallet();
       const response = await walletRequest(
         "/v1/devices/abc123/registrations/pass.com.test.tickets?passesUpdatedSince=12345",
-        { headers: { Authorization: "ApplePass my-serial-token" } },
+        { headers: { Authorization: "ApplePass my-serial------" } },
       );
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.serialNumbers).toEqual(["my-serial-token"]);
+      expect(body.serialNumbers).toEqual(["my-serial"]);
     });
   });
 

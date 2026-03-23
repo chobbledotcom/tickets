@@ -59,6 +59,20 @@ export type SigningCredentials = {
   wwdrCert: string;
 };
 
+/** Apple requires authenticationToken to be at least 16 characters */
+const MIN_AUTH_TOKEN_LENGTH = 16;
+
+/**
+ * Pad a serial number to meet Apple's minimum authenticationToken length.
+ * Uses "-" (not in uppercase hex charset) so padding is cleanly reversible.
+ */
+export const padAuthToken = (serial: string): string =>
+  serial.padEnd(MIN_AUTH_TOKEN_LENGTH, "-");
+
+/** Strip padding added by padAuthToken to recover the original serial number */
+export const trimAuthToken = (authToken: string): string =>
+  authToken.replace(/-+$/, "");
+
 /** Build the pass.json content from pass data and signing credentials */
 export const generatePassJson = (
   data: PassData,
@@ -82,7 +96,7 @@ export const generatePassJson = (
       },
     ],
     webServiceURL: data.webServiceURL,
-    authenticationToken: data.serialNumber,
+    authenticationToken: padAuthToken(data.serialNumber),
     eventTicket: buildEventTicketFields(data),
   };
 
