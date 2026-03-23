@@ -142,6 +142,8 @@ const [getEncryptionKeyOverride, setEncryptionKeyOverride] = lazyRef<
  */
 export const setEncryptionKeyForTest = (key: string | null): void => {
   setEncryptionKeyOverride(key);
+  setEncKeyResolved(null);
+  setHmacKeyResolved(null);
 };
 
 /**
@@ -198,11 +200,27 @@ const importCachedKey = async (
   return key;
 };
 
-const importEncryptionKey = (): Promise<CryptoKey> =>
-  importCachedKey(getKeyCache, setKeyCache, { name: "AES-GCM" }, [
-    "encrypt",
-    "decrypt",
-  ]);
+/**
+ * Sync-resolved encryption key cache.
+ * Avoids repeated async overhead (env reads, base64 validation) when
+ * multiple columns are decrypted in parallel for a single row.
+ */
+const [getEncKeyResolved, setEncKeyResolved] = lazyRef<CryptoKey | undefined>(
+  () => undefined,
+);
+
+const importEncryptionKey = async (): Promise<CryptoKey> => {
+  const resolved = getEncKeyResolved();
+  if (resolved) return resolved;
+  const key = await importCachedKey(
+    getKeyCache,
+    setKeyCache,
+    { name: "AES-GCM" },
+    ["encrypt", "decrypt"],
+  );
+  setEncKeyResolved(key);
+  return key;
+};
 
 /**
  * Validate encryption key is present and valid
@@ -376,6 +394,8 @@ export const decryptBytes = async (
 export const clearEncryptionKeyCache = (): void => {
   setKeyCache(null);
   setHmacKeyCache(null);
+  setEncKeyResolved(null);
+  setHmacKeyResolved(null);
   privateKeyCache.clear();
   hybridDecryptCache.clear();
 };
@@ -495,13 +515,22 @@ export const hashSessionToken = async (token: string): Promise<string> => {
   return toBase64(new Uint8Array(hashBuffer));
 };
 
-const importHmacKey = (): Promise<CryptoKey> =>
-  importCachedKey(
+const [getHmacKeyResolved, setHmacKeyResolved] = lazyRef<
+  CryptoKey | undefined
+>(() => undefined);
+
+const importHmacKey = async (): Promise<CryptoKey> => {
+  const resolved = getHmacKeyResolved();
+  if (resolved) return resolved;
+  const key = await importCachedKey(
     getHmacKeyCache,
     setHmacKeyCache,
     { name: "HMAC", hash: "SHA-256" },
     ["sign"],
   );
+  setHmacKeyResolved(key);
+  return key;
+};
 
 /**
  * HMAC-SHA256 hash using DB_ENCRYPTION_KEY
