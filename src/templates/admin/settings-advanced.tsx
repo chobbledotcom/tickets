@@ -7,7 +7,7 @@ import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -51,9 +51,8 @@ export const adminAdvancedSettingsPage = (
   s: AdvancedSettingsPageState,
 ): string =>
   String(
-    <Layout title="Advanced Settings" theme={s.theme} mainClass="stack-xl">
+    <Layout title="Advanced Settings" theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
-      <Breadcrumb href="/admin/settings" label="Settings" />
 
       <article>
         <aside>
@@ -75,26 +74,24 @@ export const adminAdvancedSettingsPage = (
           creating bookings. See the <a href="/admin/guide#api">API guide</a>{" "}
           for details.
         </p>
-        <fieldset>
-          <label>
-            <input
-              type="radio"
-              name="show_public_api"
-              value="true"
-              checked={s.showPublicApi === true}
-            />
-            Yes
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="show_public_api"
-              value="false"
-              checked={s.showPublicApi !== true}
-            />
-            No
-          </label>
-        </fieldset>
+        <label>
+          <input
+            type="radio"
+            name="show_public_api"
+            value="true"
+            checked={s.showPublicApi === true}
+          />
+          Yes
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="show_public_api"
+            value="false"
+            checked={s.showPublicApi !== true}
+          />
+          No
+        </label>
         <button type="submit">Save</button>
       </CsrfForm>
 

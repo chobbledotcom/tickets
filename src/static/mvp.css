@@ -153,13 +153,12 @@ main {
 main {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-xl);
 }
 
 /* Stack reset: gap controls spacing, not browser default margins */
 main > *,
-article > *,
-.stack-xl > * {
+article > * {
   margin-block: 0;
 }
 
@@ -168,13 +167,6 @@ article > *,
   display: flex;
   flex-direction: column;
   gap: var(--space-m);
-}
-
-/* Extra-large vertical stack for spacing between major page sections */
-.stack-xl {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xl);
 }
 
 hr {
