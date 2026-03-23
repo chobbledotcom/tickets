@@ -8,6 +8,8 @@ import { lazyRef } from "#fp";
 import {
   getBookingFeeFromDb,
   getCurrencyCodeFromDb,
+  getCustomDomainFromDb,
+  getCustomDomainLastValidatedFromDb,
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
   getSquareAccessTokenFromDb,
@@ -130,6 +132,38 @@ export const resetAllowedDomain = (): void => setAllowedDomainOverride(null);
  */
 export const setAllowedDomainForTest = (domain: string): void =>
   setAllowedDomainOverride(domain);
+
+/**
+ * Effective domain: custom_domain (from DB) if set, otherwise ALLOWED_DOMAIN.
+ * Loaded async once per request via loadEffectiveDomain(), then read
+ * synchronously via getEffectiveDomain().
+ */
+const effectiveDomainState = { domain: null as string | null };
+
+/** Load the effective domain from DB (call early in request pipeline). */
+export const loadEffectiveDomain = async (): Promise<string> => {
+  const custom = await getCustomDomainFromDb();
+  const validated = custom
+    ? await getCustomDomainLastValidatedFromDb()
+    : null;
+  effectiveDomainState.domain =
+    custom && validated ? custom : getAllowedDomain();
+  return effectiveDomainState.domain;
+};
+
+/** Get the effective domain synchronously (falls back to ALLOWED_DOMAIN). */
+export const getEffectiveDomain = (): string =>
+  effectiveDomainState.domain ?? getAllowedDomain();
+
+/** Reset effective domain cache (for testing). */
+export const resetEffectiveDomain = (): void => {
+  effectiveDomainState.domain = null;
+};
+
+/** Set effective domain directly (for testing). */
+export const setEffectiveDomainForTest = (domain: string): void => {
+  effectiveDomainState.domain = domain;
+};
 
 /**
  * Get allowed embed hosts from database (encrypted, parsed to array)

@@ -1,7 +1,7 @@
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { SESSION_MAX_AGE_S } from "#lib/limits.ts";
 
-export const isSecureMode = (): boolean => getAllowedDomain() !== "localhost";
+export const isSecureMode = (): boolean => getEffectiveDomain() !== "localhost";
 
 const secureAttribute = (): string => (isSecureMode() ? "; Secure" : "");
 

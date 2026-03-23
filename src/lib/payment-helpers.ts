@@ -4,7 +4,7 @@
  */
 
 import { map } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import type { ErrorCodeType, LogCategory } from "#lib/logger.ts";
 import { logDebug, logError } from "#lib/logger.ts";
 import type {
@@ -109,7 +109,7 @@ export const buildSingleIntentMetadata = (
   eventId: number,
   intent: SingleIntentMetadata,
 ): Record<string, string> => ({
-  _origin: getAllowedDomain(),
+  _origin: getEffectiveDomain(),
   event_id: String(eventId),
   name: intent.name,
   email: intent.email,
@@ -137,7 +137,7 @@ const eventAnswerIdsField = (
 export const buildCartMetadata = (
   intent: MultiRegistrationIntent,
 ): Record<string, string> => ({
-  _origin: getAllowedDomain(),
+  _origin: getEffectiveDomain(),
   multi: "1",
   name: intent.name,
   email: intent.email,

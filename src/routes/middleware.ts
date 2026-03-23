@@ -3,7 +3,7 @@
  */
 
 import {
-  getAllowedDomain,
+  getEffectiveDomain,
   getEmbedHosts,
   getPaymentProvider,
   getSquareSandbox,
@@ -70,7 +70,7 @@ export const getSecurityHeaders = (
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
   ...(embeddable && { "x-robots-tag": "index, follow" }),
-  ...(getAllowedDomain() !== "localhost" && {
+  ...(getEffectiveDomain() !== "localhost" && {
     "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
   }),
   "content-security-policy": buildCspHeader(embeddable),
@@ -111,7 +111,7 @@ export const normalizeHostname = (host: string): string => {
  * Returns true if the request should be allowed.
  */
 export const isValidDomain = (request: Request): boolean => {
-  const allowed = normalizeHostname(getAllowedDomain());
+  const allowed = normalizeHostname(getEffectiveDomain());
 
   // Check Host header (standard for HTTP/1.1)
   const host = request.headers.get("host");
@@ -129,7 +129,7 @@ export const isValidDomain = (request: Request): boolean => {
  */
 export const buildDomainRedirectUrl = (request: Request): string => {
   const url = new URL(request.url);
-  const allowed = getAllowedDomain();
+  const allowed = getEffectiveDomain();
   const scheme = allowed === "localhost" ? "http" : "https";
   return `${scheme}://${allowed}${url.pathname}${url.search}`;
 };

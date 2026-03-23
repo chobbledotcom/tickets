@@ -5,7 +5,7 @@
  */
 
 import { filter, map } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import type { Attendee } from "#lib/types.ts";
@@ -65,7 +65,7 @@ const renderAdminView = async (
       entries,
       `/checkin/${tokens.join("+")}`,
       message,
-      getAllowedDomain(),
+      getEffectiveDomain(),
       phonePrefix,
     ),
   );

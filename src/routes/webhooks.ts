@@ -20,6 +20,7 @@ import {
   getAllowedDomain,
   getBookingFee,
   getCurrencyCode,
+  getEffectiveDomain,
 } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
@@ -899,7 +900,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // webhook using the exact notification URL from the subscription, which is the
   // public https:// URL. Deriving from request.url fails behind CDNs that
   // terminate TLS (the edge runtime sees http:// instead of https://).
-  const webhookUrl = `https://${getAllowedDomain()}/payment/webhook`;
+  const webhookUrl = `https://${getEffectiveDomain()}/payment/webhook`;
 
   // Verify signature (pass raw bytes so HMAC is computed on exact received bytes)
   const verification = await provider.verifyWebhookSignature(
@@ -947,7 +948,8 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Verify session originated from this instance. Sessions created by a
   // different application sharing the same payment provider account will not
   // carry our _origin marker.
-  if (session.metadata._origin !== getAllowedDomain()) {
+  const origin = session.metadata._origin;
+  if (origin !== getEffectiveDomain() && origin !== getAllowedDomain()) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Ignoring webhook for unrecognized payment session",
