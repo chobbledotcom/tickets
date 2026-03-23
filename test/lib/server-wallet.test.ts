@@ -221,7 +221,8 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     );
     const passJson = await parsePkpassJson(token);
     expect(passJson.webServiceURL).toBe("https://localhost");
-    expect(passJson.authenticationToken).toBe(token);
+    expect(passJson.authenticationToken).toBe(token.padEnd(16, "-"));
+    expect(passJson.authenticationToken.length).toBeGreaterThanOrEqual(16);
   });
 
   test("returns null for non-GET methods", async () => {
