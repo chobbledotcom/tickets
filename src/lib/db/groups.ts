@@ -2,7 +2,7 @@
  * Groups table operations
  */
 
-import { collectionCache, mapParallel } from "#fp";
+import { mapParallel } from "#fp";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import {
@@ -14,6 +14,7 @@ import {
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { queryAndMap } from "#lib/db/query.ts";
 import { col } from "#lib/db/table.ts";
+import { requestCache } from "#lib/request-cache.ts";
 import type { Event, EventType, EventWithCount, Group } from "#lib/types.ts";
 
 /** Group input fields for create/update (camelCase) */
@@ -29,13 +30,6 @@ export type GroupInput = {
 export const computeGroupSlugIndex = (slug: string): Promise<string> =>
   hmacHash(slug);
 
-/**
- * In-memory groups cache. Loads all groups in a single query and
- * serves subsequent reads from memory until the TTL expires or a
- * write invalidates the cache.
- */
-export const GROUPS_CACHE_TTL_MS = 60_000;
-
 /** Raw groups table with CRUD operations */
 const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...encryptedNameSchema(encrypt, decrypt),
@@ -49,9 +43,8 @@ const queryGroups = queryAndMap<Group, Group>((row) =>
   rawGroupsTable.fromDb(row),
 );
 
-const groupsCache = collectionCache(
-  () => queryGroups("SELECT * FROM groups ORDER BY id ASC"),
-  GROUPS_CACHE_TTL_MS,
+const groupsCache = requestCache(() =>
+  queryGroups("SELECT * FROM groups ORDER BY id ASC"),
 );
 
 registerCache(() => ({ name: "groups", entries: groupsCache.size() }));
