@@ -26,14 +26,14 @@ export const adminMigratePage = (
       <h2>Database Migration</h2>
 
       {state.done ? (
-        <section>
+        <section class="stack-sm">
           <p>Migration complete. All attendee records have been upgraded.</p>
           <p>
             <a href="/admin/">Back to dashboard</a>
           </p>
         </section>
       ) : (
-        <section>
+        <section class="stack-sm">
           <p>
             We're restructuring the database to improve performance. Attendee
             data will be consolidated into a more efficient format, reducing
@@ -60,13 +60,13 @@ export const adminMigratePage = (
             )}
           </div>
 
-          <CsrfForm action="/admin/migrate" id="migrate-form">
+          <CsrfForm action="/admin/migrate" id="migrate-form" class="inline">
             <button type="submit" id="migrate-btn">
               Process next batch
             </button>
           </CsrfForm>
 
-          <p id="migrate-error" class="error" style="display:none" />
+          <p id="migrate-error" class="error" hidden />
           <p id="migrate-log" />
         </section>
       )}
