@@ -12,7 +12,7 @@
  * so devices re-download the pass on every manual refresh.
  */
 
-import type { SigningCredentials } from "#lib/apple-wallet.ts";
+import { trimAuthToken, type SigningCredentials } from "#lib/apple-wallet.ts";
 import { getAppleWalletConfig } from "#lib/db/settings.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet.ts";
@@ -43,8 +43,9 @@ const handleGetTokens = (
 ) =>
   withVerifiedPass(204)((_config) => {
     const authHeader = request.headers.get("Authorization") ?? "";
-    const token = authHeader.replace(/^ApplePass\s+/i, "");
-    if (!token) return new Response(null, { status: 401 });
+    const rawToken = authHeader.replace(/^ApplePass\s+/i, "");
+    if (!rawToken) return new Response(null, { status: 401 });
+    const token = trimAuthToken(rawToken);
 
     // Ignore passesUpdatedSince — always return the token as updated
     return new Response(

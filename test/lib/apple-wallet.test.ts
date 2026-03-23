@@ -8,6 +8,8 @@ import {
   generatePassJson,
   isValidPemCertificate,
   isValidPemPrivateKey,
+  padAuthToken,
+  trimAuthToken,
   type PassData,
   type SigningCredentials,
   sha1Hex,
@@ -183,7 +185,36 @@ describe("apple-wallet", () => {
     test("includes webServiceURL and authenticationToken for auto-updates", () => {
       const pass = generatePassJson(makePassData(), creds);
       expect(pass.webServiceURL).toBe("https://example.com");
-      expect(pass.authenticationToken).toBe("ABC123");
+      expect(pass.authenticationToken).toBe("ABC123----------");
+      expect((pass.authenticationToken as string).length).toBeGreaterThanOrEqual(
+        16,
+      );
+    });
+  });
+
+  describe("padAuthToken / trimAuthToken", () => {
+    test("pads short tokens to 16 characters", () => {
+      expect(padAuthToken("ABC123")).toBe("ABC123----------");
+      expect(padAuthToken("ABC123")).toHaveLength(16);
+    });
+
+    test("pads 10-char ticket tokens to 16 characters", () => {
+      expect(padAuthToken("803357EE59")).toBe("803357EE59------");
+      expect(padAuthToken("803357EE59")).toHaveLength(16);
+    });
+
+    test("does not pad tokens already at 16 characters", () => {
+      const long = "ABCDEF1234567890";
+      expect(padAuthToken(long)).toBe(long);
+    });
+
+    test("trimAuthToken reverses padAuthToken", () => {
+      expect(trimAuthToken(padAuthToken("ABC123"))).toBe("ABC123");
+      expect(trimAuthToken(padAuthToken("803357EE59"))).toBe("803357EE59");
+    });
+
+    test("trimAuthToken handles unpadded tokens", () => {
+      expect(trimAuthToken("ABCDEF1234567890")).toBe("ABCDEF1234567890");
     });
   });
 
