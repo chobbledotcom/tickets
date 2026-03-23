@@ -21,6 +21,7 @@ src/static/iframe-resizer-child.js
 .deno/
 .deno-cache/
 .deno/
+.deno-cache/
 docs-output*/
 misc/
 ARCHITECTURE.md
