@@ -161,7 +161,7 @@ const importKey = async (
   usages: KeyUsage[],
 ): Promise<CryptoKey> => {
   const keyBytes = decodeKeyBytes(getEncryptionKeyString());
-  return crypto.subtle.importKey(
+  return await crypto.subtle.importKey(
     "raw",
     keyBytes as BufferSource,
     algorithm,
@@ -477,17 +477,14 @@ export const hashSessionToken = async (token: string): Promise<string> => {
   return toBase64(new Uint8Array(hashBuffer));
 };
 
-const [getHmacKeyResolved, setHmacKeyResolved] = lazyRef<
-  CryptoKey | undefined
->(() => undefined);
+const [getHmacKeyResolved, setHmacKeyResolved] = lazyRef<CryptoKey | undefined>(
+  () => undefined,
+);
 
 const importHmacKey = async (): Promise<CryptoKey> => {
   const resolved = getHmacKeyResolved();
   if (resolved) return resolved;
-  const key = await importKey(
-    { name: "HMAC", hash: "SHA-256" },
-    ["sign"],
-  );
+  const key = await importKey({ name: "HMAC", hash: "SHA-256" }, ["sign"]);
   setHmacKeyResolved(key);
   return key;
 };
