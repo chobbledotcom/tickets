@@ -142,16 +142,12 @@ const effectiveDomainState = { domain: null as string | null };
 
 /** Load the effective domain from DB (call early in request pipeline). */
 export const loadEffectiveDomain = async (): Promise<string> => {
-  try {
-    const custom = await getCustomDomainFromDb();
-    const validated = custom
-      ? await getCustomDomainLastValidatedFromDb()
-      : null;
-    effectiveDomainState.domain =
-      custom && validated ? custom : getAllowedDomain();
-  } catch {
-    effectiveDomainState.domain = getAllowedDomain();
-  }
+  const custom = await getCustomDomainFromDb();
+  const validated = custom
+    ? await getCustomDomainLastValidatedFromDb()
+    : null;
+  effectiveDomainState.domain =
+    custom && validated ? custom : getAllowedDomain();
   return effectiveDomainState.domain;
 };
 
