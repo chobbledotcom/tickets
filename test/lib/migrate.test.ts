@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
+  decryptAttendeePII,
   decryptWithKey,
   deriveKEK,
   encrypt,
@@ -15,6 +16,7 @@ import {
   MIGRATE_BATCH_SIZE,
   markRefunded,
   migrateAttendeeBatch,
+  PII_BLOB_VERSION,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
@@ -227,6 +229,33 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       expect(decrypted[0]!.refunded).toBe(false);
     });
 
+    test("decrypts pre-versioned blobs without v field", async () => {
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      // Manually create a blob without the v field (simulating pre-versioned data)
+      const pubKey = (await getPublicKey())!;
+      const blobWithoutVersion = JSON.stringify({
+        n: "OldBlob",
+        e: "old@test.com",
+        p: "",
+        a: "",
+        s: "",
+        pi: "",
+        t: "tok_old",
+      });
+      const encrypted = await encryptAttendeePII(blobWithoutVersion, pubKey);
+      await getDb().execute({
+        sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, pii_blob, checked_in_v2, refunded_v2, price_paid_v2, created, quantity)
+              VALUES (?, '', '', '', '', '', '', '', '', '', '', ?, 0, 0, 0, datetime('now'), 1)`,
+        args: [event.id, encrypted],
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const rows = await getAttendeesRaw(event.id);
+      const decrypted = await decryptAttendees(rows, privateKey);
+      expect(decrypted[0]!.name).toBe("OldBlob");
+      expect(decrypted[0]!.email).toBe("old@test.com");
+    });
+
     test("returns zero migrated when all attendees already migrated", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Done", "done@test.com");
@@ -255,6 +284,17 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
       const rows = await getAttendeesRaw(event.id);
       expect(rows[0]!.pii_blob).not.toBe("");
+    });
+
+    test("pii_blob includes version field", async () => {
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await createTestAttendee(event.id, event.slug, "V", "v@test.com");
+
+      const rows = await getAttendeesRaw(event.id);
+      const privateKey = await getTestPrivateKey();
+      const json = await decryptAttendeePII(rows[0]!.pii_blob, privateKey);
+      const blob = JSON.parse(json);
+      expect(blob.v).toBe(PII_BLOB_VERSION);
     });
 
     test("createAttendeeAtomic sets v2 integer columns", async () => {

@@ -110,6 +110,7 @@ export interface Attendee extends ContactInfo {
 
 /** Short keys used in the PII blob JSON to minimize encrypted payload size */
 export type PiiBlob = {
+  v: number; // schema version (1 = current)
   n: string; // name
   e: string; // email
   p: string; // phone

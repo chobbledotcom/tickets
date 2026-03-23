@@ -32,11 +32,15 @@ import type {
   PiiBlob,
 } from "#lib/types.ts";
 
+/** Current PII blob schema version */
+export const PII_BLOB_VERSION = 1;
+
 /** Build a PII blob JSON from contact fields */
 const buildPiiBlob = (
   info: ContactInfo & { payment_id: string; ticket_token: string },
 ): string =>
   JSON.stringify({
+    v: PII_BLOB_VERSION,
     n: info.name,
     e: info.email,
     p: info.phone,
@@ -46,8 +50,11 @@ const buildPiiBlob = (
     t: info.ticket_token,
   } satisfies PiiBlob);
 
-/** Parse a PII blob JSON back into contact fields */
-const parsePiiBlob = (json: string): PiiBlob => JSON.parse(json) as PiiBlob;
+/** Parse a PII blob JSON back into contact fields (defaults v to 1 for pre-versioned blobs) */
+const parsePiiBlob = (json: string): PiiBlob => {
+  const raw = JSON.parse(json);
+  return { v: PII_BLOB_VERSION, ...raw } as PiiBlob;
+};
 
 /** Encrypt a PII blob JSON string with the public key */
 const encryptPiiBlob = (
