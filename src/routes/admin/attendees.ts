@@ -223,9 +223,14 @@ const handleAttendeeDelete = attendeeFormAction(
 
     await deleteAttendee(attendeeId);
     await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
-    return redirect(`/admin/event/${eventId}`, t("success.attendee_deleted"), true, {
-      form,
-    });
+    return redirect(
+      `/admin/event/${eventId}`,
+      t("success.attendee_deleted"),
+      true,
+      {
+        form,
+      },
+    );
   },
 );
 
@@ -364,7 +369,12 @@ const handleAttendeeRefund = attendeeFormAction(
       `Refund issued for attendee '${data.attendee.name}'`,
       eventId,
     );
-    return redirect(`/admin/event/${eventId}`, t("success.refund_issued"), true, { form });
+    return redirect(
+      `/admin/event/${eventId}`,
+      t("success.refund_issued"),
+      true,
+      { form },
+    );
   },
 );
 
@@ -463,8 +473,15 @@ const processRefundAll = async (
   if (failedCount > 0) {
     const msg =
       remaining > 0
-        ? t("success.refund_partial", { succeeded: refundedCount, failed: failedCount, remaining })
-        : t("success.refund_partial_done", { succeeded: refundedCount, failed: failedCount });
+        ? t("success.refund_partial", {
+            succeeded: refundedCount,
+            failed: failedCount,
+            remaining,
+          })
+        : t("success.refund_partial_done", {
+            succeeded: refundedCount,
+            failed: failedCount,
+          });
     await logActivity(
       `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
       event.id,
@@ -568,7 +585,11 @@ const handleAddAttendee = (
     }
 
     await logActivity(`Attendee '${name}' added manually`, eventId);
-    return redirect(`/admin/event/${eventId}`, t("success.attendee_added", { name }), true);
+    return redirect(
+      `/admin/event/${eventId}`,
+      t("success.attendee_added", { name }),
+      true,
+    );
   });
 
 /** Get all events (active + the current event), uniquified */
@@ -786,9 +807,14 @@ const handleResendNotification = attendeeFormAction(
         eventId,
       ),
     ]);
-    return redirect(`/admin/event/${eventId}`, t("success.notification_resent"), true, {
-      form,
-    });
+    return redirect(
+      `/admin/event/${eventId}`,
+      t("success.notification_resent"),
+      true,
+      {
+        form,
+      },
+    );
   },
 );
 

@@ -32,9 +32,7 @@ const extractHolidayInput = (
 /** Validate end_date >= start_date */
 const validateDateRange = (input: HolidayInput): Promise<string | null> =>
   Promise.resolve(
-    input.endDate < input.startDate
-      ? t("error.end_date_before_start")
-      : null,
+    input.endDate < input.startDate ? t("error.end_date_before_start") : null,
   );
 
 /** Holidays resource for REST create/update operations */

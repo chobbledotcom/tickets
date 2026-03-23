@@ -3,10 +3,10 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { t } from "#i18n";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Session } from "#lib/types.ts";
-import { t } from "#i18n";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

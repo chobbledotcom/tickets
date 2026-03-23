@@ -2,6 +2,7 @@
  * Admin user management routes - owner only
  */
 
+import { t } from "#i18n";
 import { getAllowedDomain } from "#lib/config.ts";
 import { unwrapKeyWithToken } from "#lib/crypto.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -33,7 +34,6 @@ import {
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
-
 import {
   adminUserDeletePage,
   adminUserNewPage,
@@ -45,7 +45,6 @@ import {
   type InviteUserFormValues,
   inviteUserFields,
 } from "#templates/fields.ts";
-import { t } from "#i18n";
 
 /** Invite link expiry: 7 days */
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -136,7 +135,10 @@ const handleUsersPostForm = async (
   const { username, admin_level: adminLevel } = validation.values;
 
   if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
-    return htmlResponse(adminUserNewPage(session, t("error.invalid_role")), 400);
+    return htmlResponse(
+      adminUserNewPage(session, t("error.invalid_role")),
+      400,
+    );
   }
 
   // Check if username is taken
@@ -265,11 +267,7 @@ const handleUserDeletePost: TypedRouteHandler<
     if (confirmName.toLowerCase() !== username.trim().toLowerCase()) {
       const displayUser = await toDisplayUser(user);
       return htmlResponse(
-        adminUserDeletePage(
-          displayUser,
-          session,
-          t("error.username_mismatch"),
-        ),
+        adminUserDeletePage(displayUser, session, t("error.username_mismatch")),
         400,
       );
     }

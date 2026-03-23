@@ -122,7 +122,9 @@ export const adminCalendarPage = (
         )}
         {dateFilter && attendees.length > 0 && (
           <p>
-            <a href={`/admin/calendar/export?date=${dateFilter}`}>{t("admin.calendar.export_csv")}</a>
+            <a href={`/admin/calendar/export?date=${dateFilter}`}>
+              {t("admin.calendar.export_csv")}
+            </a>
           </p>
         )}
         {sharedRows.length > 0 && (

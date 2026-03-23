@@ -5,6 +5,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { t } from "#i18n";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
@@ -12,7 +13,6 @@ import {
   AttendeeTable,
   type AttendeeTableRow,
 } from "#templates/attendee-table.tsx";
-import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 /** Re-export for backwards compatibility */
@@ -40,7 +40,9 @@ export const checkinAdminPage = (
   )(entries);
 
   const allCheckedIn = entries.every((e) => e.attendee.checked_in);
-  const buttonLabel = allCheckedIn ? t("admin.checkin.check_out_all") : t("admin.checkin.check_in_all");
+  const buttonLabel = allCheckedIn
+    ? t("admin.checkin.check_out_all")
+    : t("admin.checkin.check_in_all");
   const buttonClass = allCheckedIn ? "bulk-checkout" : "bulk-checkin";
   const nextValue = allCheckedIn ? "false" : "true";
 

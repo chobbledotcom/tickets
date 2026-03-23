@@ -295,19 +295,27 @@ export const adminEventPage = ({
       <nav>
         <ul>
           <li>
-            <a href={`/admin/event/${event.id}/edit`}>{t("admin.events.edit")}</a>
+            <a href={`/admin/event/${event.id}/edit`}>
+              {t("admin.events.edit")}
+            </a>
           </li>
           <li>
-            <a href={`/admin/event/${event.id}/duplicate`}>{t("admin.events.duplicate")}</a>
+            <a href={`/admin/event/${event.id}/duplicate`}>
+              {t("admin.events.duplicate")}
+            </a>
           </li>
           <li>
             <a href={`/admin/event/${event.id}/log`}>{t("admin.events.log")}</a>
           </li>
           <li>
-            <a href={`/admin/event/${event.id}/scanner`}>{t("admin.events.scanner")}</a>
+            <a href={`/admin/event/${event.id}/scanner`}>
+              {t("admin.events.scanner")}
+            </a>
           </li>
           <li>
-            <a href={`/admin/event/${event.id}/questions`}>{t("admin.events.questions")}</a>
+            <a href={`/admin/event/${event.id}/questions`}>
+              {t("admin.events.questions")}
+            </a>
           </li>
           <li>
             <a
@@ -331,7 +339,9 @@ export const adminEventPage = ({
             </li>
           ) : (
             <li>
-              <a href={`/admin/event/${event.id}/reactivate`}>{t("admin.events.reactivate")}</a>
+              <a href={`/admin/event/${event.id}/reactivate`}>
+                {t("admin.events.reactivate")}
+              </a>
             </li>
           )}
           <li>
@@ -380,7 +390,11 @@ export const adminEventPage = ({
               )}
               <tr>
                 <th>{t("admin.events.event_type")}</th>
-                <td>{event.event_type === "daily" ? t("admin.events.type_daily") : t("admin.events.type_standard")}</td>
+                <td>
+                  {event.event_type === "daily"
+                    ? t("admin.events.type_daily")
+                    : t("admin.events.type_standard")}
+                </td>
               </tr>
               {event.non_transferable && (
                 <tr>
@@ -404,7 +418,8 @@ export const adminEventPage = ({
                 <tr>
                   <th>{t("admin.events.booking_window")}</th>
                   <td>
-                    {event.minimum_days_before} {t("admin.events.booking_window_to")}{" "}
+                    {event.minimum_days_before}{" "}
+                    {t("admin.events.booking_window_to")}{" "}
                     {event.maximum_days_after === 0
                       ? t("admin.events.booking_window_unlimited")
                       : event.maximum_days_after}{" "}
@@ -435,7 +450,11 @@ export const adminEventPage = ({
                   >{`${allowedDomain}/ticket/${event.slug}`}</a>
                   <small>
                     {" "}
-                    (<a href={`/ticket/${event.slug}/qr`}>{t("admin.events.qr_code")}</a>)
+                    (
+                    <a href={`/ticket/${event.slug}/qr`}>
+                      {t("admin.events.qr_code")}
+                    </a>
+                    )
                   </small>
                 </td>
               </tr>
@@ -460,7 +479,9 @@ export const adminEventPage = ({
               {event.webhook_url && (
                 <tr>
                   <th>
-                    <label for={`webhook-url-${event.id}`}>{t("admin.events.webhook_url")}</label>
+                    <label for={`webhook-url-${event.id}`}>
+                      {t("admin.events.webhook_url")}
+                    </label>
                   </th>
                   <td>
                     <input
@@ -475,7 +496,9 @@ export const adminEventPage = ({
               )}
               <tr>
                 <th>
-                  <label for={`embed-script-${event.id}`}>{t("admin.events.embed_script")}</label>
+                  <label for={`embed-script-${event.id}`}>
+                    {t("admin.events.embed_script")}
+                  </label>
                 </th>
                 <td>
                   <input
@@ -489,7 +512,9 @@ export const adminEventPage = ({
               </tr>
               <tr>
                 <th>
-                  <label for={`embed-iframe-${event.id}`}>{t("admin.events.embed_iframe")}</label>
+                  <label for={`embed-iframe-${event.id}`}>
+                    {t("admin.events.embed_iframe")}
+                  </label>
                 </th>
                 <td>
                   <input
@@ -502,7 +527,10 @@ export const adminEventPage = ({
                 </td>
               </tr>
               <tr>
-                <th>{t("admin.events.attendees_heading")}{dailySuffix}</th>
+                <th>
+                  {t("admin.events.attendees_heading")}
+                  {dailySuffix}
+                </th>
                 <td>
                   {isDaily && dateFilter ? (
                     <span
@@ -513,7 +541,8 @@ export const adminEventPage = ({
                       }
                     >
                       {completeQuantitySum} / {event.max_attendees} &mdash;{" "}
-                      {event.max_attendees - completeQuantitySum} {t("admin.events.remain")}
+                      {event.max_attendees - completeQuantitySum}{" "}
+                      {t("admin.events.remain")}
                     </span>
                   ) : (
                     <span
@@ -528,7 +557,8 @@ export const adminEventPage = ({
                         <>
                           {" "}
                           / {event.max_attendees} &mdash;{" "}
-                          {event.max_attendees - adjustedCount} {t("admin.events.remain")}
+                          {event.max_attendees - adjustedCount}{" "}
+                          {t("admin.events.remain")}
                         </>
                       )}
                     </span>
@@ -537,7 +567,9 @@ export const adminEventPage = ({
                     <>
                       {" "}
                       <small>
-                        {t("admin.events.capacity_per_date", { n: event.max_attendees })}
+                        {t("admin.events.capacity_per_date", {
+                          n: event.max_attendees,
+                        })}
                       </small>
                     </>
                   )}
@@ -553,7 +585,10 @@ export const adminEventPage = ({
         <h2 id="attendees">{t("admin.events.attendees_heading")}</h2>
         {checkinMessage && (
           <p id="message" class={checkedInClass}>
-            {t("admin.events.checked_status", { name: checkinMessage.name, direction: checkedInLabel })}
+            {t("admin.events.checked_status", {
+              name: checkinMessage.name,
+              direction: checkedInLabel,
+            })}
           </p>
         )}
         {isDaily && availableDates.length > 0 && (
@@ -611,7 +646,9 @@ export const adminEventPage = ({
         <article>
           <h2 id="failed-payments">{t("admin.events.failed_payments")}</h2>
           <p>
-            {t("admin.events.failed_payments_count", { count: incompleteAttendees.length })}
+            {t("admin.events.failed_payments_count", {
+              count: incompleteAttendees.length,
+            })}
           </p>
           <div class="table-scroll">
             <Raw
@@ -692,7 +729,10 @@ export const adminEventNewPage = (
   return String(
     <Layout title={t("admin.events.add_event.title")}>
       <AdminNav session={session} active="/admin/" />
-      <Breadcrumb href="/admin/" label={t("admin.events.add_event.breadcrumb")} />
+      <Breadcrumb
+        href="/admin/"
+        label={t("admin.events.add_event.breadcrumb")}
+      />
       <h1>{t("admin.events.add_event.title")}</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
@@ -719,13 +759,13 @@ export const adminDuplicateEventPage = (
     <Layout title={`Duplicate: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
       <h2>{t("admin.events.duplicate_event.title")}</h2>
-      <p>
-        {t("admin.events.duplicate_event.message", { name: event.name })}
-      </p>
+      <p>{t("admin.events.duplicate_event.message", { name: event.name })}</p>
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
         <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
         <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
-        <button type="submit">{t("admin.events.duplicate_event.submit")}</button>
+        <button type="submit">
+          {t("admin.events.duplicate_event.submit")}
+        </button>
       </CsrfForm>
     </Layout>,
   );
@@ -770,7 +810,8 @@ export const adminEventEditPage = (
       {storageEnabled && event.attachment_name && (
         <div class="attachment-info">
           <p>
-            {t("admin.events.current_attachment")} <strong>{event.attachment_name}</strong>
+            {t("admin.events.current_attachment")}{" "}
+            <strong>{event.attachment_name}</strong>
           </p>
           <CsrfForm action={`/admin/event/${event.id}/attachment/delete`}>
             <button type="submit" class="secondary">
@@ -799,7 +840,9 @@ export const adminDeleteEventPage = (
       <article>
         <aside>
           <p>
-            {t("admin.events.delete_event.warning", { count: event.attendee_count })}
+            {t("admin.events.delete_event.warning", {
+              count: event.attendee_count,
+            })}
           </p>
         </aside>
       </article>
@@ -809,7 +852,9 @@ export const adminDeleteEventPage = (
       </p>
 
       <CsrfForm action={`/admin/event/${event.id}/delete`}>
-        <label for="confirm_identifier">{t("admin.events.delete_event.label")}</label>
+        <label for="confirm_identifier">
+          {t("admin.events.delete_event.label")}
+        </label>
         <input
           type="text"
           id="confirm_identifier"
@@ -840,9 +885,7 @@ export const adminDeactivateEventPage = (
 
       <article>
         <aside>
-          <p>
-            {t("admin.events.deactivate_event.warning")}
-          </p>
+          <p>{t("admin.events.deactivate_event.warning")}</p>
           <ul>
             <li>{t("admin.events.deactivate_event.effect_404")}</li>
             <li>{t("admin.events.deactivate_event.effect_registrations")}</li>
@@ -853,11 +896,15 @@ export const adminDeactivateEventPage = (
       </article>
 
       <p>
-        {t("admin.events.deactivate_event.confirm_prompt", { name: event.name })}
+        {t("admin.events.deactivate_event.confirm_prompt", {
+          name: event.name,
+        })}
       </p>
 
       <CsrfForm action={`/admin/event/${event.id}/deactivate`}>
-        <label for="confirm_identifier">{t("admin.events.delete_event.label")}</label>
+        <label for="confirm_identifier">
+          {t("admin.events.delete_event.label")}
+        </label>
         <input
           type="text"
           id="confirm_identifier"
@@ -888,21 +935,21 @@ export const adminReactivateEventPage = (
 
       <article>
         <aside>
-          <p>
-            {t("admin.events.reactivate_event.message")}
-          </p>
-          <p>
-            {t("admin.events.reactivate_event.details")}
-          </p>
+          <p>{t("admin.events.reactivate_event.message")}</p>
+          <p>{t("admin.events.reactivate_event.details")}</p>
         </aside>
       </article>
 
       <p>
-        {t("admin.events.reactivate_event.confirm_prompt", { name: event.name })}
+        {t("admin.events.reactivate_event.confirm_prompt", {
+          name: event.name,
+        })}
       </p>
 
       <CsrfForm action={`/admin/event/${event.id}/reactivate`}>
-        <label for="confirm_identifier">{t("admin.events.delete_event.label")}</label>
+        <label for="confirm_identifier">
+          {t("admin.events.delete_event.label")}
+        </label>
         <input
           type="text"
           id="confirm_identifier"
@@ -911,7 +958,9 @@ export const adminReactivateEventPage = (
           autocomplete="off"
           required
         />
-        <button type="submit">{t("admin.events.reactivate_event.submit")}</button>
+        <button type="submit">
+          {t("admin.events.reactivate_event.submit")}
+        </button>
       </CsrfForm>
     </Layout>,
   );

@@ -2,9 +2,9 @@
  * Shared admin navigation component
  */
 
+import { t } from "#i18n";
 import { getShowPublicSiteCached } from "#lib/db/settings.ts";
 import { CsrfForm } from "#lib/forms.tsx";
-import { t } from "#i18n";
 import type { AdminSession } from "#lib/types.ts";
 
 interface AdminNavProps {

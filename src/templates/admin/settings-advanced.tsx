@@ -2,6 +2,7 @@
  * Admin advanced settings page template
  */
 
+import { t } from "#i18n";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm } from "#lib/forms.tsx";
@@ -9,7 +10,6 @@ import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
-import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 export type AdvancedSettingsPageState = {
@@ -58,9 +58,7 @@ export const adminAdvancedSettingsPage = (
 
       <article>
         <aside>
-          <p>
-            {t("settings.advanced.warning")}
-          </p>
+          <p>{t("settings.advanced.warning")}</p>
         </aside>
       </article>
 
@@ -69,9 +67,7 @@ export const adminAdvancedSettingsPage = (
         id="settings-show-public-api"
       >
         <h2>{t("settings.advanced.public_api")}</h2>
-        <p>
-          {t("settings.advanced.public_api_hint")}
-        </p>
+        <p>{t("settings.advanced.public_api_hint")}</p>
         <label>
           <input
             type="radio"
@@ -156,7 +152,9 @@ export const adminAdvancedSettingsPage = (
             {s.appleWalletConfigured ? MASK_SENTINEL : ""}
           </textarea>
         </label>
-        <button type="submit">{t("settings.advanced.save_apple_wallet")}</button>
+        <button type="submit">
+          {t("settings.advanced.save_apple_wallet")}
+        </button>
       </CsrfForm>
 
       <CsrfForm
@@ -202,7 +200,9 @@ export const adminAdvancedSettingsPage = (
             {s.googleWalletConfigured ? MASK_SENTINEL : ""}
           </textarea>
         </label>
-        <button type="submit">{t("settings.advanced.save_google_wallet")}</button>
+        <button type="submit">
+          {t("settings.advanced.save_google_wallet")}
+        </button>
       </CsrfForm>
 
       <CsrfForm
@@ -210,9 +210,7 @@ export const adminAdvancedSettingsPage = (
         id="settings-email-tpl-confirmation"
       >
         <h2>{t("settings.advanced.confirmation_email")}</h2>
-        <p>
-          {t("settings.advanced.confirmation_email_hint")}
-        </p>
+        <p>{t("settings.advanced.confirmation_email_hint")}</p>
         <details>
           <summary>{t("settings.advanced.available_variables")}</summary>
           <table>
@@ -343,7 +341,9 @@ export const adminAdvancedSettingsPage = (
           <small>{t("settings.advanced.edit_default_template")}</small>
         </a>
         <br />
-        <button type="submit">{t("settings.advanced.save_confirmation_template")}</button>
+        <button type="submit">
+          {t("settings.advanced.save_confirmation_template")}
+        </button>
       </CsrfForm>
 
       <CsrfForm
@@ -351,9 +351,7 @@ export const adminAdvancedSettingsPage = (
         id="settings-email-tpl-admin"
       >
         <h2>{t("settings.advanced.admin_notification_email")}</h2>
-        <p>
-          {t("settings.advanced.admin_notification_email_hint")}
-        </p>
+        <p>{t("settings.advanced.admin_notification_email_hint")}</p>
         <label>
           {t("settings.advanced.subject")}
           <input
@@ -395,14 +393,14 @@ export const adminAdvancedSettingsPage = (
           <small>{t("settings.advanced.edit_default_template")}</small>
         </a>
         <br />
-        <button type="submit">{t("settings.advanced.save_admin_notification_template")}</button>
+        <button type="submit">
+          {t("settings.advanced.save_admin_notification_template")}
+        </button>
       </CsrfForm>
 
       <CsrfForm action="/admin/settings/email" id="settings-email">
         <h2>{t("settings.advanced.email_notifications")}</h2>
-        <p>
-          {t("settings.advanced.email_notifications_hint")}
-        </p>
+        <p>{t("settings.advanced.email_notifications_hint")}</p>
         <label>
           {t("settings.advanced.email_provider")}
           <select name="email_provider">
@@ -436,7 +434,9 @@ export const adminAdvancedSettingsPage = (
             autocomplete="off"
           />
         </label>
-        <button type="submit">{t("settings.advanced.save_email_settings")}</button>
+        <button type="submit">
+          {t("settings.advanced.save_email_settings")}
+        </button>
       </CsrfForm>
       {s.emailProvider && (
         <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
@@ -464,7 +464,9 @@ export const adminAdvancedSettingsPage = (
                 autocomplete="off"
               />
             </label>
-            <button type="submit">{t("settings.advanced.save_custom_domain")}</button>
+            <button type="submit">
+              {t("settings.advanced.save_custom_domain")}
+            </button>
           </CsrfForm>
 
           {s.customDomain && (
@@ -476,16 +478,16 @@ export const adminAdvancedSettingsPage = (
                 <article>
                   <aside role="alert">
                     <p>
-                      <strong>{t("settings.advanced.domain_not_validated")}</strong>
+                      <strong>
+                        {t("settings.advanced.domain_not_validated")}
+                      </strong>
                     </p>
                   </aside>
                 </article>
               )}
               <article>
                 <aside>
-                  <p>
-                    {t("settings.advanced.domain_cname_instructions")}
-                  </p>
+                  <p>{t("settings.advanced.domain_cname_instructions")}</p>
                   <table>
                     <thead>
                       <tr>
@@ -506,17 +508,20 @@ export const adminAdvancedSettingsPage = (
                       </tr>
                     </tbody>
                   </table>
-                  <p>
-                    {t("settings.advanced.domain_dns_hint")}
-                  </p>
+                  <p>{t("settings.advanced.domain_dns_hint")}</p>
                 </aside>
               </article>
               {s.customDomainLastValidated && (
                 <p>
-                  <small>{t("settings.advanced.domain_last_validated")} {s.customDomainLastValidated}</small>
+                  <small>
+                    {t("settings.advanced.domain_last_validated")}{" "}
+                    {s.customDomainLastValidated}
+                  </small>
                 </p>
               )}
-              <button type="submit">{t("settings.advanced.validate_custom_domain")}</button>
+              <button type="submit">
+                {t("settings.advanced.validate_custom_domain")}
+              </button>
             </CsrfForm>
           )}
         </div>

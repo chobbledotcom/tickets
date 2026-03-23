@@ -2,12 +2,12 @@
  * Admin site page editor templates
  */
 
+import { t } from "#i18n";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
-import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 /** Sub-navigation for site editor pages */
@@ -47,9 +47,7 @@ export const adminSiteHomePage = (
       <CsrfForm action="/admin/site">
         <label for="website_title">{t("site.home.title_label")}</label>
         <p>
-          <small>
-            {t("site.home.title_hint")}
-          </small>
+          <small>{t("site.home.title_hint")}</small>
         </p>
         <input
           type="text"
@@ -63,8 +61,7 @@ export const adminSiteHomePage = (
         <label for="homepage_text">{t("site.home.text_label")}</label>
         <p>
           <small>
-            {t("site.home.text_hint")}{" "}
-            <Raw html={FORMATTING_HINT} />
+            {t("site.home.text_hint")} <Raw html={FORMATTING_HINT} />
           </small>
         </p>
         <textarea
@@ -104,8 +101,7 @@ export const adminSiteContactPage = (
         <label for="contact_page_text">{t("site.contact.text_label")}</label>
         <p>
           <small>
-            {t("site.contact.text_hint")}{" "}
-            <Raw html={FORMATTING_HINT} />
+            {t("site.contact.text_hint")} <Raw html={FORMATTING_HINT} />
           </small>
         </p>
         <textarea

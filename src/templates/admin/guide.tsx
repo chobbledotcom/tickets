@@ -2,6 +2,7 @@
  * Admin guide page template - FAQ-style help for administrators
  */
 
+import { t } from "#i18n";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_FREE_EXAMPLE_JSON,
@@ -16,7 +17,6 @@ import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { t } from "#i18n";
 import { Layout } from "#templates/layout.tsx";
 
 /** Host-level configuration info passed from the route */
@@ -992,7 +992,10 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section id="user-classes" title={t("guide.sections.users_and_permissions")}>
+      <Section
+        id="user-classes"
+        title={t("guide.sections.users_and_permissions")}
+      >
         <Q q={t("guide.q.owner_vs_manager")}>
           <p>
             <strong>Owners</strong> have full access: events, calendar, groups,

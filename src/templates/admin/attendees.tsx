@@ -3,12 +3,12 @@
  */
 
 import { map, pipe, unique } from "#fp";
+import { t } from "#i18n";
 import { formatCurrency } from "#lib/currency.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
-import { t } from "#i18n";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
@@ -28,9 +28,7 @@ export const adminDeleteAttendeePage = (
 
       <article>
         <aside>
-          <p>
-            {t("admin.attendees.delete_warning")}
-          </p>
+          <p>{t("admin.attendees.delete_warning")}</p>
         </aside>
       </article>
 
@@ -51,9 +49,7 @@ export const adminDeleteAttendeePage = (
         </p>
       </article>
 
-      <p>
-        {t("admin.attendees.delete_confirm", { name: attendee.name })}
-      </p>
+      <p>{t("admin.attendees.delete_confirm", { name: attendee.name })}</p>
 
       <CsrfForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
@@ -93,9 +89,7 @@ export const adminRefundAttendeePage = (
 
       <article>
         <aside>
-          <p>
-            {t("admin.attendees.refund_warning")}
-          </p>
+          <p>{t("admin.attendees.refund_warning")}</p>
         </aside>
       </article>
 
@@ -112,7 +106,8 @@ export const adminRefundAttendeePage = (
         </p>
         {Number.parseInt(attendee.price_paid, 10) > 0 && (
           <p>
-            <strong>{t("admin.attendees.amount_paid")}</strong> {formatCurrency(attendee.price_paid)}
+            <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
+            {formatCurrency(attendee.price_paid)}
           </p>
         )}
         <p>
@@ -121,9 +116,7 @@ export const adminRefundAttendeePage = (
         </p>
       </article>
 
-      <p>
-        {t("admin.attendees.refund_confirm", { name: attendee.name })}
-      </p>
+      <p>{t("admin.attendees.refund_confirm", { name: attendee.name })}</p>
 
       <CsrfForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
@@ -164,17 +157,19 @@ export const adminRefundAllAttendeesPage = (
       <article>
         <aside>
           <p>
-            {t("admin.attendees.refund_all_warning", { count: refundableCount })}
+            {t("admin.attendees.refund_all_warning", {
+              count: refundableCount,
+            })}
           </p>
         </aside>
       </article>
 
-      <p>
-        {t("admin.attendees.refund_all_confirm", { name: event.name })}
-      </p>
+      <p>{t("admin.attendees.refund_all_confirm", { name: event.name })}</p>
 
       <CsrfForm action={`/admin/event/${event.id}/refund-all`}>
-        <label for="confirm_name">{t("admin.attendees.refund_all_label")}</label>
+        <label for="confirm_name">
+          {t("admin.attendees.refund_all_label")}
+        </label>
         <input
           type="text"
           id="confirm_name"
@@ -227,7 +222,8 @@ const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
       </p>
       {pricePaid > 0 && (
         <p>
-          <strong>{t("admin.attendees.amount_paid")}</strong> {formatCurrency(attendee.price_paid)}
+          <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
+          {formatCurrency(attendee.price_paid)}
         </p>
       )}
       <p>
@@ -392,9 +388,7 @@ export const adminResendNotificationPage = (
 
       <article>
         <aside>
-          <p>
-            {t("admin.attendees.resend_note")}
-          </p>
+          <p>{t("admin.attendees.resend_note")}</p>
         </aside>
       </article>
 
@@ -411,7 +405,8 @@ export const adminResendNotificationPage = (
         </p>
         {Number.parseInt(attendee.price_paid, 10) > 0 && (
           <p>
-            <strong>{t("admin.attendees.amount_paid")}</strong> {formatCurrency(attendee.price_paid)}
+            <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
+            {formatCurrency(attendee.price_paid)}
           </p>
         )}
         <p>
@@ -420,9 +415,7 @@ export const adminResendNotificationPage = (
         </p>
       </article>
 
-      <p>
-        {t("admin.attendees.resend_confirm", { name: attendee.name })}
-      </p>
+      <p>{t("admin.attendees.resend_confirm", { name: attendee.name })}</p>
 
       <CsrfForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}

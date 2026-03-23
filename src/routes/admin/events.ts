@@ -3,6 +3,7 @@
  */
 
 import { compact, filter, map, pipe, sort, unique } from "#fp";
+import { t } from "#i18n";
 import { getAllowedDomain } from "#lib/config.ts";
 import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
@@ -61,7 +62,6 @@ import {
   withEventAttendeesAuth,
 } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { t } from "#i18n";
 import { defineRoutes } from "#routes/router.ts";
 import {
   authenticatedGetById,

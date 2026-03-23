@@ -622,5 +622,4 @@ export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
 });
 
 /** Demo mode banner HTML */
-export const DEMO_BANNER =
-  `<div class="demo-banner">${t("guide.demo_mode_notice")}</div>`;
+export const DEMO_BANNER = `<div class="demo-banner">${t("guide.demo_mode_notice")}</div>`;

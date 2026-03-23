@@ -2,9 +2,9 @@
  * Payment page templates - success, cancel, error pages
  */
 
+import { t } from "#i18n";
 import { getIframeMode } from "#lib/iframe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
-import { t } from "#i18n";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**
@@ -32,9 +32,7 @@ export const paymentPage = (
         </p>
       </aside>
 
-      <p>
-        {t("payment.stripe_instructions")}
-      </p>
+      <p>{t("payment.stripe_instructions")}</p>
       <a href={checkoutUrl}>
         <b>{t("payment.pay_now")}</b>
       </a>
@@ -56,7 +54,9 @@ export const successPage = ({
   fromEmail?: string;
 }): string => {
   const inIframe = getIframeMode();
-  const title = paid ? t("payment.success.title_paid") : t("payment.success.title_free");
+  const title = paid
+    ? t("payment.success.title_paid")
+    : t("payment.success.title_free");
   const heading = paid
     ? t("payment.success.heading_paid")
     : t("payment.success.heading_free");
@@ -83,16 +83,16 @@ export const successPage = ({
         {fromEmail ? (
           <p>
             <small>
-              <i>
-                {t("payment.success.email_notice", { fromEmail })}
-              </i>
+              <i>{t("payment.success.email_notice", { fromEmail })}</i>
             </small>
           </p>
         ) : null}
         {ticketUrl ? (
           <p>
             <a href={ticketUrl} target="_blank" rel="noopener">
-              {ticketUrl.split("+").length > 1 ? t("payment.success.view_tickets") : t("payment.success.view_ticket")}
+              {ticketUrl.split("+").length > 1
+                ? t("payment.success.view_tickets")
+                : t("payment.success.view_ticket")}
             </a>
           </p>
         ) : null}
@@ -117,9 +117,7 @@ export const paymentCancelPage = (_event: Event, ticketUrl: string): string =>
     <Layout title={t("payment.cancel.title")}>
       <div data-payment-result="cancel">
         <h1>{t("payment.cancel.heading")}</h1>
-        <p>
-          {t("payment.cancel.message")}
-        </p>
+        <p>{t("payment.cancel.message")}</p>
         <p>
           <a href={ticketUrl}>
             <i>{t("payment.cancel.try_again")}</i>
