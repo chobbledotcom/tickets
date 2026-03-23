@@ -44,6 +44,11 @@ const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
       htmlResponse(adminMigratePage(session, { done: true })),
     )(async (session) => {
       const progress = await getMigrationProgress();
+      // Auto-complete: fresh DBs and fully-migrated DBs have 0 remaining
+      if (progress.remaining === 0) {
+        await setAttendeeBlobMigrated();
+        return htmlResponse(adminMigratePage(session, { done: true }));
+      }
       return htmlResponse(
         adminMigratePage(session, {
           done: false,

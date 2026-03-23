@@ -64,7 +64,7 @@ const UNGATED_PREFIXES = [
 ] as const;
 
 const isUngatedRoute = (path: string): boolean =>
-  path === "/admin" || UNGATED_PREFIXES.some((p) => path.startsWith(p));
+  UNGATED_PREFIXES.some((p) => path.startsWith(p));
 
 /**
  * Route admin requests.

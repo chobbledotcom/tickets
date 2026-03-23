@@ -333,6 +333,11 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
   describe("GET /admin/migrate", () => {
     test("shows migration page when not migrated", async () => {
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await insertLegacyAttendee(event.id, {
+        name: "Pending",
+        email: "pending@test.com",
+      });
       const { response } = await adminGet("/admin/migrate");
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -396,6 +401,18 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       expect(response.headers.get("location")).toBe("/admin/migrate");
     });
 
+    test("redirects /admin dashboard when not migrated", async () => {
+      // Insert a legacy attendee so auto-complete doesn't trigger on GET /admin/migrate
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await insertLegacyAttendee(event.id, {
+        name: "Pending",
+        email: "pending@test.com",
+      });
+      const { response } = await adminGet("/admin");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/migrate");
+    });
+
     test("allows dashboard after migration", async () => {
       await setAttendeeBlobMigrated();
       const { response } = await adminGet("/admin/");
@@ -405,8 +422,46 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("allows /admin/migrate when not migrated", async () => {
+      // Insert a legacy attendee so auto-complete doesn't trigger
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await insertLegacyAttendee(event.id, {
+        name: "Pending",
+        email: "pending@test.com",
+      });
       const { response } = await adminGet("/admin/migrate");
       expect(response.status).toBe(200);
+    });
+  });
+
+  describe("auto-complete migration for fresh databases", () => {
+    test("GET /admin/migrate auto-completes when no attendees exist", async () => {
+      expect(await isAttendeeBlobMigrated()).toBe(false);
+
+      const { response } = await adminGet("/admin/migrate");
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Migration complete");
+
+      expect(await isAttendeeBlobMigrated()).toBe(true);
+    });
+
+    test("GET /admin/migrate auto-completes when all attendees already migrated", async () => {
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Already",
+        "done@test.com",
+      );
+
+      expect(await isAttendeeBlobMigrated()).toBe(false);
+
+      const { response } = await adminGet("/admin/migrate");
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Migration complete");
+
+      expect(await isAttendeeBlobMigrated()).toBe(true);
     });
   });
 });
