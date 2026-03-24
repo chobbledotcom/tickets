@@ -6,7 +6,6 @@ import {
   getBookingFee,
   getEffectiveDomain,
   isPaymentsEnabled,
-  isSetupComplete,
   loadEffectiveDomain,
   resetAllowedDomain,
   resetEffectiveDomain,
@@ -56,17 +55,6 @@ describe("config", () => {
       await settings.update.paymentProvider("square");
       await settings.update.square.accessToken("EAAAl_test_123");
       expect(await isPaymentsEnabled()).toBe(true);
-    });
-  });
-
-  describe("isSetupComplete", () => {
-    test("returns false when setup not complete", async () => {
-      expect(await isSetupComplete()).toBe(false);
-    });
-
-    test("returns true when setup is complete", async () => {
-      await settings.setup.complete("testadmin", "password123", "GBP");
-      expect(await isSetupComplete()).toBe(true);
     });
   });
 

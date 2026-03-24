@@ -4,7 +4,7 @@
  */
 
 import { once } from "#fp";
-import { isSetupComplete, loadEffectiveDomain } from "#lib/config.ts";
+import { loadEffectiveDomain } from "#lib/config.ts";
 import {
   clearFlashCookie,
   clearSessionCookie,
@@ -94,7 +94,7 @@ const loadTicketRoutes = once(async () => {
 /** Lazy-load setup routes */
 const loadSetupRoutes = once(async () => {
   const { createSetupRouter } = await import("#routes/setup.ts");
-  return createSetupRouter(isSetupComplete);
+  return createSetupRouter(settings.setup.isComplete);
 });
 
 /** Lazy-load payment/webhook routes */
@@ -294,7 +294,7 @@ const handleRequestInternal = async (
   }
 
   // Require setup before accessing other routes
-  if (!(await isSetupComplete())) {
+  if (!(await settings.setup.isComplete())) {
     return redirectResponse("/setup");
   }
 

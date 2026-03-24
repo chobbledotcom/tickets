@@ -20,14 +20,6 @@ export function normalizeBusinessEmail(email: string): string {
 }
 
 /**
- * Gets the business email from the snapshot (sync after loadAll).
- * Returns decrypted email or empty string if not set.
- */
-export function getBusinessEmailFromDb(): string {
-  return settings.businessEmail ?? "";
-}
-
-/**
  * Updates the business email in the database.
  * Pass empty string to clear the business email.
  * Email is encrypted at rest.

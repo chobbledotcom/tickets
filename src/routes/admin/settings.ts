@@ -9,7 +9,6 @@ import {
 } from "#lib/apple-wallet.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
 import {
-  getBusinessEmailFromDb,
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
@@ -103,8 +102,8 @@ const getWebhookUrl = (): string => {
  * All calls are independent, so we fetch them concurrently with Promise.all
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
-const getSettingsPageState = async () => {
-  const businessEmail = await getBusinessEmailFromDb();
+const getSettingsPageState = () => {
+  const businessEmail = settings.businessEmail ?? "";
 
   return {
     stripeKeyConfigured: settings.stripe.hasKey,
@@ -127,13 +126,13 @@ const getSettingsPageState = async () => {
 };
 
 /** Gather state for the advanced settings page */
-const getAdvancedSettingsPageState = async () => {
+const getAdvancedSettingsPageState = () => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
   const showPublicApi = settings.showPublicApi;
   const emailProvider = settings.email.provider;
   const emailApiKeyConfigured = settings.email.hasApiKey;
   const emailFromAddress = settings.email.fromAddress;
-  const businessEmail = await getBusinessEmailFromDb();
+  const businessEmail = settings.businessEmail ?? "";
   const confirmationTemplates = settings.email.templateSet("confirmation");
   const adminTemplates = settings.email.templateSet("admin");
   const customDomain = bunnyCdnConfigured ? settings.customDomain : null;
@@ -195,14 +194,14 @@ const getAdvancedSettingsPageState = async () => {
 };
 
 /** Render the settings page with current state */
-const renderSettingsPage = async (session: AuthSession) => {
-  const state = await getSettingsPageState();
+const renderSettingsPage = (session: AuthSession) => {
+  const state = getSettingsPageState();
   return adminSettingsPage(session, state);
 };
 
 /** Render the advanced settings page with current state */
-const renderAdvancedSettingsPage = async (session: AuthSession) => {
-  const state = await getAdvancedSettingsPageState();
+const renderAdvancedSettingsPage = (session: AuthSession) => {
+  const state = getAdvancedSettingsPageState();
   return adminAdvancedSettingsPage(session, state);
 };
 
@@ -891,7 +890,7 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
 const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
-  const businessEmail = await getBusinessEmailFromDb();
+  const businessEmail = settings.businessEmail ?? "";
   if (!businessEmail)
     return errorPage("No business email set", 400, "settings-email-test");
   const status = await sendTestEmail(config, businessEmail);

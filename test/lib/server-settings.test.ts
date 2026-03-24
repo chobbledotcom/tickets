@@ -1318,8 +1318,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("updates business email successfully", async () => {
-      const { getBusinessEmailFromDb } = await import("#lib/business-email.ts");
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/business-email",
@@ -1334,18 +1332,15 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Business email updated"));
 
-      const saved = await getBusinessEmailFromDb();
-      expect(saved).toBe("contact@example.com");
+      expect(settings.businessEmail ?? "").toBe("contact@example.com");
     });
 
     test("clears business email when empty string", async () => {
-      const { getBusinessEmailFromDb, updateBusinessEmail } = await import(
-        "#lib/business-email.ts"
-      );
+      const { updateBusinessEmail } = await import("#lib/business-email.ts");
 
       // First set an email
       await updateBusinessEmail("old@example.com");
-      expect(await getBusinessEmailFromDb()).toBe("old@example.com");
+      expect(settings.businessEmail ?? "").toBe("old@example.com");
 
       // Then clear it
       const response = await handleRequest(
@@ -1362,8 +1357,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Business email cleared"));
 
-      const saved = await getBusinessEmailFromDb();
-      expect(saved).toBe("");
+      expect(settings.businessEmail ?? "").toBe("");
     });
 
     test("rejects invalid email format", async () => {

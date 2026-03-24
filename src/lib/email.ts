@@ -4,7 +4,6 @@
  */
 
 import { lazyRef, map } from "#fp";
-import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { toBase64 } from "#lib/crypto.ts";
 import { settings } from "#lib/db/settings.ts";
@@ -50,11 +49,11 @@ export type EmailConfig = {
 };
 
 /** Read email config from DB settings. Falls back to business email for fromAddress. Returns null if not configured. */
-export const getEmailConfig = async (): Promise<EmailConfig | null> => {
+export const getEmailConfig = (): EmailConfig | null => {
   const provider = settings.email.provider;
   const apiKey = settings.email.apiKey;
   const fromAddress = settings.email.fromAddress;
-  const businessEmail = await getBusinessEmailFromDb();
+  const businessEmail = settings.businessEmail ?? "";
   const from = fromAddress || businessEmail;
   if (!provider || !apiKey || !from) return null;
   return { provider: provider as EmailProvider, apiKey, fromAddress: from };
@@ -312,7 +311,7 @@ export const sendRegistrationEmails = async (
   const config = (await getEmailConfig()) ?? getHostEmailConfig();
   if (!config) return;
 
-  const businessEmail = await getBusinessEmailFromDb();
+  const businessEmail = settings.businessEmail ?? "";
   const ticketUrl = buildTicketUrl(entries);
   const replyTo = businessEmail || undefined;
   const data = buildTemplateData(entries, currency, ticketUrl);
