@@ -20,7 +20,6 @@ const expectAlphaBeforeBravo = (
 };
 
 describeWithEnv("sortEvents", { db: true }, () => {
-
   test("returns empty array for empty input", () => {
     expect(sortEvents([], [])).toEqual([]);
   });

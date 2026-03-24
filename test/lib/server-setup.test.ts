@@ -18,7 +18,6 @@ import {
 } from "#test-utils";
 
 describeWithEnv("server (setup)", { db: true }, () => {
-
   /** Get CSRF token from setup page and submit setup form with given fields */
   async function submitSetupForm(
     fields: Record<string, string>,

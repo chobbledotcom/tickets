@@ -67,13 +67,15 @@ export const publicSitePage = (
     <Layout title={pageTitle} headExtra={FEED_DISCOVERY_TAGS}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav />
-      {content ? (
-        <Raw html={renderMarkdown(content)} />
-      ) : (
-        <p>
-          <em>No content.</em>
-        </p>
-      )}
+      <div class="prose">
+        {content ? (
+          <Raw html={renderMarkdown(content)} />
+        ) : (
+          <p>
+            <em>No content.</em>
+          </p>
+        )}
+      </div>
       <footer class="homepage-footer">
         <p>
           <a href="/admin/login">Login</a>

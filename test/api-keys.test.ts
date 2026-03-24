@@ -47,7 +47,6 @@ const getTestDataKey = async (): Promise<CryptoKey> => {
 };
 
 describeWithEnv("API Keys", { db: true }, () => {
-
   describe("database operations", () => {
     test("creates and retrieves an API key", async () => {
       const dataKey = await getTestDataKey();

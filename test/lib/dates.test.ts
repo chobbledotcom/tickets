@@ -28,7 +28,6 @@ const ALL_DAYS = [
 ] as const;
 
 describeWithEnv("dates", { db: true }, () => {
-
   describe("addDays", () => {
     test("adds positive days to a date", () => {
       expect(addDays("2026-01-01", 5)).toBe("2026-01-06");

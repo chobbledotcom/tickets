@@ -34,7 +34,6 @@ const createAttendee = async (eventId: number, name = "Alice") => {
 };
 
 describeWithEnv("custom questions", { db: true }, () => {
-
   describe("questions CRUD", () => {
     test("creates and retrieves a question", async () => {
       const q = await questionsTable.insert({ text: "Favourite colour?" });

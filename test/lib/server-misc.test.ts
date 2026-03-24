@@ -34,7 +34,6 @@ import {
 } from "#test-utils";
 
 describeWithEnv("server (misc)", { db: true }, () => {
-
   /** Create an embeddable test event and return its ticket page response */
   const getTicketPageResponse = getEmbeddableTicketResponse;
 

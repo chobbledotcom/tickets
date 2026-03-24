@@ -70,7 +70,6 @@ const apiRequest = async (
 };
 
 describeWithEnv("Admin API - Events", { db: true }, () => {
-
   describe("GET /api/admin/events/:eventId", () => {
     test("returns single event by ID", async () => {
       const event = await createTestEvent({ name: "Detail Event" });

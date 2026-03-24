@@ -51,7 +51,6 @@ const addAnswer = async (questionId: number, text: string): Promise<number> => {
 };
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
-
   describe("GET /admin/questions", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/questions"));
