@@ -26,8 +26,7 @@ const whenNotMigrated =
   (doneResponse: (session: AuthSession) => Response | Promise<Response>) =>
   (handler: (session: AuthSession) => Promise<Response>) =>
   (session: AuthSession): Response | Promise<Response> => {
-    const migrated = settings.attendeeBlobMigrated;
-    if (migrated) return doneResponse(session);
+    if (settings.attendeeBlobMigrated) return doneResponse(session);
     return handler(session);
   };
 

@@ -9,14 +9,12 @@ import {
 } from "#lib/apple-wallet.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
 import {
-  getBusinessEmailFromDb,
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import {
   getCdnHostname,
   getEffectiveDomain,
-  getSquareWebhookSignatureKey,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
@@ -104,8 +102,8 @@ const getWebhookUrl = (): string => {
  * All calls are independent, so we fetch them concurrently with Promise.all
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
-const getSettingsPageState = async () => {
-  const businessEmail = await getBusinessEmailFromDb();
+const getSettingsPageState = () => {
+  const businessEmail = settings.businessEmail ?? "";
 
   return {
     stripeKeyConfigured: settings.stripe.hasKey,
@@ -113,7 +111,7 @@ const getSettingsPageState = async () => {
     paymentProvider: settings.paymentProvider ?? "",
     squareTokenConfigured: settings.square.hasToken,
     squareSandbox: settings.square.sandbox,
-    squareWebhookConfigured: getSquareWebhookSignatureKey() !== null,
+    squareWebhookConfigured: settings.square.webhookSignatureKey !== null,
     webhookUrl: getWebhookUrl(),
     bookingFee: settings.bookingFee!,
     embedHosts: settings.embedHosts ?? "",
@@ -128,39 +126,22 @@ const getSettingsPageState = async () => {
 };
 
 /** Gather state for the advanced settings page */
-const getAdvancedSettingsPageState = async () => {
+const getAdvancedSettingsPageState = () => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
-  const showPublicApi = settings.showPublicApi;
-  const emailProvider = settings.email.provider;
-  const emailApiKeyConfigured = settings.email.hasApiKey;
-  const emailFromAddress = settings.email.fromAddress;
-  const businessEmail = await getBusinessEmailFromDb();
   const confirmationTemplates = settings.email.templateSet("confirmation");
   const adminTemplates = settings.email.templateSet("admin");
-  const customDomain = bunnyCdnConfigured ? settings.customDomain : null;
-  const customDomainLastValidated = bunnyCdnConfigured
-    ? settings.customDomainLastValidated
-    : null;
-  const appleWalletConfigured = settings.appleWallet.hasDbConfig;
-  const appleWalletPassTypeId = settings.appleWallet.passTypeId;
-  const appleWalletTeamId = settings.appleWallet.teamId;
-  const googleWalletConfigured = settings.googleWallet.hasDbConfig;
-  const googleWalletIssuerId = settings.googleWallet.issuerId;
-  const googleWalletServiceAccountEmail =
-    settings.googleWallet.serviceAccountEmail;
-  const theme = settings.theme;
   return {
-    showPublicApi,
-    emailProvider: emailProvider ?? "",
-    emailApiKeyConfigured,
-    emailFromAddress: emailFromAddress ?? "",
+    showPublicApi: settings.showPublicApi,
+    emailProvider: settings.email.provider ?? "",
+    emailApiKeyConfigured: settings.email.hasApiKey,
+    emailFromAddress: settings.email.fromAddress ?? "",
     hostEmailLabel: (() => {
       const hostConfig = getHostEmailConfig();
       if (!hostConfig) return "";
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
-    businessEmail,
+    businessEmail: settings.businessEmail ?? "",
     confirmationTemplates: {
       subject: confirmationTemplates.subject ?? "",
       html: confirmationTemplates.html ?? "",
@@ -172,38 +153,40 @@ const getAdvancedSettingsPageState = async () => {
       text: adminTemplates.text ?? "",
     },
     bunnyCdnEnabled: bunnyCdnConfigured,
-    customDomain: customDomain ?? "",
-    customDomainLastValidated: customDomainLastValidated ?? "",
+    customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
+    customDomainLastValidated:
+      (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
     cdnHostname: bunnyCdnConfigured ? getCdnHostname() : "",
-    appleWalletConfigured,
-    appleWalletPassTypeId: appleWalletPassTypeId ?? "",
-    appleWalletTeamId: appleWalletTeamId ?? "",
+    appleWalletConfigured: settings.appleWallet.hasDbConfig,
+    appleWalletPassTypeId: settings.appleWallet.passTypeId ?? "",
+    appleWalletTeamId: settings.appleWallet.teamId ?? "",
     hostAppleWalletLabel: (() => {
       const hostConfig = settings.appleWallet.hostConfig;
       if (!hostConfig) return "";
       return `Host env (${hostConfig.passTypeId})`;
     })(),
-    googleWalletConfigured,
-    googleWalletIssuerId: googleWalletIssuerId ?? "",
-    googleWalletServiceAccountEmail: googleWalletServiceAccountEmail ?? "",
+    googleWalletConfigured: settings.googleWallet.hasDbConfig,
+    googleWalletIssuerId: settings.googleWallet.issuerId ?? "",
+    googleWalletServiceAccountEmail:
+      settings.googleWallet.serviceAccountEmail ?? "",
     hostGoogleWalletLabel: (() => {
       const hostConfig = settings.googleWallet.hostConfig;
       if (!hostConfig) return "";
       return `Host env (${hostConfig.issuerId})`;
     })(),
-    theme,
+    theme: settings.theme,
   };
 };
 
 /** Render the settings page with current state */
-const renderSettingsPage = async (session: AuthSession) => {
-  const state = await getSettingsPageState();
+const renderSettingsPage = (session: AuthSession) => {
+  const state = getSettingsPageState();
   return adminSettingsPage(session, state);
 };
 
 /** Render the advanced settings page with current state */
-const renderAdvancedSettingsPage = async (session: AuthSession) => {
-  const state = await getAdvancedSettingsPageState();
+const renderAdvancedSettingsPage = (session: AuthSession) => {
+  const state = getAdvancedSettingsPageState();
   return adminAdvancedSettingsPage(session, state);
 };
 
@@ -457,12 +440,10 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
 
   // Set up webhook endpoint automatically
   const webhookUrl = getWebhookUrl();
-  const existingEndpointId = settings.stripe.webhookEndpointId;
-
   const webhookResult = await setupWebhookEndpoint(
     field.value,
     webhookUrl,
-    existingEndpointId,
+    settings.stripe.webhookEndpointId,
   );
 
   if (!webhookResult.success) {
@@ -827,12 +808,13 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
 
 /** Handle POST /admin/settings/header-image/delete - owner only */
 const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
-  const existingUrl = settings.headerImageUrl;
-  if (!existingUrl) {
+  if (!settings.headerImageUrl) {
     return htmlResponse("No header image to remove", 400);
   }
 
-  const [deleteResult] = await Promise.allSettled([deleteImage(existingUrl)]);
+  const [deleteResult] = await Promise.allSettled([
+    deleteImage(settings.headerImageUrl),
+  ]);
   if (deleteResult.status === "fulfilled") {
     await settings.update.headerImageUrl("");
     await logActivity("Header image removed");
@@ -892,7 +874,7 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
 const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
-  const businessEmail = await getBusinessEmailFromDb();
+  const businessEmail = settings.businessEmail ?? "";
   if (!businessEmail)
     return errorPage("No business email set", 400, "settings-email-test");
   const status = await sendTestEmail(config, businessEmail);
@@ -1208,8 +1190,7 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   }
 
   // For initial setup, require all three PEM fields
-  const isConfigured = settings.appleWallet.hasDbConfig;
-  if (!isConfigured) {
+  if (!settings.appleWallet.hasDbConfig) {
     if (certField.action !== "provided") {
       return errorPage(
         "Signing certificate is required",
@@ -1323,8 +1304,7 @@ const handleGoogleWalletPost = advancedSettingsRoute(
     }
 
     // For initial setup, require the private key
-    const isConfigured = settings.googleWallet.hasDbConfig;
-    if (!isConfigured && keyField.action !== "provided") {
+    if (!settings.googleWallet.hasDbConfig && keyField.action !== "provided") {
       return errorPage(
         "Service account private key is required",
         400,

@@ -3,7 +3,6 @@
  */
 
 import { chunk, compact, filter, uniqueBy } from "#fp";
-import { getCurrencyCode } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -780,9 +779,10 @@ const handleResendNotification = attendeeFormAction(
     );
     if (error) return error;
 
-    const currency = getCurrencyCode();
     await Promise.all([
-      logAndNotifyRegistration(data.event, data.attendee, currency),
+      logAndNotifyRegistration([
+        { event: data.event, attendee: data.attendee },
+      ]),
       logActivity(
         `Notification re-sent for attendee '${data.attendee.name}'`,
         eventId,

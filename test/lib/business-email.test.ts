@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  getBusinessEmailFromDb,
   isValidBusinessEmail,
   normalizeBusinessEmail,
   updateBusinessEmail,
@@ -102,21 +101,21 @@ describeWithEnv("business-email", { db: true }, () => {
     });
   });
 
-  describe("getBusinessEmailFromDb", () => {
-    test("returns empty string when no business email is set", async () => {
-      const result = await getBusinessEmailFromDb();
+  describe("settings.businessEmail", () => {
+    test("returns empty string when no business email is set", () => {
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("");
     });
 
     test("returns business email after it is set", async () => {
       await updateBusinessEmail("test@example.com");
-      const result = await getBusinessEmailFromDb();
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("test@example.com");
     });
 
     test("returns normalized email", async () => {
       await updateBusinessEmail("Test@Example.Com");
-      const result = await getBusinessEmailFromDb();
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("test@example.com");
     });
   });
@@ -124,34 +123,34 @@ describeWithEnv("business-email", { db: true }, () => {
   describe("updateBusinessEmail", () => {
     test("stores valid email in database", async () => {
       await updateBusinessEmail("contact@example.com");
-      const result = await getBusinessEmailFromDb();
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("contact@example.com");
     });
 
     test("normalizes email before storing", async () => {
       await updateBusinessEmail("  Contact@Example.Com  ");
-      const result = await getBusinessEmailFromDb();
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("contact@example.com");
     });
 
     test("updates existing email", async () => {
       await updateBusinessEmail("old@example.com");
       await updateBusinessEmail("new@example.com");
-      const result = await getBusinessEmailFromDb();
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("new@example.com");
     });
 
     test("clears email when given empty string", async () => {
       await updateBusinessEmail("test@example.com");
       await updateBusinessEmail("");
-      const result = await getBusinessEmailFromDb();
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("");
     });
 
     test("clears email when given whitespace only", async () => {
       await updateBusinessEmail("test@example.com");
       await updateBusinessEmail("   ");
-      const result = await getBusinessEmailFromDb();
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("");
     });
 
@@ -183,11 +182,11 @@ describeWithEnv("business-email", { db: true }, () => {
   describe("settings cache integration", () => {
     test("uses settings cache for reads", async () => {
       await updateBusinessEmail("cached@example.com");
-      const first = await getBusinessEmailFromDb();
+      const first = settings.businessEmail ?? "";
       expect(first).toBe("cached@example.com");
 
       // Second read should use cache
-      const second = await getBusinessEmailFromDb();
+      const second = settings.businessEmail ?? "";
       expect(second).toBe("cached@example.com");
     });
 
@@ -196,7 +195,7 @@ describeWithEnv("business-email", { db: true }, () => {
       settings.invalidateCache();
       await settings.loadAll();
 
-      const result = await getBusinessEmailFromDb();
+      const result = settings.businessEmail ?? "";
       expect(result).toBe("encrypted@example.com");
     });
   });

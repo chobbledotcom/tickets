@@ -46,7 +46,6 @@ type FeedData = { events: EventWithCount[]; domain: string; title: string };
 
 /** Load feed data: active open events with domain and title */
 const loadFeedData = async (): Promise<FeedData> => {
-  const websiteTitle = settings.websiteTitle;
   const [allEvents, holidays] = await Promise.all([
     getAllEvents(),
     getActiveHolidays(),
@@ -58,7 +57,7 @@ const loadFeedData = async (): Promise<FeedData> => {
   return {
     events,
     domain: getEffectiveDomain(),
-    title: websiteTitle || "Events",
+    title: settings.websiteTitle || "Events",
   };
 };
 

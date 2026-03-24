@@ -4,7 +4,7 @@
 
 import { fromAbsolute } from "@internationalized/date";
 import { filter } from "#fp";
-import { getTz } from "#lib/config.ts";
+import { settings } from "#lib/db/settings.ts";
 import { formatDatetimeInTz, localToUtc, todayInTz } from "#lib/timezone.ts";
 import type { Event, Holiday } from "#lib/types.ts";
 
@@ -75,8 +75,7 @@ const dateRange = (start: string, end: string): string[] => {
 const bookableRange = (
   event: Event,
 ): { bookableDays: string[]; start: string; end: string } => {
-  const tz = getTz();
-  const todayStr = todayInTz(tz);
+  const todayStr = todayInTz(settings.timezone);
   const start = addDays(todayStr, event.minimum_days_before);
   const maxDays =
     event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
@@ -132,7 +131,7 @@ export const getNextBookableDate = (
  * The input is interpreted as local time in the given timezone and converted to UTC.
  */
 export const normalizeDatetime = (value: string, label: string): string => {
-  const tz = getTz();
+  const tz = settings.timezone;
   try {
     return localToUtc(value, tz);
   } catch {
@@ -154,7 +153,7 @@ export const formatDateLabel = (dateStr: string): string => {
  * Returns e.g. "Monday 15 June 2026 at 14:00 BST"
  */
 export const formatDatetimeLabel = (iso: string): string =>
-  formatDatetimeInTz(iso, getTz());
+  formatDatetimeInTz(iso, settings.timezone);
 
 /**
  * Convert a UTC ISO datetime to a YYYY-MM-DD calendar date in the given timezone.
@@ -162,7 +161,7 @@ export const formatDatetimeLabel = (iso: string): string =>
  * Used by the calendar view to map standard event dates to calendar days.
  */
 export const eventDateToCalendarDate = (utcIso: string): string | null => {
-  const tz = getTz();
+  const tz = settings.timezone;
   if (!utcIso) return null;
   try {
     const ms = new Date(utcIso).getTime();

@@ -4,8 +4,8 @@
  */
 
 import { compact, unique } from "#fp";
-import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { settings } from "#lib/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
@@ -66,10 +66,10 @@ export type RegistrationEntry = {
 /**
  * Build a consolidated webhook payload from registration entries
  */
-export const buildWebhookPayload = async (
+export const buildWebhookPayload = (
   entries: RegistrationEntry[],
   currency: string,
-): Promise<WebhookPayload> => {
+): WebhookPayload => {
   const first = entries[0]!;
   const totalPricePaid = entries.reduce(
     (sum, { attendee }) => sum + Number.parseInt(attendee.price_paid, 10),
@@ -77,7 +77,7 @@ export const buildWebhookPayload = async (
   );
 
   const hasPaidEvent = entries.some(({ event }) => isPaidEvent(event));
-  const businessEmail = await getBusinessEmailFromDb();
+  const businessEmail = settings.businessEmail ?? "";
 
   return {
     event_type: "registration.completed",
@@ -162,26 +162,12 @@ export const sendRegistrationWebhooks = async (
  * but complete before the edge runtime tears down the request context.
  */
 export const logAndNotifyRegistration = async (
-  event: EmailEntry["event"],
-  attendee: WebhookAttendee,
-  currency: string,
-): Promise<void> => {
-  await logActivity(`Attendee registered for '${event.name}'`, event);
-  const entries: EmailEntry[] = [{ event, attendee }];
-  addPendingWork(sendRegistrationWebhooks(entries, currency));
-  addPendingWork(sendRegistrationEmails(entries, currency));
-};
-
-/**
- * Log and send consolidated webhook for multi-event registrations
- */
-export const logAndNotifyMultiRegistration = async (
   entries: EmailEntry[],
-  currency: string,
 ): Promise<void> => {
   for (const { event } of entries) {
     await logActivity(`Attendee registered for '${event.name}'`, event);
   }
+  const currency = settings.currency;
   addPendingWork(sendRegistrationWebhooks(entries, currency));
   addPendingWork(sendRegistrationEmails(entries, currency));
 };

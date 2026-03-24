@@ -6,11 +6,6 @@
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
 import { getBookingFeeAmount, itemsSubtotal } from "#lib/booking-fee.ts";
-import {
-  getCurrencyCode,
-  getStripeSecretKey,
-  getStripeWebhookSecret,
-} from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
@@ -117,7 +112,7 @@ const [getCache, setCache] = lazyRef<StripeCache>(() => {
 
 /** Internal getStripeClient implementation */
 const getClientImpl = async (): Promise<Stripe | null> => {
-  const secretKey = getStripeSecretKey();
+  const secretKey = settings.stripe.secretKey;
   if (!secretKey) {
     logDebug("Stripe", "No secret key configured, cannot create client");
     return null;
@@ -177,7 +172,7 @@ const buildSessionParams = (
   cfg: SessionConfig,
 ): Stripe.Checkout.SessionCreateParams => {
   const unitAmount = cfg.unitPriceOverride ?? cfg.event.unit_price;
-  const currency = getCurrencyCode().toLowerCase();
+  const currency = settings.currency.toLowerCase();
   const label = cfg.quantity > 1 ? `${cfg.quantity} Tickets` : "Ticket";
 
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
@@ -358,7 +353,7 @@ export const stripeApi: {
       "Stripe",
       `Creating multi-checkout session for ${intent.items.length} events`,
     );
-    const currency = getCurrencyCode().toLowerCase();
+    const currency = settings.currency.toLowerCase();
 
     // Build line items for each event
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
@@ -580,7 +575,7 @@ export const verifyWebhookSignature = async (
   signature: string,
   toleranceSeconds = DEFAULT_TOLERANCE_SECONDS,
 ): Promise<WebhookVerifyResult> => {
-  const secret = getStripeWebhookSecret();
+  const secret = settings.stripe.webhookSecret;
   if (!secret) {
     logError({ code: ErrorCode.CONFIG_MISSING, detail: "webhook secret" });
     return { valid: false, error: "Webhook secret not configured" };
