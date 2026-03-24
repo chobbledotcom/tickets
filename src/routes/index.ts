@@ -321,22 +321,28 @@ export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  // Buffer webhook body BEFORE entering async context wrappers. The Bunny Edge
+  // Buffer POST bodies BEFORE entering async context wrappers. The Bunny Edge
   // runtime can garbage-collect the underlying request body resource during
   // awaits, so we must capture it while the resource is still alive.
+  // This applies to webhook bodies (JSON) and multipart form uploads (file
+  // data backed by Blob resources that are especially prone to GC).
   // Use normalizePath on the raw pathname so trailing-slash variants like
   // /payment/webhook/ are correctly detected (the router normalizes later,
   // but by then the body resource may already be garbage-collected).
   const { pathname } = new URL(request.url);
-  const webhookBody =
-    request.method === "POST" && isWebhookPath(normalizePath(pathname))
-      ? new Uint8Array(await request.arrayBuffer())
-      : undefined;
-  const effectiveRequest = webhookBody
+  const contentType = request.headers.get("content-type") ?? "";
+  const needsBodyBuffer =
+    request.method === "POST" &&
+    (isWebhookPath(normalizePath(pathname)) ||
+      contentType.startsWith("multipart/form-data"));
+  const bufferedBody = needsBodyBuffer
+    ? new Uint8Array(await request.arrayBuffer())
+    : undefined;
+  const effectiveRequest = bufferedBody
     ? new Request(request.url, {
         method: request.method,
         headers: request.headers,
-        body: webhookBody,
+        body: bufferedBody,
       })
     : request;
 
