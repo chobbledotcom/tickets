@@ -46,7 +46,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/"));
-      expectRedirect(response, /^\/admin\/$/);
+      expectRedirect(response, /^\/admin\/login$/);
     });
 
     test("shows public homepage when enabled", async () => {
@@ -126,7 +126,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /events", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/events"));
-      expectRedirect(response, /^\/admin\/$/);
+      expectRedirect(response, /^\/admin\/login$/);
     });
 
     test("shows no events message when enabled but no events exist", async () => {
@@ -330,7 +330,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /terms", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/terms"));
-      expectRedirect(response, /^\/admin\/$/);
+      expectRedirect(response, /^\/admin\/login$/);
     });
 
     test("shows terms page when enabled", async () => {
@@ -370,7 +370,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /contact", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/contact"));
-      expectRedirect(response, /^\/admin\/$/);
+      expectRedirect(response, /^\/admin\/login$/);
     });
 
     test("shows contact page when enabled", async () => {

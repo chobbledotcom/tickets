@@ -61,9 +61,9 @@ const loadFeedData = async (): Promise<FeedData> => {
   };
 };
 
-/** Guard: redirect to admin if public site is disabled */
+/** Guard: redirect to admin login if public site is disabled */
 const requirePublicSite = <T>(fn: () => Promise<T>): Promise<T> | Response =>
-  settings.showPublicSite ? fn() : redirectResponse("/admin/");
+  settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Build a single VEVENT block */
 const buildVEvent = (
