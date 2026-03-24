@@ -75,6 +75,7 @@ import {
 } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import {
+  describeWithEnv,
   setTestEnv,
   setupTestEncryptionKey,
   testAttendee,
@@ -3614,25 +3615,14 @@ describe("html", () => {
     });
   });
 
-  describe("event images", () => {
-    let cleanupStorage: () => void;
-    const setupStorage = () => {
-      cleanupStorage = setTestEnv({
-        STORAGE_ZONE_NAME: "testzone",
-        STORAGE_ZONE_KEY: "testkey",
-      });
-    };
-
+  describeWithEnv("event images", { env: { STORAGE_ZONE_NAME: "testzone", STORAGE_ZONE_KEY: "testkey" } }, () => {
     describe("renderEventImage", () => {
       test("returns empty string when image_url is null", () => {
-        setupStorage();
         const html = renderEventImage({ image_url: "", name: "Test" });
         expect(html).toBe("");
-        cleanupStorage();
       });
 
       test("renders img tag with proxy URL when image_url is set", () => {
-        setupStorage();
         const html = renderEventImage({
           image_url: "abc123.jpg",
           name: "Test Event",
@@ -3640,53 +3630,43 @@ describe("html", () => {
         expect(html).toContain("/image/abc123.jpg");
         expect(html).toContain('alt="Test Event"');
         expect(html).toContain('class="event-image"');
-        cleanupStorage();
       });
 
       test("escapes HTML in event name for alt attribute", () => {
-        setupStorage();
         const html = renderEventImage({
           image_url: "img.jpg",
           name: '<script>alert("xss")</script>',
         });
         expect(html).not.toContain("<script>");
         expect(html).toContain("&lt;script&gt;");
-        cleanupStorage();
       });
     });
 
     describe("ticketPage with image", () => {
       test("shows event image when image_url is set", () => {
-        setupStorage();
         const event = testEventWithCount({ image_url: "event-img.jpg" });
         const html = ticketPage(event, undefined, false, undefined, null);
         expect(html).toContain("/image/event-img.jpg");
         expect(html).toContain('class="event-image"');
-        cleanupStorage();
       });
 
       test("does not show image when image_url is null", () => {
-        setupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = ticketPage(event, undefined, false, undefined, null);
         expect(html).not.toContain("/image/");
-        cleanupStorage();
       });
 
       test("does not show image in iframe mode", () => {
-        setupStorage();
         detectIframeMode("https://example.com/?iframe=true");
         const event = testEventWithCount({ image_url: "event-img.jpg" });
         const html = ticketPage(event, undefined, false, undefined, null);
         expect(html).not.toContain("event-img.jpg");
         detectIframeMode("https://example.com/");
-        cleanupStorage();
       });
     });
 
     describe("multiTicketPage with images", () => {
       test("shows image before each event with image_url", () => {
-        setupStorage();
         const events = [
           buildMultiTicketEvent(
             testEventWithCount({
@@ -3706,11 +3686,9 @@ describe("html", () => {
         const html = multiTicketPage({ events, slugs: ["slug-a", "slug-b"] });
         expect(html).toContain("/image/img-a.jpg");
         expect(html).toContain("/image/img-b.jpg");
-        cleanupStorage();
       });
 
       test("does not show images when image_url is null", () => {
-        setupStorage();
         const events = [
           buildMultiTicketEvent(
             testEventWithCount({ id: 1, name: "Event A", image_url: "" }),
@@ -3718,7 +3696,6 @@ describe("html", () => {
         ];
         const html = multiTicketPage({ events, slugs: ["slug-a"] });
         expect(html).not.toContain("/image/");
-        cleanupStorage();
       });
     });
 
@@ -3726,7 +3703,6 @@ describe("html", () => {
       const token = "AABB0011CCDDEEFF";
 
       test("shows '1 Ticket' for single ticket", () => {
-        setupStorage();
         const cards = [
           {
             entry: {
@@ -3738,11 +3714,9 @@ describe("html", () => {
         ];
         const html = ticketViewPage(cards);
         expect(html).toContain("1 Ticket");
-        cleanupStorage();
       });
 
       test("shows '2 Tickets' for multiple tickets", () => {
-        setupStorage();
         const cards = [
           {
             entry: {
@@ -3761,7 +3735,6 @@ describe("html", () => {
         ];
         const html = ticketViewPage(cards);
         expect(html).toContain("2 Tickets");
-        cleanupStorage();
       });
     });
 
@@ -3769,7 +3742,6 @@ describe("html", () => {
       const token = "AABB0011CCDDEEFF";
 
       test("shows image when event has image_url", () => {
-        setupStorage();
         const cards = [
           {
             entry: {
@@ -3782,11 +3754,9 @@ describe("html", () => {
         const html = ticketViewPage(cards);
         expect(html).toContain("/image/ticket-img.jpg");
         expect(html).toContain('class="ticket-card-image"');
-        cleanupStorage();
       });
 
       test("does not show image when image_url is empty", () => {
-        setupStorage();
         const cards = [
           {
             entry: {
@@ -3798,32 +3768,26 @@ describe("html", () => {
         ];
         const html = ticketViewPage(cards);
         expect(html).not.toContain("ticket-card-image");
-        cleanupStorage();
       });
     });
 
     describe("adminDashboardPage with images", () => {
       test("shows thumbnail when event has image_url", () => {
-        setupStorage();
         const events = [testEventWithCount({ image_url: "thumb.jpg" })];
         const html = adminDashboardPage(events, TEST_SESSION);
         expect(html).toContain("/image/thumb.jpg");
         expect(html).toContain('class="event-thumbnail"');
-        cleanupStorage();
       });
 
       test("does not show thumbnail when event has no image_url", () => {
-        setupStorage();
         const events = [testEventWithCount({ image_url: "" })];
         const html = adminDashboardPage(events, TEST_SESSION);
         expect(html).not.toContain('src="/image/');
-        cleanupStorage();
       });
     });
 
     describe("adminEventPage image section", () => {
       test("does not show image upload on detail page", () => {
-        setupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = adminEventPage({
           event,
@@ -3833,83 +3797,75 @@ describe("html", () => {
         });
         expect(html).not.toContain('type="file"');
         expect(html).not.toContain('name="image"');
-        cleanupStorage();
       });
     });
 
     describe("adminEventEditPage image section", () => {
       test("shows image upload field when storage enabled", () => {
-        setupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).toContain('type="file"');
         expect(html).toContain('name="image"');
         expect(html).toContain("multipart/form-data");
-        cleanupStorage();
       });
 
       test("shows current image and remove button when image is set", () => {
-        setupStorage();
         const event = testEventWithCount({ image_url: "current.jpg" });
         const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).toContain("/image/current.jpg");
         expect(html).toContain("Remove Image");
         expect(html).toContain("/image/delete");
-        cleanupStorage();
       });
 
       test("does not show image field when storage is not enabled", () => {
-        cleanupStorage();
+        const restore = setTestEnv({ STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined });
         const event = testEventWithCount({ image_url: "" });
         const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).not.toContain('type="file"');
         expect(html).not.toContain('name="image"');
+        restore();
       });
 
       test("shows full-width image preview when event has image", () => {
-        setupStorage();
         const event = testEventWithCount({ image_url: "preview.jpg" });
         const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).toContain("event-image-full");
         expect(html).toContain("/image/preview.jpg");
-        cleanupStorage();
       });
     });
 
     describe("adminDuplicateEventPage image section", () => {
       test("does not show image upload field even when storage enabled", () => {
-        setupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = adminDuplicateEventPage(event, [], TEST_SESSION);
         expect(html).not.toContain('type="file"');
         expect(html).not.toContain('name="image"');
         expect(html).toContain("multipart/form-data");
-        cleanupStorage();
       });
 
       test("does not show image field when storage is not enabled", () => {
-        cleanupStorage();
+        const restore = setTestEnv({ STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined });
         const event = testEventWithCount({ image_url: "" });
         const html = adminDuplicateEventPage(event, [], TEST_SESSION);
         expect(html).not.toContain('type="file"');
         expect(html).not.toContain('name="image"');
+        restore();
       });
     });
 
     describe("adminEventNewPage image section", () => {
       test("shows image upload field on create form when storage enabled", () => {
-        setupStorage();
         const html = adminEventNewPage([], TEST_SESSION);
         expect(html).toContain('type="file"');
         expect(html).toContain('name="image"');
         expect(html).toContain("multipart/form-data");
-        cleanupStorage();
       });
 
       test("does not show image field on create form when storage is not enabled", () => {
-        cleanupStorage();
+        const restore = setTestEnv({ STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined });
         const html = adminEventNewPage([], TEST_SESSION);
         expect(html).not.toContain('type="file"');
+        restore();
       });
     });
   });
