@@ -780,9 +780,8 @@ const handleResendNotification = attendeeFormAction(
     );
     if (error) return error;
 
-    const currency = settings.currency;
     await Promise.all([
-      logAndNotifyRegistration(data.event, data.attendee, currency),
+      logAndNotifyRegistration(data.event, data.attendee, settings.currency),
       logActivity(
         `Notification re-sent for attendee '${data.attendee.name}'`,
         eventId,

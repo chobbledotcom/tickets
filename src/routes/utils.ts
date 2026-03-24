@@ -229,14 +229,13 @@ export const getPrivateKey = async (session: {
 }): Promise<CryptoKey | null> => {
   if (!session.wrappedDataKey) return null;
 
-  const wrappedPrivateKey = settings.wrappedPrivateKey;
-  if (!wrappedPrivateKey) return null;
+  if (!settings.wrappedPrivateKey) return null;
 
   try {
     return await getPrivateKeyFromSession(
       session.token,
       session.wrappedDataKey,
-      wrappedPrivateKey,
+      settings.wrappedPrivateKey,
     );
   } catch {
     return null;

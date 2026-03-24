@@ -52,9 +52,7 @@ export type EmailConfig = {
 export const getEmailConfig = (): EmailConfig | null => {
   const provider = settings.email.provider;
   const apiKey = settings.email.apiKey;
-  const fromAddress = settings.email.fromAddress;
-  const businessEmail = settings.businessEmail ?? "";
-  const from = fromAddress || businessEmail;
+  const from = settings.email.fromAddress || settings.businessEmail || "";
   if (!provider || !apiKey || !from) return null;
   return { provider: provider as EmailProvider, apiKey, fromAddress: from };
 };

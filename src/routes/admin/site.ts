@@ -65,15 +65,23 @@ const sitePostRoute =
 
 /** Render homepage editor with current state */
 const renderHomePage: PageRenderer = (session, error, success) => {
-  const websiteTitle = settings.websiteTitle;
-  const homepageText = settings.homepageText;
-  return adminSiteHomePage(session, websiteTitle, homepageText, error, success);
+  return adminSiteHomePage(
+    session,
+    settings.websiteTitle,
+    settings.homepageText,
+    error,
+    success,
+  );
 };
 
 /** Render contact editor with current state */
 const renderContactPage: PageRenderer = (session, error, success) => {
-  const contactText = settings.contactPageText;
-  return adminSiteContactPage(session, contactText, error, success);
+  return adminSiteContactPage(
+    session,
+    settings.contactPageText,
+    error,
+    success,
+  );
 };
 
 /** Handle POST /admin/site - save homepage */

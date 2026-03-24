@@ -40,9 +40,6 @@ export const buildWalletPassData = (
 ): WalletPassData => {
   const { event, attendee } = entry;
   const domain = getEffectiveDomain();
-  const currencyCode = settings.currency;
-  const pricePaid = attendee.price_paid_v2;
-
   return {
     serialNumber: token,
     organizationName: domain,
@@ -51,8 +48,8 @@ export const buildWalletPassData = (
     eventLocation: event.location,
     attendeeDate: attendee.date,
     quantity: attendee.quantity,
-    pricePaid,
-    currencyCode,
+    pricePaid: attendee.price_paid_v2,
+    currencyCode: settings.currency,
     checkinUrl: `https://${domain}/checkin/${token}`,
   };
 };

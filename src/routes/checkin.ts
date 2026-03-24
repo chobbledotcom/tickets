@@ -59,14 +59,13 @@ const renderAdminView = async (
 ): Promise<Response> => {
   const decrypted = await decryptWithSession(rawAttendees, session);
   const entries = await resolveEntries(decrypted);
-  const phonePrefix = settings.phonePrefix;
   return htmlResponse(
     checkinAdminPage(
       entries,
       `/checkin/${tokens.join("+")}`,
       message,
       getEffectiveDomain(),
-      phonePrefix,
+      settings.phonePrefix,
     ),
   );
 };
