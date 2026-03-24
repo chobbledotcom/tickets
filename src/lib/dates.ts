@@ -75,8 +75,7 @@ const dateRange = (start: string, end: string): string[] => {
 const bookableRange = (
   event: Event,
 ): { bookableDays: string[]; start: string; end: string } => {
-  const tz = settings.timezone;
-  const todayStr = todayInTz(tz);
+  const todayStr = todayInTz(settings.timezone);
   const start = addDays(todayStr, event.minimum_days_before);
   const maxDays =
     event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;

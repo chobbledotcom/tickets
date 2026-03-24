@@ -10,7 +10,6 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#lib/cookies.ts";
-import { loadCurrencyCode } from "#lib/currency.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
@@ -19,7 +18,6 @@ import {
   setFlashContext,
 } from "#lib/flash-context.ts";
 import { clearSavedFormData } from "#lib/forms.tsx";
-import { loadHeaderImage } from "#lib/header-image.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   createRequestTimer,
@@ -33,7 +31,6 @@ import {
 import { flushPendingWork } from "#lib/pending-work.ts";
 import { runWithRequestCache } from "#lib/request-cache.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
-import { loadTheme } from "#lib/theme.ts";
 import {
   applySecurityHeaders,
   buildDomainRedirectUrl,
@@ -298,9 +295,6 @@ const handleRequestInternal = async (
     return redirectResponse("/setup");
   }
 
-  loadCurrencyCode();
-  loadTheme();
-  loadHeaderImage();
   return (await routeMainApp(request, path, method, server))!;
 };
 

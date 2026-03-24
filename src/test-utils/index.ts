@@ -15,17 +15,12 @@ import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { resetAllowedDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
-import { getCountry } from "#lib/countries.ts";
 import {
   clearEncryptionKeyCache,
   setEncryptionKeyForTest,
 } from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
-import {
-  resetCurrencyCode,
-  setCurrencyCodeForTest,
-  toMajorUnits,
-} from "#lib/currency.ts";
+import { toMajorUnits } from "#lib/currency.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
   type EventInput,
@@ -232,7 +227,7 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     }
     settings.invalidateCache();
     await settings.loadAll();
-    setCurrencyCodeForTest(getCountry(country).currency);
+
     settings.setForTest({ timezone: "UTC" });
     return;
   }
@@ -244,7 +239,6 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
   );
   await settings.update.attendeeBlobMigrated();
   await settings.loadAll();
-  setCurrencyCodeForTest(getCountry(country).currency);
 
   // Default timezone to UTC for tests so datetime-local values pass through unchanged
   settings.setForTest({ timezone: "UTC" });
@@ -295,7 +289,6 @@ export const resetDb = (): void => {
   invalidateGroupsCache();
   resetSessionCache();
   resetTestSession();
-  resetCurrencyCode();
   setDemoModeForTest(false);
   resetAllowedDomain();
   resetHostEmailConfig();

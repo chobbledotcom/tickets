@@ -532,6 +532,14 @@ export const settings = {
     }
   },
 
+  /** Remove specific test override keys (falls back to data). */
+  clearTestOverride(...keys: (keyof SettingsData)[]): void {
+    const current = getTestOverrides();
+    for (const key of keys) {
+      delete current[key];
+    }
+  },
+
   /** Clear all test overrides. */
   clearTestOverrides(): void {
     setTestOverrides(null);

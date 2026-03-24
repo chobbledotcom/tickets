@@ -50,7 +50,7 @@ import {
   type Group,
   isPaidEvent,
 } from "#lib/types.ts";
-import { logAndNotifyMultiRegistration } from "#lib/webhook.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   checkoutResponse,
@@ -921,7 +921,7 @@ const processMultiFreeReservation = async (
     }
     entries.push({ event, attendee: result.attendee });
   }
-  await logAndNotifyMultiRegistration(entries, settings.currency);
+  await logAndNotifyRegistration(entries);
   return {
     success: true,
     tokens: entries.map((entry) => entry.attendee.ticket_token),

@@ -1,35 +1,19 @@
 /**
- * Header image state for sync access by JSX templates
+ * Header image test helpers
  *
- * The header image URL is loaded from settings and stored for sync access
- * by the Layout component. Called once per request in routes/index.ts
- * before templates render.
+ * Header image URL is read directly from settings.headerImageUrl.
+ * These helpers exist for tests that need to override the value
+ * without a test DB.
  */
 
 import { settings } from "#lib/db/settings.ts";
 
-/** Sync-accessible header image URL, populated by loadHeaderImage() */
-const state = { url: null as string | null };
-
-/**
- * Load header image URL from settings into sync-accessible state.
- * Called once per request in routes/index.ts before templates render.
- * Settings are already cached so this is cheap on repeat calls.
- */
-export const loadHeaderImage = (): string | null => {
-  state.url = settings.headerImageUrl;
-  return state.url;
-};
-
-/** Get the current header image URL, or null if not set */
-export const getHeaderImageUrl = (): string | null => state.url;
-
 /** For testing: set the header image URL directly */
 export const setHeaderImageForTest = (url: string | null): void => {
-  state.url = url;
+  settings.setForTest({ headerImageUrl: url });
 };
 
 /** For testing: reset the header image state */
 export const resetHeaderImage = (): void => {
-  state.url = null;
+  settings.clearTestOverride("headerImageUrl");
 };

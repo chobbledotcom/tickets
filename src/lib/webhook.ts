@@ -162,26 +162,12 @@ export const sendRegistrationWebhooks = async (
  * but complete before the edge runtime tears down the request context.
  */
 export const logAndNotifyRegistration = async (
-  event: EmailEntry["event"],
-  attendee: WebhookAttendee,
-  currency: string,
-): Promise<void> => {
-  await logActivity(`Attendee registered for '${event.name}'`, event);
-  const entries: EmailEntry[] = [{ event, attendee }];
-  addPendingWork(sendRegistrationWebhooks(entries, currency));
-  addPendingWork(sendRegistrationEmails(entries, currency));
-};
-
-/**
- * Log and send consolidated webhook for multi-event registrations
- */
-export const logAndNotifyMultiRegistration = async (
   entries: EmailEntry[],
-  currency: string,
 ): Promise<void> => {
   for (const { event } of entries) {
     await logActivity(`Attendee registered for '${event.name}'`, event);
   }
+  const currency = settings.currency;
   addPendingWork(sendRegistrationWebhooks(entries, currency));
   addPendingWork(sendRegistrationEmails(entries, currency));
 };
