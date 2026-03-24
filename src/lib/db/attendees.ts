@@ -683,14 +683,13 @@ export const updateAttendee = async (
   attendeeId: number,
   input: UpdateAttendeeInput,
 ): Promise<void> => {
-  const publicKeyJwk = settings.publicKey!;
   const encryptedPiiBlob = await encryptPiiBlob(
     buildPiiBlob({
       ...input,
       payment_id: input.payment_id,
       ticket_token: input.ticket_token,
     }),
-    publicKeyJwk,
+    settings.publicKey!,
   );
 
   await getDb().execute({
@@ -734,8 +733,6 @@ export const migrateAttendeeBatch = async (
     return { migrated: 0, remaining: remaining[0]!.count };
   }
 
-  const publicKeyJwk = settings.publicKey!;
-
   // Process each row: decrypt old fields, build blob, prepare update
   for (const row of rows) {
     // Decrypt all PII fields from old columns (empty strings = unset fields)
@@ -778,7 +775,7 @@ export const migrateAttendeeBatch = async (
       payment_id,
       ticket_token,
     });
-    const encryptedBlob = await encryptPiiBlob(piiJson, publicKeyJwk);
+    const encryptedBlob = await encryptPiiBlob(piiJson, settings.publicKey!);
 
     // Write new columns
     await getDb().execute({

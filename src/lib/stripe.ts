@@ -428,8 +428,7 @@ export const stripeApi: {
     }
 
     // Step 2: List all webhook endpoints
-    const ownEndpointId = settings.stripe.webhookEndpointId;
-    result.ownEndpointId = ownEndpointId;
+    result.ownEndpointId = settings.stripe.webhookEndpointId;
 
     try {
       const endpoints = await client.webhookEndpoints.list({ limit: 100 });
