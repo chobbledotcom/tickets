@@ -26,7 +26,6 @@ import {
   type EmailTemplateType,
   isMaskSentinel,
   MAX_EMAIL_TEMPLATE_LENGTH,
-  MAX_TERMS_LENGTH,
   settings,
 } from "#lib/db/settings.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
@@ -56,6 +55,7 @@ import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
+import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import { testSquareConnection } from "#lib/square.ts";
@@ -603,9 +603,9 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
   applyDemoOverrides(form, TERMS_DEMO_FIELDS);
   const trimmed = form.getString("terms_and_conditions");
 
-  if (trimmed.length > MAX_TERMS_LENGTH) {
+  if (trimmed.length > MAX_TEXTAREA_LENGTH) {
     return errorPage(
-      `Terms must be ${MAX_TERMS_LENGTH} characters or fewer (currently ${trimmed.length})`,
+      `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${trimmed.length})`,
       400,
       "settings-terms",
     );

@@ -9,6 +9,7 @@ import type {
   QuestionEventMap,
   QuestionWithAnswers,
 } from "#lib/db/questions.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
@@ -23,8 +24,14 @@ import {
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Public site navigation */
-const PublicNav = (): JSX.Element => (
+/** Public site navigation - hides terms/contact links when those pages are empty */
+const PublicNav = ({
+  hasTerms,
+  hasContact,
+}: {
+  hasTerms?: boolean;
+  hasContact?: boolean;
+}): JSX.Element => (
   <nav>
     <ul>
       <li>
@@ -33,15 +40,25 @@ const PublicNav = (): JSX.Element => (
       <li>
         <a href="/events">Events</a>
       </li>
-      <li>
-        <a href="/terms">T&amp;Cs</a>
-      </li>
-      <li>
-        <a href="/contact">Contact</a>
-      </li>
+      {hasTerms && (
+        <li>
+          <a href="/terms">T&amp;Cs</a>
+        </li>
+      )}
+      {hasContact && (
+        <li>
+          <a href="/contact">Contact</a>
+        </li>
+      )}
     </ul>
   </nav>
 );
+
+/** Compute which public pages have content */
+const navFlags = () => ({
+  hasTerms: !!settings.terms,
+  hasContact: !!settings.contactPageText,
+});
 
 /** Public site page type */
 export type PublicPageType = "home" | "terms" | "contact";
@@ -66,7 +83,7 @@ export const publicSitePage = (
   return String(
     <Layout title={pageTitle} headExtra={FEED_DISCOVERY_TAGS}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav />
+      <PublicNav {...navFlags()} />
       <div class="prose">
         {content ? (
           <Raw html={renderMarkdown(content)} />
@@ -129,7 +146,7 @@ export const homepagePage = (
     return String(
       <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
-        <PublicNav />
+        <PublicNav {...navFlags()} />
         <p>
           <em>No events listed.</em>
         </p>
@@ -149,7 +166,7 @@ export const homepagePage = (
   return String(
     <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
-      <PublicNav />
+      <PublicNav {...navFlags()} />
       <h2>All bookable events</h2>
       <Raw html={eventListings} />
       <footer class="homepage-footer">

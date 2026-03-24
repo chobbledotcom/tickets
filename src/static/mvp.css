@@ -591,9 +591,24 @@ input[type="file"] {
   box-sizing: border-box;
 }
 
+textarea {
+  aspect-ratio: 4 / 3;
+  resize: vertical;
+}
+
 input[readonly],
 textarea[readonly] {
   background-color: var(--color-bg-secondary);
+}
+
+.char-counter {
+  display: block;
+  text-align: right;
+  color: var(--color-text-secondary);
+  font-weight: normal;
+}
+.char-counter-warn {
+  color: #c00;
 }
 
 label {

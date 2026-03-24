@@ -17,11 +17,13 @@ import {
   validateForm,
 } from "#lib/forms.tsx";
 import { detectIframeMode } from "#lib/iframe.ts";
+import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import {
   changePasswordFields,
   eventFields,
   fieldsApi,
   getTicketFields,
+  groupCreateFields,
   holidayFields,
   joinFields,
   loginFields,
@@ -168,7 +170,6 @@ describe("forms", () => {
         type: "textarea",
       });
       expect(html).toContain("<textarea");
-      expect(html).toContain('rows="3"');
       expect(html).not.toContain("<input");
     });
 
@@ -427,25 +428,45 @@ describe("forms", () => {
     });
 
     test("validates description rejects values exceeding max length", () => {
-      const longDescription = "a".repeat(257);
-      expectInvalid("Description must be 256 characters or fewer")(
-        eventFields,
-        eventForm({ description: longDescription }),
-      );
+      const longDescription = "a".repeat(MAX_TEXTAREA_LENGTH + 1);
+      expectInvalid(
+        `Description must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
+      )(eventFields, eventForm({ description: longDescription }));
     });
 
     test("validates description accepts values within max length", () => {
-      expectValid(eventFields, eventForm({ description: "a".repeat(256) }));
+      expectValid(
+        eventFields,
+        eventForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH) }),
+      );
     });
 
     test("validates description accepts empty value", () => {
       expectValid(eventFields, eventForm({ description: "" }));
     });
 
-    test("description field has maxlength of 256", () => {
+    test("description field has maxlength matching MAX_TEXTAREA_LENGTH", () => {
       const descField = eventFields.find((f) => f.name === "description");
       expect(descField).toBeDefined();
-      expect(descField!.maxlength).toBe(256);
+      expect(descField!.maxlength).toBe(MAX_TEXTAREA_LENGTH);
+    });
+  });
+
+  describe("groupCreateFields validation", () => {
+    test("rejects terms_and_conditions exceeding MAX_TEXTAREA_LENGTH", () => {
+      const termsField = groupCreateFields.find(
+        (f) => f.name === "terms_and_conditions",
+      )!;
+      const error = termsField.validate!("x".repeat(MAX_TEXTAREA_LENGTH + 1));
+      expect(error).toContain(`${MAX_TEXTAREA_LENGTH} characters or fewer`);
+    });
+
+    test("accepts terms_and_conditions within MAX_TEXTAREA_LENGTH", () => {
+      const termsField = groupCreateFields.find(
+        (f) => f.name === "terms_and_conditions",
+      )!;
+      const error = termsField.validate!("x".repeat(MAX_TEXTAREA_LENGTH));
+      expect(error).toBeNull();
     });
   });
 

@@ -16,6 +16,7 @@ import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
   MAX_IMAGE_SIZE,
+  MAX_TEXTAREA_LENGTH,
 } from "#lib/limits.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 import { isValidDatetime } from "#lib/timezone.ts";
@@ -281,15 +282,12 @@ export const validateBookableDays = (value: string): string | null => {
 
 /** Shared formatting hint linking to the admin guide */
 export const FORMATTING_HINT =
-  '<a href="/admin/guide#text-formatting">Formatting help</a>';
-
-/** Max length for event description */
-const MAX_DESCRIPTION_LENGTH = 256;
+  '<a href="/admin/guide#text-formatting" target="_blank" rel="noopener">Formatting help</a>';
 
 /** Validate description length */
 const validateDescription = (value: string): string | null =>
-  value.length > MAX_DESCRIPTION_LENGTH
-    ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
+  value.length > MAX_TEXTAREA_LENGTH
+    ? `Description must be ${MAX_TEXTAREA_LENGTH} characters or fewer`
     : null;
 
 /** Validate a datetime value is parseable */
@@ -322,11 +320,11 @@ export const eventFields: Field[] = [
   {
     name: "description",
     label: "Description (optional)",
-    type: "text",
+    type: "textarea",
     placeholder: "A short description of the event",
-    hint: "Shown on the ticket page. Max 256 characters.",
+    hint: "Shown on the ticket page.",
     hintHtml: FORMATTING_HINT,
-    maxlength: MAX_DESCRIPTION_LENGTH,
+    maxlength: MAX_TEXTAREA_LENGTH,
     validate: validateDescription,
   },
   {
@@ -556,6 +554,11 @@ export const groupCreateFields: Field[] = [
     type: "textarea",
     hint: "If set, overrides the global terms and conditions for this group ticket page",
     hintHtml: FORMATTING_HINT,
+    maxlength: MAX_TEXTAREA_LENGTH,
+    validate: (value: string) =>
+      value.length > MAX_TEXTAREA_LENGTH
+        ? `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer`
+        : null,
   },
 ];
 

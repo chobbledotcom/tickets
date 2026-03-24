@@ -77,6 +77,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows public nav links", async () => {
       await settings.update.showPublicSite(true);
+      await settings.update.terms("Some terms");
+      await settings.update.contactPageText("Contact us");
       const response = await handleRequest(mockRequest("/"));
       await expectHtmlResponse(
         response,
@@ -86,6 +88,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         'href="/terms"',
         'href="/contact"',
       );
+    });
+
+    test("hides terms and contact nav links when pages are empty", async () => {
+      await settings.update.showPublicSite(true);
+      const response = await handleRequest(mockRequest("/"));
+      const html = await expectHtmlResponse(response, 200, 'href="/"');
+      expect(html).toContain('href="/events"');
+      expect(html).not.toContain('href="/terms"');
+      expect(html).not.toContain('href="/contact"');
     });
 
     test("shows login link styled as footer", async () => {
@@ -299,6 +310,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows public nav on events page", async () => {
       await settings.update.showPublicSite(true);
+      await settings.update.terms("Some terms");
+      await settings.update.contactPageText("Contact us");
       const response = await handleRequest(mockRequest("/events"));
       await expectHtmlResponse(
         response,
@@ -345,21 +358,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
     });
 
-    test("shows no content when terms not configured", async () => {
+    test("returns 404 when terms not configured", async () => {
       await settings.update.showPublicSite(true);
       const response = await handleRequest(mockRequest("/terms"));
-      await expectHtmlResponse(response, 200, "No content.");
-    });
-
-    test("shows website title on terms page", async () => {
-      await settings.update.showPublicSite(true);
-      await settings.update.websiteTitle("My Site");
-      const response = await handleRequest(mockRequest("/terms"));
-      await expectHtmlResponse(response, 200, "My Site");
+      expect(response.status).toBe(404);
     });
 
     test("includes RSS and ICS feed discovery tags", async () => {
       await settings.update.showPublicSite(true);
+      await settings.update.terms("Some terms");
       const response = await handleRequest(mockRequest("/terms"));
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(RSS_DISCOVERY_TAG);
@@ -385,17 +392,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
     });
 
-    test("shows no content when contact text not configured", async () => {
+    test("returns 404 when contact text not configured", async () => {
       await settings.update.showPublicSite(true);
       const response = await handleRequest(mockRequest("/contact"));
-      await expectHtmlResponse(response, 200, "No content.");
-    });
-
-    test("shows website title on contact page", async () => {
-      await settings.update.showPublicSite(true);
-      await settings.update.websiteTitle("My Site");
-      const response = await handleRequest(mockRequest("/contact"));
-      await expectHtmlResponse(response, 200, "My Site");
+      expect(response.status).toBe(404);
     });
 
     test("renders markdown paragraphs in contact text", async () => {
@@ -418,6 +418,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("includes RSS and ICS feed discovery tags", async () => {
       await settings.update.showPublicSite(true);
+      await settings.update.contactPageText("Contact us");
       const response = await handleRequest(mockRequest("/contact"));
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(RSS_DISCOVERY_TAG);

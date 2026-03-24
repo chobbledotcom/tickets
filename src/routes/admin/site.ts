@@ -4,11 +4,7 @@
  */
 
 import { logActivity } from "#lib/db/activityLog.ts";
-import {
-  MAX_PAGE_TEXT_LENGTH,
-  MAX_WEBSITE_TITLE_LENGTH,
-  settings,
-} from "#lib/db/settings.ts";
+import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#lib/db/settings.ts";
 import {
   applyDemoOverrides,
   SITE_CONTACT_DEMO_FIELDS,
@@ -16,6 +12,7 @@ import {
 } from "#lib/demo.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
+import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -98,9 +95,9 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
   }
 
   const textRaw = form.getString("homepage_text");
-  if (textRaw.length > MAX_PAGE_TEXT_LENGTH) {
+  if (textRaw.length > MAX_TEXTAREA_LENGTH) {
     return showError(
-      `Homepage text must be ${MAX_PAGE_TEXT_LENGTH} characters or fewer (currently ${textRaw.length})`,
+      `Homepage text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${textRaw.length})`,
       400,
     );
   }
@@ -115,9 +112,9 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
 const handleSiteContactPost = sitePostRoute(async (session, form) => {
   applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
   const textRaw = form.getString("contact_page_text");
-  if (textRaw.length > MAX_PAGE_TEXT_LENGTH) {
+  if (textRaw.length > MAX_TEXTAREA_LENGTH) {
     return errorPageFor(session, renderContactPage)(
-      `Contact page text must be ${MAX_PAGE_TEXT_LENGTH} characters or fewer (currently ${textRaw.length})`,
+      `Contact page text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${textRaw.length})`,
       400,
     );
   }

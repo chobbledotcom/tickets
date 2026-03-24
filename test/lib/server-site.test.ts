@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  MAX_PAGE_TEXT_LENGTH,
-  MAX_WEBSITE_TITLE_LENGTH,
-  settings,
-} from "#lib/db/settings.ts";
+import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#lib/db/settings.ts";
+import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -156,7 +153,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
           "/admin/site",
           {
             website_title: "",
-            homepage_text: "x".repeat(MAX_PAGE_TEXT_LENGTH + 1),
+            homepage_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
@@ -165,7 +162,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         400,
-        `${MAX_PAGE_TEXT_LENGTH} characters or fewer`,
+        `${MAX_TEXTAREA_LENGTH} characters or fewer`,
       );
     });
 
@@ -273,7 +270,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         mockFormRequest(
           "/admin/site/contact",
           {
-            contact_page_text: "x".repeat(MAX_PAGE_TEXT_LENGTH + 1),
+            contact_page_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
@@ -282,7 +279,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         400,
-        `${MAX_PAGE_TEXT_LENGTH} characters or fewer`,
+        `${MAX_TEXTAREA_LENGTH} characters or fewer`,
       );
     });
 

@@ -122,9 +122,9 @@ export const renderField = (field: Field, value: string = ""): string =>
       {field.type === "textarea" ? (
         <textarea
           name={field.name}
-          rows="3"
           required={field.required}
           placeholder={field.placeholder}
+          maxlength={field.maxlength}
         >
           <Raw html={escapeHtml(value)} />
         </textarea>

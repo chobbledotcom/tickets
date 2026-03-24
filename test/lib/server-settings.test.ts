@@ -7,6 +7,7 @@ import { eventsTable } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
+import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { squareApi } from "#lib/square.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
@@ -1162,14 +1163,18 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/terms",
           {
-            terms_and_conditions: "x".repeat(10_241),
+            terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
       );
 
-      await expectHtmlResponse(response, 400, "10240 characters or fewer");
+      await expectHtmlResponse(
+        response,
+        400,
+        `${MAX_TEXTAREA_LENGTH} characters or fewer`,
+      );
     });
 
     test("accepts terms at exactly max length", async () => {
@@ -1177,7 +1182,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/terms",
           {
-            terms_and_conditions: "x".repeat(10_240),
+            terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH),
             csrf_token: await testCsrfToken(),
           },
           await testCookie(),
