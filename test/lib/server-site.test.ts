@@ -1,15 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  getContactPageTextFromDb,
-  getHomepageTextFromDb,
-  getWebsiteTitleFromDb,
   MAX_PAGE_TEXT_LENGTH,
   MAX_WEBSITE_TITLE_LENGTH,
-  updateContactPageText,
-  updateHomepageText,
-  updateShowPublicSite,
-  updateWebsiteTitle,
+  settings,
 } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
@@ -55,8 +49,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("displays existing values", async () => {
-      await updateWebsiteTitle("My Events");
-      await updateHomepageText("Welcome!");
+      await settings.update.websiteTitle("My Events");
+      await settings.update.homepageText("Welcome!");
       const response = await awaitTestRequest("/admin/site", {
         cookie: await testCookie(),
       });
@@ -114,13 +108,13 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       );
       expectRedirectContaining(response, "Homepage updated");
 
-      expect(await getWebsiteTitleFromDb()).toBe("My Site");
-      expect(await getHomepageTextFromDb()).toBe("Welcome!");
+      expect(settings.websiteTitle).toBe("My Site");
+      expect(settings.homepageText).toBe("Welcome!");
     });
 
     test("clears values when empty", async () => {
-      await updateWebsiteTitle("Old Title");
-      await updateHomepageText("Old Text");
+      await settings.update.websiteTitle("Old Title");
+      await settings.update.homepageText("Old Text");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
@@ -133,8 +127,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(await getWebsiteTitleFromDb()).toBe(null);
-      expect(await getHomepageTextFromDb()).toBe(null);
+      expect(settings.websiteTitle).toBe(null);
+      expect(settings.homepageText).toBe(null);
     });
 
     test("rejects title exceeding max length", async () => {
@@ -207,7 +201,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("displays existing contact text", async () => {
-      await updateContactPageText("Call us!");
+      await settings.update.contactPageText("Call us!");
       const response = await awaitTestRequest("/admin/site/contact", {
         cookie: await testCookie(),
       });
@@ -258,11 +252,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         ),
       );
       expectRedirectContaining(response, "Contact page updated");
-      expect(await getContactPageTextFromDb()).toBe("Email us!");
+      expect(settings.contactPageText).toBe("Email us!");
     });
 
     test("clears contact text when empty", async () => {
-      await updateContactPageText("Old text");
+      await settings.update.contactPageText("Old text");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
@@ -271,7 +265,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(await getContactPageTextFromDb()).toBe(null);
+      expect(settings.contactPageText).toBe(null);
     });
 
     test("rejects text exceeding max length", async () => {
@@ -328,7 +322,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
   describe("admin nav", () => {
     test("shows Site link when public site is enabled", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const response = await awaitTestRequest("/admin/site", {
         cookie: await testCookie(),
       });

@@ -46,6 +46,8 @@ const ALLOWED_FILES_STATE = [
   ...TEST_UTILITY_FILES,
   // Session cache with 10s TTL - legitimate performance optimization
   "lib/db/sessions.ts",
+  // Settings test overrides Map for injecting test values into the snapshot
+  "lib/db/settings.ts",
 ];
 
 /**
@@ -277,10 +279,9 @@ describe("code quality", () => {
       "lib/crypto.ts:setEncryptionKeyForTest",
       // Reset cached Stripe client between tests
       "lib/stripe.ts:resetStripeClient",
-      // Reset cached setup complete status between tests
-      "lib/db/settings.ts:clearSetupCompleteCache",
-      // Reset cached settings between tests
-      "lib/db/settings.ts:invalidateSettingsCache",
+      // TTL constant used by page-cache tests to verify caching behaviour
+      "lib/db/settings.ts:SETTINGS_CACHE_TTL_MS",
+      // (settings.ts functions now accessed via settings namespace, not individual exports)
       // Reset cached sessions between tests
       "lib/db/sessions.ts:resetSessionCache",
       // DB version constant used in production but test pattern doesn't detect constant comparison
@@ -330,18 +331,14 @@ describe("code quality", () => {
       // Reset/set host email config between tests without env var races
       "lib/email.ts:setHostEmailConfigForTest",
       "lib/email.ts:resetHostEmailConfig",
-      // Reset/set host Apple Wallet config between tests without env var races
-      "lib/db/settings.ts:setHostAppleWalletConfigForTest",
-      "lib/db/settings.ts:resetHostAppleWalletConfig",
-      // Set/reset timezone override between tests (survives cache invalidation)
-      "lib/db/settings.ts:setTimezoneForTest",
-      "lib/db/settings.ts:resetTimezoneTestOverride",
       // Timezone validation utility (timezone now derived from country, but still useful for tests)
       "lib/timezone.ts:isValidTimezone",
       // Attachment size constant (now re-exported from limits.ts, not detected by export patterns)
       "lib/storage.ts:MAX_ATTACHMENT_SIZE",
       // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
       "lib/limits.ts:readLimit",
+      // Settings cache TTL constant used by tests to verify caching behavior
+      "lib/db/settings.ts:SETTINGS_CACHE_TTL_MS",
     ];
 
     /**

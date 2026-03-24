@@ -9,10 +9,7 @@ import {
   MIGRATE_BATCH_SIZE,
   migrateAttendeeBatch,
 } from "#lib/db/attendees.ts";
-import {
-  isAttendeeBlobMigrated,
-  setAttendeeBlobMigrated,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import type { AuthSession } from "#routes/utils.ts";
@@ -28,8 +25,8 @@ import { adminMigratePage } from "#templates/admin/migrate.tsx";
 const whenNotMigrated =
   (doneResponse: (session: AuthSession) => Response | Promise<Response>) =>
   (handler: (session: AuthSession) => Promise<Response>) =>
-  async (session: AuthSession): Promise<Response> => {
-    const migrated = await isAttendeeBlobMigrated();
+  (session: AuthSession): Response | Promise<Response> => {
+    const migrated = settings.attendeeBlobMigrated;
     if (migrated) return doneResponse(session);
     return handler(session);
   };
@@ -46,7 +43,7 @@ const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
       const progress = await getMigrationProgress();
       // Auto-complete: fresh DBs and fully-migrated DBs have 0 remaining
       if (progress.remaining === 0) {
-        await setAttendeeBlobMigrated();
+        await settings.update.attendeeBlobMigrated();
         return htmlResponse(adminMigratePage(session, { done: true }));
       }
       return htmlResponse(
@@ -71,7 +68,7 @@ const handleMigratePost = (request: Request): Promise<Response> =>
         const privateKey = await requirePrivateKey(session);
         const result = await migrateAttendeeBatch(privateKey);
         if (result.remaining === 0) {
-          await setAttendeeBlobMigrated();
+          await settings.update.attendeeBlobMigrated();
           return redirectResponse("/admin/");
         }
         return redirectResponse("/admin/migrate");

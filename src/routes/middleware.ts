@@ -278,8 +278,8 @@ export const applySecurityHeaders = async (
   }
 
   // Rebuild CSP with payment-provider-specific directives
-  const provider = await getPaymentProvider();
-  const sandbox = provider === "square" ? await getSquareSandbox() : undefined;
+  const provider = getPaymentProvider();
+  const sandbox = provider === "square" ? getSquareSandbox() : undefined;
   response.headers.set(
     "content-security-policy",
     buildCspHeader(embeddable, { provider, sandbox }),

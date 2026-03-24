@@ -4,10 +4,7 @@ import { spy, stub } from "@std/testing/mock";
 import { Liquid } from "liquidjs";
 import { map } from "#fp";
 import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
-import {
-  invalidateSettingsCache,
-  updateEmailTemplate,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { TemplateData } from "#lib/email-renderer.ts";
 import {
   buildTemplateData,
@@ -276,22 +273,23 @@ describeWithEnv("email-renderer", { db: true }, () => {
     });
 
     test("uses custom templates when set", async () => {
-      await updateEmailTemplate(
+      await settings.update.email.template(
         "confirmation",
         "subject",
         "Custom: {{ event_names }}",
       );
-      await updateEmailTemplate(
+      await settings.update.email.template(
         "confirmation",
         "html",
         "<b>Custom HTML for {{ attendee.name }}</b>",
       );
-      await updateEmailTemplate(
+      await settings.update.email.template(
         "confirmation",
         "text",
         "Custom text for {{ attendee.name }}",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const entries = [makeEntry()];
       const data = buildTemplateData(
@@ -307,12 +305,13 @@ describeWithEnv("email-renderer", { db: true }, () => {
     });
 
     test("falls back to default on custom template render error", async () => {
-      await updateEmailTemplate(
+      await settings.update.email.template(
         "confirmation",
         "subject",
         "{{ invalid | nonexistent_filter }}",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const errorSpy = spy(console, "error");
       try {
@@ -430,13 +429,14 @@ describeWithEnv("email-renderer", { db: true }, () => {
     });
 
     test("uses mix of custom and default parts", async () => {
-      await updateEmailTemplate(
+      await settings.update.email.template(
         "confirmation",
         "subject",
         "Custom Subject: {{ event_names }}",
       );
       // html and text remain default
-      invalidateSettingsCache();
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const entries = [makeEntry()];
       const data = buildTemplateData(
@@ -453,12 +453,13 @@ describeWithEnv("email-renderer", { db: true }, () => {
     });
 
     test("logs non-Error thrown values as strings", async () => {
-      await updateEmailTemplate(
+      await settings.update.email.template(
         "confirmation",
         "subject",
         "Custom {{ event_names }}",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
+      await settings.loadAll();
 
       // Stub parseAndRender to throw a non-Error value on first call, then succeed
       let callCount = 0;
@@ -495,11 +496,17 @@ describeWithEnv("email-renderer", { db: true }, () => {
     });
 
     test("resets to defaults after clearing custom template", async () => {
-      await updateEmailTemplate("confirmation", "subject", "Custom Subject");
-      invalidateSettingsCache();
+      await settings.update.email.template(
+        "confirmation",
+        "subject",
+        "Custom Subject",
+      );
+      settings.invalidateCache();
+      await settings.loadAll();
 
-      await updateEmailTemplate("confirmation", "subject", "");
-      invalidateSettingsCache();
+      await settings.update.email.template("confirmation", "subject", "");
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const entries = [makeEntry()];
       const data = buildTemplateData(

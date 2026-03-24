@@ -5,14 +5,9 @@
 
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
-  getContactPageTextFromDb,
-  getHomepageTextFromDb,
-  getWebsiteTitleFromDb,
   MAX_PAGE_TEXT_LENGTH,
   MAX_WEBSITE_TITLE_LENGTH,
-  updateContactPageText,
-  updateHomepageText,
-  updateWebsiteTitle,
+  settings,
 } from "#lib/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -38,21 +33,21 @@ type PageRenderer = (
   session: AuthSession,
   error?: string,
   success?: string,
-) => Promise<string>;
+) => string;
 
 /** Build error page callback for a given renderer */
 const errorPageFor =
   (session: AuthSession, render: PageRenderer) =>
-  async (error: string, status: number): Promise<Response> =>
-    htmlResponse(await render(session, error), status);
+  (error: string, status: number): Response =>
+    htmlResponse(render(session, error), status);
 
 /** Owner-only GET route that renders a site editor page */
 const siteGetRoute =
   (render: PageRenderer) =>
   (request: Request): Promise<Response> => {
     const flash = getFlash();
-    return requireOwnerOr(request, async (session) => {
-      const html = await render(session, flash.error, flash.success);
+    return requireOwnerOr(request, (session) => {
+      const html = render(session, flash.error, flash.success);
       return htmlResponse(html);
     });
   };
@@ -69,17 +64,15 @@ const sitePostRoute =
     withOwnerAuthForm(request, handler);
 
 /** Render homepage editor with current state */
-const renderHomePage: PageRenderer = async (session, error, success) => {
-  const [websiteTitle, homepageText] = await Promise.all([
-    getWebsiteTitleFromDb(),
-    getHomepageTextFromDb(),
-  ]);
+const renderHomePage: PageRenderer = (session, error, success) => {
+  const websiteTitle = settings.websiteTitle;
+  const homepageText = settings.homepageText;
   return adminSiteHomePage(session, websiteTitle, homepageText, error, success);
 };
 
 /** Render contact editor with current state */
-const renderContactPage: PageRenderer = async (session, error, success) => {
-  const contactText = await getContactPageTextFromDb();
+const renderContactPage: PageRenderer = (session, error, success) => {
+  const contactText = settings.contactPageText;
   return adminSiteContactPage(session, contactText, error, success);
 };
 
@@ -104,8 +97,8 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
     );
   }
 
-  await updateWebsiteTitle(titleRaw);
-  await updateHomepageText(textRaw);
+  await settings.update.websiteTitle(titleRaw);
+  await settings.update.homepageText(textRaw);
   await logActivity("Site homepage updated");
   return redirect("/admin/site", "Homepage updated", true);
 });
@@ -121,7 +114,7 @@ const handleSiteContactPost = sitePostRoute(async (session, form) => {
     );
   }
 
-  await updateContactPageText(textRaw);
+  await settings.update.contactPageText(textRaw);
   await logActivity("Site contact page updated");
   return redirect("/admin/site/contact", "Contact page updated", true);
 });

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { updateShowPublicApi } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
   createDailyTestEvent,
@@ -43,7 +43,7 @@ const expectCorsHeaders = (response: Response): void => {
 
 describeWithEnv("Public API", { db: true }, () => {
   beforeEach(async () => {
-    await updateShowPublicApi(true);
+    await settings.update.showPublicApi(true);
   });
 
   /** Fetch the events list and return parsed events array */
@@ -680,7 +680,7 @@ describeWithEnv("Public API", { db: true }, () => {
 
   describe("API disabled", () => {
     test("returns 404 when public API setting is disabled", async () => {
-      await updateShowPublicApi(false);
+      await settings.update.showPublicApi(false);
       const response = await handleRequest(apiRequest("/api/events"));
       expect(response.status).toBe(404);
     });

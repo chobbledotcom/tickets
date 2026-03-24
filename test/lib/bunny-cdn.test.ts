@@ -9,12 +9,7 @@ import {
   resetAllowedDomain,
   setAllowedDomainForTest,
 } from "#lib/config.ts";
-import {
-  getCustomDomainFromDb,
-  getCustomDomainLastValidatedFromDb,
-  updateCustomDomain,
-  updateCustomDomainLastValidated,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
 
 /** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
@@ -488,28 +483,28 @@ describeWithEnv(
 );
 
 describeWithEnv("custom domain settings", { db: true }, () => {
-  test("getCustomDomainFromDb returns null when not set", async () => {
-    expect(await getCustomDomainFromDb()).toBeNull();
+  test("getCustomDomainFromDb returns null when not set", () => {
+    expect(settings.customDomain).toBeNull();
   });
 
   test("updateCustomDomain stores and retrieves domain", async () => {
-    await updateCustomDomain("tickets.example.com");
-    expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+    await settings.update.customDomain("tickets.example.com");
+    expect(settings.customDomain).toBe("tickets.example.com");
   });
 
   test("updateCustomDomain with empty string clears domain", async () => {
-    await updateCustomDomain("tickets.example.com");
-    await updateCustomDomain("");
-    expect(await getCustomDomainFromDb()).toBeNull();
+    await settings.update.customDomain("tickets.example.com");
+    await settings.update.customDomain("");
+    expect(settings.customDomain).toBeNull();
   });
 
-  test("getCustomDomainLastValidatedFromDb returns null when not set", async () => {
-    expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
+  test("getCustomDomainLastValidatedFromDb returns null when not set", () => {
+    expect(settings.customDomainLastValidated).toBeNull();
   });
 
   test("updateCustomDomainLastValidated stores a timestamp", async () => {
-    await updateCustomDomainLastValidated();
-    const value = await getCustomDomainLastValidatedFromDb();
+    await settings.update.customDomainLastValidated();
+    const value = settings.customDomainLastValidated;
     expect(value).not.toBeNull();
     // Should be a valid ISO 8601 date
     expect(new Date(value!).toISOString()).toBe(value);

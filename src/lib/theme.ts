@@ -6,7 +6,7 @@
  * before templates render.
  */
 
-import { getThemeFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { Theme } from "#lib/types.ts";
 
 /** Sync-accessible theme, populated by loadTheme() */
@@ -17,8 +17,8 @@ const state: { theme: Theme } = { theme: "light" };
  * Called once per request in routes/index.ts before templates render.
  * Settings are already cached so this is cheap on repeat calls.
  */
-export const loadTheme = async (): Promise<Theme> => {
-  state.theme = await getThemeFromDb();
+export const loadTheme = (): Theme => {
+  state.theme = settings.theme;
   return state.theme;
 };
 

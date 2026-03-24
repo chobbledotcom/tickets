@@ -11,7 +11,7 @@ import {
   getStripeSecretKey,
   getStripeWebhookSecret,
 } from "#lib/config.ts";
-import { getStripeWebhookEndpointId } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -117,7 +117,7 @@ const [getCache, setCache] = lazyRef<StripeCache>(() => {
 
 /** Internal getStripeClient implementation */
 const getClientImpl = async (): Promise<Stripe | null> => {
-  const secretKey = await getStripeSecretKey();
+  const secretKey = getStripeSecretKey();
   if (!secretKey) {
     logDebug("Stripe", "No secret key configured, cannot create client");
     return null;
@@ -155,11 +155,11 @@ type SessionConfig = {
 };
 
 /** Build a Stripe fee line item array (empty when fee is zero). */
-const stripeFeeItems = async (
+const stripeFeeItems = (
   subtotal: number,
   currency: string,
-): Promise<Stripe.Checkout.SessionCreateParams.LineItem[]> => {
-  const amount = await getBookingFeeAmount(subtotal);
+): Stripe.Checkout.SessionCreateParams.LineItem[] => {
+  const amount = getBookingFeeAmount(subtotal);
   if (amount <= 0) return [];
   return [
     {
@@ -173,11 +173,11 @@ const stripeFeeItems = async (
   ];
 };
 
-const buildSessionParams = async (
+const buildSessionParams = (
   cfg: SessionConfig,
-): Promise<Stripe.Checkout.SessionCreateParams> => {
+): Stripe.Checkout.SessionCreateParams => {
   const unitAmount = cfg.unitPriceOverride ?? cfg.event.unit_price;
-  const currency = (await getCurrencyCode()).toLowerCase();
+  const currency = getCurrencyCode().toLowerCase();
   const label = cfg.quantity > 1 ? `${cfg.quantity} Tickets` : "Ticket";
 
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
@@ -194,9 +194,7 @@ const buildSessionParams = async (
     },
   ];
 
-  lineItems.push(
-    ...(await stripeFeeItems(unitAmount * cfg.quantity, currency)),
-  );
+  lineItems.push(...stripeFeeItems(unitAmount * cfg.quantity, currency));
 
   return {
     payment_method_types: ["card"],
@@ -325,7 +323,7 @@ export const stripeApi: {
       "Stripe",
       `Creating checkout session for event=${event.id} qty=${intent.quantity}`,
     );
-    const config = await buildSessionParams({
+    const config = buildSessionParams({
       event,
       quantity: intent.quantity,
       email: intent.email,
@@ -360,7 +358,7 @@ export const stripeApi: {
       "Stripe",
       `Creating multi-checkout session for ${intent.items.length} events`,
     );
-    const currency = (await getCurrencyCode()).toLowerCase();
+    const currency = getCurrencyCode().toLowerCase();
 
     // Build line items for each event
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
@@ -377,9 +375,7 @@ export const stripeApi: {
         quantity: item.quantity,
       }));
 
-    lineItems.push(
-      ...(await stripeFeeItems(itemsSubtotal(intent.items), currency)),
-    );
+    lineItems.push(...stripeFeeItems(itemsSubtotal(intent.items), currency));
 
     const params: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ["card"],
@@ -437,7 +433,7 @@ export const stripeApi: {
     }
 
     // Step 2: List all webhook endpoints
-    const ownEndpointId = await getStripeWebhookEndpointId();
+    const ownEndpointId = settings.stripe.webhookEndpointId;
     result.ownEndpointId = ownEndpointId;
 
     try {
@@ -584,7 +580,7 @@ export const verifyWebhookSignature = async (
   signature: string,
   toleranceSeconds = DEFAULT_TOLERANCE_SECONDS,
 ): Promise<WebhookVerifyResult> => {
-  const secret = await getStripeWebhookSecret();
+  const secret = getStripeWebhookSecret();
   if (!secret) {
     logError({ code: ErrorCode.CONFIG_MISSING, detail: "webhook secret" });
     return { valid: false, error: "Webhook secret not configured" };

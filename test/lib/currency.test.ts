@@ -9,6 +9,7 @@ import {
   toMajorUnits,
   toMinorUnits,
 } from "#lib/currency.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   createTestDbWithSetup,
   resetDb,
@@ -156,6 +157,7 @@ describe("currency", () => {
     beforeEach(async () => {
       setupTestEncryptionKey();
       await createTestDbWithSetup("US");
+      await settings.loadAll();
       resetCurrencyCode();
     });
 

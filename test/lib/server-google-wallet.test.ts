@@ -1,16 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import {
-  getGoogleWalletConfig,
-  getGoogleWalletIssuerIdFromDb,
-  getGoogleWalletServiceAccountEmailFromDb,
-  getHostGoogleWalletConfig,
-  hasGoogleWalletConfig,
-  hasGoogleWalletDbConfig,
-  updateGoogleWalletIssuerId,
-  updateGoogleWalletServiceAccountEmail,
-  updateGoogleWalletServiceAccountKey,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { handleRequest } from "#routes";
 import {
@@ -34,9 +24,11 @@ let testCreds: GoogleWalletCredentials;
 const configureGoogleWallet = async () => {
   if (!testCreds) testCreds = await generateGoogleTestCreds();
   await Promise.all([
-    updateGoogleWalletIssuerId(testCreds.issuerId),
-    updateGoogleWalletServiceAccountEmail(testCreds.serviceAccountEmail),
-    updateGoogleWalletServiceAccountKey(testCreds.serviceAccountKey),
+    settings.update.googleWallet.issuerId(testCreds.issuerId),
+    settings.update.googleWallet.serviceAccountEmail(
+      testCreds.serviceAccountEmail,
+    ),
+    settings.update.googleWallet.serviceAccountKey(testCreds.serviceAccountKey),
   ]);
 };
 
@@ -276,16 +268,16 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     expect(response.status).toBe(302);
     expectFlash(response, "Google Wallet settings updated");
 
-    expect(await hasGoogleWalletConfig()).toBe(true);
-    expect(await getGoogleWalletIssuerIdFromDb()).toBe("1234567890");
-    expect(await getGoogleWalletServiceAccountEmailFromDb()).toBe(
+    expect(settings.googleWallet.hasConfig).toBe(true);
+    expect(settings.googleWallet.issuerId).toBe("1234567890");
+    expect(settings.googleWallet.serviceAccountEmail).toBe(
       "test@test.iam.gserviceaccount.com",
     );
   });
 
   test("clears all settings when everything is empty", async () => {
     await configureGoogleWallet();
-    expect(await hasGoogleWalletConfig()).toBe(true);
+    expect(settings.googleWallet.hasConfig).toBe(true);
 
     const { cookie, csrfToken } = await loginAsAdmin();
     const response = await handleRequest(
@@ -303,7 +295,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
 
     expect(response.status).toBe(302);
     expectFlash(response, "Google Wallet configuration cleared");
-    expect(await hasGoogleWalletDbConfig()).toBe(false);
+    expect(settings.googleWallet.hasDbConfig).toBe(false);
   });
 
   test("shows Google Wallet section with values when configured", async () => {
@@ -344,17 +336,17 @@ describeWithEnv(
   },
   () => {
     test("returns null when no env vars are set", () => {
-      expect(getHostGoogleWalletConfig()).toBeNull();
+      expect(settings.googleWallet.hostConfig).toBeNull();
     });
 
     test("returns null when only some env vars are set", () => {
       Deno.env.set("GOOGLE_WALLET_ISSUER_ID", "123");
-      expect(getHostGoogleWalletConfig()).toBeNull();
+      expect(settings.googleWallet.hostConfig).toBeNull();
     });
 
     test("returns config when all env vars are set", async () => {
       await setGoogleWalletEnvVars();
-      const config = getHostGoogleWalletConfig();
+      const config = settings.googleWallet.hostConfig;
       expect(config).not.toBeNull();
       expect(config!.issuerId).toBe("9876543210");
       expect(config!.serviceAccountEmail).toBe(
@@ -382,13 +374,13 @@ describeWithEnv(
 
     test("hasGoogleWalletConfig returns true with env vars when DB not configured", async () => {
       await setGoogleWalletEnvVars();
-      expect(await hasGoogleWalletDbConfig()).toBe(false);
-      expect(await hasGoogleWalletConfig()).toBe(true);
+      expect(settings.googleWallet.hasDbConfig).toBe(false);
+      expect(settings.googleWallet.hasConfig).toBe(true);
     });
 
     test("getGoogleWalletConfig falls back to env vars when DB not configured", async () => {
       await setGoogleWalletEnvVars();
-      const config = await getGoogleWalletConfig();
+      const config = settings.googleWallet.config;
       expect(config).not.toBeNull();
       expect(config!.issuerId).toBe("9876543210");
     });
@@ -396,7 +388,7 @@ describeWithEnv(
     test("getGoogleWalletConfig prefers DB config over env vars", async () => {
       await setGoogleWalletEnvVars();
       await configureGoogleWallet();
-      const config = await getGoogleWalletConfig();
+      const config = settings.googleWallet.config;
       expect(config).not.toBeNull();
       expect(config!.issuerId).toBe("1234567890");
     });

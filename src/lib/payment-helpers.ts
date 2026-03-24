@@ -50,7 +50,7 @@ export const safeAsync = async <T>(
  * Returns null if the client is not available or the operation fails.
  */
 export const createWithClient =
-  <Client>(getClient: () => Promise<Client | null>) =>
+  <Client>(getClient: () => Client | null | Promise<Client | null>) =>
   async <T>(
     op: (client: Client) => Promise<T>,
     errorCode: ErrorCodeType,

@@ -13,7 +13,7 @@
  */
 
 import { type SigningCredentials, trimAuthToken } from "#lib/apple-wallet.ts";
-import { getAppleWalletConfig } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet.ts";
 
@@ -23,8 +23,8 @@ const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 const withVerifiedPass =
   (failStatus: number) =>
   (handler: (config: SigningCredentials) => Response | Promise<Response>) =>
-  async (passType: string): Promise<Response> => {
-    const config = await getAppleWalletConfig();
+  (passType: string): Response | Promise<Response> => {
+    const config = settings.appleWallet.config;
     return config && passType === config.passTypeId
       ? handler(config)
       : new Response(null, { status: failStatus });

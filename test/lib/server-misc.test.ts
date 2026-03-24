@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
-import { setPaymentProvider, updateSquareSandbox } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import { runWithRequestId } from "#lib/logger.ts";
 import {
@@ -116,8 +116,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
       });
 
       test("square sandbox CSP includes sandbox domains", async () => {
-        await setPaymentProvider("square");
-        await updateSquareSandbox(true);
+        await settings.update.paymentProvider("square");
+        await settings.update.square.sandbox(true);
         const response = await handleRequest(mockRequest("/"));
         const csp = getHeader(response, "content-security-policy");
         expect(csp).toContain("squareupsandbox.com");
@@ -253,14 +253,12 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("returns null when wrappedPrivateKey is not set in DB", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
-      const { invalidateSettingsCache: invalidateCache } = await import(
-        "#lib/db/settings.ts"
-      );
+      const { settings: s } = await import("#lib/db/settings.ts");
       await getDbFn().execute({
         sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
         args: [],
       });
-      invalidateCache();
+      s.invalidateCache();
 
       const { getPrivateKey } = await import("#routes/utils.ts");
       const result = await getPrivateKey({
@@ -778,13 +776,13 @@ describeWithEnv("server (misc)", { db: true }, () => {
     test("rethrows unhandled errors in test mode", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       const { invalidateEventsCache } = await import("#lib/db/events.ts");
-      const { loadAllSettings } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#lib/db/settings.ts");
       const db = getDbFn();
       invalidateEventsCache();
       // Warm the settings cache so loadEffectiveDomain/isSetupComplete/etc.
       // resolve from cache; the stub then only affects route-handler queries
       // inside the inner try/catch.
-      await loadAllSettings();
+      await s.loadAll();
       const executeStub = stub(db, "execute", () => {
         throw new Error("synthetic db failure");
       });
@@ -799,14 +797,14 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
-      const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#lib/db/settings.ts");
 
       // Remove wrapped_private_key so requirePrivateKey throws SessionKeyError
       await getDbFn().execute({
         sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
         args: [],
       });
-      invalidateSettingsCache();
+      s.invalidateCache();
 
       await withExpectedError(async () => {
         // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey

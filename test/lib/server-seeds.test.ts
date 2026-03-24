@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
 import { getAllEvents } from "#lib/db/events.ts";
-import { invalidateSettingsCache } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import { handleRequest } from "#routes";
 import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
@@ -235,7 +235,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     test("redirects with error when seed creation fails", async () => {
       // Remove public key to cause createSeeds to fail
       await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
-      invalidateSettingsCache();
+      settings.invalidateCache();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -294,7 +294,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     test("throws when public key is not configured", async () => {
       // Remove public key to cause createSeeds to throw
       await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
-      invalidateSettingsCache();
+      settings.invalidateCache();
 
       await expect(createSeeds(1, 0)).rejects.toThrow(
         "Public key not configured",

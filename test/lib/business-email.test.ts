@@ -6,7 +6,7 @@ import {
   normalizeBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
-import { invalidateSettingsCache } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("business-email", { db: true }, () => {
@@ -193,7 +193,8 @@ describeWithEnv("business-email", { db: true }, () => {
 
     test("invalidateSettingsCache forces decrypt from database", async () => {
       await updateBusinessEmail("encrypted@example.com");
-      invalidateSettingsCache();
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const result = await getBusinessEmailFromDb();
       expect(result).toBe("encrypted@example.com");

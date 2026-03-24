@@ -543,7 +543,7 @@ const processPaymentSession = async (
 
   // Price validation
   const hasPerItemPrices = intent.items.some((item) => item.p > 0);
-  const bookingFeePercent = await getBookingFee();
+  const bookingFeePercent = getBookingFee();
 
   if (hasPerItemPrices) {
     // Per-item prices are ticket-only (no fee), so validate without booking fee
@@ -662,10 +662,7 @@ const processPaymentSession = async (
     options?.storeTokens === false ? [] : ticketTokens,
   );
 
-  await logAndNotifyMultiRegistration(
-    createdAttendees,
-    await getCurrencyCode(),
-  );
+  await logAndNotifyMultiRegistration(createdAttendees, getCurrencyCode());
 
   return {
     success: true,

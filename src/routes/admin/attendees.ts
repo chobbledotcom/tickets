@@ -780,7 +780,7 @@ const handleResendNotification = attendeeFormAction(
     );
     if (error) return error;
 
-    const currency = await getCurrencyCode();
+    const currency = getCurrencyCode();
     await Promise.all([
       logAndNotifyRegistration(data.event, data.attendee, currency),
       logActivity(

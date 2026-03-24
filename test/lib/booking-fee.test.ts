@@ -5,7 +5,7 @@ import {
   getBookingFeeAmount,
   itemsSubtotal,
 } from "#lib/booking-fee.ts";
-import { updateBookingFee } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { createTestDb, resetDb } from "#test-utils";
 
 describe("calculateBookingFee", () => {
@@ -65,7 +65,7 @@ describe("getBookingFeeAmount", () => {
   });
 
   test("returns calculated fee when booking fee is set", async () => {
-    await updateBookingFee("2.5");
+    await settings.update.bookingFee("2.5");
     // 1000 * 2.5 / 100 = 25
     expect(await getBookingFeeAmount(1000)).toBe(25);
   });

@@ -1,13 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
-import {
-  updateAppleWalletPassTypeId,
-  updateAppleWalletSigningCert,
-  updateAppleWalletSigningKey,
-  updateAppleWalletTeamId,
-  updateAppleWalletWwdrCert,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
   createTestAttendeeWithToken,
@@ -20,11 +14,11 @@ const testCerts = generateTestCerts();
 /** Configure all Apple Wallet settings in the database */
 const configureAppleWallet = async () => {
   await Promise.all([
-    updateAppleWalletPassTypeId("pass.com.test.tickets"),
-    updateAppleWalletTeamId("TESTTEAM01"),
-    updateAppleWalletSigningCert(testCerts.signingCert),
-    updateAppleWalletSigningKey(testCerts.signingKey),
-    updateAppleWalletWwdrCert(testCerts.wwdrCert),
+    settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
+    settings.update.appleWallet.teamId("TESTTEAM01"),
+    settings.update.appleWallet.signingCert(testCerts.signingCert),
+    settings.update.appleWallet.signingKey(testCerts.signingKey),
+    settings.update.appleWallet.wwdrCert(testCerts.wwdrCert),
   ]);
 };
 

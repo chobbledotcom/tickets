@@ -4,7 +4,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { updateShowPublicSite, updateWebsiteTitle } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
 import {
@@ -22,7 +22,7 @@ const fetchFeedBody = async (feedPath: string): Promise<string> => {
 
 /** Assert a deactivated event is excluded from a feed */
 const expectExcludesInactive = async (feedPath: string, absentTag: string) => {
-  await updateShowPublicSite(true);
+  await settings.update.showPublicSite(true);
   const event = await createTestEvent({ name: "Hidden", maxAttendees: 100 });
   await deactivateTestEvent(event.id);
   const body = await fetchFeedBody(feedPath);
@@ -35,7 +35,7 @@ const expectExcludesClosedRegistration = async (
   feedPath: string,
   absentTag: string,
 ) => {
-  await updateShowPublicSite(true);
+  await settings.update.showPublicSite(true);
   const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
   await createTestEvent({
     name: "Closed Event",
@@ -56,7 +56,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("returns text/calendar content type", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
@@ -65,7 +65,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("returns valid VCALENDAR wrapper with no events", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
       expect(body).toContain("BEGIN:VCALENDAR");
@@ -76,22 +76,22 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("uses website title as calendar name", async () => {
-      await updateShowPublicSite(true);
-      await updateWebsiteTitle("My Events");
+      await settings.update.showPublicSite(true);
+      await settings.update.websiteTitle("My Events");
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
       expect(body).toContain("X-WR-CALNAME:My Events");
     });
 
     test("defaults calendar name to Events when no title set", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
       expect(body).toContain("X-WR-CALNAME:Events");
     });
 
     test("includes VEVENT for active events", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const event = await createTestEvent({
         name: "Concert",
         maxAttendees: 100,
@@ -105,7 +105,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes UID and DTSTAMP", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const event = await createTestEvent({ name: "Show", maxAttendees: 50 });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
@@ -114,7 +114,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes DTSTART when event has a date", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Dated Event",
         maxAttendees: 100,
@@ -126,7 +126,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes DESCRIPTION when event has a description", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Described",
         maxAttendees: 100,
@@ -138,7 +138,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes LOCATION when event has a location", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Located",
         maxAttendees: 100,
@@ -161,7 +161,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("excludes hidden events", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Secret Event",
         maxAttendees: 100,
@@ -174,7 +174,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("escapes special characters in event fields", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Rock, Paper; Scissors",
         maxAttendees: 100,
@@ -197,7 +197,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("returns application/rss+xml content type", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
@@ -206,7 +206,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("returns valid RSS wrapper with no events", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).toContain('<?xml version="1.0"');
@@ -218,8 +218,8 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("uses website title in channel", async () => {
-      await updateShowPublicSite(true);
-      await updateWebsiteTitle("My Events");
+      await settings.update.showPublicSite(true);
+      await settings.update.websiteTitle("My Events");
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).toContain("<title>My Events</title>");
@@ -229,14 +229,14 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("defaults title to Events when no title set", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).toContain("<title>Events</title>");
     });
 
     test("includes items for active events", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const event = await createTestEvent({
         name: "Concert",
         maxAttendees: 100,
@@ -251,7 +251,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes guid as permalink", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       const event = await createTestEvent({ name: "Show", maxAttendees: 50 });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
@@ -260,7 +260,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes description when event has one", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Described",
         maxAttendees: 100,
@@ -272,7 +272,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes date in description when event has a date", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Dated",
         maxAttendees: 100,
@@ -285,7 +285,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes location in description when event has a location", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Located",
         maxAttendees: 100,
@@ -297,7 +297,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes description, date, and location together", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Full Event",
         maxAttendees: 100,
@@ -321,7 +321,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("excludes hidden events", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Secret Event",
         maxAttendees: 100,
@@ -334,7 +334,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("XML-escapes special characters", async () => {
-      await updateShowPublicSite(true);
+      await settings.update.showPublicSite(true);
       await createTestEvent({
         name: "Rock & Roll <Live>",
         maxAttendees: 100,

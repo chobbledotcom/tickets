@@ -2224,10 +2224,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "pi_no_provider",
       );
       await withMocks(
-        () =>
-          stub(paymentsApi, "getConfiguredProvider", () =>
-            Promise.resolve(null),
-          ),
+        () => stub(paymentsApi, "getConfiguredProvider", () => null),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -2255,7 +2252,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await withMocks(
         () =>
           stub(paymentsApi, "getConfiguredProvider", () =>
-            Promise.resolve(mockProviderType("stripe")),
+            mockProviderType("stripe"),
           ),
         async () => {
           const { stripePaymentProvider } = await import(
@@ -2301,7 +2298,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await withMocks(
         () =>
           stub(paymentsApi, "getConfiguredProvider", () =>
-            Promise.resolve(mockProviderType("stripe")),
+            mockProviderType("stripe"),
           ),
         async () => {
           const { stripePaymentProvider } = await import(

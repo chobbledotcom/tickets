@@ -7,10 +7,7 @@ import { map, pipe } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import {
-  getShowPublicSiteFromDb,
-  getWebsiteTitleFromDb,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { type EventWithCount, sortEvents } from "#lib/sort-events.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
@@ -49,10 +46,10 @@ type FeedData = { events: EventWithCount[]; domain: string; title: string };
 
 /** Load feed data: active open events with domain and title */
 const loadFeedData = async (): Promise<FeedData> => {
-  const [allEvents, holidays, websiteTitle] = await Promise.all([
+  const websiteTitle = settings.websiteTitle;
+  const [allEvents, holidays] = await Promise.all([
     getAllEvents(),
     getActiveHolidays(),
-    getWebsiteTitleFromDb(),
   ]);
   const events = sortEvents(
     allEvents.filter((e) => e.active && !e.hidden && !isRegistrationClosed(e)),
@@ -66,10 +63,8 @@ const loadFeedData = async (): Promise<FeedData> => {
 };
 
 /** Guard: redirect to admin if public site is disabled */
-const requirePublicSite = async <T>(
-  fn: () => Promise<T>,
-): Promise<T | Response> =>
-  (await getShowPublicSiteFromDb()) ? fn() : redirectResponse("/admin/");
+const requirePublicSite = <T>(fn: () => Promise<T>): Promise<T> | Response =>
+  settings.showPublicSite ? fn() : redirectResponse("/admin/");
 
 /** Build a single VEVENT block */
 const buildVEvent = (

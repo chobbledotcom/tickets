@@ -19,7 +19,7 @@ import {
   getDailyEventAttendeesByDate,
 } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import {
@@ -215,7 +215,7 @@ const handleAdminCalendarGet = (request: Request) =>
       standardCtx.standardEvents,
       holidays,
     );
-    const phonePrefix = await getPhonePrefixFromDb();
+    const phonePrefix = settings.phonePrefix;
 
     const questionData = await loadQuestionData(
       attendees.map((a) => a.eventId),

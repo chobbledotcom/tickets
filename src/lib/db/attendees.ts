@@ -22,7 +22,7 @@ import {
   queryOne,
 } from "#lib/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
-import { getPublicKey } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { nowIso } from "#lib/now.ts";
 import type {
   Attendee,
@@ -224,7 +224,7 @@ const contactFields = ({
 const encryptAttendeeFields = async (
   input: EncryptInput,
 ): Promise<EncryptedAttendeeData | null> => {
-  const publicKeyJwk = await getPublicKey();
+  const publicKeyJwk = settings.publicKey;
   if (!publicKeyJwk) return null;
 
   const ticketToken = generateTicketToken();
@@ -683,7 +683,7 @@ export const updateAttendee = async (
   attendeeId: number,
   input: UpdateAttendeeInput,
 ): Promise<void> => {
-  const publicKeyJwk = (await getPublicKey())!;
+  const publicKeyJwk = settings.publicKey!;
   const encryptedPiiBlob = await encryptPiiBlob(
     buildPiiBlob({
       ...input,
@@ -734,7 +734,7 @@ export const migrateAttendeeBatch = async (
     return { migrated: 0, remaining: remaining[0]!.count };
   }
 
-  const publicKeyJwk = (await getPublicKey())!;
+  const publicKeyJwk = settings.publicKey!;
 
   // Process each row: decrypt old fields, build blob, prepare update
   for (const row of rows) {

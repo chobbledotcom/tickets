@@ -700,12 +700,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       await getDbFn().execute("DELETE FROM settings");
       await getDbFn().execute("DELETE FROM users");
-      const {
-        clearSetupCompleteCache,
-        invalidateSettingsCache: invalidateCache,
-      } = await import("#lib/db/settings.ts");
-      clearSetupCompleteCache();
-      invalidateCache();
+      const { settings: s } = await import("#lib/db/settings.ts");
+      s.setup.clearCache();
+      s.invalidateCache();
       invalidateUsersCache();
 
       const response = await handleRequest(mockRequest("/setup/"));

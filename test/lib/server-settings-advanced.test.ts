@@ -4,12 +4,7 @@ import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import {
-  getCustomDomainFromDb,
-  getCustomDomainLastValidatedFromDb,
-  updateCustomDomain,
-  updateCustomDomainLastValidated,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
 import {
@@ -174,9 +169,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("setting persists in database", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#lib/db/settings.ts");
 
-      expect(await settingsApi.getShowPublicApiFromDb()).toBe(false);
+      expect(settings.showPublicApi).toBe(false);
 
       await handleRequest(
         mockFormRequest(
@@ -189,7 +184,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         ),
       );
 
-      expect(await settingsApi.getShowPublicApiFromDb()).toBe(true);
+      expect(settings.showPublicApi).toBe(true);
     });
 
     test("advanced settings page displays enable public API section", async () => {
@@ -357,11 +352,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("shows error when no business email set", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#lib/db/settings.ts");
 
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailApiKey("re_test_key");
-      await settingsApi.updateEmailFromAddress("from@test.com");
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("re_test_key");
+      await settings.update.email.fromAddress("from@test.com");
 
       const response = await handleRequest(
         mockFormRequest(
@@ -375,16 +370,16 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("sends test email and redirects with success including status code", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#lib/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
         "#lib/business-email.ts"
       );
 
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailApiKey("re_test_key");
-      await settingsApi.updateEmailFromAddress("from@test.com");
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("re_test_key");
+      await settings.update.email.fromAddress("from@test.com");
       await setBizEmail("admin@test.com");
-      settingsApi.invalidateSettingsCache();
+      settings.invalidateCache();
 
       await withMocks(
         () => stub(globalThis, "fetch", () => Promise.resolve(new Response())),
@@ -407,16 +402,16 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("shows error when email API returns non-2xx status", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#lib/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
         "#lib/business-email.ts"
       );
 
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailApiKey("re_test_key");
-      await settingsApi.updateEmailFromAddress("from@test.com");
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("re_test_key");
+      await settings.update.email.fromAddress("from@test.com");
       await setBizEmail("admin@test.com");
-      settingsApi.invalidateSettingsCache();
+      settings.invalidateCache();
 
       await withMocks(
         () =>
@@ -440,16 +435,16 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("shows error when email send encounters network error", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#lib/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
         "#lib/business-email.ts"
       );
 
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailApiKey("re_test_key");
-      await settingsApi.updateEmailFromAddress("from@test.com");
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("re_test_key");
+      await settings.update.email.fromAddress("from@test.com");
       await setBizEmail("admin@test.com");
-      settingsApi.invalidateSettingsCache();
+      settings.invalidateCache();
 
       await withMocks(
         () =>
@@ -475,10 +470,10 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
   describe("settings-advanced page email provider display", () => {
     test("shows email provider when configured", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#lib/db/settings.ts");
 
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailFromAddress("from@test.com");
+      await settings.update.email.provider("resend");
+      await settings.update.email.fromAddress("from@test.com");
 
       const response = await awaitTestRequest("/admin/settings-advanced", {
         cookie: await testCookie(),
@@ -631,7 +626,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
       test("shows validate form and CNAME instructions when custom domain is saved", async () => {
         setBunnyEnv();
-        await updateCustomDomain("tickets.example.com");
+        await settings.update.customDomain("tickets.example.com");
         const response = await awaitTestRequest("/admin/settings-advanced", {
           cookie: await testCookie(),
         });
@@ -645,7 +640,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
       test("shows warning when custom domain is not validated", async () => {
         setBunnyEnv();
-        await updateCustomDomain("tickets.example.com");
+        await settings.update.customDomain("tickets.example.com");
         const response = await awaitTestRequest("/admin/settings-advanced", {
           cookie: await testCookie(),
         });
@@ -656,8 +651,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
       test("does not show warning when custom domain is validated", async () => {
         setBunnyEnv();
-        await updateCustomDomain("tickets.example.com");
-        await updateCustomDomainLastValidated();
+        await settings.update.customDomain("tickets.example.com");
+        await settings.update.customDomainLastValidated();
         const response = await awaitTestRequest("/admin/settings-advanced", {
           cookie: await testCookie(),
         });
@@ -671,8 +666,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         // then re-format the cookie for the secure domain cookie name.
         const cookie = await testCookie();
         const token = cookie.split("=").slice(1).join("=");
-        await updateCustomDomain("tickets.example.com");
-        await updateCustomDomainLastValidated();
+        await settings.update.customDomain("tickets.example.com");
+        await settings.update.customDomainLastValidated();
         const response = await handleRequest(
           mockRequestWithHost(
             "/admin/settings-advanced",
@@ -723,8 +718,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               response,
               expect.stringContaining("Custom domain saved and validated"),
             );
-            expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
-            expect(await getCustomDomainLastValidatedFromDb()).not.toBeNull();
+            expect(settings.customDomain).toBe("tickets.example.com");
+            expect(settings.customDomainLastValidated).not.toBeNull();
           } finally {
             bunnyCdnApi.validateCustomDomain = original;
           }
@@ -760,8 +755,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               expect.stringContaining("DNS not configured"),
               false,
             );
-            expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
-            expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
+            expect(settings.customDomain).toBe("tickets.example.com");
+            expect(settings.customDomainLastValidated).toBeNull();
           } finally {
             bunnyCdnApi.validateCustomDomain = original;
           }
@@ -783,7 +778,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 await testCookie(),
               ),
             );
-            expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+            expect(settings.customDomain).toBe("tickets.example.com");
           } finally {
             bunnyCdnApi.validateCustomDomain = original;
           }
@@ -791,7 +786,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
         test("clears custom domain when empty", async () => {
           setBunnyEnv();
-          await updateCustomDomain("tickets.example.com");
+          await settings.update.customDomain("tickets.example.com");
           const response = await handleRequest(
             mockFormRequest(
               "/admin/settings/custom-domain",
@@ -807,12 +802,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             response,
             expect.stringContaining("Custom domain cleared"),
           );
-          expect(await getCustomDomainFromDb()).toBeNull();
+          expect(settings.customDomain).toBeNull();
         });
 
         test("clears domain when field is missing from form", async () => {
           setBunnyEnv();
-          await updateCustomDomain("tickets.example.com");
+          await settings.update.customDomain("tickets.example.com");
           const response = await handleRequest(
             mockFormRequest(
               "/admin/settings/custom-domain",
@@ -827,7 +822,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             response,
             expect.stringContaining("Custom domain cleared"),
           );
-          expect(await getCustomDomainFromDb()).toBeNull();
+          expect(settings.customDomain).toBeNull();
         });
 
         test("rejects invalid domain format", async () => {
@@ -929,7 +924,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
         test("calls Bunny API and saves timestamp on success", async () => {
           setBunnyEnv();
-          await updateCustomDomain("tickets.example.com");
+          await settings.update.customDomain("tickets.example.com");
           const original = bunnyCdnApi.validateCustomDomain;
           bunnyCdnApi.validateCustomDomain = () =>
             Promise.resolve({ ok: true as const });
@@ -948,7 +943,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               response,
               expect.stringContaining("Custom domain validated successfully"),
             );
-            const lastValidated = await getCustomDomainLastValidatedFromDb();
+            const lastValidated = settings.customDomainLastValidated;
             expect(lastValidated).not.toBeNull();
           } finally {
             bunnyCdnApi.validateCustomDomain = original;
@@ -957,7 +952,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
         test("returns error when Bunny API fails", async () => {
           setBunnyEnv();
-          await updateCustomDomain("tickets.example.com");
+          await settings.update.customDomain("tickets.example.com");
           const original = bunnyCdnApi.validateCustomDomain;
           bunnyCdnApi.validateCustomDomain = () =>
             Promise.resolve({
@@ -982,7 +977,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
         test("logs activity on successful validation", async () => {
           setBunnyEnv();
-          await updateCustomDomain("tickets.example.com");
+          await settings.update.customDomain("tickets.example.com");
           const original = bunnyCdnApi.validateCustomDomain;
           bunnyCdnApi.validateCustomDomain = () =>
             Promise.resolve({ ok: true as const });

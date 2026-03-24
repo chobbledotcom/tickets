@@ -36,8 +36,8 @@ describe("webhook example", () => {
     await resetDb();
     await createTestDbWithSetup(EXAMPLE_CURRENCY);
 
-    const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
-    invalidateSettingsCache();
+    const { settings: s } = await import("#lib/db/settings.ts");
+    s.invalidateCache();
 
     // Set business email to match the example
     const { updateBusinessEmail } = await import("#lib/business-email.ts");

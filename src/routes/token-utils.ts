@@ -6,7 +6,7 @@ import { compact, map } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { getAttendeesByTokens } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
-import { getCurrencyCodeFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { notFoundResponse } from "#routes/utils.ts";
 
@@ -34,13 +34,13 @@ export type WalletPassData = {
 export const WALLET_CACHE_CONTROL = "public, max-age=300, s-maxage=3600";
 
 /** Build shared wallet pass data from a resolved token entry */
-export const buildWalletPassData = async (
+export const buildWalletPassData = (
   entry: TokenEntry,
   token: string,
-): Promise<WalletPassData> => {
+): WalletPassData => {
   const { event, attendee } = entry;
   const domain = getEffectiveDomain();
-  const currencyCode = await getCurrencyCodeFromDb();
+  const currencyCode = settings.currency;
   const pricePaid = attendee.price_paid_v2;
 
   return {
@@ -89,7 +89,7 @@ export type TokenRouteFn = (
 type TokenMethodHandler = (
   request: Request,
   tokens: string[],
-) => Promise<Response>;
+) => Response | Promise<Response>;
 
 /** Map of HTTP method to handler */
 type TokenMethodMap = Record<string, TokenMethodHandler>;
@@ -140,12 +140,12 @@ export const lookupAttendees = async (
  */
 export const createTokenRoute =
   (prefix: string, methods: TokenMethodMap): TokenRouteFn =>
-  (request, path, method) => {
+  async (request, path, method) => {
     const tokensStr = extractTokenSegment(prefix, path);
-    if (!tokensStr) return Promise.resolve(null);
+    if (!tokensStr) return null;
 
     const handler = methods[method];
-    if (!handler) return Promise.resolve(null);
+    if (!handler) return null;
 
-    return handler(request, parseTokens(tokensStr));
+    return await handler(request, parseTokens(tokensStr));
   };

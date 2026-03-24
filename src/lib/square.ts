@@ -19,7 +19,7 @@ import {
   getSquareSandbox,
   getSquareWebhookSignatureKey,
 } from "#lib/config.ts";
-import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   computeHmacSha256,
@@ -387,14 +387,14 @@ const [getCache, setCache] = lazyRef<SquareCache>(() => {
 });
 
 /** Internal getSquareClient implementation */
-const getClientImpl = async () => {
-  const accessToken = await getSquareAccessToken();
+const getClientImpl = () => {
+  const accessToken = getSquareAccessToken();
   if (!accessToken) {
     logDebug("Square", "No access token configured, cannot create client");
     return null;
   }
 
-  const sandbox = await getSquareSandbox();
+  const sandbox = getSquareSandbox();
 
   try {
     const cached = getCache();
@@ -418,8 +418,8 @@ const getClientImpl = async () => {
 const withClient = createWithClient(() => squareApi.getSquareClient());
 
 /** Get the configured location ID */
-const getLocationId = async (): Promise<string | null> => {
-  const locationId = await getSquareLocationId();
+const getLocationId = (): string | null => {
+  const locationId = getSquareLocationId();
   if (!locationId) {
     logDebug("Square", "No location ID configured");
     return null;
@@ -431,10 +431,10 @@ const getLocationId = async (): Promise<string | null> => {
 type PaymentLinkConfig = { locationId: string; currency: string };
 
 /** Get location ID and currency, returning null if location is not configured */
-const getPaymentLinkConfig = async (): Promise<PaymentLinkConfig | null> => {
-  const locationId = await getLocationId();
+const getPaymentLinkConfig = (): PaymentLinkConfig | null => {
+  const locationId = getLocationId();
   if (!locationId) return null;
-  const currency = (await getCurrencyCode()).toUpperCase();
+  const currency = getCurrencyCode().toUpperCase();
   return { locationId, currency };
 };
 
@@ -519,20 +519,20 @@ const createPaymentLinkImpl = (
   }, ErrorCode.SQUARE_CHECKOUT);
 
 /** Normalize a phone number for Square pre-populated checkout data */
-const normalizeCheckoutPhone = async (
+const normalizeCheckoutPhone = (
   phone: string | undefined,
-): Promise<string | undefined> => {
+): string | undefined => {
   if (!phone) return undefined;
-  const prefix = await getPhonePrefixFromDb();
+  const prefix = settings.phonePrefix;
   return normalizePhone(phone, prefix);
 };
 
 /** Build a Square fee line item array (empty when fee is zero). */
-const squareFeeItems = async (
+const squareFeeItems = (
   subtotal: number,
   currency: string,
-): Promise<SquareLineItem[]> => {
-  const amt = await getBookingFeeAmount(subtotal);
+): SquareLineItem[] => {
+  const amt = getBookingFeeAmount(subtotal);
   return amt > 0
     ? [
         {
@@ -559,11 +559,11 @@ const submitPaymentLink = async (
   baseUrl: string,
   label: string,
 ): Promise<PaymentLinkResult> => {
-  lineItems.push(...(await squareFeeItems(feeSubtotal, prep.config.currency)));
+  lineItems.push(...squareFeeItems(feeSubtotal, prep.config.currency));
   const result = await createPaymentLinkImpl({
     ...prep.config,
     lineItems,
-    ...(await buildCheckoutOptions(intent, prep.metadata, baseUrl, label)),
+    ...buildCheckoutOptions(intent, prep.metadata, baseUrl, label),
   });
   logDebug(
     "Square",
@@ -575,7 +575,7 @@ const submitPaymentLink = async (
 };
 
 /** Build common payment link options from intent */
-const buildCheckoutOptions = async (
+const buildCheckoutOptions = (
   intent: { email: string; phone?: string },
   metadata: Record<string, string>,
   baseUrl: string,
@@ -584,16 +584,16 @@ const buildCheckoutOptions = async (
   metadata,
   baseUrl,
   email: intent.email,
-  phone: await normalizeCheckoutPhone(intent.phone),
+  phone: normalizeCheckoutPhone(intent.phone),
   label,
 });
 
 /** Shared setup for payment link creation: validates config and metadata */
-const preparePaymentLink = async (
+const preparePaymentLink = (
   rawMetadata: Record<string, string>,
   label: string,
-): Promise<PreparedLink | null> => {
-  const config = await getPaymentLinkConfig();
+): PreparedLink | null => {
+  const config = getPaymentLinkConfig();
   if (!config) return null;
 
   logDebug("Square", `Creating ${label}`);
@@ -651,7 +651,7 @@ export const squareApi: {
     try {
       const response = await client.locations.list();
       locations = response.locations ?? [];
-      const sandbox = await getSquareSandbox();
+      const sandbox = getSquareSandbox();
       result.accessToken = {
         valid: true,
         mode: sandbox ? "sandbox" : "production",
@@ -662,7 +662,7 @@ export const squareApi: {
     }
 
     // Step 2: Verify location ID
-    const locationId = await getSquareLocationId();
+    const locationId = getSquareLocationId();
     if (!locationId) {
       result.location = {
         configured: false,
@@ -687,7 +687,7 @@ export const squareApi: {
     }
 
     // Step 3: Check webhook signature key
-    const webhookKey = await getSquareWebhookSignatureKey();
+    const webhookKey = getSquareWebhookSignatureKey();
     result.webhook = { configured: webhookKey !== null };
     if (!webhookKey) {
       result.webhook.error = "No webhook signature key configured";
@@ -915,7 +915,7 @@ export const verifyWebhookSignature = async (
   notificationUrl: string,
   payloadBytes: Uint8Array,
 ): Promise<WebhookVerifyResult> => {
-  const secret = await getSquareWebhookSignatureKey();
+  const secret = getSquareWebhookSignatureKey();
   if (!secret) {
     logError({
       code: ErrorCode.CONFIG_MISSING,

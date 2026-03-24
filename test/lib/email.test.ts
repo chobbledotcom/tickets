@@ -3,12 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
 import { updateBusinessEmail } from "#lib/business-email.ts";
-import {
-  invalidateSettingsCache,
-  updateEmailApiKey,
-  updateEmailFromAddress,
-  updateEmailProvider,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   buildSvgTicketData,
   buildTicketAttachments,
@@ -141,13 +136,14 @@ describeWithEnv("email", { db: true }, () => {
   const setupDbEmailConfig = async (
     opts: { businessEmail?: string } = {},
   ): Promise<void> => {
-    await updateEmailProvider("resend");
-    await updateEmailApiKey("test-key");
-    await updateEmailFromAddress("from@test.com");
+    await settings.update.email.provider("resend");
+    await settings.update.email.apiKey("test-key");
+    await settings.update.email.fromAddress("from@test.com");
     if (opts.businessEmail) {
       await updateBusinessEmail(opts.businessEmail);
     }
-    invalidateSettingsCache();
+    settings.invalidateCache();
+    await settings.loadAll();
   };
 
   describe("sendEmail", () => {
@@ -469,16 +465,18 @@ describeWithEnv("email", { db: true }, () => {
 
   describe("getEmailConfig", () => {
     test("returns null when no provider configured", async () => {
-      invalidateSettingsCache();
+      settings.invalidateCache();
+      await settings.loadAll();
       const config = await getEmailConfig();
       expect(config).toBeNull();
     });
 
     test("returns config when all settings present", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("test-key");
+      await settings.update.email.fromAddress("from@test.com");
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const config = await getEmailConfig();
       expect(config).toEqual({
@@ -489,19 +487,21 @@ describeWithEnv("email", { db: true }, () => {
     });
 
     test("returns null when API key missing", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
+      await settings.update.email.provider("resend");
+      await settings.update.email.fromAddress("from@test.com");
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const config = await getEmailConfig();
       expect(config).toBeNull();
     });
 
     test("falls back to business email when from address not set", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("test-key");
       await updateBusinessEmail("biz@example.com");
-      invalidateSettingsCache();
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const config = await getEmailConfig();
       expect(config).toEqual({
@@ -512,9 +512,10 @@ describeWithEnv("email", { db: true }, () => {
     });
 
     test("returns null when neither from address nor business email set", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      invalidateSettingsCache();
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("test-key");
+      settings.invalidateCache();
+      await settings.loadAll();
 
       const config = await getEmailConfig();
       expect(config).toBeNull();
@@ -615,7 +616,8 @@ describeWithEnv("email", { db: true }, () => {
         Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-us");
         Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
         Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-        invalidateSettingsCache();
+        settings.invalidateCache();
+        await settings.loadAll();
 
         await sendRegistrationEmails([makeEntry()], "GBP");
 

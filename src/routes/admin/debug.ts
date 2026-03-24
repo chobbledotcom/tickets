@@ -13,26 +13,7 @@ import {
   getEffectiveDomain,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
-import {
-  getAppleWalletConfig,
-  getAppleWalletPassTypeIdFromDb,
-  getCustomDomainFromDb,
-  getEmailFromAddressFromDb,
-  getEmailProviderFromDb,
-  getGoogleWalletConfig,
-  getGoogleWalletIssuerIdFromDb,
-  getHostAppleWalletConfig,
-  getHostGoogleWalletConfig,
-  getPaymentProviderFromDb,
-  getSquareWebhookSignatureKeyFromDb,
-  getStripeWebhookEndpointId,
-  getThemeFromDb,
-  hasAppleWalletDbConfig,
-  hasEmailApiKey,
-  hasGoogleWalletDbConfig,
-  hasSquareToken,
-  hasStripeKey,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { getHostEmailConfig } from "#lib/email.ts";
 import { getEnv } from "#lib/env.ts";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
@@ -53,7 +34,7 @@ type CertValidation = {
 
 /** Validate Apple Wallet PEM certs/key, returning "Valid", "Invalid PEM", or "Not set" for each */
 const validateAppleWalletCerts = (
-  config: Awaited<ReturnType<typeof getAppleWalletConfig>>,
+  config: typeof settings.appleWallet.config,
 ): CertValidation => {
   if (!config) {
     return {
@@ -78,44 +59,25 @@ const validateAppleWalletCerts = (
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
 
-  const [
-    appleWalletDbConfigured,
-    appleWalletPassTypeId,
-    appleWalletConfig,
-    googleWalletDbConfigured,
-    googleWalletIssuerId,
-    googleWalletConfig,
-    paymentProvider,
-    stripeKeyConfigured,
-    squareTokenConfigured,
-    stripeWebhookEndpointId,
-    squareWebhookKey,
-    emailProvider,
-    emailApiKeyConfigured,
-    emailFromAddress,
-    customDomain,
-    theme,
-  ] = await Promise.all([
-    hasAppleWalletDbConfig(),
-    getAppleWalletPassTypeIdFromDb(),
-    getAppleWalletConfig(),
-    hasGoogleWalletDbConfig(),
-    getGoogleWalletIssuerIdFromDb(),
-    getGoogleWalletConfig(),
-    getPaymentProviderFromDb(),
-    hasStripeKey(),
-    hasSquareToken(),
-    getStripeWebhookEndpointId(),
-    getSquareWebhookSignatureKeyFromDb(),
-    getEmailProviderFromDb(),
-    hasEmailApiKey(),
-    getEmailFromAddressFromDb(),
-    bunnyCdnEnabled ? getCustomDomainFromDb() : Promise.resolve(null),
-    getThemeFromDb(),
-  ]);
+  const appleWalletDbConfigured = settings.appleWallet.hasDbConfig;
+  const appleWalletPassTypeId = settings.appleWallet.passTypeId;
+  const appleWalletConfig = settings.appleWallet.config;
+  const googleWalletDbConfigured = settings.googleWallet.hasDbConfig;
+  const googleWalletIssuerId = settings.googleWallet.issuerId;
+  const googleWalletConfig = settings.googleWallet.config;
+  const paymentProvider = settings.paymentProvider;
+  const stripeKeyConfigured = settings.stripe.hasKey;
+  const squareTokenConfigured = settings.square.hasToken;
+  const stripeWebhookEndpointId = settings.stripe.webhookEndpointId;
+  const squareWebhookKey = settings.square.webhookSignatureKey;
+  const emailProvider = settings.email.provider;
+  const emailApiKeyConfigured = settings.email.hasApiKey;
+  const emailFromAddress = settings.email.fromAddress;
+  const customDomain = bunnyCdnEnabled ? settings.customDomain : null;
+  const theme = settings.theme;
 
-  const appleWalletEnvConfigured = getHostAppleWalletConfig() !== null;
-  const googleWalletEnvConfigured = getHostGoogleWalletConfig() !== null;
+  const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
+  const googleWalletEnvConfigured = settings.googleWallet.hostConfig !== null;
   const hostEmailConfig = getHostEmailConfig();
 
   const keyConfigured =
@@ -134,7 +96,8 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
 
   const resolveWalletPassTypeId = (): string => {
     if (appleWalletDbConfigured) return appleWalletPassTypeId as string;
-    if (appleWalletEnvConfigured) return getHostAppleWalletConfig()!.passTypeId;
+    if (appleWalletEnvConfigured)
+      return settings.appleWallet.hostConfig!.passTypeId;
     return "";
   };
   const resolveWalletSource = (): string => {
@@ -149,7 +112,8 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
 
   const resolveGoogleWalletIssuerId = (): string => {
     if (googleWalletDbConfigured) return googleWalletIssuerId as string;
-    if (googleWalletEnvConfigured) return getHostGoogleWalletConfig()!.issuerId;
+    if (googleWalletEnvConfigured)
+      return settings.googleWallet.hostConfig!.issuerId;
     return "";
   };
   const resolveGoogleWalletSource = (): string => {

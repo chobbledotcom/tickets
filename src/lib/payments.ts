@@ -222,7 +222,7 @@ export interface PaymentProvider {
  */
 export const getActivePaymentProvider =
   async (): Promise<PaymentProvider | null> => {
-    const providerType = await paymentsApi.getConfiguredProvider();
+    const providerType = paymentsApi.getConfiguredProvider();
     if (!providerType) {
       logDebug("Payment", "No payment provider configured in settings");
       return null;
