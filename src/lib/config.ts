@@ -88,11 +88,6 @@ export const getEmbedHosts = async (): Promise<string[]> => {
 };
 
 /**
- * Check if initial setup has been completed
- */
-export const isSetupComplete = settings.setup.isComplete;
-
-/**
  * Check if Bunny CDN pull zone management is enabled
  * Requires BUNNY_API_KEY to be set
  */
