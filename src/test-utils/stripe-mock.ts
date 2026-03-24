@@ -83,7 +83,9 @@ export const isStripeMockRunning = async (
   port: number = STRIPE_MOCK_PORT,
 ): Promise<boolean> => {
   try {
-    await fetch(`http://localhost:${port}/`);
+    const res = await fetch(`http://localhost:${port}/`);
+    // Consume the body to avoid resource leaks in Deno's test runner
+    await res.body?.cancel();
     // Any response (including 401) means the server is running
     return true;
   } catch {
@@ -119,8 +121,10 @@ export class StripeMockManager {
 
   /**
    * Start stripe-mock server
+   * @param maxAttempts Maximum readiness poll attempts (default 30)
+   * @param delayMs Delay between readiness polls in ms (default 100)
    */
-  async start(): Promise<void> {
+  async start(maxAttempts = 30, delayMs = 100): Promise<void> {
     // Check if already running (e.g., in dev mode)
     if (await isStripeMockRunning(this.port)) {
       return;
@@ -138,7 +142,7 @@ export class StripeMockManager {
     this.process = command.spawn();
 
     // Wait for it to be ready
-    const ready = await waitForStripeMock(this.port);
+    const ready = await waitForStripeMock(this.port, maxAttempts, delayMs);
     if (!ready) {
       throw new Error("stripe-mock failed to start");
     }

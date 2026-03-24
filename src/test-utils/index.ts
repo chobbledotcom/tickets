@@ -121,20 +121,22 @@ let cachedAdminSession: {
 
 /** Clear all data tables and reset autoincrement counters */
 const clearDataTables = async (client: Client): Promise<void> => {
-  // Disable FK checks so deletion order doesn't matter
+  // Disable FK checks outside the batch (PRAGMAs don't work inside transactions)
   await client.execute("PRAGMA foreign_keys = OFF");
-  // Discover all user tables dynamically (handles custom test tables like test_items)
+
+  // Discover all tables (including any test-created ones like test_items)
   const result = await client.execute(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
   );
-  for (const row of result.rows) {
-    const name = row.name as string;
-    await client.execute(`DELETE FROM ${name}`);
-  }
-  // Reset autoincrement counters so IDs start from 1 (table may not exist)
-  await client.execute(
+  const tables = result.rows.map((r) => r.name as string);
+
+  // Batch all DELETEs into a single round-trip for speed
+  await client.batch([
+    ...tables.map((t) => `DELETE FROM ${t}`),
+    // Reset autoincrement counters so IDs start from 1
     "DELETE FROM sqlite_sequence WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence')",
-  );
+  ]);
+
   await client.execute("PRAGMA foreign_keys = ON");
 };
 
