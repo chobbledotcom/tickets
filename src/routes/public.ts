@@ -96,9 +96,9 @@ const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
   return sorted.map((e) => buildMultiTicketEvent(e, isRegistrationClosed(e)));
 };
 
-/** Guard: redirect to admin if public site is disabled */
+/** Guard: redirect to admin login if public site is disabled */
 const requirePublicSite = <T>(fn: () => T): T | Response =>
-  settings.showPublicSite ? fn() : redirectResponse("/admin/");
+  settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Render a public site page with website title and content */
 const renderPublicPage = (

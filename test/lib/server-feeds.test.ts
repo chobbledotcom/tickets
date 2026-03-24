@@ -52,7 +52,7 @@ describeWithEnv("feeds", { db: true }, () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin/login");
     });
 
     test("returns text/calendar content type", async () => {
@@ -193,7 +193,7 @@ describeWithEnv("feeds", { db: true }, () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin/login");
     });
 
     test("returns application/rss+xml content type", async () => {
