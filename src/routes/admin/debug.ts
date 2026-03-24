@@ -59,68 +59,52 @@ const validateAppleWalletCerts = (
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
 
-  const appleWalletDbConfigured = settings.appleWallet.hasDbConfig;
-  const appleWalletPassTypeId = settings.appleWallet.passTypeId;
-  const appleWalletConfig = settings.appleWallet.config;
-  const googleWalletDbConfigured = settings.googleWallet.hasDbConfig;
-  const googleWalletIssuerId = settings.googleWallet.issuerId;
-  const googleWalletConfig = settings.googleWallet.config;
-  const paymentProvider = settings.paymentProvider;
-  const stripeKeyConfigured = settings.stripe.hasKey;
-  const squareTokenConfigured = settings.square.hasToken;
-  const stripeWebhookEndpointId = settings.stripe.webhookEndpointId;
-  const squareWebhookKey = settings.square.webhookSignatureKey;
-  const emailProvider = settings.email.provider;
-  const emailApiKeyConfigured = settings.email.hasApiKey;
-  const emailFromAddress = settings.email.fromAddress;
-  const customDomain = bunnyCdnEnabled ? settings.customDomain : null;
-  const theme = settings.theme;
-
+  const hostEmailConfig = getHostEmailConfig();
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
   const googleWalletEnvConfigured = settings.googleWallet.hostConfig !== null;
-  const hostEmailConfig = getHostEmailConfig();
 
+  const paymentProvider = settings.paymentProvider;
   const keyConfigured =
     paymentProvider === "stripe"
-      ? stripeKeyConfigured
+      ? settings.stripe.hasKey
       : paymentProvider === "square"
-        ? squareTokenConfigured
+        ? settings.square.hasToken
         : false;
 
   const webhookConfigured =
     paymentProvider === "stripe"
-      ? stripeWebhookEndpointId !== null
+      ? settings.stripe.webhookEndpointId !== null
       : paymentProvider === "square"
-        ? squareWebhookKey !== null
+        ? settings.square.webhookSignatureKey !== null
         : false;
 
   const resolveWalletPassTypeId = (): string => {
-    if (appleWalletDbConfigured) return appleWalletPassTypeId as string;
+    if (settings.appleWallet.hasDbConfig)
+      return settings.appleWallet.passTypeId as string;
     if (appleWalletEnvConfigured)
       return settings.appleWallet.hostConfig!.passTypeId;
     return "";
   };
   const resolveWalletSource = (): string => {
-    if (appleWalletDbConfigured) return "Database";
+    if (settings.appleWallet.hasDbConfig) return "Database";
     if (appleWalletEnvConfigured) return "Environment variables";
     return "";
   };
-  const walletPassTypeId = resolveWalletPassTypeId();
-  const walletSource = resolveWalletSource();
-
-  const certValidation = validateAppleWalletCerts(appleWalletConfig);
 
   const resolveGoogleWalletIssuerId = (): string => {
-    if (googleWalletDbConfigured) return googleWalletIssuerId as string;
+    if (settings.googleWallet.hasDbConfig)
+      return settings.googleWallet.issuerId as string;
     if (googleWalletEnvConfigured)
       return settings.googleWallet.hostConfig!.issuerId;
     return "";
   };
   const resolveGoogleWalletSource = (): string => {
-    if (googleWalletDbConfigured) return "Database";
+    if (settings.googleWallet.hasDbConfig) return "Database";
     if (googleWalletEnvConfigured) return "Environment variables";
     return "";
   };
+
+  const googleWalletConfig = settings.googleWallet.config;
   const googleWalletPrivateKeyValid = googleWalletConfig
     ? (await isValidGooglePrivateKey(googleWalletConfig.serviceAccountKey))
       ? "Valid"
@@ -133,14 +117,14 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       commit: BUILD_COMMIT,
     },
     appleWallet: {
-      dbConfigured: appleWalletDbConfigured,
+      dbConfigured: settings.appleWallet.hasDbConfig,
       envConfigured: appleWalletEnvConfigured,
-      passTypeId: walletPassTypeId,
-      source: walletSource,
-      certValidation,
+      passTypeId: resolveWalletPassTypeId(),
+      source: resolveWalletSource(),
+      certValidation: validateAppleWalletCerts(settings.appleWallet.config),
     },
     googleWallet: {
-      dbConfigured: googleWalletDbConfigured,
+      dbConfigured: settings.googleWallet.hasDbConfig,
       envConfigured: googleWalletEnvConfigured,
       issuerId: resolveGoogleWalletIssuerId(),
       source: resolveGoogleWalletSource(),
@@ -152,9 +136,9 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       webhookConfigured,
     },
     email: {
-      provider: emailProvider ?? "",
-      apiKeyConfigured: emailApiKeyConfigured,
-      fromAddress: emailFromAddress ?? "",
+      provider: settings.email.provider ?? "",
+      apiKeyConfigured: settings.email.hasApiKey,
+      fromAddress: settings.email.fromAddress ?? "",
       hostProvider: hostEmailConfig?.provider ?? "",
     },
     ntfy: {
@@ -166,14 +150,14 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     bunnyCdn: {
       enabled: bunnyCdnEnabled,
       cdnHostname: bunnyCdnEnabled ? getCdnHostname() : "",
-      customDomain: customDomain ?? "",
+      customDomain: (bunnyCdnEnabled ? settings.customDomain : null) ?? "",
     },
     database: {
       hostConfigured: !!getEnv("DB_URL"),
     },
     domain: getEffectiveDomain(),
     limits: LIMIT_ENTRIES,
-    theme,
+    theme: settings.theme,
   };
 };
 

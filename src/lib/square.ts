@@ -516,8 +516,7 @@ const normalizeCheckoutPhone = (
   phone: string | undefined,
 ): string | undefined => {
   if (!phone) return undefined;
-  const prefix = settings.phonePrefix;
-  return normalizePhone(phone, prefix);
+  return normalizePhone(phone, settings.phonePrefix);
 };
 
 /** Build a Square fee line item array (empty when fee is zero). */

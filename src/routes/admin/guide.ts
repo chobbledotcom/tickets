@@ -14,14 +14,14 @@ import { adminGuidePage } from "#templates/admin/guide.tsx";
 const handleAdminGuideGet = (request: Request): Promise<Response> =>
   requireSessionOr(request, (session) => {
     const hostEmail = getHostEmailConfig();
-    const hostWallet = settings.appleWallet.hostConfig;
     return htmlResponse(
       adminGuidePage(session, {
         hostEmailProvider: hostEmail
           ? EMAIL_PROVIDER_LABELS[hostEmail.provider]
           : null,
         hostEmailFromAddress: hostEmail?.fromAddress ?? null,
-        hostAppleWalletPassTypeId: hostWallet?.passTypeId ?? null,
+        hostAppleWalletPassTypeId:
+          settings.appleWallet.hostConfig?.passTypeId ?? null,
       }),
     );
   });

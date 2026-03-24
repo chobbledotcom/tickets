@@ -32,10 +32,9 @@ const handleWalletGet = (
   if (!raw.endsWith(PKPASS_EXT)) return notFoundResponse();
   const token = raw.slice(0, -PKPASS_EXT.length);
 
-  const config = settings.appleWallet.config;
-  if (!config) return notFoundResponse();
+  if (!settings.appleWallet.config) return notFoundResponse();
 
-  return buildPkpassForToken(token, config);
+  return buildPkpassForToken(token, settings.appleWallet.config);
 };
 
 /**

@@ -102,9 +102,10 @@ const renderPublicPage = (
   getContent: () => string | null,
 ): Response =>
   requirePublicSite(() => {
-    const websiteTitle = settings.websiteTitle;
     const content = getContent();
-    return htmlResponse(publicSitePage(pageType, websiteTitle, content));
+    return htmlResponse(
+      publicSitePage(pageType, settings.websiteTitle, content),
+    );
   });
 
 /** Handle GET / (home page) - redirect to admin or show public site */
@@ -114,9 +115,8 @@ export const handleHome = (): Response =>
 /** Handle GET /events - public events listing */
 export const handlePublicEvents = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const websiteTitle = settings.websiteTitle;
     const events = await loadHomepageEvents();
-    return htmlResponse(homepagePage(events, websiteTitle));
+    return htmlResponse(homepagePage(events, settings.websiteTitle));
   });
 
 /** Handle GET /terms - public terms and conditions page */

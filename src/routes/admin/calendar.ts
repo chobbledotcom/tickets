@@ -215,8 +215,6 @@ const handleAdminCalendarGet = (request: Request) =>
       standardCtx.standardEvents,
       holidays,
     );
-    const phonePrefix = settings.phonePrefix;
-
     const questionData = await loadQuestionData(
       attendees.map((a) => a.eventId),
       attendees.map((a) => a.id),
@@ -232,7 +230,7 @@ const handleAdminCalendarGet = (request: Request) =>
         dateFilter,
         availableDates,
         todayInTz(settings.timezone),
-        phonePrefix,
+        settings.phonePrefix,
         questionData,
         hasPaidEvent,
       ),

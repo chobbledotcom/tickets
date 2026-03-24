@@ -47,8 +47,6 @@ const handleTicketView = async (
   if (!result.ok) return result.response;
 
   const entries = await resolveEntries(result.attendees);
-  const appleWalletEnabled = settings.appleWallet.hasConfig;
-  const googleWalletEnabled = settings.googleWallet.hasConfig;
   for (const entry of entries) {
     entry.attendee.price_paid = String(entry.attendee.price_paid_v2);
   }
@@ -56,7 +54,11 @@ const handleTicketView = async (
     entries.map((entry, index) => buildTicketCard(entry, tokens[index]!)),
   );
   return htmlResponse(
-    ticketViewPage(cards, appleWalletEnabled, googleWalletEnabled),
+    ticketViewPage(
+      cards,
+      settings.appleWallet.hasConfig,
+      settings.googleWallet.hasConfig,
+    ),
   );
 };
 
