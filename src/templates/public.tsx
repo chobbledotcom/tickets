@@ -231,7 +231,7 @@ const renderPayMoreInput = (
 
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
-  `<div class="terms">${renderMarkdown(terms)}</div>` +
+  `<div class="prose">${renderMarkdown(terms)}</div>` +
   `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
 
 /** Render custom multiple-choice question fields (radio buttons).

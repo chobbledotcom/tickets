@@ -818,7 +818,7 @@ describe("html", () => {
         "No refunds allowed",
       );
       expect(html).toContain("No refunds allowed");
-      expect(html).toContain('class="terms"');
+      expect(html).toContain('class="prose"');
       expect(html).toContain('name="agree_terms"');
     });
 
