@@ -3,9 +3,9 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import { getTz } from "#lib/config.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
+import { settings } from "#lib/db/settings.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import type { Field } from "#lib/forms.tsx";
 import {
@@ -642,7 +642,7 @@ export const adminEventPage = ({
 /** Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM) */
 const formatDatetimeLocal = (iso: string | null): string | null => {
   if (!iso) return null;
-  return utcToLocalInput(iso, getTz());
+  return utcToLocalInput(iso, settings.timezone);
 };
 
 /** Convert bookable_days array to comma-separated display string */

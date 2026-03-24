@@ -6,8 +6,9 @@
  * Callers handle input parsing/validation and response formatting.
  */
 
-import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
+import { isPaymentsEnabled } from "#lib/config.ts";
 import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { RegistrationIntent } from "#lib/payments.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
@@ -80,6 +81,6 @@ export const processBooking = async (
   if (!result.success)
     return { type: "creation_failed", reason: result.reason };
 
-  await logAndNotifyRegistration(event, result.attendee, getCurrencyCode());
+  await logAndNotifyRegistration(event, result.attendee, settings.currency);
   return { type: "success", attendee: result.attendee };
 };

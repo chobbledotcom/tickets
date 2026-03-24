@@ -6,16 +6,15 @@
  * this interface so they never depend on a specific provider.
  */
 
-import { getPaymentProvider as getConfiguredProvider } from "#lib/config.ts";
+import { settings } from "#lib/db/settings.ts";
 import { logDebug } from "#lib/logger.ts";
-import type { ContactInfo, Event } from "#lib/types.ts";
+import type { ContactInfo, Event, PaymentProviderType } from "#lib/types.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {
-  getConfiguredProvider,
+  getConfiguredProvider: (): PaymentProviderType | null =>
+    settings.paymentProvider,
 };
-
-import type { PaymentProviderType } from "#lib/types.ts";
 
 /** Re-export from types.ts (canonical definition) */
 export type { PaymentProviderType };

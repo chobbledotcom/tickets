@@ -4,14 +4,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllowedDomain,
   getBookingFee,
-  getCurrencyCode,
   getEffectiveDomain,
-  getPaymentProvider,
-  getSquareAccessToken,
-  getSquareLocationId,
-  getSquareWebhookSignatureKey,
-  getStripeSecretKey,
-  getTz,
   isPaymentsEnabled,
   isSetupComplete,
   loadEffectiveDomain,
@@ -32,38 +25,6 @@ describe("config", () => {
 
   afterEach(() => {
     resetDb();
-  });
-
-  describe("getPaymentProvider", () => {
-    test("returns null when not set", async () => {
-      expect(await getPaymentProvider()).toBeNull();
-    });
-
-    test("returns stripe when set to stripe", async () => {
-      await settings.update.paymentProvider("stripe");
-      expect(await getPaymentProvider()).toBe("stripe");
-    });
-
-    test("returns square when set to square", async () => {
-      await settings.update.paymentProvider("square");
-      expect(await getPaymentProvider()).toBe("square");
-    });
-
-    test("returns null for unknown provider", async () => {
-      await settings.setRaw("payment_provider", "unknown");
-      expect(await getPaymentProvider()).toBeNull();
-    });
-  });
-
-  describe("getStripeSecretKey", () => {
-    test("returns null when not set in database", async () => {
-      expect(await getStripeSecretKey()).toBeNull();
-    });
-
-    test("returns key when set in database", async () => {
-      await settings.update.stripe.secretKey("sk_test_123");
-      expect(await getStripeSecretKey()).toBe("sk_test_123");
-    });
   });
 
   describe("isPaymentsEnabled", () => {
@@ -98,19 +59,6 @@ describe("config", () => {
     });
   });
 
-  describe("getCurrencyCode", () => {
-    test("returns GBP by default", async () => {
-      expect(await getCurrencyCode()).toBe("GBP");
-    });
-
-    test("returns currency from country setting", async () => {
-      await settings.setRaw("country", "US");
-      settings.invalidateCache();
-      await settings.loadAll();
-      expect(await getCurrencyCode()).toBe("USD");
-    });
-  });
-
   describe("isSetupComplete", () => {
     test("returns false when setup not complete", async () => {
       expect(await isSetupComplete()).toBe(false);
@@ -119,39 +67,6 @@ describe("config", () => {
     test("returns true when setup is complete", async () => {
       await settings.setup.complete("testadmin", "password123", "GBP");
       expect(await isSetupComplete()).toBe(true);
-    });
-  });
-
-  describe("getSquareAccessToken", () => {
-    test("returns null when not set in database", async () => {
-      expect(await getSquareAccessToken()).toBeNull();
-    });
-
-    test("returns token when set in database", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      expect(await getSquareAccessToken()).toBe("EAAAl_test_123");
-    });
-  });
-
-  describe("getSquareWebhookSignatureKey", () => {
-    test("returns null when not set in database", async () => {
-      expect(await getSquareWebhookSignatureKey()).toBeNull();
-    });
-
-    test("returns key when set in database", async () => {
-      await settings.update.square.webhookSignatureKey("sig_key_test");
-      expect(await getSquareWebhookSignatureKey()).toBe("sig_key_test");
-    });
-  });
-
-  describe("getSquareLocationId", () => {
-    test("returns null when not set in database", async () => {
-      expect(await getSquareLocationId()).toBeNull();
-    });
-
-    test("returns location ID when set in database", async () => {
-      await settings.update.square.locationId("L_test_123");
-      expect(await getSquareLocationId()).toBe("L_test_123");
     });
   });
 
@@ -245,10 +160,9 @@ describe("config", () => {
 
   describe("isPaymentsEnabled - non-stripe provider", () => {
     test("returns false when provider is set to unknown value", async () => {
-      // Set provider to a non-stripe value that getPaymentProvider will return null for
       await settings.setRaw("payment_provider", "paypal");
       await settings.update.stripe.secretKey("sk_test_123");
-      // getPaymentProvider returns null for unknown providers, so isPaymentsEnabled returns false
+      // Unknown provider doesn't match "stripe" or "square", so isPaymentsEnabled returns false
       expect(await isPaymentsEnabled()).toBe(false);
     });
   });
@@ -334,7 +248,7 @@ describe("payments", () => {
     expect(provider?.type).toBe("square");
   });
 
-  test("getTz returns default timezone when cache is empty", () => {
-    expect(getTz()).toBe("Europe/London");
+  test("settings.timezone returns default timezone when cache is empty", () => {
+    expect(settings.timezone).toBe("Europe/London");
   });
 });

@@ -7,76 +7,16 @@
 import { lazyRef } from "#fp";
 import { settings } from "#lib/db/settings.ts";
 import { getEnv, requireEnv } from "#lib/env.ts";
-import type { PaymentProviderType } from "#lib/payments.ts";
-
-/**
- * Get the configured payment provider type
- * Returns null if no provider is configured
- */
-export const getPaymentProvider = (): PaymentProviderType | null => {
-  const provider = settings.paymentProvider;
-  if (provider === "stripe") return "stripe";
-  if (provider === "square") return "square";
-  return null;
-};
-
-/**
- * Get Stripe secret key from database (encrypted)
- * Returns null if not configured (payments disabled)
- */
-export const getStripeSecretKey = (): string | null => {
-  return settings.stripe.secretKey;
-};
-
-/**
- * Get Stripe webhook signing secret from database (encrypted)
- * Automatically configured when Stripe secret key is saved
- */
-export const getStripeWebhookSecret = (): string | null => {
-  return settings.stripe.webhookSecret;
-};
-
-/** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
-export const configApi = {
-  getPaymentProvider,
-};
 
 /**
  * Check if payments are enabled (any provider configured with valid keys)
  */
 export const isPaymentsEnabled = (): boolean => {
-  const provider = configApi.getPaymentProvider();
+  const provider = settings.paymentProvider;
   if (provider === "stripe") return settings.stripe.hasKey;
   if (provider === "square") return settings.square.hasToken;
   return false;
 };
-
-/**
- * Get Square access token from database (encrypted)
- * Returns null if not configured
- */
-export const getSquareAccessToken = (): string | null =>
-  settings.square.accessToken;
-
-/**
- * Get Square webhook signature key from database (encrypted)
- * Returns null if not configured
- */
-export const getSquareWebhookSignatureKey = (): string | null =>
-  settings.square.webhookSignatureKey;
-
-/**
- * Get Square location ID from database
- * Returns null if not configured
- */
-export const getSquareLocationId = (): string | null =>
-  settings.square.locationId;
-
-/**
- * Get Square sandbox mode setting from database
- * Returns true if sandbox mode is enabled
- */
-export const getSquareSandbox = (): boolean => settings.square.sandbox;
 
 /**
  * Get booking fee percentage from database.
@@ -84,14 +24,6 @@ export const getSquareSandbox = (): boolean => settings.square.sandbox;
  */
 export const getBookingFee = (): number =>
   Number.parseFloat(settings.bookingFee!) || 0;
-
-/**
- * Get currency code from database
- * Defaults to GBP if not set
- */
-export const getCurrencyCode = (): string => {
-  return settings.currency;
-};
 
 /**
  * Get allowed domain for security validation (runtime config via Bunny secrets)
@@ -154,13 +86,6 @@ export const getEmbedHosts = async (): Promise<string[]> => {
   const { parseEmbedHosts } = await import("#lib/embed-hosts.ts");
   return parseEmbedHosts(raw);
 };
-
-/**
- * Get the configured timezone synchronously from cache.
- * Safe to call from synchronous code (templates, helpers) because
- * the settings cache is populated by middleware on every request.
- */
-export const getTz = (): string => settings.timezone;
 
 /**
  * Check if initial setup has been completed

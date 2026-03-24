@@ -7,7 +7,7 @@
  * by JSX templates.
  */
 
-import { getCurrencyCode } from "#lib/config.ts";
+import { settings } from "#lib/db/settings.ts";
 
 /** Sync-accessible currency code, populated by loadCurrencyCode() */
 const state = { code: "GBP" };
@@ -18,7 +18,7 @@ const state = { code: "GBP" };
  * Settings are already cached so this is cheap on repeat calls.
  */
 export const loadCurrencyCode = (): string => {
-  state.code = getCurrencyCode();
+  state.code = settings.currency;
   return state.code;
 };
 
