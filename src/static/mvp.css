@@ -169,6 +169,12 @@ article > * {
   gap: var(--space-m);
 }
 
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+}
+
 .stack-sm > * {
   margin: 0;
 }
