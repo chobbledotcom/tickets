@@ -14,11 +14,11 @@ const testCerts = generateTestCerts();
 /** Configure all Apple Wallet settings in the database */
 const configureAppleWallet = async () => {
   await Promise.all([
-    settings.appleWallet.passTypeId.update("pass.com.test.tickets"),
-    settings.appleWallet.teamId.update("TESTTEAM01"),
-    settings.appleWallet.signingCert.update(testCerts.signingCert),
-    settings.appleWallet.signingKey.update(testCerts.signingKey),
-    settings.appleWallet.wwdrCert.update(testCerts.wwdrCert),
+    settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
+    settings.update.appleWallet.teamId("TESTTEAM01"),
+    settings.update.appleWallet.signingCert(testCerts.signingCert),
+    settings.update.appleWallet.signingKey(testCerts.signingKey),
+    settings.update.appleWallet.wwdrCert(testCerts.wwdrCert),
   ]);
 };
 

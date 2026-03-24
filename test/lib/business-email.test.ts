@@ -194,6 +194,7 @@ describeWithEnv("business-email", { db: true }, () => {
     test("invalidateSettingsCache forces decrypt from database", async () => {
       await updateBusinessEmail("encrypted@example.com");
       settings.invalidateCache();
+      await settings.loadAll();
 
       const result = await getBusinessEmailFromDb();
       expect(result).toBe("encrypted@example.com");

@@ -122,7 +122,7 @@ export const renderEmailContent = async (
   data: TemplateData,
 ): Promise<EmailContent> => {
   const defaults = DEFAULT_TEMPLATES[type];
-  const custom = await settings.email.template.getSet(type);
+  const custom = settings.email.templateSet(type);
 
   const [subject, html, text] = await Promise.all([
     safeRender(

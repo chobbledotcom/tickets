@@ -85,7 +85,7 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
 
   // Gate non-auth routes behind migration completion
   if (session && !isUngatedRoute(path)) {
-    const migrated = await settings.attendeeBlobMigrated.is();
+    const migrated = settings.attendeeBlobMigrated;
     if (!migrated) return redirectResponse("/admin/migrate");
   }
 

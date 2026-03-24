@@ -230,8 +230,10 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
         });
       }
     }
+    settings.invalidateCache();
+    await settings.loadAll();
     setCurrencyCodeForTest(getCountry(country).currency);
-    settings.timezone.setForTest("UTC");
+    settings.setForTest({ timezone: "UTC" });
     return;
   }
 
@@ -240,11 +242,12 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     TEST_ADMIN_PASSWORD,
     country,
   );
-  await settings.attendeeBlobMigrated.set();
+  await settings.update.attendeeBlobMigrated();
+  await settings.loadAll();
   setCurrencyCodeForTest(getCountry(country).currency);
 
   // Default timezone to UTC for tests so datetime-local values pass through unchanged
-  settings.timezone.setForTest("UTC");
+  settings.setForTest({ timezone: "UTC" });
 
   // Snapshot settings AND users for reuse
   const result = await getClient().execute("SELECT key, value FROM settings");
@@ -297,7 +300,7 @@ export const resetDb = (): void => {
   resetAllowedDomain();
   resetHostEmailConfig();
   settings.appleWallet.resetHostConfig();
-  settings.timezone.resetTestOverride();
+  settings.clearTestOverrides();
 };
 
 /**
@@ -1621,9 +1624,9 @@ export const submitMultiTicketForm = async (
  * Configure Stripe as the payment provider for tests.
  */
 export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
-  const { settings } = await import("#lib/db/settings.ts");
-  await settings.stripe.secretKey.update(key);
-  await settings.paymentProvider.set("stripe");
+  const { settings: s } = await import("#lib/db/settings.ts");
+  await s.update.stripe.secretKey(key);
+  await s.update.paymentProvider("stripe");
 };
 
 /**

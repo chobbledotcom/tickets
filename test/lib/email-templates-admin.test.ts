@@ -38,7 +38,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
     );
   }
 
-  async function expectTemplatesMatch(
+  function expectTemplatesMatch(
     type: "confirmation" | "admin",
     expected: {
       subject: string | null;
@@ -46,14 +46,14 @@ describeWithEnv("admin email templates", { db: true }, () => {
       text: string | null;
     },
   ) {
-    const templates = await settings.email.template.getSet(type);
+    const templates = settings.email.templateSet(type);
     expect(templates.subject).toBe(expected.subject);
     expect(templates.html).toBe(expected.html);
     expect(templates.text).toBe(expected.text);
   }
 
-  async function expectTemplatesAllNull(type: "confirmation" | "admin") {
-    const templates = await settings.email.template.getSet(type);
+  function expectTemplatesAllNull(type: "confirmation" | "admin") {
+    const templates = settings.email.templateSet(type);
     expect(templates.subject).toBeNull();
     expect(templates.html).toBeNull();
     expect(templates.text).toBeNull();
@@ -163,21 +163,22 @@ describeWithEnv("admin email templates", { db: true }, () => {
         html: "<b>{{ attendee.name }}</b>",
         text: "Hi {{ attendee.name }}",
       });
+      await settings.loadAll();
 
       // Raw DB values should be encrypted, not plaintext
-      const rawSubject = await settings.get(
+      const rawSubject = settings.getCachedRaw(
         CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
       );
       expect(rawSubject).not.toBeNull();
       expect(rawSubject!.startsWith("enc:1:")).toBe(true);
       expect(rawSubject).not.toContain("event_names");
 
-      const rawHtml = await settings.get(
+      const rawHtml = settings.getCachedRaw(
         CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
       );
       expect(rawHtml!.startsWith("enc:1:")).toBe(true);
 
-      const rawText = await settings.get(
+      const rawText = settings.getCachedRaw(
         CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
       );
       expect(rawText!.startsWith("enc:1:")).toBe(true);
@@ -191,12 +192,13 @@ describeWithEnv("admin email templates", { db: true }, () => {
     });
 
     test("clears template when empty values submitted", async () => {
-      await settings.email.template.update(
+      await settings.update.email.template(
         "confirmation",
         "subject",
         "Custom subject",
       );
       settings.invalidateCache();
+      await settings.loadAll();
 
       const response = await postTemplateForm(
         "/admin/settings/email-templates/confirmation",
@@ -252,7 +254,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const templates = await settings.email.template.getSet("admin");
+      const templates = settings.email.templateSet("admin");
       expect(templates.subject).toBe("New: {{ attendee.name }}");
     });
   });

@@ -17,8 +17,8 @@ const state: { theme: Theme } = { theme: "light" };
  * Called once per request in routes/index.ts before templates render.
  * Settings are already cached so this is cheap on repeat calls.
  */
-export const loadTheme = async (): Promise<Theme> => {
-  state.theme = await settings.theme.get();
+export const loadTheme = (): Theme => {
+  state.theme = settings.theme;
   return state.theme;
 };
 

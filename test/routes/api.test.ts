@@ -43,7 +43,7 @@ const expectCorsHeaders = (response: Response): void => {
 
 describeWithEnv("Public API", { db: true }, () => {
   beforeEach(async () => {
-    await settings.showPublicApi.update(true);
+    await settings.update.showPublicApi(true);
   });
 
   /** Fetch the events list and return parsed events array */
@@ -680,7 +680,7 @@ describeWithEnv("Public API", { db: true }, () => {
 
   describe("API disabled", () => {
     test("returns 404 when public API setting is disabled", async () => {
-      await settings.showPublicApi.update(false);
+      await settings.update.showPublicApi(false);
       const response = await handleRequest(apiRequest("/api/events"));
       expect(response.status).toBe(404);
     });

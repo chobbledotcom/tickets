@@ -208,7 +208,7 @@ export const createSeeds = async (
   eventCount: number,
   attendeesPerEvent: number,
 ): Promise<SeedResult> => {
-  const publicKeyJwk = await settings.publicKey.get();
+  const publicKeyJwk = settings.publicKey;
   if (!publicKeyJwk) throw new Error("Public key not configured");
 
   // Build structured event data: quantities, capacity, price, and slug per event

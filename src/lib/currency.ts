@@ -17,8 +17,8 @@ const state = { code: "GBP" };
  * Called once per request in routes/index.ts before templates render.
  * Settings are already cached so this is cheap on repeat calls.
  */
-export const loadCurrencyCode = async (): Promise<string> => {
-  state.code = await getCurrencyCode();
+export const loadCurrencyCode = (): string => {
+  state.code = getCurrencyCode();
   return state.code;
 };
 

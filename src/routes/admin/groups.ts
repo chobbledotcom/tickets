@@ -162,7 +162,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
         const hasPaidEvent = sortedEvents.some(isPaidEvent);
         const [rawAttendees, prefix] = await Promise.all([
           getAttendeesByEventIds(eventIds),
-          settings.phonePrefix.get(),
+          Promise.resolve(settings.phonePrefix),
         ]);
         attendees = await decryptAttendees(
           rawAttendees,

@@ -105,54 +105,24 @@ const getWebhookUrl = (): string => {
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
 const getSettingsPageState = async () => {
-  const [
-    stripeKeyConfigured,
-    stripeKeyMode,
-    paymentProvider,
-    squareTokenConfigured,
-    squareSandbox,
-    squareWebhookKey,
-    bookingFeeRaw,
-    embedHosts,
-    termsAndConditions,
-    businessEmail,
-    theme,
-    showPublicSite,
-    country,
-    headerImageUrl,
-  ] = await Promise.all([
-    settings.stripe.secretKey.has(),
-    settings.stripe.secretKey.mode(),
-    settings.paymentProvider.get(),
-    settings.square.accessToken.has(),
-    settings.square.sandbox.get(),
-    getSquareWebhookSignatureKey(),
-    settings.bookingFee.get(),
-    settings.embedHosts.get(),
-    settings.terms.get(),
-    getBusinessEmailFromDb(),
-    settings.theme.get(),
-    settings.showPublicSite.get(),
-    settings.country.get(),
-    settings.headerImageUrl.get(),
-  ]);
+  const businessEmail = await getBusinessEmailFromDb();
 
   return {
-    stripeKeyConfigured,
-    stripeKeyMode,
-    paymentProvider: paymentProvider ?? "",
-    squareTokenConfigured,
-    squareSandbox,
-    squareWebhookConfigured: squareWebhookKey !== null,
+    stripeKeyConfigured: settings.stripe.hasKey,
+    stripeKeyMode: settings.stripe.keyMode,
+    paymentProvider: settings.paymentProvider ?? "",
+    squareTokenConfigured: settings.square.hasToken,
+    squareSandbox: settings.square.sandbox,
+    squareWebhookConfigured: getSquareWebhookSignatureKey() !== null,
     webhookUrl: getWebhookUrl(),
-    bookingFee: bookingFeeRaw!,
-    embedHosts: embedHosts ?? "",
-    termsAndConditions: termsAndConditions ?? "",
+    bookingFee: settings.bookingFee!,
+    embedHosts: settings.embedHosts ?? "",
+    termsAndConditions: settings.terms ?? "",
     businessEmail,
-    theme,
-    showPublicSite,
-    country,
-    headerImageUrl: headerImageUrl ?? "",
+    theme: settings.theme,
+    showPublicSite: settings.showPublicSite,
+    country: settings.country,
+    headerImageUrl: settings.headerImageUrl ?? "",
     storageEnabled: isStorageEnabled(),
   };
 };
@@ -160,43 +130,25 @@ const getSettingsPageState = async () => {
 /** Gather state for the advanced settings page */
 const getAdvancedSettingsPageState = async () => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
-  const [
-    showPublicApi,
-    emailProvider,
-    emailApiKeyConfigured,
-    emailFromAddress,
-    businessEmail,
-    confirmationTemplates,
-    adminTemplates,
-    customDomain,
-    customDomainLastValidated,
-    appleWalletConfigured,
-    appleWalletPassTypeId,
-    appleWalletTeamId,
-    googleWalletConfigured,
-    googleWalletIssuerId,
-    googleWalletServiceAccountEmail,
-    theme,
-  ] = await Promise.all([
-    settings.showPublicApi.get(),
-    settings.email.provider.get(),
-    settings.email.apiKey.has(),
-    settings.email.fromAddress.get(),
-    getBusinessEmailFromDb(),
-    settings.email.template.getSet("confirmation"),
-    settings.email.template.getSet("admin"),
-    bunnyCdnConfigured ? settings.customDomain.get() : Promise.resolve(null),
-    bunnyCdnConfigured
-      ? settings.customDomain.lastValidated.get()
-      : Promise.resolve(null),
-    settings.appleWallet.hasDbConfig(),
-    settings.appleWallet.passTypeId.get(),
-    settings.appleWallet.teamId.get(),
-    settings.googleWallet.hasDbConfig(),
-    settings.googleWallet.issuerId.get(),
-    settings.googleWallet.serviceAccountEmail.get(),
-    settings.theme.get(),
-  ]);
+  const showPublicApi = settings.showPublicApi;
+  const emailProvider = settings.email.provider;
+  const emailApiKeyConfigured = settings.email.hasApiKey;
+  const emailFromAddress = settings.email.fromAddress;
+  const businessEmail = await getBusinessEmailFromDb();
+  const confirmationTemplates = settings.email.templateSet("confirmation");
+  const adminTemplates = settings.email.templateSet("admin");
+  const customDomain = bunnyCdnConfigured ? settings.customDomain : null;
+  const customDomainLastValidated = bunnyCdnConfigured
+    ? settings.customDomainLastValidated
+    : null;
+  const appleWalletConfigured = settings.appleWallet.hasDbConfig;
+  const appleWalletPassTypeId = settings.appleWallet.passTypeId;
+  const appleWalletTeamId = settings.appleWallet.teamId;
+  const googleWalletConfigured = settings.googleWallet.hasDbConfig;
+  const googleWalletIssuerId = settings.googleWallet.issuerId;
+  const googleWalletServiceAccountEmail =
+    settings.googleWallet.serviceAccountEmail;
+  const theme = settings.theme;
   return {
     showPublicApi,
     emailProvider: emailProvider ?? "",
@@ -227,7 +179,7 @@ const getAdvancedSettingsPageState = async () => {
     appleWalletPassTypeId: appleWalletPassTypeId ?? "",
     appleWalletTeamId: appleWalletTeamId ?? "",
     hostAppleWalletLabel: (() => {
-      const hostConfig = settings.appleWallet.getHostConfig();
+      const hostConfig = settings.appleWallet.hostConfig;
       if (!hostConfig) return "";
       return `Host env (${hostConfig.passTypeId})`;
     })(),
@@ -235,7 +187,7 @@ const getAdvancedSettingsPageState = async () => {
     googleWalletIssuerId: googleWalletIssuerId ?? "",
     googleWalletServiceAccountEmail: googleWalletServiceAccountEmail ?? "",
     hostGoogleWalletLabel: (() => {
-      const hostConfig = settings.googleWallet.getHostConfig();
+      const hostConfig = settings.googleWallet.hostConfig;
       if (!hostConfig) return "";
       return `Host env (${hostConfig.issuerId})`;
     })(),
@@ -437,7 +389,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   const provider = form.getString("payment_provider");
 
   if (provider === "none") {
-    await settings.paymentProvider.clear();
+    await settings.update.clearPaymentProvider();
     await logActivity("Payment provider disabled");
     return redirect("/admin/settings", "Payment provider disabled", true, {
       formId: "settings-payment-provider",
@@ -452,7 +404,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  await settings.paymentProvider.set(provider);
+  await settings.update.paymentProvider(provider);
   await logActivity(`Payment provider set to ${provider}`);
 
   return redirect(
@@ -485,7 +437,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
 
   if (field.action === "cleared") {
     // Require a key when none is configured
-    if (!(await settings.stripe.secretKey.has())) {
+    if (!settings.stripe.hasKey) {
       return errorPage("Stripe Secret Key is required", 400, "settings-stripe");
     }
     // Empty with existing key = no change
@@ -505,7 +457,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
 
   // Set up webhook endpoint automatically
   const webhookUrl = getWebhookUrl();
-  const existingEndpointId = await settings.stripe.webhookEndpointId.get();
+  const existingEndpointId = settings.stripe.webhookEndpointId;
 
   const webhookResult = await setupWebhookEndpoint(
     field.value,
@@ -522,11 +474,11 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   }
 
   // Store the Stripe key and webhook config
-  await settings.stripe.secretKey.update(field.value);
-  await settings.stripe.setWebhookConfig(webhookResult);
+  await settings.update.stripe.secretKey(field.value);
+  await settings.update.stripe.webhookConfig(webhookResult);
 
   // Auto-set payment provider to stripe when key is configured
-  await settings.paymentProvider.set("stripe");
+  await settings.update.paymentProvider("stripe");
 
   await logActivity("Stripe key configured");
   return redirect(
@@ -558,24 +510,21 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   }
 
   // Require a token when none is configured
-  if (
-    tokenField.action === "cleared" &&
-    !(await settings.square.accessToken.has())
-  ) {
+  if (tokenField.action === "cleared" && !settings.square.hasToken) {
     return errorPage("Square Access Token is required", 400, "settings-square");
   }
 
   // Only update the token when a new value is provided
   if (tokenField.action === "provided") {
-    await settings.square.accessToken.update(tokenField.value);
+    await settings.update.square.accessToken(tokenField.value);
   }
 
   // Always allow updating non-secret fields
-  await settings.square.locationId.update(locationId);
-  await settings.square.sandbox.update(sandbox);
+  await settings.update.square.locationId(locationId);
+  await settings.update.square.sandbox(sandbox);
 
   // Auto-set payment provider to square when credentials are configured
-  await settings.paymentProvider.set("square");
+  await settings.update.paymentProvider("square");
 
   await logActivity("Square credentials configured");
   return redirect(
@@ -609,7 +558,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  await settings.square.webhookSignatureKey.update(field.value);
+  await settings.update.square.webhookSignatureKey(field.value);
 
   await logActivity("Square webhook signature key configured");
   return redirect(
@@ -646,7 +595,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
 
   // Empty = clear restriction
   if (trimmed === "") {
-    await settings.embedHosts.update("");
+    await settings.update.embedHosts("");
     return redirect(
       "/admin/settings",
       "Embed host restrictions removed",
@@ -662,7 +611,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
 
   // Normalize: trim, lowercase, rejoin
   const normalized = parseEmbedHosts(trimmed).join(", ");
-  await settings.embedHosts.update(normalized);
+  await settings.update.embedHosts(normalized);
   return redirect("/admin/settings", "Allowed embed hosts updated", true, {
     formId: "settings-embed-hosts",
   });
@@ -683,7 +632,7 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  await settings.terms.update(trimmed);
+  await settings.update.terms(trimmed);
 
   if (trimmed === "") {
     await logActivity("Terms and conditions removed");
@@ -709,7 +658,7 @@ const processCountryForm: SettingsFormHandler = async (form, errorPage) => {
     return errorPage("Please select a valid country", 400, "settings-country");
   }
 
-  await settings.country.update(trimmed);
+  await settings.update.country(trimmed);
   await logActivity(`Country set to ${trimmed}`);
   return redirect("/admin/settings", "Country updated", true, {
     formId: "settings-country",
@@ -761,7 +710,7 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
     return errorPage("Invalid theme selection", 400, "settings-theme");
   }
 
-  await settings.theme.update(theme);
+  await settings.update.theme(theme);
   await logActivity(`Theme set to ${theme}`);
   return redirect("/admin/settings", `Theme updated to ${theme}`, true, {
     formId: "settings-theme",
@@ -774,7 +723,7 @@ const handleThemePost = settingsRoute(processThemeForm);
 /** Validate and save show-public-site from form submission */
 const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
   const value = form.get("show_public_site") === "true";
-  await settings.showPublicSite.update(value);
+  await settings.update.showPublicSite(value);
   await logActivity(`Public site ${value ? "enabled" : "disabled"}`);
   return redirect(
     "/admin/settings",
@@ -790,7 +739,7 @@ const handleShowPublicSitePost = settingsRoute(processShowPublicSiteForm);
 /** Validate and save show-public-api from form submission */
 const processShowPublicApiForm: SettingsFormHandler = async (form) => {
   const value = form.get("show_public_api") === "true";
-  await settings.showPublicApi.update(value);
+  await settings.update.showPublicApi(value);
   await logActivity(`Public API ${value ? "enabled" : "disabled"}`);
   return redirect(
     "/admin/settings-advanced",
@@ -816,7 +765,7 @@ const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
     );
   }
 
-  await settings.bookingFee.update(String(value));
+  await settings.update.bookingFee(String(value));
   await logActivity(`Booking fee set to ${value}%`);
   return redirect("/admin/settings", `Booking fee updated to ${value}%`, true, {
     formId: "settings-booking-fee",
@@ -850,7 +799,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
     }
 
     // Delete old header image if one exists (best-effort, don't block new upload)
-    const existingUrl = await settings.headerImageUrl.get();
+    const existingUrl = settings.headerImageUrl;
     if (existingUrl) {
       await tryDeleteImage(
         existingUrl,
@@ -863,7 +812,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
       uploadImage(data, validation.detectedType),
     ]);
     if (uploadResult.status === "fulfilled") {
-      await settings.headerImageUrl.update(uploadResult.value);
+      await settings.update.headerImageUrl(uploadResult.value);
       await logActivity("Header image uploaded");
       return redirect("/admin/settings", "Header image uploaded", true, {
         formId: "settings-header-image",
@@ -878,14 +827,14 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
 
 /** Handle POST /admin/settings/header-image/delete - owner only */
 const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
-  const existingUrl = await settings.headerImageUrl.get();
+  const existingUrl = settings.headerImageUrl;
   if (!existingUrl) {
     return htmlResponse("No header image to remove", 400);
   }
 
   const [deleteResult] = await Promise.allSettled([deleteImage(existingUrl)]);
   if (deleteResult.status === "fulfilled") {
-    await settings.headerImageUrl.update("");
+    await settings.update.headerImageUrl("");
     await logActivity("Header image removed");
     return redirect("/admin/settings", "Header image removed", true, {
       formId: "settings-header-image-delete",
@@ -905,9 +854,9 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
   const fromAddress = form.getString("email_from_address");
 
   if (provider === "") {
-    await settings.email.provider.update("");
-    await settings.email.apiKey.update("");
-    await settings.email.fromAddress.update("");
+    await settings.update.email.provider("");
+    await settings.update.email.apiKey("");
+    await settings.update.email.fromAddress("");
     await logActivity("Email provider disabled");
     return redirect(
       "/admin/settings-advanced",
@@ -929,10 +878,10 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
     );
   }
 
-  await settings.email.provider.update(provider);
+  await settings.update.email.provider(provider);
   if (apiKeyField.action === "provided")
-    await settings.email.apiKey.update(apiKeyField.value);
-  if (fromAddress) await settings.email.fromAddress.update(fromAddress);
+    await settings.update.email.apiKey(apiKeyField.value);
+  if (fromAddress) await settings.update.email.fromAddress(fromAddress);
   await logActivity(`Email provider set to ${provider}`);
   return redirect("/admin/settings-advanced", "Email settings updated", true, {
     formId: "settings-email",
@@ -1019,9 +968,9 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
     }
 
     await Promise.all([
-      settings.email.template.update(type, "subject", subject.trim()),
-      settings.email.template.update(type, "html", html.trim()),
-      settings.email.template.update(type, "text", text.trim()),
+      settings.update.email.template(type, "subject", subject.trim()),
+      settings.update.email.template(type, "html", html.trim()),
+      settings.update.email.template(type, "text", text.trim()),
     ]);
 
     const label =
@@ -1140,7 +1089,7 @@ const handleCustomDomainPost = advancedSettingsRoute(
     const raw = form.getString("custom_domain").toLowerCase();
 
     if (raw === "") {
-      await settings.customDomain.update("");
+      await settings.update.customDomain("");
       await logActivity("Custom domain cleared");
       return redirect(
         "/admin/settings-advanced",
@@ -1155,13 +1104,13 @@ const handleCustomDomainPost = advancedSettingsRoute(
       return errorPage("Invalid domain format", 400, "settings-custom-domain");
     }
 
-    await settings.customDomain.update(raw);
+    await settings.update.customDomain(raw);
     await logActivity(`Custom domain set to ${raw}`);
 
     // Attempt validation immediately after saving
     const result = await validateCustomDomain(raw);
     if (result.ok) {
-      await settings.customDomain.lastValidated.update();
+      await settings.update.customDomainLastValidated();
       await logActivity(`Custom domain validated: ${raw}`);
       return redirect(
         "/admin/settings-advanced",
@@ -1191,7 +1140,7 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
       );
     }
 
-    const customDomain = await settings.customDomain.get();
+    const customDomain = settings.customDomain;
     if (!customDomain) {
       return errorPage(
         "No custom domain is configured",
@@ -1205,7 +1154,7 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
       return errorPage(result.error, 502, "settings-custom-domain-validate");
     }
 
-    await settings.customDomain.lastValidated.update();
+    await settings.update.customDomainLastValidated();
     await logActivity(`Custom domain validated: ${customDomain}`);
     return redirect(
       "/admin/settings-advanced",
@@ -1235,11 +1184,11 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
     wwdrField.action === "cleared"
   ) {
     await Promise.all([
-      settings.appleWallet.passTypeId.update(""),
-      settings.appleWallet.teamId.update(""),
-      settings.appleWallet.signingCert.update(""),
-      settings.appleWallet.signingKey.update(""),
-      settings.appleWallet.wwdrCert.update(""),
+      settings.update.appleWallet.passTypeId(""),
+      settings.update.appleWallet.teamId(""),
+      settings.update.appleWallet.signingCert(""),
+      settings.update.appleWallet.signingKey(""),
+      settings.update.appleWallet.wwdrCert(""),
     ]);
     await logActivity("Apple Wallet configuration cleared");
     return redirect(
@@ -1259,7 +1208,7 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   }
 
   // For initial setup, require all three PEM fields
-  const isConfigured = await settings.appleWallet.hasDbConfig();
+  const isConfigured = settings.appleWallet.hasDbConfig;
   if (!isConfigured) {
     if (certField.action !== "provided") {
       return errorPage(
@@ -1313,14 +1262,14 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
     );
   }
 
-  await settings.appleWallet.passTypeId.update(passTypeId);
-  await settings.appleWallet.teamId.update(teamId);
+  await settings.update.appleWallet.passTypeId(passTypeId);
+  await settings.update.appleWallet.teamId(teamId);
   if (certField.action === "provided")
-    await settings.appleWallet.signingCert.update(certField.value);
+    await settings.update.appleWallet.signingCert(certField.value);
   if (keyField.action === "provided")
-    await settings.appleWallet.signingKey.update(keyField.value);
+    await settings.update.appleWallet.signingKey(keyField.value);
   if (wwdrField.action === "provided")
-    await settings.appleWallet.wwdrCert.update(wwdrField.value);
+    await settings.update.appleWallet.wwdrCert(wwdrField.value);
 
   await logActivity("Apple Wallet configuration updated");
   return redirect(
@@ -1348,9 +1297,9 @@ const handleGoogleWalletPost = advancedSettingsRoute(
     // If everything is cleared, remove all settings
     if (!issuerId && !email && keyField.action === "cleared") {
       await Promise.all([
-        settings.googleWallet.issuerId.update(""),
-        settings.googleWallet.serviceAccountEmail.update(""),
-        settings.googleWallet.serviceAccountKey.update(""),
+        settings.update.googleWallet.issuerId(""),
+        settings.update.googleWallet.serviceAccountEmail(""),
+        settings.update.googleWallet.serviceAccountKey(""),
       ]);
       await logActivity("Google Wallet configuration cleared");
       return redirect(
@@ -1374,7 +1323,7 @@ const handleGoogleWalletPost = advancedSettingsRoute(
     }
 
     // For initial setup, require the private key
-    const isConfigured = await settings.googleWallet.hasDbConfig();
+    const isConfigured = settings.googleWallet.hasDbConfig;
     if (!isConfigured && keyField.action !== "provided") {
       return errorPage(
         "Service account private key is required",
@@ -1395,10 +1344,10 @@ const handleGoogleWalletPost = advancedSettingsRoute(
       );
     }
 
-    await settings.googleWallet.issuerId.update(issuerId);
-    await settings.googleWallet.serviceAccountEmail.update(email);
+    await settings.update.googleWallet.issuerId(issuerId);
+    await settings.update.googleWallet.serviceAccountEmail(email);
     if (keyField.action === "provided")
-      await settings.googleWallet.serviceAccountKey.update(keyField.value);
+      await settings.update.googleWallet.serviceAccountKey(keyField.value);
 
     await logActivity("Google Wallet configuration updated");
     return redirect(

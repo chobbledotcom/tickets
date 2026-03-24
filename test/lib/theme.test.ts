@@ -44,13 +44,13 @@ describe("theme", () => {
     });
 
     test("loads dark theme after updating database", async () => {
-      await settings.theme.update("dark");
+      await settings.update.theme("dark");
       const theme = await loadTheme();
       expect(theme).toBe("dark");
     });
 
     test("makes theme available via getTheme after loading", async () => {
-      await settings.theme.update("dark");
+      await settings.update.theme("dark");
       await loadTheme();
       expect(getTheme()).toBe("dark");
     });

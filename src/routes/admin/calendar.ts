@@ -215,7 +215,7 @@ const handleAdminCalendarGet = (request: Request) =>
       standardCtx.standardEvents,
       holidays,
     );
-    const phonePrefix = await settings.phonePrefix.get();
+    const phonePrefix = settings.phonePrefix;
 
     const questionData = await loadQuestionData(
       attendees.map((a) => a.eventId),

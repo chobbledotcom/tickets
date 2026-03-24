@@ -21,10 +21,10 @@ const PKPASS_CONTENT_TYPE = "application/vnd.apple.pkpass";
 const PKPASS_EXT = ".pkpass";
 
 /** Handle GET /wallet/:token.pkpass — generate and return .pkpass */
-const handleWalletGet = async (
+const handleWalletGet = (
   _request: Request,
   tokens: string[],
-): Promise<Response> => {
+): Response | Promise<Response> => {
   const raw = tokens[0];
   if (!raw || tokens.length > 1) return notFoundResponse();
 
@@ -32,7 +32,7 @@ const handleWalletGet = async (
   if (!raw.endsWith(PKPASS_EXT)) return notFoundResponse();
   const token = raw.slice(0, -PKPASS_EXT.length);
 
-  const config = await settings.appleWallet.getConfig();
+  const config = settings.appleWallet.config;
   if (!config) return notFoundResponse();
 
   return buildPkpassForToken(token, config);

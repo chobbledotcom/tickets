@@ -23,8 +23,8 @@ const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 const withVerifiedPass =
   (failStatus: number) =>
   (handler: (config: SigningCredentials) => Response | Promise<Response>) =>
-  async (passType: string): Promise<Response> => {
-    const config = await settings.appleWallet.getConfig();
+  (passType: string): Response | Promise<Response> => {
+    const config = settings.appleWallet.config;
     return config && passType === config.passTypeId
       ? handler(config)
       : new Response(null, { status: failStatus });

@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
-
-const { PAGE_CACHE_TTL_MS } = settings;
-
 import { encrypt } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
+import {
+  CONFIG_KEYS,
+  SETTINGS_CACHE_TTL_MS,
+  settings,
+} from "#lib/db/settings.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("page content cache", { db: true }, () => {
@@ -18,88 +19,88 @@ describeWithEnv("page content cache", { db: true }, () => {
   });
 
   describe("getWebsiteTitleFromDb", () => {
-    test("returns null when not set", async () => {
-      expect(await settings.websiteTitle.get()).toBeNull();
+    test("returns null when not set", () => {
+      expect(settings.websiteTitle).toBeNull();
     });
 
     test("returns decrypted value after update", async () => {
-      await settings.websiteTitle.update("My Site");
-      expect(await settings.websiteTitle.get()).toBe("My Site");
+      await settings.update.websiteTitle("My Site");
+      expect(settings.websiteTitle).toBe("My Site");
     });
 
     test("returns updated value after update invalidates cache", async () => {
-      await settings.websiteTitle.update("Old Title");
-      expect(await settings.websiteTitle.get()).toBe("Old Title");
-      await settings.websiteTitle.update("New Title");
-      expect(await settings.websiteTitle.get()).toBe("New Title");
+      await settings.update.websiteTitle("Old Title");
+      expect(settings.websiteTitle).toBe("Old Title");
+      await settings.update.websiteTitle("New Title");
+      expect(settings.websiteTitle).toBe("New Title");
     });
 
     test("returns null after clearing with empty string", async () => {
-      await settings.websiteTitle.update("Title");
-      expect(await settings.websiteTitle.get()).toBe("Title");
-      await settings.websiteTitle.update("");
-      expect(await settings.websiteTitle.get()).toBeNull();
+      await settings.update.websiteTitle("Title");
+      expect(settings.websiteTitle).toBe("Title");
+      await settings.update.websiteTitle("");
+      expect(settings.websiteTitle).toBeNull();
     });
   });
 
   describe("getHomepageTextFromDb", () => {
-    test("returns null when not set", async () => {
-      expect(await settings.homepageText.get()).toBeNull();
+    test("returns null when not set", () => {
+      expect(settings.homepageText).toBeNull();
     });
 
     test("returns decrypted value after update", async () => {
-      await settings.homepageText.update("Welcome!");
-      expect(await settings.homepageText.get()).toBe("Welcome!");
+      await settings.update.homepageText("Welcome!");
+      expect(settings.homepageText).toBe("Welcome!");
     });
 
     test("returns updated value after update invalidates cache", async () => {
-      await settings.homepageText.update("Old text");
-      expect(await settings.homepageText.get()).toBe("Old text");
-      await settings.homepageText.update("New text");
-      expect(await settings.homepageText.get()).toBe("New text");
+      await settings.update.homepageText("Old text");
+      expect(settings.homepageText).toBe("Old text");
+      await settings.update.homepageText("New text");
+      expect(settings.homepageText).toBe("New text");
     });
   });
 
   describe("getContactPageTextFromDb", () => {
-    test("returns null when not set", async () => {
-      expect(await settings.contactPageText.get()).toBeNull();
+    test("returns null when not set", () => {
+      expect(settings.contactPageText).toBeNull();
     });
 
     test("returns decrypted value after update", async () => {
-      await settings.contactPageText.update("Contact us here");
-      expect(await settings.contactPageText.get()).toBe("Contact us here");
+      await settings.update.contactPageText("Contact us here");
+      expect(settings.contactPageText).toBe("Contact us here");
     });
 
     test("returns updated value after update invalidates cache", async () => {
-      await settings.contactPageText.update("Old contact");
-      expect(await settings.contactPageText.get()).toBe("Old contact");
-      await settings.contactPageText.update("New contact");
-      expect(await settings.contactPageText.get()).toBe("New contact");
+      await settings.update.contactPageText("Old contact");
+      expect(settings.contactPageText).toBe("Old contact");
+      await settings.update.contactPageText("New contact");
+      expect(settings.contactPageText).toBe("New contact");
     });
   });
 
   describe("getTermsAndConditionsFromDb", () => {
-    test("returns null when not set", async () => {
-      expect(await settings.terms.get()).toBeNull();
+    test("returns null when not set", () => {
+      expect(settings.terms).toBeNull();
     });
 
     test("returns value after update", async () => {
-      await settings.terms.update("Terms text");
-      expect(await settings.terms.get()).toBe("Terms text");
+      await settings.update.terms("Terms text");
+      expect(settings.terms).toBe("Terms text");
     });
 
     test("returns updated value after update invalidates cache", async () => {
-      await settings.terms.update("Old terms");
-      expect(await settings.terms.get()).toBe("Old terms");
-      await settings.terms.update("New terms");
-      expect(await settings.terms.get()).toBe("New terms");
+      await settings.update.terms("Old terms");
+      expect(settings.terms).toBe("Old terms");
+      await settings.update.terms("New terms");
+      expect(settings.terms).toBe("New terms");
     });
 
     test("returns null after clearing with empty string", async () => {
-      await settings.terms.update("Terms");
-      expect(await settings.terms.get()).toBe("Terms");
-      await settings.terms.update("");
-      expect(await settings.terms.get()).toBeNull();
+      await settings.update.terms("Terms");
+      expect(settings.terms).toBe("Terms");
+      await settings.update.terms("");
+      expect(settings.terms).toBeNull();
     });
   });
 
@@ -109,8 +110,8 @@ describeWithEnv("page content cache", { db: true }, () => {
       const startTime = Date.now();
       fakeTime = new FakeTime(startTime);
 
-      await settings.terms.update("Original");
-      expect(await settings.terms.get()).toBe("Original");
+      await settings.update.terms("Original");
+      expect(settings.terms).toBe("Original");
 
       // Write directly to DB, bypassing page cache invalidation
       await getDb().execute({
@@ -124,25 +125,26 @@ describeWithEnv("page content cache", { db: true }, () => {
       const startTime = await seedAndBypassCache();
 
       // Advance to just before TTL boundary — cache still valid
-      fakeTime!.now = startTime + PAGE_CACHE_TTL_MS - 1;
-      expect(await settings.terms.get()).toBe("Original");
+      fakeTime!.now = startTime + SETTINGS_CACHE_TTL_MS - 1;
+      expect(settings.terms).toBe("Original");
     });
 
     test("re-fetches from DB after TTL expires", async () => {
       const startTime = await seedAndBypassCache();
 
       // Advance past TTL
-      fakeTime!.now = startTime + PAGE_CACHE_TTL_MS + 1;
-      // Cache expired — re-fetches from DB and picks up new value
-      expect(await settings.terms.get()).toBe("Changed");
+      fakeTime!.now = startTime + SETTINGS_CACHE_TTL_MS + 1;
+      // Cache expired — loadAll() re-fetches from DB and picks up new value
+      await settings.loadAll();
+      expect(settings.terms).toBe("Changed");
     });
 
     test("serves stale cached encrypted value when DB changes within TTL", async () => {
       const startTime = Date.now();
       fakeTime = new FakeTime(startTime);
 
-      await settings.websiteTitle.update("Original Title");
-      expect(await settings.websiteTitle.get()).toBe("Original Title");
+      await settings.update.websiteTitle("Original Title");
+      expect(settings.websiteTitle).toBe("Original Title");
 
       // Write a different encrypted value directly to DB
       const newEncrypted = await encrypt("Changed Title");
@@ -152,48 +154,50 @@ describeWithEnv("page content cache", { db: true }, () => {
       });
 
       // Within TTL — cache still serves decrypted "Original Title"
-      fakeTime.now = startTime + PAGE_CACHE_TTL_MS - 1;
-      expect(await settings.websiteTitle.get()).toBe("Original Title");
+      fakeTime.now = startTime + SETTINGS_CACHE_TTL_MS - 1;
+      expect(settings.websiteTitle).toBe("Original Title");
     });
   });
 
   describe("invalidatePageCache", () => {
     /** Assert all four page getters return the seeded values */
-    const expectAllPages = async () => {
-      expect(await settings.websiteTitle.get()).toBe("Title");
-      expect(await settings.homepageText.get()).toBe("Homepage");
-      expect(await settings.contactPageText.get()).toBe("Contact");
-      expect(await settings.terms.get()).toBe("Terms");
+    const expectAllPages = () => {
+      expect(settings.websiteTitle).toBe("Title");
+      expect(settings.homepageText).toBe("Homepage");
+      expect(settings.contactPageText).toBe("Contact");
+      expect(settings.terms).toBe("Terms");
     };
 
     test("clears all cached page entries", async () => {
-      await settings.websiteTitle.update("Title");
-      await settings.homepageText.update("Homepage");
-      await settings.contactPageText.update("Contact");
-      await settings.terms.update("Terms");
+      await settings.update.websiteTitle("Title");
+      await settings.update.homepageText("Homepage");
+      await settings.update.contactPageText("Contact");
+      await settings.update.terms("Terms");
 
       // Populate all caches
       await expectAllPages();
 
-      // Clear all
-      settings.invalidatePageCache();
+      // Clear all and reload
+      settings.invalidateCache();
+      await settings.loadAll();
 
-      // Values should still be correct (re-fetched from DB)
-      await expectAllPages();
+      // Values should still be correct (reloaded from DB)
+      expectAllPages();
     });
   });
 
   describe("invalidateSettingsCache clears page cache", () => {
     test("page cache is cleared when settings cache is invalidated", async () => {
-      await settings.websiteTitle.update("Title");
+      await settings.update.websiteTitle("Title");
       // Populate page cache
-      expect(await settings.websiteTitle.get()).toBe("Title");
+      expect(settings.websiteTitle).toBe("Title");
 
-      // invalidateSettingsCache should also clear the page cache
+      // invalidateCache clears the snapshot; loadAll re-populates
       settings.invalidateCache();
+      await settings.loadAll();
 
-      // Still returns correct value (re-fetched from DB)
-      expect(await settings.websiteTitle.get()).toBe("Title");
+      // Returns correct value after reload
+      expect(settings.websiteTitle).toBe("Title");
     });
   });
 
@@ -218,7 +222,7 @@ describeWithEnv("page content cache", { db: true }, () => {
   describe("null value caching", () => {
     test("serves cached null when value is added to DB within TTL", async () => {
       // First read populates page cache with null
-      expect(await settings.terms.get()).toBeNull();
+      expect(settings.terms).toBeNull();
 
       // Write directly to DB, bypassing page cache invalidation
       await getDb().execute({
@@ -227,7 +231,7 @@ describeWithEnv("page content cache", { db: true }, () => {
       });
 
       // Page cache still holds null
-      expect(await settings.terms.get()).toBeNull();
+      expect(settings.terms).toBeNull();
     });
   });
 });

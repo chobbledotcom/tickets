@@ -74,7 +74,7 @@ const backfillHybridEncryptedColumn = async (
   column: string,
   whereClause: string,
 ): Promise<void> => {
-  const publicKey = await settings.publicKey.get();
+  const publicKey = settings.publicKey;
   if (!publicKey) return;
   await backfillColumn(
     table,
@@ -306,7 +306,7 @@ export const initDb = async (): Promise<void> => {
     `ALTER TABLE attendees ADD COLUMN checked_in TEXT NOT NULL DEFAULT ''`,
   );
   // Backfill existing attendees with encrypted "false" if public key is available
-  const publicKey = await settings.publicKey.get();
+  const publicKey = settings.publicKey;
   if (publicKey) {
     const encryptedFalse = await encryptAttendeePII("false", publicKey);
     await getDb().execute({
@@ -343,8 +343,8 @@ export const initDb = async (): Promise<void> => {
   // Migration: migrate existing single-admin credentials to users table
   // For pre-multi-user installations, admin_password and wrapped_data_key are in settings
   {
-    const existingPasswordHash = await settings.get("admin_password");
-    const existingWrappedDataKey = await settings.get("wrapped_data_key");
+    const existingPasswordHash = settings.getCachedRaw("admin_password");
+    const existingWrappedDataKey = settings.getCachedRaw("wrapped_data_key");
     const userCountRows = await queryAll<{ count: number }>(
       "SELECT COUNT(*) as count FROM users",
     );
@@ -492,7 +492,7 @@ export const initDb = async (): Promise<void> => {
 
   // Backfill: encrypt existing plaintext ticket_token values and generate HMAC indexes
   {
-    const pubKey = await settings.publicKey.get();
+    const pubKey = settings.publicKey;
     if (pubKey) {
       // Get all attendees that need migration (those with plaintext tokens or missing index)
       const attendees = await queryAll<{ id: number; ticket_token: string }>(

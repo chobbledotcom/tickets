@@ -644,7 +644,7 @@ const contactFieldMap: Record<ContactField, Field> = {
 export { mergeEventFields, parseEventFields };
 
 /** Stubbable API for testing */
-export const fieldsApi = { getSettingCached: settings.getCached };
+export const fieldsApi = { getSettingCached: settings.getCachedRaw };
 
 /**
  * Get ticket form fields based on event fields setting.

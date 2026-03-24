@@ -314,7 +314,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects invalid stripe key format", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/stripe",
@@ -335,7 +335,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects restricted key format", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/stripe",
@@ -380,7 +380,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("settings page shows Stripe is not configured initially", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
       });
@@ -495,8 +495,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("backfills mode indicator when key exists but mode was never stored", async () => {
       // Simulate pre-sentinel setup: key stored directly without mode
-      await settings.stripe.secretKey.update("sk_test_backfill");
-      await settings.paymentProvider.set("stripe");
+      await settings.update.stripe.secretKey("sk_test_backfill");
+      await settings.update.paymentProvider("stripe");
 
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
@@ -653,7 +653,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         response,
         expect.stringContaining("Embed host restrictions removed"),
       );
-      expect(await settings.embedHosts.get()).toBe(null);
+      expect(settings.embedHosts).toBe(null);
     });
 
     test("rejects invalid embed host pattern", async () => {
@@ -685,9 +685,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         response,
         expect.stringContaining("Allowed embed hosts updated"),
       );
-      expect(await settings.embedHosts.get()).toBe(
-        "example.com, *.sub.example.com",
-      );
+      expect(settings.embedHosts).toBe("example.com, *.sub.example.com");
     });
   });
 
@@ -768,7 +766,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("settings page shows Square is not configured initially", async () => {
-      await settings.paymentProvider.set("square");
+      await settings.update.paymentProvider("square");
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
       });
@@ -1062,7 +1060,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       try {
-        await settings.paymentProvider.set("stripe");
+        await settings.update.paymentProvider("stripe");
 
         const response = await handleRequest(
           mockFormRequest(
@@ -1255,7 +1253,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("settings page shows current terms when configured", async () => {
-      await settings.terms.update("You must be 18 or older.");
+      await settings.update.terms("You must be 18 or older.");
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
       });
@@ -1265,8 +1263,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("templates/admin/settings.tsx (Square webhook coverage)", () => {
     test("settings page shows Square webhook config when square provider set", async () => {
-      await settings.paymentProvider.set("square");
-      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.update.paymentProvider("square");
+      await settings.update.square.accessToken("EAAAl_test_123");
 
       const response = await handleRequest(
         new Request("http://localhost/admin/settings", {
@@ -1280,9 +1278,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("settings page shows Square webhook configured message", async () => {
-      await settings.paymentProvider.set("square");
-      await settings.square.accessToken.update("EAAAl_test_123");
-      await settings.square.webhookSignatureKey.update("sig_key_test");
+      await settings.update.paymentProvider("square");
+      await settings.update.square.accessToken("EAAAl_test_123");
+      await settings.update.square.webhookSignatureKey("sig_key_test");
 
       const response = await handleRequest(
         new Request("http://localhost/admin/settings", {
@@ -1727,7 +1725,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { settings } = await import("#lib/db/settings.ts");
 
       // Initially should be "light"
-      expect(await settings.theme.get()).toBe("light");
+      expect(settings.theme).toBe("light");
 
       // Update to dark
       await handleRequest(
@@ -1742,14 +1740,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       // Should now be "dark"
-      expect(await settings.theme.get()).toBe("dark");
+      expect(settings.theme).toBe("dark");
     });
 
     test("settings page displays current theme selection", async () => {
       const { settings } = await import("#lib/db/settings.ts");
 
       // Set theme to dark
-      await settings.theme.update("dark");
+      await settings.update.theme("dark");
 
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
@@ -1822,7 +1820,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { settings } = await import("#lib/db/settings.ts");
 
       // Initially should be false
-      expect(await settings.showPublicSite.get()).toBe(false);
+      expect(settings.showPublicSite).toBe(false);
 
       // Enable it
       await handleRequest(
@@ -1836,7 +1834,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      expect(await settings.showPublicSite.get()).toBe(true);
+      expect(settings.showPublicSite).toBe(true);
     });
 
     test("settings page displays show public site section", async () => {
@@ -1925,7 +1923,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { settings } = await import("#lib/db/settings.ts");
 
       // Default should be GB → "44"
-      expect(await settings.phonePrefix.get()).toBe("44");
+      expect(settings.phonePrefix).toBe("44");
 
       // Update to US
       await handleRequest(
@@ -1939,9 +1937,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      expect(await settings.country.get()).toBe("US");
-      expect(await settings.phonePrefix.get()).toBe("1");
-      expect(await settings.currency.get()).toBe("USD");
+      expect(settings.country).toBe("US");
+      expect(settings.phonePrefix).toBe("1");
+      expect(settings.currency).toBe("USD");
     });
 
     test("settings page displays country form", async () => {
@@ -1997,7 +1995,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       const { settings } = await import("#lib/db/settings.ts");
-      expect(await settings.bookingFee.get()).toBe("1.5");
+      expect(settings.bookingFee).toBe("1.5");
     });
 
     test("saves zero booking fee", async () => {
@@ -2019,7 +2017,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects value exceeding 10", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/booking-fee",
@@ -2038,7 +2036,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects negative value", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/booking-fee",
@@ -2057,7 +2055,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects non-numeric value", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/booking-fee",
@@ -2076,7 +2074,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("settings page displays booking fee form when payment provider is set", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
       });
@@ -2092,7 +2090,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects missing booking_fee field", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/booking-fee",
@@ -2131,7 +2129,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   describe("sensitive field masking", () => {
     test("shows mask sentinel for configured Stripe key", async () => {
       const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
 
       await withMocks(
         () =>
@@ -2168,7 +2166,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("shows mask sentinel for configured Square token", async () => {
       const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
-      await settings.paymentProvider.set("square");
+      await settings.update.paymentProvider("square");
 
       // Configure Square credentials
       await handleRequest(
@@ -2196,8 +2194,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         "#lib/db/settings.ts"
       );
 
-      await s.email.provider.update("resend");
-      await s.email.apiKey.update("re_real_secret_key");
+      await s.update.email.provider("resend");
+      await s.update.email.apiKey("re_real_secret_key");
 
       const response = await awaitTestRequest("/admin/settings-advanced", {
         cookie: await testCookie(),
@@ -2211,7 +2209,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { MASK_SENTINEL, settings: s } = await import(
         "#lib/db/settings.ts"
       );
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
 
       await withMocks(
         () =>
@@ -2249,7 +2247,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
           expect(response.status).toBe(302);
           expectFlash(response, expect.stringContaining("unchanged"));
-          expect(await s.stripe.secretKey.get()).toBe("sk_test_original");
+          expect(s.stripe.secretKey).toBe("sk_test_original");
         },
       );
     });
@@ -2258,7 +2256,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { MASK_SENTINEL, settings: s } = await import(
         "#lib/db/settings.ts"
       );
-      await settings.paymentProvider.set("square");
+      await settings.update.paymentProvider("square");
 
       // Configure Square credentials
       await handleRequest(
@@ -2287,8 +2285,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(await s.square.accessToken.get()).toBe("EAAAl_original");
-      expect(await s.square.locationId.get()).toBe("L_updated");
+      expect(s.square.accessToken).toBe("EAAAl_original");
+      expect(s.square.locationId).toBe("L_updated");
     });
 
     test("submitting sentinel for Square webhook key does not overwrite", async () => {
@@ -2355,12 +2353,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(await s.email.apiKey.get()).toBe("re_original_key");
+      expect(s.email.apiKey).toBe("re_original_key");
     });
 
     test("submitting new value still updates the key", async () => {
       const { settings: s } = await import("#lib/db/settings.ts");
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
 
       await withMocks(
         () =>
@@ -2396,14 +2394,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             ),
           );
 
-          expect(await s.stripe.secretKey.get()).toBe("sk_test_new");
+          expect(s.stripe.secretKey).toBe("sk_test_new");
         },
       );
     });
 
     test("empty Stripe key with existing key is a no-op", async () => {
       const { settings: s } = await import("#lib/db/settings.ts");
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
 
       await withMocks(
         () =>
@@ -2438,13 +2436,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
           expect(response.status).toBe(302);
           expectFlash(response, expect.stringContaining("unchanged"));
-          expect(await s.stripe.secretKey.get()).toBe("sk_test_keep_me");
+          expect(s.stripe.secretKey).toBe("sk_test_keep_me");
         },
       );
     });
 
     test("empty Stripe key rejected when no key is configured", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
 
       const response = await handleRequest(
         mockFormRequest(
@@ -2458,7 +2456,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("empty Square token rejected when no token is configured", async () => {
-      await settings.paymentProvider.set("square");
+      await settings.update.paymentProvider("square");
 
       const response = await handleRequest(
         mockFormRequest(
@@ -2501,7 +2499,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects Stripe key configuration", async () => {
-      await settings.paymentProvider.set("stripe");
+      await settings.update.paymentProvider("stripe");
 
       const response = await handleRequest(
         mockFormRequest(
@@ -2522,7 +2520,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects Square credentials configuration", async () => {
-      await settings.paymentProvider.set("square");
+      await settings.update.paymentProvider("square");
 
       const response = await handleRequest(
         mockFormRequest(

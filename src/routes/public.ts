@@ -97,45 +97,39 @@ const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
 };
 
 /** Guard: redirect to admin if public site is disabled */
-const requirePublicSite = async (
-  fn: () => Promise<Response>,
-): Promise<Response> =>
-  (await settings.showPublicSite.get()) ? fn() : redirectResponse("/admin/");
+const requirePublicSite = <T>(fn: () => T): T | Response =>
+  settings.showPublicSite ? fn() : redirectResponse("/admin/");
 
-/** Render a public site page with website title and content fetched in parallel */
+/** Render a public site page with website title and content */
 const renderPublicPage = (
   pageType: PublicPageType,
-  getContent: () => Promise<string | null>,
-): Promise<Response> =>
-  requirePublicSite(async () => {
-    const [websiteTitle, content] = await Promise.all([
-      settings.websiteTitle.get(),
-      getContent(),
-    ]);
+  getContent: () => string | null,
+): Response =>
+  requirePublicSite(() => {
+    const websiteTitle = settings.websiteTitle;
+    const content = getContent();
     return htmlResponse(publicSitePage(pageType, websiteTitle, content));
   });
 
 /** Handle GET / (home page) - redirect to admin or show public site */
-export const handleHome = (): Promise<Response> =>
-  renderPublicPage("home", settings.homepageText.get);
+export const handleHome = (): Response =>
+  renderPublicPage("home", () => settings.homepageText);
 
 /** Handle GET /events - public events listing */
-export const handlePublicEvents = (): Promise<Response> =>
+export const handlePublicEvents = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const [events, websiteTitle] = await Promise.all([
-      loadHomepageEvents(),
-      settings.websiteTitle.get(),
-    ]);
+    const websiteTitle = settings.websiteTitle;
+    const events = await loadHomepageEvents();
     return htmlResponse(homepagePage(events, websiteTitle));
   });
 
 /** Handle GET /terms - public terms and conditions page */
-export const handlePublicTerms = (): Promise<Response> =>
-  renderPublicPage("terms", settings.terms.get);
+export const handlePublicTerms = (): Response =>
+  renderPublicPage("terms", () => settings.terms);
 
 /** Handle GET /contact - public contact page */
-export const handlePublicContact = (): Promise<Response> =>
-  renderPublicPage("contact", settings.contactPageText.get);
+export const handlePublicContact = (): Response =>
+  renderPublicPage("contact", () => settings.contactPageText);
 
 /** Render a ticket page with the given context */
 const renderTicketPage = (
@@ -199,7 +193,7 @@ const handleSingleTicketGet = (
     await signCsrfToken();
     const [dates, terms, questions] = await Promise.all([
       computeDatesForEvent(event),
-      settings.terms.get(),
+      Promise.resolve(settings.terms),
       getQuestionsForEvent(event.id),
     ]);
     const ctx: TicketContext = { dates, terms, questions };
@@ -417,7 +411,7 @@ const processTicketReservation = async (
   event: EventWithCount,
 ): Promise<Response> => {
   const [terms, questions] = await Promise.all([
-    settings.terms.get(),
+    Promise.resolve(settings.terms),
     getQuestionsForEvent(event.id),
   ]);
   const ctx: TicketContext = { dates: undefined, terms, questions };
@@ -587,7 +581,7 @@ const getMultiTicketContext = async (
   const eventIds = activeEvents.map((e) => e.event.id);
   const [dates, terms, questionsResult] = await Promise.all([
     computeSharedDates(activeEvents),
-    settings.terms.get(),
+    Promise.resolve(settings.terms),
     getQuestionsWithEventIds(eventIds),
   ]);
   return { dates, terms: terms ?? "", ...questionsResult };
@@ -881,10 +875,8 @@ const buildMultiRegistrationItems = (
 };
 
 /** Check if any selected event requires payment */
-const anyRequiresPayment = async (
-  items: MultiRegistrationItem[],
-): Promise<boolean> => {
-  const paymentsEnabled = await isPaymentsEnabled();
+const anyRequiresPayment = (items: MultiRegistrationItem[]): boolean => {
+  const paymentsEnabled = isPaymentsEnabled();
   if (!paymentsEnabled) return false;
   return items.some((item) => item.unitPrice > 0);
 };
@@ -933,7 +925,7 @@ const processMultiFreeReservation = async (
     }
     entries.push({ event, attendee: result.attendee });
   }
-  await logAndNotifyMultiRegistration(entries, await getCurrencyCode());
+  await logAndNotifyMultiRegistration(entries, getCurrencyCode());
   return {
     success: true,
     tokens: entries.map((entry) => entry.attendee.ticket_token),
@@ -948,7 +940,7 @@ const getGroupMultiTicketContext =
     const eventIds = events.map((e) => e.event.id);
     const [dates, globalTerms, questionsResult] = await Promise.all([
       computeSharedDates(events),
-      settings.terms.get(),
+      Promise.resolve(settings.terms),
       getQuestionsWithEventIds(eventIds),
     ]);
     const terms = group.terms_and_conditions || globalTerms || "";

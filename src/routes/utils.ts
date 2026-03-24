@@ -229,7 +229,7 @@ export const getPrivateKey = async (session: {
 }): Promise<CryptoKey | null> => {
   if (!session.wrappedDataKey) return null;
 
-  const wrappedPrivateKey = await settings.wrappedPrivateKey.get();
+  const wrappedPrivateKey = settings.wrappedPrivateKey;
   if (!wrappedPrivateKey) return null;
 
   try {

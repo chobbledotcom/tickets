@@ -483,28 +483,28 @@ describeWithEnv(
 );
 
 describeWithEnv("custom domain settings", { db: true }, () => {
-  test("getCustomDomainFromDb returns null when not set", async () => {
-    expect(await settings.customDomain.get()).toBeNull();
+  test("getCustomDomainFromDb returns null when not set", () => {
+    expect(settings.customDomain).toBeNull();
   });
 
   test("updateCustomDomain stores and retrieves domain", async () => {
-    await settings.customDomain.update("tickets.example.com");
-    expect(await settings.customDomain.get()).toBe("tickets.example.com");
+    await settings.update.customDomain("tickets.example.com");
+    expect(settings.customDomain).toBe("tickets.example.com");
   });
 
   test("updateCustomDomain with empty string clears domain", async () => {
-    await settings.customDomain.update("tickets.example.com");
-    await settings.customDomain.update("");
-    expect(await settings.customDomain.get()).toBeNull();
+    await settings.update.customDomain("tickets.example.com");
+    await settings.update.customDomain("");
+    expect(settings.customDomain).toBeNull();
   });
 
-  test("getCustomDomainLastValidatedFromDb returns null when not set", async () => {
-    expect(await settings.customDomain.lastValidated.get()).toBeNull();
+  test("getCustomDomainLastValidatedFromDb returns null when not set", () => {
+    expect(settings.customDomainLastValidated).toBeNull();
   });
 
   test("updateCustomDomainLastValidated stores a timestamp", async () => {
-    await settings.customDomain.lastValidated.update();
-    const value = await settings.customDomain.lastValidated.get();
+    await settings.update.customDomainLastValidated();
+    const value = settings.customDomainLastValidated;
     expect(value).not.toBeNull();
     // Should be a valid ISO 8601 date
     expect(new Date(value!).toISOString()).toBe(value);

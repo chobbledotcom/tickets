@@ -49,8 +49,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("displays existing values", async () => {
-      await settings.websiteTitle.update("My Events");
-      await settings.homepageText.update("Welcome!");
+      await settings.update.websiteTitle("My Events");
+      await settings.update.homepageText("Welcome!");
       const response = await awaitTestRequest("/admin/site", {
         cookie: await testCookie(),
       });
@@ -108,13 +108,13 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       );
       expectRedirectContaining(response, "Homepage updated");
 
-      expect(await settings.websiteTitle.get()).toBe("My Site");
-      expect(await settings.homepageText.get()).toBe("Welcome!");
+      expect(settings.websiteTitle).toBe("My Site");
+      expect(settings.homepageText).toBe("Welcome!");
     });
 
     test("clears values when empty", async () => {
-      await settings.websiteTitle.update("Old Title");
-      await settings.homepageText.update("Old Text");
+      await settings.update.websiteTitle("Old Title");
+      await settings.update.homepageText("Old Text");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
@@ -127,8 +127,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(await settings.websiteTitle.get()).toBe(null);
-      expect(await settings.homepageText.get()).toBe(null);
+      expect(settings.websiteTitle).toBe(null);
+      expect(settings.homepageText).toBe(null);
     });
 
     test("rejects title exceeding max length", async () => {
@@ -201,7 +201,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("displays existing contact text", async () => {
-      await settings.contactPageText.update("Call us!");
+      await settings.update.contactPageText("Call us!");
       const response = await awaitTestRequest("/admin/site/contact", {
         cookie: await testCookie(),
       });
@@ -252,11 +252,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         ),
       );
       expectRedirectContaining(response, "Contact page updated");
-      expect(await settings.contactPageText.get()).toBe("Email us!");
+      expect(settings.contactPageText).toBe("Email us!");
     });
 
     test("clears contact text when empty", async () => {
-      await settings.contactPageText.update("Old text");
+      await settings.update.contactPageText("Old text");
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
@@ -265,7 +265,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(await settings.contactPageText.get()).toBe(null);
+      expect(settings.contactPageText).toBe(null);
     });
 
     test("rejects text exceeding max length", async () => {
@@ -322,7 +322,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
   describe("admin nav", () => {
     test("shows Site link when public site is enabled", async () => {
-      await settings.showPublicSite.update(true);
+      await settings.update.showPublicSite(true);
       const response = await awaitTestRequest("/admin/site", {
         cookie: await testCookie(),
       });

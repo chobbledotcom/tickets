@@ -15,10 +15,8 @@ export const calculateBookingFee = (
 };
 
 /** Look up the configured booking fee percentage and calculate the fee for a subtotal. */
-export const getBookingFeeAmount = async (
-  subtotalMinorUnits: number,
-): Promise<number> =>
-  calculateBookingFee(subtotalMinorUnits, await getBookingFee());
+export const getBookingFeeAmount = (subtotalMinorUnits: number): number =>
+  calculateBookingFee(subtotalMinorUnits, getBookingFee());
 
 /** Calculate cart subtotal from items with unitPrice and quantity. */
 export const itemsSubtotal = (

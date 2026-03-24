@@ -46,11 +46,9 @@ const handleTicketView = async (
   const result = await lookupAttendees(tokens);
   if (!result.ok) return result.response;
 
-  const [entries, appleWalletEnabled, googleWalletEnabled] = await Promise.all([
-    resolveEntries(result.attendees),
-    settings.appleWallet.hasConfig(),
-    settings.googleWallet.hasConfig(),
-  ]);
+  const entries = await resolveEntries(result.attendees);
+  const appleWalletEnabled = settings.appleWallet.hasConfig;
+  const googleWalletEnabled = settings.googleWallet.hasConfig;
   for (const entry of entries) {
     entry.attendee.price_paid = String(entry.attendee.price_paid_v2);
   }

@@ -142,9 +142,9 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
   describe("GET /admin/debug with Stripe configured", () => {
     test("shows stripe as provider with key and webhook status", async () => {
-      await settings.paymentProvider.set("stripe");
-      await settings.stripe.secretKey.update("sk_test_fake");
-      await settings.stripe.setWebhookConfig({
+      await settings.update.paymentProvider("stripe");
+      await settings.update.stripe.secretKey("sk_test_fake");
+      await settings.update.stripe.webhookConfig({
         secret: "whsec_fake",
         endpointId: "we_fake",
       });
@@ -157,8 +157,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
   describe("GET /admin/debug with Square configured", () => {
     test("shows square as provider with webhook status", async () => {
-      await settings.paymentProvider.set("square");
-      await settings.square.webhookSignatureKey.update("sig_fake");
+      await settings.update.paymentProvider("square");
+      await settings.update.square.webhookSignatureKey("sig_fake");
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("square");
@@ -169,11 +169,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     test("shows Database as source with valid cert status", async () => {
       const certs = generateTestCerts();
       await Promise.all([
-        settings.appleWallet.passTypeId.update("pass.com.test.tickets"),
-        settings.appleWallet.teamId.update("TESTTEAM01"),
-        settings.appleWallet.signingCert.update(certs.signingCert),
-        settings.appleWallet.signingKey.update(certs.signingKey),
-        settings.appleWallet.wwdrCert.update(certs.wwdrCert),
+        settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
+        settings.update.appleWallet.teamId("TESTTEAM01"),
+        settings.update.appleWallet.signingCert(certs.signingCert),
+        settings.update.appleWallet.signingKey(certs.signingKey),
+        settings.update.appleWallet.wwdrCert(certs.wwdrCert),
       ]);
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
@@ -184,11 +184,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Invalid PEM for bad certificate data", async () => {
       await Promise.all([
-        settings.appleWallet.passTypeId.update("pass.com.test.tickets"),
-        settings.appleWallet.teamId.update("TESTTEAM01"),
-        settings.appleWallet.signingCert.update("not-a-valid-pem"),
-        settings.appleWallet.signingKey.update("not-a-valid-pem"),
-        settings.appleWallet.wwdrCert.update("not-a-valid-pem"),
+        settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
+        settings.update.appleWallet.teamId("TESTTEAM01"),
+        settings.update.appleWallet.signingCert("not-a-valid-pem"),
+        settings.update.appleWallet.signingKey("not-a-valid-pem"),
+        settings.update.appleWallet.wwdrCert("not-a-valid-pem"),
       ]);
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
@@ -249,11 +249,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     test("shows Database as source with valid key status", async () => {
       const creds = await generateGoogleTestCreds();
       await Promise.all([
-        settings.googleWallet.issuerId.update(creds.issuerId),
-        settings.googleWallet.serviceAccountEmail.update(
+        settings.update.googleWallet.issuerId(creds.issuerId),
+        settings.update.googleWallet.serviceAccountEmail(
           creds.serviceAccountEmail,
         ),
-        settings.googleWallet.serviceAccountKey.update(creds.serviceAccountKey),
+        settings.update.googleWallet.serviceAccountKey(creds.serviceAccountKey),
       ]);
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
@@ -264,11 +264,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Invalid key for bad private key data", async () => {
       await Promise.all([
-        settings.googleWallet.issuerId.update("1234567890"),
-        settings.googleWallet.serviceAccountEmail.update(
+        settings.update.googleWallet.issuerId("1234567890"),
+        settings.update.googleWallet.serviceAccountEmail(
           "test@test.iam.gserviceaccount.com",
         ),
-        settings.googleWallet.serviceAccountKey.update("not-a-valid-key"),
+        settings.update.googleWallet.serviceAccountKey("not-a-valid-key"),
       ]);
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();

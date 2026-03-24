@@ -1846,7 +1846,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         () => {
           callCount++;
           // First call: webhook handler needs provider; second call: tryRefund should get null
-          return callCount <= 1 ? origGetConfigured() : Promise.resolve(null);
+          return callCount <= 1 ? origGetConfigured() : null;
         },
       );
 

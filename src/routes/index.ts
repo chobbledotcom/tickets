@@ -253,7 +253,7 @@ const prefixHandlers: Record<string, RouterFn> = {
     );
     if (adminResult) return adminResult;
     // Public API requires feature flag
-    return (await settings.showPublicApi.get())
+    return settings.showPublicApi
       ? (await loadApiRoutes())(request, path, method, server)
       : null;
   },
@@ -298,9 +298,9 @@ const handleRequestInternal = async (
     return redirectResponse("/setup");
   }
 
-  await loadCurrencyCode();
-  await loadTheme();
-  await loadHeaderImage();
+  loadCurrencyCode();
+  loadTheme();
+  loadHeaderImage();
   return (await routeMainApp(request, path, method, server))!;
 };
 
@@ -374,7 +374,7 @@ export const handleRequest = async (
 
             // Load effective domain (custom_domain from DB if set, else ALLOWED_DOMAIN)
             // before domain validation so redirects go to the right host.
-            await loadEffectiveDomain();
+            loadEffectiveDomain();
 
             // Domain validation: redirect requests from unauthorized domains to the effective domain
             if (!isValidDomain(effectiveRequest)) {

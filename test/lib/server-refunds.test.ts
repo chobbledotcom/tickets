@@ -100,7 +100,7 @@ const withRefundMock = async (
   await withMocks(
     () =>
       stub(paymentsApi, "getConfiguredProvider", () =>
-        Promise.resolve(mockProviderType("stripe")),
+        mockProviderType("stripe"),
       ),
     async () => {
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");

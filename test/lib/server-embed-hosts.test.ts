@@ -42,7 +42,7 @@ async function postEmbedHostsExpectRedirect(
 /** Create an embeddable event and return its ticket page CSP header */
 async function getTicketCsp(setupEmbedHosts?: string): Promise<string> {
   if (setupEmbedHosts !== undefined) {
-    await settings.embedHosts.update(setupEmbedHosts);
+    await settings.update.embedHosts(setupEmbedHosts);
   }
   const response = await getEmbeddableTicketResponse();
   return getHeader(response, "content-security-policy");
@@ -61,7 +61,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
     });
 
     test("shows current embed hosts value when configured", async () => {
-      await settings.embedHosts.update("example.com, *.mysite.org");
+      await settings.update.embedHosts("example.com, *.mysite.org");
       const { response } = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "example.com, *.mysite.org");
     });
@@ -161,7 +161,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
     });
 
     test("non-embeddable pages still have frame-ancestors none regardless of embed hosts", async () => {
-      await settings.embedHosts.update("example.com");
+      await settings.update.embedHosts("example.com");
 
       const response = await handleRequest(mockRequest("/"));
       const csp = getHeader(response, "content-security-policy");
@@ -170,7 +170,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
     });
 
     test("ticket page has no X-Frame-Options when embed hosts configured", async () => {
-      await settings.embedHosts.update("example.com");
+      await settings.update.embedHosts("example.com");
       const response = await getEmbeddableTicketResponse();
       expect(response.headers.get("x-frame-options")).toBeNull();
     });

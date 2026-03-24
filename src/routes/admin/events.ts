@@ -404,7 +404,7 @@ const renderEventPage = async (
       const [flash, phonePrefix, questions, attendeeAnswerMap] =
         await Promise.all([
           Promise.resolve(getFlash()),
-          settings.phonePrefix.get(),
+          Promise.resolve(settings.phonePrefix),
           getQuestionsForEvent(event.id),
           getAttendeeAnswersBatch(attendeeIds),
         ]);

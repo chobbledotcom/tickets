@@ -16,8 +16,8 @@ const state = { url: null as string | null };
  * Called once per request in routes/index.ts before templates render.
  * Settings are already cached so this is cheap on repeat calls.
  */
-export const loadHeaderImage = async (): Promise<string | null> => {
-  state.url = await settings.headerImageUrl.get();
+export const loadHeaderImage = (): string | null => {
+  state.url = settings.headerImageUrl;
   return state.url;
 };
 

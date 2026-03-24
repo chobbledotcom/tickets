@@ -17,7 +17,7 @@ const handleGoogleWalletGet = async (
   _request: Request,
   tokens: string[],
 ): Promise<Response> => {
-  const config = await settings.googleWallet.getConfig();
+  const config = settings.googleWallet.config;
   if (!config) return notFoundResponse();
 
   const result = await lookupSingleTokenPassData(tokens);

@@ -65,7 +65,7 @@ describe("getBookingFeeAmount", () => {
   });
 
   test("returns calculated fee when booking fee is set", async () => {
-    await settings.bookingFee.update("2.5");
+    await settings.update.bookingFee("2.5");
     // 1000 * 2.5 / 100 = 25
     expect(await getBookingFeeAmount(1000)).toBe(25);
   });

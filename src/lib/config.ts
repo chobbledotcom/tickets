@@ -13,28 +13,27 @@ import type { PaymentProviderType } from "#lib/payments.ts";
  * Get the configured payment provider type
  * Returns null if no provider is configured
  */
-export const getPaymentProvider =
-  async (): Promise<PaymentProviderType | null> => {
-    const provider = await settings.paymentProvider.get();
-    if (provider === "stripe") return "stripe";
-    if (provider === "square") return "square";
-    return null;
-  };
+export const getPaymentProvider = (): PaymentProviderType | null => {
+  const provider = settings.paymentProvider;
+  if (provider === "stripe") return "stripe";
+  if (provider === "square") return "square";
+  return null;
+};
 
 /**
  * Get Stripe secret key from database (encrypted)
  * Returns null if not configured (payments disabled)
  */
-export const getStripeSecretKey = (): Promise<string | null> => {
-  return settings.stripe.secretKey.get();
+export const getStripeSecretKey = (): string | null => {
+  return settings.stripe.secretKey;
 };
 
 /**
  * Get Stripe webhook signing secret from database (encrypted)
  * Automatically configured when Stripe secret key is saved
  */
-export const getStripeWebhookSecret = (): Promise<string | null> => {
-  return settings.stripe.webhookSecret.get();
+export const getStripeWebhookSecret = (): string | null => {
+  return settings.stripe.webhookSecret;
 };
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
@@ -45,10 +44,10 @@ export const configApi = {
 /**
  * Check if payments are enabled (any provider configured with valid keys)
  */
-export const isPaymentsEnabled = async (): Promise<boolean> => {
-  const provider = await configApi.getPaymentProvider();
-  if (provider === "stripe") return settings.stripe.secretKey.has();
-  if (provider === "square") return settings.square.accessToken.has();
+export const isPaymentsEnabled = (): boolean => {
+  const provider = configApi.getPaymentProvider();
+  if (provider === "stripe") return settings.stripe.hasKey;
+  if (provider === "square") return settings.square.hasToken;
   return false;
 };
 
@@ -56,43 +55,42 @@ export const isPaymentsEnabled = async (): Promise<boolean> => {
  * Get Square access token from database (encrypted)
  * Returns null if not configured
  */
-export const getSquareAccessToken = (): Promise<string | null> =>
-  settings.square.accessToken.get();
+export const getSquareAccessToken = (): string | null =>
+  settings.square.accessToken;
 
 /**
  * Get Square webhook signature key from database (encrypted)
  * Returns null if not configured
  */
-export const getSquareWebhookSignatureKey = (): Promise<string | null> =>
-  settings.square.webhookSignatureKey.get();
+export const getSquareWebhookSignatureKey = (): string | null =>
+  settings.square.webhookSignatureKey;
 
 /**
  * Get Square location ID from database
  * Returns null if not configured
  */
-export const getSquareLocationId = (): Promise<string | null> =>
-  settings.square.locationId.get();
+export const getSquareLocationId = (): string | null =>
+  settings.square.locationId;
 
 /**
  * Get Square sandbox mode setting from database
  * Returns true if sandbox mode is enabled
  */
-export const getSquareSandbox = (): Promise<boolean> =>
-  settings.square.sandbox.get();
+export const getSquareSandbox = (): boolean => settings.square.sandbox;
 
 /**
  * Get booking fee percentage from database.
  * Returns 0 if not set.
  */
-export const getBookingFee = async (): Promise<number> =>
-  Number.parseFloat((await settings.bookingFee.get())!) || 0;
+export const getBookingFee = (): number =>
+  Number.parseFloat(settings.bookingFee!) || 0;
 
 /**
  * Get currency code from database
  * Defaults to GBP if not set
  */
-export const getCurrencyCode = (): Promise<string> => {
-  return settings.currency.get();
+export const getCurrencyCode = (): string => {
+  return settings.currency;
 };
 
 /**
@@ -124,11 +122,9 @@ export const setAllowedDomainForTest = (domain: string): void =>
 const effectiveDomainState = { domain: null as string | null };
 
 /** Load the effective domain from DB (call early in request pipeline). */
-export const loadEffectiveDomain = async (): Promise<string> => {
-  const custom = await settings.customDomain.get();
-  const validated = custom
-    ? await settings.customDomain.lastValidated.get()
-    : null;
+export const loadEffectiveDomain = (): string => {
+  const custom = settings.customDomain;
+  const validated = custom ? settings.customDomainLastValidated : null;
   effectiveDomainState.domain =
     custom && validated ? custom : getAllowedDomain();
   return effectiveDomainState.domain;
@@ -153,7 +149,7 @@ export const setEffectiveDomainForTest = (domain: string): void => {
  * Returns empty array if not configured (embedding allowed from anywhere)
  */
 export const getEmbedHosts = async (): Promise<string[]> => {
-  const raw = await settings.embedHosts.get();
+  const raw = settings.embedHosts;
   if (!raw) return [];
   const { parseEmbedHosts } = await import("#lib/embed-hosts.ts");
   return parseEmbedHosts(raw);
@@ -164,7 +160,7 @@ export const getEmbedHosts = async (): Promise<string[]> => {
  * Safe to call from synchronous code (templates, helpers) because
  * the settings cache is populated by middleware on every request.
  */
-export const getTz = (): string => settings.timezone.getCached();
+export const getTz = (): string => settings.timezone;
 
 /**
  * Check if initial setup has been completed

@@ -477,14 +477,14 @@ describe("test-utils", () => {
       await createTestDbWithSetup();
       await setupStripe();
       const { settings: s } = await import("#lib/db/settings.ts");
-      expect(await s.paymentProvider.get()).toBe("stripe");
+      expect(s.paymentProvider).toBe("stripe");
     });
 
     test("accepts a custom key", async () => {
       await createTestDbWithSetup();
       await setupStripe("sk_test_custom");
       const { settings: s } = await import("#lib/db/settings.ts");
-      expect(await s.paymentProvider.get()).toBe("stripe");
+      expect(s.paymentProvider).toBe("stripe");
     });
   });
 

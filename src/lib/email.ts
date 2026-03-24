@@ -51,12 +51,10 @@ export type EmailConfig = {
 
 /** Read email config from DB settings. Falls back to business email for fromAddress. Returns null if not configured. */
 export const getEmailConfig = async (): Promise<EmailConfig | null> => {
-  const [provider, apiKey, fromAddress, businessEmail] = await Promise.all([
-    settings.email.provider.get(),
-    settings.email.apiKey.get(),
-    settings.email.fromAddress.get(),
-    getBusinessEmailFromDb(),
-  ]);
+  const provider = settings.email.provider;
+  const apiKey = settings.email.apiKey;
+  const fromAddress = settings.email.fromAddress;
+  const businessEmail = await getBusinessEmailFromDb();
   const from = fromAddress || businessEmail;
   if (!provider || !apiKey || !from) return null;
   return { provider: provider as EmailProvider, apiKey, fromAddress: from };

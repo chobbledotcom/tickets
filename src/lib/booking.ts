@@ -40,7 +40,7 @@ export const processBooking = async (
   customUnitPrice?: number,
   answerIds?: number[],
 ): Promise<BookingResult> => {
-  const paymentsEnabled = await isPaymentsEnabled();
+  const paymentsEnabled = isPaymentsEnabled();
   const needsPayment =
     (paymentsEnabled && event.unit_price > 0) ||
     (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
@@ -80,10 +80,6 @@ export const processBooking = async (
   if (!result.success)
     return { type: "creation_failed", reason: result.reason };
 
-  await logAndNotifyRegistration(
-    event,
-    result.attendee,
-    await getCurrencyCode(),
-  );
+  await logAndNotifyRegistration(event, result.attendee, getCurrencyCode());
   return { type: "success", attendee: result.attendee };
 };

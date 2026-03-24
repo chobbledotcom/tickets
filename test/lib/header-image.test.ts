@@ -150,20 +150,20 @@ describe("header image", () => {
     });
 
     test("returns filename after updating database", async () => {
-      await settings.headerImageUrl.update("my-header.jpg");
+      await settings.update.headerImageUrl("my-header.jpg");
       const url = await loadHeaderImage();
       expect(url).toBe("my-header.jpg");
     });
 
     test("makes header image available via getHeaderImageUrl after loading", async () => {
-      await settings.headerImageUrl.update("my-header.png");
+      await settings.update.headerImageUrl("my-header.png");
       await loadHeaderImage();
       expect(getHeaderImageUrl()).toBe("my-header.png");
     });
 
     test("returns null after clearing header image", async () => {
-      await settings.headerImageUrl.update("my-header.jpg");
-      await settings.headerImageUrl.update("");
+      await settings.update.headerImageUrl("my-header.jpg");
+      await settings.update.headerImageUrl("");
       const url = await loadHeaderImage();
       expect(url).toBeNull();
     });
@@ -171,21 +171,21 @@ describe("header image", () => {
 });
 
 describeWithEnv("header image settings DB", { db: true }, () => {
-  test("getHeaderImageUrlFromDb returns null when not set", async () => {
-    const url = await settings.headerImageUrl.get();
+  test("getHeaderImageUrlFromDb returns null when not set", () => {
+    const url = settings.headerImageUrl;
     expect(url).toBeNull();
   });
 
   test("getHeaderImageUrlFromDb returns decrypted filename after update", async () => {
-    await settings.headerImageUrl.update("abc123.jpg");
-    const url = await settings.headerImageUrl.get();
+    await settings.update.headerImageUrl("abc123.jpg");
+    const url = settings.headerImageUrl;
     expect(url).toBe("abc123.jpg");
   });
 
   test("updateHeaderImageUrl with empty string clears the setting", async () => {
-    await settings.headerImageUrl.update("abc123.jpg");
-    await settings.headerImageUrl.update("");
-    const url = await settings.headerImageUrl.get();
+    await settings.update.headerImageUrl("abc123.jpg");
+    await settings.update.headerImageUrl("");
+    const url = settings.headerImageUrl;
     expect(url).toBeNull();
   });
 });
@@ -223,7 +223,7 @@ describeWithEnv(
       });
 
       test("shows remove button when header image is set", async () => {
-        await settings.headerImageUrl.update("existing.jpg");
+        await settings.update.headerImageUrl("existing.jpg");
         const { response } = await adminGet("/admin/settings");
         await expectHtmlResponse(
           response,
@@ -245,7 +245,7 @@ describeWithEnv(
           const response = await submitHeaderJpeg("logo.jpg");
           expectSettingsRedirect(response);
 
-          const url = await settings.headerImageUrl.get();
+          const url = settings.headerImageUrl;
           expect(url).not.toBeNull();
           expect(url).toMatch(/\.jpg$/);
         });
@@ -316,7 +316,7 @@ describeWithEnv(
       });
 
       test("deletes old header image when uploading new one", async () => {
-        await settings.headerImageUrl.update("old-header.jpg");
+        await settings.update.headerImageUrl("old-header.jpg");
 
         await withStorageMock(async (fetchCalls) => {
           const response = await submitHeaderJpeg("new-logo.jpg");
@@ -327,7 +327,7 @@ describeWithEnv(
           );
           expect(deleteCall).not.toBeUndefined();
 
-          const url = await settings.headerImageUrl.get();
+          const url = settings.headerImageUrl;
           expect(url).toMatch(/\.jpg$/);
           expect(url).not.toBe("old-header.jpg");
         });
@@ -362,13 +362,13 @@ describeWithEnv(
 
     describe("POST /admin/settings/header-image/delete", () => {
       test("removes header image", async () => {
-        await settings.headerImageUrl.update("to-delete.jpg");
+        await settings.update.headerImageUrl("to-delete.jpg");
 
         await withStorageMock(async () => {
           const response = await submitHeaderImageDelete();
           expectSettingsRedirect(response);
 
-          const url = await settings.headerImageUrl.get();
+          const url = settings.headerImageUrl;
           expect(url).toBeNull();
         });
       });
@@ -379,7 +379,7 @@ describeWithEnv(
       });
 
       test("reports error when storage delete throws", async () => {
-        await settings.headerImageUrl.update("failing.jpg");
+        await settings.update.headerImageUrl("failing.jpg");
 
         const originalFetch = globalThis.fetch;
         globalThis.fetch = (): Promise<Response> => {
@@ -392,7 +392,7 @@ describeWithEnv(
           expectFlash(response, "Header image removal failed", false);
 
           // DB record should NOT be cleared when CDN delete fails
-          const url = await settings.headerImageUrl.get();
+          const url = settings.headerImageUrl;
           expect(url).toBe("failing.jpg");
         } finally {
           globalThis.fetch = originalFetch;
@@ -402,7 +402,7 @@ describeWithEnv(
 
     describe("header image in layout", () => {
       test("renders header image in page when set", async () => {
-        await settings.headerImageUrl.update("my-header.jpg");
+        await settings.update.headerImageUrl("my-header.jpg");
         const { response } = await adminGet("/admin/settings");
         await expectHtmlResponse(
           response,

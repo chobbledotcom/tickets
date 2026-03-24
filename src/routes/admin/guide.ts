@@ -14,7 +14,7 @@ import { adminGuidePage } from "#templates/admin/guide.tsx";
 const handleAdminGuideGet = (request: Request): Promise<Response> =>
   requireSessionOr(request, (session) => {
     const hostEmail = getHostEmailConfig();
-    const hostWallet = settings.appleWallet.getHostConfig();
+    const hostWallet = settings.appleWallet.hostConfig;
     return htmlResponse(
       adminGuidePage(session, {
         hostEmailProvider: hostEmail

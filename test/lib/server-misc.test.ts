@@ -116,8 +116,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
       });
 
       test("square sandbox CSP includes sandbox domains", async () => {
-        await settings.paymentProvider.set("square");
-        await settings.square.sandbox.update(true);
+        await settings.update.paymentProvider("square");
+        await settings.update.square.sandbox(true);
         const response = await handleRequest(mockRequest("/"));
         const csp = getHeader(response, "content-security-policy");
         expect(csp).toContain("squareupsandbox.com");
