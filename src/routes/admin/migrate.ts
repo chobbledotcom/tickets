@@ -1,7 +1,7 @@
 /**
  * Admin database migration route — migrates attendees from per-field
  * encryption to consolidated PII blob + plaintext status columns.
- * Owner-only access. Processes in manual batches of 100.
+ * Accessible to owners and managers. Processes in manual batches of 100.
  */
 
 import {
@@ -16,8 +16,8 @@ import type { AuthSession } from "#routes/utils.ts";
 import {
   htmlResponse,
   redirectResponse,
-  requireOwnerOr,
-  withOwnerAuthForm,
+  requireSessionOr,
+  withAuthForm,
 } from "#routes/utils.ts";
 import { adminMigratePage } from "#templates/admin/migrate.tsx";
 
@@ -34,7 +34,7 @@ const whenNotMigrated =
  * Handle GET /admin/migrate — show migration status page
  */
 const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
-  requireOwnerOr(
+  requireSessionOr(
     request,
     whenNotMigrated((session) =>
       htmlResponse(adminMigratePage(session, { done: true })),
@@ -60,7 +60,7 @@ const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
  * Handle POST /admin/migrate — process one batch of attendees
  */
 const handleMigratePost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(
+  withAuthForm(
     request,
     whenNotMigrated(() => redirectResponse("/admin/migrate"))(
       async (session) => {
