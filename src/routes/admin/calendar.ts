@@ -3,7 +3,7 @@
  */
 
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
-import { getEffectiveDomain, getTz } from "#lib/config.ts";
+import { getEffectiveDomain } from "#lib/config.ts";
 import {
   eventDateToCalendarDate,
   formatDateLabel,
@@ -231,7 +231,7 @@ const handleAdminCalendarGet = (request: Request) =>
         session,
         dateFilter,
         availableDates,
-        todayInTz(getTz()),
+        todayInTz(settings.timezone),
         phonePrefix,
         questionData,
         hasPaidEvent,

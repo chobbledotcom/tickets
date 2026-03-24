@@ -3,7 +3,6 @@
  */
 
 import { chunk, compact, filter, uniqueBy } from "#fp";
-import { getCurrencyCode } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -26,6 +25,7 @@ import {
   getQuestionsForEvent,
   saveAttendeeAnswers,
 } from "#lib/db/questions.ts";
+import { settings } from "#lib/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 /* jscpd:ignore-start */
 import { getFlash } from "#lib/flash-context.ts";
@@ -780,7 +780,7 @@ const handleResendNotification = attendeeFormAction(
     );
     if (error) return error;
 
-    const currency = getCurrencyCode();
+    const currency = settings.currency;
     await Promise.all([
       logAndNotifyRegistration(data.event, data.attendee, currency),
       logActivity(

@@ -2,12 +2,8 @@
  * Middleware functions for request processing
  */
 
-import {
-  getEffectiveDomain,
-  getEmbedHosts,
-  getPaymentProvider,
-  getSquareSandbox,
-} from "#lib/config.ts";
+import { getEffectiveDomain, getEmbedHosts } from "#lib/config.ts";
+import { settings } from "#lib/db/settings.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 import { encodeBody } from "#routes/utils.ts";
@@ -278,8 +274,8 @@ export const applySecurityHeaders = async (
   }
 
   // Rebuild CSP with payment-provider-specific directives
-  const provider = getPaymentProvider();
-  const sandbox = provider === "square" ? getSquareSandbox() : undefined;
+  const provider = settings.paymentProvider;
+  const sandbox = provider === "square" ? settings.square.sandbox : undefined;
   response.headers.set(
     "content-security-policy",
     buildCspHeader(embeddable, { provider, sandbox }),

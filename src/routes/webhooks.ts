@@ -19,7 +19,6 @@ import { calculateBookingFee } from "#lib/booking-fee.ts";
 import {
   getAllowedDomain,
   getBookingFee,
-  getCurrencyCode,
   getEffectiveDomain,
 } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -37,6 +36,7 @@ import {
   reserveSession,
 } from "#lib/db/processed-payments.ts";
 import { saveAttendeeAnswers } from "#lib/db/questions.ts";
+import { settings } from "#lib/db/settings.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { errorMessage } from "#lib/payment-helpers.ts";
 import {
@@ -662,7 +662,7 @@ const processPaymentSession = async (
     options?.storeTokens === false ? [] : ticketTokens,
   );
 
-  await logAndNotifyMultiRegistration(createdAttendees, getCurrencyCode());
+  await logAndNotifyMultiRegistration(createdAttendees, settings.currency);
 
   return {
     success: true,

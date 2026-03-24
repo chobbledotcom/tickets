@@ -4,9 +4,9 @@
 
 import { filter } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
-import { getTz } from "#lib/config.ts";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { queryAndMap } from "#lib/db/query.ts";
+import { settings } from "#lib/db/settings.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 import { requestCache } from "#lib/request-cache.ts";
 import { todayInTz } from "#lib/timezone.ts";
@@ -76,7 +76,7 @@ export const getAllHolidays = (): Promise<Holiday[]> => holidaysCache.getAll();
  * "today" is computed in the configured timezone.
  */
 export const getActiveHolidays = async (): Promise<Holiday[]> => {
-  const today = todayInTz(getTz());
+  const today = todayInTz(settings.timezone);
   const holidays = await holidaysCache.getAll();
   return filter((h: Holiday) => h.end_date >= today)(holidays);
 };

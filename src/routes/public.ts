@@ -4,11 +4,7 @@
 
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { type BookingResult, processBooking } from "#lib/booking.ts";
-import {
-  getCurrencyCode,
-  getEffectiveDomain,
-  isPaymentsEnabled,
-} from "#lib/config.ts";
+import { getEffectiveDomain, isPaymentsEnabled } from "#lib/config.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { validatePrice } from "#lib/currency.ts";
 import { getAvailableDates } from "#lib/dates.ts";
@@ -925,7 +921,7 @@ const processMultiFreeReservation = async (
     }
     entries.push({ event, attendee: result.attendee });
   }
-  await logAndNotifyMultiRegistration(entries, getCurrencyCode());
+  await logAndNotifyMultiRegistration(entries, settings.currency);
   return {
     success: true,
     tokens: entries.map((entry) => entry.attendee.ticket_token),

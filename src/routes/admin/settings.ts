@@ -16,7 +16,6 @@ import {
 import {
   getCdnHostname,
   getEffectiveDomain,
-  getSquareWebhookSignatureKey,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
@@ -113,7 +112,7 @@ const getSettingsPageState = async () => {
     paymentProvider: settings.paymentProvider ?? "",
     squareTokenConfigured: settings.square.hasToken,
     squareSandbox: settings.square.sandbox,
-    squareWebhookConfigured: getSquareWebhookSignatureKey() !== null,
+    squareWebhookConfigured: settings.square.webhookSignatureKey !== null,
     webhookUrl: getWebhookUrl(),
     bookingFee: settings.bookingFee!,
     embedHosts: settings.embedHosts ?? "",
