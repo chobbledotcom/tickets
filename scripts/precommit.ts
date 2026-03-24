@@ -16,7 +16,39 @@ const write = (s: string) => Deno.stdout.writeSync(encoder.encode(s));
 interface Step {
   name: string;
   cmd: string[];
+  filterOutput?: (stdout: string, stderr: string) => string;
 }
+
+/** Extract only failures and errors from deno test output */
+const filterTestOutput = (stdout: string, stderr: string): string => {
+  const combined = stdout + "\n" + stderr;
+  const lines = combined.split("\n");
+  const output: string[] = [];
+  let capturing = false;
+
+  for (const line of lines) {
+    // Start capturing at ERRORS or FAILURES sections
+    if (/^ ERRORS\s*$/.test(line) || /^ FAILURES\s*$/.test(line)) {
+      capturing = true;
+    }
+    // Always capture the summary line (e.g. "FAILED | 120 passed | 2 failed")
+    if (/^(FAILED|ok)\s*\|/.test(line)) {
+      capturing = true;
+    }
+    if (capturing) output.push(line);
+  }
+
+  // If no structured sections found, fall back to lines containing FAILED or error info
+  if (output.length === 0) {
+    for (const line of lines) {
+      if (/FAILED|error:|Error:|AssertionError|assert/i.test(line)) {
+        output.push(line);
+      }
+    }
+  }
+
+  return output.join("\n").trim();
+};
 
 const steps: Step[] = [
   { name: "biome:fix", cmd: ["deno", "task", "biome:fix"] },
@@ -24,7 +56,11 @@ const steps: Step[] = [
   { name: "lint", cmd: ["deno", "task", "lint"] },
   { name: "cpd", cmd: ["deno", "task", "cpd"] },
   { name: "build:edge", cmd: ["deno", "task", "build:edge"] },
-  { name: "test:coverage", cmd: ["deno", "task", "test:coverage"] },
+  {
+    name: "test:coverage",
+    cmd: ["deno", "task", "test:coverage"],
+    filterOutput: filterTestOutput,
+  },
 ];
 
 const runStep = async (step: Step): Promise<boolean> => {
@@ -48,8 +84,10 @@ const runStep = async (step: Step): Promise<boolean> => {
   write(`${red("✗")} ${dim(`${elapsed}s`)}\n`);
   const stdout = decoder.decode(result.stdout);
   const stderr = decoder.decode(result.stderr);
-  if (stdout) console.log(stdout);
-  if (stderr) console.error(stderr);
+  const output = step.filterOutput
+    ? step.filterOutput(stdout, stderr)
+    : [stdout, stderr].filter(Boolean).join("\n");
+  if (output) console.log(output);
   return false;
 };
 
