@@ -29,6 +29,9 @@ export type AdvancedSettingsPageState = {
     text: string;
   };
   bunnyCdnEnabled: boolean;
+  bunnyDnsEnabled: boolean;
+  bunnySubdomain: string;
+  bunnyDnsSubdomainSuffix: string;
   customDomain: string;
   customDomainLastValidated: string;
   cdnHostname: string;
@@ -455,6 +458,77 @@ export const adminAdvancedSettingsPage = (
             Send Test Email
           </button>
         </CsrfForm>
+      )}
+
+      {s.bunnyDnsEnabled && (
+        <div id="settings-bunny-subdomain">
+          <h2>Bunny Subdomain</h2>
+          {s.bunnySubdomain ? (
+            <div>
+              <p>
+                Your site is available at{" "}
+                <a href={`https://${s.bunnySubdomain}`}>
+                  <strong>{s.bunnySubdomain}</strong>
+                </a>
+                .{" "}
+                {s.customDomain && s.customDomainLastValidated
+                  ? `Visitors will be redirected to your custom domain (${s.customDomain}).`
+                  : "You can also set a custom domain below."}
+              </p>
+              <p>
+                <small>
+                  This subdomain is permanent and cannot be changed.
+                </small>
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p>
+                Choose a subdomain for your booking site. This cannot be changed
+                once set.
+              </p>
+              <label>
+                Subdomain
+                <div class="subdomain-input-group">
+                  <input
+                    type="text"
+                    id="bunny-subdomain-input"
+                    name="subdomain"
+                    placeholder="myevent"
+                    autocomplete="off"
+                    pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
+                  />
+                  <span class="subdomain-suffix">
+                    {s.bunnyDnsSubdomainSuffix}
+                  </span>
+                </div>
+              </label>
+              <div id="bunny-subdomain-result" class="hidden"></div>
+              <p>
+                <button
+                  type="button"
+                  id="bunny-subdomain-check-btn"
+                  class="secondary"
+                >
+                  Check Availability
+                </button>
+              </p>
+              <CsrfForm
+                action="/admin/settings/bunny-subdomain"
+                id="settings-bunny-subdomain-form"
+              >
+                <input
+                  type="hidden"
+                  name="subdomain"
+                  id="bunny-subdomain-hidden"
+                />
+                <button type="submit" id="bunny-subdomain-save-btn" disabled>
+                  Save Subdomain
+                </button>
+              </CsrfForm>
+            </div>
+          )}
+        </div>
       )}
 
       {s.bunnyCdnEnabled && (

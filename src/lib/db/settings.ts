@@ -85,6 +85,7 @@ export const CONFIG_KEYS = {
   GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
   GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
+  BUNNY_SUBDOMAIN: "bunny_subdomain",
   ATTENDEE_BLOB_MIGRATED: "attendee_blob_migrated",
 } as const;
 
@@ -155,6 +156,7 @@ const data = {
   bookingFee: "0",
   customDomain: null as string | null,
   customDomainLastValidated: null as string | null,
+  bunnySubdomain: null as string | null,
   publicKey: null as string | null,
   wrappedPrivateKey: null as string | null,
   squareLocationId: null as string | null,
@@ -315,6 +317,7 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   data.customDomain = raw.get(CONFIG_KEYS.CUSTOM_DOMAIN) ?? null;
   data.customDomainLastValidated =
     raw.get(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED) ?? null;
+  data.bunnySubdomain = raw.get(CONFIG_KEYS.BUNNY_SUBDOMAIN) ?? null;
   data.publicKey = raw.get(CONFIG_KEYS.PUBLIC_KEY) ?? null;
   data.wrappedPrivateKey = raw.get(CONFIG_KEYS.WRAPPED_PRIVATE_KEY) ?? null;
   data.squareLocationId = raw.get(CONFIG_KEYS.SQUARE_LOCATION_ID) ?? null;
@@ -574,6 +577,9 @@ export const settings = {
   get customDomainLastValidated(): string | null {
     return snap("customDomainLastValidated");
   },
+  get bunnySubdomain(): string | null {
+    return snap("bunnySubdomain");
+  },
   get publicKey(): string | null {
     return snap("publicKey");
   },
@@ -829,6 +835,10 @@ export const settings = {
       const ts = new Date().toISOString();
       await writeRaw(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, ts);
       data.customDomainLastValidated = ts;
+    },
+    bunnySubdomain: async (v: string): Promise<void> => {
+      await writeOrDelete(CONFIG_KEYS.BUNNY_SUBDOMAIN, v);
+      data.bunnySubdomain = v || null;
     },
     headerImageUrl: async (v: string): Promise<void> => {
       await writeEncrypted(CONFIG_KEYS.HEADER_IMAGE_URL, v);

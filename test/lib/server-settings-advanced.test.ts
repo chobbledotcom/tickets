@@ -589,6 +589,344 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
   });
 
   describeWithEnv(
+    "bunny subdomain",
+    {
+      env: {
+        BUNNY_API_KEY: undefined,
+        BUNNY_DNS_ZONE_ID: undefined,
+        BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined,
+      },
+    },
+    () => {
+      const setBunnyDnsEnv = () => {
+        Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
+        Deno.env.set("BUNNY_DNS_ZONE_ID", "42");
+        Deno.env.set("BUNNY_DNS_SUBDOMAIN_SUFFIX", ".tickets");
+      };
+
+      test("does not show bunny subdomain section when DNS not configured", async () => {
+        const response = await awaitTestRequest("/admin/settings-advanced", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).not.toContain('id="settings-bunny-subdomain"');
+      });
+
+      test("shows bunny subdomain section when DNS is configured", async () => {
+        setBunnyDnsEnv();
+        const response = await awaitTestRequest("/admin/settings-advanced", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).toContain('id="settings-bunny-subdomain"');
+        expect(html).toContain("Bunny Subdomain");
+        expect(html).toContain("Check Availability");
+      });
+
+      test("shows existing bunny subdomain as read-only", async () => {
+        setBunnyDnsEnv();
+        const cookie = await testCookie();
+        const token = cookie.split("=").slice(1).join("=");
+        await settings.update.bunnySubdomain("myevent.tickets.example.com");
+        const response = await handleRequest(
+          mockRequestWithHost(
+            "/admin/settings-advanced",
+            "myevent.tickets.example.com",
+            {
+              headers: { cookie: `__Host-session=${token}` },
+            },
+          ),
+        );
+        const html = await response.text();
+        expect(html).toContain("myevent.tickets.example.com");
+        expect(html).toContain("permanent and cannot be changed");
+        expect(html).not.toContain("Check Availability");
+        expect(html).toContain("set a custom domain below");
+      });
+
+      test("shows redirect message when both bunny subdomain and custom domain are set", async () => {
+        setBunnyDnsEnv();
+        const cookie = await testCookie();
+        const token = cookie.split("=").slice(1).join("=");
+        await settings.update.bunnySubdomain("myevent.tickets.example.com");
+        await settings.update.customDomain("tickets.mysite.com");
+        await settings.update.customDomainLastValidated();
+        const response = await handleRequest(
+          mockRequestWithHost(
+            "/admin/settings-advanced",
+            "tickets.mysite.com",
+            {
+              headers: { cookie: `__Host-session=${token}` },
+            },
+          ),
+        );
+        const html = await response.text();
+        expect(html).toContain("myevent.tickets.example.com");
+        expect(html).toContain("redirected to your custom domain");
+        expect(html).toContain("tickets.mysite.com");
+      });
+
+      describe("POST /admin/settings/bunny-subdomain/check", () => {
+        test("rejects when Bunny DNS is not configured", async () => {
+          Deno.env.delete("BUNNY_API_KEY");
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/bunny-subdomain/check",
+              {
+                subdomain: "myevent",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(400);
+          const data = await response.json();
+          expect(data.ok).toBe(false);
+        });
+
+        test("rejects when bunny subdomain already set", async () => {
+          setBunnyDnsEnv();
+          const csrfToken = await testCsrfToken();
+          const cookie = await testCookie();
+          const token = cookie.split("=").slice(1).join("=");
+          await settings.update.bunnySubdomain("existing.tickets.example.com");
+          const response = await handleRequest(
+            mockRequestWithHost(
+              "/admin/settings/bunny-subdomain/check",
+              "existing.tickets.example.com",
+              {
+                method: "POST",
+                headers: {
+                  cookie: `__Host-session=${token}`,
+                  "content-type": "application/x-www-form-urlencoded",
+                },
+                body: `subdomain=myevent&csrf_token=${encodeURIComponent(csrfToken)}`,
+              },
+            ),
+          );
+          expect(response.status).toBe(400);
+          const data = await response.json();
+          expect(data.error).toBe("Bunny subdomain already set");
+        });
+
+        test("rejects invalid subdomain format", async () => {
+          setBunnyDnsEnv();
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/bunny-subdomain/check",
+              {
+                subdomain: "INVALID!",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(400);
+          const data = await response.json();
+          expect(data.error).toBe("Invalid subdomain format");
+        });
+
+        test("returns error when API check fails", async () => {
+          setBunnyDnsEnv();
+          const original = bunnyCdnApi.checkSubdomainAvailable;
+          bunnyCdnApi.checkSubdomainAvailable = () =>
+            Promise.resolve({ ok: false as const, error: "API failure" });
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/bunny-subdomain/check",
+                {
+                  subdomain: "myevent",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            expect(response.status).toBe(502);
+            const data = await response.json();
+            expect(data).toEqual({ ok: false, error: "API failure" });
+          } finally {
+            bunnyCdnApi.checkSubdomainAvailable = original;
+          }
+        });
+
+        test("returns availability result on success", async () => {
+          setBunnyDnsEnv();
+          const original = bunnyCdnApi.checkSubdomainAvailable;
+          bunnyCdnApi.checkSubdomainAvailable = () =>
+            Promise.resolve({
+              ok: true as const,
+              available: true,
+              fullDomain: "myevent.tickets.example.com",
+            });
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/bunny-subdomain/check",
+                {
+                  subdomain: "myevent",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            expect(response.status).toBe(200);
+            const data = await response.json();
+            expect(data).toEqual({
+              ok: true,
+              available: true,
+              fullDomain: "myevent.tickets.example.com",
+            });
+          } finally {
+            bunnyCdnApi.checkSubdomainAvailable = original;
+          }
+        });
+      });
+
+      describe("POST /admin/settings/bunny-subdomain", () => {
+        test("rejects when Bunny DNS is not configured", async () => {
+          Deno.env.delete("BUNNY_API_KEY");
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/bunny-subdomain",
+              {
+                subdomain: "myevent",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(400);
+        });
+
+        test("rejects when bunny subdomain already set", async () => {
+          setBunnyDnsEnv();
+          const csrfToken = await testCsrfToken();
+          const cookie = await testCookie();
+          const token = cookie.split("=").slice(1).join("=");
+          await settings.update.bunnySubdomain("existing.tickets.example.com");
+          const response = await handleRequest(
+            mockRequestWithHost(
+              "/admin/settings/bunny-subdomain",
+              "existing.tickets.example.com",
+              {
+                method: "POST",
+                headers: {
+                  cookie: `__Host-session=${token}`,
+                  "content-type": "application/x-www-form-urlencoded",
+                },
+                body: `subdomain=myevent&csrf_token=${encodeURIComponent(csrfToken)}`,
+              },
+            ),
+          );
+          expect(response.status).toBe(400);
+        });
+
+        test("rejects invalid subdomain format", async () => {
+          setBunnyDnsEnv();
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/bunny-subdomain",
+              {
+                subdomain: "-invalid",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(400);
+        });
+
+        test("registers subdomain and saves to DB on success", async () => {
+          setBunnyDnsEnv();
+          const original = bunnyCdnApi.registerBunnySubdomain;
+          bunnyCdnApi.registerBunnySubdomain = () =>
+            Promise.resolve({
+              ok: true as const,
+              fullDomain: "myevent.tickets.example.com",
+            });
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/bunny-subdomain",
+                {
+                  subdomain: "myevent",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            expectRedirectWithFlash(
+              "/admin/settings-advanced?form=settings-bunny-subdomain#settings-bunny-subdomain",
+              "Subdomain registered: myevent.tickets.example.com",
+            )(response);
+            expect(settings.bunnySubdomain).toBe("myevent.tickets.example.com");
+          } finally {
+            bunnyCdnApi.registerBunnySubdomain = original;
+          }
+        });
+
+        test("returns error when registration fails", async () => {
+          setBunnyDnsEnv();
+          const original = bunnyCdnApi.registerBunnySubdomain;
+          bunnyCdnApi.registerBunnySubdomain = () =>
+            Promise.resolve({
+              ok: false as const,
+              error: "DNS error",
+            });
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/bunny-subdomain",
+                {
+                  subdomain: "myevent",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            expect(response.status).toBe(502);
+          } finally {
+            bunnyCdnApi.registerBunnySubdomain = original;
+          }
+        });
+
+        test("logs activity on successful registration", async () => {
+          setBunnyDnsEnv();
+          const original = bunnyCdnApi.registerBunnySubdomain;
+          bunnyCdnApi.registerBunnySubdomain = () =>
+            Promise.resolve({
+              ok: true as const,
+              fullDomain: "myevent.tickets.example.com",
+            });
+          try {
+            await handleRequest(
+              mockFormRequest(
+                "/admin/settings/bunny-subdomain",
+                {
+                  subdomain: "myevent",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            const log = await getAllActivityLog();
+            expect(
+              log.some((e) =>
+                e.message.includes(
+                  "Bunny subdomain set to myevent.tickets.example.com",
+                ),
+              ),
+            ).toBe(true);
+          } finally {
+            bunnyCdnApi.registerBunnySubdomain = original;
+          }
+        });
+      });
+    },
+  );
+
+  describeWithEnv(
     "custom domain",
     { env: { BUNNY_API_KEY: undefined } },
     () => {

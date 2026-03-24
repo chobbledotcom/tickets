@@ -144,6 +144,38 @@ describe("config", () => {
       resetEffectiveDomain();
       expect(getEffectiveDomain()).toBe("mysite.bunny.run");
     });
+
+    test("returns bunny subdomain when set and no custom domain", async () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      await settings.update.bunnySubdomain("myevent.tickets.example.com");
+      settings.invalidateCache();
+      await settings.loadAll();
+      const result = await loadEffectiveDomain();
+      expect(result).toBe("myevent.tickets.example.com");
+      expect(getEffectiveDomain()).toBe("myevent.tickets.example.com");
+    });
+
+    test("custom domain takes priority over bunny subdomain", async () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      await settings.update.bunnySubdomain("myevent.tickets.example.com");
+      await settings.update.customDomain("tickets.example.com");
+      await settings.update.customDomainLastValidated();
+      settings.invalidateCache();
+      await settings.loadAll();
+      const result = await loadEffectiveDomain();
+      expect(result).toBe("tickets.example.com");
+    });
+
+    test("bunny subdomain used when custom domain set but not validated", async () => {
+      setAllowedDomainForTest("mysite.bunny.run");
+      await settings.update.bunnySubdomain("myevent.tickets.example.com");
+      await settings.update.customDomain("tickets.example.com");
+      // Not validated
+      settings.invalidateCache();
+      await settings.loadAll();
+      const result = await loadEffectiveDomain();
+      expect(result).toBe("myevent.tickets.example.com");
+    });
   });
 
   describe("isPaymentsEnabled - non-stripe provider", () => {

@@ -57,10 +57,21 @@ const effectiveDomainState = { domain: null as string | null };
 export const loadEffectiveDomain = (): string => {
   const custom = settings.customDomain;
   const validated = custom ? settings.customDomainLastValidated : null;
-  effectiveDomainState.domain =
-    custom && validated ? custom : getAllowedDomain();
+  if (custom && validated) {
+    effectiveDomainState.domain = custom;
+  } else if (settings.bunnySubdomain) {
+    effectiveDomainState.domain = settings.bunnySubdomain;
+  } else {
+    effectiveDomainState.domain = getAllowedDomain();
+  }
   return effectiveDomainState.domain;
 };
+
+/**
+ * Get the bunny subdomain from DB (if set).
+ * Used by domain validation to also accept the bunny subdomain for 301 redirects.
+ */
+export const getBunnySubdomain = (): string | null => settings.bunnySubdomain;
 
 /** Get the effective domain synchronously (falls back to ALLOWED_DOMAIN). */
 export const getEffectiveDomain = (): string =>
@@ -97,6 +108,20 @@ export const isBunnyCdnEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
  * Get the Bunny CDN API key from environment
  */
 export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
+
+/**
+ * Check if Bunny DNS subdomain feature is enabled.
+ * Requires BUNNY_API_KEY and BUNNY_DNS_ZONE_ID to be set.
+ */
+export const isBunnyDnsEnabled = (): boolean =>
+  !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_DNS_ZONE_ID");
+
+/** Get the Bunny DNS zone ID from environment */
+export const getBunnyDnsZoneId = (): string => requireEnv("BUNNY_DNS_ZONE_ID");
+
+/** Get the Bunny DNS subdomain suffix (e.g. ".tickets") from environment */
+export const getBunnyDnsSubdomainSuffix = (): string =>
+  getEnv("BUNNY_DNS_SUBDOMAIN_SUFFIX") ?? "";
 
 /**
  * Get the CDN hostname derived from ALLOWED_DOMAIN.

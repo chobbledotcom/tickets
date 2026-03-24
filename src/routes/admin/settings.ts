@@ -7,15 +7,21 @@ import {
   isValidPemCertificate,
   isValidPemPrivateKey,
 } from "#lib/apple-wallet.ts";
-import { validateCustomDomain } from "#lib/bunny-cdn.ts";
+import {
+  checkSubdomainAvailable,
+  registerBunnySubdomain,
+  validateCustomDomain,
+} from "#lib/bunny-cdn.ts";
 import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import {
+  getBunnyDnsSubdomainSuffix,
   getCdnHostname,
   getEffectiveDomain,
   isBunnyCdnEnabled,
+  isBunnyDnsEnabled,
 } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { isValidCountry } from "#lib/countries.ts";
@@ -151,6 +157,11 @@ const getAdvancedSettingsPageState = () => {
       text: adminTemplates.text ?? "",
     },
     bunnyCdnEnabled: bunnyCdnConfigured,
+    bunnyDnsEnabled: isBunnyDnsEnabled(),
+    bunnySubdomain: settings.bunnySubdomain ?? "",
+    bunnyDnsSubdomainSuffix: isBunnyDnsEnabled()
+      ? getBunnyDnsSubdomainSuffix()
+      : "",
     customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
     customDomainLastValidated:
       (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
@@ -1145,6 +1156,91 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
   },
 );
 
+/** Valid subdomain pattern: lowercase alphanumeric + hyphens, no leading/trailing hyphen */
+const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/** Handle POST /admin/settings/bunny-subdomain/check - check availability (JSON) */
+const handleBunnySubdomainCheckPost: TypedRouteHandler<
+  "POST /admin/settings/bunny-subdomain/check"
+> = (request) =>
+  withOwnerAuthForm(request, async (_session, form) => {
+    if (!isBunnyDnsEnabled()) {
+      return jsonResponse(
+        { ok: false, error: "Bunny DNS is not configured" },
+        400,
+      );
+    }
+    if (settings.bunnySubdomain) {
+      return jsonResponse(
+        { ok: false, error: "Bunny subdomain already set" },
+        400,
+      );
+    }
+
+    const raw = form.getString("subdomain").toLowerCase().trim();
+    if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
+      return jsonResponse(
+        { ok: false, error: "Invalid subdomain format" },
+        400,
+      );
+    }
+
+    const result = await checkSubdomainAvailable(raw);
+    if (!result.ok) {
+      return jsonResponse({ ok: false, error: result.error }, 502);
+    }
+
+    return jsonResponse({
+      ok: true,
+      available: result.available,
+      fullDomain: result.fullDomain,
+    });
+  });
+
+/** Handle POST /admin/settings/bunny-subdomain - register subdomain */
+const handleBunnySubdomainPost = advancedSettingsRoute(
+  async (form, errorPage) => {
+    if (!isBunnyDnsEnabled()) {
+      return errorPage(
+        "Bunny DNS is not configured",
+        400,
+        "settings-bunny-subdomain",
+      );
+    }
+
+    if (settings.bunnySubdomain) {
+      return errorPage(
+        "Bunny subdomain has already been set and cannot be changed",
+        400,
+        "settings-bunny-subdomain",
+      );
+    }
+
+    const raw = form.getString("subdomain").toLowerCase().trim();
+    if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
+      return errorPage(
+        "Invalid subdomain format",
+        400,
+        "settings-bunny-subdomain",
+      );
+    }
+
+    const result = await registerBunnySubdomain(raw);
+    if (!result.ok) {
+      return errorPage(result.error, 502, "settings-bunny-subdomain");
+    }
+
+    await settings.update.bunnySubdomain(result.fullDomain);
+    await logActivity(`Bunny subdomain set to ${result.fullDomain}`);
+    return redirect(
+      "/admin/settings-advanced",
+      `Subdomain registered: ${result.fullDomain}`,
+      true,
+      { formId: "settings-bunny-subdomain" },
+    );
+  },
+);
+
 /**
  * Handle POST /admin/settings/apple-wallet - owner only
  */
@@ -1390,6 +1486,8 @@ export const settingsRoutes = defineRoutes({
     handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
+  "POST /admin/settings/bunny-subdomain/check": handleBunnySubdomainCheckPost,
+  "POST /admin/settings/bunny-subdomain": handleBunnySubdomainPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/google-wallet": handleGoogleWalletPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
