@@ -131,9 +131,8 @@ export const getNextBookableDate = (
  * The input is interpreted as local time in the given timezone and converted to UTC.
  */
 export const normalizeDatetime = (value: string, label: string): string => {
-  const tz = settings.timezone;
   try {
-    return localToUtc(value, tz);
+    return localToUtc(value, settings.timezone);
   } catch {
     throw new Error(`Invalid ${label}: ${value}`);
   }

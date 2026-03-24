@@ -643,10 +643,9 @@ export const squareApi: {
     try {
       const response = await client.locations.list();
       locations = response.locations ?? [];
-      const sandbox = settings.square.sandbox;
       result.accessToken = {
         valid: true,
-        mode: sandbox ? "sandbox" : "production",
+        mode: settings.square.sandbox ? "sandbox" : "production",
       };
     } catch (err) {
       result.accessToken = { valid: false, error: errorMessage(err) };

@@ -77,8 +77,6 @@ export const buildWebhookPayload = (
   );
 
   const hasPaidEvent = entries.some(({ event }) => isPaidEvent(event));
-  const businessEmail = settings.businessEmail ?? "";
-
   return {
     event_type: "registration.completed",
     name: first.attendee.name,
@@ -99,7 +97,7 @@ export const buildWebhookPayload = (
       ticket_token: attendee.ticket_token,
     })),
     timestamp: nowIso(),
-    business_email: businessEmail,
+    business_email: settings.businessEmail ?? "",
   };
 };
 

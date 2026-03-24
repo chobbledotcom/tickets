@@ -103,8 +103,6 @@ const getWebhookUrl = (): string => {
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
 const getSettingsPageState = () => {
-  const businessEmail = settings.businessEmail ?? "";
-
   return {
     stripeKeyConfigured: settings.stripe.hasKey,
     stripeKeyMode: settings.stripe.keyMode,
@@ -116,7 +114,7 @@ const getSettingsPageState = () => {
     bookingFee: settings.bookingFee!,
     embedHosts: settings.embedHosts ?? "",
     termsAndConditions: settings.terms ?? "",
-    businessEmail,
+    businessEmail: settings.businessEmail ?? "",
     theme: settings.theme,
     showPublicSite: settings.showPublicSite,
     country: settings.country,

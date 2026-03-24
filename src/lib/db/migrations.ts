@@ -344,7 +344,6 @@ export const initDb = async (): Promise<void> => {
   // For pre-multi-user installations, admin_password and wrapped_data_key are in settings
   {
     const existingPasswordHash = settings.getCachedRaw("admin_password");
-    const existingWrappedDataKey = settings.getCachedRaw("wrapped_data_key");
     const userCountRows = await queryAll<{ count: number }>(
       "SELECT COUNT(*) as count FROM users",
     );
@@ -364,7 +363,7 @@ export const initDb = async (): Promise<void> => {
           encryptedUsername,
           usernameIndex,
           encryptedPasswordHash,
-          existingWrappedDataKey,
+          settings.getCachedRaw("wrapped_data_key"),
           encryptedAdminLevel,
         ],
       });
