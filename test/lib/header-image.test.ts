@@ -14,7 +14,6 @@ import {
 import { handleRequest } from "#routes";
 import {
   adminGet,
-  createTestDbWithSetup,
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
@@ -22,8 +21,6 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -145,15 +142,9 @@ describe("header image", () => {
     });
   });
 
-  describe("loadHeaderImage", () => {
-    beforeEach(async () => {
-      resetTestSlugCounter();
-      await createTestDbWithSetup();
+  describeWithEnv("loadHeaderImage", { db: true }, () => {
+    beforeEach(() => {
       resetHeaderImage();
-    });
-
-    afterEach(() => {
-      resetDb();
     });
 
     test("returns null when no header image is set", async () => {
@@ -182,16 +173,7 @@ describe("header image", () => {
   });
 });
 
-describe("header image settings DB", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("header image settings DB", { db: true }, () => {
   test("getHeaderImageUrlFromDb returns null when not set", async () => {
     const url = await getHeaderImageUrlFromDb();
     expect(url).toBeNull();

@@ -17,8 +17,8 @@ import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
@@ -31,8 +31,6 @@ import {
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   setTestEnv,
   TEST_ADMIN_PASSWORD,
   testCookie,
@@ -41,15 +39,9 @@ import {
   withMocks,
 } from "#test-utils";
 
-describe("server (admin settings)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
+describeWithEnv("server (admin settings)", { db: true }, () => {
   afterEach(() => {
     setDemoModeForTest(false);
-    resetDb();
   });
 
   describe("GET /admin/settings", () => {

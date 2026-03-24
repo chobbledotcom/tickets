@@ -1,29 +1,19 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
   adminGet,
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestEvent,
   createTestManagerSession,
+  describeWithEnv,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
 
-describe("admin debug footer", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
+describeWithEnv("admin debug footer", { db: true }, () => {
 
   test("owner sees footer on admin dashboard", async () => {
     const { response } = await adminGet("/admin/");

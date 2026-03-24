@@ -7,11 +7,7 @@ import {
   resetTheme,
   setThemeForTest,
 } from "#lib/theme.ts";
-import {
-  createTestDbWithSetup,
-  resetDb,
-  setupTestEncryptionKey,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils";
 
 describe("theme", () => {
   afterEach(() => {
@@ -37,15 +33,9 @@ describe("theme", () => {
     });
   });
 
-  describe("loadTheme", () => {
-    beforeEach(async () => {
-      setupTestEncryptionKey();
-      await createTestDbWithSetup();
+  describeWithEnv("loadTheme", { db: true }, () => {
+    beforeEach(() => {
       resetTheme();
-    });
-
-    afterEach(() => {
-      resetDb();
     });
 
     test("loads light theme from database by default", async () => {

@@ -22,12 +22,7 @@ import {
   sendRegistrationEmails,
   sendTestEmail,
 } from "#lib/email.ts";
-import {
-  createTestDbWithSetup,
-  describeWithEnv,
-  makeTestEntry as makeEntry,
-  resetDb,
-} from "#test-utils";
+import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
 
 const testConfig: EmailConfig = {
   provider: "resend",
@@ -40,24 +35,22 @@ const withErrorSpy = bracket(
   (s: { restore: () => void }) => s.restore(),
 );
 
-describe("email", () => {
+describeWithEnv("email", { db: true }, () => {
   // biome-ignore lint/suspicious/noExplicitAny: Deno's fetch stub type is incompatible with Stub generics
   // deno-lint-ignore no-explicit-any
   let fetchStub: any;
   let originalFetch: typeof fetch;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     originalFetch = globalThis.fetch;
     fetchStub = stub(globalThis, "fetch", () =>
       Promise.resolve(new Response()),
     );
-    await createTestDbWithSetup();
   });
 
   afterEach(() => {
     fetchStub.restore();
     globalThis.fetch = originalFetch;
-    resetDb();
   });
 
   const restubFetch = (impl: () => Promise<Response>): void => {

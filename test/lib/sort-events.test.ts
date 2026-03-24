@@ -1,16 +1,10 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { addDays } from "#lib/dates.ts";
-import { setTimezoneForTest } from "#lib/db/settings.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import type { EventWithCount, Holiday } from "#lib/types.ts";
-import {
-  createTestDbWithSetup,
-  resetDb,
-  testEvent,
-  testEventWithCount,
-} from "#test-utils";
+import { describeWithEnv, testEvent, testEventWithCount } from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
@@ -25,15 +19,7 @@ const expectAlphaBeforeBravo = (
   expect(sorted[1]!.name).toBe("Bravo");
 };
 
-describe("sortEvents", () => {
-  beforeEach(async () => {
-    await createTestDbWithSetup();
-    setTimezoneForTest("UTC");
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
+describeWithEnv("sortEvents", { db: true }, () => {
 
   test("returns empty array for empty input", () => {
     expect(sortEvents([], [])).toEqual([]);

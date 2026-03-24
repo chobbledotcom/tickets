@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDb,
-  createTestDbWithSetup,
+  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   getSetupCsrfToken,
@@ -13,20 +13,11 @@ import {
   mockRequest,
   mockSetupFormRequest,
   resetDb,
-  resetTestSlugCounter,
   withExpectedError,
   withMocks,
 } from "#test-utils";
 
-describe("server (setup)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
+describeWithEnv("server (setup)", { db: true }, () => {
 
   /** Get CSRF token from setup page and submit setup form with given fields */
   async function submitSetupForm(
