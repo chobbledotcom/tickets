@@ -11,7 +11,6 @@
 export * from "#lib/api-example.ts";
 export {
   buildWebhookPayload,
-  logAndNotifyMultiRegistration,
   logAndNotifyRegistration,
   type RegistrationEntry,
   sendRegistrationWebhooks,

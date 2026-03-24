@@ -1,12 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#lib/db/settings.ts";
-import {
-  getTheme,
-  loadTheme,
-  resetTheme,
-  setThemeForTest,
-} from "#lib/theme.ts";
+import { resetTheme, setThemeForTest } from "#lib/theme.ts";
 import { describeWithEnv } from "#test-utils";
 
 describe("theme", () => {
@@ -14,14 +9,14 @@ describe("theme", () => {
     resetTheme();
   });
 
-  describe("getTheme", () => {
+  describe("settings.theme", () => {
     test("defaults to light", () => {
-      expect(getTheme()).toBe("light");
+      expect(settings.theme).toBe("light");
     });
 
     test("returns value set by setThemeForTest", () => {
       setThemeForTest("dark");
-      expect(getTheme()).toBe("dark");
+      expect(settings.theme).toBe("dark");
     });
   });
 
@@ -29,30 +24,22 @@ describe("theme", () => {
     test("resets to light after being set to dark", () => {
       setThemeForTest("dark");
       resetTheme();
-      expect(getTheme()).toBe("light");
+      expect(settings.theme).toBe("light");
     });
   });
 
-  describeWithEnv("loadTheme", { db: true }, () => {
+  describeWithEnv("settings.theme from DB", { db: true }, () => {
     beforeEach(() => {
       resetTheme();
     });
 
-    test("loads light theme from database by default", async () => {
-      const theme = await loadTheme();
-      expect(theme).toBe("light");
+    test("loads light theme from database by default", () => {
+      expect(settings.theme).toBe("light");
     });
 
     test("loads dark theme after updating database", async () => {
       await settings.update.theme("dark");
-      const theme = await loadTheme();
-      expect(theme).toBe("dark");
-    });
-
-    test("makes theme available via getTheme after loading", async () => {
-      await settings.update.theme("dark");
-      await loadTheme();
-      expect(getTheme()).toBe("dark");
+      expect(settings.theme).toBe("dark");
     });
   });
 });

@@ -8,10 +8,9 @@ import {
   IFRAME_RESIZER_CHILD_JS_PATH,
   JS_PATH,
 } from "#lib/asset-paths.ts";
+import { settings } from "#lib/db/settings.ts";
 import { DEMO_BANNER, isDemoMode } from "#lib/demo.ts";
-import { getHeaderImageUrl } from "#lib/header-image.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
-import { getTheme } from "#lib/theme.ts";
 import type { Theme } from "#lib/types.ts";
 import { renderDebugFooter } from "#templates/admin/footer.tsx";
 
@@ -40,8 +39,8 @@ export const Layout = ({
   children,
   theme,
 }: LayoutProps): SafeHtml => {
-  const resolvedTheme = theme ?? getTheme();
-  const headerImage = getHeaderImageUrl();
+  const resolvedTheme = theme ?? settings.theme;
+  const headerImage = settings.headerImageUrl;
 
   return new SafeHtml(
     "<!DOCTYPE html>" +

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   formatCurrency,
   getDecimalPlaces,
-  loadCurrencyCode,
   resetCurrencyCode,
   setCurrencyCodeForTest,
   toMajorUnits,
@@ -153,7 +152,7 @@ describe("currency", () => {
     });
   });
 
-  describe("loadCurrencyCode", () => {
+  describe("settings.currency integration", () => {
     beforeEach(async () => {
       setupTestEncryptionKey();
       await createTestDbWithSetup("US");
@@ -165,20 +164,11 @@ describe("currency", () => {
       resetDb();
     });
 
-    test("loads currency code from database", async () => {
-      const code = await loadCurrencyCode();
-      expect(code).toBe("USD");
+    test("reads currency from settings", () => {
+      expect(settings.currency).toBe("USD");
     });
 
-    test("returns consistent result on subsequent calls", async () => {
-      const first = await loadCurrencyCode();
-      const second = await loadCurrencyCode();
-      expect(first).toBe("USD");
-      expect(second).toBe("USD");
-    });
-
-    test("uses loaded code for formatting", async () => {
-      await loadCurrencyCode();
+    test("uses settings currency for formatting", () => {
       expect(formatCurrency(1050)).toBe("$10.50");
     });
   });

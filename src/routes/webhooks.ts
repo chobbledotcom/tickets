@@ -36,7 +36,6 @@ import {
   reserveSession,
 } from "#lib/db/processed-payments.ts";
 import { saveAttendeeAnswers } from "#lib/db/questions.ts";
-import { settings } from "#lib/db/settings.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { errorMessage } from "#lib/payment-helpers.ts";
 import {
@@ -46,7 +45,7 @@ import {
   type ValidatedPaymentSession,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
-import { logAndNotifyMultiRegistration } from "#lib/webhook.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { getFromEmailIfConfigured } from "#routes/public.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
@@ -662,7 +661,7 @@ const processPaymentSession = async (
     options?.storeTokens === false ? [] : ticketTokens,
   );
 
-  await logAndNotifyMultiRegistration(createdAttendees, settings.currency);
+  await logAndNotifyRegistration(createdAttendees);
 
   return {
     success: true,

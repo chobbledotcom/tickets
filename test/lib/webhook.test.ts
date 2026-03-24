@@ -441,7 +441,7 @@ describe("webhook", () => {
       });
       const event = makeEvent(eventFromDb(dbEvent, "https://example.com/hook"));
 
-      await logAndNotifyRegistration(event, makeAttendee(), "GBP");
+      await logAndNotifyRegistration([{ event, attendee: makeAttendee() }]);
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(1);
@@ -457,16 +457,16 @@ describe("webhook", () => {
       const dbEvent = await createTestEvent();
       const event = makeEvent(eventFromDb(dbEvent, ""));
 
-      await logAndNotifyRegistration(event, makeAttendee(), "GBP");
+      await logAndNotifyRegistration([{ event, attendee: makeAttendee() }]);
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(0);
     });
   });
 
-  describeWithEnv("logAndNotifyMultiRegistration", { db: true }, () => {
+  describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     test("sends webhooks for multi-event registration", async () => {
-      const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
+      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
       const dbEventA = await createTestEvent({
         webhookUrl: "https://hook.com",
       });
@@ -478,7 +478,7 @@ describe("webhook", () => {
         makeEntry(eventFromDb(dbEventB, "https://hook.com")),
       ];
 
-      await logAndNotifyMultiRegistration(entries, "GBP");
+      await logAndNotifyRegistration(entries);
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(1);
@@ -488,7 +488,7 @@ describe("webhook", () => {
     });
 
     test("does not send webhook when no events have webhook URLs", async () => {
-      const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
+      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
       const dbEventA = await createTestEvent();
       const dbEventB = await createTestEvent();
       const entries = [
@@ -496,7 +496,7 @@ describe("webhook", () => {
         makeEntry(eventFromDb(dbEventB, "")),
       ];
 
-      await logAndNotifyMultiRegistration(entries, "USD");
+      await logAndNotifyRegistration(entries);
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(0);

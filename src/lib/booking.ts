@@ -8,7 +8,6 @@
 
 import { isPaymentsEnabled } from "#lib/config.ts";
 import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
-import { settings } from "#lib/db/settings.ts";
 import type { RegistrationIntent } from "#lib/payments.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
@@ -81,6 +80,6 @@ export const processBooking = async (
   if (!result.success)
     return { type: "creation_failed", reason: result.reason };
 
-  await logAndNotifyRegistration(event, result.attendee, settings.currency);
+  await logAndNotifyRegistration([{ event, attendee: result.attendee }]);
   return { type: "success", attendee: result.attendee };
 };
