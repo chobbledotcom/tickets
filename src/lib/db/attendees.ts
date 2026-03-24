@@ -719,13 +719,13 @@ export const migrateAttendeeBatch = async (
 ): Promise<MigrateBatchResult> => {
   // Get a batch of unmigrated attendees
   const rows = await queryAll<Attendee>(
-    `SELECT * FROM attendees WHERE pii_blob = '' LIMIT ?`,
+    `SELECT * FROM attendees WHERE COALESCE(pii_blob, '') = '' LIMIT ?`,
     [MIGRATE_BATCH_SIZE],
   );
 
   if (rows.length === 0) {
     const remaining = await queryAll<{ count: number }>(
-      "SELECT COUNT(*) as count FROM attendees WHERE pii_blob = ''",
+      "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
     );
     return { migrated: 0, remaining: remaining[0]!.count };
   }
@@ -791,7 +791,7 @@ export const migrateAttendeeBatch = async (
 
   // Count remaining
   const remaining = await queryAll<{ count: number }>(
-    "SELECT COUNT(*) as count FROM attendees WHERE pii_blob = ''",
+    "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
   );
 
   return { migrated: rows.length, remaining: remaining[0]!.count };
@@ -805,7 +805,7 @@ export const getMigrationProgress = async (): Promise<{
   const [totalRows, remainingRows] = await Promise.all([
     queryAll<{ count: number }>("SELECT COUNT(*) as count FROM attendees"),
     queryAll<{ count: number }>(
-      "SELECT COUNT(*) as count FROM attendees WHERE pii_blob = ''",
+      "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
     ),
   ]);
   return {
