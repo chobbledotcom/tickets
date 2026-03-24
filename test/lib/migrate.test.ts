@@ -25,10 +25,13 @@ import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import {
   adminFormPost,
   adminGet,
+  awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,
   createTestEvent,
+  createTestManagerSession,
   describeWithEnv,
+  mockFormRequest,
   setTestEnv,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -405,6 +408,17 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Migration complete");
     });
+
+    test("accessible to managers", async () => {
+      await settings.update.attendeeBlobMigrated();
+      const managerCookie = await createTestManagerSession();
+      const response = await awaitTestRequest("/admin/migrate", {
+        cookie: managerCookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Migration complete");
+    });
   });
 
   describe("POST /admin/migrate", () => {
@@ -453,6 +467,23 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     test("redirects when already migrated", async () => {
       await settings.update.attendeeBlobMigrated();
       const { response } = await adminFormPost("/admin/migrate");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/migrate");
+    });
+
+    test("accessible to managers", async () => {
+      await settings.update.attendeeBlobMigrated();
+      const managerCookie = await createTestManagerSession();
+      const { signCsrfToken } = await import("#lib/csrf.ts");
+      const csrfToken = await signCsrfToken();
+      const { handleRequest } = await import("#routes");
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/migrate",
+          { csrf_token: csrfToken },
+          managerCookie,
+        ),
+      );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/migrate");
     });
