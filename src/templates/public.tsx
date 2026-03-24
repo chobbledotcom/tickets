@@ -290,22 +290,24 @@ export const ticketPage = (
       {!inIframe && (
         <>
           <Raw html={renderEventImage(event)} />
-          <h1>{event.name}</h1>
-          {event.description && (
-            <div class="description">
-              <Raw html={renderMarkdownInline(event.description)} />
-            </div>
-          )}
-          {event.date && (
-            <p>
-              <strong>Date:</strong> {formatDatetimeLabel(event.date)}
-            </p>
-          )}
-          {event.location && (
-            <p>
-              <strong>Location:</strong> {event.location}
-            </p>
-          )}
+          <div class="stack-sm">
+            <h1>{event.name}</h1>
+            {event.description && (
+              <div class="description">
+                <Raw html={renderMarkdownInline(event.description)} />
+              </div>
+            )}
+            {event.date && (
+              <p>
+                <strong>Date:</strong> {formatDatetimeLabel(event.date)}
+              </p>
+            )}
+            {event.location && (
+              <p>
+                <strong>Location:</strong> {event.location}
+              </p>
+            )}
+          </div>
         </>
       )}
       <Raw html={renderError(error)} />
