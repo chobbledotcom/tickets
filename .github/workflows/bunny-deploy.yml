@@ -44,6 +44,6 @@ jobs:
 
       - name: Tag deployment
         run: |
-          TAG="deploy-$(date +%s)"
+          TAG="deploy-$(date -u +%Y-%m-%d-%H%M)"
           git tag "$TAG"
           git push origin "$TAG"
