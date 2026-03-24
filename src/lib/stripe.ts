@@ -91,6 +91,7 @@ const getMockConfigImpl = (): Stripe.StripeConfig | undefined => {
     host: mockHost,
     port: mockPort,
     protocol: "http",
+    maxNetworkRetries: 0,
   };
 };
 

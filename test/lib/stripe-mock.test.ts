@@ -201,7 +201,7 @@ describe("stripe-mock utilities", () => {
         }).output();
         renamed = true;
 
-        await expect(manager.start()).rejects.toThrow(
+        await expect(manager.start(3, 10)).rejects.toThrow(
           "stripe-mock failed to start",
         );
       } finally {
