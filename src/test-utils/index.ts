@@ -128,7 +128,7 @@ const clearDataTables = async (client: Client): Promise<void> => {
   const result = await client.execute(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
   );
-  const tables = (result.rows as Array<{ name: string }>).map((r) => r.name);
+  const tables = result.rows.map((r) => r.name as string);
 
   // Batch all DELETEs into a single round-trip for speed
   await client.batch([
