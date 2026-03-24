@@ -103,7 +103,7 @@ const renderEventListing = (info: MultiTicketEvent): string => {
       ? "<p><strong>Registration Closed</strong></p>"
       : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>Book now</strong></a></p>`;
 
-  return `<h2>${escapeHtml(event.name)}</h2>${detailsHtml}${descriptionHtml}${linkHtml}`;
+  return `<div class="prose"><h2>${escapeHtml(event.name)}</h2>${descriptionHtml}</div>${detailsHtml}${linkHtml}`;
 };
 
 /**
