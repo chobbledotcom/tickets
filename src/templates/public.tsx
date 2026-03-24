@@ -67,13 +67,15 @@ export const publicSitePage = (
     <Layout title={pageTitle} headExtra={FEED_DISCOVERY_TAGS}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav />
-      {content ? (
-        <Raw html={renderMarkdown(content)} />
-      ) : (
-        <p>
-          <em>No content.</em>
-        </p>
-      )}
+      <div class="prose">
+        {content ? (
+          <Raw html={renderMarkdown(content)} />
+        ) : (
+          <p>
+            <em>No content.</em>
+          </p>
+        )}
+      </div>
       <footer class="homepage-footer">
         <p>
           <a href="/admin/login">Login</a>
@@ -103,7 +105,7 @@ const renderEventListing = (info: MultiTicketEvent): string => {
       ? "<p><strong>Registration Closed</strong></p>"
       : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>Book now</strong></a></p>`;
 
-  return `<h2>${escapeHtml(event.name)}</h2>${detailsHtml}${descriptionHtml}${linkHtml}`;
+  return `<div class="prose"><h2>${escapeHtml(event.name)}</h2>${descriptionHtml}</div>${detailsHtml}${linkHtml}`;
 };
 
 /**
