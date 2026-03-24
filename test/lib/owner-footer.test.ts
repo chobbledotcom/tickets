@@ -14,7 +14,6 @@ import {
 } from "#test-utils";
 
 describeWithEnv("admin debug footer", { db: true }, () => {
-
   test("owner sees footer on admin dashboard", async () => {
     const { response } = await adminGet("/admin/");
     const html = await response.text();

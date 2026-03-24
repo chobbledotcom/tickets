@@ -24,7 +24,6 @@ const makeTicketData = (
 });
 
 describeWithEnv("svg-ticket", { db: true }, () => {
-
   describe("extractSvgContent", () => {
     test("extracts inner content from svg element", () => {
       const svg =

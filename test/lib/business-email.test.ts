@@ -10,7 +10,6 @@ import { invalidateSettingsCache } from "#lib/db/settings.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("business-email", { db: true }, () => {
-
   describe("isValidBusinessEmail", () => {
     test("accepts valid email", () => {
       expect(isValidBusinessEmail("test@example.com")).toBe(true);
