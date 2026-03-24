@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   getBusinessEmailFromDb,
   isValidBusinessEmail,
@@ -7,16 +7,9 @@ import {
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import { invalidateSettingsCache } from "#lib/db/settings.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils";
+import { describeWithEnv } from "#test-utils";
 
-describe("business-email", () => {
-  beforeEach(async () => {
-    await createTestDbWithSetup();
-  });
-
-  afterEach(async () => {
-    await resetDb();
-  });
+describeWithEnv("business-email", { db: true }, () => {
 
   describe("isValidBusinessEmail", () => {
     test("accepts valid email", () => {

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { generateSecureToken, unwrapKeyWithToken } from "#lib/crypto.ts";
 import { createApiKey } from "#lib/db/api-keys.ts";
@@ -13,11 +13,10 @@ import type { EventWithCount } from "#lib/types.ts";
 import { handleRequest } from "#routes";
 import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
 import {
-  createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
+  describeWithEnv,
   mockRequest,
-  resetDb,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -70,14 +69,7 @@ const apiRequest = async (
   return handleRequest(mockRequest(path, init));
 };
 
-describe("Admin API - Events", () => {
-  beforeEach(async () => {
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
+describeWithEnv("Admin API - Events", { db: true }, () => {
 
   describe("GET /api/admin/events/:eventId", () => {
     test("returns single event by ID", async () => {

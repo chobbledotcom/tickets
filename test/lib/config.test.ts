@@ -314,6 +314,7 @@ describe("payments", () => {
   afterEach(() => {
     resetDb();
   });
+
   test("getActivePaymentProvider returns null when no provider configured", async () => {
     const provider = await getActivePaymentProvider();
     expect(provider).toBeNull();
