@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { setCurrencyCodeForTest } from "#lib/currency.ts";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   buildInfoLines,
   extractSvgContent,
@@ -8,7 +7,7 @@ import {
   generateSvgTicket,
   type SvgTicketData,
 } from "#lib/svg-ticket.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils";
+import { describeWithEnv } from "#test-utils";
 
 const makeTicketData = (
   overrides: Partial<SvgTicketData> = {},
@@ -24,16 +23,7 @@ const makeTicketData = (
   ...overrides,
 });
 
-describe("svg-ticket", () => {
-  beforeEach(async () => {
-    setCurrencyCodeForTest("GBP");
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("svg-ticket", { db: true }, () => {
   describe("extractSvgContent", () => {
     test("extracts inner content from svg element", () => {
       const svg =

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   answersTable,
@@ -19,7 +19,7 @@ import {
   setEventQuestions,
   swapAnswerOrder,
 } from "#lib/db/questions.ts";
-import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
+import { createTestEvent, describeWithEnv } from "#test-utils";
 
 /** Create a test attendee directly via the DB (bypasses routes) */
 const createAttendee = async (eventId: number, name = "Alice") => {
@@ -33,15 +33,7 @@ const createAttendee = async (eventId: number, name = "Alice") => {
   return result.attendee;
 };
 
-describe("custom questions", () => {
-  beforeEach(async () => {
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("custom questions", { db: true }, () => {
   describe("questions CRUD", () => {
     test("creates and retrieves a question", async () => {
       const q = await questionsTable.insert({ text: "Favourite colour?" });

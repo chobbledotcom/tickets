@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 
 import { handleRequest } from "#routes";
@@ -7,9 +7,9 @@ import {
   adminFormPost,
   adminGet,
   awaitTestRequest,
-  createTestDbWithSetup,
   createTestEvent,
   createTestManagerSession,
+  describeWithEnv,
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
@@ -17,8 +17,6 @@ import {
   expectStatus,
   mockFormRequest,
   mockRequest,
-  resetDb,
-  resetTestSlugCounter,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -52,16 +50,7 @@ const addAnswer = async (questionId: number, text: string): Promise<number> => {
   return found!.id;
 };
 
-describe("server (admin questions)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("GET /admin/questions", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/questions"));

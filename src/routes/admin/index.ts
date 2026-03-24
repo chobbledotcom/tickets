@@ -76,15 +76,17 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
   // Check admin status before tracking so the auth queries aren't logged
   const session = await getAuthenticatedSession(request);
 
+  // Load settings before migration check so isAttendeeBlobMigrated() uses
+  // a fresh DB read instead of a potentially stale cache entry.
+  if (method === "GET" && session) {
+    enableQueryLog();
+    await settings.loadAll();
+  }
+
   // Gate non-auth routes behind migration completion
   if (session && !isUngatedRoute(path)) {
     const migrated = await settings.attendeeBlobMigrated.is();
     if (!migrated) return redirectResponse("/admin/migrate");
-  }
-
-  if (method === "GET" && session) {
-    enableQueryLog();
-    await settings.loadAll();
   }
 
   return innerRouter(request, path, method, server);

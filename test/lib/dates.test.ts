@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   addDays,
   DAY_NAMES,
@@ -12,7 +12,7 @@ import {
 } from "#lib/dates.ts";
 import { settings } from "#lib/db/settings.ts";
 import { todayInTz } from "#lib/timezone.ts";
-import { createTestDbWithSetup, resetDb, testEvent } from "#test-utils";
+import { describeWithEnv, testEvent } from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
@@ -27,16 +27,7 @@ const ALL_DAYS = [
   "Sunday",
 ] as const;
 
-describe("dates", () => {
-  beforeEach(async () => {
-    await createTestDbWithSetup();
-    settings.timezone.setForTest("UTC");
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("dates", { db: true }, () => {
   describe("addDays", () => {
     test("adds positive days to a date", () => {
       expect(addDays("2026-01-01", 5)).toBe("2026-01-06");

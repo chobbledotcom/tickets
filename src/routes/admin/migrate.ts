@@ -67,7 +67,10 @@ const handleMigratePost = (request: Request): Promise<Response> =>
       async (session) => {
         const privateKey = await requirePrivateKey(session);
         const result = await migrateAttendeeBatch(privateKey);
-        if (result.remaining === 0) await settings.attendeeBlobMigrated.set();
+        if (result.remaining === 0) {
+          await settings.attendeeBlobMigrated.set();
+          return redirectResponse("/admin/");
+        }
         return redirectResponse("/admin/migrate");
       },
     ),

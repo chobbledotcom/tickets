@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
@@ -9,7 +9,6 @@ import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
-  createTestDbWithSetup,
   describeWithEnv,
   expectAdminRedirect,
   expectFlash,
@@ -20,8 +19,6 @@ import {
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
-  resetDb,
-  resetTestSlugCounter,
   setTestEnv,
   setupEventAndLogin,
   testCookie,
@@ -29,15 +26,9 @@ import {
   withMocks,
 } from "#test-utils";
 
-describe("server (admin settings-advanced)", () => {
-  beforeEach(async () => {
-    resetTestSlugCounter();
-    await createTestDbWithSetup();
-  });
-
+describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
   afterEach(() => {
     setDemoModeForTest(false);
-    resetDb();
   });
 
   describe("GET /admin/settings-advanced", () => {

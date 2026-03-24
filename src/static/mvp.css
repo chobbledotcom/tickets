@@ -173,6 +173,14 @@ article > * {
   margin: 0;
 }
 
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.prose > :last-child {
+  margin-bottom: 0;
+}
+
 hr {
   background-color: var(--color-bg-secondary);
   border: none;

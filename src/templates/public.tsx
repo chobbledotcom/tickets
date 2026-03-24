@@ -231,7 +231,7 @@ const renderPayMoreInput = (
 
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
-  `<div class="terms">${renderMarkdown(terms)}</div>` +
+  `<div class="prose">${renderMarkdown(terms)}</div>` +
   `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
 
 /** Render custom multiple-choice question fields (radio buttons).
@@ -290,22 +290,24 @@ export const ticketPage = (
       {!inIframe && (
         <>
           <Raw html={renderEventImage(event)} />
-          <h1>{event.name}</h1>
-          {event.description && (
-            <div class="description">
-              <Raw html={renderMarkdownInline(event.description)} />
-            </div>
-          )}
-          {event.date && (
-            <p>
-              <strong>Date:</strong> {formatDatetimeLabel(event.date)}
-            </p>
-          )}
-          {event.location && (
-            <p>
-              <strong>Location:</strong> {event.location}
-            </p>
-          )}
+          <div class="prose">
+            <h1>{event.name}</h1>
+            {event.description && (
+              <div class="description">
+                <Raw html={renderMarkdownInline(event.description)} />
+              </div>
+            )}
+            {event.date && (
+              <p>
+                <strong>Date:</strong> {formatDatetimeLabel(event.date)}
+              </p>
+            )}
+            {event.location && (
+              <p>
+                <strong>Location:</strong> {event.location}
+              </p>
+            )}
+          </div>
         </>
       )}
       <Raw html={renderError(error)} />

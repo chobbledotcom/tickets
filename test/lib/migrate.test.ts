@@ -29,6 +29,7 @@ import {
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
+  setTestEnv,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils";
@@ -403,7 +404,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
   });
 
   describe("POST /admin/migrate", () => {
-    test("processes a batch and redirects back", async () => {
+    test("processes a batch and redirects to dashboard when done", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Mig", "mig@test.com");
       // Simulate pre-migration
@@ -413,11 +414,36 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
       const { response } = await adminFormPost("/admin/migrate");
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/migrate");
+      expect(response.headers.get("location")).toBe("/admin/");
 
       // Verify the batch was actually processed
       const progress = await getMigrationProgress();
       expect(progress.remaining).toBe(0);
+    });
+
+    test("redirects back to migrate when batch is incomplete", async () => {
+      const event = await createTestEventForMigration({ maxAttendees: 10 });
+      // Insert 2 legacy attendees with batch size of 1
+      await insertLegacyAttendee(event.id, {
+        name: "A",
+        email: "a@test.com",
+      });
+      await insertLegacyAttendee(event.id, {
+        name: "B",
+        email: "b@test.com",
+      });
+
+      const restore = setTestEnv({ MIGRATE_BATCH_SIZE: "1" });
+      try {
+        const { response } = await adminFormPost("/admin/migrate");
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/admin/migrate");
+
+        // Migration should NOT be marked complete
+        expect(await settings.attendeeBlobMigrated.is()).toBe(false);
+      } finally {
+        restore();
+      }
     });
 
     test("redirects when already migrated", async () => {

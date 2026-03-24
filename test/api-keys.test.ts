@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { buildSessionCookie, getSessionCookieName } from "#lib/cookies.ts";
 import {
   generateSecureToken,
@@ -22,8 +22,8 @@ import { getDb } from "#lib/db/client.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
-  createTestDbWithSetup,
   createTestEvent,
+  describeWithEnv,
   expectFlash,
   expectRedirect,
   extractCsrfToken,
@@ -31,7 +31,6 @@ import {
   flashCookieHeader,
   matchGroup,
   mockRequest,
-  resetDb,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -47,15 +46,7 @@ const getTestDataKey = async (): Promise<CryptoKey> => {
   return unwrapKeyWithToken(session!.wrapped_data_key!, token);
 };
 
-describe("API Keys", () => {
-  beforeEach(async () => {
-    await createTestDbWithSetup();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("API Keys", { db: true }, () => {
   describe("database operations", () => {
     test("creates and retrieves an API key", async () => {
       const dataKey = await getTestDataKey();

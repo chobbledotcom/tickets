@@ -10,7 +10,7 @@ import {
   setAllowedDomainForTest,
 } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
-import { createTestDb, describeWithEnv, resetDb, withMocks } from "#test-utils";
+import { describeWithEnv, withMocks } from "#test-utils";
 
 /** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
 const withMockValidate = async (
@@ -482,15 +482,7 @@ describeWithEnv(
   },
 );
 
-describe("custom domain settings", () => {
-  beforeEach(async () => {
-    await createTestDb();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
-
+describeWithEnv("custom domain settings", { db: true }, () => {
   test("getCustomDomainFromDb returns null when not set", async () => {
     expect(await settings.customDomain.get()).toBeNull();
   });

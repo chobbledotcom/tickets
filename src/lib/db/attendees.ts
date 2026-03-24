@@ -700,8 +700,12 @@ export const updateAttendee = async (
   invalidateEventsCache();
 };
 
-/** Batch size for attendee blob migration */
+/** Batch size for attendee blob migration (overridable via env for testing) */
 export const MIGRATE_BATCH_SIZE = 100;
+
+/** Runtime batch size — reads env override for testing, falls back to constant */
+const getMigrateBatchSize = (): number =>
+  Number(Deno.env.get("MIGRATE_BATCH_SIZE")) || MIGRATE_BATCH_SIZE;
 
 /** Result of a migration batch */
 export type MigrateBatchResult = {
@@ -720,7 +724,7 @@ export const migrateAttendeeBatch = async (
   // Get a batch of unmigrated attendees
   const rows = await queryAll<Attendee>(
     `SELECT * FROM attendees WHERE COALESCE(pii_blob, '') = '' LIMIT ?`,
-    [MIGRATE_BATCH_SIZE],
+    [getMigrateBatchSize()],
   );
 
   if (rows.length === 0) {
