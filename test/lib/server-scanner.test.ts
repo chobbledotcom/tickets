@@ -435,14 +435,14 @@ describeWithEnv("QR Scanner", { db: true }, () => {
 
     test("returns 500 when private key is unavailable", async () => {
       const { getDb } = await import("#lib/db/client.ts");
-      const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#lib/db/settings.ts");
 
       // Remove wrapped_private_key from settings to make key derivation fail
       await getDb().execute({
         sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
         args: [],
       });
-      invalidateSettingsCache();
+      s.invalidateCache();
 
       const { response } = await setupLoginAndScan({ token: "some-token" });
 

@@ -5,14 +5,9 @@
 
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
-  getContactPageTextFromDb,
-  getHomepageTextFromDb,
-  getWebsiteTitleFromDb,
   MAX_PAGE_TEXT_LENGTH,
   MAX_WEBSITE_TITLE_LENGTH,
-  updateContactPageText,
-  updateHomepageText,
-  updateWebsiteTitle,
+  settings,
 } from "#lib/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -71,15 +66,15 @@ const sitePostRoute =
 /** Render homepage editor with current state */
 const renderHomePage: PageRenderer = async (session, error, success) => {
   const [websiteTitle, homepageText] = await Promise.all([
-    getWebsiteTitleFromDb(),
-    getHomepageTextFromDb(),
+    settings.websiteTitle.get(),
+    settings.homepageText.get(),
   ]);
   return adminSiteHomePage(session, websiteTitle, homepageText, error, success);
 };
 
 /** Render contact editor with current state */
 const renderContactPage: PageRenderer = async (session, error, success) => {
-  const contactText = await getContactPageTextFromDb();
+  const contactText = await settings.contactPageText.get();
   return adminSiteContactPage(session, contactText, error, success);
 };
 
@@ -104,8 +99,8 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
     );
   }
 
-  await updateWebsiteTitle(titleRaw);
-  await updateHomepageText(textRaw);
+  await settings.websiteTitle.update(titleRaw);
+  await settings.homepageText.update(textRaw);
   await logActivity("Site homepage updated");
   return redirect("/admin/site", "Homepage updated", true);
 });
@@ -121,7 +116,7 @@ const handleSiteContactPost = sitePostRoute(async (session, form) => {
     );
   }
 
-  await updateContactPageText(textRaw);
+  await settings.contactPageText.update(textRaw);
   await logActivity("Site contact page updated");
   return redirect("/admin/site/contact", "Contact page updated", true);
 });

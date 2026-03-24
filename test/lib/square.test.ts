@@ -1,12 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import {
-  updateSquareAccessToken,
-  updateSquareLocationId,
-  updateSquareSandbox,
-  updateSquareWebhookSignatureKey,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { PaymentUserError } from "#lib/payment-helpers.ts";
 import type { WebhookEvent } from "#lib/payments.ts";
 import {
@@ -79,13 +74,13 @@ describe("square", () => {
     });
 
     test("returns client when access token is set in database", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
+      await settings.square.accessToken.update("EAAAl_test_123");
       const client = await getSquareClient();
       expect(client).not.toBeNull();
     });
 
     test("returns cached client on second call with same token", async () => {
-      await updateSquareAccessToken("EAAAl_cache_test");
+      await settings.square.accessToken.update("EAAAl_cache_test");
       const client1 = await getSquareClient();
       expect(client1).not.toBeNull();
 
@@ -95,20 +90,20 @@ describe("square", () => {
     });
 
     test("returns client in sandbox mode when sandbox setting enabled", async () => {
-      await updateSquareAccessToken("EAAAl_sandbox_123");
-      await updateSquareSandbox(true);
+      await settings.square.accessToken.update("EAAAl_sandbox_123");
+      await settings.square.sandbox.update(true);
       const client = await getSquareClient();
       expect(client).not.toBeNull();
     });
 
     test("recreates client when sandbox setting changes", async () => {
-      await updateSquareAccessToken("EAAAl_sandbox_toggle");
-      await updateSquareSandbox(false);
+      await settings.square.accessToken.update("EAAAl_sandbox_toggle");
+      await settings.square.sandbox.update(false);
       const client1 = await getSquareClient();
       expect(client1).not.toBeNull();
 
       // Toggle sandbox mode - should create new client
-      await updateSquareSandbox(true);
+      await settings.square.sandbox.update(true);
       const client2 = await getSquareClient();
       expect(client2).not.toBeNull();
     });
@@ -116,7 +111,7 @@ describe("square", () => {
 
   describe("resetSquareClient", () => {
     test("resets client state after token removed from db", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
+      await settings.square.accessToken.update("EAAAl_test_123");
       const client1 = await getSquareClient();
       expect(client1).not.toBeNull();
 
@@ -140,7 +135,7 @@ describe("square", () => {
     });
 
     test("returns error when locations list fails", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
+      await settings.square.accessToken.update("EAAAl_test_123");
       const mock = createMockClient({
         locationsList: () => Promise.reject(new Error("Invalid access token")),
       });
@@ -160,10 +155,10 @@ describe("square", () => {
     });
 
     test("returns sandbox mode with valid token and all checks pass", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareSandbox(true);
-      await updateSquareLocationId("L_test_123");
-      await updateSquareWebhookSignatureKey("sig_key_test");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.sandbox.update(true);
+      await settings.square.locationId.update("L_test_123");
+      await settings.square.webhookSignatureKey.update("sig_key_test");
       const mock = createMockClient({
         locationsList: () =>
           Promise.resolve({
@@ -192,10 +187,10 @@ describe("square", () => {
     });
 
     test("returns production mode when sandbox disabled", async () => {
-      await updateSquareAccessToken("EAAAl_live_123");
-      await updateSquareSandbox(false);
-      await updateSquareLocationId("L_live_123");
-      await updateSquareWebhookSignatureKey("sig_key_live");
+      await settings.square.accessToken.update("EAAAl_live_123");
+      await settings.square.sandbox.update(false);
+      await settings.square.locationId.update("L_live_123");
+      await settings.square.webhookSignatureKey.update("sig_key_live");
       const mock = createMockClient({
         locationsList: () =>
           Promise.resolve({
@@ -220,9 +215,9 @@ describe("square", () => {
     });
 
     test("returns location error when location ID not found", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_wrong");
-      await updateSquareWebhookSignatureKey("sig_key_test");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_wrong");
+      await settings.square.webhookSignatureKey.update("sig_key_test");
       const mock = createMockClient({
         locationsList: () =>
           Promise.resolve({
@@ -250,8 +245,8 @@ describe("square", () => {
     });
 
     test("returns location error when no location ID configured", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareWebhookSignatureKey("sig_key_test");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.webhookSignatureKey.update("sig_key_test");
       const mock = createMockClient({
         locationsList: () =>
           Promise.resolve({ locations: [{ id: "L_test_123" }] }),
@@ -272,10 +267,10 @@ describe("square", () => {
     });
 
     test("handles empty locations response", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareSandbox(true);
-      await updateSquareLocationId("L_test_123");
-      await updateSquareWebhookSignatureKey("sig_key_test");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.sandbox.update(true);
+      await settings.square.locationId.update("L_test_123");
+      await settings.square.webhookSignatureKey.update("sig_key_test");
       const mock = createMockClient({
         locationsList: () => Promise.resolve({}),
       });
@@ -297,8 +292,8 @@ describe("square", () => {
     });
 
     test("returns webhook error when no signature key configured", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_test_123");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_test_123");
       const mock = createMockClient({
         locationsList: () =>
           Promise.resolve({
@@ -445,7 +440,7 @@ describe("square", () => {
     });
 
     test("returns null when location ID not configured", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
+      await settings.square.accessToken.update("EAAAl_test_123");
       // No location ID set
       const event = {
         id: 1,
@@ -503,8 +498,8 @@ describe("square", () => {
     });
 
     test("constructs correct SDK call for single-event checkout", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_loc_456");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_loc_456");
       const { client, checkoutCreate } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -612,10 +607,10 @@ describe("square", () => {
     });
 
     test("includes booking fee line item when fee is set", async () => {
-      const { updateBookingFee } = await import("#lib/db/settings.ts");
-      await updateBookingFee("2.5");
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_loc_456");
+      const { settings: s } = await import("#lib/db/settings.ts");
+      await s.bookingFee.update("2.5");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_loc_456");
       const { client, checkoutCreate } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -658,8 +653,8 @@ describe("square", () => {
     });
 
     test("omits phone from pre-populated data when empty", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_loc_456");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_loc_456");
       const { client, checkoutCreate } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -733,8 +728,8 @@ describe("square", () => {
     });
 
     test("returns null when SDK response missing orderId", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_loc_456");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_loc_456");
       const { client } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -804,8 +799,8 @@ describe("square", () => {
     });
 
     test("returns null when name exceeds metadata limit but truncates gracefully", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_loc_456");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_loc_456");
       const { client, checkoutCreate } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -883,8 +878,8 @@ describe("square", () => {
     });
 
     test("returns null when non-truncatable metadata exceeds limit", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_loc_456");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_loc_456");
       const { client } = createMockClient();
 
       await withMocks(
@@ -948,7 +943,7 @@ describe("square", () => {
     });
 
     test("returns null when location ID not configured", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
+      await settings.square.accessToken.update("EAAAl_test_123");
       const intent = {
         name: "John Doe",
         email: "john@example.com",
@@ -973,8 +968,8 @@ describe("square", () => {
     });
 
     test("returns null when SDK response missing orderId", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_multi_loc");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_multi_loc");
       const { client } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -1012,8 +1007,8 @@ describe("square", () => {
     });
 
     test("constructs correct SDK call with multiple line items", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_multi_loc");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_multi_loc");
       const { client, checkoutCreate } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -1101,8 +1096,8 @@ describe("square", () => {
     });
 
     test("returns null when items metadata exceeds Square limit", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_multi_loc");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_multi_loc");
       const { client, checkoutCreate } = createMockClient();
 
       await withMocks(
@@ -1153,8 +1148,8 @@ describe("square", () => {
 
     /** Set up Square credentials and a mock client with a failing checkout */
     const setupFailingCheckout = async (sdkError: Error) => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_loc_456");
+      await settings.square.accessToken.update("EAAAl_test_123");
+      await settings.square.locationId.update("L_loc_456");
       const { client } = createMockClient({
         checkoutCreate: () => Promise.reject(sdkError),
       });
@@ -1604,7 +1599,7 @@ describe("square", () => {
     const toBytes = (s: string) => new TextEncoder().encode(s);
 
     beforeEach(async () => {
-      await updateSquareWebhookSignatureKey(TEST_SECRET);
+      await settings.square.webhookSignatureKey.update(TEST_SECRET);
     });
 
     test("returns error when webhook signature key not configured", async () => {
@@ -1732,7 +1727,7 @@ describe("square", () => {
       expect(signature).toMatch(/^[A-Za-z0-9+/]+=*$/);
 
       // Signature should be verifiable with the same secret (stored in DB)
-      await updateSquareWebhookSignatureKey(secret);
+      await settings.square.webhookSignatureKey.update(secret);
       const result = await verifyWebhookSignature(
         payload,
         signature,
@@ -1762,8 +1757,8 @@ describe("square", () => {
 
     beforeEach(async () => {
       originalFetch = globalThis.fetch;
-      await updateSquareAccessToken("EAAAl_rest_test");
-      await updateSquareSandbox(true);
+      await settings.square.accessToken.update("EAAAl_rest_test");
+      await settings.square.sandbox.update(true);
     });
 
     afterEach(() => {
@@ -2145,7 +2140,7 @@ describe("square", () => {
 
     test("uses production URL when sandbox is disabled", async () => {
       resetSquareClient();
-      await updateSquareSandbox(false);
+      await settings.square.sandbox.update(false);
       installMockFetch(() =>
         Promise.resolve({
           ok: true,
@@ -2380,8 +2375,8 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          await updateSquareAccessToken("EAAAl_test_123");
-          await updateSquareLocationId("L_loc_prov");
+          await settings.square.accessToken.update("EAAAl_test_123");
+          await settings.square.locationId.update("L_loc_prov");
           const event = {
             id: 1,
             group_id: 0,
@@ -2458,8 +2453,8 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          await updateSquareAccessToken("EAAAl_test_123");
-          await updateSquareLocationId("L_loc_prov");
+          await settings.square.accessToken.update("EAAAl_test_123");
+          await settings.square.locationId.update("L_loc_prov");
           const intent = {
             name: "John",
             email: "john@example.com",

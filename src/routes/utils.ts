@@ -17,7 +17,7 @@ import {
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#lib/db/api-keys.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
-import { getWrappedPrivateKey } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { setSavedFormData } from "#lib/forms.tsx";
@@ -229,7 +229,7 @@ export const getPrivateKey = async (session: {
 }): Promise<CryptoKey | null> => {
   if (!session.wrappedDataKey) return null;
 
-  const wrappedPrivateKey = await getWrappedPrivateKey();
+  const wrappedPrivateKey = await settings.wrappedPrivateKey.get();
   if (!wrappedPrivateKey) return null;
 
   try {

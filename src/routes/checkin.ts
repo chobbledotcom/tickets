@@ -7,7 +7,7 @@
 import { filter, map } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
-import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { Attendee } from "#lib/types.ts";
 import {
   createTokenRoute,
@@ -59,7 +59,7 @@ const renderAdminView = async (
 ): Promise<Response> => {
   const decrypted = await decryptWithSession(rawAttendees, session);
   const entries = await resolveEntries(decrypted);
-  const phonePrefix = await getPhonePrefixFromDb();
+  const phonePrefix = await settings.phonePrefix.get();
   return htmlResponse(
     checkinAdminPage(
       entries,

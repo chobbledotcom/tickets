@@ -9,12 +9,7 @@ import {
   resetAllowedDomain,
   setAllowedDomainForTest,
 } from "#lib/config.ts";
-import {
-  getCustomDomainFromDb,
-  getCustomDomainLastValidatedFromDb,
-  updateCustomDomain,
-  updateCustomDomainLastValidated,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { createTestDb, describeWithEnv, resetDb, withMocks } from "#test-utils";
 
 /** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
@@ -497,27 +492,27 @@ describe("custom domain settings", () => {
   });
 
   test("getCustomDomainFromDb returns null when not set", async () => {
-    expect(await getCustomDomainFromDb()).toBeNull();
+    expect(await settings.customDomain.get()).toBeNull();
   });
 
   test("updateCustomDomain stores and retrieves domain", async () => {
-    await updateCustomDomain("tickets.example.com");
-    expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+    await settings.customDomain.update("tickets.example.com");
+    expect(await settings.customDomain.get()).toBe("tickets.example.com");
   });
 
   test("updateCustomDomain with empty string clears domain", async () => {
-    await updateCustomDomain("tickets.example.com");
-    await updateCustomDomain("");
-    expect(await getCustomDomainFromDb()).toBeNull();
+    await settings.customDomain.update("tickets.example.com");
+    await settings.customDomain.update("");
+    expect(await settings.customDomain.get()).toBeNull();
   });
 
   test("getCustomDomainLastValidatedFromDb returns null when not set", async () => {
-    expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
+    expect(await settings.customDomain.lastValidated.get()).toBeNull();
   });
 
   test("updateCustomDomainLastValidated stores a timestamp", async () => {
-    await updateCustomDomainLastValidated();
-    const value = await getCustomDomainLastValidatedFromDb();
+    await settings.customDomain.lastValidated.update();
+    const value = await settings.customDomain.lastValidated.get();
     expect(value).not.toBeNull();
     // Should be a valid ISO 8601 date
     expect(new Date(value!).toISOString()).toBe(value);

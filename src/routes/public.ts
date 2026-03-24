@@ -34,13 +34,7 @@ import {
   type QuestionWithAnswers,
   saveAttendeeAnswers,
 } from "#lib/db/questions.ts";
-import {
-  getContactPageTextFromDb,
-  getHomepageTextFromDb,
-  getShowPublicSiteFromDb,
-  getTermsAndConditionsFromDb,
-  getWebsiteTitleFromDb,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import type { EmailEntry } from "#lib/email.ts";
 import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
@@ -106,7 +100,7 @@ const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
 const requirePublicSite = async (
   fn: () => Promise<Response>,
 ): Promise<Response> =>
-  (await getShowPublicSiteFromDb()) ? fn() : redirectResponse("/admin/");
+  (await settings.showPublicSite.get()) ? fn() : redirectResponse("/admin/");
 
 /** Render a public site page with website title and content fetched in parallel */
 const renderPublicPage = (
@@ -115,7 +109,7 @@ const renderPublicPage = (
 ): Promise<Response> =>
   requirePublicSite(async () => {
     const [websiteTitle, content] = await Promise.all([
-      getWebsiteTitleFromDb(),
+      settings.websiteTitle.get(),
       getContent(),
     ]);
     return htmlResponse(publicSitePage(pageType, websiteTitle, content));
@@ -123,25 +117,25 @@ const renderPublicPage = (
 
 /** Handle GET / (home page) - redirect to admin or show public site */
 export const handleHome = (): Promise<Response> =>
-  renderPublicPage("home", getHomepageTextFromDb);
+  renderPublicPage("home", settings.homepageText.get);
 
 /** Handle GET /events - public events listing */
 export const handlePublicEvents = (): Promise<Response> =>
   requirePublicSite(async () => {
     const [events, websiteTitle] = await Promise.all([
       loadHomepageEvents(),
-      getWebsiteTitleFromDb(),
+      settings.websiteTitle.get(),
     ]);
     return htmlResponse(homepagePage(events, websiteTitle));
   });
 
 /** Handle GET /terms - public terms and conditions page */
 export const handlePublicTerms = (): Promise<Response> =>
-  renderPublicPage("terms", getTermsAndConditionsFromDb);
+  renderPublicPage("terms", settings.terms.get);
 
 /** Handle GET /contact - public contact page */
 export const handlePublicContact = (): Promise<Response> =>
-  renderPublicPage("contact", getContactPageTextFromDb);
+  renderPublicPage("contact", settings.contactPageText.get);
 
 /** Render a ticket page with the given context */
 const renderTicketPage = (
@@ -205,7 +199,7 @@ const handleSingleTicketGet = (
     await signCsrfToken();
     const [dates, terms, questions] = await Promise.all([
       computeDatesForEvent(event),
-      getTermsAndConditionsFromDb(),
+      settings.terms.get(),
       getQuestionsForEvent(event.id),
     ]);
     const ctx: TicketContext = { dates, terms, questions };
@@ -423,7 +417,7 @@ const processTicketReservation = async (
   event: EventWithCount,
 ): Promise<Response> => {
   const [terms, questions] = await Promise.all([
-    getTermsAndConditionsFromDb(),
+    settings.terms.get(),
     getQuestionsForEvent(event.id),
   ]);
   const ctx: TicketContext = { dates: undefined, terms, questions };
@@ -593,7 +587,7 @@ const getMultiTicketContext = async (
   const eventIds = activeEvents.map((e) => e.event.id);
   const [dates, terms, questionsResult] = await Promise.all([
     computeSharedDates(activeEvents),
-    getTermsAndConditionsFromDb(),
+    settings.terms.get(),
     getQuestionsWithEventIds(eventIds),
   ]);
   return { dates, terms: terms ?? "", ...questionsResult };
@@ -954,7 +948,7 @@ const getGroupMultiTicketContext =
     const eventIds = events.map((e) => e.event.id);
     const [dates, globalTerms, questionsResult] = await Promise.all([
       computeSharedDates(events),
-      getTermsAndConditionsFromDb(),
+      settings.terms.get(),
       getQuestionsWithEventIds(eventIds),
     ]);
     const terms = group.terms_and_conditions || globalTerms || "";

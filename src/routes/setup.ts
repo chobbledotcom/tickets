@@ -5,7 +5,7 @@
 import { isValidCountry } from "#lib/countries.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { settingsApi } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
@@ -139,7 +139,7 @@ const handleSetupPost = async (
   logDebug("Setup", "Form validation passed, completing setup...");
 
   try {
-    await settingsApi.completeSetup(
+    await settings.setup.complete(
       validation.username,
       validation.password,
       validation.country,

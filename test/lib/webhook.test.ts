@@ -86,8 +86,8 @@ describe("webhook", () => {
 
   describeWithEnv("buildWebhookPayload", { db: true }, () => {
     beforeEach(async () => {
-      const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
-      invalidateSettingsCache();
+      const { settings: s } = await import("#lib/db/settings.ts");
+      s.invalidateCache();
     });
 
     test("builds payload for a single free event", async () => {

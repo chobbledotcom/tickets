@@ -13,7 +13,7 @@ import type {
   EmailTemplateFormat,
   EmailTemplateType,
 } from "#lib/db/settings.ts";
-import { getEmailTemplateSet } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { EmailEntry } from "#lib/email.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { isPaidEvent } from "#lib/types.ts";
@@ -122,7 +122,7 @@ export const renderEmailContent = async (
   data: TemplateData,
 ): Promise<EmailContent> => {
   const defaults = DEFAULT_TEMPLATES[type];
-  const custom = await getEmailTemplateSet(type);
+  const custom = await settings.email.template.getSet(type);
 
   const [subject, html, text] = await Promise.all([
     safeRender(

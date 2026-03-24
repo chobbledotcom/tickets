@@ -1,19 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
-import {
-  getAppleWalletConfig,
-  getAppleWalletPassTypeIdFromDb,
-  getAppleWalletTeamIdFromDb,
-  getHostAppleWalletConfig,
-  hasAppleWalletConfig,
-  hasAppleWalletDbConfig,
-  updateAppleWalletPassTypeId,
-  updateAppleWalletSigningCert,
-  updateAppleWalletSigningKey,
-  updateAppleWalletTeamId,
-  updateAppleWalletWwdrCert,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -91,11 +79,11 @@ const fetchValidPkpassForNewAttendee = async () => {
 /** Configure all Apple Wallet settings in the database */
 const configureAppleWallet = async () => {
   await Promise.all([
-    updateAppleWalletPassTypeId("pass.com.test.tickets"),
-    updateAppleWalletTeamId("TESTTEAM01"),
-    updateAppleWalletSigningCert(testCerts.signingCert),
-    updateAppleWalletSigningKey(testCerts.signingKey),
-    updateAppleWalletWwdrCert(testCerts.wwdrCert),
+    settings.appleWallet.passTypeId.update("pass.com.test.tickets"),
+    settings.appleWallet.teamId.update("TESTTEAM01"),
+    settings.appleWallet.signingCert.update(testCerts.signingCert),
+    settings.appleWallet.signingKey.update(testCerts.signingKey),
+    settings.appleWallet.wwdrCert.update(testCerts.wwdrCert),
   ]);
 };
 
@@ -345,16 +333,16 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     expect(response.status).toBe(302);
     expectFlash(response, "Apple Wallet settings updated");
 
-    expect(await hasAppleWalletConfig()).toBe(true);
-    expect(await getAppleWalletPassTypeIdFromDb()).toBe(
+    expect(await settings.appleWallet.hasConfig()).toBe(true);
+    expect(await settings.appleWallet.passTypeId.get()).toBe(
       "pass.com.test.tickets",
     );
-    expect(await getAppleWalletTeamIdFromDb()).toBe("TESTTEAM01");
+    expect(await settings.appleWallet.teamId.get()).toBe("TESTTEAM01");
   });
 
   test("clears all settings when everything is empty", async () => {
     await configureAppleWallet();
-    expect(await hasAppleWalletConfig()).toBe(true);
+    expect(await settings.appleWallet.hasConfig()).toBe(true);
 
     const response = await submitWalletSettingsForm({
       apple_wallet_pass_type_id: "",
@@ -366,7 +354,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
     expect(response.status).toBe(302);
     expectFlash(response, "Apple Wallet configuration cleared");
-    expect(await hasAppleWalletConfig()).toBe(false);
+    expect(await settings.appleWallet.hasConfig()).toBe(false);
   });
 
   test("shows Apple Wallet section with masked values when configured", async () => {
@@ -409,18 +397,18 @@ describeWithEnv(
   },
   () => {
     test("returns null when no env vars are set", () => {
-      expect(getHostAppleWalletConfig()).toBeNull();
+      expect(settings.appleWallet.getHostConfig()).toBeNull();
     });
 
     test("returns null when only some env vars are set", () => {
       Deno.env.set("APPLE_WALLET_PASS_TYPE_ID", "pass.com.test");
       Deno.env.set("APPLE_WALLET_TEAM_ID", "TEAM01");
-      expect(getHostAppleWalletConfig()).toBeNull();
+      expect(settings.appleWallet.getHostConfig()).toBeNull();
     });
 
     test("returns config when all env vars are set", () => {
       setWalletEnvVars();
-      const config = getHostAppleWalletConfig();
+      const config = settings.appleWallet.getHostConfig();
       expect(config).not.toBeNull();
       expect(config!.passTypeId).toBe("pass.com.env.tickets");
       expect(config!.teamId).toBe("ENVTEAM001");
@@ -446,13 +434,13 @@ describeWithEnv(
   () => {
     test("hasAppleWalletConfig returns true with env vars when DB not configured", async () => {
       setWalletEnvVars();
-      expect(await hasAppleWalletDbConfig()).toBe(false);
-      expect(await hasAppleWalletConfig()).toBe(true);
+      expect(await settings.appleWallet.hasDbConfig()).toBe(false);
+      expect(await settings.appleWallet.hasConfig()).toBe(true);
     });
 
     test("getAppleWalletConfig falls back to env vars when DB not configured", async () => {
       setWalletEnvVars();
-      const config = await getAppleWalletConfig();
+      const config = await settings.appleWallet.getConfig();
       expect(config).not.toBeNull();
       expect(config!.passTypeId).toBe("pass.com.env.tickets");
       expect(config!.teamId).toBe("ENVTEAM001");
@@ -461,7 +449,7 @@ describeWithEnv(
     test("getAppleWalletConfig prefers DB config over env vars", async () => {
       setWalletEnvVars();
       await configureAppleWallet();
-      const config = await getAppleWalletConfig();
+      const config = await settings.appleWallet.getConfig();
       expect(config).not.toBeNull();
       expect(config!.passTypeId).toBe("pass.com.test.tickets");
       expect(config!.teamId).toBe("TESTTEAM01");

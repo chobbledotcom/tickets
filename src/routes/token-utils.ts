@@ -6,7 +6,7 @@ import { compact, map } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { getAttendeesByTokens } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
-import { getCurrencyCodeFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { notFoundResponse } from "#routes/utils.ts";
 
@@ -40,7 +40,7 @@ export const buildWalletPassData = async (
 ): Promise<WalletPassData> => {
   const { event, attendee } = entry;
   const domain = getEffectiveDomain();
-  const currencyCode = await getCurrencyCodeFromDb();
+  const currencyCode = await settings.currency.get();
   const pricePaid = attendee.price_paid_v2;
 
   return {

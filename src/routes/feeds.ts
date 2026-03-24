@@ -7,10 +7,7 @@ import { map, pipe } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import {
-  getShowPublicSiteFromDb,
-  getWebsiteTitleFromDb,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { type EventWithCount, sortEvents } from "#lib/sort-events.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
@@ -52,7 +49,7 @@ const loadFeedData = async (): Promise<FeedData> => {
   const [allEvents, holidays, websiteTitle] = await Promise.all([
     getAllEvents(),
     getActiveHolidays(),
-    getWebsiteTitleFromDb(),
+    settings.websiteTitle.get(),
   ]);
   const events = sortEvents(
     allEvents.filter((e) => e.active && !e.hidden && !isRegistrationClosed(e)),
@@ -69,7 +66,7 @@ const loadFeedData = async (): Promise<FeedData> => {
 const requirePublicSite = async <T>(
   fn: () => Promise<T>,
 ): Promise<T | Response> =>
-  (await getShowPublicSiteFromDb()) ? fn() : redirectResponse("/admin/");
+  (await settings.showPublicSite.get()) ? fn() : redirectResponse("/admin/");
 
 /** Build a single VEVENT block */
 const buildVEvent = (

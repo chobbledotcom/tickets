@@ -177,7 +177,7 @@ describe("server (setup)", () => {
 
       test("POST /setup/ returns 503 when completeSetup fails", async () => {
         const { stub } = await import("@std/testing/mock");
-        const { settingsApi } = await import("#lib/db/settings.ts");
+        const { settings } = await import("#lib/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(await getResponse.text());
@@ -185,7 +185,7 @@ describe("server (setup)", () => {
         await withExpectedError(async () => {
           await withMocks(
             () => ({
-              mockCompleteSetup: stub(settingsApi, "completeSetup", () =>
+              mockCompleteSetup: stub(settings.setup, "complete", () =>
                 Promise.reject(new Error("Database error")),
               ),
               mockConsoleError: stub(console, "error", () => {}),

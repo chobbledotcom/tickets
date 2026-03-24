@@ -13,7 +13,7 @@ import {
 } from "#lib/crypto.ts";
 import { executeBatch, queryAll } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
-import { getPublicKey } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   DEMO_ADDRESSES,
   DEMO_EMAILS,
@@ -208,7 +208,7 @@ export const createSeeds = async (
   eventCount: number,
   attendeesPerEvent: number,
 ): Promise<SeedResult> => {
-  const publicKeyJwk = await getPublicKey();
+  const publicKeyJwk = await settings.publicKey.get();
   if (!publicKeyJwk) throw new Error("Public key not configured");
 
   // Build structured event data: quantities, capacity, price, and slug per event

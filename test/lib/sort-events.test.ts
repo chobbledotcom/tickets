@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#lib/dates.ts";
-import { setTimezoneForTest } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import type { EventWithCount, Holiday } from "#lib/types.ts";
@@ -28,7 +28,7 @@ const expectAlphaBeforeBravo = (
 describe("sortEvents", () => {
   beforeEach(async () => {
     await createTestDbWithSetup();
-    setTimezoneForTest("UTC");
+    settings.timezone.setForTest("UTC");
   });
 
   afterEach(() => {

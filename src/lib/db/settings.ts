@@ -151,7 +151,7 @@ const invalidatePageCacheEntry = (key: string): void => {
 };
 
 /** Clear the entire page content cache (for testing or after bulk changes). */
-export const invalidatePageCache = (): void => {
+const invalidatePageCache = (): void => {
   setPageCacheMap(null);
 };
 
@@ -183,7 +183,7 @@ registerCache(() => ({
 /**
  * Load every setting row into the in-memory cache with a single query.
  */
-export const loadAllSettings = async (): Promise<Map<string, string>> => {
+const loadAllSettings = async (): Promise<Map<string, string>> => {
   const rows = await queryAll<Settings>("SELECT key, value FROM settings");
   const cache = new Map<string, string>();
   for (const row of rows) {
@@ -198,7 +198,7 @@ export const loadAllSettings = async (): Promise<Map<string, string>> => {
  * Also clears the permanent timezone cache since it derives from settings,
  * and the page content cache since it derives from encrypted settings.
  */
-export const invalidateSettingsCache = (): void => {
+const invalidateSettingsCache = (): void => {
   setSettingsCacheState(null);
   invalidateTimezoneCache();
   invalidatePageCache();
@@ -209,7 +209,7 @@ export const invalidateSettingsCache = (): void => {
  * Returns null if the cache is not populated or the key is absent.
  * Safe to call from synchronous code because the settings cache is populated by middleware.
  */
-export const getSettingCached = (key: string): string | null => {
+const getSettingCached = (key: string): string | null => {
   const state = getSettingsCacheState();
   return state.entries?.get(key) ?? null;
 };
@@ -218,7 +218,7 @@ export const getSettingCached = (key: string): string | null => {
  * Get a setting value. Reads from the in-memory cache, loading all
  * settings in one query on first access or after TTL expiry.
  */
-export const getSetting = async (key: string): Promise<string | null> => {
+const getSetting = async (key: string): Promise<string | null> => {
   const cache = isCacheValid()
     ? getSettingsCacheState().entries!
     : await loadAllSettings();
@@ -229,7 +229,7 @@ export const getSetting = async (key: string): Promise<string | null> => {
  * Set a setting value. Invalidates the cache so the next read
  * will pick up the new value.
  */
-export const setSetting = async (key: string, value: string): Promise<void> => {
+const setSetting = async (key: string, value: string): Promise<void> => {
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
     args: [key, value],
@@ -319,7 +319,7 @@ const [getSetupConfirmed, setSetupConfirmed] = lazyRef<boolean>(() => false);
  * Check if initial setup has been completed
  * Result is cached in memory - once true, we never query again.
  */
-export const isSetupComplete = async (): Promise<boolean> => {
+const isSetupComplete = async (): Promise<boolean> => {
   // Check both caches (avoid short-circuit to ensure consistent initialization)
   const confirmed = getSetupConfirmed();
   const cached = getSetupCompleteCache();
@@ -339,7 +339,7 @@ export const isSetupComplete = async (): Promise<boolean> => {
 /**
  * Clear setup complete cache (for testing)
  */
-export const clearSetupCompleteCache = (): void => {
+const clearSetupCompleteCache = (): void => {
   setSetupCompleteCache(null);
   setSetupConfirmed(null);
 };
@@ -352,7 +352,7 @@ export const clearSetupCompleteCache = (): void => {
  * - KEK: derived from password hash + DB_ENCRYPTION_KEY, wraps DATA_KEY
  * Creates the first owner user row instead of storing credentials in settings.
  */
-export const completeSetup = async (
+const completeSetup = async (
   username: string,
   adminPassword: string,
   country: string,
@@ -390,7 +390,7 @@ export const completeSetup = async (
  * Get the configured country code from database.
  * Returns ISO 3166-1 alpha-2 code, defaulting to "GB".
  */
-export const getCountryFromDb = async (): Promise<string> => {
+const getCountryFromDb = async (): Promise<string> => {
   const value = await getSetting(CONFIG_KEYS.COUNTRY);
   return value || DEFAULT_COUNTRY;
 };
@@ -398,7 +398,7 @@ export const getCountryFromDb = async (): Promise<string> => {
 /**
  * Update the configured country.
  */
-export const updateCountry = async (country: string): Promise<void> => {
+const updateCountry = async (country: string): Promise<void> => {
   await setSetting(CONFIG_KEYS.COUNTRY, country);
   // Also update timezone cache since it derives from country
   const tz = getCountry(country).timezone;
@@ -408,7 +408,7 @@ export const updateCountry = async (country: string): Promise<void> => {
 /**
  * Get currency code derived from country setting.
  */
-export const getCurrencyCodeFromDb = async (): Promise<string> => {
+const getCurrencyCodeFromDb = async (): Promise<string> => {
   const country = await getCountryFromDb();
   return getCountry(country).currency;
 };
@@ -417,13 +417,13 @@ export const getCurrencyCodeFromDb = async (): Promise<string> => {
  * Get the configured payment provider type
  * Returns null if no provider is configured
  */
-export const getPaymentProviderFromDb = (): Promise<string | null> =>
+const getPaymentProviderFromDb = (): Promise<string | null> =>
   getSetting(CONFIG_KEYS.PAYMENT_PROVIDER);
 
 /**
  * Set the active payment provider type
  */
-export const setPaymentProvider = async (
+const setPaymentProvider = async (
   provider: PaymentProviderType,
 ): Promise<void> => {
   await setSetting(CONFIG_KEYS.PAYMENT_PROVIDER, provider);
@@ -432,7 +432,7 @@ export const setPaymentProvider = async (
 /**
  * Clear the active payment provider (disables payments)
  */
-export const clearPaymentProvider = async (): Promise<void> => {
+const clearPaymentProvider = async (): Promise<void> => {
   await getDb().execute({
     sql: "DELETE FROM settings WHERE key = ?",
     args: [CONFIG_KEYS.PAYMENT_PROVIDER],
@@ -443,18 +443,17 @@ export const clearPaymentProvider = async (): Promise<void> => {
 /**
  * Check if a Stripe key has been configured in the database
  */
-export const hasStripeKey = async (): Promise<boolean> => {
+const hasStripeKey = async (): Promise<boolean> => {
   const value = await getSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
   return value !== null;
 };
 
-const { get: getStripeSecretKeyFromDb, update: updateStripeKey } =
-  encryptedSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
-
-export { getStripeSecretKeyFromDb, updateStripeKey };
+const { get: getStripeSecretKeyFromDb } = encryptedSetting(
+  CONFIG_KEYS.STRIPE_SECRET_KEY,
+);
 
 /** Derive Stripe key mode from the stored key prefix. */
-export const getStripeKeyMode = async (): Promise<"test" | "live" | null> => {
+const getStripeKeyMode = async (): Promise<"test" | "live" | null> => {
   const key = await getStripeSecretKeyFromDb();
   if (!key) return null;
   // Inline prefix check to avoid circular import with stripe.ts
@@ -463,7 +462,7 @@ export const getStripeKeyMode = async (): Promise<"test" | "live" | null> => {
   return null;
 };
 
-export const getStripeWebhookSecretFromDb = encryptedSetting(
+const getStripeWebhookSecretFromDb = encryptedSetting(
   CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
 ).get;
 
@@ -471,14 +470,14 @@ export const getStripeWebhookSecretFromDb = encryptedSetting(
  * Get Stripe webhook endpoint ID from database
  * Returns null if not configured
  */
-export const getStripeWebhookEndpointId = (): Promise<string | null> => {
+const getStripeWebhookEndpointId = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID);
 };
 
 /**
  * Store Stripe webhook configuration (secret encrypted, endpoint ID plaintext)
  */
-export const setStripeWebhookConfig = async (config: {
+const setStripeWebhookConfig = async (config: {
   secret: string;
   endpointId: string;
 }): Promise<void> => {
@@ -491,32 +490,32 @@ export const setStripeWebhookConfig = async (config: {
  * Get the public key for encrypting attendee PII
  * Always available (it's meant to be public)
  */
-export const getPublicKey = (): Promise<string | null> => {
+const getPublicKey = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.PUBLIC_KEY);
 };
 
 /**
  * Get the wrapped private key (needs DATA_KEY to decrypt)
  */
-export const getWrappedPrivateKey = (): Promise<string | null> => {
+const getWrappedPrivateKey = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.WRAPPED_PRIVATE_KEY);
 };
 
 /** Check whether the attendee blob migration has been completed */
-export const isAttendeeBlobMigrated = async (): Promise<boolean> => {
+const isAttendeeBlobMigrated = async (): Promise<boolean> => {
   const value = await getSetting(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED);
   return value !== null && value !== "";
 };
 
 /** Mark the attendee blob migration as complete */
-export const setAttendeeBlobMigrated = (): Promise<void> =>
+const setAttendeeBlobMigrated = (): Promise<void> =>
   setSetting(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED, new Date().toISOString());
 
 /**
  * Update a user's password and re-wrap DATA_KEY with new KEK
  * Requires the user's old password hash (decrypted) and their user row
  */
-export const updateUserPassword = async (
+const updateUserPassword = async (
   userId: number,
   oldPasswordHash: string,
   oldWrappedDataKey: string,
@@ -555,48 +554,30 @@ export const updateUserPassword = async (
 /**
  * Check if a Square access token has been configured in the database
  */
-export const hasSquareToken = async (): Promise<boolean> => {
+const hasSquareToken = async (): Promise<boolean> => {
   const value = await getSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN);
   return value !== null;
 };
-
-export const {
-  get: getSquareAccessTokenFromDb,
-  update: updateSquareAccessToken,
-} = encryptedSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN);
-
-export const {
-  get: getSquareWebhookSignatureKeyFromDb,
-  update: updateSquareWebhookSignatureKey,
-} = encryptedSetting(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY);
 
 /**
  * Get Square location ID from database
  * Returns null if not configured
  */
-export const getSquareLocationIdFromDb = (): Promise<string | null> =>
+const getSquareLocationIdFromDb = (): Promise<string | null> =>
   getSetting(CONFIG_KEYS.SQUARE_LOCATION_ID);
 
 /**
  * Store Square location ID (plaintext - not sensitive)
  */
-export const updateSquareLocationId = async (
-  locationId: string,
-): Promise<void> => {
+const updateSquareLocationId = async (locationId: string): Promise<void> => {
   await setSetting(CONFIG_KEYS.SQUARE_LOCATION_ID, locationId);
 };
-
-export const { get: getSquareSandboxFromDb, update: updateSquareSandbox } =
-  booleanSetting(CONFIG_KEYS.SQUARE_SANDBOX);
-
-export const { get: getBookingFeeFromDb, update: updateBookingFee } =
-  textSetting(CONFIG_KEYS.BOOKING_FEE, "0");
 
 /**
  * Get allowed embed hosts from database (decrypted)
  * Returns null if not configured (embedding allowed from anywhere)
  */
-export const getEmbedHostsFromDb = async (): Promise<string | null> => {
+const getEmbedHostsFromDb = async (): Promise<string | null> => {
   const value = await getSetting(CONFIG_KEYS.EMBED_HOSTS);
   if (!value) return null;
   return decrypt(value);
@@ -606,7 +587,7 @@ export const getEmbedHostsFromDb = async (): Promise<string | null> => {
  * Update allowed embed hosts (encrypted at rest)
  * Pass empty string to clear the restriction
  */
-export const updateEmbedHosts = async (hosts: string): Promise<void> => {
+const updateEmbedHosts = async (hosts: string): Promise<void> => {
   if (hosts === "") {
     return setOrDeleteSetting(CONFIG_KEYS.EMBED_HOSTS, "");
   }
@@ -621,7 +602,7 @@ export const MAX_TERMS_LENGTH = 10_240;
  * Get terms and conditions text from database (30m cached).
  * Returns null if not configured.
  */
-export const getTermsAndConditionsFromDb = async (): Promise<string | null> => {
+const getTermsAndConditionsFromDb = async (): Promise<string | null> => {
   const cached = getPageCacheEntry(CONFIG_KEYS.TERMS_AND_CONDITIONS);
   if (cached !== undefined) return cached;
   const value = await getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
@@ -633,7 +614,7 @@ export const getTermsAndConditionsFromDb = async (): Promise<string | null> => {
  * Update terms and conditions text
  * Pass empty string to clear
  */
-export const updateTermsAndConditions = async (text: string): Promise<void> => {
+const updateTermsAndConditions = async (text: string): Promise<void> => {
   await setOrDeleteSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS, text);
   invalidatePageCacheEntry(CONFIG_KEYS.TERMS_AND_CONDITIONS);
 };
@@ -656,7 +637,7 @@ const [getTzTestOverride, setTzTestOverride] = lazyRef<string | null>(
  * Get the configured timezone derived from country setting.
  * Also populates the permanent timezone cache for sync access via getTimezoneCached().
  */
-export const getTimezoneFromDb = async (): Promise<string> => {
+const getTimezoneFromDb = async (): Promise<string> => {
   const testOverride = getTzTestOverride();
   if (testOverride !== null) return testOverride;
   const cached = getTzCache();
@@ -672,7 +653,7 @@ export const getTimezoneFromDb = async (): Promise<string> => {
  * Derives from country setting. Safe to call from synchronous template code
  * because the middleware populates the settings cache on every request.
  */
-export const getTimezoneCached = (): string => {
+const getTimezoneCached = (): string => {
   const testOverride = getTzTestOverride();
   if (testOverride !== null) return testOverride;
   const cached = getTzCache();
@@ -696,16 +677,16 @@ const invalidateTimezoneCache = (): void => {
  * Explicitly set timezone for testing.
  * Uses a separate override that survives cache invalidation.
  */
-export const setTimezoneForTest = (tz: string): void => setTzTestOverride(tz);
+const setTimezoneForTest = (tz: string): void => setTzTestOverride(tz);
 
 /** Clear the test timezone override (call in test teardown). */
-export const resetTimezoneTestOverride = (): void => setTzTestOverride(null);
+const resetTimezoneTestOverride = (): void => setTzTestOverride(null);
 
 /**
  * Get the configured theme from database.
  * Returns "light" or "dark", defaulting to "light".
  */
-export const getThemeFromDb = async (): Promise<Theme> => {
+const getThemeFromDb = async (): Promise<Theme> => {
   const value = await getSetting(CONFIG_KEYS.THEME);
   return value === "dark" ? "dark" : "light";
 };
@@ -713,28 +694,22 @@ export const getThemeFromDb = async (): Promise<Theme> => {
 /**
  * Update the configured theme.
  */
-export const updateTheme = async (theme: Theme): Promise<void> => {
+const updateTheme = async (theme: Theme): Promise<void> => {
   await setSetting(CONFIG_KEYS.THEME, theme);
 };
-
-export const { get: getShowPublicSiteFromDb, update: updateShowPublicSite } =
-  booleanSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE);
 
 /**
  * Get the "show public site" setting synchronously from cache.
  * Returns false if the cache is not populated or the setting is not "true".
  * Safe to call from synchronous template code after the settings cache is warmed.
  */
-export const getShowPublicSiteCached = (): boolean => {
+const getShowPublicSiteCached = (): boolean => {
   const state = getSettingsCacheState();
   if (state.entries !== null) {
     return state.entries.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
   }
   return false;
 };
-
-export const { get: getShowPublicApiFromDb, update: updateShowPublicApi } =
-  booleanSetting(CONFIG_KEYS.SHOW_PUBLIC_API);
 
 /** Get an encrypted optional setting (decrypted). Returns null if not set. */
 const getEncryptedSetting = async (key: string): Promise<string | null> => {
@@ -767,42 +742,19 @@ const getCachedPageSetting = async (key: string): Promise<string | null> => {
   return value;
 };
 
-export const { get: getWebsiteTitleFromDb, update: updateWebsiteTitle } =
-  cachedEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE);
-
-export const { get: getHomepageTextFromDb, update: updateHomepageText } =
-  cachedEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT);
-
-export const { get: getContactPageTextFromDb, update: updateContactPageText } =
-  cachedEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT);
-
 /**
  * Get the configured phone prefix derived from country setting.
  */
-export const getPhonePrefixFromDb = async (): Promise<string> => {
+const getPhonePrefixFromDb = async (): Promise<string> => {
   const country = await getCountryFromDb();
   return getCountry(country).phonePrefix;
 };
 
-export const { get: getHeaderImageUrlFromDb, update: updateHeaderImageUrl } =
-  encryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL);
-
-export const { get: getEmailProviderFromDb, update: updateEmailProvider } =
-  textSetting(CONFIG_KEYS.EMAIL_PROVIDER);
-
 /** Check if an email API key has been configured in the database */
-export const hasEmailApiKey = async (): Promise<boolean> => {
+const hasEmailApiKey = async (): Promise<boolean> => {
   const value = await getSetting(CONFIG_KEYS.EMAIL_API_KEY);
   return value !== null;
 };
-
-export const { get: getEmailApiKeyFromDb, update: updateEmailApiKey } =
-  encryptedSetting(CONFIG_KEYS.EMAIL_API_KEY);
-
-export const {
-  get: getEmailFromAddressFromDb,
-  update: updateEmailFromAddress,
-} = encryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS);
 
 /** Valid email template types */
 export type EmailTemplateType = "confirmation" | "admin";
@@ -830,14 +782,14 @@ const emailTemplateKey = (
 export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 
 /** Get a custom email template (decrypted). Returns null if not customised (use default). */
-export const getEmailTemplate = (
+const getEmailTemplate = (
   type: EmailTemplateType,
   format: EmailTemplateFormat,
 ): Promise<string | null> =>
   getEncryptedSetting(emailTemplateKey(type, format));
 
 /** Update a custom email template (encrypted at rest). Pass empty string to clear (revert to default). */
-export const updateEmailTemplate = (
+const updateEmailTemplate = (
   type: EmailTemplateType,
   format: EmailTemplateFormat,
   content: string,
@@ -845,7 +797,7 @@ export const updateEmailTemplate = (
   updateEncryptedSetting(emailTemplateKey(type, format), content);
 
 /** Get all 3 parts of a custom email template (subject, html, text). Nulls mean "use default". */
-export const getEmailTemplateSet = async (
+const getEmailTemplateSet = async (
   type: EmailTemplateType,
 ): Promise<{
   subject: string | null;
@@ -860,15 +812,12 @@ export const getEmailTemplateSet = async (
   return { subject, html, text };
 };
 
-export const { get: getCustomDomainFromDb, update: updateCustomDomain } =
-  textSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
-
 /** Get the custom domain last validated timestamp. Returns null if never validated. */
-export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
+const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
   getSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED);
 
 /** Update the custom domain last validated timestamp to now (UTC ISO 8601). */
-export const updateCustomDomainLastValidated = (): Promise<void> =>
+const updateCustomDomainLastValidated = (): Promise<void> =>
   setSetting(
     CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
     new Date().toISOString(),
@@ -901,22 +850,21 @@ const [getHostWalletOverride, setHostWalletOverride] = lazyRef<
 >(() => undefined);
 
 /** Get host-level Apple Wallet config. Uses test override if set, otherwise reads env vars. */
-export const getHostAppleWalletConfig = (): SigningCredentials | null => {
+const getHostAppleWalletConfig = (): SigningCredentials | null => {
   const override = getHostWalletOverride();
   return override !== undefined ? override : getHostAppleWalletConfigFromEnv();
 };
 
 /** For testing: set host Apple Wallet config directly. Bypasses env vars to avoid races. */
-export const setHostAppleWalletConfigForTest = (
+const setHostAppleWalletConfigForTest = (
   config: SigningCredentials | null,
 ): void => setHostWalletOverride(config);
 
 /** For testing: reset host Apple Wallet config to read from env vars. */
-export const resetHostAppleWalletConfig = (): void =>
-  setHostWalletOverride(undefined);
+const resetHostAppleWalletConfig = (): void => setHostWalletOverride(undefined);
 
 /** Check if Apple Wallet DB settings are fully configured (all 5 settings present). */
-export const hasAppleWalletDbConfig = async (): Promise<boolean> => {
+const hasAppleWalletDbConfig = async (): Promise<boolean> => {
   const [passTypeId, teamId, cert, key, wwdr] = await Promise.all([
     getSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID),
     getSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID),
@@ -934,52 +882,45 @@ export const hasAppleWalletDbConfig = async (): Promise<boolean> => {
 };
 
 /** Check if Apple Wallet is configured (DB settings or env vars). */
-export const hasAppleWalletConfig = async (): Promise<boolean> =>
+const hasAppleWalletConfig = async (): Promise<boolean> =>
   (await hasAppleWalletDbConfig()) || getHostAppleWalletConfig() !== null;
 
-export const {
-  get: getAppleWalletPassTypeIdFromDb,
-  update: updateAppleWalletPassTypeId,
-} = textSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
+const { get: getAppleWalletPassTypeIdFromDb } = textSetting(
+  CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
+);
 
-export const {
-  get: getAppleWalletTeamIdFromDb,
-  update: updateAppleWalletTeamId,
-} = textSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
+const { get: getAppleWalletTeamIdFromDb } = textSetting(
+  CONFIG_KEYS.APPLE_WALLET_TEAM_ID,
+);
 
-export const {
-  get: getAppleWalletSigningCertFromDb,
-  update: updateAppleWalletSigningCert,
-} = encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT);
+const { get: getAppleWalletSigningCertFromDb } = encryptedSetting(
+  CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT,
+);
 
-export const {
-  get: getAppleWalletSigningKeyFromDb,
-  update: updateAppleWalletSigningKey,
-} = encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY);
+const { get: getAppleWalletSigningKeyFromDb } = encryptedSetting(
+  CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
+);
 
-export const {
-  get: getAppleWalletWwdrCertFromDb,
-  update: updateAppleWalletWwdrCert,
-} = encryptedSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT);
+const { get: getAppleWalletWwdrCertFromDb } = encryptedSetting(
+  CONFIG_KEYS.APPLE_WALLET_WWDR_CERT,
+);
 
 /** Get Apple Wallet config from DB (decrypted). Returns null if incomplete. */
-export const getAppleWalletDbConfig =
-  async (): Promise<SigningCredentials | null> => {
-    const [passTypeId, teamId, signingCert, signingKey, wwdrCert] =
-      await Promise.all([
-        getAppleWalletPassTypeIdFromDb(),
-        getAppleWalletTeamIdFromDb(),
-        getAppleWalletSigningCertFromDb(),
-        getAppleWalletSigningKeyFromDb(),
-        getAppleWalletWwdrCertFromDb(),
-      ]);
-    return toCredentials(passTypeId, teamId, signingCert, signingKey, wwdrCert);
-  };
+const getAppleWalletDbConfig = async (): Promise<SigningCredentials | null> => {
+  const [passTypeId, teamId, signingCert, signingKey, wwdrCert] =
+    await Promise.all([
+      getAppleWalletPassTypeIdFromDb(),
+      getAppleWalletTeamIdFromDb(),
+      getAppleWalletSigningCertFromDb(),
+      getAppleWalletSigningKeyFromDb(),
+      getAppleWalletWwdrCertFromDb(),
+    ]);
+  return toCredentials(passTypeId, teamId, signingCert, signingKey, wwdrCert);
+};
 
 /** Get Apple Wallet config for pass generation. DB settings take priority, falls back to env vars. */
-export const getAppleWalletConfig =
-  async (): Promise<SigningCredentials | null> =>
-    (await getAppleWalletDbConfig()) ?? getHostAppleWalletConfig();
+const getAppleWalletConfig = async (): Promise<SigningCredentials | null> =>
+  (await getAppleWalletDbConfig()) ?? getHostAppleWalletConfig();
 
 // ---------------------------------------------------------------------------
 // Google Wallet configuration
@@ -996,7 +937,7 @@ const toGoogleCredentials = (
     : null;
 
 /** Read Google Wallet config from environment variables. Returns null if not fully configured. */
-export const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null =>
+const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null =>
   toGoogleCredentials(
     getEnv("GOOGLE_WALLET_ISSUER_ID"),
     getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL"),
@@ -1004,7 +945,7 @@ export const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null =>
   );
 
 /** Check if Google Wallet DB settings are fully configured (all 3 settings present). */
-export const hasGoogleWalletDbConfig = async (): Promise<boolean> => {
+const hasGoogleWalletDbConfig = async (): Promise<boolean> => {
   const [issuerId, email, key] = await Promise.all([
     getSetting(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID),
     getSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL),
@@ -1014,26 +955,23 @@ export const hasGoogleWalletDbConfig = async (): Promise<boolean> => {
 };
 
 /** Check if Google Wallet is configured (DB settings or env vars). */
-export const hasGoogleWalletConfig = async (): Promise<boolean> =>
+const hasGoogleWalletConfig = async (): Promise<boolean> =>
   (await hasGoogleWalletDbConfig()) || getHostGoogleWalletConfig() !== null;
 
-export const {
-  get: getGoogleWalletIssuerIdFromDb,
-  update: updateGoogleWalletIssuerId,
-} = textSetting(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID);
+const { get: getGoogleWalletIssuerIdFromDb } = textSetting(
+  CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
+);
 
-export const {
-  get: getGoogleWalletServiceAccountEmailFromDb,
-  update: updateGoogleWalletServiceAccountEmail,
-} = textSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL);
+const { get: getGoogleWalletServiceAccountEmailFromDb } = textSetting(
+  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
+);
 
-export const {
-  get: getGoogleWalletServiceAccountKeyFromDb,
-  update: updateGoogleWalletServiceAccountKey,
-} = encryptedSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY);
+const { get: getGoogleWalletServiceAccountKeyFromDb } = encryptedSetting(
+  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
+);
 
 /** Get Google Wallet config from DB (decrypted). Returns null if incomplete. */
-export const getGoogleWalletDbConfig =
+const getGoogleWalletDbConfig =
   async (): Promise<GoogleWalletCredentials | null> => {
     const [issuerId, serviceAccountEmail, serviceAccountKey] =
       await Promise.all([
@@ -1049,111 +987,174 @@ export const getGoogleWalletDbConfig =
   };
 
 /** Get Google Wallet config for pass generation. DB settings take priority, falls back to env vars. */
-export const getGoogleWalletConfig =
+const getGoogleWalletConfig =
   async (): Promise<GoogleWalletCredentials | null> =>
     (await getGoogleWalletDbConfig()) ?? getHostGoogleWalletConfig();
 
 /**
- * Stubbable API for testing - allows mocking in ES modules
- * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
+ * Unified settings namespace. Replaces individual function exports and settingsApi.
+ *
+ * Usage:
+ *   import { settings } from "#lib/db/settings.ts";
+ *   const key = await settings.stripe.secretKey.get();
+ *   await settings.stripe.secretKey.update(newKey);
+ *
+ * Stubbable for testing: stub(settings.stripe.secretKey, "get", ...)
  */
-export const settingsApi = {
-  PAGE_CACHE_TTL_MS,
-  completeSetup,
-  getSetting,
-  setSetting,
-  loadAllSettings,
-  invalidateSettingsCache,
+export const settings = {
+  // --- Core cache operations ---
+  get: getSetting,
+  set: setSetting,
+  getCached: getSettingCached,
+  loadAll: loadAllSettings,
+  invalidateCache: invalidateSettingsCache,
   invalidatePageCache,
-  isSetupComplete,
-  clearSetupCompleteCache,
-  getPublicKey,
-  getWrappedPrivateKey,
+
+  // --- Setup & auth ---
+  setup: {
+    isComplete: isSetupComplete,
+    clearCache: clearSetupCompleteCache,
+    complete: completeSetup,
+  },
   updateUserPassword,
-  getCountryFromDb,
-  updateCountry,
-  getCurrencyCodeFromDb,
-  getPaymentProviderFromDb,
-  setPaymentProvider,
-  clearPaymentProvider,
-  hasStripeKey,
-  getStripeSecretKeyFromDb,
-  updateStripeKey,
-  getStripeWebhookSecretFromDb,
-  getStripeWebhookEndpointId,
-  setStripeWebhookConfig,
-  hasSquareToken,
-  getSquareAccessTokenFromDb,
-  updateSquareAccessToken,
-  getSquareWebhookSignatureKeyFromDb,
-  updateSquareWebhookSignatureKey,
-  getSquareLocationIdFromDb,
-  updateSquareLocationId,
-  getSquareSandboxFromDb,
-  updateSquareSandbox,
-  getBookingFeeFromDb,
-  updateBookingFee,
-  getEmbedHostsFromDb,
-  updateEmbedHosts,
-  getTermsAndConditionsFromDb,
-  updateTermsAndConditions,
-  getTimezoneFromDb,
-  setTimezoneForTest,
-  resetTimezoneTestOverride,
-  getThemeFromDb,
-  updateTheme,
-  getShowPublicSiteFromDb,
-  getShowPublicSiteCached,
-  updateShowPublicSite,
-  getWebsiteTitleFromDb,
-  updateWebsiteTitle,
-  getHomepageTextFromDb,
-  updateHomepageText,
-  getContactPageTextFromDb,
-  updateContactPageText,
-  getPhonePrefixFromDb,
-  getHeaderImageUrlFromDb,
-  updateHeaderImageUrl,
-  getShowPublicApiFromDb,
-  updateShowPublicApi,
-  getEmailProviderFromDb,
-  updateEmailProvider,
-  hasEmailApiKey,
-  getEmailApiKeyFromDb,
-  updateEmailApiKey,
-  getEmailFromAddressFromDb,
-  updateEmailFromAddress,
-  getEmailTemplate,
-  updateEmailTemplate,
-  getEmailTemplateSet,
-  getCustomDomainFromDb,
-  updateCustomDomain,
-  getCustomDomainLastValidatedFromDb,
-  updateCustomDomainLastValidated,
-  hasAppleWalletConfig,
-  hasAppleWalletDbConfig,
-  getHostAppleWalletConfig,
-  getAppleWalletPassTypeIdFromDb,
-  updateAppleWalletPassTypeId,
-  getAppleWalletTeamIdFromDb,
-  updateAppleWalletTeamId,
-  getAppleWalletSigningCertFromDb,
-  updateAppleWalletSigningCert,
-  getAppleWalletSigningKeyFromDb,
-  updateAppleWalletSigningKey,
-  getAppleWalletWwdrCertFromDb,
-  updateAppleWalletWwdrCert,
-  getAppleWalletConfig,
-  getAppleWalletDbConfig,
-  hasGoogleWalletConfig,
-  hasGoogleWalletDbConfig,
-  getHostGoogleWalletConfig,
-  getGoogleWalletIssuerIdFromDb,
-  updateGoogleWalletIssuerId,
-  getGoogleWalletServiceAccountEmailFromDb,
-  updateGoogleWalletServiceAccountEmail,
-  getGoogleWalletServiceAccountKeyFromDb,
-  updateGoogleWalletServiceAccountKey,
-  getGoogleWalletConfig,
-  getGoogleWalletDbConfig,
+
+  // --- Encryption keys ---
+  publicKey: { get: getPublicKey },
+  wrappedPrivateKey: { get: getWrappedPrivateKey },
+
+  // --- Country / locale ---
+  country: { get: getCountryFromDb, update: updateCountry },
+  currency: { get: getCurrencyCodeFromDb },
+  phonePrefix: { get: getPhonePrefixFromDb },
+
+  // --- Timezone ---
+  timezone: {
+    get: getTimezoneFromDb,
+    getCached: getTimezoneCached,
+    setForTest: setTimezoneForTest,
+    resetTestOverride: resetTimezoneTestOverride,
+  },
+
+  // --- Payment provider ---
+  paymentProvider: {
+    get: getPaymentProviderFromDb,
+    set: setPaymentProvider,
+    clear: clearPaymentProvider,
+  },
+
+  // --- Stripe ---
+  stripe: {
+    secretKey: {
+      ...encryptedSetting(CONFIG_KEYS.STRIPE_SECRET_KEY),
+      has: hasStripeKey,
+      mode: getStripeKeyMode,
+    },
+    webhookSecret: { get: getStripeWebhookSecretFromDb },
+    webhookEndpointId: { get: getStripeWebhookEndpointId },
+    setWebhookConfig: setStripeWebhookConfig,
+  },
+
+  // --- Square ---
+  square: {
+    accessToken: {
+      ...encryptedSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN),
+      has: hasSquareToken,
+    },
+    webhookSignatureKey: encryptedSetting(
+      CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
+    ),
+    locationId: {
+      get: getSquareLocationIdFromDb,
+      update: updateSquareLocationId,
+    },
+    sandbox: booleanSetting(CONFIG_KEYS.SQUARE_SANDBOX),
+  },
+
+  // --- Fees ---
+  bookingFee: textSetting(CONFIG_KEYS.BOOKING_FEE, "0"),
+
+  // --- Embed ---
+  embedHosts: { get: getEmbedHostsFromDb, update: updateEmbedHosts },
+
+  // --- Terms ---
+  terms: { get: getTermsAndConditionsFromDb, update: updateTermsAndConditions },
+
+  // --- Theme / display ---
+  theme: { get: getThemeFromDb, update: updateTheme },
+  showPublicSite: {
+    ...booleanSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE),
+    getCached: getShowPublicSiteCached,
+  },
+  showPublicApi: booleanSetting(CONFIG_KEYS.SHOW_PUBLIC_API),
+
+  // --- Page content ---
+  websiteTitle: cachedEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE),
+  homepageText: cachedEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT),
+  contactPageText: cachedEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT),
+  headerImageUrl: encryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL),
+
+  // --- Email ---
+  email: {
+    provider: textSetting(CONFIG_KEYS.EMAIL_PROVIDER),
+    apiKey: {
+      ...encryptedSetting(CONFIG_KEYS.EMAIL_API_KEY),
+      has: hasEmailApiKey,
+    },
+    fromAddress: encryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS),
+    template: {
+      get: getEmailTemplate,
+      update: updateEmailTemplate,
+      getSet: getEmailTemplateSet,
+    },
+  },
+
+  // --- Custom domain ---
+  customDomain: {
+    ...textSetting(CONFIG_KEYS.CUSTOM_DOMAIN),
+    lastValidated: {
+      get: getCustomDomainLastValidatedFromDb,
+      update: updateCustomDomainLastValidated,
+    },
+  },
+
+  // --- Apple Wallet ---
+  appleWallet: {
+    passTypeId: textSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID),
+    teamId: textSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID),
+    signingCert: encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT),
+    signingKey: encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY),
+    wwdrCert: encryptedSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT),
+    hasDbConfig: hasAppleWalletDbConfig,
+    hasConfig: hasAppleWalletConfig,
+    getDbConfig: getAppleWalletDbConfig,
+    getConfig: getAppleWalletConfig,
+    getHostConfig: getHostAppleWalletConfig,
+    setHostConfigForTest: setHostAppleWalletConfigForTest,
+    resetHostConfig: resetHostAppleWalletConfig,
+  },
+
+  // --- Google Wallet ---
+  googleWallet: {
+    issuerId: textSetting(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID),
+    serviceAccountEmail: textSetting(
+      CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
+    ),
+    serviceAccountKey: encryptedSetting(
+      CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
+    ),
+    hasDbConfig: hasGoogleWalletDbConfig,
+    hasConfig: hasGoogleWalletConfig,
+    getDbConfig: getGoogleWalletDbConfig,
+    getConfig: getGoogleWalletConfig,
+    getHostConfig: getHostGoogleWalletConfig,
+  },
+
+  // --- Migration ---
+  attendeeBlobMigrated: {
+    is: isAttendeeBlobMigrated,
+    set: setAttendeeBlobMigrated,
+  },
+
+  // --- Constants ---
+  PAGE_CACHE_TTL_MS,
 };

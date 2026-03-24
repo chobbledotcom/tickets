@@ -476,15 +476,15 @@ describe("test-utils", () => {
     test("configures Stripe as payment provider", async () => {
       await createTestDbWithSetup();
       await setupStripe();
-      const { getPaymentProviderFromDb } = await import("#lib/db/settings.ts");
-      expect(await getPaymentProviderFromDb()).toBe("stripe");
+      const { settings: s } = await import("#lib/db/settings.ts");
+      expect(await s.paymentProvider.get()).toBe("stripe");
     });
 
     test("accepts a custom key", async () => {
       await createTestDbWithSetup();
       await setupStripe("sk_test_custom");
-      const { getPaymentProviderFromDb } = await import("#lib/db/settings.ts");
-      expect(await getPaymentProviderFromDb()).toBe("stripe");
+      const { settings: s } = await import("#lib/db/settings.ts");
+      expect(await s.paymentProvider.get()).toBe("stripe");
     });
   });
 

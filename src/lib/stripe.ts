@@ -11,7 +11,7 @@ import {
   getStripeSecretKey,
   getStripeWebhookSecret,
 } from "#lib/config.ts";
-import { getStripeWebhookEndpointId } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -437,7 +437,7 @@ export const stripeApi: {
     }
 
     // Step 2: List all webhook endpoints
-    const ownEndpointId = await getStripeWebhookEndpointId();
+    const ownEndpointId = await settings.stripe.webhookEndpointId.get();
     result.ownEndpointId = ownEndpointId;
 
     try {

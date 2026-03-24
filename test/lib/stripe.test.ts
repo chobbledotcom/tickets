@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { setStripeWebhookConfig, updateStripeKey } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   constructTestWebhookEvent,
   createCheckoutSessionWithIntent,
@@ -59,13 +59,13 @@ describeWithEnv(
       });
 
       test("returns client when stripe key is set in database", async () => {
-        await updateStripeKey("sk_test_123");
+        await settings.stripe.secretKey.update("sk_test_123");
         const client = await getStripeClient();
         expect(client).not.toBeNull();
       });
 
       test("returns same client on subsequent calls", async () => {
-        await updateStripeKey("sk_test_123");
+        await settings.stripe.secretKey.update("sk_test_123");
         const client1 = await getStripeClient();
         const client2 = await getStripeClient();
         expect(client1).toBe(client2);
@@ -74,7 +74,7 @@ describeWithEnv(
 
     describe("resetStripeClient", () => {
       test("resets client to null after key removed from db", async () => {
-        await updateStripeKey("sk_test_123");
+        await settings.stripe.secretKey.update("sk_test_123");
         const client1 = await getStripeClient();
         expect(client1).not.toBeNull();
 
@@ -96,7 +96,7 @@ describeWithEnv(
 
       test("returns null when Stripe API throws error", async () => {
         // Enable Stripe with mock
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -118,7 +118,7 @@ describeWithEnv(
     describe("mock configuration", () => {
       test("creates client with mock config when STRIPE_MOCK_HOST is set", async () => {
         // This test exercises the getMockConfig code path
-        await updateStripeKey("sk_test_123");
+        await settings.stripe.secretKey.update("sk_test_123");
         Deno.env.set("STRIPE_MOCK_HOST", "localhost");
         Deno.env.set("STRIPE_MOCK_PORT", "12111");
 
@@ -128,7 +128,7 @@ describeWithEnv(
       });
 
       test("uses default port 12111 when STRIPE_MOCK_PORT not set", async () => {
-        await updateStripeKey("sk_test_123");
+        await settings.stripe.secretKey.update("sk_test_123");
         Deno.env.set("STRIPE_MOCK_HOST", "localhost");
         Deno.env.delete("STRIPE_MOCK_PORT");
 
@@ -142,7 +142,7 @@ describeWithEnv(
       // STRIPE_MOCK_HOST/PORT are set in test/setup.ts
 
       test("retrieves checkout session with stripe-mock", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
 
         // First create a session using intent-based flow
         const event = {
@@ -209,7 +209,7 @@ describeWithEnv(
       });
 
       test("creates checkout session with intent metadata", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
 
         const event = {
           id: 1,
@@ -273,7 +273,7 @@ describeWithEnv(
       });
 
       test("refunds payment with stripe-mock", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
 
         // stripe-mock accepts any payment_intent ID
         const refund = await refundPayment("pi_test_123");
@@ -341,9 +341,9 @@ describeWithEnv(
       });
 
       test("includes booking fee line item when fee is set", async () => {
-        const { updateBookingFee } = await import("#lib/db/settings.ts");
-        await updateBookingFee("5");
-        await updateStripeKey("sk_test_mock");
+        const { settings: s } = await import("#lib/db/settings.ts");
+        await s.bookingFee.update("5");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -403,7 +403,7 @@ describeWithEnv(
       });
 
       test("returns null when Stripe API throws error", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -426,7 +426,7 @@ describeWithEnv(
 
       beforeEach(async () => {
         // Set webhook secret in database (encrypted)
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret: TEST_SECRET,
           endpointId: "we_test_endpoint",
         });
@@ -638,7 +638,7 @@ describeWithEnv(
       });
 
       test("returns error when balance.retrieve fails", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -657,7 +657,7 @@ describeWithEnv(
       });
 
       test("returns test mode when API key is valid and no webhooks exist", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -685,7 +685,7 @@ describeWithEnv(
       });
 
       test("returns live mode for live key", async () => {
-        await updateStripeKey("sk_live_mock");
+        await settings.stripe.secretKey.update("sk_live_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -711,7 +711,7 @@ describeWithEnv(
       });
 
       test("returns webhook error when list fails", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -742,8 +742,8 @@ describeWithEnv(
       });
 
       test("returns full success when API key valid and webhooks exist", async () => {
-        await updateStripeKey("sk_test_mock");
-        await setStripeWebhookConfig({
+        await settings.stripe.secretKey.update("sk_test_mock");
+        await settings.stripe.setWebhookConfig({
           secret: "whsec_test",
           endpointId: "we_test_valid",
         });
@@ -829,7 +829,7 @@ describeWithEnv(
         expect(signature).toMatch(/^t=\d+,v1=[a-f0-9]+$/);
 
         // Signature should be verifiable with the same secret (stored in DB)
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret,
           endpointId: "we_test_construction",
         });
@@ -926,7 +926,7 @@ describeWithEnv(
 
     describe("createCheckoutSessionWithIntent - phone metadata", () => {
       test("includes phone in metadata when provided", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
 
         const event = testEvent({ unit_price: 1000 });
         const intent = {
@@ -953,7 +953,7 @@ describeWithEnv(
 
     describe("createCheckoutSessionWithIntent - no email", () => {
       test("creates checkout session without customer_email when email is empty", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
 
         const event = testEvent({ unit_price: 1000 });
         const intent = {
@@ -980,7 +980,7 @@ describeWithEnv(
 
     describe("createMultiCheckoutSession", () => {
       test("creates multi-checkout session with phone metadata", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
 
         const intent = {
           name: "Jane Doe",
@@ -1041,7 +1041,7 @@ describeWithEnv(
       });
 
       test("creates multi-checkout session without customer_email when email is empty", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
 
         const intent = {
           name: "No Email Multi",
@@ -1080,7 +1080,7 @@ describeWithEnv(
 
     describe("refundPayment - non-Error exception", () => {
       test("handles non-Error thrown value in refund", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -1100,7 +1100,7 @@ describeWithEnv(
 
     describe("testStripeConnection - non-Error exception", () => {
       test("handles non-Error thrown value in balance check", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -1119,7 +1119,7 @@ describeWithEnv(
       });
 
       test("handles non-Error thrown value in webhook list", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -1232,7 +1232,7 @@ describeWithEnv(
 
         // The getMockConfig is a once() function, so we can't easily re-test it.
         // But getStripeClient exercises the createStripeClient path
-        await updateStripeKey("sk_test_123");
+        await settings.stripe.secretKey.update("sk_test_123");
         // Without mock config, a real Stripe client would be created
         // We just verify no crash occurs
         const client = await getStripeClient();
@@ -1364,7 +1364,7 @@ describeWithEnv(
       const TEST_SECRET = "whsec_test_secret_key_for_timestamp_test";
 
       test("handles timestamp value that needs parseInt", async () => {
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret: TEST_SECRET,
           endpointId: "we_test_ts",
         });
@@ -1386,7 +1386,7 @@ describeWithEnv(
       });
 
       test("parses timestamp with parseInt when t key has value", async () => {
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret: TEST_SECRET,
           endpointId: "we_test_parse",
         });
@@ -1421,7 +1421,7 @@ describeWithEnv(
       });
 
       test("treats t key without equals as zero timestamp via parseInt fallback", async () => {
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret: TEST_SECRET,
           endpointId: "we_test_nullish",
         });
@@ -1440,7 +1440,7 @@ describeWithEnv(
       });
 
       test("secureCompare handles strings of different lengths", async () => {
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret: TEST_SECRET,
           endpointId: "we_test_len",
         });
@@ -1463,7 +1463,7 @@ describeWithEnv(
       const TEST_SECRET = "whsec_test_secret_key_for_detail_tests";
 
       beforeEach(async () => {
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret: TEST_SECRET,
           endpointId: "we_test_details",
         });
@@ -1601,7 +1601,7 @@ describeWithEnv(
 
     describe("toCheckoutResult - session with no URL", () => {
       test("returns null when session has no URL", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1640,7 +1640,7 @@ describeWithEnv(
       });
 
       test("returns null when session is null", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1675,7 +1675,7 @@ describeWithEnv(
 
     describe("retrieveSession - edge cases", () => {
       test("returns null for non-multi session without event_id", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1702,7 +1702,7 @@ describeWithEnv(
       });
 
       test("returns null when session is null from Stripe", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1720,7 +1720,7 @@ describeWithEnv(
       });
 
       test("returns null when metadata is missing name or email", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1745,7 +1745,7 @@ describeWithEnv(
       });
 
       test("returns valid session for multi-ticket checkout", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1778,7 +1778,7 @@ describeWithEnv(
       });
 
       test("returns valid session for single-event checkout", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1811,7 +1811,7 @@ describeWithEnv(
       });
 
       test("returns amountTotal when session has numeric amount_total", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1842,7 +1842,7 @@ describeWithEnv(
       });
 
       test("returns null when amount_total is null", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1871,7 +1871,7 @@ describeWithEnv(
       });
 
       test("falls back to unpaid for invalid payment_status", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1901,7 +1901,7 @@ describeWithEnv(
       });
 
       test("casts amount_total to number", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -1934,7 +1934,7 @@ describeWithEnv(
     describe("verifyWebhookSignature delegation", () => {
       test("delegates to stripe.ts verifyWebhookSignature", async () => {
         const TEST_SECRET = "whsec_provider_verify_test";
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret: TEST_SECRET,
           endpointId: "we_provider_test",
         });
@@ -1964,7 +1964,7 @@ describeWithEnv(
 
       test("returns error for invalid signature", async () => {
         const TEST_SECRET = "whsec_provider_invalid_test";
-        await setStripeWebhookConfig({
+        await settings.stripe.setWebhookConfig({
           secret: TEST_SECRET,
           endpointId: "we_provider_inv",
         });
@@ -2015,13 +2015,13 @@ describeWithEnv(
 
     describe("refundPayment delegation", () => {
       test("returns true when refund succeeds", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const result = await stripePaymentProvider.refundPayment("pi_test_123");
         expect(result).toBe(true);
       });
 
       test("returns false when refund fails", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -2048,7 +2048,7 @@ describeWithEnv(
 
     describe("getMockConfig without STRIPE_MOCK_HOST", () => {
       test("creates client without mock config when STRIPE_MOCK_HOST not set", async () => {
-        await updateStripeKey("sk_test_123");
+        await settings.stripe.secretKey.update("sk_test_123");
         Deno.env.delete("STRIPE_MOCK_HOST");
         Deno.env.delete("STRIPE_MOCK_PORT");
 
@@ -2068,7 +2068,7 @@ describeWithEnv(
       });
 
       test("returns null when Stripe API throws error", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
 
@@ -2088,7 +2088,7 @@ describeWithEnv(
 
     describe("isPaymentRefunded", () => {
       test("returns true when latest_charge is refunded", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -2109,7 +2109,7 @@ describeWithEnv(
       });
 
       test("returns false when latest_charge is not refunded", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -2130,7 +2130,7 @@ describeWithEnv(
       });
 
       test("returns false when payment intent not found", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -2148,7 +2148,7 @@ describeWithEnv(
       });
 
       test("returns false when latest_charge is a string ID", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
@@ -2171,7 +2171,7 @@ describeWithEnv(
 
     describe("createMultiCheckoutSession - via provider", () => {
       test("returns null when session has no URL", async () => {
-        await updateStripeKey("sk_test_mock");
+        await settings.stripe.secretKey.update("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 

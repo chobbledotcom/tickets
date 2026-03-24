@@ -6,7 +6,7 @@
  * before templates render.
  */
 
-import { getHeaderImageUrlFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 
 /** Sync-accessible header image URL, populated by loadHeaderImage() */
 const state = { url: null as string | null };
@@ -17,7 +17,7 @@ const state = { url: null as string | null };
  * Settings are already cached so this is cheap on repeat calls.
  */
 export const loadHeaderImage = async (): Promise<string | null> => {
-  state.url = await getHeaderImageUrlFromDb();
+  state.url = await settings.headerImageUrl.get();
   return state.url;
 };
 

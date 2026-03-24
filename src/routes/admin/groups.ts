@@ -20,7 +20,7 @@ import {
   validateGroupEventType,
 } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
@@ -162,7 +162,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
         const hasPaidEvent = sortedEvents.some(isPaidEvent);
         const [rawAttendees, prefix] = await Promise.all([
           getAttendeesByEventIds(eventIds),
-          getPhonePrefixFromDb(),
+          settings.phonePrefix.get(),
         ]);
         attendees = await decryptAttendees(
           rawAttendees,

@@ -72,30 +72,7 @@ import {
   getAllSessions,
   getSession,
 } from "#lib/db/sessions.ts";
-import {
-  CONFIG_KEYS,
-  clearPaymentProvider,
-  completeSetup,
-  getCountryFromDb,
-  getCurrencyCodeFromDb,
-  getPublicKey,
-  getSetting,
-  getStripeKeyMode,
-  getStripeSecretKeyFromDb,
-  getTimezoneCached,
-  getTimezoneFromDb,
-  getWrappedPrivateKey,
-  hasStripeKey,
-  invalidateSettingsCache,
-  isSetupComplete,
-  resetTimezoneTestOverride,
-  setAttendeeBlobMigrated,
-  setPaymentProvider,
-  setSetting,
-  setTimezoneForTest,
-  updateCountry,
-  updateStripeKey,
-} from "#lib/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { nowMs } from "#lib/now.ts";
 import {
@@ -120,7 +97,7 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
     throw new Error("Test setup failed: no wrapped data key");
   const kek = await deriveKEK(passwordHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
-  const wrappedPrivateKey = await getWrappedPrivateKey();
+  const wrappedPrivateKey = await settings.wrappedPrivateKey.get();
   if (!wrappedPrivateKey)
     throw new Error("Test setup failed: no wrapped private key");
   const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
@@ -221,8 +198,8 @@ describeWithEnv("db", { db: true }, () => {
       await initDb();
 
       // Verify we can create new data
-      await completeSetup("testadmin", TEST_ADMIN_PASSWORD, "USD");
-      await setAttendeeBlobMigrated();
+      await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
+      await settings.attendeeBlobMigrated.set();
       const event = await createTestEvent({
         name: "New Event",
         maxAttendees: 25,
@@ -236,20 +213,20 @@ describeWithEnv("db", { db: true }, () => {
 
   describe("settings", () => {
     test("getSetting returns null for missing key", async () => {
-      const value = await getSetting("missing");
+      const value = await settings.get("missing");
       expect(value).toBeNull();
     });
 
     test("setSetting and getSetting work together", async () => {
-      await setSetting("test_key", "test_value");
-      const value = await getSetting("test_key");
+      await settings.set("test_key", "test_value");
+      const value = await settings.get("test_key");
       expect(value).toBe("test_value");
     });
 
     test("setSetting overwrites existing value", async () => {
-      await setSetting("key", "value1");
-      await setSetting("key", "value2");
-      const value = await getSetting("key");
+      await settings.set("key", "value1");
+      await settings.set("key", "value2");
+      const value = await settings.get("key");
       expect(value).toBe("value2");
     });
   });
@@ -259,21 +236,21 @@ describeWithEnv("db", { db: true }, () => {
       // Delete existing user from createTestDbWithSetup to test fresh setup
       await getDb().execute("DELETE FROM users");
       await getDb().execute("DELETE FROM settings");
-      await completeSetup("setupuser", "mypassword", "US");
+      await settings.setup.complete("setupuser", "mypassword", "US");
 
-      expect(await isSetupComplete()).toBe(true);
+      expect(await settings.setup.isComplete()).toBe(true);
       // Password is now stored on the user row, verify via user-based API
       const user = await getUserByUsername("setupuser");
       expect(user).not.toBeNull();
       const hash = await verifyUserPassword(user!, "mypassword");
       expect(hash).toBeTruthy();
       expect(hash).toContain("pbkdf2:");
-      expect(await getCurrencyCodeFromDb()).toBe("USD");
+      expect(await settings.currency.get()).toBe("USD");
 
       // Key hierarchy should be generated
-      expect(await getPublicKey()).toBeTruthy();
+      expect(await settings.publicKey.get()).toBeTruthy();
       expect(user!.wrapped_data_key).toBeTruthy();
-      expect(await getWrappedPrivateKey()).toBeTruthy();
+      expect(await settings.wrappedPrivateKey.get()).toBeTruthy();
     });
 
     test("CONFIG_KEYS contains expected keys", () => {
@@ -285,70 +262,70 @@ describeWithEnv("db", { db: true }, () => {
     });
 
     test("getCurrencyCodeFromDb returns GBP by default", async () => {
-      expect(await getCurrencyCodeFromDb()).toBe("GBP");
+      expect(await settings.currency.get()).toBe("GBP");
     });
 
     test("getCountryFromDb returns GB when no country is stored", async () => {
       await getDb().execute("DELETE FROM settings");
-      invalidateSettingsCache();
-      expect(await getCountryFromDb()).toBe("GB");
+      settings.invalidateCache();
+      expect(await settings.country.get()).toBe("GB");
     });
   });
 
   describe("stripe key", () => {
     test("hasStripeKey returns false when not set", async () => {
-      expect(await hasStripeKey()).toBe(false);
+      expect(await settings.stripe.secretKey.has()).toBe(false);
     });
 
     test("hasStripeKey returns true after setting key", async () => {
-      await updateStripeKey("sk_test_123");
-      expect(await hasStripeKey()).toBe(true);
+      await settings.stripe.secretKey.update("sk_test_123");
+      expect(await settings.stripe.secretKey.has()).toBe(true);
     });
 
     test("getStripeSecretKeyFromDb returns null when not set", async () => {
-      expect(await getStripeSecretKeyFromDb()).toBeNull();
+      expect(await settings.stripe.secretKey.get()).toBeNull();
     });
 
     test("getStripeSecretKeyFromDb returns decrypted key after setting", async () => {
-      await updateStripeKey("sk_test_secret_key");
-      const key = await getStripeSecretKeyFromDb();
+      await settings.stripe.secretKey.update("sk_test_secret_key");
+      const key = await settings.stripe.secretKey.get();
       expect(key).toBe("sk_test_secret_key");
     });
 
     test("updateStripeKey stores key encrypted", async () => {
-      await updateStripeKey("sk_test_encrypted");
+      await settings.stripe.secretKey.update("sk_test_encrypted");
       // Verify the raw value in DB is encrypted (starts with enc:1:)
-      const rawValue = await getSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
+      const rawValue = await settings.get(CONFIG_KEYS.STRIPE_SECRET_KEY);
       expect(rawValue).toMatch(/^enc:1:/);
       // But getStripeSecretKeyFromDb returns decrypted
-      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_encrypted");
+      expect(await settings.stripe.secretKey.get()).toBe("sk_test_encrypted");
     });
 
     test("updateStripeKey overwrites existing key", async () => {
-      await updateStripeKey("sk_test_first");
-      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_first");
+      await settings.stripe.secretKey.update("sk_test_first");
+      expect(await settings.stripe.secretKey.get()).toBe("sk_test_first");
 
-      await updateStripeKey("sk_test_second");
-      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_second");
+      await settings.stripe.secretKey.update("sk_test_second");
+      expect(await settings.stripe.secretKey.get()).toBe("sk_test_second");
     });
 
     test("getStripeKeyMode returns null when no key is set", async () => {
-      expect(await getStripeKeyMode()).toBeNull();
+      expect(await settings.stripe.secretKey.mode()).toBeNull();
     });
 
     test("getStripeKeyMode returns test for sk_test_ key", async () => {
-      await updateStripeKey("sk_test_abc123");
-      expect(await getStripeKeyMode()).toBe("test");
+      await settings.stripe.secretKey.update("sk_test_abc123");
+      expect(await settings.stripe.secretKey.mode()).toBe("test");
     });
 
     test("getStripeKeyMode returns live for sk_live_ key", async () => {
-      await updateStripeKey("sk_live_abc123");
-      expect(await getStripeKeyMode()).toBe("live");
+      await settings.stripe.secretKey.update("sk_live_abc123");
+      expect(await settings.stripe.secretKey.mode()).toBe("live");
     });
 
     test("getStripeKeyMode returns null for unrecognised key prefix", async () => {
-      await updateStripeKey("rk_invalid_abc123");
-      expect(await getStripeKeyMode()).toBeNull();
+      await settings.stripe.secretKey.update("rk_invalid_abc123");
+      expect(await settings.stripe.secretKey.mode()).toBeNull();
     });
   });
 
@@ -378,8 +355,7 @@ describeWithEnv("db", { db: true }, () => {
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(oldHash).toBeTruthy();
 
-      const { updateUserPassword } = await import("#lib/db/settings.ts");
-      const success = await updateUserPassword(
+      const success = await settings.updateUserPassword(
         user!.id,
         oldHash!,
         user!.wrapped_data_key!,
@@ -406,9 +382,9 @@ describeWithEnv("db", { db: true }, () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
 
-      const { updateUserPassword } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#lib/db/settings.ts");
       // Pass a bogus password hash - KEK derivation will produce wrong key
-      const success = await updateUserPassword(
+      const success = await s.updateUserPassword(
         user!.id,
         "pbkdf2:bogus:hash",
         user!.wrapped_data_key!,
@@ -450,8 +426,7 @@ describeWithEnv("db", { db: true }, () => {
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(oldHash).toBeTruthy();
 
-      const { updateUserPassword } = await import("#lib/db/settings.ts");
-      const changeSuccess = await updateUserPassword(
+      const changeSuccess = await settings.updateUserPassword(
         user!.id,
         oldHash!,
         user!.wrapped_data_key!,
@@ -481,7 +456,7 @@ describeWithEnv("db", { db: true }, () => {
       const kek = await deriveKEK(newPasswordHash!);
       const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
 
-      const wrappedPrivateKey = await getWrappedPrivateKey();
+      const wrappedPrivateKey = await settings.wrappedPrivateKey.get();
       expect(wrappedPrivateKey).toBeTruthy();
 
       const privateKeyJwk = await decryptWithKey(wrappedPrivateKey!, dataKey);
@@ -1121,7 +1096,7 @@ describeWithEnv("db", { db: true }, () => {
         sql: "DELETE FROM settings WHERE key = ?",
         args: [CONFIG_KEYS.PUBLIC_KEY],
       });
-      invalidateSettingsCache();
+      settings.invalidateCache();
 
       const result = await createAttendeeAtomic({
         eventId: event.id,
@@ -1519,8 +1494,7 @@ describeWithEnv("db", { db: true }, () => {
       expect(initialHash).toBeTruthy();
 
       // Update password using user-based API
-      const { updateUserPassword } = await import("#lib/db/settings.ts");
-      const success = await updateUserPassword(
+      const success = await settings.updateUserPassword(
         user!.id,
         initialHash!,
         user!.wrapped_data_key!,
@@ -2345,11 +2319,11 @@ describeWithEnv("db", { db: true }, () => {
 
   describe("settings - additional coverage", () => {
     test("clearPaymentProvider removes payment provider setting", async () => {
-      await setPaymentProvider("stripe");
-      expect(await getSetting(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe("stripe");
+      await settings.paymentProvider.set("stripe");
+      expect(await settings.get(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe("stripe");
 
-      await clearPaymentProvider();
-      expect(await getSetting(CONFIG_KEYS.PAYMENT_PROVIDER)).toBeNull();
+      await settings.paymentProvider.clear();
+      expect(await settings.get(CONFIG_KEYS.PAYMENT_PROVIDER)).toBeNull();
     });
 
     test("updateUserPassword returns false when dataKey unwrap fails", async () => {
@@ -2360,8 +2334,8 @@ describeWithEnv("db", { db: true }, () => {
       expect(passwordHash).toBeTruthy();
 
       // Pass corrupted wrapped_data_key - unwrap will fail
-      const { updateUserPassword } = await import("#lib/db/settings.ts");
-      const result = await updateUserPassword(
+      const { settings: s } = await import("#lib/db/settings.ts");
+      const result = await s.updateUserPassword(
         user!.id,
         passwordHash!,
         "corrupted_wrapped_data_key",
@@ -2373,12 +2347,12 @@ describeWithEnv("db", { db: true }, () => {
 
   describe("timezone cache", () => {
     beforeEach(() => {
-      resetTimezoneTestOverride();
+      settings.timezone.resetTestOverride();
     });
 
     test("getTimezoneCached returns default when no cache exists", () => {
-      invalidateSettingsCache();
-      expect(getTimezoneCached()).toBe("Europe/London");
+      settings.invalidateCache();
+      expect(settings.timezone.getCached()).toBe("Europe/London");
     });
 
     test("getTimezoneFromDb returns default when no country is stored", async () => {
@@ -2387,8 +2361,8 @@ describeWithEnv("db", { db: true }, () => {
         sql: "DELETE FROM settings WHERE key = ?",
         args: [CONFIG_KEYS.COUNTRY],
       });
-      invalidateSettingsCache();
-      const value = await getTimezoneFromDb();
+      settings.invalidateCache();
+      const value = await settings.timezone.get();
       expect(value).toBe("Europe/London");
     });
 
@@ -2398,46 +2372,46 @@ describeWithEnv("db", { db: true }, () => {
         sql: "DELETE FROM settings WHERE key = ?",
         args: [CONFIG_KEYS.COUNTRY],
       });
-      invalidateSettingsCache();
+      settings.invalidateCache();
       // Load the settings cache (without country key)
-      await getSetting(CONFIG_KEYS.COUNTRY);
+      await settings.get(CONFIG_KEYS.COUNTRY);
       // Permanent cache should not be set, so it reads from TTL cache
       // TTL cache has no country key → falls back to default
-      expect(getTimezoneCached()).toBe("Europe/London");
+      expect(settings.timezone.getCached()).toBe("Europe/London");
     });
 
     test("getTimezoneCached returns value after getTimezoneFromDb populates cache", async () => {
-      await updateCountry("US");
-      invalidateSettingsCache();
-      const value = await getTimezoneFromDb();
+      await settings.country.update("US");
+      settings.invalidateCache();
+      const value = await settings.timezone.get();
       expect(value).toBe("America/New_York");
-      expect(getTimezoneCached()).toBe("America/New_York");
+      expect(settings.timezone.getCached()).toBe("America/New_York");
     });
 
     test("getTimezoneCached reads from TTL cache when permanent cache is empty", async () => {
-      await updateCountry("JP");
-      invalidateSettingsCache();
+      await settings.country.update("JP");
+      settings.invalidateCache();
       // Force TTL cache to load by calling getSetting
-      await getSetting(CONFIG_KEYS.COUNTRY);
-      expect(getTimezoneCached()).toBe("Asia/Tokyo");
+      await settings.get(CONFIG_KEYS.COUNTRY);
+      expect(settings.timezone.getCached()).toBe("Asia/Tokyo");
     });
 
     test("updateCountry updates the permanent cache immediately", async () => {
-      await updateCountry("NZ");
-      expect(getTimezoneCached()).toBe("Pacific/Auckland");
+      await settings.country.update("NZ");
+      expect(settings.timezone.getCached()).toBe("Pacific/Auckland");
     });
 
     test("getTimezoneFromDb returns test override when set", async () => {
-      setTimezoneForTest("America/Chicago");
-      const value = await getTimezoneFromDb();
+      settings.timezone.setForTest("America/Chicago");
+      const value = await settings.timezone.get();
       expect(value).toBe("America/Chicago");
     });
 
     test("getTimezoneFromDb returns permanent cache when set", async () => {
       // Populate permanent cache via getTimezoneFromDb
-      const value = await getTimezoneFromDb();
+      const value = await settings.timezone.get();
       // Now the permanent cache is set; calling again should return from cache
-      const cached = await getTimezoneFromDb();
+      const cached = await settings.timezone.get();
       expect(cached).toBe(value);
     });
   });
@@ -2649,7 +2623,7 @@ describeWithEnv("db", { db: true }, () => {
       await getDb().execute(
         "DELETE FROM settings WHERE key = 'latest_db_update'",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
 
       // Re-run migrations - should backfill checked_in
       await initDb();
@@ -2685,7 +2659,7 @@ describeWithEnv("db", { db: true }, () => {
       await getDb().execute(
         "DELETE FROM settings WHERE key = 'latest_db_update'",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
 
       // Re-run migrations - should backfill ticket_token
       await initDb();
@@ -2721,7 +2695,7 @@ describeWithEnv("db", { db: true }, () => {
       await getDb().execute(
         "DELETE FROM settings WHERE key = 'latest_db_update'",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
       await initDb();
 
       // Verify token is now encrypted and index is generated
@@ -2905,7 +2879,7 @@ describeWithEnv("db", { db: true }, () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
       await initDb();
 
       // Verify the event now has encrypted closes_at (not NULL)
@@ -2940,7 +2914,7 @@ describeWithEnv("db", { db: true }, () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
       await initDb();
 
       // Verify it still decrypts correctly (not double-encrypted)
@@ -3390,15 +3364,15 @@ describeWithEnv("db", { db: true }, () => {
 
       // Simulate pre-migration state: admin credentials in settings, no users
       const passwordHash = await hashPassword("existingpassword");
-      await setSetting("admin_password", passwordHash);
-      await setSetting("wrapped_data_key", "test-wrapped-key");
+      await settings.set("admin_password", passwordHash);
+      await settings.set("wrapped_data_key", "test-wrapped-key");
       await getDb().execute("DELETE FROM users");
 
       // Force re-migration
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
       await initDb();
 
       // Verify an owner user was created
@@ -3421,8 +3395,8 @@ describeWithEnv("db", { db: true }, () => {
 
     test("skips migration when users already exist", async () => {
       // createTestDbWithSetup already created a user
-      await setSetting("admin_password", "old-hash");
-      await setSetting("wrapped_data_key", "old-key");
+      await settings.set("admin_password", "old-hash");
+      await settings.set("wrapped_data_key", "old-key");
 
       const beforeCount = await getDb().execute(
         "SELECT COUNT(*) as count FROM users",
@@ -3434,7 +3408,7 @@ describeWithEnv("db", { db: true }, () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
       await initDb();
 
       // Verify no additional user was created
@@ -3454,7 +3428,7 @@ describeWithEnv("db", { db: true }, () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
-      invalidateSettingsCache();
+      settings.invalidateCache();
       await initDb();
 
       // Verify no user was created

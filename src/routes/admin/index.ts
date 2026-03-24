@@ -8,7 +8,7 @@
  */
 
 import { enableQueryLog } from "#lib/db/query-log.ts";
-import { isAttendeeBlobMigrated, loadAllSettings } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
@@ -78,13 +78,13 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
 
   // Gate non-auth routes behind migration completion
   if (session && !isUngatedRoute(path)) {
-    const migrated = await isAttendeeBlobMigrated();
+    const migrated = await settings.attendeeBlobMigrated.is();
     if (!migrated) return redirectResponse("/admin/migrate");
   }
 
   if (method === "GET" && session) {
     enableQueryLog();
-    await loadAllSettings();
+    await settings.loadAll();
   }
 
   return innerRouter(request, path, method, server);

@@ -1,11 +1,6 @@
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
-import {
-  CONFIG_KEYS,
-  getSetting,
-  invalidateSettingsCache,
-  setSetting,
-} from "#lib/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
 
 /**
  * Validates a basic email format: something@something.something
@@ -31,7 +26,7 @@ export function normalizeBusinessEmail(email: string): string {
  * Returns decrypted email or empty string if not set.
  */
 export async function getBusinessEmailFromDb(): Promise<string> {
-  const value = await getSetting(CONFIG_KEYS.BUSINESS_EMAIL);
+  const value = await settings.get(CONFIG_KEYS.BUSINESS_EMAIL);
   if (!value) return "";
   return decrypt(value);
 }
@@ -48,7 +43,7 @@ export async function updateBusinessEmail(email: string): Promise<void> {
       sql: "DELETE FROM settings WHERE key = ?",
       args: [CONFIG_KEYS.BUSINESS_EMAIL],
     });
-    invalidateSettingsCache();
+    settings.invalidateCache();
     return;
   }
 
@@ -59,5 +54,5 @@ export async function updateBusinessEmail(email: string): Promise<void> {
   }
 
   const encrypted = await encrypt(normalized);
-  await setSetting(CONFIG_KEYS.BUSINESS_EMAIL, encrypted);
+  await settings.set(CONFIG_KEYS.BUSINESS_EMAIL, encrypted);
 }

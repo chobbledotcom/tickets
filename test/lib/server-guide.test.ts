@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  resetHostAppleWalletConfig,
-  setHostAppleWalletConfigForTest,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
 import { handleRequest } from "#routes";
 import {
@@ -223,7 +220,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows host wallet config and setup instructions when configured", async () => {
-      setHostAppleWalletConfigForTest({
+      settings.appleWallet.setHostConfigForTest({
         passTypeId: "pass.com.host.tickets",
         teamId: "HOSTTEAM01",
         signingCert: "cert-data",
@@ -239,7 +236,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         expect(html).toContain("pass.com.host.tickets");
         expect(html).toContain("You need five values from");
       } finally {
-        resetHostAppleWalletConfig();
+        settings.appleWallet.resetHostConfig();
       }
     });
   });

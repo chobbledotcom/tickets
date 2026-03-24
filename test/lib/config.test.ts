@@ -20,19 +20,7 @@ import {
   setAllowedDomainForTest,
   setEffectiveDomainForTest,
 } from "#lib/config.ts";
-import {
-  completeSetup,
-  invalidateSettingsCache,
-  setPaymentProvider,
-  setSetting,
-  updateBookingFee,
-  updateCustomDomain,
-  updateCustomDomainLastValidated,
-  updateSquareAccessToken,
-  updateSquareLocationId,
-  updateSquareWebhookSignatureKey,
-  updateStripeKey,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import { createTestDb, resetDb, setTestEnv, setupStripe } from "#test-utils";
@@ -52,17 +40,17 @@ describe("config", () => {
     });
 
     test("returns stripe when set to stripe", async () => {
-      await setPaymentProvider("stripe");
+      await settings.paymentProvider.set("stripe");
       expect(await getPaymentProvider()).toBe("stripe");
     });
 
     test("returns square when set to square", async () => {
-      await setPaymentProvider("square");
+      await settings.paymentProvider.set("square");
       expect(await getPaymentProvider()).toBe("square");
     });
 
     test("returns null for unknown provider", async () => {
-      await setSetting("payment_provider", "unknown");
+      await settings.set("payment_provider", "unknown");
       expect(await getPaymentProvider()).toBeNull();
     });
   });
@@ -73,7 +61,7 @@ describe("config", () => {
     });
 
     test("returns key when set in database", async () => {
-      await updateStripeKey("sk_test_123");
+      await settings.stripe.secretKey.update("sk_test_123");
       expect(await getStripeSecretKey()).toBe("sk_test_123");
     });
   });
@@ -84,12 +72,12 @@ describe("config", () => {
     });
 
     test("returns false when provider set but no stripe key", async () => {
-      await setPaymentProvider("stripe");
+      await settings.paymentProvider.set("stripe");
       expect(await isPaymentsEnabled()).toBe(false);
     });
 
     test("returns false when stripe key set but no provider", async () => {
-      await updateStripeKey("sk_test_123");
+      await settings.stripe.secretKey.update("sk_test_123");
       expect(await isPaymentsEnabled()).toBe(false);
     });
 
@@ -99,13 +87,13 @@ describe("config", () => {
     });
 
     test("returns false when provider is square but no token", async () => {
-      await setPaymentProvider("square");
+      await settings.paymentProvider.set("square");
       expect(await isPaymentsEnabled()).toBe(false);
     });
 
     test("returns true when provider is square and token is set", async () => {
-      await setPaymentProvider("square");
-      await updateSquareAccessToken("EAAAl_test_123");
+      await settings.paymentProvider.set("square");
+      await settings.square.accessToken.update("EAAAl_test_123");
       expect(await isPaymentsEnabled()).toBe(true);
     });
   });
@@ -116,8 +104,8 @@ describe("config", () => {
     });
 
     test("returns currency from country setting", async () => {
-      await setSetting("country", "US");
-      invalidateSettingsCache();
+      await settings.set("country", "US");
+      settings.invalidateCache();
       expect(await getCurrencyCode()).toBe("USD");
     });
   });
@@ -128,7 +116,7 @@ describe("config", () => {
     });
 
     test("returns true when setup is complete", async () => {
-      await completeSetup("testadmin", "password123", "GBP");
+      await settings.setup.complete("testadmin", "password123", "GBP");
       expect(await isSetupComplete()).toBe(true);
     });
   });
@@ -139,7 +127,7 @@ describe("config", () => {
     });
 
     test("returns token when set in database", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
+      await settings.square.accessToken.update("EAAAl_test_123");
       expect(await getSquareAccessToken()).toBe("EAAAl_test_123");
     });
   });
@@ -150,7 +138,7 @@ describe("config", () => {
     });
 
     test("returns key when set in database", async () => {
-      await updateSquareWebhookSignatureKey("sig_key_test");
+      await settings.square.webhookSignatureKey.update("sig_key_test");
       expect(await getSquareWebhookSignatureKey()).toBe("sig_key_test");
     });
   });
@@ -161,7 +149,7 @@ describe("config", () => {
     });
 
     test("returns location ID when set in database", async () => {
-      await updateSquareLocationId("L_test_123");
+      await settings.square.locationId.update("L_test_123");
       expect(await getSquareLocationId()).toBe("L_test_123");
     });
   });
@@ -195,9 +183,9 @@ describe("config", () => {
 
     test("returns custom domain when set and validated in DB", async () => {
       setAllowedDomainForTest("mysite.bunny.run");
-      await updateCustomDomain("tickets.example.com");
-      await updateCustomDomainLastValidated();
-      invalidateSettingsCache();
+      await settings.customDomain.update("tickets.example.com");
+      await settings.customDomain.lastValidated.update();
+      settings.invalidateCache();
       const result = await loadEffectiveDomain();
       expect(result).toBe("tickets.example.com");
       expect(getEffectiveDomain()).toBe("tickets.example.com");
@@ -205,8 +193,8 @@ describe("config", () => {
 
     test("falls back to ALLOWED_DOMAIN when custom domain is set but not validated", async () => {
       setAllowedDomainForTest("mysite.bunny.run");
-      await updateCustomDomain("tickets.example.com");
-      invalidateSettingsCache();
+      await settings.customDomain.update("tickets.example.com");
+      settings.invalidateCache();
       const result = await loadEffectiveDomain();
       expect(result).toBe("mysite.bunny.run");
       expect(getEffectiveDomain()).toBe("mysite.bunny.run");
@@ -214,14 +202,14 @@ describe("config", () => {
 
     test("falls back to ALLOWED_DOMAIN after custom domain is cleared", async () => {
       setAllowedDomainForTest("mysite.bunny.run");
-      await updateCustomDomain("tickets.example.com");
-      await updateCustomDomainLastValidated();
-      invalidateSettingsCache();
+      await settings.customDomain.update("tickets.example.com");
+      await settings.customDomain.lastValidated.update();
+      settings.invalidateCache();
       await loadEffectiveDomain();
       expect(getEffectiveDomain()).toBe("tickets.example.com");
 
-      await updateCustomDomain("");
-      invalidateSettingsCache();
+      await settings.customDomain.update("");
+      settings.invalidateCache();
       await loadEffectiveDomain();
       expect(getEffectiveDomain()).toBe("mysite.bunny.run");
     });
@@ -239,9 +227,9 @@ describe("config", () => {
 
     test("resetEffectiveDomain clears the cached value", async () => {
       setAllowedDomainForTest("mysite.bunny.run");
-      await updateCustomDomain("tickets.example.com");
-      await updateCustomDomainLastValidated();
-      invalidateSettingsCache();
+      await settings.customDomain.update("tickets.example.com");
+      await settings.customDomain.lastValidated.update();
+      settings.invalidateCache();
       await loadEffectiveDomain();
       expect(getEffectiveDomain()).toBe("tickets.example.com");
 
@@ -253,8 +241,8 @@ describe("config", () => {
   describe("isPaymentsEnabled - non-stripe provider", () => {
     test("returns false when provider is set to unknown value", async () => {
       // Set provider to a non-stripe value that getPaymentProvider will return null for
-      await setSetting("payment_provider", "paypal");
-      await updateStripeKey("sk_test_123");
+      await settings.set("payment_provider", "paypal");
+      await settings.stripe.secretKey.update("sk_test_123");
       // getPaymentProvider returns null for unknown providers, so isPaymentsEnabled returns false
       expect(await isPaymentsEnabled()).toBe(false);
     });
@@ -266,12 +254,12 @@ describe("config", () => {
     });
 
     test("returns parsed value when set", async () => {
-      await updateBookingFee("1.5");
+      await settings.bookingFee.update("1.5");
       expect(await getBookingFee()).toBe(1.5);
     });
 
     test("returns 0 for unparseable value", async () => {
-      await updateBookingFee("abc");
+      await settings.bookingFee.update("abc");
       expect(await getBookingFee()).toBe(0);
     });
   });
@@ -321,20 +309,20 @@ describe("payments", () => {
 
   test("getActivePaymentProvider returns null for unknown provider type", async () => {
     // Set a non-stripe provider type directly
-    await setSetting("payment_provider", "unknown_provider");
+    await settings.set("payment_provider", "unknown_provider");
     const provider = await getActivePaymentProvider();
     expect(provider).toBeNull();
   });
 
   test("getActivePaymentProvider returns stripe provider when configured", async () => {
-    await setPaymentProvider("stripe");
+    await settings.paymentProvider.set("stripe");
     const provider = await getActivePaymentProvider();
     expect(provider).not.toBeNull();
     expect(provider?.type).toBe("stripe");
   });
 
   test("getActivePaymentProvider returns square provider when configured", async () => {
-    await setPaymentProvider("square");
+    await settings.paymentProvider.set("square");
     const provider = await getActivePaymentProvider();
     expect(provider).not.toBeNull();
     expect(provider?.type).toBe("square");

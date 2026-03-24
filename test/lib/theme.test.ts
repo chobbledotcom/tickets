@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { updateTheme } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   getTheme,
   loadTheme,
@@ -54,13 +54,13 @@ describe("theme", () => {
     });
 
     test("loads dark theme after updating database", async () => {
-      await updateTheme("dark");
+      await settings.theme.update("dark");
       const theme = await loadTheme();
       expect(theme).toBe("dark");
     });
 
     test("makes theme available via getTheme after loading", async () => {
-      await updateTheme("dark");
+      await settings.theme.update("dark");
       await loadTheme();
       expect(getTheme()).toBe("dark");
     });

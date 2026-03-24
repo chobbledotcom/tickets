@@ -19,7 +19,7 @@ import {
   getSquareSandbox,
   getSquareWebhookSignatureKey,
 } from "#lib/config.ts";
-import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   computeHmacSha256,
@@ -523,7 +523,7 @@ const normalizeCheckoutPhone = async (
   phone: string | undefined,
 ): Promise<string | undefined> => {
   if (!phone) return undefined;
-  const prefix = await getPhonePrefixFromDb();
+  const prefix = await settings.phonePrefix.get();
   return normalizePhone(phone, prefix);
 };
 

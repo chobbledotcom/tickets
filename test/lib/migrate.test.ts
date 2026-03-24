@@ -20,13 +20,7 @@ import {
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
-import {
-  getPublicKey,
-  getWrappedPrivateKey,
-  isAttendeeBlobMigrated,
-  setAttendeeBlobMigrated,
-  setSetting,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import {
   adminFormPost,
@@ -49,7 +43,7 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
     throw new Error("Test setup failed: no wrapped data key");
   const kek = await deriveKEK(passwordHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
-  const wrappedPrivateKey = await getWrappedPrivateKey();
+  const wrappedPrivateKey = await settings.wrappedPrivateKey.get();
   if (!wrappedPrivateKey)
     throw new Error("Test setup failed: no wrapped private key");
   const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
@@ -69,7 +63,7 @@ const insertLegacyAttendee = async (
     refunded?: boolean;
   },
 ) => {
-  const pubKey = (await getPublicKey())!;
+  const pubKey = (await settings.publicKey.get())!;
   const [encName, encEmail, encPhone, encPaymentId, encPricePaid] =
     await Promise.all([
       encryptAttendeePII(fields.name, pubKey),
@@ -108,26 +102,26 @@ const insertLegacyAttendee = async (
 const createTestEventForMigration = async (
   overrides: Parameters<typeof createTestEvent>[0] = {},
 ) => {
-  await setAttendeeBlobMigrated();
+  await settings.attendeeBlobMigrated.set();
   const event = await createTestEvent(overrides);
-  await setSetting("attendee_blob_migrated", "");
+  await settings.set("attendee_blob_migrated", "");
   return event;
 };
 
 describeWithEnv("attendee blob migration", { db: true }, () => {
   // createTestDbWithSetup marks migration as complete; clear it for migration tests
   beforeEach(async () => {
-    await setSetting("attendee_blob_migrated", "");
+    await settings.set("attendee_blob_migrated", "");
   });
 
   describe("isAttendeeBlobMigrated", () => {
     test("returns false when setting is empty", async () => {
-      expect(await isAttendeeBlobMigrated()).toBe(false);
+      expect(await settings.attendeeBlobMigrated.is()).toBe(false);
     });
 
     test("returns true after setAttendeeBlobMigrated", async () => {
-      await setAttendeeBlobMigrated();
-      expect(await isAttendeeBlobMigrated()).toBe(true);
+      await settings.attendeeBlobMigrated.set();
+      expect(await settings.attendeeBlobMigrated.is()).toBe(true);
     });
   });
 
@@ -232,7 +226,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     test("decrypts pre-versioned blobs without v field", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       // Manually create a blob without the v field (simulating pre-versioned data)
-      const pubKey = (await getPublicKey())!;
+      const pubKey = (await settings.publicKey.get())!;
       const blobWithoutVersion = JSON.stringify({
         n: "OldBlob",
         e: "old@test.com",
@@ -400,7 +394,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("shows completion message when already migrated", async () => {
-      await setAttendeeBlobMigrated();
+      await settings.attendeeBlobMigrated.set();
       const { response } = await adminGet("/admin/migrate");
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -427,7 +421,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("redirects when already migrated", async () => {
-      await setAttendeeBlobMigrated();
+      await settings.attendeeBlobMigrated.set();
       const { response } = await adminFormPost("/admin/migrate");
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/migrate");
@@ -454,7 +448,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     });
 
     test("allows dashboard after migration", async () => {
-      await setAttendeeBlobMigrated();
+      await settings.attendeeBlobMigrated.set();
       const { response } = await adminGet("/admin/");
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -475,14 +469,14 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
   describe("auto-complete migration for fresh databases", () => {
     test("GET /admin/migrate auto-completes when no attendees exist", async () => {
-      expect(await isAttendeeBlobMigrated()).toBe(false);
+      expect(await settings.attendeeBlobMigrated.is()).toBe(false);
 
       const { response } = await adminGet("/admin/migrate");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Migration complete");
 
-      expect(await isAttendeeBlobMigrated()).toBe(true);
+      expect(await settings.attendeeBlobMigrated.is()).toBe(true);
     });
 
     test("GET /admin/migrate auto-completes when all attendees already migrated", async () => {
@@ -494,14 +488,14 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
         "done@test.com",
       );
 
-      expect(await isAttendeeBlobMigrated()).toBe(false);
+      expect(await settings.attendeeBlobMigrated.is()).toBe(false);
 
       const { response } = await adminGet("/admin/migrate");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Migration complete");
 
-      expect(await isAttendeeBlobMigrated()).toBe(true);
+      expect(await settings.attendeeBlobMigrated.is()).toBe(true);
     });
   });
 });

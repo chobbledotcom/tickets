@@ -1,22 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import {
-  CONFIG_KEYS,
-  getContactPageTextFromDb,
-  getHomepageTextFromDb,
-  getTermsAndConditionsFromDb,
-  getWebsiteTitleFromDb,
-  invalidatePageCache,
-  invalidateSettingsCache,
-  settingsApi,
-  updateContactPageText,
-  updateHomepageText,
-  updateTermsAndConditions,
-  updateWebsiteTitle,
-} from "#lib/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
 
-const { PAGE_CACHE_TTL_MS } = settingsApi;
+const { PAGE_CACHE_TTL_MS } = settings;
 
 import { encrypt } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
@@ -32,87 +19,87 @@ describeWithEnv("page content cache", { db: true }, () => {
 
   describe("getWebsiteTitleFromDb", () => {
     test("returns null when not set", async () => {
-      expect(await getWebsiteTitleFromDb()).toBeNull();
+      expect(await settings.websiteTitle.get()).toBeNull();
     });
 
     test("returns decrypted value after update", async () => {
-      await updateWebsiteTitle("My Site");
-      expect(await getWebsiteTitleFromDb()).toBe("My Site");
+      await settings.websiteTitle.update("My Site");
+      expect(await settings.websiteTitle.get()).toBe("My Site");
     });
 
     test("returns updated value after update invalidates cache", async () => {
-      await updateWebsiteTitle("Old Title");
-      expect(await getWebsiteTitleFromDb()).toBe("Old Title");
-      await updateWebsiteTitle("New Title");
-      expect(await getWebsiteTitleFromDb()).toBe("New Title");
+      await settings.websiteTitle.update("Old Title");
+      expect(await settings.websiteTitle.get()).toBe("Old Title");
+      await settings.websiteTitle.update("New Title");
+      expect(await settings.websiteTitle.get()).toBe("New Title");
     });
 
     test("returns null after clearing with empty string", async () => {
-      await updateWebsiteTitle("Title");
-      expect(await getWebsiteTitleFromDb()).toBe("Title");
-      await updateWebsiteTitle("");
-      expect(await getWebsiteTitleFromDb()).toBeNull();
+      await settings.websiteTitle.update("Title");
+      expect(await settings.websiteTitle.get()).toBe("Title");
+      await settings.websiteTitle.update("");
+      expect(await settings.websiteTitle.get()).toBeNull();
     });
   });
 
   describe("getHomepageTextFromDb", () => {
     test("returns null when not set", async () => {
-      expect(await getHomepageTextFromDb()).toBeNull();
+      expect(await settings.homepageText.get()).toBeNull();
     });
 
     test("returns decrypted value after update", async () => {
-      await updateHomepageText("Welcome!");
-      expect(await getHomepageTextFromDb()).toBe("Welcome!");
+      await settings.homepageText.update("Welcome!");
+      expect(await settings.homepageText.get()).toBe("Welcome!");
     });
 
     test("returns updated value after update invalidates cache", async () => {
-      await updateHomepageText("Old text");
-      expect(await getHomepageTextFromDb()).toBe("Old text");
-      await updateHomepageText("New text");
-      expect(await getHomepageTextFromDb()).toBe("New text");
+      await settings.homepageText.update("Old text");
+      expect(await settings.homepageText.get()).toBe("Old text");
+      await settings.homepageText.update("New text");
+      expect(await settings.homepageText.get()).toBe("New text");
     });
   });
 
   describe("getContactPageTextFromDb", () => {
     test("returns null when not set", async () => {
-      expect(await getContactPageTextFromDb()).toBeNull();
+      expect(await settings.contactPageText.get()).toBeNull();
     });
 
     test("returns decrypted value after update", async () => {
-      await updateContactPageText("Contact us here");
-      expect(await getContactPageTextFromDb()).toBe("Contact us here");
+      await settings.contactPageText.update("Contact us here");
+      expect(await settings.contactPageText.get()).toBe("Contact us here");
     });
 
     test("returns updated value after update invalidates cache", async () => {
-      await updateContactPageText("Old contact");
-      expect(await getContactPageTextFromDb()).toBe("Old contact");
-      await updateContactPageText("New contact");
-      expect(await getContactPageTextFromDb()).toBe("New contact");
+      await settings.contactPageText.update("Old contact");
+      expect(await settings.contactPageText.get()).toBe("Old contact");
+      await settings.contactPageText.update("New contact");
+      expect(await settings.contactPageText.get()).toBe("New contact");
     });
   });
 
   describe("getTermsAndConditionsFromDb", () => {
     test("returns null when not set", async () => {
-      expect(await getTermsAndConditionsFromDb()).toBeNull();
+      expect(await settings.terms.get()).toBeNull();
     });
 
     test("returns value after update", async () => {
-      await updateTermsAndConditions("Terms text");
-      expect(await getTermsAndConditionsFromDb()).toBe("Terms text");
+      await settings.terms.update("Terms text");
+      expect(await settings.terms.get()).toBe("Terms text");
     });
 
     test("returns updated value after update invalidates cache", async () => {
-      await updateTermsAndConditions("Old terms");
-      expect(await getTermsAndConditionsFromDb()).toBe("Old terms");
-      await updateTermsAndConditions("New terms");
-      expect(await getTermsAndConditionsFromDb()).toBe("New terms");
+      await settings.terms.update("Old terms");
+      expect(await settings.terms.get()).toBe("Old terms");
+      await settings.terms.update("New terms");
+      expect(await settings.terms.get()).toBe("New terms");
     });
 
     test("returns null after clearing with empty string", async () => {
-      await updateTermsAndConditions("Terms");
-      expect(await getTermsAndConditionsFromDb()).toBe("Terms");
-      await updateTermsAndConditions("");
-      expect(await getTermsAndConditionsFromDb()).toBeNull();
+      await settings.terms.update("Terms");
+      expect(await settings.terms.get()).toBe("Terms");
+      await settings.terms.update("");
+      expect(await settings.terms.get()).toBeNull();
     });
   });
 
@@ -122,8 +109,8 @@ describeWithEnv("page content cache", { db: true }, () => {
       const startTime = Date.now();
       fakeTime = new FakeTime(startTime);
 
-      await updateTermsAndConditions("Original");
-      expect(await getTermsAndConditionsFromDb()).toBe("Original");
+      await settings.terms.update("Original");
+      expect(await settings.terms.get()).toBe("Original");
 
       // Write directly to DB, bypassing page cache invalidation
       await getDb().execute({
@@ -138,7 +125,7 @@ describeWithEnv("page content cache", { db: true }, () => {
 
       // Advance to just before TTL boundary — cache still valid
       fakeTime!.now = startTime + PAGE_CACHE_TTL_MS - 1;
-      expect(await getTermsAndConditionsFromDb()).toBe("Original");
+      expect(await settings.terms.get()).toBe("Original");
     });
 
     test("re-fetches from DB after TTL expires", async () => {
@@ -147,15 +134,15 @@ describeWithEnv("page content cache", { db: true }, () => {
       // Advance past TTL
       fakeTime!.now = startTime + PAGE_CACHE_TTL_MS + 1;
       // Cache expired — re-fetches from DB and picks up new value
-      expect(await getTermsAndConditionsFromDb()).toBe("Changed");
+      expect(await settings.terms.get()).toBe("Changed");
     });
 
     test("serves stale cached encrypted value when DB changes within TTL", async () => {
       const startTime = Date.now();
       fakeTime = new FakeTime(startTime);
 
-      await updateWebsiteTitle("Original Title");
-      expect(await getWebsiteTitleFromDb()).toBe("Original Title");
+      await settings.websiteTitle.update("Original Title");
+      expect(await settings.websiteTitle.get()).toBe("Original Title");
 
       // Write a different encrypted value directly to DB
       const newEncrypted = await encrypt("Changed Title");
@@ -166,30 +153,30 @@ describeWithEnv("page content cache", { db: true }, () => {
 
       // Within TTL — cache still serves decrypted "Original Title"
       fakeTime.now = startTime + PAGE_CACHE_TTL_MS - 1;
-      expect(await getWebsiteTitleFromDb()).toBe("Original Title");
+      expect(await settings.websiteTitle.get()).toBe("Original Title");
     });
   });
 
   describe("invalidatePageCache", () => {
     /** Assert all four page getters return the seeded values */
     const expectAllPages = async () => {
-      expect(await getWebsiteTitleFromDb()).toBe("Title");
-      expect(await getHomepageTextFromDb()).toBe("Homepage");
-      expect(await getContactPageTextFromDb()).toBe("Contact");
-      expect(await getTermsAndConditionsFromDb()).toBe("Terms");
+      expect(await settings.websiteTitle.get()).toBe("Title");
+      expect(await settings.homepageText.get()).toBe("Homepage");
+      expect(await settings.contactPageText.get()).toBe("Contact");
+      expect(await settings.terms.get()).toBe("Terms");
     };
 
     test("clears all cached page entries", async () => {
-      await updateWebsiteTitle("Title");
-      await updateHomepageText("Homepage");
-      await updateContactPageText("Contact");
-      await updateTermsAndConditions("Terms");
+      await settings.websiteTitle.update("Title");
+      await settings.homepageText.update("Homepage");
+      await settings.contactPageText.update("Contact");
+      await settings.terms.update("Terms");
 
       // Populate all caches
       await expectAllPages();
 
       // Clear all
-      invalidatePageCache();
+      settings.invalidatePageCache();
 
       // Values should still be correct (re-fetched from DB)
       await expectAllPages();
@@ -198,15 +185,15 @@ describeWithEnv("page content cache", { db: true }, () => {
 
   describe("invalidateSettingsCache clears page cache", () => {
     test("page cache is cleared when settings cache is invalidated", async () => {
-      await updateWebsiteTitle("Title");
+      await settings.websiteTitle.update("Title");
       // Populate page cache
-      expect(await getWebsiteTitleFromDb()).toBe("Title");
+      expect(await settings.websiteTitle.get()).toBe("Title");
 
       // invalidateSettingsCache should also clear the page cache
-      invalidateSettingsCache();
+      settings.invalidateCache();
 
       // Still returns correct value (re-fetched from DB)
-      expect(await getWebsiteTitleFromDb()).toBe("Title");
+      expect(await settings.websiteTitle.get()).toBe("Title");
     });
   });
 
@@ -215,13 +202,13 @@ describeWithEnv("page content cache", { db: true }, () => {
       const { getAllCacheStats } = await import("#lib/cache-registry.ts");
 
       // Load settings to populate cache
-      const { loadAllSettings } = await import("#lib/db/settings.ts");
-      await loadAllSettings();
+      const { settings: s } = await import("#lib/db/settings.ts");
+      await s.loadAll();
 
       const before = getAllCacheStats().find((s) => s.name === "settings");
       expect(before!.entries).toBeGreaterThan(0);
 
-      invalidateSettingsCache();
+      settings.invalidateCache();
 
       const after = getAllCacheStats().find((s) => s.name === "settings");
       expect(after!.entries).toBe(0);
@@ -231,7 +218,7 @@ describeWithEnv("page content cache", { db: true }, () => {
   describe("null value caching", () => {
     test("serves cached null when value is added to DB within TTL", async () => {
       // First read populates page cache with null
-      expect(await getTermsAndConditionsFromDb()).toBeNull();
+      expect(await settings.terms.get()).toBeNull();
 
       // Write directly to DB, bypassing page cache invalidation
       await getDb().execute({
@@ -240,7 +227,7 @@ describeWithEnv("page content cache", { db: true }, () => {
       });
 
       // Page cache still holds null
-      expect(await getTermsAndConditionsFromDb()).toBeNull();
+      expect(await settings.terms.get()).toBeNull();
     });
   });
 });

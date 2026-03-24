@@ -20,7 +20,7 @@ import {
   getAttendeeAnswersBatch,
   getQuestionsForEvent,
 } from "#lib/db/questions.ts";
-import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   applyDemoOverrides,
   EVENT_DEMO_FIELDS,
@@ -404,7 +404,7 @@ const renderEventPage = async (
       const [flash, phonePrefix, questions, attendeeAnswerMap] =
         await Promise.all([
           Promise.resolve(getFlash()),
-          getPhonePrefixFromDb(),
+          settings.phonePrefix.get(),
           getQuestionsForEvent(event.id),
           getAttendeeAnswersBatch(attendeeIds),
         ]);

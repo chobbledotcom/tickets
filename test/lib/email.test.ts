@@ -3,12 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
 import { updateBusinessEmail } from "#lib/business-email.ts";
-import {
-  invalidateSettingsCache,
-  updateEmailApiKey,
-  updateEmailFromAddress,
-  updateEmailProvider,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   buildSvgTicketData,
   buildTicketAttachments,
@@ -148,13 +143,13 @@ describe("email", () => {
   const setupDbEmailConfig = async (
     opts: { businessEmail?: string } = {},
   ): Promise<void> => {
-    await updateEmailProvider("resend");
-    await updateEmailApiKey("test-key");
-    await updateEmailFromAddress("from@test.com");
+    await settings.email.provider.update("resend");
+    await settings.email.apiKey.update("test-key");
+    await settings.email.fromAddress.update("from@test.com");
     if (opts.businessEmail) {
       await updateBusinessEmail(opts.businessEmail);
     }
-    invalidateSettingsCache();
+    settings.invalidateCache();
   };
 
   describe("sendEmail", () => {
@@ -476,16 +471,16 @@ describe("email", () => {
 
   describe("getEmailConfig", () => {
     test("returns null when no provider configured", async () => {
-      invalidateSettingsCache();
+      settings.invalidateCache();
       const config = await getEmailConfig();
       expect(config).toBeNull();
     });
 
     test("returns config when all settings present", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
+      await settings.email.provider.update("resend");
+      await settings.email.apiKey.update("test-key");
+      await settings.email.fromAddress.update("from@test.com");
+      settings.invalidateCache();
 
       const config = await getEmailConfig();
       expect(config).toEqual({
@@ -496,19 +491,19 @@ describe("email", () => {
     });
 
     test("returns null when API key missing", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailFromAddress("from@test.com");
-      invalidateSettingsCache();
+      await settings.email.provider.update("resend");
+      await settings.email.fromAddress.update("from@test.com");
+      settings.invalidateCache();
 
       const config = await getEmailConfig();
       expect(config).toBeNull();
     });
 
     test("falls back to business email when from address not set", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
+      await settings.email.provider.update("resend");
+      await settings.email.apiKey.update("test-key");
       await updateBusinessEmail("biz@example.com");
-      invalidateSettingsCache();
+      settings.invalidateCache();
 
       const config = await getEmailConfig();
       expect(config).toEqual({
@@ -519,9 +514,9 @@ describe("email", () => {
     });
 
     test("returns null when neither from address nor business email set", async () => {
-      await updateEmailProvider("resend");
-      await updateEmailApiKey("test-key");
-      invalidateSettingsCache();
+      await settings.email.provider.update("resend");
+      await settings.email.apiKey.update("test-key");
+      settings.invalidateCache();
 
       const config = await getEmailConfig();
       expect(config).toBeNull();
@@ -622,7 +617,7 @@ describe("email", () => {
         Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-us");
         Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
         Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-        invalidateSettingsCache();
+        settings.invalidateCache();
 
         await sendRegistrationEmails([makeEntry()], "GBP");
 

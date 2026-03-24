@@ -9,13 +9,7 @@ import {
   questionsTable,
   setEventQuestions,
 } from "#lib/db/questions.ts";
-import {
-  updateContactPageText,
-  updateHomepageText,
-  updateShowPublicSite,
-  updateTermsAndConditions,
-  updateWebsiteTitle,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
@@ -56,33 +50,33 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows public homepage when enabled", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/"));
       await expectHtmlResponse(response, 200, "Home", "/admin/login");
     });
 
     test("shows website title on homepage", async () => {
-      await updateShowPublicSite(true);
-      await updateWebsiteTitle("My Cool Site");
+      await settings.showPublicSite.update(true);
+      await settings.websiteTitle.update("My Cool Site");
       const response = await handleRequest(mockRequest("/"));
       await expectHtmlResponse(response, 200, "My Cool Site");
     });
 
     test("shows homepage text when configured", async () => {
-      await updateShowPublicSite(true);
-      await updateHomepageText("Welcome to our events!");
+      await settings.showPublicSite.update(true);
+      await settings.homepageText.update("Welcome to our events!");
       const response = await handleRequest(mockRequest("/"));
       await expectHtmlResponse(response, 200, "Welcome to our events!");
     });
 
     test("shows no content message when homepage text not set", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/"));
       await expectHtmlResponse(response, 200, "No content.");
     });
 
     test("shows public nav links", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/"));
       await expectHtmlResponse(
         response,
@@ -95,7 +89,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows login link styled as footer", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/"));
       await expectHtmlResponse(
         response,
@@ -112,8 +106,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("renders markdown paragraphs in homepage text", async () => {
-      await updateShowPublicSite(true);
-      await updateHomepageText("Line one\n\nLine two");
+      await settings.showPublicSite.update(true);
+      await settings.homepageText.update("Line one\n\nLine two");
       const response = await handleRequest(mockRequest("/"));
       const html = await expectHtmlResponse(response, 200, "Line one");
       expect(html).toContain("<p>Line one</p>");
@@ -121,7 +115,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("includes RSS and ICS feed discovery tags", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/"));
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(RSS_DISCOVERY_TAG);
@@ -136,7 +130,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows no events message when enabled but no events exist", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/events"));
       await expectHtmlResponse(
         response,
@@ -147,14 +141,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows website title with no events message", async () => {
-      await updateShowPublicSite(true);
-      await updateWebsiteTitle("My Events");
+      await settings.showPublicSite.update(true);
+      await settings.websiteTitle.update("My Events");
       const response = await handleRequest(mockRequest("/events"));
       await expectHtmlResponse(response, 200, "No events listed.", "My Events");
     });
 
     test("shows active events with book now links", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const event = await createTestEvent({
         name: "Concert",
         maxAttendees: 100,
@@ -170,7 +164,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("does not show inactive events", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const event = await createTestEvent({
         name: "Hidden Event",
         maxAttendees: 100,
@@ -182,7 +176,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("does not show hidden events in public events list", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       await createTestEvent({ name: "Secret Event", hidden: true });
       const response = await handleRequest(mockRequest("/events"));
       const html = await expectHtmlResponse(response, 200, "No events listed.");
@@ -190,7 +184,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows non-hidden events alongside hidden ones", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       await createTestEvent({ name: "Visible Event" });
       await createTestEvent({ name: "Secret Event", hidden: true });
       const response = await handleRequest(mockRequest("/events"));
@@ -234,7 +228,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows sold out for events at capacity", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const event = await createTestEvent({
         name: "Full Event",
         maxAttendees: 1,
@@ -251,7 +245,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows registration closed for events past closes_at", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
       await createTestEvent({
         name: "Closed Event",
@@ -263,7 +257,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows event location when set", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       await createTestEvent({
         name: "Located Event",
         maxAttendees: 100,
@@ -274,7 +268,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows event date when set", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       await createTestEvent({
         name: "Dated Event",
         maxAttendees: 100,
@@ -285,7 +279,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows event description when set", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       await createTestEvent({
         name: "Described Event",
         maxAttendees: 100,
@@ -296,15 +290,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows website title on events page", async () => {
-      await updateShowPublicSite(true);
-      await updateWebsiteTitle("My Events Site");
+      await settings.showPublicSite.update(true);
+      await settings.websiteTitle.update("My Events Site");
       await createTestEvent({ name: "Concert", maxAttendees: 100 });
       const response = await handleRequest(mockRequest("/events"));
       await expectHtmlResponse(response, 200, "My Events Site");
     });
 
     test("shows public nav on events page", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/events"));
       await expectHtmlResponse(
         response,
@@ -317,7 +311,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("returns 404 for POST requests", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(
         mockFormRequest("/events", { name: "Test" }),
       );
@@ -325,7 +319,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("includes RSS and ICS feed discovery tags", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/events"));
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(RSS_DISCOVERY_TAG);
@@ -340,8 +334,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows terms page when enabled", async () => {
-      await updateShowPublicSite(true);
-      await updateTermsAndConditions("Our terms and conditions.");
+      await settings.showPublicSite.update(true);
+      await settings.terms.update("Our terms and conditions.");
       const response = await handleRequest(mockRequest("/terms"));
       await expectHtmlResponse(
         response,
@@ -352,20 +346,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows no content when terms not configured", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/terms"));
       await expectHtmlResponse(response, 200, "No content.");
     });
 
     test("shows website title on terms page", async () => {
-      await updateShowPublicSite(true);
-      await updateWebsiteTitle("My Site");
+      await settings.showPublicSite.update(true);
+      await settings.websiteTitle.update("My Site");
       const response = await handleRequest(mockRequest("/terms"));
       await expectHtmlResponse(response, 200, "My Site");
     });
 
     test("includes RSS and ICS feed discovery tags", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/terms"));
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(RSS_DISCOVERY_TAG);
@@ -380,8 +374,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows contact page when enabled", async () => {
-      await updateShowPublicSite(true);
-      await updateContactPageText("Get in touch with us");
+      await settings.showPublicSite.update(true);
+      await settings.contactPageText.update("Get in touch with us");
       const response = await handleRequest(mockRequest("/contact"));
       await expectHtmlResponse(
         response,
@@ -392,21 +386,23 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("shows no content when contact text not configured", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/contact"));
       await expectHtmlResponse(response, 200, "No content.");
     });
 
     test("shows website title on contact page", async () => {
-      await updateShowPublicSite(true);
-      await updateWebsiteTitle("My Site");
+      await settings.showPublicSite.update(true);
+      await settings.websiteTitle.update("My Site");
       const response = await handleRequest(mockRequest("/contact"));
       await expectHtmlResponse(response, 200, "My Site");
     });
 
     test("renders markdown paragraphs in contact text", async () => {
-      await updateShowPublicSite(true);
-      await updateContactPageText("Phone: 123\n\nAddress: 1 High Street");
+      await settings.showPublicSite.update(true);
+      await settings.contactPageText.update(
+        "Phone: 123\n\nAddress: 1 High Street",
+      );
       const response = await handleRequest(mockRequest("/contact"));
       const html = await expectHtmlResponse(response, 200, "Phone: 123");
       expect(html).toContain("<p>Phone: 123</p>");
@@ -421,7 +417,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("includes RSS and ICS feed discovery tags", async () => {
-      await updateShowPublicSite(true);
+      await settings.showPublicSite.update(true);
       const response = await handleRequest(mockRequest("/contact"));
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(RSS_DISCOVERY_TAG);
@@ -969,7 +965,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("group terms override global terms", async () => {
-      await updateTermsAndConditions("GLOBAL TERMS UNIQUE");
+      await settings.terms.update("GLOBAL TERMS UNIQUE");
       const group = await createTestGroup({
         name: "Terms Group",
         slug: "terms-group",
@@ -990,7 +986,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("group terms fall back to global when group terms are empty", async () => {
-      await updateTermsAndConditions("GLOBAL FALLBACK UNIQUE");
+      await settings.terms.update("GLOBAL FALLBACK UNIQUE");
       const group = await createTestGroup({
         name: "Fallback Group",
         slug: "fallback-group",
@@ -2264,8 +2260,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
 
       // Now clear the provider to simulate no provider
-      const { clearPaymentProvider } = await import("#lib/db/settings.ts");
-      await clearPaymentProvider();
+      const { settings: s } = await import("#lib/db/settings.ts");
+      await s.paymentProvider.clear();
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
@@ -3488,7 +3484,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
   describe("terms and conditions (single ticket)", () => {
     test("shows terms checkbox when terms are configured", async () => {
-      await updateTermsAndConditions("I agree to the event rules.");
+      await settings.terms.update("I agree to the event rules.");
 
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
@@ -3514,7 +3510,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("rejects submission without agreeing to terms", async () => {
-      await updateTermsAndConditions("You must accept the rules.");
+      await settings.terms.update("You must accept the rules.");
 
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await submitTicketForm(event.slug, {
@@ -3529,7 +3525,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("accepts submission when terms are agreed to", async () => {
-      await updateTermsAndConditions("You must accept the rules.");
+      await settings.terms.update("You must accept the rules.");
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -3558,7 +3554,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
   describe("terms and conditions (multi-ticket)", () => {
     test("shows terms checkbox on multi-ticket page when configured", async () => {
-      await updateTermsAndConditions("Multi-event terms apply.");
+      await settings.terms.update("Multi-event terms apply.");
 
       const event1 = await createTestEvent({
         name: "TC Multi 1",
@@ -3580,7 +3576,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("rejects multi-ticket submission without agreeing to terms", async () => {
-      await updateTermsAndConditions("Must agree to policy.");
+      await settings.terms.update("Must agree to policy.");
 
       const event1 = await createTestEvent({
         name: "TC Multi Rej 1",
@@ -3617,7 +3613,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("accepts multi-ticket submission when terms are agreed to", async () => {
-      await updateTermsAndConditions("Must agree to policy.");
+      await settings.terms.update("Must agree to policy.");
 
       const event1 = await createTestEvent({
         name: "TC Multi Ok 1",

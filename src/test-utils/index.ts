@@ -36,15 +36,7 @@ import { type GroupInput, invalidateGroupsCache } from "#lib/db/groups.ts";
 import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import {
-  clearSetupCompleteCache,
-  completeSetup,
-  invalidateSettingsCache,
-  resetHostAppleWalletConfig,
-  resetTimezoneTestOverride,
-  setAttendeeBlobMigrated,
-  setTimezoneForTest,
-} from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig } from "#lib/email.ts";
@@ -164,7 +156,7 @@ const isSchemaIntact = async (client: Client): Promise<boolean> => {
 /** Common setup: env, caches, and reuse-or-create the client */
 const prepareTestClient = async (): Promise<{ reused: boolean }> => {
   setupTestEncryptionKey();
-  clearSetupCompleteCache();
+  settings.setup.clearCache();
   resetSessionCache();
   invalidateUsersCache();
   invalidateEventsCache();
@@ -239,16 +231,20 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
       }
     }
     setCurrencyCodeForTest(getCountry(country).currency);
-    setTimezoneForTest("UTC");
+    settings.timezone.setForTest("UTC");
     return;
   }
 
-  await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, country);
-  await setAttendeeBlobMigrated();
+  await settings.setup.complete(
+    TEST_ADMIN_USERNAME,
+    TEST_ADMIN_PASSWORD,
+    country,
+  );
+  await settings.attendeeBlobMigrated.set();
   setCurrencyCodeForTest(getCountry(country).currency);
 
   // Default timezone to UTC for tests so datetime-local values pass through unchanged
-  setTimezoneForTest("UTC");
+  settings.timezone.setForTest("UTC");
 
   // Snapshot settings AND users for reuse
   const result = await getClient().execute("SELECT key, value FROM settings");
@@ -288,8 +284,8 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
  */
 export const resetDb = (): void => {
   setDb(null);
-  clearSetupCompleteCache();
-  invalidateSettingsCache();
+  settings.setup.clearCache();
+  settings.invalidateCache();
   invalidateUsersCache();
   invalidateEventsCache();
   invalidateHolidaysCache();
@@ -300,8 +296,8 @@ export const resetDb = (): void => {
   setDemoModeForTest(false);
   resetAllowedDomain();
   resetHostEmailConfig();
-  resetHostAppleWalletConfig();
-  resetTimezoneTestOverride();
+  settings.appleWallet.resetHostConfig();
+  settings.timezone.resetTestOverride();
 };
 
 /**
@@ -1625,11 +1621,9 @@ export const submitMultiTicketForm = async (
  * Configure Stripe as the payment provider for tests.
  */
 export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
-  const { updateStripeKey, setPaymentProvider } = await import(
-    "#lib/db/settings.ts"
-  );
-  await updateStripeKey(key);
-  await setPaymentProvider("stripe");
+  const { settings } = await import("#lib/db/settings.ts");
+  await settings.stripe.secretKey.update(key);
+  await settings.paymentProvider.set("stripe");
 };
 
 /**

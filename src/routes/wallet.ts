@@ -6,7 +6,7 @@
 
 import { buildPkpass, type SigningCredentials } from "#lib/apple-wallet.ts";
 import { getEffectiveDomain } from "#lib/config.ts";
-import { getAppleWalletConfig } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   createTokenRoute,
   lookupSingleTokenPassData,
@@ -32,7 +32,7 @@ const handleWalletGet = async (
   if (!raw.endsWith(PKPASS_EXT)) return notFoundResponse();
   const token = raw.slice(0, -PKPASS_EXT.length);
 
-  const config = await getAppleWalletConfig();
+  const config = await settings.appleWallet.getConfig();
   if (!config) return notFoundResponse();
 
   return buildPkpassForToken(token, config);

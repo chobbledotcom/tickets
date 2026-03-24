@@ -12,7 +12,7 @@ import {
 } from "#lib/cookies.ts";
 import { loadCurrencyCode } from "#lib/currency.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
-import { getShowPublicApiFromDb } from "#lib/db/settings.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   hasFlash,
   resetFlashContext,
@@ -253,7 +253,7 @@ const prefixHandlers: Record<string, RouterFn> = {
     );
     if (adminResult) return adminResult;
     // Public API requires feature flag
-    return (await getShowPublicApiFromDb())
+    return (await settings.showPublicApi.get())
       ? (await loadApiRoutes())(request, path, method, server)
       : null;
   },
