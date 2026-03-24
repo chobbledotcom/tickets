@@ -2,12 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#lib/crypto.ts";
 import { settings } from "#lib/db/settings.ts";
-import {
-  getHeaderImageUrl,
-  loadHeaderImage,
-  resetHeaderImage,
-  setHeaderImageForTest,
-} from "#lib/header-image.ts";
+import { resetHeaderImage, setHeaderImageForTest } from "#lib/header-image.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
@@ -120,14 +115,14 @@ describe("header image", () => {
     resetHeaderImage();
   });
 
-  describe("getHeaderImageUrl", () => {
+  describe("settings.headerImageUrl", () => {
     test("defaults to null", () => {
-      expect(getHeaderImageUrl()).toBeNull();
+      expect(settings.headerImageUrl).toBeNull();
     });
 
     test("returns value set by setHeaderImageForTest", () => {
       setHeaderImageForTest("test-image.jpg");
-      expect(getHeaderImageUrl()).toBe("test-image.jpg");
+      expect(settings.headerImageUrl).toBe("test-image.jpg");
     });
   });
 
@@ -135,37 +130,7 @@ describe("header image", () => {
     test("resets to null after being set", () => {
       setHeaderImageForTest("test-image.jpg");
       resetHeaderImage();
-      expect(getHeaderImageUrl()).toBeNull();
-    });
-  });
-
-  describeWithEnv("loadHeaderImage", { db: true }, () => {
-    beforeEach(() => {
-      resetHeaderImage();
-    });
-
-    test("returns null when no header image is set", async () => {
-      const url = await loadHeaderImage();
-      expect(url).toBeNull();
-    });
-
-    test("returns filename after updating database", async () => {
-      await settings.update.headerImageUrl("my-header.jpg");
-      const url = await loadHeaderImage();
-      expect(url).toBe("my-header.jpg");
-    });
-
-    test("makes header image available via getHeaderImageUrl after loading", async () => {
-      await settings.update.headerImageUrl("my-header.png");
-      await loadHeaderImage();
-      expect(getHeaderImageUrl()).toBe("my-header.png");
-    });
-
-    test("returns null after clearing header image", async () => {
-      await settings.update.headerImageUrl("my-header.jpg");
-      await settings.update.headerImageUrl("");
-      const url = await loadHeaderImage();
-      expect(url).toBeNull();
+      expect(settings.headerImageUrl).toBeNull();
     });
   });
 });

@@ -12,13 +12,6 @@
 
 import { lazyRef, map } from "#fp";
 import { getBookingFeeAmount, itemsSubtotal } from "#lib/booking-fee.ts";
-import {
-  getCurrencyCode,
-  getSquareAccessToken,
-  getSquareLocationId,
-  getSquareSandbox,
-  getSquareWebhookSignatureKey,
-} from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
@@ -388,13 +381,13 @@ const [getCache, setCache] = lazyRef<SquareCache>(() => {
 
 /** Internal getSquareClient implementation */
 const getClientImpl = () => {
-  const accessToken = getSquareAccessToken();
+  const accessToken = settings.square.accessToken;
   if (!accessToken) {
     logDebug("Square", "No access token configured, cannot create client");
     return null;
   }
 
-  const sandbox = getSquareSandbox();
+  const sandbox = settings.square.sandbox;
 
   try {
     const cached = getCache();
@@ -419,7 +412,7 @@ const withClient = createWithClient(() => squareApi.getSquareClient());
 
 /** Get the configured location ID */
 const getLocationId = (): string | null => {
-  const locationId = getSquareLocationId();
+  const locationId = settings.square.locationId;
   if (!locationId) {
     logDebug("Square", "No location ID configured");
     return null;
@@ -434,7 +427,7 @@ type PaymentLinkConfig = { locationId: string; currency: string };
 const getPaymentLinkConfig = (): PaymentLinkConfig | null => {
   const locationId = getLocationId();
   if (!locationId) return null;
-  const currency = getCurrencyCode().toUpperCase();
+  const currency = settings.currency.toUpperCase();
   return { locationId, currency };
 };
 
@@ -523,8 +516,7 @@ const normalizeCheckoutPhone = (
   phone: string | undefined,
 ): string | undefined => {
   if (!phone) return undefined;
-  const prefix = settings.phonePrefix;
-  return normalizePhone(phone, prefix);
+  return normalizePhone(phone, settings.phonePrefix);
 };
 
 /** Build a Square fee line item array (empty when fee is zero). */
@@ -651,7 +643,7 @@ export const squareApi: {
     try {
       const response = await client.locations.list();
       locations = response.locations ?? [];
-      const sandbox = getSquareSandbox();
+      const sandbox = settings.square.sandbox;
       result.accessToken = {
         valid: true,
         mode: sandbox ? "sandbox" : "production",
@@ -662,7 +654,7 @@ export const squareApi: {
     }
 
     // Step 2: Verify location ID
-    const locationId = getSquareLocationId();
+    const locationId = settings.square.locationId;
     if (!locationId) {
       result.location = {
         configured: false,
@@ -687,7 +679,7 @@ export const squareApi: {
     }
 
     // Step 3: Check webhook signature key
-    const webhookKey = getSquareWebhookSignatureKey();
+    const webhookKey = settings.square.webhookSignatureKey;
     result.webhook = { configured: webhookKey !== null };
     if (!webhookKey) {
       result.webhook.error = "No webhook signature key configured";
@@ -915,7 +907,7 @@ export const verifyWebhookSignature = async (
   notificationUrl: string,
   payloadBytes: Uint8Array,
 ): Promise<WebhookVerifyResult> => {
-  const secret = getSquareWebhookSignatureKey();
+  const secret = settings.square.webhookSignatureKey;
   if (!secret) {
     logError({
       code: ErrorCode.CONFIG_MISSING,

@@ -4,13 +4,12 @@
  */
 
 import { once } from "#fp";
-import { isSetupComplete, loadEffectiveDomain } from "#lib/config.ts";
+import { loadEffectiveDomain } from "#lib/config.ts";
 import {
   clearFlashCookie,
   clearSessionCookie,
   parseFlashValue,
 } from "#lib/cookies.ts";
-import { loadCurrencyCode } from "#lib/currency.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
@@ -19,7 +18,6 @@ import {
   setFlashContext,
 } from "#lib/flash-context.ts";
 import { clearSavedFormData } from "#lib/forms.tsx";
-import { loadHeaderImage } from "#lib/header-image.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import {
   createRequestTimer,
@@ -33,7 +31,6 @@ import {
 import { flushPendingWork } from "#lib/pending-work.ts";
 import { runWithRequestCache } from "#lib/request-cache.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
-import { loadTheme } from "#lib/theme.ts";
 import {
   applySecurityHeaders,
   buildDomainRedirectUrl,
@@ -94,7 +91,7 @@ const loadTicketRoutes = once(async () => {
 /** Lazy-load setup routes */
 const loadSetupRoutes = once(async () => {
   const { createSetupRouter } = await import("#routes/setup.ts");
-  return createSetupRouter(isSetupComplete);
+  return createSetupRouter(settings.setup.isComplete);
 });
 
 /** Lazy-load payment/webhook routes */
@@ -294,13 +291,10 @@ const handleRequestInternal = async (
   }
 
   // Require setup before accessing other routes
-  if (!(await isSetupComplete())) {
+  if (!(await settings.setup.isComplete())) {
     return redirectResponse("/setup");
   }
 
-  loadCurrencyCode();
-  loadTheme();
-  loadHeaderImage();
   return (await routeMainApp(request, path, method, server))!;
 };
 

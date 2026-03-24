@@ -19,7 +19,6 @@ import { calculateBookingFee } from "#lib/booking-fee.ts";
 import {
   getAllowedDomain,
   getBookingFee,
-  getCurrencyCode,
   getEffectiveDomain,
 } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -46,7 +45,7 @@ import {
   type ValidatedPaymentSession,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
-import { logAndNotifyMultiRegistration } from "#lib/webhook.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { getFromEmailIfConfigured } from "#routes/public.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
@@ -662,7 +661,7 @@ const processPaymentSession = async (
     options?.storeTokens === false ? [] : ticketTokens,
   );
 
-  await logAndNotifyMultiRegistration(createdAttendees, getCurrencyCode());
+  await logAndNotifyRegistration(createdAttendees);
 
   return {
     success: true,

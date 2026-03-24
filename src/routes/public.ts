@@ -4,11 +4,7 @@
 
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { type BookingResult, processBooking } from "#lib/booking.ts";
-import {
-  getCurrencyCode,
-  getEffectiveDomain,
-  isPaymentsEnabled,
-} from "#lib/config.ts";
+import { getEffectiveDomain, isPaymentsEnabled } from "#lib/config.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { validatePrice } from "#lib/currency.ts";
 import { getAvailableDates } from "#lib/dates.ts";
@@ -54,7 +50,7 @@ import {
   type Group,
   isPaidEvent,
 } from "#lib/types.ts";
-import { logAndNotifyMultiRegistration } from "#lib/webhook.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   checkoutResponse,
@@ -106,9 +102,10 @@ const renderPublicPage = (
   getContent: () => string | null,
 ): Response =>
   requirePublicSite(() => {
-    const websiteTitle = settings.websiteTitle;
     const content = getContent();
-    return htmlResponse(publicSitePage(pageType, websiteTitle, content));
+    return htmlResponse(
+      publicSitePage(pageType, settings.websiteTitle, content),
+    );
   });
 
 /** Handle GET / (home page) - redirect to admin or show public site */
@@ -118,9 +115,8 @@ export const handleHome = (): Response =>
 /** Handle GET /events - public events listing */
 export const handlePublicEvents = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const websiteTitle = settings.websiteTitle;
     const events = await loadHomepageEvents();
-    return htmlResponse(homepagePage(events, websiteTitle));
+    return htmlResponse(homepagePage(events, settings.websiteTitle));
   });
 
 /** Handle GET /terms - public terms and conditions page */
@@ -925,7 +921,7 @@ const processMultiFreeReservation = async (
     }
     entries.push({ event, attendee: result.attendee });
   }
-  await logAndNotifyMultiRegistration(entries, getCurrencyCode());
+  await logAndNotifyRegistration(entries);
   return {
     success: true,
     tokens: entries.map((entry) => entry.attendee.ticket_token),
