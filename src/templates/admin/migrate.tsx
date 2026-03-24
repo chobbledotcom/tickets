@@ -22,26 +22,30 @@ export const adminMigratePage = (
     <Layout title="Database Migration">
       <AdminNav session={session} active="" />
       {state.done ? (
-        <section class="prose">
-          <h2>Database Migration</h2>
-          <p>Migration complete. All attendee records have been upgraded.</p>
-          <p>
-            <a href="/admin/">Back to dashboard</a>
-          </p>
+        <section>
+          <div>
+            <h2>Database Migration</h2>
+            <p>Migration complete. All attendee records have been upgraded.</p>
+            <p>
+              <a href="/admin/">Back to dashboard</a>
+            </p>
+          </div>
         </section>
       ) : (
-        <section class="prose">
-          <h2>Database Migration</h2>
-          <p>
-            We're restructuring the database to improve performance. Attendee
-            data will be consolidated into a more efficient format, reducing
-            storage by approximately 68%.
-          </p>
-          <p>
-            This requires decrypting and re-encrypting each attendee record.
-            Press the button below to process a batch of {state.batchSize}{" "}
-            records at a time.
-          </p>
+        <section>
+          <div>
+            <h2>Database Migration</h2>
+            <p>
+              We're restructuring the database to improve performance. Attendee
+              data will be consolidated into a more efficient format, reducing
+              storage by approximately 68%.
+            </p>
+            <p>
+              This requires decrypting and re-encrypting each attendee record.
+              Press the button below to process a batch of {state.batchSize}{" "}
+              records at a time.
+            </p>
+          </div>
 
           <div id="migrate-status">
             <p>
