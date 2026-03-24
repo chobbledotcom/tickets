@@ -8,12 +8,12 @@ import {
   generatePassJson,
   isValidPemCertificate,
   isValidPemPrivateKey,
-  padAuthToken,
-  trimAuthToken,
   type PassData,
+  padAuthToken,
   type SigningCredentials,
   sha1Hex,
   signManifest,
+  trimAuthToken,
 } from "#lib/apple-wallet.ts";
 import { WALLET_ICONS } from "#lib/wallet-icons.ts";
 import { generateTestCerts } from "#test-utils";
@@ -186,9 +186,9 @@ describe("apple-wallet", () => {
       const pass = generatePassJson(makePassData(), creds);
       expect(pass.webServiceURL).toBe("https://example.com");
       expect(pass.authenticationToken).toBe("ABC123----------");
-      expect((pass.authenticationToken as string).length).toBeGreaterThanOrEqual(
-        16,
-      );
+      expect(
+        (pass.authenticationToken as string).length,
+      ).toBeGreaterThanOrEqual(16);
     });
   });
 

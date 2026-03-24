@@ -18,6 +18,7 @@ src/static/iframe-resizer-parent.js
 src/static/iframe-resizer-child.js
 .envrc
 .deno_cache/
+.deno/
 .deno-cache/
 docs-output*/
 misc/

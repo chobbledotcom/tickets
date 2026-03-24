@@ -42,6 +42,7 @@ import {
   invalidateSettingsCache,
   resetHostAppleWalletConfig,
   resetTimezoneTestOverride,
+  setAttendeeBlobMigrated,
   setTimezoneForTest,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
@@ -243,6 +244,7 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
   }
 
   await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, country);
+  await setAttendeeBlobMigrated();
   setCurrencyCodeForTest(getCountry(country).currency);
 
   // Default timezone to UTC for tests so datetime-local values pass through unchanged
@@ -1469,6 +1471,10 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ticket_token_index: "test-token-index-1",
   date: null,
   attachment_downloads: 0,
+  pii_blob: "",
+  checked_in_v2: 0,
+  refunded_v2: 0,
+  price_paid_v2: 0,
   ...overrides,
 });
 

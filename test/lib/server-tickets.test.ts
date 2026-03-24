@@ -109,15 +109,17 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(result).toBeNull();
   });
 
-  test("attendee has a unique ticket_token after creation", async () => {
+  test("attendee has a unique ticket_token_index after creation", async () => {
     const event = await createTestEvent({ maxAttendees: 10 });
     await createTestAttendee(event.id, event.slug, "Frank", "frank@test.com");
     await createTestAttendee(event.id, event.slug, "Grace", "grace@test.com");
     const attendees = await getAttendeesRaw(event.id);
 
-    expect(attendees[0]!.ticket_token).not.toBe("");
-    expect(attendees[1]!.ticket_token).not.toBe("");
-    expect(attendees[0]!.ticket_token).not.toBe(attendees[1]!.ticket_token);
+    expect(attendees[0]!.ticket_token_index).not.toBe("");
+    expect(attendees[1]!.ticket_token_index).not.toBe("");
+    expect(attendees[0]!.ticket_token_index).not.toBe(
+      attendees[1]!.ticket_token_index,
+    );
   });
 
   test("references SVG endpoint for QR code instead of inline SVG", async () => {

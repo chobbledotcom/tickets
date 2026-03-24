@@ -4,7 +4,6 @@
 
 import { compact, map } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
-import { decrypt } from "#lib/crypto.ts";
 import { getAttendeesByTokens } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { getCurrencyCodeFromDb } from "#lib/db/settings.ts";
@@ -42,7 +41,7 @@ export const buildWalletPassData = async (
   const { event, attendee } = entry;
   const domain = getEffectiveDomain();
   const currencyCode = await getCurrencyCodeFromDb();
-  const pricePaid = Number(await decrypt(attendee.price_paid));
+  const pricePaid = attendee.price_paid_v2;
 
   return {
     serialNumber: token,

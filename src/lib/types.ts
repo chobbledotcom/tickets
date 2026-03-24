@@ -102,7 +102,23 @@ export interface Attendee extends ContactInfo {
   ticket_token_index: string;
   date: string | null;
   attachment_downloads: number;
+  pii_blob: string;
+  checked_in_v2: number;
+  refunded_v2: number;
+  price_paid_v2: number;
 }
+
+/** Short keys used in the PII blob JSON to minimize encrypted payload size */
+export type PiiBlob = {
+  v: number; // schema version (1 = current)
+  n: string; // name
+  e: string; // email
+  p: string; // phone
+  a: string; // address
+  s: string; // special_instructions
+  pi: string; // payment_id
+  t: string; // ticket_token
+};
 
 export interface Settings {
   key: string;

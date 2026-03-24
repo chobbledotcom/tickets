@@ -169,6 +169,10 @@ article > * {
   gap: var(--space-m);
 }
 
+.stack-sm > * {
+  margin: 0;
+}
+
 hr {
   background-color: var(--color-bg-secondary);
   border: none;

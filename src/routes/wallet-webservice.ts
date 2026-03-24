@@ -12,7 +12,7 @@
  * so devices re-download the pass on every manual refresh.
  */
 
-import { trimAuthToken, type SigningCredentials } from "#lib/apple-wallet.ts";
+import { type SigningCredentials, trimAuthToken } from "#lib/apple-wallet.ts";
 import { getAppleWalletConfig } from "#lib/db/settings.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet.ts";

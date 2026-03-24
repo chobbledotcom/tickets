@@ -674,11 +674,11 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
             'target="_blank"',
           );
 
-          // Verify attendee was created with payment ID (encrypted at rest)
+          // Verify attendee was created with encrypted PII blob
           const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
           const attendees = await getAttendeesRaw(event.id);
           expect(attendees.length).toBe(1);
-          expect(attendees[0]?.payment_id).not.toBeNull();
+          expect(attendees[0]?.pii_blob).not.toBe("");
 
           // Verify tokens are NOT persisted in DB (redirect has them in URL, no need to store)
           const { isSessionProcessed } = await import(

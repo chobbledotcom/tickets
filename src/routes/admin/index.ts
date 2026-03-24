@@ -8,7 +8,7 @@
  */
 
 import { enableQueryLog } from "#lib/db/query-log.ts";
-import { loadAllSettings } from "#lib/db/settings.ts";
+import { isAttendeeBlobMigrated, loadAllSettings } from "#lib/db/settings.ts";
 import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
@@ -19,6 +19,7 @@ import { eventsRoutes } from "#routes/admin/events.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
+import { migrateRoutes } from "#routes/admin/migrate.ts";
 import { questionsRoutes } from "#routes/admin/questions.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { seedsRoutes } from "#routes/admin/seeds.ts";
@@ -27,7 +28,7 @@ import { settingsRoutes } from "#routes/admin/settings.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { createRouter } from "#routes/router.ts";
-import { getAuthenticatedSession } from "#routes/utils.ts";
+import { getAuthenticatedSession, redirectResponse } from "#routes/utils.ts";
 
 /** Combined admin routes */
 const adminRoutes = {
@@ -48,25 +49,40 @@ const adminRoutes = {
   ...questionsRoutes,
   ...scannerRoutes,
   ...seedsRoutes,
+  ...migrateRoutes,
 };
 
 const innerRouter = createRouter(adminRoutes);
 
 type RouterFn = ReturnType<typeof createRouter>;
 
+/** Routes that are always accessible (auth + migration itself) */
+const UNGATED_PREFIXES = [
+  "/admin/migrate",
+  "/admin/login",
+  "/admin/logout",
+] as const;
+
+const isUngatedRoute = (path: string): boolean =>
+  UNGATED_PREFIXES.some((p) => path.startsWith(p));
+
 /**
  * Route admin requests.
- * For GET requests by authenticated admins (owner or manager), enables
- * query logging so the Layout template renders the debug footer inline.
+ * Gates all admin routes (except auth and migrate) behind migration completion.
+ * For GET requests by authenticated admins, enables query logging so the
+ * Layout template renders the debug footer inline.
  */
 export const routeAdmin: RouterFn = async (request, path, method, server) => {
-  if (method !== "GET") {
-    return innerRouter(request, path, method, server);
-  }
-
   // Check admin status before tracking so the auth queries aren't logged
   const session = await getAuthenticatedSession(request);
-  if (session) {
+
+  // Gate non-auth routes behind migration completion
+  if (session && !isUngatedRoute(path)) {
+    const migrated = await isAttendeeBlobMigrated();
+    if (!migrated) return redirectResponse("/admin/migrate");
+  }
+
+  if (method === "GET" && session) {
     enableQueryLog();
     await loadAllSettings();
   }

@@ -735,6 +735,8 @@ async function editAttendeeHandler(
     special_instructions,
     event_id,
     quantity,
+    payment_id: data.attendee.payment_id,
+    ticket_token: data.attendee.ticket_token,
   });
 
   // Update answers (atomic delete + insert)

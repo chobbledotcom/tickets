@@ -16,7 +16,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
  * The latest database update identifier - update this when changing schema
  */
 export const LATEST_UPDATE =
-  "add question table indexes and unique constraints";
+  "add attendee pii_blob and plaintext status columns";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -190,6 +190,10 @@ export const initDb = async (): Promise<void> => {
       ticket_token_index TEXT,
       refunded TEXT NOT NULL DEFAULT '',
       attachment_downloads INTEGER NOT NULL DEFAULT 0,
+      pii_blob TEXT NOT NULL DEFAULT '',
+      checked_in_v2 INTEGER NOT NULL DEFAULT 0,
+      refunded_v2 INTEGER NOT NULL DEFAULT 0,
+      price_paid_v2 INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
@@ -527,7 +531,7 @@ export const initDb = async (): Promise<void> => {
       }>(
         `SELECT id, name, email, phone, address, special_instructions, checked_in
          FROM attendees
-         WHERE name = '' OR email = '' OR phone = '' OR address = '' OR special_instructions = '' OR checked_in = ''`,
+         WHERE pii_blob = '' AND (name = '' OR email = '' OR phone = '' OR address = '' OR special_instructions = '' OR checked_in = '')`,
       );
 
       for (const attendee of invalidAttendees) {
@@ -744,6 +748,22 @@ export const initDb = async (): Promise<void> => {
   );
   await runMigration(
     "CREATE UNIQUE INDEX idx_attendee_answers_unique ON attendee_answers(attendee_id, answer_id)",
+  );
+
+  // Migration: add pii_blob column for consolidated encrypted PII
+  await runMigration(
+    "ALTER TABLE attendees ADD COLUMN pii_blob TEXT NOT NULL DEFAULT ''",
+  );
+
+  // Migration: add plaintext status columns (replacing encrypted checked_in/refunded/price_paid)
+  await runMigration(
+    "ALTER TABLE attendees ADD COLUMN checked_in_v2 INTEGER NOT NULL DEFAULT 0",
+  );
+  await runMigration(
+    "ALTER TABLE attendees ADD COLUMN refunded_v2 INTEGER NOT NULL DEFAULT 0",
+  );
+  await runMigration(
+    "ALTER TABLE attendees ADD COLUMN price_paid_v2 INTEGER NOT NULL DEFAULT 0",
   );
 
   // Update the version marker

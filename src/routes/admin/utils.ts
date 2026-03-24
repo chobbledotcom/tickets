@@ -2,17 +2,14 @@
  * Shared admin utilities and types
  */
 
-import {
-  decryptAttendees,
-  decryptAttendeesForTable,
-} from "#lib/db/attendees.ts";
+import { decryptAttendees } from "#lib/db/attendees.ts";
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
 import {
   getAttendeeAnswersBatch,
   getQuestionsWithEventIds,
 } from "#lib/db/questions.ts";
 import type { validateForm } from "#lib/forms.tsx";
-import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
   type AuthSession,
   encodeBody,
@@ -71,32 +68,18 @@ export type EventAttendeesHandler = (
   session: AuthSession,
 ) => Response | Promise<Response>;
 
-/** Decrypt strategy: full decrypts all fields, table skips unused contact fields */
-export type DecryptMode = "full" | "table";
-
 /**
  * Load event with decrypted attendees, returning 404 if not found.
- * Mode "full" decrypts all fields; "table" skips contact fields not in event config,
- * saving expensive RSA decryption operations per attendee.
  */
 export const withDecryptedAttendees = async (
   session: AuthSession,
   eventId: number,
   handler: EventAttendeesHandler,
-  mode: DecryptMode = "full",
 ): Promise<Response> => {
   const pk = await requirePrivateKey(session);
   const result = await getEventWithAttendeesRaw(eventId);
   if (!result) return notFoundResponse();
-  const attendees =
-    mode === "table"
-      ? await decryptAttendeesForTable(
-          result.attendeesRaw,
-          pk,
-          result.event.fields,
-          isPaidEvent(result.event),
-        )
-      : await decryptAttendees(result.attendeesRaw, pk);
+  const attendees = await decryptAttendees(result.attendeesRaw, pk);
   return handler(result.event, attendees, session);
 };
 
@@ -105,10 +88,9 @@ export const withEventAttendeesAuth = (
   request: Request,
   eventId: number,
   handler: EventAttendeesHandler,
-  mode: DecryptMode = "full",
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
-    withDecryptedAttendees(session, eventId, handler, mode),
+    withDecryptedAttendees(session, eventId, handler),
   );
 
 /** Load question data for attendees across multiple events */
