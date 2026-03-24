@@ -160,10 +160,6 @@ const data = {
   squareLocationId: null as string | null,
   squareSandbox: false,
   stripeWebhookEndpointId: null as string | null,
-  appleWalletPassTypeId: null as string | null,
-  appleWalletTeamId: null as string | null,
-  googleWalletIssuerId: null as string | null,
-  googleWalletServiceAccountEmail: null as string | null,
   attendeeBlobMigrated: false,
 
   // --- Derived from country ---
@@ -190,9 +186,13 @@ const data = {
   emailTplAdminSubject: null as string | null,
   emailTplAdminHtml: null as string | null,
   emailTplAdminText: null as string | null,
+  appleWalletPassTypeId: null as string | null,
+  appleWalletTeamId: null as string | null,
   appleWalletSigningCert: null as string | null,
   appleWalletSigningKey: null as string | null,
   appleWalletWwdrCert: null as string | null,
+  googleWalletIssuerId: null as string | null,
+  googleWalletServiceAccountEmail: null as string | null,
   googleWalletServiceAccountKey: null as string | null,
 };
 
@@ -275,9 +275,16 @@ const ENCRYPTED_FIELDS: [string, keyof SettingsData][] = [
   [CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT, "emailTplAdminSubject"],
   [CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML, "emailTplAdminHtml"],
   [CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT, "emailTplAdminText"],
+  [CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID, "appleWalletPassTypeId"],
+  [CONFIG_KEYS.APPLE_WALLET_TEAM_ID, "appleWalletTeamId"],
   [CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT, "appleWalletSigningCert"],
   [CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY, "appleWalletSigningKey"],
   [CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, "appleWalletWwdrCert"],
+  [CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID, "googleWalletIssuerId"],
+  [
+    CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
+    "googleWalletServiceAccountEmail",
+  ],
   [
     CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
     "googleWalletServiceAccountKey",
@@ -314,13 +321,6 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   data.squareSandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
   data.stripeWebhookEndpointId =
     raw.get(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID) ?? null;
-  data.appleWalletPassTypeId =
-    raw.get(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID) ?? null;
-  data.appleWalletTeamId = raw.get(CONFIG_KEYS.APPLE_WALLET_TEAM_ID) ?? null;
-  data.googleWalletIssuerId =
-    raw.get(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID) ?? null;
-  data.googleWalletServiceAccountEmail =
-    raw.get(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL) ?? null;
   const m = raw.get(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED);
   data.attendeeBlobMigrated = m !== undefined && m !== "" && m !== null;
 
@@ -941,11 +941,11 @@ export const settings = {
     // --- Apple Wallet writes ---
     appleWallet: {
       passTypeId: async (v: string): Promise<void> => {
-        await writeOrDelete(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID, v);
+        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID, v);
         data.appleWalletPassTypeId = v || null;
       },
       teamId: async (v: string): Promise<void> => {
-        await writeOrDelete(CONFIG_KEYS.APPLE_WALLET_TEAM_ID, v);
+        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_TEAM_ID, v);
         data.appleWalletTeamId = v || null;
       },
       signingCert: async (v: string): Promise<void> => {
@@ -965,11 +965,14 @@ export const settings = {
     // --- Google Wallet writes ---
     googleWallet: {
       issuerId: async (v: string): Promise<void> => {
-        await writeOrDelete(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID, v);
+        await writeEncrypted(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID, v);
         data.googleWalletIssuerId = v || null;
       },
       serviceAccountEmail: async (v: string): Promise<void> => {
-        await writeOrDelete(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL, v);
+        await writeEncrypted(
+          CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
+          v,
+        );
         data.googleWalletServiceAccountEmail = v || null;
       },
       serviceAccountKey: async (v: string): Promise<void> => {
