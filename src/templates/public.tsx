@@ -290,7 +290,7 @@ export const ticketPage = (
       {!inIframe && (
         <>
           <Raw html={renderEventImage(event)} />
-          <div class="stack-sm">
+          <div class="prose">
             <h1>{event.name}</h1>
             {event.description && (
               <div class="description">
