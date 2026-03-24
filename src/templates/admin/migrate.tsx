@@ -22,7 +22,7 @@ export const adminMigratePage = (
     <Layout title="Database Migration">
       <AdminNav session={session} active="" />
       {state.done ? (
-        <section class="stack-sm">
+        <section class="prose">
           <h2>Database Migration</h2>
           <p>Migration complete. All attendee records have been upgraded.</p>
           <p>
@@ -30,7 +30,7 @@ export const adminMigratePage = (
           </p>
         </section>
       ) : (
-        <section class="stack-sm">
+        <section class="prose">
           <h2>Database Migration</h2>
           <p>
             We're restructuring the database to improve performance. Attendee
