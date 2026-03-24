@@ -840,6 +840,7 @@ export const loginAsAdmin = async (): Promise<{
       loginCsrfToken,
     ),
   );
+  loginResponse.body?.cancel();
   const cookie = loginResponse.headers
     .getSetCookie()
     .find((c) => c.startsWith(getSessionCookieName() + "="));
@@ -935,6 +936,7 @@ const authenticatedRequest = async <T>(
       session.cookie,
     ),
   );
+  response.body?.cancel();
 
   if (response.status !== 302) {
     throw new Error(`Failed to ${errorContext}: ${response.status}`);
@@ -1195,6 +1197,7 @@ export const createTestAttendee = async (
       `Failed to create attendee: ${response.status} - ${body.slice(0, 200)}`,
     );
   }
+  response.body?.cancel();
 
   // Return the most recent attendee (DESC order puts newest first)
   const afterAttendees = await getAttendeesRaw(eventId);
@@ -1248,6 +1251,7 @@ export const expectRedirect = (
   ...patterns: (string | RegExp)[]
 ): string => {
   expect(response.status).toBe(302);
+  response.body?.cancel();
   const location = getRedirectLocation(response);
   for (const p of patterns) {
     if (typeof p === "string") {
@@ -1277,6 +1281,7 @@ export const expectFlash = (
   message: string | any,
   succeeded = true,
 ): Response => {
+  response.body?.cancel();
   const cookies = response.headers.getSetCookie();
   const flash = cookies.find((c) => c.startsWith("flash_"));
   if (!flash) throw new Error("No flash cookie in response");
@@ -1563,6 +1568,7 @@ export const createTestInvite = async (
       cookie,
     ),
   );
+  inviteResponse.body?.cancel();
   const location = inviteResponse.headers.get("location") ?? "";
   const url = new URL(location, "http://localhost");
   const inviteLink = url.searchParams.get("invite") ?? "";
