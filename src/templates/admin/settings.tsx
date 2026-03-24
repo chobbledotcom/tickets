@@ -6,7 +6,11 @@ import { COUNTRIES, type CountryData } from "#lib/countries.ts";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { formatBytes, MAX_IMAGE_SIZE } from "#lib/limits.ts";
+import {
+  formatBytes,
+  MAX_IMAGE_SIZE,
+  MAX_TEXTAREA_LENGTH,
+} from "#lib/limits.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -373,7 +377,7 @@ export const adminSettingsPage = (
           </p>
           <textarea
             name="terms_and_conditions"
-            rows="4"
+            maxlength={MAX_TEXTAREA_LENGTH}
             placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."
           >
             {s.termsAndConditions}

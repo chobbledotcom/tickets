@@ -338,6 +338,24 @@ setupTestButton(
   },
 );
 
+/* Remaining chars counter for textareas with maxlength */
+for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
+  "textarea[maxlength]",
+)) {
+  const max = Number(ta.getAttribute("maxlength"));
+  if (!max) continue;
+  const counter = document.createElement("small");
+  counter.className = "char-counter";
+  const update = () => {
+    const remaining = max - ta.value.length;
+    counter.textContent = `${remaining} / ${max}`;
+    counter.classList.toggle("char-counter-warn", remaining < max * 0.1);
+  };
+  update();
+  ta.addEventListener("input", update);
+  ta.parentNode!.insertBefore(counter, ta.nextSibling);
+}
+
 /* Multi-ticket question visibility: show questions only when at least one
  * associated event has quantity > 0. Questions without data-event-ids are
  * always visible (single-event pages). */

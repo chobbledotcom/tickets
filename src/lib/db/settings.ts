@@ -504,9 +504,7 @@ const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null =>
 // Constants
 // ---------------------------------------------------------------------------
 
-export const MAX_TERMS_LENGTH = 10_240;
 export const MAX_WEBSITE_TITLE_LENGTH = 128;
-export const MAX_PAGE_TEXT_LENGTH = 2048;
 export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 
 // ---------------------------------------------------------------------------

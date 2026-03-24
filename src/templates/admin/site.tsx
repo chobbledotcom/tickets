@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
@@ -63,14 +64,14 @@ export const adminSiteHomePage = (
         <label for="homepage_text">Homepage Text</label>
         <p>
           <small>
-            Text displayed on the public homepage (max 2048 characters).{" "}
-            <Raw html={FORMATTING_HINT} />
+            Text displayed on the public homepage (max {MAX_TEXTAREA_LENGTH}{" "}
+            characters). <Raw html={FORMATTING_HINT} />
           </small>
         </p>
         <textarea
           id="homepage_text"
           name="homepage_text"
-          rows="4"
+          maxlength={MAX_TEXTAREA_LENGTH}
           placeholder="Welcome to our site..."
         >
           {homepageText ?? ""}
@@ -104,14 +105,14 @@ export const adminSiteContactPage = (
         <label for="contact_page_text">Contact Page Text</label>
         <p>
           <small>
-            Text displayed on the public contact page (max 2048 characters).{" "}
-            <Raw html={FORMATTING_HINT} />
+            Text displayed on the public contact page (max {MAX_TEXTAREA_LENGTH}{" "}
+            characters). <Raw html={FORMATTING_HINT} />
           </small>
         </p>
         <textarea
           id="contact_page_text"
           name="contact_page_text"
-          rows="4"
+          maxlength={MAX_TEXTAREA_LENGTH}
           placeholder="Get in touch with us..."
         >
           {contactPageText ?? ""}

@@ -119,13 +119,29 @@ export const handlePublicEvents = (): Response | Promise<Response> =>
     return htmlResponse(homepagePage(events, settings.websiteTitle));
   });
 
-/** Handle GET /terms - public terms and conditions page */
+/** Handle GET /terms - public terms and conditions page (404 when empty) */
 export const handlePublicTerms = (): Response =>
-  renderPublicPage("terms", () => settings.terms);
+  requirePublicSite(() =>
+    settings.terms
+      ? htmlResponse(
+          publicSitePage("terms", settings.websiteTitle, settings.terms),
+        )
+      : notFoundResponse(),
+  );
 
-/** Handle GET /contact - public contact page */
+/** Handle GET /contact - public contact page (404 when empty) */
 export const handlePublicContact = (): Response =>
-  renderPublicPage("contact", () => settings.contactPageText);
+  requirePublicSite(() =>
+    settings.contactPageText
+      ? htmlResponse(
+          publicSitePage(
+            "contact",
+            settings.websiteTitle,
+            settings.contactPageText,
+          ),
+        )
+      : notFoundResponse(),
+  );
 
 /** Render a ticket page with the given context */
 const renderTicketPage = (

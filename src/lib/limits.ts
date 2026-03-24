@@ -33,6 +33,13 @@ export const MAX_ATTACHMENT_SIZE = readLimit(
 );
 
 // ---------------------------------------------------------------------------
+// Text limits
+// ---------------------------------------------------------------------------
+
+/** Maximum textarea content length in characters (default: 10240 = 10KB) */
+export const MAX_TEXTAREA_LENGTH = readLimit("MAX_TEXTAREA_LENGTH", 10_240);
+
+// ---------------------------------------------------------------------------
 // Timing limits
 // ---------------------------------------------------------------------------
 
@@ -111,6 +118,7 @@ export const formatLimitValue = (value: number, unit: string): string => {
   if (unit === "bytes") return formatBytes(value);
   if (unit === "ms") return formatMs(value);
   if (unit === "seconds") return formatSeconds(value);
+  if (unit === "chars") return `${value} chars`;
   return `${value} ${unit}`;
 };
 
@@ -123,6 +131,13 @@ type LimitEntry = {
 };
 
 export const LIMIT_ENTRIES: readonly LimitEntry[] = [
+  {
+    label: "Max textarea length",
+    envKey: "MAX_TEXTAREA_LENGTH",
+    defaultValue: 10_240,
+    current: MAX_TEXTAREA_LENGTH,
+    unit: "chars",
+  },
   {
     label: "Max image size",
     envKey: "MAX_IMAGE_SIZE",
