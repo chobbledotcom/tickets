@@ -12,6 +12,7 @@ import { handleRequest } from "#routes";
 import {
   adminAttendeeAction,
   adminEventPage,
+  adminFormPost,
   awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,
@@ -159,15 +160,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/attendee/1/delete",
-          {
-            confirm_name: "John Doe",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/999/attendee/1/delete",
+        { confirm_name: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
@@ -178,15 +173,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/1/attendee/999/delete",
-          {
-            confirm_name: "John Doe",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/1/attendee/999/delete",
+        { confirm_name: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
@@ -534,23 +523,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/1/attendee/999/checkin",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/1/attendee/999/checkin",
       );
       expect(response.status).toBe(404);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/attendee/1/checkin",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/999/attendee/1/checkin",
       );
       expect(response.status).toBe(404);
     });
@@ -719,18 +700,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/attendee",
-          {
-            name: "Jane Doe",
-            email: "jane@example.com",
-            quantity: "1",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/event/999/attendee", {
+        name: "Jane Doe",
+        email: "jane@example.com",
+        quantity: "1",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -841,17 +815,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "first@example.com",
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee`,
-          {
-            name: "Second",
-            email: "second@example.com",
-            quantity: "1",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/event/${event.id}/attendee`,
+        {
+          name: "Second",
+          email: "second@example.com",
+          quantity: "1",
+        },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("spots"), false);
@@ -1117,21 +1087,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/999",
-          {
-            name: "Jane Doe",
-            email: "jane@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: "1",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/attendees/999", {
+        name: "Jane Doe",
+        email: "jane@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        event_id: "1",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -1169,20 +1132,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "",
-            email: "jane@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "",
+          email: "jane@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+        },
       );
       await expectHtmlResponse(response, 400, "Name is required");
     });
@@ -1197,21 +1156,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const returnUrl = "/admin/calendar#attendees";
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "",
-            email: "jane@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            csrf_token: await testCsrfToken(),
-            return_url: returnUrl,
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "",
+          email: "jane@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          return_url: returnUrl,
+        },
       );
       await expectHtmlResponse(response, 400, 'name="return_url"', returnUrl);
     });
@@ -1224,20 +1179,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "   ",
-            email: "jane@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "   ",
+          email: "jane@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+        },
       );
       await expectHtmlResponse(response, 400, "Name is required");
     });
@@ -1250,20 +1201,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "Jane Doe",
-            email: "jane@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: "0",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "Jane Doe",
+          email: "jane@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: "0",
+        },
       );
       await expectHtmlResponse(response, 400, "Event is required");
     });
@@ -1276,21 +1223,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "Jane Doe",
-            email: "jane@example.com",
-            phone: "555-9999",
-            address: "456 Oak Ave",
-            special_instructions: "Wheelchair access",
-            event_id: String(event.id),
-            quantity: "1",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "Jane Doe",
+          email: "jane@example.com",
+          phone: "555-9999",
+          address: "456 Oak Ave",
+          special_instructions: "Wheelchair access",
+          event_id: String(event.id),
+          quantity: "1",
+        },
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
@@ -1322,22 +1265,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "1",
-            csrf_token: await testCsrfToken(),
-            return_url: returnUrl,
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "1",
+          return_url: returnUrl,
+        },
       );
       expectRedirect(
         response,
@@ -1363,20 +1302,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event2.id),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event2.id),
+        },
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
@@ -1517,20 +1452,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendee;
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+        },
       );
       expect(response.status).toBe(302);
     });
@@ -1550,20 +1481,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendee;
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "Jane Smith",
-            email: "jane@example.com",
-            phone: "555-9999",
-            address: "456 Oak Ave",
-            special_instructions: "Special access needed",
-            event_id: String(event.id),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "Jane Smith",
+          email: "jane@example.com",
+          phone: "555-9999",
+          address: "456 Oak Ave",
+          special_instructions: "Special access needed",
+          event_id: String(event.id),
+        },
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
@@ -1583,21 +1510,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "3",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "3",
+        },
       );
       expect(response.status).toBe(302);
 
@@ -1635,21 +1558,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "10",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "10",
+        },
       );
       expect(response.status).toBe(302);
 
@@ -1666,21 +1585,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "3",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "3",
+        },
       );
       await expectHtmlResponse(response, 400, "Not enough spots available");
     });
@@ -1697,21 +1612,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
         3,
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "1",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "1",
+        },
       );
       expect(response.status).toBe(302);
 
@@ -1731,21 +1642,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: "9999",
-            quantity: "2",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: "9999",
+          quantity: "2",
+        },
       );
       await expectHtmlResponse(response, 400, "Event not found");
     });
@@ -1761,21 +1668,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "abc",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "abc",
+        },
       );
       expect(response.status).toBe(302);
 
@@ -1795,21 +1698,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "0",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "0",
+        },
       );
       expect(response.status).toBe(302);
 
@@ -1830,20 +1729,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+        },
       );
       expect(response.status).toBe(302);
 
@@ -1977,15 +1872,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/attendee/1/resend-notification",
-          {
-            confirm_name: "John Doe",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/999/attendee/1/resend-notification",
+        { confirm_name: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
@@ -1993,15 +1882,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("returns 404 for non-existent attendee", async () => {
       await createTestEvent({ maxAttendees: 100 });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/1/attendee/999/resend-notification",
-          {
-            confirm_name: "John Doe",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/1/attendee/999/resend-notification",
+        { confirm_name: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
@@ -2186,12 +2069,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}/refresh-payment`,
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/refresh-payment`,
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
@@ -2202,12 +2081,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/999/refresh-payment",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/attendees/999/refresh-payment",
       );
       expect(response.status).toBe(404);
     });
@@ -2226,12 +2101,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await withMocks(
         () => stub(paymentsApi, "getConfiguredProvider", () => null),
         async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/attendees/${attendee.id}/refresh-payment`,
-              { csrf_token: await testCsrfToken() },
-              await testCookie(),
-            ),
+          const { response } = await adminFormPost(
+            `/admin/attendees/${attendee.id}/refresh-payment`,
           );
           await expectHtmlResponse(response, 400, "payment provider");
         },
@@ -2264,12 +2135,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             () => Promise.resolve(true),
           );
           try {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/attendees/${attendee.id}/refresh-payment`,
-                { csrf_token: await testCsrfToken() },
-                await testCookie(),
-              ),
+            const { response } = await adminFormPost(
+              `/admin/attendees/${attendee.id}/refresh-payment`,
             );
             expect(response.status).toBe(302);
             expect(response.headers.get("location")).toContain(
@@ -2310,12 +2177,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             () => Promise.resolve(false),
           );
           try {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/attendees/${attendee.id}/refresh-payment`,
-                { csrf_token: await testCsrfToken() },
-                await testCookie(),
-              ),
+            const { response } = await adminFormPost(
+              `/admin/attendees/${attendee.id}/refresh-payment`,
             );
             expect(response.status).toBe(302);
             expect(response.headers.get("location")).toContain(
@@ -2401,22 +2264,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("saves selected answer on edit", async () => {
       const { event, attendee, q, a2 } = await setupQuestionAndAttendee();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "1",
-            [`question_${q.id}`]: String(a2.id),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "1",
+          [`question_${q.id}`]: String(a2.id),
+        },
       );
       expect(response.status).toBe(302);
 
@@ -2432,22 +2291,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await saveAttendeeAnswers([attendee.id], [a1.id]);
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "1",
-            [`question_${q.id}`]: String(a2.id),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "1",
+          [`question_${q.id}`]: String(a2.id),
+        },
       );
       expect(response.status).toBe(302);
 
@@ -2462,21 +2317,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await saveAttendeeAnswers([attendee.id], [a1.id]);
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "1",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "1",
+        },
       );
       expect(response.status).toBe(302);
 
@@ -2488,22 +2339,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("ignores invalid answer ID for question", async () => {
       const { event, attendee, q } = await setupQuestionAndAttendee();
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}`,
-          {
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-            event_id: String(event.id),
-            quantity: "1",
-            [`question_${q.id}`]: "99999",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+          quantity: "1",
+          [`question_${q.id}`]: "99999",
+        },
       );
       expect(response.status).toBe(302);
 

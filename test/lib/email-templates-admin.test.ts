@@ -5,6 +5,7 @@ import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
 import { resetEngine } from "#lib/email-renderer.ts";
 import { handleRequest } from "#routes";
 import {
+  assertJson,
   awaitTestRequest,
   describeWithEnv,
   expectAdminRedirect,
@@ -66,14 +67,14 @@ describeWithEnv("admin email templates", { db: true }, () => {
     );
   }
 
-  async function expectJsonError(
-    response: Response,
+  function assertJsonError(
+    request: Promise<Response>,
     status: number,
     errorSubstring: string,
   ) {
-    expect(response.status).toBe(status);
-    const json = await response.json();
-    expect(json.error).toContain(errorSubstring);
+    return assertJson(request, status, (json) => {
+      expect(json.error).toContain(errorSubstring);
+    });
   }
 
   describe("settings page", () => {
@@ -261,64 +262,72 @@ describeWithEnv("admin email templates", { db: true }, () => {
 
   describe("POST /admin/settings/email-templates/preview", () => {
     test("renders template preview with sample data", async () => {
-      const response = await postPreviewForm({
-        type: "confirmation",
-        template: "Hello {{ attendee.name }}",
-        format: "text",
-      });
-
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json.rendered).toBe("Hello Jane Smith");
+      await assertJson(
+        postPreviewForm({
+          type: "confirmation",
+          template: "Hello {{ attendee.name }}",
+          format: "text",
+        }),
+        200,
+        (json) => {
+          expect(json.rendered).toBe("Hello Jane Smith");
+        },
+      );
     });
 
     test("returns error for invalid template syntax", async () => {
-      const response = await postPreviewForm({
-        type: "confirmation",
-        template: "{% invalid %}",
-        format: "text",
-      });
-
-      await expectJsonError(response, 400, "Template syntax error");
+      await assertJsonError(
+        postPreviewForm({
+          type: "confirmation",
+          template: "{% invalid %}",
+          format: "text",
+        }),
+        400,
+        "Template syntax error",
+      );
     });
 
     test("returns error for invalid template type", async () => {
-      const response = await postPreviewForm({
-        type: "invalid",
-        template: "test",
-        format: "text",
-      });
-
-      await expectJsonError(response, 400, "Invalid template type");
+      await assertJsonError(
+        postPreviewForm({
+          type: "invalid",
+          template: "test",
+          format: "text",
+        }),
+        400,
+        "Invalid template type",
+      );
     });
 
     test("defaults missing preview fields to empty and rejects invalid type", async () => {
-      const response = await postPreviewForm({});
-
-      await expectJsonError(response, 400, "Invalid template type");
+      await assertJsonError(postPreviewForm({}), 400, "Invalid template type");
     });
 
     test("returns error when template render throws", async () => {
-      const response = await postPreviewForm({
-        type: "confirmation",
-        template: '{% render "nonexistent" %}',
-        format: "text",
-      });
-
-      await expectJsonError(response, 400, "nonexistent");
+      await assertJsonError(
+        postPreviewForm({
+          type: "confirmation",
+          template: '{% render "nonexistent" %}',
+          format: "text",
+        }),
+        400,
+        "nonexistent",
+      );
     });
 
     test("renders currency filter in preview", async () => {
-      const response = await postPreviewForm({
-        type: "confirmation",
-        template:
-          "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
-        format: "html",
-      });
-
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json.rendered).toContain("£");
+      await assertJson(
+        postPreviewForm({
+          type: "confirmation",
+          template:
+            "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
+          format: "html",
+        }),
+        200,
+        (json) => {
+          expect(json.rendered).toContain("£");
+        },
+      );
     });
   });
 });

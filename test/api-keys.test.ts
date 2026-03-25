@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildSessionCookie, getSessionCookieName } from "#lib/cookies.ts";
+import { buildSessionCookie } from "#lib/cookies.ts";
 import {
   generateSecureToken,
   hmacHash,
@@ -19,9 +19,11 @@ import {
   touchApiKeyLastUsed,
 } from "#lib/db/api-keys.ts";
 import { getDb } from "#lib/db/client.ts";
-import { createSession, getSession } from "#lib/db/sessions.ts";
+import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
+  assertJson,
+  createTestApiKeyFull,
   createTestEvent,
   describeWithEnv,
   expectFlash,
@@ -29,33 +31,15 @@ import {
   extractCsrfToken,
   FLASH_TEST_ID,
   flashCookieHeader,
-  matchGroup,
   mockRequest,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
 
-/** Helper to get the DATA_KEY from the test session */
-const getTestDataKey = async (): Promise<CryptoKey> => {
-  const cookie = await testCookie();
-  const token = matchGroup(
-    cookie,
-    new RegExp(`${getSessionCookieName()}=([^;]+)`),
-  );
-  const session = await getSession(token);
-  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
-};
-
 describeWithEnv("API Keys", { db: true }, () => {
   describe("database operations", () => {
     test("creates and retrieves an API key", async () => {
-      const dataKey = await getTestDataKey();
-      const { apiKey, id } = await createApiKey(
-        1,
-        "Test Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { apiKey, id } = await createTestApiKeyFull();
 
       expect(id).toBeGreaterThan(0);
       expect(apiKey).toBeTruthy();
@@ -67,13 +51,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("unwraps DATA_KEY from API key", async () => {
-      const dataKey = await getTestDataKey();
-      const { apiKey } = await createApiKey(
-        1,
-        "Test Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { apiKey } = await createTestApiKeyFull();
 
       const found = await getApiKeyByToken(apiKey);
       const unwrapped = await unwrapKeyWithToken(
@@ -89,13 +67,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("throws for wrong token unwrap", async () => {
-      const dataKey = await getTestDataKey();
-      const { apiKey } = await createApiKey(
-        1,
-        "Test Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { apiKey } = await createTestApiKeyFull();
 
       const found = await getApiKeyByToken(apiKey);
       await expect(
@@ -104,8 +76,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("lists API keys for a user", async () => {
-      const dataKey = await getTestDataKey();
-      await createApiKey(1, "Key A", dataKey, generateSecureToken);
+      const { dataKey } = await createTestApiKeyFull("Key A");
       await createApiKey(1, "Key B", dataKey, generateSecureToken);
 
       const keys = await getApiKeysForUser(1);
@@ -115,8 +86,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("counts API keys for a user", async () => {
-      const dataKey = await getTestDataKey();
-      await createApiKey(1, "Key A", dataKey, generateSecureToken);
+      const { dataKey } = await createTestApiKeyFull("Key A");
       await createApiKey(1, "Key B", dataKey, generateSecureToken);
 
       expect(await countApiKeysForUser(1)).toBe(2);
@@ -124,13 +94,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("deletes an API key", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "Test Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull();
 
       const deleted = await deleteApiKey(id, 1);
       expect(deleted).toBe(true);
@@ -138,13 +102,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("delete fails for wrong user", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "Test Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull();
 
       const deleted = await deleteApiKey(id, 999);
       expect(deleted).toBe(false);
@@ -152,8 +110,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("deletes all API keys for a user", async () => {
-      const dataKey = await getTestDataKey();
-      await createApiKey(1, "Key A", dataKey, generateSecureToken);
+      const { dataKey } = await createTestApiKeyFull("Key A");
       await createApiKey(1, "Key B", dataKey, generateSecureToken);
 
       await deleteAllApiKeysForUser(1);
@@ -161,13 +118,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("updates last_used timestamp", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "Touch Test",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull("Touch Test");
 
       await touchApiKeyLastUsed(id);
       const keys = await getApiKeysForUser(1);
@@ -175,13 +126,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("gets a single API key by ID and user", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "Lookup Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull("Lookup Key");
 
       const found = await getApiKeyForUser(id, 1);
       expect(found).not.toBeNull();
@@ -189,13 +134,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("getApiKeyForUser throws for wrong user", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "Wrong User",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull("Wrong User");
 
       await expect(getApiKeyForUser(id, 999)).rejects.toThrow();
     });
@@ -359,13 +298,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("GET /admin/api-keys shows existing keys with last used date", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "Visible Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull("Visible Key");
       await touchApiKeyLastUsed(id);
 
       const cookie = await testCookie();
@@ -406,13 +339,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("POST /admin/api-keys/:id/delete removes a key with name confirmation", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "Doomed Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull("Doomed Key");
 
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
@@ -437,13 +364,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("POST /admin/api-keys/:id/delete rejects wrong name", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "My Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull("My Key");
 
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
@@ -470,13 +391,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("GET /admin/api-keys/:id/delete shows confirmation page", async () => {
-      const dataKey = await getTestDataKey();
-      const { id } = await createApiKey(
-        1,
-        "Confirm Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id } = await createTestApiKeyFull("Confirm Key");
 
       const cookie = await testCookie();
       const response = await handleRequest(
@@ -507,33 +422,23 @@ describeWithEnv("API Keys", { db: true }, () => {
     test("authenticates /api/admin/* request with Bearer token", async () => {
       await createTestEvent({ name: "Bearer Test" });
 
-      const dataKey = await getTestDataKey();
-      const { apiKey } = await createApiKey(
-        1,
-        "Auth Test",
-        dataKey,
-        generateSecureToken,
-      );
+      const { apiKey } = await createTestApiKeyFull("Auth Test");
 
-      const response = await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: { authorization: `Bearer ${apiKey}` },
-        }),
+      await assertJson(
+        handleRequest(
+          mockRequest("/api/admin/events", {
+            headers: { authorization: `Bearer ${apiKey}` },
+          }),
+        ),
+        200,
+        (body) => {
+          expect(body.events).toBeDefined();
+        },
       );
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.events).toBeDefined();
     });
 
     test("rejects Bearer token on admin HTML pages", async () => {
-      const dataKey = await getTestDataKey();
-      const { apiKey } = await createApiKey(
-        1,
-        "Scope Test",
-        dataKey,
-        generateSecureToken,
-      );
+      const { apiKey } = await createTestApiKeyFull("Scope Test");
 
       // Bearer should NOT authenticate admin UI routes
       const dashboardResponse = await handleRequest(
@@ -631,25 +536,21 @@ describeWithEnv("API Keys", { db: true }, () => {
     test("GET /api/admin/events returns events via API key", async () => {
       await createTestEvent({ name: "Test Event" });
 
-      const dataKey = await getTestDataKey();
-      const { apiKey } = await createApiKey(
-        1,
-        "Events API",
-        dataKey,
-        generateSecureToken,
-      );
+      const { apiKey } = await createTestApiKeyFull("Events API");
 
-      const response = await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: { authorization: `Bearer ${apiKey}` },
-        }),
+      const body = await assertJson(
+        handleRequest(
+          mockRequest("/api/admin/events", {
+            headers: { authorization: `Bearer ${apiKey}` },
+          }),
+        ),
+        200,
+        (body) => {
+          expect(body.events).toBeDefined();
+          expect(body.events.length).toBeGreaterThan(0);
+          expect(body.admin_level).toBe("owner");
+        },
       );
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.events).toBeDefined();
-      expect(body.events.length).toBeGreaterThan(0);
-      expect(body.admin_level).toBe("owner");
 
       // Verify snake_case keys and no internal fields
       const event = body.events[0];
@@ -666,18 +567,20 @@ describeWithEnv("API Keys", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const response = await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: {
-            cookie,
-            "x-csrf-token": csrfToken,
-          },
-        }),
+      await assertJson(
+        handleRequest(
+          mockRequest("/api/admin/events", {
+            headers: {
+              cookie,
+              "x-csrf-token": csrfToken,
+            },
+          }),
+        ),
+        200,
+        (body) => {
+          expect(body.events).toBeDefined();
+        },
       );
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.events).toBeDefined();
     });
 
     test("GET /api/admin/events returns 401 for invalid API key", async () => {
@@ -719,13 +622,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("returns 401 when API key wrapped data key is corrupted", async () => {
-      const dataKey = await getTestDataKey();
-      const { apiKey, id } = await createApiKey(
-        1,
-        "Corrupt Key",
-        dataKey,
-        generateSecureToken,
-      );
+      const { apiKey, id } = await createTestApiKeyFull("Corrupt Key");
 
       // Corrupt the wrapped_data_key in the DB
       await getDb().execute({

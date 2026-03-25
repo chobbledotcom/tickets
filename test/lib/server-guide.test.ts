@@ -5,6 +5,7 @@ import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
+  assertAdminHtml,
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
@@ -24,167 +25,161 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains FAQ sections", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Getting Started");
-      expect(html).toContain("Events");
-      expect(html).toContain("Payments");
-      expect(html).toContain("Check-in");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Getting Started",
+        "Events",
+        "Payments",
+        "Check-in",
+      );
     });
 
     test("contains booking questions section", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Booking Questions");
-      expect(html).toContain("multiple-choice");
-      expect(html).toContain("must select one");
-      expect(html).toContain("shared across multiple events");
-      expect(html).toContain("attendee table on event and group pages");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Booking Questions",
+        "multiple-choice",
+        "must select one",
+        "shared across multiple events",
+        "attendee table on event and group pages",
+      );
     });
 
     test("contains public links section", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Public Links");
-      expect(html).toContain("Facebook Sharing Debugger");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Public Links",
+        "Facebook Sharing Debugger",
+      );
     });
 
     test("contains payment provider recommendation", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Which payment provider do you recommend?");
-      expect(html).toContain("setup is a fair bit easier");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Which payment provider do you recommend?",
+        "setup is a fair bit easier",
+      );
     });
 
     test("contains payment reservation info", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("5 minutes");
+      await assertAdminHtml("/admin/guide", "5 minutes");
     });
 
     test("contains add attendee info", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Add Attendee");
+      await assertAdminHtml("/admin/guide", "Add Attendee");
     });
 
     test("contains payment setup section with Stripe instructions", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Payment Setup");
-      expect(html).toContain('id="payment-setup"');
-      expect(html).toContain("Stripe secret key");
-      expect(html).toContain("sk_test_");
-      expect(html).toContain("dashboard.stripe.com");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Payment Setup",
+        'id="payment-setup"',
+        "Stripe secret key",
+        "sk_test_",
+        "dashboard.stripe.com",
+      );
     });
 
     test("contains payment setup section with Square instructions", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("create a Square application");
-      expect(html).toContain("Square access token");
-      expect(html).toContain("Square location ID");
-      expect(html).toContain("developer.squareup.com");
-      expect(html).toContain("payment.updated");
+      await assertAdminHtml(
+        "/admin/guide",
+        "create a Square application",
+        "Square access token",
+        "Square location ID",
+        "developer.squareup.com",
+        "payment.updated",
+      );
     });
 
     test("contains test vs live credentials guidance", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("test or live credentials");
+      await assertAdminHtml("/admin/guide", "test or live credentials");
     });
 
     test("contains public site section", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Public Site");
-      expect(html).toContain("homepage and contact page");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Public Site",
+        "homepage and contact page",
+      );
     });
 
     test("contains calendar and activity log sections", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Calendar");
-      expect(html).toContain("Activity Log");
+      await assertAdminHtml("/admin/guide", "Calendar", "Activity Log");
     });
 
     test("contains settings overview section", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Settings Overview");
-      expect(html).toContain("Country");
-      expect(html).toContain("Site theme");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Settings Overview",
+        "Country",
+        "Site theme",
+      );
     });
 
     test("contains event image, duplicate, and deactivate info", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("image to an event");
-      expect(html).toContain("Duplicate");
-      expect(html).toContain("Deactivate");
+      await assertAdminHtml(
+        "/admin/guide",
+        "image to an event",
+        "Duplicate",
+        "Deactivate",
+      );
     });
 
     test("contains allow pay more info with max price", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Allow Pay More");
-      expect(html).toContain("maximum");
-      expect(html).toContain("£1");
+      await assertAdminHtml("/admin/guide", "Allow Pay More", "maximum", "£1");
     });
 
     test("contains non-transferable tickets info", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("non-transferable");
-      expect(html).toContain("ID required at entry");
-      expect(html).toContain("ticket touting");
+      await assertAdminHtml(
+        "/admin/guide",
+        "non-transferable",
+        "ID required at entry",
+        "ticket touting",
+      );
     });
 
     test("contains attendee editing info", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("edit an attendee");
-      expect(html).toContain("reassign");
+      await assertAdminHtml("/admin/guide", "edit an attendee", "reassign");
     });
 
     test("contains text formatting section", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Text Formatting");
-      expect(html).toContain('id="text-formatting"');
-      expect(html).toContain("Markdown");
-      expect(html).toContain("markdownguide.org/cheat-sheet");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Text Formatting",
+        'id="text-formatting"',
+        "Markdown",
+        "markdownguide.org/cheat-sheet",
+      );
     });
 
     test("contains hidden events info", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("hide an event");
-      expect(html).toContain("Hidden Event");
-      expect(html).toContain("noindex, nofollow");
+      await assertAdminHtml(
+        "/admin/guide",
+        "hide an event",
+        "Hidden Event",
+        "noindex, nofollow",
+      );
     });
 
     test("contains testing your system section", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Testing Your System");
-      expect(html).toContain("test the full booking process");
-      expect(html).toContain("early in development");
-      expect(html).toContain("hello@chobble.com");
+      await assertAdminHtml(
+        "/admin/guide",
+        "Testing Your System",
+        "test the full booking process",
+        "early in development",
+        "hello@chobble.com",
+      );
     });
 
     test("contains admin navigation", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("/admin/guide");
-      expect(html).toContain("Events");
-      expect(html).toContain("Logout");
+      await assertAdminHtml("/admin/guide", "/admin/guide", "Events", "Logout");
     });
 
     test("shows default email setup instructions when no host email configured", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Choose your email provider from the dropdown");
+      const html = await assertAdminHtml(
+        "/admin/guide",
+        "Choose your email provider from the dropdown",
+      );
       expect(html).not.toContain(
         "already configured by your server administrator",
       );
@@ -197,23 +192,23 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         fromAddress: "tickets@example.com",
       });
       try {
-        const { response } = await adminGet("/admin/guide");
-        const html = await response.text();
-        expect(html).toContain(
+        await assertAdminHtml(
+          "/admin/guide",
           "already configured by your server administrator",
+          "Resend",
+          "tickets@example.com",
+          "Choose your email provider from the dropdown",
         );
-        expect(html).toContain("Resend");
-        expect(html).toContain("tickets@example.com");
-        expect(html).toContain("Choose your email provider from the dropdown");
       } finally {
         resetHostEmailConfig();
       }
     });
 
     test("shows default wallet setup instructions when no host wallet configured", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("You need five values from");
+      const html = await assertAdminHtml(
+        "/admin/guide",
+        "You need five values from",
+      );
       expect(html).not.toContain(
         "already configured by your server administrator using pass type",
       );
@@ -228,13 +223,12 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         wwdrCert: "wwdr-data",
       });
       try {
-        const { response } = await adminGet("/admin/guide");
-        const html = await response.text();
-        expect(html).toContain(
+        await assertAdminHtml(
+          "/admin/guide",
           "already configured by your server administrator using pass type",
+          "pass.com.host.tickets",
+          "You need five values from",
         );
-        expect(html).toContain("pass.com.host.tickets");
-        expect(html).toContain("You need five values from");
       } finally {
         settings.appleWallet.resetHostConfig();
       }

@@ -33,6 +33,7 @@ export type AdvancedSettingsPageState = {
   bunnySubdomain: string;
   bunnyDnsSubdomainSuffix: string;
   subdomainPreview: string;
+  subdomainPreviewFullDomain: string;
   customDomain: string;
   customDomainLastValidated: string;
   cdnHostname: string;
@@ -487,19 +488,19 @@ export const adminAdvancedSettingsPage = (
             </div>
           ) : (
             <div>
-              <p>
-                Choose a subdomain for your booking site. This cannot be changed
-                once set.
-              </p>
+              <div class="prose">
+                <p>
+                  You can choose a prettier domain name for your tickets site.
+                  Enter a subdomain into the box below to preview the full URL
+                  &mdash; you can change your mind before saving, but once set
+                  this cannot be changed.
+                </p>
+              </div>
               {s.subdomainPreview ? (
                 <div>
                   <p>
-                    Subdomain{" "}
-                    <strong>
-                      {s.subdomainPreview}
-                      {s.bunnyDnsSubdomainSuffix}
-                    </strong>{" "}
-                    is available.
+                    <strong>{s.subdomainPreviewFullDomain}</strong> is
+                    available.
                   </p>
                   <input
                     type="hidden"
@@ -516,20 +517,18 @@ export const adminAdvancedSettingsPage = (
                 <div>
                   <label>
                     Subdomain
-                    <div class="subdomain-input-group">
-                      <input
-                        type="text"
-                        name="subdomain"
-                        placeholder="myevent"
-                        autocomplete="off"
-                        pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
-                      />
-                      <span class="subdomain-suffix">
-                        {s.bunnyDnsSubdomainSuffix}
-                      </span>
-                    </div>
+                    <input
+                      type="text"
+                      name="subdomain"
+                      placeholder="myevent"
+                      autocomplete="off"
+                      pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
+                    />
+                    <span class="muted">{s.bunnyDnsSubdomainSuffix}</span>
                   </label>
-                  <button type="submit">Check Availability</button>
+                  <button type="submit">
+                    Check Availability &amp; Preview Complete Domain
+                  </button>
                 </div>
               )}
             </div>
@@ -538,13 +537,17 @@ export const adminAdvancedSettingsPage = (
       )}
 
       {s.bunnyCdnEnabled && (
-        <div>
+        <div class="stack stack-sm">
           <CsrfForm
             action="/admin/settings/custom-domain"
             id="settings-custom-domain"
           >
             <h2>Custom Domain</h2>
-            <p>Set a custom domain for your booking site.</p>
+            <p>
+              Set a custom domain for your tickets site.
+              {s.bunnySubdomain &&
+                " Your host subdomain can be active at the same time as a custom domain."}
+            </p>
             <label>
               Domain
               <input
@@ -579,26 +582,20 @@ export const adminAdvancedSettingsPage = (
                     To use your custom domain, create a <strong>CNAME</strong>{" "}
                     record:
                   </p>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Type</th>
-                        <th>Name</th>
-                        <th>Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>CNAME</td>
-                        <td>
-                          <code>{s.customDomain}</code>
-                        </td>
-                        <td>
-                          <code>{s.cdnHostname}</code>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <ul>
+                    <li>
+                      <strong>Type:</strong> CNAME
+                    </li>
+                    <li>
+                      <strong>Name:</strong> <code>{s.customDomain}</code>
+                    </li>
+                    <li>
+                      <strong>Value:</strong> <code>{s.cdnHostname}</code>
+                    </li>
+                    <li>
+                      <strong>TTL:</strong> 3600
+                    </li>
+                  </ul>
                   <p>
                     Once the DNS record is in place, click the button below to
                     validate and enable SSL.

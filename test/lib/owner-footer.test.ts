@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
   adminGet,
+  assertAdminHtml,
   awaitTestRequest,
   createTestEvent,
   createTestManagerSession,
@@ -15,42 +16,33 @@ import {
 
 describeWithEnv("admin debug footer", { db: true }, () => {
   test("owner sees footer on admin dashboard", async () => {
-    const { response } = await adminGet("/admin/");
-    const html = await response.text();
-    expect(html).toContain("Chobble Tickets");
-    expect(html).toContain("<details>");
-    expect(html).toContain("<summary>");
+    await assertAdminHtml(
+      "/admin/",
+      "Chobble Tickets",
+      "<details>",
+      "<summary>",
+    );
   });
 
   test("footer contains SQL queries", async () => {
-    const { response } = await adminGet("/admin/");
-    const html = await response.text();
-    expect(html).toContain("SELECT");
-    expect(html).toContain("ms</li>");
+    await assertAdminHtml("/admin/", "SELECT", "ms</li>");
   });
 
   test("footer shows query count in summary", async () => {
-    const { response } = await adminGet("/admin/");
-    const html = await response.text();
+    const html = await assertAdminHtml("/admin/");
     expect(html).toMatch(/\d+ quer(y|ies)/);
   });
 
   test("footer shows timing breakdown", async () => {
-    const { response } = await adminGet("/admin/");
-    const html = await response.text();
-    expect(html).toContain("sql ");
-    expect(html).toContain("other ");
+    await assertAdminHtml("/admin/", "sql ", "other ");
   });
 
   test("footer shows cache stats", async () => {
-    const { response } = await adminGet("/admin/");
-    const html = await response.text();
-    expect(html).toContain("cached");
+    await assertAdminHtml("/admin/", "cached");
   });
 
   test("footer is inside a <footer> element before </body>", async () => {
-    const { response } = await adminGet("/admin/");
-    const html = await response.text();
+    const html = await assertAdminHtml("/admin/");
     const footerIdx = html.indexOf("<footer");
     const bodyCloseIdx = html.indexOf("</body>");
     expect(footerIdx).toBeGreaterThan(-1);
@@ -58,9 +50,7 @@ describeWithEnv("admin debug footer", { db: true }, () => {
   });
 
   test("footer uses debug-footer CSS class", async () => {
-    const { response } = await adminGet("/admin/");
-    const html = await response.text();
-    expect(html).toContain('class="debug-footer"');
+    await assertAdminHtml("/admin/", 'class="debug-footer"');
   });
 
   test("unauthenticated users do not see footer", async () => {
@@ -93,9 +83,7 @@ describeWithEnv("admin debug footer", { db: true }, () => {
   });
 
   test("owner sees footer on settings page", async () => {
-    const settingsResult = await adminGet("/admin/settings");
-    const settingsHtml = await settingsResult.response.text();
-    expect(settingsHtml).toContain("Chobble Tickets");
+    await assertAdminHtml("/admin/settings", "Chobble Tickets");
   });
 
   test("footer excluded from CSV export responses", async () => {

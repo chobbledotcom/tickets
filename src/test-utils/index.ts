@@ -18,10 +18,13 @@ import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
 import {
   clearEncryptionKeyCache,
+  generateSecureToken,
   setEncryptionKeyForTest,
+  unwrapKeyWithToken,
 } from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
+import { createApiKey } from "#lib/db/api-keys.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
   type EventInput,
@@ -1289,6 +1292,92 @@ export const expectStatus =
   };
 
 /**
+ * Assert status, parse JSON body, and run assertions on the result.
+ * Curried for pipe-friendly use.
+ *
+ * @example
+ * // Inline assertions
+ * const body = await expectJsonResponse(201, (b) => {
+ *   expect(b.event.name).toBe("New Event");
+ * })(response);
+ *
+ * // Status-only (just parse)
+ * const body = await expectJsonResponse(200)(response);
+ */
+export const expectJsonResponse =
+  // biome-ignore lint/suspicious/noExplicitAny: response.json() returns any; callers access nested fields freely
+  // deno-lint-ignore no-explicit-any
+    <T = any>(status: number, assertions?: (body: T) => void) =>
+    async (response: Response): Promise<T> => {
+      expect(response.status).toBe(status);
+      const body = (await response.json()) as T;
+      assertions?.(body);
+      return body;
+    };
+
+/**
+ * Assert status and JSON body on a response promise in one call.
+ * Composes any Promise<Response> with expectJsonResponse — works with
+ * apiRequest, handleRequest, or any other request helper.
+ *
+ * @example
+ * await assertJson(apiRequest("/api/events", { method: "POST", body }), 201, (b) => {
+ *   expect(b.event.name).toBe("New Event");
+ * });
+ *
+ * await assertJson(handleRequest(mockWebhookRequest()), 200, (b) => {
+ *   expect(b.received).toBe(true);
+ * });
+ */
+// deno-lint-ignore no-explicit-any
+export const assertJson = async <T = any>(
+  request: Promise<Response>,
+  status: number,
+  assertions?: (body: T) => void,
+): Promise<T> => {
+  const response = await request;
+  return expectJsonResponse<T>(status, assertions)(response);
+};
+
+/**
+ * Submit an admin form and assert the response redirects with a flash message.
+ * Combines adminFormPost + expectRedirectWithFlash in one call.
+ *
+ * @example
+ * await assertFormRedirect("/admin/settings", { country: "US" }, "/admin/settings", "Country updated");
+ */
+export const assertFormRedirect = async (
+  path: string,
+  data: Record<string, string>,
+  redirectTo: string,
+  flashMessage: string,
+): Promise<Response> => {
+  const { response } = await adminFormPost(path, data);
+  expectRedirectWithFlash(redirectTo, flashMessage)(response);
+  return response;
+};
+
+/**
+ * Fetch an admin page and assert the HTML contains all given substrings.
+ * Returns the HTML for further assertions.
+ *
+ * @example
+ * await assertAdminHtml("/admin/guide", "Getting Started", "Events");
+ *
+ * const html = await assertAdminHtml("/admin/debug", "queries");
+ * expect(html).not.toContain("secret");
+ */
+export const assertAdminHtml = async (
+  path: string,
+  ...substrings: string[]
+): Promise<string> => {
+  const { response } = await adminGet(path);
+  const html = await response.text();
+  for (const s of substrings) expect(html).toContain(s);
+  return html;
+};
+
+/**
  * Assert status and check that the HTML body contains all given substrings.
  * Returns the HTML string for further assertions.
  */
@@ -2370,3 +2459,114 @@ export const makeTestEntry = (
   event: makeTestEvent(eventOverrides),
   attendee: makeTestAttendee(attendeeOverrides),
 });
+
+// ---------------------------------------------------------------------------
+// Storage mock helpers — shared across image, attachment, and CDN tests
+// ---------------------------------------------------------------------------
+
+/** JPEG magic bytes for a valid test image */
+export const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+
+/** PDF magic bytes for test attachments / invalid-image-type tests */
+export const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+
+/** Standard CDN 201 success response */
+export const cdnOkResponse = (): Response =>
+  new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), {
+    status: 201,
+  });
+
+/** Mock fetch to intercept Bunny CDN API calls, forwarding others to real fetch */
+export const withStorageMock = (
+  fn: (fetchCalls: string[]) => Promise<void>,
+): Promise<void> =>
+  withFetchMock(async (originalFetch) => {
+    const fetchCalls: string[] = [];
+    installUrlHandler(originalFetch, (url) => {
+      fetchCalls.push(url);
+      if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
+        return Promise.resolve(cdnOkResponse());
+      }
+      return null;
+    });
+    await fn(fetchCalls);
+  });
+
+/** Mock fetch where CDN requests return a fixed response, others pass through */
+export const withCdnProxy = (
+  respond: () => Response,
+  fn: () => Promise<void>,
+): Promise<void> =>
+  withFetchMock(async (originalFetch) => {
+    installUrlHandler(originalFetch, (url) =>
+      url.includes("storage.bunnycdn.com") ? Promise.resolve(respond()) : null,
+    );
+    await fn();
+  });
+
+// ---------------------------------------------------------------------------
+// API key helpers — shared across admin API and API key tests
+// ---------------------------------------------------------------------------
+
+/** Get the DATA_KEY from the test session */
+export const getTestDataKey = async (): Promise<CryptoKey> => {
+  const cookie = await testCookie();
+  const sessionMatch = cookie.match(
+    new RegExp(`${getSessionCookieName()}=([^;]+)`),
+  );
+  const token = sessionMatch![1]!;
+  const session = await getSession(token);
+  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
+};
+
+/** Create an API key and return its token */
+export const createTestApiKeyToken = async (): Promise<string> => {
+  const dataKey = await getTestDataKey();
+  const { apiKey } = await createApiKey(
+    1,
+    "Test API Key",
+    dataKey,
+    generateSecureToken,
+  );
+  return apiKey;
+};
+
+/** Create an API key and return { apiKey, id, dataKey } */
+export const createTestApiKeyFull = async (
+  name = "Test Key",
+): Promise<{ apiKey: string; id: number; dataKey: CryptoKey }> => {
+  const dataKey = await getTestDataKey();
+  const { apiKey, id } = await createApiKey(
+    1,
+    name,
+    dataKey,
+    generateSecureToken,
+  );
+  return { apiKey, id, dataKey };
+};
+
+/** Make an authenticated JSON API request using an API key (or auto-creating one) */
+export const apiRequest = async (
+  path: string,
+  options: {
+    method?: string;
+    body?: Record<string, unknown>;
+    apiKey?: string;
+  } = {},
+): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const apiKey = options.apiKey ?? (await createTestApiKeyToken());
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${apiKey}`,
+  };
+  const method = options.method ?? "GET";
+  if (method !== "GET") {
+    headers["content-type"] = "application/json";
+  }
+  const init: RequestInit = {
+    method,
+    headers,
+    body: method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
+  };
+  return handleRequest(mockRequest(path, init));
+};
