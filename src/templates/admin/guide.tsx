@@ -1060,6 +1060,16 @@ export const adminGuidePage = (
             configured, the feature is simply hidden.
           </p>
         </Q>
+
+        <Q q="Do Google Wallet passes update automatically?">
+          <p>
+            No. Unlike Apple Wallet, Google Wallet passes are generated as a
+            one-time snapshot when the attendee adds them. If event details
+            change later, the pass in the attendee&apos;s wallet won&apos;t
+            update. The attendee can remove and re-add the pass from their
+            ticket page to get the latest details.
+          </p>
+        </Q>
       </Section>
 
       <Section id="user-classes" title="Users &amp; Permissions">
