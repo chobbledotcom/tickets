@@ -19,7 +19,6 @@ import {
   expectFlash,
   expectHtmlResponse,
   assertJson,
-  expectJsonResponse,
   expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
