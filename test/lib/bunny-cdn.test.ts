@@ -723,15 +723,17 @@ describeWithEnv(
     },
   },
   () => {
-    beforeEach(() => setEffectiveDomainForTest("mysite.bunny.run"));
-    afterEach(() => resetEffectiveDomain());
-
     const availableMock = {
       checkSubdomainAvailable: () =>
         Promise.resolve({
           ok: true as const,
           available: true,
           fullDomain: "myevent.tickets.example.com",
+        }),
+      getCdnHostname: () =>
+        Promise.resolve({
+          ok: true as const,
+          hostname: "mysite.b-cdn.net",
         }),
     };
 
@@ -791,11 +793,25 @@ describeWithEnv(
               expect(JSON.parse(calls.at(0)!.init!.body as string)).toEqual({
                 Type: 5,
                 Name: "myevent.tickets",
-                Value: "mysite.bunny.run",
+                Value: "mysite.b-cdn.net",
                 Ttl: 300,
               });
             },
           );
+        },
+      );
+    });
+
+    test("returns error when CDN hostname lookup fails", async () => {
+      await withMockBunnyCdnApi(
+        {
+          ...availableMock,
+          getCdnHostname: () =>
+            Promise.resolve({ ok: false as const, error: "No pull zones" }),
+        },
+        async () => {
+          const result = await registerBunnySubdomain("myevent");
+          expect(result).toEqual({ ok: false, error: "No pull zones" });
         },
       );
     });

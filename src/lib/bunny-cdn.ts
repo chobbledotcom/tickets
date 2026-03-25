@@ -10,7 +10,6 @@ import {
   getBunnyDnsSubdomainSuffix,
   getBunnyDnsZoneId,
   getBunnyScriptId,
-  getEffectiveDomain,
 } from "#lib/config.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { type DrainedResponse, fetchDrained } from "#lib/pending-work.ts";
@@ -296,7 +295,14 @@ const registerBunnySubdomainImpl = async (
 
   const recordName = buildSubdomainRecordName(subdomain);
   const fullDomain = availCheck.fullDomain;
-  const target = getEffectiveDomain();
+
+  // Resolve CDN hostname for CNAME target (stable .b-cdn.net, not custom domain)
+  const cdnHostname = await bunnyCdnApi.getCdnHostname();
+  if (!cdnHostname.ok) {
+    logError({ code: ErrorCode.CDN_REQUEST, detail: cdnHostname.error });
+    return cdnHostname;
+  }
+  const target = cdnHostname.hostname;
 
   // 2. Add CNAME record in DNS zone
   const zoneId = getBunnyDnsZoneId();
