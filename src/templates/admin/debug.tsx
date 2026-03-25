@@ -68,8 +68,8 @@ const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
     <span class="badge-missing">Not configured</span>
   );
 
-/** Render wallet and integration debug sections */
-const DebugIntegrations = ({ s }: { s: DebugPageState }): string =>
+/** Render wallet debug sections */
+const DebugWallets = ({ s }: { s: DebugPageState }): string =>
   String(
     <>
       <article>
@@ -143,7 +143,13 @@ const DebugIntegrations = ({ s }: { s: DebugPageState }): string =>
           </tbody>
         </table>
       </article>
+    </>,
+  );
 
+/** Render payment and email debug sections */
+const DebugPaymentAndEmail = ({ s }: { s: DebugPageState }): string =>
+  String(
+    <>
       <article>
         <h2>Payments</h2>
         <table>
