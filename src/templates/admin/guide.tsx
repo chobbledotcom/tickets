@@ -315,7 +315,8 @@ export const adminGuidePage = (
           <p>
             Open the event's attendee list, find the attendee, and click{" "}
             <strong>Edit</strong>. You can update their name, email, phone,
-            address, special instructions, and quantity. You can also reassign
+            address, special instructions, quantity, and custom question
+            answers. You can also reassign
             them to a different event using the event dropdown. Quantity changes
             are validated against the event's capacity and maximum tickets per
             purchase.
@@ -538,7 +539,7 @@ export const adminGuidePage = (
               <a href="https://dashboard.stripe.com">Stripe Dashboard</a>
             </li>
             <li>
-              Click <strong>Developers</strong> in the top navigation bar
+              Click <strong>Developers</strong> in the navigation menu
             </li>
             <li>
               Select <strong>API keys</strong> from the sidebar
@@ -752,9 +753,9 @@ export const adminGuidePage = (
           <p>
             When you&apos;re ready to go live, replace the test credentials with
             your production credentials in{" "}
-            <a href="/admin/settings">Settings</a>. The system will only accept
-            keys that start with a valid prefix (<code>sk_test_</code> or{" "}
-            <code>sk_live_</code>).
+            <a href="/admin/settings">Settings</a>. For Stripe, the system will
+            only accept keys that start with a valid prefix (
+            <code>sk_test_</code> or <code>sk_live_</code>).
           </p>
         </Q>
       </Section>
@@ -846,9 +847,10 @@ export const adminGuidePage = (
         <Q q="How do daily events work?">
           <p>
             Daily events let attendees choose a specific date when booking. You
-            set which days of the week are available (e.g. Monday to Friday) and
-            how far in advance people can book. The capacity limit applies
-            independently to each date.
+            set which days of the week are available (e.g. Monday to Friday),
+            the minimum number of days before a date can be booked, and the
+            maximum number of days into the future to show. The capacity limit
+            applies independently to each date.
           </p>
         </Q>
 
@@ -1064,7 +1066,8 @@ export const adminGuidePage = (
         <Q q="What does 'reset database' do?">
           <p>
             It permanently deletes <strong>everything</strong>: all events,
-            attendees, users, payment configuration, and sessions. The system
+            attendees, groups, questions, users, holidays, API keys, activity
+            logs, payment configuration, and sessions. The system
             returns to its initial setup state. You must type a confirmation
             phrase to proceed. This cannot be undone.
           </p>
