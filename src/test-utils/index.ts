@@ -34,6 +34,7 @@ import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
+import { setExpectError } from "#lib/env.ts";
 import { resetHostEmailConfig } from "#lib/email.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
@@ -72,18 +73,13 @@ export const setupTestEncryptionKey = (): void => {
 };
 
 /**
- * Clear test encryption key from environment
+ * Clear test encryption key (module-level only, no env var mutations).
+ * Uses empty string override so getEncryptionKeyOverride() returns ""
+ * (not null/undefined), preventing fallthrough to Deno.env via ??.
+ * Avoids deleting shared Deno.env vars that race with parallel workers.
  */
 export const clearTestEncryptionKey = (): void => {
-  // Use empty string (not null) so the override stays active and doesn't
-  // fall through to Deno.env, avoiding races with parallel test workers.
   setEncryptionKeyForTest("");
-  Deno.env.delete("DB_ENCRYPTION_KEY");
-  Deno.env.delete("TEST_PBKDF2_ITERATIONS");
-  Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
-  Deno.env.delete("TEST_RSA_KEY_SIZE");
-  Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
-  clearEncryptionKeyCache();
 };
 
 // ---------------------------------------------------------------------------
@@ -409,15 +405,16 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
 
 /**
  * Run a callback that intentionally triggers an error caught by handleRequest.
- * Temporarily sets TEST_EXPECT_ERROR so the error is returned as a response
- * instead of being rethrown by the TEST_RETHROW_ERRORS guard.
+ * Temporarily enables "expect error" mode so the error is returned as a
+ * response instead of being rethrown by the TEST_RETHROW_ERRORS guard.
+ * Uses per-worker module state (not Deno.env) to avoid races with --parallel.
  */
 export const withExpectedError = bracket(
   () => {
-    Deno.env.set("TEST_EXPECT_ERROR", "1");
+    setExpectError(true);
   },
   () => {
-    Deno.env.delete("TEST_EXPECT_ERROR");
+    setExpectError(false);
   },
 );
 

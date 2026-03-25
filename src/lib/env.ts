@@ -40,3 +40,18 @@ export function requireEnv(key: string): string {
   }
   return value;
 }
+
+// ---------------------------------------------------------------------------
+// Per-worker test flag: "expect error" mode
+// Module-level state avoids Deno.env races when tests run with --parallel.
+// ---------------------------------------------------------------------------
+
+const expectErrorState = { active: false };
+
+/** Check whether expected-error mode is active (per-worker, no env race). */
+export const isExpectError = (): boolean => expectErrorState.active;
+
+/** Set expected-error mode (for test-utils withExpectedError). */
+export const setExpectError = (value: boolean): void => {
+  expectErrorState.active = value;
+};

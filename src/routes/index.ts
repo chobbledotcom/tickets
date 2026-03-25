@@ -5,6 +5,7 @@
 
 import { once } from "#fp";
 import { loadEffectiveDomain } from "#lib/config.ts";
+import { isExpectError } from "#lib/env.ts";
 import {
   clearFlashCookie,
   clearSessionCookie,
@@ -425,7 +426,7 @@ export const handleRequest = async (
               if (
                 Deno.env.get("TEST_RETHROW_ERRORS") &&
                 !(error instanceof SessionKeyError) &&
-                !Deno.env.get("TEST_EXPECT_ERROR")
+                !isExpectError()
               ) {
                 throw error;
               }
