@@ -235,7 +235,8 @@ export const adminDebugPage = (
         </table>
       </article>
 
-      <Raw html={DebugIntegrations({ s })} />
+      <Raw html={DebugWallets({ s })} />
+      <Raw html={DebugPaymentAndEmail({ s })} />
 
       <article>
         <h2>Notifications (ntfy)</h2>
