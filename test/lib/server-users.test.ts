@@ -19,6 +19,7 @@ import {
 } from "#lib/db/users.ts";
 import { handleRequest } from "#routes";
 import {
+  adminFormPost,
   awaitTestRequest,
   createTestInvite,
   createTestManagerSession,
@@ -37,7 +38,6 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
   testCookie,
-  testCsrfToken,
 } from "#test-utils";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
@@ -320,17 +320,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("creates invited user and shows invite link", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "newmanager",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users", {
+        username: "newmanager",
+        admin_level: "manager",
+      });
 
       expect(response.status).toBe(302);
       const location = expectRedirect(response);
@@ -342,33 +335,19 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("rejects duplicate username", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: TEST_ADMIN_USERNAME,
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users", {
+        username: TEST_ADMIN_USERNAME,
+        admin_level: "manager",
+      });
 
       await expectHtmlResponse(response, 400, "already taken");
     });
 
     test("rejects invalid role", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "newuser",
-            admin_level: "superadmin",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users", {
+        username: "newuser",
+        admin_level: "superadmin",
+      });
 
       await expectHtmlResponse(response, 400, "Invalid role");
     });
@@ -377,17 +356,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("GET /admin/users/:id/delete", () => {
     test("shows delete confirmation page", async () => {
       // Create a user to delete
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "todelete",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "todelete",
+        admin_level: "manager",
+      });
 
       const response = await awaitTestRequest("/admin/users/2/delete", {
         cookie: await testCookie(),
@@ -419,29 +391,18 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("POST /admin/users/:id/delete", () => {
     test("deletes a user with correct confirmation", async () => {
       // Create an invited user first
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "deleteme",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "deleteme",
+        admin_level: "manager",
+      });
 
       const usersBefore = await getAllUsers();
       expect(usersBefore.length).toBe(2);
 
       // Delete user with id 2 with correct confirmation
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/delete",
-          { csrf_token: await testCsrfToken(), confirm_identifier: "deleteme" },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/2/delete", {
+        confirm_identifier: "deleteme",
+      });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("deleted"));
 
@@ -450,28 +411,14 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("rejects deletion with wrong confirmation", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "keepme",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "keepme",
+        admin_level: "manager",
+      });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/delete",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "wrongname",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/2/delete", {
+        confirm_identifier: "wrongname",
+      });
       await expectHtmlResponse(response, 400, "Username does not match");
 
       const usersAfter = await getAllUsers();
@@ -479,70 +426,36 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("rejects deletion without confirmation", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "keepme2",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "keepme2",
+        admin_level: "manager",
+      });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/delete",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/2/delete");
       await expectHtmlResponse(response, 400, "Username does not match");
     });
 
     test("prevents deleting self", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/1/delete",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: TEST_ADMIN_USERNAME,
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/1/delete", {
+        confirm_identifier: TEST_ADMIN_USERNAME,
+      });
       await expectHtmlResponse(response, 400, "Cannot delete your own account");
     });
 
     test("deletes another owner with correct confirmation", async () => {
       // Create another owner user
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "otheradmin",
-            admin_level: "owner",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "otheradmin",
+        admin_level: "owner",
+      });
 
       const usersBefore = await getAllUsers();
       expect(usersBefore.length).toBe(2);
 
       // Delete the other owner with correct confirmation
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/delete",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "otheradmin",
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/2/delete", {
+        confirm_identifier: "otheradmin",
+      });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("deleted"));
 
@@ -736,49 +649,24 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("returns 404 for nonexistent user", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/999/activate",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/999/activate");
       await expectHtmlResponse(response, 404, "User not found");
     });
 
     test("rejects user who has not set password", async () => {
       // Create invite but don't complete join flow
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "nopassword",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "nopassword",
+        admin_level: "manager",
+      });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/activate",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/2/activate");
       await expectHtmlResponse(response, 400, "not set their password");
     });
 
     test("rejects already activated user", async () => {
       // User 1 (the owner) is already activated
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/1/activate",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/1/activate");
       await expectHtmlResponse(response, 400, "already activated");
     });
 
@@ -815,30 +703,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("POST /admin/users/:id/delete (not found)", () => {
     test("returns 404 for nonexistent user", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/999/delete",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users/999/delete");
       await expectHtmlResponse(response, 404, "User not found");
     });
   });
 
   describe("POST /admin/users (form validation)", () => {
     test("rejects missing username", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/users", {
+        username: "",
+        admin_level: "manager",
+      });
       expect(response.status).toBe(400);
     });
   });
@@ -934,17 +809,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("users template rendering", () => {
     test("shows Invited status for user without password", async () => {
       // Create invited user (no password yet)
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "invited-only",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "invited-only",
+        admin_level: "manager",
+      });
 
       const response = await awaitTestRequest("/admin/users", {
         cookie: await testCookie(),
@@ -955,17 +823,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("shows Invite Expired status for expired invite", async () => {
       // Create an invited user then manually set expiry to the past
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "expired-display",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "expired-display",
+        admin_level: "manager",
+      });
 
       const expiredExpiry = await encrypt(
         new Date(Date.now() - 1000).toISOString(),
@@ -1222,18 +1083,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       });
       invalidateUsersCache();
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "newpassword123",
+        new_password_confirm: "newpassword123",
+      });
       await expectHtmlResponse(response, 500, "Failed to update password");
     });
   });
@@ -1247,18 +1101,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       });
       invalidateUsersCache();
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "newpassword123",
+        new_password_confirm: "newpassword123",
+      });
       // Session auth check should redirect since user was deleted
       expect(response.status).toBe(302);
     });
@@ -1266,17 +1113,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("audit logging", () => {
     test("logs activity when user is invited", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "auditinvite",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "auditinvite",
+        admin_level: "manager",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1311,28 +1151,14 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("logs activity when user is deleted", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          {
-            username: "auditdelete",
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users", {
+        username: "auditdelete",
+        admin_level: "manager",
+      });
 
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/delete",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "auditdelete",
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/users/2/delete", {
+        confirm_identifier: "auditdelete",
+      });
 
       const logs = await getAllActivityLog();
       expect(
