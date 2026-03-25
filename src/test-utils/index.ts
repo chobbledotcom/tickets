@@ -2505,10 +2505,20 @@ export const withCdnProxy = (
   fn: () => Promise<void>,
 ): Promise<void> =>
   withFetchMock(async (originalFetch) => {
-    installUrlHandler(originalFetch, (url) =>
-      url.includes("storage.bunnycdn.com") ? Promise.resolve(respond()) : null,
-    );
-    await fn();
+    const restoreEnv = setTestEnv({
+      STORAGE_ZONE_NAME: "testzone",
+      STORAGE_ZONE_KEY: "testkey",
+    });
+    try {
+      installUrlHandler(originalFetch, (url) =>
+        url.includes("storage.bunnycdn.com")
+          ? Promise.resolve(respond())
+          : null,
+      );
+      await fn();
+    } finally {
+      restoreEnv();
+    }
   });
 
 // ---------------------------------------------------------------------------
