@@ -66,8 +66,8 @@ import {
 import {
   extractContact,
   mergeEventFields,
-  tryValidateTicketFields,
   type TicketFormValues,
+  tryValidateTicketFields,
 } from "#templates/fields.ts";
 import { successPage } from "#templates/payment.tsx";
 import {
@@ -848,11 +848,11 @@ const parseAndValidateQuantities = (
 };
 
 /** Validate multi-ticket form and extract all needed data, or return error response */
-const validateMultiTicketForm = async (
+const validateMultiTicketForm = (
   form: FormParams,
   ctx: MultiTicketCtx,
   showError: (msg: string) => Response,
-): Promise<MultiTicketValidated | Response> => {
+): MultiTicketValidated | Response => {
   const anyPaid = ctx.events.some((e) => isPaidEvent(e.event));
   const fieldResult = tryValidateTicketFields(
     form,

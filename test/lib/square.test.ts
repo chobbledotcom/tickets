@@ -1783,7 +1783,9 @@ describe("square", () => {
 
       // Response prefers long_url (checkout.square.site) over short url (square.link)
       expect(result!.paymentLink?.orderId).toBe("ord_rest");
-      expect(result!.paymentLink?.url).toBe("https://checkout.square.site/rest");
+      expect(result!.paymentLink?.url).toBe(
+        "https://checkout.square.site/rest",
+      );
 
       // Request verification
       const [url, opts] = mockFetch.calls[0]!.args;

@@ -36,17 +36,28 @@ const needsPayment = (
   );
 };
 
+/** Common booking parameters */
+interface BookingParams {
+  event: EventWithCount;
+  contact: ContactInfo;
+  quantity: number;
+  date: string | null;
+  baseUrl: string;
+  customUnitPrice?: number;
+  answerIds?: number[];
+}
+
+/** Build base registration fields from booking params */
+const toRegistrationBase = (p: BookingParams) => ({
+  eventId: p.event.id,
+  ...p.contact,
+  quantity: p.quantity,
+  date: p.date,
+});
+
 /** Handle the paid checkout path */
-const processPaidBooking = async (
-  event: EventWithCount,
-  contact: ContactInfo,
-  quantity: number,
-  date: string | null,
-  baseUrl: string,
-  customUnitPrice?: number,
-  answerIds?: number[],
-): Promise<BookingResult> => {
-  const available = await hasAvailableSpots(event.id, quantity, date);
+const processPaidBooking = async (p: BookingParams): Promise<BookingResult> => {
+  const available = await hasAvailableSpots(p.event.id, p.quantity, p.date);
   if (!available) return { type: "sold_out" };
 
   // Provider is guaranteed to exist when isPaymentsEnabled() is true
@@ -54,15 +65,16 @@ const processPaidBooking = async (
   if (!provider) return { type: "checkout_failed" };
 
   const intent: RegistrationIntent = {
-    eventId: event.id,
-    ...contact,
-    quantity,
-    date,
-    customUnitPrice,
-    answerIds,
+    ...toRegistrationBase(p),
+    customUnitPrice: p.customUnitPrice,
+    answerIds: p.answerIds,
   };
 
-  const result = await provider.createCheckoutSession(event, intent, baseUrl);
+  const result = await provider.createCheckoutSession(
+    p.event,
+    intent,
+    p.baseUrl,
+  );
   if (!result) return { type: "checkout_failed" };
   if ("error" in result)
     return { type: "checkout_failed", error: result.error };
@@ -71,23 +83,15 @@ const processPaidBooking = async (
 };
 
 /** Handle the free booking path */
-const processFreeBooking = async (
-  event: EventWithCount,
-  contact: ContactInfo,
-  quantity: number,
-  date: string | null,
-): Promise<BookingResult> => {
-  const result = await createAttendeeAtomic({
-    eventId: event.id,
-    ...contact,
-    quantity,
-    date,
-  });
+const processFreeBooking = async (p: BookingParams): Promise<BookingResult> => {
+  const result = await createAttendeeAtomic(toRegistrationBase(p));
 
   if (!result.success)
     return { type: "creation_failed", reason: result.reason };
 
-  await logAndNotifyRegistration([{ event, attendee: result.attendee }]);
+  await logAndNotifyRegistration([
+    { event: p.event, attendee: result.attendee },
+  ]);
   return { type: "success", attendee: result.attendee };
 };
 
@@ -98,7 +102,7 @@ const processFreeBooking = async (
  * - Creates a checkout session (paid) or
  * - Atomically creates an attendee (free)
  */
-export const processBooking = async (
+export const processBooking = (
   event: EventWithCount,
   contact: ContactInfo,
   quantity: number,
@@ -106,15 +110,17 @@ export const processBooking = async (
   baseUrl: string,
   customUnitPrice?: number,
   answerIds?: number[],
-): Promise<BookingResult> =>
-  needsPayment(event, customUnitPrice)
-    ? processPaidBooking(
-        event,
-        contact,
-        quantity,
-        date,
-        baseUrl,
-        customUnitPrice,
-        answerIds,
-      )
-    : processFreeBooking(event, contact, quantity, date);
+): Promise<BookingResult> => {
+  const p: BookingParams = {
+    event,
+    contact,
+    quantity,
+    date,
+    baseUrl,
+    customUnitPrice,
+    answerIds,
+  };
+  return needsPayment(event, customUnitPrice)
+    ? processPaidBooking(p)
+    : processFreeBooking(p);
+};

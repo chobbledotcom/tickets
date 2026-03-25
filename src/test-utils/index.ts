@@ -383,7 +383,6 @@ export const mockMultipartRequest = (
   }
   if (file) {
     // deno-lint-ignore no-explicit-any
-    // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BlobPart in Deno's TS
     const blob = new Blob([file.data as any], { type: file.contentType });
     formData.append(file.fieldName, blob, file.name);
   }
@@ -1277,8 +1276,8 @@ export const FLASH_TEST_ID = "t001";
  */
 export const expectFlash = (
   response: Response,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  message: string | undefined | (Record<string, any>),
+  // deno-lint-ignore no-explicit-any
+  message: string | undefined | Record<string, any>,
   succeeded = true,
 ): Response => {
   response.body?.cancel();

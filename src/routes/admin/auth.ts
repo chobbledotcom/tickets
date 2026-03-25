@@ -96,17 +96,19 @@ const authenticateUser = async (
     }
   | { ok: false; response: Response }
 > => {
-  const user = await getUserByUsername(username);
-  if (!user) {
+  const failedResult = async () => {
     await recordFailedLogin(clientIp);
-    return { ok: false, response: await loginResponse("Invalid credentials", 401) };
-  }
+    return {
+      ok: false as const,
+      response: await loginResponse("Invalid credentials", 401),
+    };
+  };
+
+  const user = await getUserByUsername(username);
+  if (!user) return failedResult();
 
   const passwordHash = await verifyUserPassword(user, password);
-  if (!passwordHash) {
-    await recordFailedLogin(clientIp);
-    return { ok: false, response: await loginResponse("Invalid credentials", 401) };
-  }
+  if (!passwordHash) return failedResult();
 
   return { ok: true, user, passwordHash };
 };

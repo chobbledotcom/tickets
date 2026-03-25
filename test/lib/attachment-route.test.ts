@@ -93,7 +93,6 @@ describeWithEnv(
         installUrlHandler(originalFetch, (url) => {
           if (url.includes("storage.bunnycdn.com")) {
             // deno-lint-ignore no-explicit-any
-            // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BodyInit in Deno's TS
             return Promise.resolve(new Response(encrypted as any));
           }
           return null;

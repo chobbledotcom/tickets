@@ -46,7 +46,6 @@ const flushAsync = (): Promise<void> =>
 
 describe("webhook", () => {
   // deno-lint-ignore no-explicit-any
-  // biome-ignore lint/suspicious/noExplicitAny: Deno's fetch stub type is incompatible with Stub generics
   let fetchSpy: any;
   let originalFetch: typeof fetch;
 

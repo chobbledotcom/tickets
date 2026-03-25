@@ -58,7 +58,7 @@ export const validateEventInput = async (
     const maxPriceError = validateMaxPrice(input);
     if (maxPriceError) return maxPriceError;
   }
-  return validateGroup(input, existingId ?? 0);
+  return await validateGroup(input, existingId ?? 0);
 };
 
 /**

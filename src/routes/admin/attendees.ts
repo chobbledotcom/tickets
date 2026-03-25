@@ -67,6 +67,7 @@ import {
 } from "#templates/admin/attendees.tsx";
 import {
   type AddAttendeeFormValues,
+  extractContact,
   getAddAttendeeFields,
 } from "#templates/fields.ts";
 
@@ -581,12 +582,8 @@ const buildAttendeeInput = (
   isDaily: boolean,
 ) => ({
   eventId,
-  name: values.name,
-  email: values.email || "",
+  ...extractContact(values),
   quantity: values.quantity,
-  phone: values.phone || "",
-  address: values.address || "",
-  special_instructions: values.special_instructions || "",
   date: isDaily ? values.date : null,
 });
 
@@ -757,7 +754,7 @@ async function checkEditCapacity(
   const eventChanged = eventId !== data.attendee.event_id;
   if (quantityDelta <= 0 && !eventChanged) return true;
   const spotsNeeded = eventChanged ? quantity : quantityDelta;
-  return hasAvailableSpots(eventId, spotsNeeded, data.attendee.date);
+  return await hasAvailableSpots(eventId, spotsNeeded, data.attendee.date);
 }
 
 /** Parse validated question answers from form */

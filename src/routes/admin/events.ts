@@ -189,16 +189,19 @@ const extractFormFile = (
   return null;
 };
 
+/** Shared options for file upload operations */
+interface FileUploadOpts {
+  eventId: number;
+  existingUrl?: string;
+  validate: (data: Uint8Array, file: File) => string | null;
+  upload: (data: Uint8Array, file: File) => Promise<Partial<EventInput>>;
+  label: string;
+}
+
 /** Upload a file and update the event, returning error detail on failure */
 const uploadAndUpdateEvent = async (
   file: File,
-  opts: {
-    eventId: number;
-    existingUrl?: string;
-    validate: (data: Uint8Array, file: File) => string | null;
-    upload: (data: Uint8Array, file: File) => Promise<Partial<EventInput>>;
-    label: string;
-  },
+  opts: FileUploadOpts,
 ): Promise<string | null> => {
   const data = new Uint8Array(await file.arrayBuffer());
   const error = opts.validate(data, file);
@@ -224,15 +227,12 @@ const uploadAndUpdateEvent = async (
 };
 
 /** Generic form file processor: extract, validate, replace old, upload, update event */
-const processFormFile = (opts: {
-  formData: FormData;
-  fieldName: string;
-  eventId: number;
-  existingUrl?: string;
-  validate: (data: Uint8Array, file: File) => string | null;
-  upload: (data: Uint8Array, file: File) => Promise<Partial<EventInput>>;
-  label: string;
-}): Promise<string | null> => {
+const processFormFile = (
+  opts: FileUploadOpts & {
+    formData: FormData;
+    fieldName: string;
+  },
+): Promise<string | null> => {
   if (!isStorageEnabled()) return Promise.resolve(null);
   const file = extractFormFile(opts.formData, opts.fieldName, opts.label);
   if (!file) return Promise.resolve(null);
@@ -745,7 +745,7 @@ const handleFileDelete =
         const url = getUrl(event);
         if (!url)
           return redirect(`/admin/event/${id}`, `${label} removed`, true);
-        return deleteStoredFile(url, id, clearFields, label, event.name);
+        return await deleteStoredFile(url, id, clearFields, label, event.name);
       }),
     );
 

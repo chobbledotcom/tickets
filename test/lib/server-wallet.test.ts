@@ -48,7 +48,6 @@ const fetchPkpassResponse = (token: string) =>
 
 /** Fetch and parse pass.json from a pkpass response */
 // deno-lint-ignore no-explicit-any
-// biome-ignore lint/suspicious/noExplicitAny: JSON.parse returns dynamic pkpass structure with deep nesting
 const parsePkpassJson = async (token: string): Promise<Record<string, any>> => {
   const response = await fetchPkpassResponse(token);
   const bytes = new Uint8Array(await response.arrayBuffer());

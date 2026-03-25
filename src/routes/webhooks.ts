@@ -542,7 +542,7 @@ const validatePerItemPrices = async (
 ): Promise<PaymentResult | null> => {
   const mismatch = findPerItemMismatch(validatedItems);
   if (mismatch) {
-    return priceMismatchRefund(
+    return await priceMismatchRefund(
       session,
       `Per-item price mismatch for event ${mismatch.event.id}: metadata p=${mismatch.item.p} but expected ${mismatch.expectedPrice} (can_pay_more=${mismatch.event.can_pay_more})`,
       mismatch.event.id,
@@ -555,7 +555,7 @@ const validatePerItemPrices = async (
   const expectedCartTotal =
     metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
   if (session.amountTotal !== expectedCartTotal) {
-    return priceMismatchRefund(
+    return await priceMismatchRefund(
       session,
       `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
       validatedItems[0]!.event.id,
@@ -583,7 +583,7 @@ const validateSingleItemPrice = async (
       firstItem.q,
     )
   ) {
-    return priceMismatchRefund(
+    return await priceMismatchRefund(
       session,
       `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
       event.id,
@@ -672,7 +672,7 @@ const handleExistingReservation = async (
 ): Promise<PaymentResult> => {
   const { existing } = reservation;
   if (existing.attendee_id !== null) {
-    return alreadyProcessedResult(intent.items[0]!.e, existing);
+    return await alreadyProcessedResult(intent.items[0]!.e, existing);
   }
   return {
     success: false,
