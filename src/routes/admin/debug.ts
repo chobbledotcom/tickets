@@ -55,6 +55,8 @@ const validateAppleWalletCerts = (
 /** Gather debug state concurrently */
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
+  const bunnyCdnResult = bunnyCdnEnabled ? await getCdnHostname() : null;
+  const bunnyCdnCdnHostname = bunnyCdnResult?.ok ? bunnyCdnResult.hostname : "";
 
   const hostEmailConfig = getHostEmailConfig();
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
@@ -146,11 +148,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     },
     bunnyCdn: {
       enabled: bunnyCdnEnabled,
-      cdnHostname: await (async () => {
-        if (!bunnyCdnEnabled) return "";
-        const r = await getCdnHostname();
-        return r.ok ? r.hostname : "";
-      })(),
+      cdnHostname: bunnyCdnCdnHostname,
       customDomain: (bunnyCdnEnabled ? settings.customDomain : null) ?? "",
     },
     database: {

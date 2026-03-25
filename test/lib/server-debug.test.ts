@@ -314,6 +314,25 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         const html = await response.text();
         expect(html).toContain("badge-ok");
         expect(html).toContain("CDN management");
+        expect(html).toContain("mysite.b-cdn.net");
+      } finally {
+        bunnyCdnApi.getCdnHostname = original;
+      }
+    });
+
+    test("shows empty CDN hostname when edge script API fails", async () => {
+      restoreEnv = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "99",
+      });
+      const original = bunnyCdnApi.getCdnHostname;
+      bunnyCdnApi.getCdnHostname = () =>
+        Promise.resolve({ ok: false as const, error: "API error" });
+      try {
+        const { response } = await adminGet("/admin/debug");
+        const html = await response.text();
+        expect(html).toContain("badge-ok");
+        expect(html).not.toContain("mysite.b-cdn.net");
       } finally {
         bunnyCdnApi.getCdnHostname = original;
       }
