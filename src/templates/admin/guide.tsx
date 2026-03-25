@@ -375,8 +375,8 @@ export const adminGuidePage = (
           <p>
             Answers appear in the attendee table on event and group pages, so
             you can see at a glance what each attendee chose. They're also shown
-            on the individual attendee detail page, included in the CSV export,
-            and sent in webhook payloads.
+            on the individual attendee detail page and included in the CSV
+            export.
           </p>
         </Q>
       </Section>
@@ -405,8 +405,9 @@ export const adminGuidePage = (
         <Q q="What is the public site?">
           <p>
             When enabled in <strong>Settings</strong>, your domain shows a
-            public website with navigation for Home, Events, Terms &amp;
-            Conditions, and Contact pages. The <strong>Events</strong> page
+            public website with navigation for Home and Events, plus T&amp;Cs
+            and Contact links if you've set those up. The{" "}
+            <strong>Events</strong> page
             lists all active events with booking links. Visitors can browse
             event details and book directly. If the public site is disabled,
             visitors can still book via direct ticket links.
@@ -1142,8 +1143,8 @@ export const adminGuidePage = (
         <Q q="What is the activity log?">
           <p>
             The <strong>Log</strong> page shows a chronological list of admin
-            actions such as event creation, attendee changes, and settings
-            updates. Both owners and managers can view the log. Each event also
+            actions such as event creation, event updates, attendee changes,
+            and question changes. Both owners and managers can view the log. Each event also
             has its own log, accessible from the event page, showing only
             actions related to that event.
           </p>
