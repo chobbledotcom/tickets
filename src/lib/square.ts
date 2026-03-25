@@ -13,13 +13,13 @@
 import { lazyRef, map } from "#fp";
 import { getBookingFeeAmount, itemsSubtotal } from "#lib/booking-fee.ts";
 import { settings } from "#lib/db/settings.ts";
+import { fetchText } from "#lib/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   computeHmacSha256,
   hmacToBase64,
   secureCompare,
 } from "#lib/payment-crypto.ts";
-import { fetchText } from "#lib/fetch.ts";
 import {
   buildCartMetadata,
   buildSingleIntentMetadata,

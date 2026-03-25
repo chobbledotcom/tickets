@@ -11,8 +11,8 @@ import {
   getBunnyDnsZoneId,
   getBunnyScriptId,
 } from "#lib/config.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
 import { type FetchResult, fetchText } from "#lib/fetch.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -100,10 +100,7 @@ const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
   }));
 
 /** Return ok for a successful response or parse an error. */
-const okOrError = (
-  response: FetchResult,
-  label: string,
-): BunnyApiResult =>
+const okOrError = (response: FetchResult, label: string): BunnyApiResult =>
   response.ok ? { ok: true } : parseBunnyError(response, label);
 
 /** Parse a Bunny API error response into a BunnyApiResult. */

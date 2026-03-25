@@ -6,8 +6,8 @@
 
 import { getEffectiveDomain } from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
-import { ErrorCode, logErrorLocal } from "#lib/logger.ts";
 import { fetchText } from "#lib/fetch.ts";
+import { ErrorCode, logErrorLocal } from "#lib/logger.ts";
 
 /**
  * Send an error notification to the configured ntfy URL

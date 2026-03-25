@@ -12,10 +12,12 @@ describe("fetchText", () => {
 
   test("returns status, ok, text, and headers from a successful response", async () => {
     fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response('{"id":1}', {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })),
+      Promise.resolve(
+        new Response('{"id":1}', {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
     );
 
     const result = await fetchText("https://example.com/api");
