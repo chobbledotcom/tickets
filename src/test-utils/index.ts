@@ -2454,6 +2454,20 @@ export const createTestApiKeyToken = async (): Promise<string> => {
   return apiKey;
 };
 
+/** Create an API key and return { apiKey, id, dataKey } */
+export const createTestApiKeyFull = async (
+  name = "Test Key",
+): Promise<{ apiKey: string; id: number; dataKey: CryptoKey }> => {
+  const dataKey = await getTestDataKey();
+  const { apiKey, id } = await createApiKey(
+    1,
+    name,
+    dataKey,
+    generateSecureToken,
+  );
+  return { apiKey, id, dataKey };
+};
+
 /** Make an authenticated JSON API request using an API key (or auto-creating one) */
 export const apiRequest = async (
   path: string,
