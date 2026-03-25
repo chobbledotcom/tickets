@@ -1087,6 +1087,91 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           }
         });
       });
+
+      describe("current_task guard", () => {
+        test("rejects custom-domain save when a task is already in progress", async () => {
+          setBunnyEnv();
+          await settings.update.currentTask("some-other-task");
+          try {
+            const { response } = await adminFormPost(
+              "/admin/settings/custom-domain",
+              { custom_domain: "tickets.example.com" },
+            );
+            expect(response.status).toBe(409);
+            const html = await response.text();
+            expect(html).toContain("Another task is already in progress");
+          } finally {
+            await settings.update.currentTask("");
+          }
+        });
+
+        test("rejects custom-domain validate when a task is already in progress", async () => {
+          setBunnyEnv();
+          await settings.update.customDomain("tickets.example.com");
+          await settings.update.currentTask("some-other-task");
+          try {
+            const { response } = await adminFormPost(
+              "/admin/settings/custom-domain/validate",
+            );
+            expect(response.status).toBe(409);
+            const html = await response.text();
+            expect(html).toContain("Another task is already in progress");
+          } finally {
+            await settings.update.currentTask("");
+          }
+        });
+
+        test("clears current_task after successful custom-domain save", async () => {
+          setBunnyEnv();
+          const original = bunnyCdnApi.validateCustomDomain;
+          bunnyCdnApi.validateCustomDomain = () =>
+            Promise.resolve({ ok: true as const });
+          try {
+            await adminFormPost("/admin/settings/custom-domain", {
+              custom_domain: "tickets.example.com",
+            });
+            expect(settings.currentTask).toBe("");
+          } finally {
+            bunnyCdnApi.validateCustomDomain = original;
+          }
+        });
+
+        test("clears current_task after failed custom-domain validation", async () => {
+          setBunnyEnv();
+          const original = bunnyCdnApi.validateCustomDomain;
+          bunnyCdnApi.validateCustomDomain = () =>
+            Promise.resolve({
+              ok: false as const,
+              error: "DNS not configured",
+            });
+          try {
+            await adminFormPost("/admin/settings/custom-domain", {
+              custom_domain: "tickets.example.com",
+            });
+            expect(settings.currentTask).toBe("");
+          } finally {
+            bunnyCdnApi.validateCustomDomain = original;
+          }
+        });
+
+        test("clears current_task even when the task throws", async () => {
+          setBunnyEnv();
+          const original = bunnyCdnApi.validateCustomDomain;
+          bunnyCdnApi.validateCustomDomain = () => {
+            throw new Error("network failure");
+          };
+          Deno.env.set("TEST_EXPECT_ERROR", "1");
+          try {
+            await adminFormPost("/admin/settings/custom-domain", {
+              custom_domain: "tickets.example.com",
+            });
+            expect(settings.currentTask).toBe("");
+          } finally {
+            Deno.env.delete("TEST_EXPECT_ERROR");
+            bunnyCdnApi.validateCustomDomain = original;
+          }
+        });
+      });
     },
   );
 });

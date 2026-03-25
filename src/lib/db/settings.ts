@@ -87,6 +87,7 @@ export const CONFIG_KEYS = {
   GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
   BUNNY_SUBDOMAIN: "bunny_subdomain",
+  CURRENT_TASK: "current_task",
   ATTENDEE_BLOB_MIGRATED: "attendee_blob_migrated",
 } as const;
 
@@ -147,6 +148,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.CUSTOM_DOMAIN,
   CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
   CONFIG_KEYS.BUNNY_SUBDOMAIN,
+  CONFIG_KEYS.CURRENT_TASK,
   CONFIG_KEYS.PUBLIC_KEY,
   CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
   CONFIG_KEYS.SQUARE_LOCATION_ID,
@@ -518,6 +520,37 @@ const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null =>
   );
 
 // ---------------------------------------------------------------------------
+// Current-task guard — prevents duplicate heavy operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Run `fn` while holding the `current_task` lock for `taskName`.
+ * If a task is already in progress, returns `{ ok: false, error }`.
+ * The lock is always cleared when `fn` completes (success or error).
+ */
+const withCurrentTask = async <T>(
+  taskName: string,
+  fn: () => Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false; error: string }> => {
+  const existing = snap("current_task");
+  if (existing) {
+    return {
+      ok: false,
+      error: `Another task is already in progress: ${existing}`,
+    };
+  }
+  await writeOrDelete(CONFIG_KEYS.CURRENT_TASK, taskName);
+  setSnapshotField("current_task", taskName);
+  try {
+    const value = await fn();
+    return { ok: true, value };
+  } finally {
+    await writeOrDelete(CONFIG_KEYS.CURRENT_TASK, "");
+    setSnapshotField("current_task", "");
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -532,6 +565,7 @@ export const settings = {
   // --- Core ---
   loadAll,
   invalidateCache,
+  withCurrentTask,
 
   /** Read a raw (possibly encrypted) value from the cache. */
   getCachedRaw: getRawCached,
@@ -593,6 +627,9 @@ export const settings = {
   },
   get bunnySubdomain(): string {
     return snap("bunny_subdomain");
+  },
+  get currentTask(): string {
+    return snap("current_task");
   },
   get publicKey(): string {
     return snap("public_key");
@@ -836,6 +873,7 @@ export const settings = {
       data.custom_domain_last_validated = ts;
     },
     bunnySubdomain: plaintextUpdate(CONFIG_KEYS.BUNNY_SUBDOMAIN),
+    currentTask: plaintextUpdate(CONFIG_KEYS.CURRENT_TASK),
     headerImageUrl: encryptedUpdate(CONFIG_KEYS.HEADER_IMAGE_URL),
     websiteTitle: encryptedUpdate(CONFIG_KEYS.WEBSITE_TITLE),
     homepageText: encryptedUpdate(CONFIG_KEYS.HOMEPAGE_TEXT),
