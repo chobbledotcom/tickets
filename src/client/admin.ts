@@ -365,6 +365,21 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
   ta.parentNode!.insertBefore(counter, ta.nextSibling);
 }
 
+/* Disable form on submit: prevent double-submission for normal POST forms.
+ * Uses requestAnimationFrame so the browser sends the form before disabling. */
+for (const form of document.querySelectorAll<HTMLFormElement>(
+  'form[method="POST"]',
+)) {
+  form.addEventListener("submit", () => {
+    requestAnimationFrame(() => {
+      for (let i = 0; i < form.elements.length; i++) {
+        (form.elements[i] as HTMLInputElement | HTMLButtonElement).disabled =
+          true;
+      }
+    });
+  });
+}
+
 /* Multi-ticket question visibility: show questions only when at least one
  * associated event has quantity > 0. Questions without data-event-ids are
  * always visible (single-event pages). */
