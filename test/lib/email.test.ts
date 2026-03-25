@@ -162,7 +162,7 @@ describeWithEnv("email", { db: true }, () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.resend.com/emails");
-      expect(getFetchHeaders()["Authorization"]).toBe("Bearer re_test_key");
+      expect(getFetchHeaders().Authorization).toBe("Bearer re_test_key");
       const body = getFetchJsonBody();
       expect(body.from).toBe("tickets@example.com");
       expect(body.to).toEqual(["user@test.com"]);
@@ -204,7 +204,7 @@ describeWithEnv("email", { db: true }, () => {
 
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.sendgrid.com/v3/mail/send");
-      expect(getFetchHeaders()["Authorization"]).toBe("Bearer re_test_key");
+      expect(getFetchHeaders().Authorization).toBe("Bearer re_test_key");
       const body = getFetchJsonBody();
       expect(body.personalizations).toEqual([
         { to: [{ email: "user@test.com" }] },
@@ -241,7 +241,7 @@ describeWithEnv("email", { db: true }, () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.mailgun.net/v3/example.com/messages");
-      expect(getFetchHeaders()["Authorization"]).toBe(mailgunBasicAuth);
+      expect(getFetchHeaders().Authorization).toBe(mailgunBasicAuth);
       expect(getFetchHeaders()).not.toHaveProperty("Content-Type");
       const body = getFetchFormBody();
       expect(body.get("from")).toBe("tickets@example.com");
@@ -263,7 +263,7 @@ describeWithEnv("email", { db: true }, () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.eu.mailgun.net/v3/example.com/messages");
-      expect(getFetchHeaders()["Authorization"]).toBe(mailgunBasicAuth);
+      expect(getFetchHeaders().Authorization).toBe(mailgunBasicAuth);
       const body = getFetchFormBody();
       expect(body.get("from")).toBe("tickets@example.com");
       expect(body.get("to")).toBe("user@test.com");
@@ -426,22 +426,22 @@ describeWithEnv("email", { db: true }, () => {
       const attachments = await buildTicketAttachments(entries, "GBP");
 
       expect(attachments.length).toBe(2);
-      expect(attachments[0]!.filename).toBe("ticket-1.svg");
-      expect(attachments[1]!.filename).toBe("ticket-2.svg");
-      expect(attachments[0]!.contentType).toBe("image/svg+xml");
+      expect(attachments[0]?.filename).toBe("ticket-1.svg");
+      expect(attachments[1]?.filename).toBe("ticket-2.svg");
+      expect(attachments[0]?.contentType).toBe("image/svg+xml");
     });
 
     test("uses 'ticket.svg' filename for single entry", async () => {
       const attachments = await buildTicketAttachments([makeEntry()], "GBP");
 
       expect(attachments.length).toBe(1);
-      expect(attachments[0]!.filename).toBe("ticket.svg");
+      expect(attachments[0]?.filename).toBe("ticket.svg");
     });
 
     test("attachment content is base64-encoded UTF-8 SVG", async () => {
       const attachments = await buildTicketAttachments([makeEntry()], "GBP");
 
-      const binary = atob(attachments[0]!.content);
+      const binary = atob(attachments[0]?.content);
       const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
       const decoded = new TextDecoder().decode(bytes);
       expect(decoded).toContain("<?xml");
@@ -455,7 +455,7 @@ describeWithEnv("email", { db: true }, () => {
         "GBP",
       );
 
-      const binary = atob(attachments[0]!.content);
+      const binary = atob(attachments[0]?.content);
       const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
       const decoded = new TextDecoder().decode(bytes);
       expect(decoded).toContain("Café Müsik");

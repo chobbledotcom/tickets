@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
   "files": {
     "includes": ["**/*.js", "**/*.ts", "**/*.tsx"],
     "ignoreUnknown": true
@@ -50,6 +50,12 @@
   },
   "overrides": [
     {
+      "includes": ["src/client/**"],
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {
@@ -97,9 +103,6 @@
         "rules": {
           "suspicious": {
             "noConsole": "off"
-          },
-          "style": {
-            "noNonNullAssertion": "off"
           }
         }
       }

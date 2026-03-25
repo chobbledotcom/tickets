@@ -599,8 +599,10 @@ const loadAttendeeForEdit = async (
     [attendeeId],
   );
   if (!attendeeRaw) return null;
-  const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
-  const event = (await getEventWithCount(attendee.event_id))!;
+  const attendee = await decryptAttendeeOrNull(attendeeRaw, pk);
+  if (!attendee) return null;
+  const event = await getEventWithCount(attendee.event_id);
+  if (!event) return null;
   const [allEvents, questions, answersMap] = await Promise.all([
     getEventsForSelector(event.id),
     getQuestionsForEvent(event.id),

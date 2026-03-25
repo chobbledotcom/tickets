@@ -99,7 +99,7 @@ export const countApiKeysForUser = async (userId: number): Promise<number> => {
     "SELECT COUNT(*) as count FROM api_keys WHERE user_id = ?",
     [userId],
   );
-  return result!.count;
+  return result?.count;
 };
 
 /**

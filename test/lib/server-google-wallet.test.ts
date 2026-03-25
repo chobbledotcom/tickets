@@ -348,11 +348,11 @@ describeWithEnv(
       await setGoogleWalletEnvVars();
       const config = settings.googleWallet.hostConfig;
       expect(config).not.toBeNull();
-      expect(config!.issuerId).toBe("9876543210");
-      expect(config!.serviceAccountEmail).toBe(
+      expect(config?.issuerId).toBe("9876543210");
+      expect(config?.serviceAccountEmail).toBe(
         "env@env-project.iam.gserviceaccount.com",
       );
-      expect(config!.serviceAccountKey).toContain("BEGIN PRIVATE KEY");
+      expect(config?.serviceAccountKey).toContain("BEGIN PRIVATE KEY");
     });
   },
 );
@@ -382,7 +382,7 @@ describeWithEnv(
       await setGoogleWalletEnvVars();
       const config = settings.googleWallet.config;
       expect(config).not.toBeNull();
-      expect(config!.issuerId).toBe("9876543210");
+      expect(config?.issuerId).toBe("9876543210");
     });
 
     test("getGoogleWalletConfig prefers DB config over env vars", async () => {
@@ -390,7 +390,7 @@ describeWithEnv(
       await configureGoogleWallet();
       const config = settings.googleWallet.config;
       expect(config).not.toBeNull();
-      expect(config!.issuerId).toBe("1234567890");
+      expect(config?.issuerId).toBe("1234567890");
     });
 
     test("gwallet route works with env var config", async () => {

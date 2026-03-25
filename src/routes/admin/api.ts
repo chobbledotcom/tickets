@@ -301,7 +301,7 @@ const handleCreateEvent = (request: Request): Promise<Response> =>
     const row = await eventsTable.insert(parsed.input);
     const event = await getEventWithCount(row.id);
     await logActivity(`Event '${row.name}' created`, row);
-    return jsonResponse({ event: toAdminEvent(event!) }, 201);
+    return jsonResponse({ event: toAdminEvent(event as EventWithCount) }, 201);
   });
 
 export const adminApiRoutes = defineRoutes({
@@ -325,10 +325,11 @@ export const adminApiRoutes = defineRoutes({
       const validationError = await validateEventInput(parsed.input, eventId);
       if (validationError) return errorResponse(validationError);
 
-      const row = (await eventsTable.update(eventId, parsed.input))!;
+      const row = await eventsTable.update(eventId, parsed.input);
+      if (!row) return errorResponse("Event not found", 404);
       const updated = await getEventWithCount(row.id);
       await logActivity(`Event '${row.name}' updated`, row);
-      return jsonResponse({ event: toAdminEvent(updated!) });
+      return jsonResponse({ event: toAdminEvent(updated as EventWithCount) });
     }),
   "DELETE /api/admin/events/:eventId": (request, { eventId }) =>
     withEventApi(request, eventId, async (event, _session, body) => {

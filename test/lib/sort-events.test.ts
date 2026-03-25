@@ -15,8 +15,8 @@ const expectAlphaBeforeBravo = (
   const b = testEvent({ id: 1, name: "Bravo", ...overrides });
   const a = testEvent({ id: 2, name: "Alpha", ...overrides });
   const sorted = sortEvents([b, a], []);
-  expect(sorted[0]!.name).toBe("Alpha");
-  expect(sorted[1]!.name).toBe("Bravo");
+  expect(sorted[0]?.name).toBe("Alpha");
+  expect(sorted[1]?.name).toBe("Bravo");
 };
 
 describeWithEnv("sortEvents", { db: true }, () => {
@@ -44,8 +44,8 @@ describeWithEnv("sortEvents", { db: true }, () => {
     });
 
     const sorted = sortEvents([dated, noDate], []);
-    expect(sorted[0]!.name).toBe("Undated");
-    expect(sorted[1]!.name).toBe("Dated");
+    expect(sorted[0]?.name).toBe("Undated");
+    expect(sorted[1]?.name).toBe("Dated");
   });
 
   test("places dated standard events before daily events", () => {
@@ -58,8 +58,8 @@ describeWithEnv("sortEvents", { db: true }, () => {
     const daily = testEvent({ id: 2, name: "Daily", event_type: "daily" });
 
     const sorted = sortEvents([daily, dated], []);
-    expect(sorted[0]!.name).toBe("Dated");
-    expect(sorted[1]!.name).toBe("Daily");
+    expect(sorted[0]?.name).toBe("Dated");
+    expect(sorted[1]?.name).toBe("Daily");
   });
 
   test("places no-date standard before daily events", () => {
@@ -72,8 +72,8 @@ describeWithEnv("sortEvents", { db: true }, () => {
     const daily = testEvent({ id: 2, name: "Daily", event_type: "daily" });
 
     const sorted = sortEvents([daily, noDate], []);
-    expect(sorted[0]!.name).toBe("Undated");
-    expect(sorted[1]!.name).toBe("Daily");
+    expect(sorted[0]?.name).toBe("Undated");
+    expect(sorted[1]?.name).toBe("Daily");
   });
 
   test("sorts no-date standard events alphabetically by name", () => {
@@ -115,8 +115,8 @@ describeWithEnv("sortEvents", { db: true }, () => {
     });
 
     const sorted = sortEvents([later, earlier], []);
-    expect(sorted[0]!.name).toBe("Earlier");
-    expect(sorted[1]!.name).toBe("Later");
+    expect(sorted[0]?.name).toBe("Earlier");
+    expect(sorted[1]?.name).toBe("Later");
   });
 
   test("sorts dated standard events by name when dates are equal", () => {
@@ -143,8 +143,8 @@ describeWithEnv("sortEvents", { db: true }, () => {
     });
 
     const sorted = sortEvents([laterDaily, soonerDaily], []);
-    expect(sorted[0]!.name).toBe("Sooner Daily");
-    expect(sorted[1]!.name).toBe("Later Daily");
+    expect(sorted[0]?.name).toBe("Sooner Daily");
+    expect(sorted[1]?.name).toBe("Later Daily");
   });
 
   test("sorts daily events by name when next bookable dates are equal", () => {
@@ -163,8 +163,8 @@ describeWithEnv("sortEvents", { db: true }, () => {
       maximum_days_after: 30,
     });
     const sorted = sortEvents([b, a], []);
-    expect(sorted[0]!.name).toBe("Alpha Daily");
-    expect(sorted[1]!.name).toBe("Bravo Daily");
+    expect(sorted[0]?.name).toBe("Alpha Daily");
+    expect(sorted[1]?.name).toBe("Bravo Daily");
   });
 
   test("places daily events with no bookable dates after those with dates", () => {
@@ -185,8 +185,8 @@ describeWithEnv("sortEvents", { db: true }, () => {
     });
 
     const sorted = sortEvents([noBookable, hasBookable], []);
-    expect(sorted[0]!.name).toBe("Has Dates");
-    expect(sorted[1]!.name).toBe("No Dates");
+    expect(sorted[0]?.name).toBe("Has Dates");
+    expect(sorted[1]?.name).toBe("No Dates");
   });
 
   test("sorts daily events with no bookable dates by name", () => {
@@ -210,10 +210,10 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
     // Test both input orderings to exercise both dateA="" and dateB="" branches
     const sorted1 = sortEvents([withDates, withoutDates], []);
-    expect(sorted1[0]!.name).toBe("With Dates");
+    expect(sorted1[0]?.name).toBe("With Dates");
 
     const sorted2 = sortEvents([withoutDates, withDates], []);
-    expect(sorted2[0]!.name).toBe("With Dates");
+    expect(sorted2[0]?.name).toBe("With Dates");
   });
 
   test("accounts for holidays when sorting daily events", () => {
@@ -244,8 +244,8 @@ describeWithEnv("sortEvents", { db: true }, () => {
     });
 
     const sorted = sortEvents([blockedEvent, freeEvent], holidays);
-    expect(sorted[0]!.name).toBe("Free");
-    expect(sorted[1]!.name).toBe("Blocked");
+    expect(sorted[0]?.name).toBe("Free");
+    expect(sorted[1]?.name).toBe("Blocked");
   });
 
   test("sorts a mixed list of all three event types correctly", () => {

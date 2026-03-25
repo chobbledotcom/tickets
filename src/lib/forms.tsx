@@ -115,50 +115,66 @@ const splitDatetime = (value: string): { date: string; time: string } => {
   return { date, time };
 };
 
+/** Render the input control for a field based on its type */
+const renderFieldInput = (field: Field, value: string): JSX.Element => {
+  if (field.type === "textarea") {
+    return (
+      <textarea
+        name={field.name}
+        required={field.required}
+        placeholder={field.placeholder}
+        maxlength={field.maxlength}
+      >
+        <Raw html={escapeHtml(value)} />
+      </textarea>
+    );
+  }
+  if (field.type === "select" && field.options) {
+    return (
+      <Raw
+        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+      />
+    );
+  }
+  if (field.type === "checkbox-group" && field.options) {
+    return (
+      <Raw
+        html={renderCheckboxGroup(
+          field.name,
+          field.options,
+          new Set(value ? value.split(",").map((v) => v.trim()) : []),
+        )}
+      />
+    );
+  }
+  if (field.type === "datetime") {
+    return <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />;
+  }
+  if (field.type === "file") {
+    return <input type="file" name={field.name} accept={field.accept} />;
+  }
+  return (
+    <input
+      type={field.type}
+      name={field.name}
+      value={value || undefined}
+      required={field.required}
+      placeholder={field.placeholder}
+      min={field.min}
+      inputmode={field.inputmode}
+      maxlength={field.maxlength}
+      pattern={field.pattern}
+      autofocus={field.autofocus}
+      autocomplete={field.autocomplete}
+    />
+  );
+};
+
 export const renderField = (field: Field, value: string = ""): string =>
   String(
     <label>
       {field.label}
-      {field.type === "textarea" ? (
-        <textarea
-          name={field.name}
-          required={field.required}
-          placeholder={field.placeholder}
-          maxlength={field.maxlength}
-        >
-          <Raw html={escapeHtml(value)} />
-        </textarea>
-      ) : field.type === "select" && field.options ? (
-        <Raw
-          html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
-        />
-      ) : field.type === "checkbox-group" && field.options ? (
-        <Raw
-          html={renderCheckboxGroup(
-            field.name,
-            field.options,
-            new Set(value ? value.split(",").map((v) => v.trim()) : []),
-          )}
-        />
-      ) : field.type === "datetime" ? (
-        <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />
-      ) : field.type === "file" ? (
-        <input type="file" name={field.name} accept={field.accept} />
-      ) : (
-        <input
-          type={field.type}
-          name={field.name}
-          value={value || undefined}
-          required={field.required}
-          placeholder={field.placeholder}
-          min={field.min}
-          inputmode={field.inputmode}
-          maxlength={field.maxlength}
-          pattern={field.pattern}
-          autofocus={field.autofocus}
-          autocomplete={field.autocomplete}
-        />
-      )}
+      {renderFieldInput(field, value)}
       {field.hint && <small>{field.hint}</small>}
       {field.hintHtml && (
         <small>

@@ -344,7 +344,7 @@ export const getDateAttendeeCount = async (
     "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ? AND date = ?",
     [eventId, date],
   );
-  return rows[0]!.count;
+  return rows[0]?.count ?? 0;
 };
 
 /** Get a group's max_attendees limit (0 = no limit) */
@@ -372,7 +372,7 @@ const getGroupAttendeeCount = async (
        AND (? IS NULL OR e.event_type != 'daily' OR a.date = ?)`,
     [groupId, date, date],
   );
-  return rows[0]!.count;
+  return rows[0]?.count;
 };
 
 /** Stubbable API for testing atomic operations */
@@ -730,7 +730,7 @@ export const migrateAttendeeBatch = async (
     const remaining = await queryAll<{ count: number }>(
       "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
     );
-    return { migrated: 0, remaining: remaining[0]!.count };
+    return { migrated: 0, remaining: remaining[0]?.count };
   }
 
   // Process each row: decrypt old fields, build blob, prepare update
@@ -795,7 +795,7 @@ export const migrateAttendeeBatch = async (
     "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
   );
 
-  return { migrated: rows.length, remaining: remaining[0]!.count };
+  return { migrated: rows.length, remaining: remaining[0]?.count };
 };
 
 /** Count total attendees and unmigrated attendees */
@@ -810,7 +810,7 @@ export const getMigrationProgress = async (): Promise<{
     ),
   ]);
   return {
-    total: totalRows[0]!.count,
-    remaining: remainingRows[0]!.count,
+    total: totalRows[0]?.count,
+    remaining: remainingRows[0]?.count,
   };
 };

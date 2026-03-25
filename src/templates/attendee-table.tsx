@@ -324,11 +324,11 @@ const AttendeeRow = ({
       {vis.showSpecialInstructions && (
         <td>{formatInstructionsInline(a.special_instructions)}</td>
       )}
-      {vis.showAnswers && (
+      {vis.showAnswers && opts.questionData && (
         <Raw
           html={renderAnswerCell(
             a.id,
-            opts.questionData!,
+            opts.questionData,
             answerTextMap,
             answerQuestionMap,
           )}
@@ -378,10 +378,10 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const colCount = countColumns(vis, showActions);
 
   const answerTextMap = vis.showAnswers
-    ? buildAnswerTextMap(opts.questionData!.questions)
+    ? buildAnswerTextMap(opts.questionData?.questions)
     : new Map<number, string>();
   const answerQuestionMap = vis.showAnswers
-    ? buildAnswerQuestionMap(opts.questionData!.questions)
+    ? buildAnswerQuestionMap(opts.questionData?.questions)
     : new Map<number, string>();
 
   const rows =

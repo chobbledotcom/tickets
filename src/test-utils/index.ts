@@ -777,7 +777,7 @@ export const withMocks = async <
     await body(mocks);
   } finally {
     if (typeof (mocks as Restorable).restore === "function") {
-      (mocks as Restorable).restore!();
+      (mocks as Restorable).restore?.();
     } else {
       for (const mock of Object.values(mocks as Record<string, Restorable>)) {
         mock.restore?.();
@@ -843,7 +843,7 @@ export const loginAsAdmin = async (): Promise<{
   loginResponse.body?.cancel();
   const cookie = loginResponse.headers
     .getSetCookie()
-    .find((c) => c.startsWith(getSessionCookieName() + "="));
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
   if (!cookie) throw new Error("No session cookie in login response");
   const csrfToken = await signCsrfToken();
 

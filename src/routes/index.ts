@@ -257,7 +257,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) => {
   const prefix = getPrefix(path);
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
   return (
-    (await prefixHandlers[prefix]!(request, path, method, server)) ??
+    (await prefixHandlers[prefix]?.(request, path, method, server)) ??
     notFoundResponse()
   );
 };

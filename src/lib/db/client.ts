@@ -55,7 +55,7 @@ export const queryOne = async <T>(
 ): Promise<T | null> => {
   const result = await trackQuery(sql, () => getDb().execute({ sql, args }));
   const rows = resultRows<T>(result);
-  return rows.length === 0 ? null : rows[0]!;
+  return rows.length === 0 ? null : (rows[0] as T);
 };
 
 /** Query all rows, returning a typed array */

@@ -86,7 +86,7 @@ const compileDateOptions = (
       filter((d: string) =>
         standardEvents.some(
           (e) =>
-            standardEventDateMap.get(d)!.includes(e.id) && e.attendee_count > 0,
+            standardEventDateMap.get(d)?.includes(e.id) && e.attendee_count > 0,
         ),
       ),
     )(standardDates),

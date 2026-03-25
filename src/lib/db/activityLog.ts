@@ -5,6 +5,7 @@
  * Messages are encrypted - only admins can read them.
  */
 
+import type { ResultSet } from "@libsql/client";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
@@ -113,7 +114,9 @@ export const getEventWithActivityLog = async (
     },
   ]);
 
-  const eventRows = resultRows<Event & { attendee_count: number }>(results[0]!);
+  const eventRows = resultRows<Event & { attendee_count: number }>(
+    results[0] as ResultSet,
+  );
   const eventRow = eventRows[0];
   if (!eventRow) return null;
 
@@ -124,7 +127,7 @@ export const getEventWithActivityLog = async (
     attendee_count: eventRow.attendee_count,
   };
 
-  const logRows = resultRows<ActivityLogEntry>(results[1]!);
+  const logRows = resultRows<ActivityLogEntry>(results[1] as ResultSet);
   const entries = await Promise.all(
     logRows.map((row) => activityLogTable.fromDb(row)),
   );

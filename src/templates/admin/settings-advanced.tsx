@@ -333,7 +333,7 @@ export const adminAdvancedSettingsPage = (
             {s.confirmationTemplates.html}
           </textarea>
         </label>
-        <a href="#" data-fill-default="confirmation_html">
+        <a href="#settings-email-tpl-confirmation" data-fill-default="confirmation_html">
           <small>Edit default template</small>
         </a>
         <label>

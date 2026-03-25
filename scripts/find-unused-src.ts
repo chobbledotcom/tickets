@@ -33,19 +33,21 @@ for (const [alias, target] of Object.entries(importMapRaw)) {
 // Sort by longest alias first so more specific aliases match first
 aliasMap.sort((a, b) => b.alias.length - a.alias.length);
 
+/** Try to resolve a specifier via the alias map */
+const resolveAlias = (specifier: string): string | null => {
+  for (const { alias, path: aliasPath } of aliasMap) {
+    if (alias.endsWith("/") && specifier.startsWith(alias)) {
+      return `${aliasPath}${specifier.slice(alias.length)}`;
+    }
+    if (specifier === alias) return aliasPath;
+  }
+  return null;
+};
+
 /** Resolve an import specifier to a relative file path (from project root) */
 function resolveImport(specifier: string, fromFile: string): string | null {
-  for (const { alias, path: aliasPath } of aliasMap) {
-    if (alias.endsWith("/")) {
-      if (specifier.startsWith(alias)) {
-        return aliasPath + specifier.slice(alias.length);
-      }
-    } else {
-      if (specifier === alias) {
-        return aliasPath;
-      }
-    }
-  }
+  const aliased = resolveAlias(specifier);
+  if (aliased) return aliased;
 
   if (specifier.startsWith("./") || specifier.startsWith("../")) {
     const fromDir = path.dirname(fromFile);
@@ -56,22 +58,23 @@ function resolveImport(specifier: string, fromFile: string): string | null {
   return null;
 }
 
+/** Check if a file has a TypeScript extension */
+const isTsFile = (name: string): boolean =>
+  name.endsWith(".ts") || name.endsWith(".tsx");
+
 /** Collect all .ts/.tsx files in a directory recursively */
 function collectFiles(dir: string): string[] {
   const files: string[] = [];
   const fullDir = path.resolve(ROOT, dir);
   if (!fs.existsSync(fullDir)) return files;
 
-  function recurse(d: string) {
+  const recurse = (d: string) => {
     for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
       const full = path.join(d, entry.name);
-      if (entry.isDirectory()) {
-        recurse(full);
-      } else if (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) {
-        files.push(path.relative(ROOT, full));
-      }
+      if (entry.isDirectory()) recurse(full);
+      else if (isTsFile(entry.name)) files.push(path.relative(ROOT, full));
     }
-  }
+  };
   recurse(fullDir);
   return files.sort();
 }
@@ -93,11 +96,8 @@ function extractImports(
   const staticRegex =
     /(?:import|export)\s+(?:type\s+)?(?:\{([^}]*)\}|(\*\s+as\s+\w+)|\w+)?\s*(?:,\s*\{([^}]*)\})?\s*(?:from\s+)?["']([^"']+)["']/g;
 
-  let match;
-  while ((match = staticRegex.exec(content)) !== null) {
-    const namedImports = (match[1] || "") + (match[3] || "");
-    const specifier = match[4]!;
-    const names = namedImports
+  const parseNames = (raw: string): string[] =>
+    raw
       .split(",")
       .map((n: string) =>
         n
@@ -106,7 +106,10 @@ function extractImports(
           .trim(),
       )
       .filter(Boolean);
-    imports.push({ specifier, names });
+
+  for (const match of content.matchAll(staticRegex)) {
+    const namedImports = (match[1] || "") + (match[3] || "");
+    imports.push({ specifier: match[4]!, names: parseNames(namedImports) });
   }
 
   // Dynamic imports:
@@ -115,46 +118,32 @@ function extractImports(
   const dynamicRegex =
     /(?:const\s+\{([^}]*)\}\s*=\s*)?await\s+import\(\s*["']([^"']+)["']\s*\)/g;
 
-  while ((match = dynamicRegex.exec(content)) !== null) {
-    const namedImports = match[1] || "";
-    const specifier = match[2]!;
-    const names = namedImports
-      .split(",")
-      .map((n: string) =>
-        n
-          .trim()
-          .replace(/\s+as\s+\w+/, "")
-          .trim(),
-      )
-      .filter(Boolean);
-    imports.push({ specifier, names });
+  for (const match of content.matchAll(dynamicRegex)) {
+    imports.push({ specifier: match[2]!, names: parseNames(match[1] || "") });
   }
 
   return imports;
 }
+
+/** Patterns that capture a single named export in group 1 */
+const NAMED_EXPORT_PATTERNS = [
+  /export\s+function\s+(\w+)/g,
+  /export\s+(?:const|let|var)\s+(\w+)/g,
+  /export\s+class\s+(\w+)/g,
+  /export\s+(?:type|interface)\s+(\w+)/g,
+  /export\s+enum\s+(\w+)/g,
+];
 
 /** Extract exported names from a file */
 function extractExports(filePath: string): string[] {
   const content = fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
   const exports: string[] = [];
 
-  for (const m of content.matchAll(/export\s+function\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
-  for (const m of content.matchAll(/export\s+(?:const|let|var)\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
-  for (const m of content.matchAll(/export\s+class\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
-  for (const m of content.matchAll(/export\s+(?:type|interface)\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
-  for (const m of content.matchAll(/export\s+enum\s+(\w+)/g)) {
-    exports.push(m[1]!);
+  for (const pattern of NAMED_EXPORT_PATTERNS) {
+    for (const m of content.matchAll(pattern)) exports.push(m[1]!);
   }
   for (const m of content.matchAll(/export\s+\{([^}]+)\}(?!\s*from)/g)) {
-    for (const name of m[1]!.split(",")) {
+    for (const name of m[1]?.split(",")) {
       const trimmed = name
         .trim()
         .replace(/\s+as\s+\w+/, "")
@@ -162,9 +151,7 @@ function extractExports(filePath: string): string[] {
       if (trimmed) exports.push(trimmed);
     }
   }
-  if (/export\s+default\s/.test(content)) {
-    exports.push("default");
-  }
+  if (/export\s+default\s/.test(content)) exports.push("default");
 
   return [...new Set(exports)];
 }
@@ -211,10 +198,10 @@ for (const file of allFiles) {
     let target = resolved;
     const allSrcFiles = [...srcFiles, ...testUtilFiles];
     if (!allSrcFiles.includes(target)) {
-      if (allSrcFiles.includes(target + ".ts")) target = target + ".ts";
-      else if (allSrcFiles.includes(target + ".tsx")) target = target + ".tsx";
-      else if (allSrcFiles.includes(target + "/index.ts")) {
-        target = target + "/index.ts";
+      if (allSrcFiles.includes(`${target}.ts`)) target = `${target}.ts`;
+      else if (allSrcFiles.includes(`${target}.tsx`)) target = `${target}.tsx`;
+      else if (allSrcFiles.includes(`${target}/index.ts`)) {
+        target = `${target}/index.ts`;
       }
     }
 
@@ -222,10 +209,10 @@ for (const file of allFiles) {
 
     if (file.startsWith("test/") || file.startsWith("src/test-utils/")) {
       if (!importedByTest.has(target)) importedByTest.set(target, []);
-      importedByTest.get(target)!.push(info);
+      importedByTest.get(target)?.push(info);
     } else if (file.startsWith("src/") || file.startsWith("scripts/")) {
       if (!importedBySrc.has(target)) importedBySrc.set(target, []);
-      importedBySrc.get(target)!.push(info);
+      importedBySrc.get(target)?.push(info);
     }
   }
 }

@@ -139,8 +139,8 @@ describeWithEnv("Public API", { db: true }, () => {
       const { response, events } = await fetchEventsList();
       expect(response.status).toBe(200);
       expect(events.length).toBe(1);
-      expect(events[0]!.name).toBe("Public Event");
-      expect(events[0]!.slug).toBe(event.slug);
+      expect(events[0]?.name).toBe("Public Event");
+      expect(events[0]?.slug).toBe(event.slug);
     });
 
     test("filters hidden events from listing", async () => {
@@ -148,7 +148,7 @@ describeWithEnv("Public API", { db: true }, () => {
       await createTestEvent({ name: "Hidden", hidden: true });
       const { events } = await fetchEventsList();
       expect(events.length).toBe(1);
-      expect(events[0]!.name).toBe("Visible");
+      expect(events[0]?.name).toBe("Visible");
     });
 
     test("does not expose internal fields", async () => {
@@ -178,8 +178,8 @@ describeWithEnv("Public API", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 1 });
       await createTestAttendeeDirect(event.id, "Alice", "a@test.com");
       const { events } = await fetchEventsList();
-      expect(events[0]!.isSoldOut).toBe(true);
-      expect(events[0]!.maxPurchasable).toBe(0);
+      expect(events[0]?.isSoldOut).toBe(true);
+      expect(events[0]?.maxPurchasable).toBe(0);
     });
   });
 

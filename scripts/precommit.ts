@@ -19,35 +19,36 @@ interface Step {
   filterOutput?: (stdout: string, stderr: string) => string;
 }
 
-/** Extract only failures and errors from deno test output */
-const filterTestOutput = (stdout: string, stderr: string): string => {
-  const combined = stdout + "\n" + stderr;
-  const lines = combined.split("\n");
+/** Check if a line starts an error/failure section or summary */
+const isCaptureTrigger = (line: string): boolean =>
+  /^ ERRORS\s*$/.test(line) ||
+  /^ FAILURES\s*$/.test(line) ||
+  /^(FAILED|ok)\s*\|/.test(line);
+
+/** Extract structured failure sections from test output lines */
+const extractFailureSections = (lines: string[]): string[] => {
   const output: string[] = [];
   let capturing = false;
-
   for (const line of lines) {
-    // Start capturing at ERRORS or FAILURES sections
-    if (/^ ERRORS\s*$/.test(line) || /^ FAILURES\s*$/.test(line)) {
-      capturing = true;
-    }
-    // Always capture the summary line (e.g. "FAILED | 120 passed | 2 failed")
-    if (/^(FAILED|ok)\s*\|/.test(line)) {
-      capturing = true;
-    }
+    if (isCaptureTrigger(line)) capturing = true;
     if (capturing) output.push(line);
   }
+  return output;
+};
 
-  // If no structured sections found, fall back to lines containing FAILED or error info
-  if (output.length === 0) {
-    for (const line of lines) {
-      if (/FAILED|error:|Error:|AssertionError|assert/i.test(line)) {
-        output.push(line);
-      }
-    }
-  }
+/** Fallback: grep for lines containing error-like patterns */
+const extractErrorLines = (lines: string[]): string[] =>
+  lines.filter((line) =>
+    /FAILED|error:|Error:|AssertionError|assert/i.test(line),
+  );
 
-  return output.join("\n").trim();
+/** Extract only failures and errors from deno test output */
+const filterTestOutput = (stdout: string, stderr: string): string => {
+  const lines = `${stdout}\n${stderr}`.split("\n");
+  const output = extractFailureSections(lines);
+  return (output.length > 0 ? output : extractErrorLines(lines))
+    .join("\n")
+    .trim();
 };
 
 const steps: Step[] = [

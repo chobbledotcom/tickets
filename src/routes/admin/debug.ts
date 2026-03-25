@@ -81,7 +81,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     if (settings.appleWallet.hasDbConfig)
       return settings.appleWallet.passTypeId;
     if (appleWalletEnvConfigured)
-      return settings.appleWallet.hostConfig!.passTypeId;
+      return settings.appleWallet.hostConfig?.passTypeId;
     return "";
   };
   const resolveWalletSource = (): string => {
@@ -94,7 +94,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     if (settings.googleWallet.hasDbConfig)
       return settings.googleWallet.issuerId;
     if (googleWalletEnvConfigured)
-      return settings.googleWallet.hostConfig!.issuerId;
+      return settings.googleWallet.hostConfig?.issuerId;
     return "";
   };
   const resolveGoogleWalletSource = (): string => {

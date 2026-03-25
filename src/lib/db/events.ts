@@ -114,7 +114,7 @@ export const writeClosesAt = (v: string | null): Promise<string | null> =>
 /** Decrypt closes_at from DB storage (encrypted empty → null) */
 const readClosesAt = async (v: string | null): Promise<string | null> => {
   // DB column is NOT NULL (writeClosesAt always encrypts), so v is always a string
-  const result = await decryptDatetime(v!);
+  const result = await decryptDatetime(v as string);
   return result === "" ? null : result;
 };
 
@@ -328,9 +328,9 @@ export const getEventWithAttendeesRaw = async (
     },
   ]);
 
-  const attendeesRaw = resultRows<Attendee>(attendeesResult!);
+  const attendeesRaw = resultRows<Attendee>(attendeesResult as ResultSet);
   return withBatchEvent(
-    eventResult!,
+    eventResult as ResultSet,
     () => attendeesRaw.reduce((sum, a) => sum + a.quantity, 0),
     (event) => ({ event, attendeesRaw }),
   );
@@ -424,11 +424,11 @@ export const getEventWithAttendeeRaw = async (
   ]);
 
   return withBatchEvent(
-    eventResult!,
-    () => resultRows<{ count: number }>(countResult!)[0]!.count,
+    eventResult as ResultSet,
+    () => (resultRows<{ count: number }>(countResult as ResultSet)[0]?.count ?? 0),
     (event) => ({
       event,
-      attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
+      attendeeRaw: resultRows<Attendee>(attendeeResult as ResultSet)[0] ?? null,
     }),
   );
 };

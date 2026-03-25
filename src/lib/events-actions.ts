@@ -34,6 +34,21 @@ const validateMaxPrice = (input: EventInput): string | null => {
     : null;
 };
 
+/** Validate group-related constraints (existence and event type consistency) */
+const validateGroup = async (
+  input: EventInput,
+  existingId: number,
+): Promise<string | null> => {
+  if (!input.groupId || input.groupId === 0) return null;
+  const group = await groupsTable.findById(input.groupId);
+  if (!group) return "Selected group does not exist";
+  return validateGroupEventType(
+    input.groupId,
+    input.eventType as string,
+    existingId,
+  );
+};
+
 /** Validate event input (group exists, max price, event type consistency) */
 export const validateEventInput = async (
   input: EventInput,
@@ -43,17 +58,7 @@ export const validateEventInput = async (
     const maxPriceError = validateMaxPrice(input);
     if (maxPriceError) return maxPriceError;
   }
-  if (input.groupId && input.groupId !== 0) {
-    const group = await groupsTable.findById(input.groupId);
-    if (!group) return "Selected group does not exist";
-    const typeError = await validateGroupEventType(
-      input.groupId,
-      input.eventType!,
-      existingId ?? 0,
-    );
-    if (typeError) return typeError;
-  }
-  return null;
+  return validateGroup(input, existingId ?? 0);
 };
 
 /**
