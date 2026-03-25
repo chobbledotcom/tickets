@@ -1281,6 +1281,26 @@ export const assertJson = async <T = any>(
 };
 
 /**
+ * Fetch an admin page and assert the HTML contains all given substrings.
+ * Returns the HTML for further assertions.
+ *
+ * @example
+ * await assertAdminHtml("/admin/guide", "Getting Started", "Events");
+ *
+ * const html = await assertAdminHtml("/admin/debug", "queries");
+ * expect(html).not.toContain("secret");
+ */
+export const assertAdminHtml = async (
+  path: string,
+  ...substrings: string[]
+): Promise<string> => {
+  const { response } = await adminGet(path);
+  const html = await response.text();
+  for (const s of substrings) expect(html).toContain(s);
+  return html;
+};
+
+/**
  * Assert status and check that the HTML body contains all given substrings.
  * Returns the HTML string for further assertions.
  */

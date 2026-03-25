@@ -8,7 +8,7 @@ import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import { handleRequest } from "#routes";
 import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
 import {
-  adminGet,
+  assertAdminHtml,
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
