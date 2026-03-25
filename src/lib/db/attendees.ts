@@ -689,7 +689,7 @@ export const updateAttendee = async (
       payment_id: input.payment_id,
       ticket_token: input.ticket_token,
     }),
-    settings.publicKey!,
+    settings.publicKey,
   );
 
   await getDb().execute({
@@ -775,7 +775,7 @@ export const migrateAttendeeBatch = async (
       payment_id,
       ticket_token,
     });
-    const encryptedBlob = await encryptPiiBlob(piiJson, settings.publicKey!);
+    const encryptedBlob = await encryptPiiBlob(piiJson, settings.publicKey);
 
     // Write new columns
     await getDb().execute({

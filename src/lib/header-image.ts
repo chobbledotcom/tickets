@@ -9,7 +9,7 @@
 import { settings } from "#lib/db/settings.ts";
 
 /** For testing: set the header image URL directly */
-export const setHeaderImageForTest = (url: string | null): void => {
+export const setHeaderImageForTest = (url: string): void => {
   settings.setForTest({ headerImageUrl: url });
 };
 

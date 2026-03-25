@@ -22,7 +22,7 @@ export const isPaymentsEnabled = (): boolean => {
  * Returns 0 if not set.
  */
 export const getBookingFee = (): number =>
-  Number.parseFloat(settings.bookingFee!) || 0;
+  Number.parseFloat(settings.bookingFee) || 0;
 
 /**
  * Effective domain: custom_domain (from DB) if set, otherwise the request's

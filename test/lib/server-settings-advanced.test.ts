@@ -774,7 +774,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               false,
             );
             expect(settings.customDomain).toBe("tickets.example.com");
-            expect(settings.customDomainLastValidated).toBeNull();
+            expect(settings.customDomainLastValidated).toBe("");
           } finally {
             bunnyCdnApi.validateCustomDomain = original;
           }
@@ -820,7 +820,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             response,
             expect.stringContaining("Custom domain cleared"),
           );
-          expect(settings.customDomain).toBeNull();
+          expect(settings.customDomain).toBe("");
         });
 
         test("clears domain when field is missing from form", async () => {
@@ -840,7 +840,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             response,
             expect.stringContaining("Custom domain cleared"),
           );
-          expect(settings.customDomain).toBeNull();
+          expect(settings.customDomain).toBe("");
         });
 
         test("rejects invalid domain format", async () => {
