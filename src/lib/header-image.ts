@@ -10,10 +10,10 @@ import { settings } from "#lib/db/settings.ts";
 
 /** For testing: set the header image URL directly */
 export const setHeaderImageForTest = (url: string): void => {
-  settings.setForTest({ headerImageUrl: url });
+  settings.setForTest({ header_image_url: url });
 };
 
 /** For testing: reset the header image state */
 export const resetHeaderImage = (): void => {
-  settings.clearTestOverride("headerImageUrl");
+  settings.clearTestOverride("header_image_url");
 };
