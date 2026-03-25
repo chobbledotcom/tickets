@@ -89,6 +89,8 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 ### Optional
 
 - `PORT` - Server port (defaults to 3000, local dev only)
+- `BUNNY_API_KEY` - Bunny API key (required for custom domain management, with `BUNNY_SCRIPT_ID`)
+- `BUNNY_SCRIPT_ID` - Bunny Edge Script ID (required for custom domain management, with `BUNNY_API_KEY`)
 - `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (required for image uploads)
 - `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image uploads)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.

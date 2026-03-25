@@ -67,19 +67,15 @@ describe("logger", () => {
     });
 
     test("redacts device ID in wallet webservice device paths", () => {
-      expect(
-        redactPath("/v1/devices/abc123/registrations/pass.com.test"),
-      ).toBe("/v1/devices/[redacted]/registrations/pass.com.test");
+      expect(redactPath("/v1/devices/abc123/registrations/pass.com.test")).toBe(
+        "/v1/devices/[redacted]/registrations/pass.com.test",
+      );
     });
 
     test("redacts token in wallet webservice registration paths", () => {
       expect(
-        redactPath(
-          "/v1/devices/abc123/registrations/pass.com.test/my-token",
-        ),
-      ).toBe(
-        "/v1/devices/[redacted]/registrations/pass.com.test/[redacted]",
-      );
+        redactPath("/v1/devices/abc123/registrations/pass.com.test/my-token"),
+      ).toBe("/v1/devices/[redacted]/registrations/pass.com.test/[redacted]");
     });
 
     test("redacts token in wallet webservice pass paths", () => {
@@ -89,9 +85,7 @@ describe("logger", () => {
     });
 
     test("redacts token in wallet download paths", () => {
-      expect(redactPath("/wallet/abc123.pkpass")).toBe(
-        "/wallet/[redacted]",
-      );
+      expect(redactPath("/wallet/abc123.pkpass")).toBe("/wallet/[redacted]");
     });
 
     test("redacts token in checkin paths", () => {

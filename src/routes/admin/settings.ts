@@ -7,16 +7,12 @@ import {
   isValidPemCertificate,
   isValidPemPrivateKey,
 } from "#lib/apple-wallet.ts";
-import { validateCustomDomain } from "#lib/bunny-cdn.ts";
+import { getCdnHostname, validateCustomDomain } from "#lib/bunny-cdn.ts";
 import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
-import {
-  getCdnHostname,
-  getEffectiveDomain,
-  isBunnyCdnEnabled,
-} from "#lib/config.ts";
+import { getEffectiveDomain, isBunnyCdnEnabled } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { isValidCountry } from "#lib/countries.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -124,10 +120,11 @@ const getSettingsPageState = () => {
 };
 
 /** Gather state for the advanced settings page */
-const getAdvancedSettingsPageState = () => {
+const getAdvancedSettingsPageState = async () => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
   const confirmationTemplates = settings.email.templateSet("confirmation");
   const adminTemplates = settings.email.templateSet("admin");
+  const cdnResult = bunnyCdnConfigured ? await getCdnHostname() : null;
   return {
     showPublicApi: settings.showPublicApi,
     emailProvider: settings.email.provider ?? "",
@@ -154,7 +151,7 @@ const getAdvancedSettingsPageState = () => {
     customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
     customDomainLastValidated:
       (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
-    cdnHostname: bunnyCdnConfigured ? getCdnHostname() : "",
+    cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
     appleWalletConfigured: settings.appleWallet.hasDbConfig,
     appleWalletPassTypeId: settings.appleWallet.passTypeId ?? "",
     appleWalletTeamId: settings.appleWallet.teamId ?? "",
@@ -183,8 +180,8 @@ const renderSettingsPage = (session: AuthSession) => {
 };
 
 /** Render the advanced settings page with current state */
-const renderAdvancedSettingsPage = (session: AuthSession) => {
-  const state = getAdvancedSettingsPageState();
+const renderAdvancedSettingsPage = async (session: AuthSession) => {
+  const state = await getAdvancedSettingsPageState();
   return adminAdvancedSettingsPage(session, state);
 };
 
