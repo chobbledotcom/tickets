@@ -42,97 +42,97 @@ export type SettingsPageState = {
   storageEnabled: boolean;
 };
 
-/** Render payment provider settings sections */
-const PaymentProviderForms = ({ s }: { s: SettingsPageState }): string =>
+/** Render Stripe settings form */
+const StripeSettingsForm = ({ s }: { s: SettingsPageState }): string =>
+  String(
+    <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
+      <h2>Stripe Settings</h2>
+      <p>
+        {s.stripeKeyConfigured
+          ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
+          : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
+      </p>
+      {s.stripeKeyConfigured && s.stripeKeyMode === "test" && (
+        <p class="notice warning">
+          <strong>Test mode:</strong> You are using a Stripe test key (
+          <code>sk_test_</code>). No real charges will be made. Switch to a live
+          key (<code>sk_live_</code>) when you are ready to accept real
+          payments.
+        </p>
+      )}
+      {s.stripeKeyConfigured && s.stripeKeyMode === "live" && (
+        <p class="notice">
+          <strong>Live mode:</strong> You are using a Stripe live key. Payments
+          will be charged for real.
+        </p>
+      )}
+      <p>
+        <small>
+          <a href="/admin/guide#payment-setup">Where do I find this?</a>
+        </small>
+      </p>
+      <Raw
+        html={renderFields(
+          stripeKeyFields,
+          s.stripeKeyConfigured ? { stripe_secret_key: MASK_SENTINEL } : {},
+        )}
+      />
+      <footer>
+        <button type="submit">Update Stripe Key</button>
+        {s.stripeKeyConfigured && (
+          <button type="button" id="stripe-test-btn" class="secondary">
+            Test Connection
+          </button>
+        )}
+      </footer>
+      <div id="stripe-test-result" class="hidden"></div>
+    </CsrfForm>,
+  );
+
+/** Render Square settings and webhook forms */
+const SquareSettingsForms = ({ s }: { s: SettingsPageState }): string =>
   String(
     <>
-      {s.paymentProvider === "stripe" && (
-        <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
-          <h2>Stripe Settings</h2>
-          <p>
-            {s.stripeKeyConfigured
-              ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
-              : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
-          </p>
-          {s.stripeKeyConfigured && s.stripeKeyMode === "test" && (
-            <p class="notice warning">
-              <strong>Test mode:</strong> You are using a Stripe test key (
-              <code>sk_test_</code>). No real charges will be made. Switch to a
-              live key (<code>sk_live_</code>) when you are ready to accept real
-              payments.
-            </p>
+      <CsrfForm action="/admin/settings/square" id="settings-square">
+        <h2>Square Settings</h2>
+        <p>
+          {s.squareTokenConfigured
+            ? "A Square access token is currently configured. Enter new credentials below to replace them."
+            : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
+        </p>
+        <p>
+          <small>
+            <a href="/admin/guide#payment-setup">Where do I find these?</a>
+          </small>
+        </p>
+        <Raw
+          html={renderFields(
+            squareAccessTokenFields,
+            s.squareTokenConfigured
+              ? { square_access_token: MASK_SENTINEL }
+              : {},
           )}
-          {s.stripeKeyConfigured && s.stripeKeyMode === "live" && (
-            <p class="notice">
-              <strong>Live mode:</strong> You are using a Stripe live key.
-              Payments will be charged for real.
-            </p>
+        />
+        <label>
+          <input
+            type="checkbox"
+            name="square_sandbox"
+            checked={s.squareSandbox}
+          />
+          Sandbox mode (use Square's test environment)
+        </label>
+        <footer>
+          <button type="submit">Update Square Credentials</button>
+          {s.squareTokenConfigured && (
+            <button type="button" id="square-test-btn" class="secondary">
+              Test Connection
+            </button>
           )}
-          <p>
-            <small>
-              <a href="/admin/guide#payment-setup">Where do I find this?</a>
-            </small>
-          </p>
-          <Raw
-            html={renderFields(
-              stripeKeyFields,
-              s.stripeKeyConfigured ? { stripe_secret_key: MASK_SENTINEL } : {},
-            )}
-          />
-          <footer>
-            <button type="submit">Update Stripe Key</button>
-            {s.stripeKeyConfigured && (
-              <button type="button" id="stripe-test-btn" class="secondary">
-                Test Connection
-              </button>
-            )}
-          </footer>
-          <div id="stripe-test-result" class="hidden"></div>
-        </CsrfForm>
-      )}
+        </footer>
+        <div id="square-test-result" class="hidden"></div>
+      </CsrfForm>
 
-      {s.paymentProvider === "square" && (
-        <CsrfForm action="/admin/settings/square" id="settings-square">
-          <h2>Square Settings</h2>
-          <p>
-            {s.squareTokenConfigured
-              ? "A Square access token is currently configured. Enter new credentials below to replace them."
-              : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
-          </p>
-          <p>
-            <small>
-              <a href="/admin/guide#payment-setup">Where do I find these?</a>
-            </small>
-          </p>
-          <Raw
-            html={renderFields(
-              squareAccessTokenFields,
-              s.squareTokenConfigured
-                ? { square_access_token: MASK_SENTINEL }
-                : {},
-            )}
-          />
-          <label>
-            <input
-              type="checkbox"
-              name="square_sandbox"
-              checked={s.squareSandbox}
-            />
-            Sandbox mode (use Square's test environment)
-          </label>
-          <footer>
-            <button type="submit">Update Square Credentials</button>
-            {s.squareTokenConfigured && (
-              <button type="button" id="square-test-btn" class="secondary">
-                Test Connection
-              </button>
-            )}
-          </footer>
-          <div id="square-test-result" class="hidden"></div>
-        </CsrfForm>
-      )}
-
-      {s.paymentProvider === "square" && s.squareTokenConfigured && (
+      {s.squareTokenConfigured && (
         <CsrfForm
           action="/admin/settings/square-webhook"
           id="settings-square-webhook"
@@ -190,7 +190,19 @@ const PaymentProviderForms = ({ s }: { s: SettingsPageState }): string =>
           <button type="submit">Update Webhook Key</button>
         </CsrfForm>
       )}
+    </>,
+  );
 
+/** Render payment provider settings sections */
+const PaymentProviderForms = ({ s }: { s: SettingsPageState }): string =>
+  String(
+    <>
+      {s.paymentProvider === "stripe" && (
+        <Raw html={StripeSettingsForm({ s })} />
+      )}
+      {s.paymentProvider === "square" && (
+        <Raw html={SquareSettingsForms({ s })} />
+      )}
       {s.paymentProvider && (
         <CsrfForm
           action="/admin/settings/booking-fee"

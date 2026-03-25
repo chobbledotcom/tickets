@@ -76,9 +76,7 @@ const renderWalletLinks = (
   ]
     .filter(Boolean)
     .join(" / ");
-  return links
-    ? `<div class="ticket-card-wallet">Add to: ${links}</div>`
-    : "";
+  return links ? `<div class="ticket-card-wallet">Add to: ${links}</div>` : "";
 };
 
 /** Render a single ticket card */

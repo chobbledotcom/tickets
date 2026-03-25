@@ -2,8 +2,8 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
-import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";

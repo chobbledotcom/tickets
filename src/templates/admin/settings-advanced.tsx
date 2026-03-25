@@ -44,26 +44,26 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
 };
 
+/** Compute the Apple Wallet host configuration note */
+const appleWalletHostNote = (s: AdvancedSettingsPageState): string => {
+  if (s.hostAppleWalletLabel && !s.appleWalletConfigured) {
+    return ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`;
+  }
+  if (s.hostAppleWalletLabel && s.appleWalletConfigured) {
+    return ` Overriding: ${s.hostAppleWalletLabel}.`;
+  }
+  return "";
+};
+
 /** Render Apple Wallet configuration form */
-const AppleWalletForm = ({
-  s,
-}: {
-  s: AdvancedSettingsPageState;
-}): string =>
+const AppleWalletForm = ({ s }: { s: AdvancedSettingsPageState }): string =>
   String(
-    <CsrfForm
-      action="/admin/settings/apple-wallet"
-      id="settings-apple-wallet"
-    >
+    <CsrfForm action="/admin/settings/apple-wallet" id="settings-apple-wallet">
       <h2>Apple Wallet</h2>
       <p>
         Configure Apple Wallet pass signing to show an &ldquo;Add to Apple
         Wallet&rdquo; button on ticket pages.
-        {s.hostAppleWalletLabel && !s.appleWalletConfigured
-          ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
-          : s.hostAppleWalletLabel && s.appleWalletConfigured
-            ? ` Overriding: ${s.hostAppleWalletLabel}.`
-            : ""}
+        {appleWalletHostNote(s)}
       </p>
       <label>
         Pass Type ID
@@ -120,11 +120,7 @@ const AppleWalletForm = ({
   );
 
 /** Render Google Wallet configuration form */
-const GoogleWalletForm = ({
-  s,
-}: {
-  s: AdvancedSettingsPageState;
-}): string =>
+const GoogleWalletForm = ({ s }: { s: AdvancedSettingsPageState }): string =>
   String(
     <CsrfForm
       action="/admin/settings/google-wallet"
@@ -133,8 +129,8 @@ const GoogleWalletForm = ({
       <h2>Google Wallet</h2>
       <p>
         Configure Google Wallet to show an &ldquo;Add to Google Wallet&rdquo;
-        button on ticket pages. Requires a Google Cloud service account with
-        the Google Wallet API enabled.
+        button on ticket pages. Requires a Google Cloud service account with the
+        Google Wallet API enabled.
         {s.hostGoogleWalletLabel && !s.googleWalletConfigured
           ? ` Currently using: ${s.hostGoogleWalletLabel}. Override below or leave empty to keep using host config.`
           : s.hostGoogleWalletLabel && s.googleWalletConfigured
@@ -185,11 +181,7 @@ const WalletForms = ({ s }: { s: AdvancedSettingsPageState }): string =>
   );
 
 /** Render email template configuration forms */
-const EmailTemplateForms = ({
-  s,
-}: {
-  s: AdvancedSettingsPageState;
-}): string =>
+const EmailTemplateForms = ({ s }: { s: AdvancedSettingsPageState }): string =>
   String(
     <>
       <CsrfForm
@@ -399,11 +391,7 @@ const EmailTemplateForms = ({
   );
 
 /** Render email provider form */
-const EmailProviderForm = ({
-  s,
-}: {
-  s: AdvancedSettingsPageState;
-}): string =>
+const EmailProviderForm = ({ s }: { s: AdvancedSettingsPageState }): string =>
   String(
     <>
       <CsrfForm action="/admin/settings/email" id="settings-email">

@@ -282,6 +282,27 @@ const EventActionNav = ({
     </nav>,
   );
 
+/** Render daily-schedule rows (bookable days, booking window) */
+const DailyScheduleRows = ({ event }: { event: EventWithCount }): string =>
+  String(
+    <>
+      <tr>
+        <th>Bookable Days</th>
+        <td>{formatBookableDays(event.bookable_days)}</td>
+      </tr>
+      <tr>
+        <th>Booking Window</th>
+        <td>
+          {event.minimum_days_before} to{" "}
+          {event.maximum_days_after === 0
+            ? "unlimited"
+            : event.maximum_days_after}{" "}
+          days from today
+        </td>
+      </tr>
+    </>,
+  );
+
 /** Render the event property rows (date, location, type, flags, schedule) */
 const EventPropertyRows = ({
   event,
@@ -332,24 +353,7 @@ const EventPropertyRows = ({
           <td>Yes &mdash; not shown in public events list</td>
         </tr>
       )}
-      {isDaily && (
-        <tr>
-          <th>Bookable Days</th>
-          <td>{formatBookableDays(event.bookable_days)}</td>
-        </tr>
-      )}
-      {isDaily && (
-        <tr>
-          <th>Booking Window</th>
-          <td>
-            {event.minimum_days_before} to{" "}
-            {event.maximum_days_after === 0
-              ? "unlimited"
-              : event.maximum_days_after}{" "}
-            days from today
-          </td>
-        </tr>
-      )}
+      {isDaily && <Raw html={DailyScheduleRows({ event })} />}
       <tr>
         <th>Registration Closes</th>
         <td>
@@ -457,6 +461,43 @@ const EventLinkRows = ({
     </>,
   );
 
+/** Render the filtered-date count display */
+const FilteredDateCount = ({
+  completeQuantitySum,
+  maxAttendees,
+}: {
+  completeQuantitySum: number;
+  maxAttendees: number;
+}): string =>
+  String(
+    <span class={completeQuantitySum >= maxAttendees ? "danger-text" : ""}>
+      {completeQuantitySum} / {maxAttendees} &mdash;{" "}
+      {maxAttendees - completeQuantitySum} remain
+    </span>,
+  );
+
+/** Render the default (non-filtered) count display */
+const DefaultCount = ({
+  adjustedCount,
+  maxAttendees,
+  isDaily,
+}: {
+  adjustedCount: number;
+  maxAttendees: number;
+  isDaily: boolean;
+}): string =>
+  String(
+    <span class={adjustedCount >= maxAttendees * 0.9 ? "danger-text" : ""}>
+      {adjustedCount}
+      {!isDaily && (
+        <>
+          {" "}
+          / {maxAttendees} &mdash; {maxAttendees - adjustedCount} remain
+        </>
+      )}
+    </span>,
+  );
+
 /** Render the attendee count row with capacity info */
 const AttendeeCountRow = ({
   event,
@@ -478,36 +519,25 @@ const AttendeeCountRow = ({
       <th>Attendees{dailySuffix}</th>
       <td>
         {isDaily && dateFilter ? (
-          <span
-            class={
-              completeQuantitySum >= event.max_attendees ? "danger-text" : ""
-            }
-          >
-            {completeQuantitySum} / {event.max_attendees} &mdash;{" "}
-            {event.max_attendees - completeQuantitySum} remain
-          </span>
+          <Raw
+            html={FilteredDateCount({
+              completeQuantitySum,
+              maxAttendees: event.max_attendees,
+            })}
+          />
         ) : (
-          <span
-            class={
-              adjustedCount >= event.max_attendees * 0.9 ? "danger-text" : ""
-            }
-          >
-            {adjustedCount}
-            {!isDaily && (
-              <>
-                {" "}
-                / {event.max_attendees} &mdash;{" "}
-                {event.max_attendees - adjustedCount} remain
-              </>
-            )}
-          </span>
+          <Raw
+            html={DefaultCount({
+              adjustedCount,
+              maxAttendees: event.max_attendees,
+              isDaily,
+            })}
+          />
         )}
         {isDaily && !dateFilter && (
           <>
             {" "}
-            <small>
-              Capacity of {event.max_attendees} applies per date
-            </small>
+            <small>Capacity of {event.max_attendees} applies per date</small>
           </>
         )}
       </td>
@@ -608,6 +638,93 @@ const AttendeesSection = ({
   );
 };
 
+/** Compute the daily suffix label */
+const computeDailySuffix = (
+  isDaily: boolean,
+  dateFilter: string | null,
+): string => {
+  if (!isDaily) return "";
+  return dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)";
+};
+
+/** Prepare attendee data: separate complete/incomplete, compute counts */
+const prepareAttendeeData = (
+  attendees: Attendee[],
+  hasPaidEvent: boolean,
+  activeFilter: string,
+) => {
+  const incompleteAttendees = hasPaidEvent
+    ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
+    : [];
+  const completeAttendees = hasPaidEvent
+    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
+    : attendees;
+  const incompleteQuantitySum = sumQuantity(incompleteAttendees);
+  const completeQuantitySum = sumQuantity(completeAttendees);
+  const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
+  return {
+    incompleteAttendees,
+    completeAttendees,
+    incompleteQuantitySum,
+    completeQuantitySum,
+    filteredAttendees,
+  };
+};
+
+/** Render the failed payments section */
+const FailedPaymentsSection = ({
+  incompleteAttendees,
+  eventId,
+}: {
+  incompleteAttendees: Attendee[];
+  eventId: number;
+}): string =>
+  String(
+    <article>
+      <h2 id="failed-payments">Failed Payments</h2>
+      <p>{incompleteAttendees.length} attendee(s) with unresolved payments</p>
+      <div class="table-scroll">
+        <Raw
+          html={FailedPaymentsTable({
+            attendees: incompleteAttendees,
+            eventId,
+          })}
+        />
+      </div>
+    </article>,
+  );
+
+/** Render the add attendee form */
+const AddAttendeeSection = ({ event }: { event: EventWithCount }): string =>
+  String(
+    <article>
+      <h2 id="add-attendee">Add Attendee</h2>
+      <CsrfForm action={`/admin/event/${event.id}/attendee`}>
+        <Raw
+          html={renderFields(
+            getAddAttendeeFields(event.fields, event.event_type === "daily"),
+          )}
+        />
+        <button type="submit">Add Attendee</button>
+      </CsrfForm>
+    </article>,
+  );
+
+/** Compute the attendee count based on daily/date filter context */
+const computeAttendeeCount = (
+  isDaily: boolean,
+  dateFilter: string | null,
+  completeQuantitySum: number,
+  adjustedCount: number,
+): number => (isDaily && dateFilter ? completeQuantitySum : adjustedCount);
+
+/** Compute the max capacity display value */
+const computeMaxCapacity = (
+  isDaily: boolean,
+  dateFilter: string | null,
+  maxAttendees: number,
+): number => (isDaily && !dateFilter ? 0 : maxAttendees);
+
 export const adminEventPage = ({
   event,
   attendees,
@@ -627,28 +744,24 @@ export const adminEventPage = ({
     buildEmbedSnippets(ticketUrl);
   const isDaily = event.event_type === "daily";
   const hasPaidEvent = isPaidEvent(event);
-
-  // Separate attendees with incomplete/failed payments from the main list
-  const incompleteAttendees = hasPaidEvent
-    ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
-    : [];
-  const completeAttendees = hasPaidEvent
-    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
-    : attendees;
-  const incompleteQuantitySum = sumQuantity(incompleteAttendees);
-  const adjustedCount = event.attendee_count - incompleteQuantitySum;
-  const completeQuantitySum = sumQuantity(completeAttendees);
-
-  const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
-  const dailySuffix = isDaily
-    ? dateFilter
-      ? ` (${formatDateLabel(dateFilter)})`
-      : " (total)"
-    : "";
+  const data = prepareAttendeeData(attendees, hasPaidEvent, activeFilter);
+  const adjustedCount = event.attendee_count - data.incompleteQuantitySum;
+  const dailySuffix = computeDailySuffix(isDaily, dateFilter);
+  const attendeeCount = computeAttendeeCount(
+    isDaily,
+    dateFilter,
+    data.completeQuantitySum,
+    adjustedCount,
+  );
+  const maxCapacity = computeMaxCapacity(
+    isDaily,
+    dateFilter,
+    event.max_attendees,
+  );
   const sharedRows = buildSharedDetailRows({
-    attendees: completeAttendees,
-    attendeeCount: isDaily && dateFilter ? completeQuantitySum : adjustedCount,
-    maxCapacity: isDaily && !dateFilter ? 0 : event.max_attendees,
+    attendees: data.completeAttendees,
+    attendeeCount,
+    maxCapacity,
     hasPaidEvent,
     questionData,
     labelSuffix: dailySuffix,
@@ -666,15 +779,13 @@ export const adminEventPage = ({
         eventName: event.name,
       }),
     ),
-  )(filteredAttendees);
+  )(data.filteredAttendees);
 
   return String(
     <Layout title={`Event: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
 
-      <Raw
-        html={EventActionNav({ event, dateFilter, hasPaidEvent })}
-      />
+      <Raw html={EventActionNav({ event, dateFilter, hasPaidEvent })} />
 
       <Raw html={renderSuccess(successMessage)} />
 
@@ -704,7 +815,7 @@ export const adminEventPage = ({
                   isDaily,
                   dateFilter,
                   dailySuffix,
-                  completeQuantitySum,
+                  completeQuantitySum: data.completeQuantitySum,
                   adjustedCount,
                 })}
               />
@@ -731,34 +842,16 @@ export const adminEventPage = ({
         })}
       />
 
-      {incompleteAttendees.length > 0 && (
-        <article>
-          <h2 id="failed-payments">Failed Payments</h2>
-          <p>
-            {incompleteAttendees.length} attendee(s) with unresolved payments
-          </p>
-          <div class="table-scroll">
-            <Raw
-              html={FailedPaymentsTable({
-                attendees: incompleteAttendees,
-                eventId: event.id,
-              })}
-            />
-          </div>
-        </article>
+      {data.incompleteAttendees.length > 0 && (
+        <Raw
+          html={FailedPaymentsSection({
+            incompleteAttendees: data.incompleteAttendees,
+            eventId: event.id,
+          })}
+        />
       )}
 
-      <article>
-        <h2 id="add-attendee">Add Attendee</h2>
-        <CsrfForm action={`/admin/event/${event.id}/attendee`}>
-          <Raw
-            html={renderFields(
-              getAddAttendeeFields(event.fields, event.event_type === "daily"),
-            )}
-          />
-          <button type="submit">Add Attendee</button>
-        </CsrfForm>
-      </article>
+      <Raw html={AddAttendeeSection({ event })} />
     </Layout>,
   );
 };
