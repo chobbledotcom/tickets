@@ -48,10 +48,6 @@ describe("getMimeType", () => {
 describeWithEnv(
   "GET /attachment/:id",
   {
-    env: {
-      STORAGE_ZONE_NAME: undefined,
-      STORAGE_ZONE_KEY: undefined,
-    },
     db: true,
     encryptionKey: true,
   },
@@ -60,6 +56,12 @@ describeWithEnv(
     const enableStorage = () => {
       Deno.env.set("STORAGE_ZONE_NAME", "testzone");
       Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+    };
+
+    /** Disable storage by removing env vars */
+    const disableStorage = () => {
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
     };
 
     /** Create an event+attendee with an attachment configured */
@@ -101,6 +103,7 @@ describeWithEnv(
       });
 
     test("returns 404 when storage is not enabled", async () => {
+      disableStorage();
       const { eventId, attendeeId } = await setupAttachment();
       const path = await signUrl(eventId, attendeeId);
       const response = await handleRequest(mockRequest(path));
