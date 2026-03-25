@@ -20,7 +20,6 @@ import {
   mockMultipartRequest,
   mockRequest,
   PDF_BYTES,
-  setTestEnv,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,

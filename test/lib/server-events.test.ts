@@ -28,7 +28,6 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
-  setTestEnv,
   setupEventAndLogin,
   submitTicketForm,
   testCookie,

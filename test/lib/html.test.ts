@@ -76,7 +76,6 @@ import {
 import { ticketViewPage } from "#templates/tickets.tsx";
 import {
   describeWithEnv,
-  setTestEnv,
   setupTestEncryptionKey,
   testAttendee,
   testEvent,

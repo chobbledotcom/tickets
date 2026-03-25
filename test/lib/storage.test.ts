@@ -33,7 +33,7 @@ describeWithEnv(
   () => {
     describe("isStorageEnabled", () => {
       test("returns false when neither env var is set", async () => {
-        await withStorageDisabled(async () => {
+        await withStorageDisabled(() => {
           expect(isStorageEnabled()).toBe(false);
         });
       });

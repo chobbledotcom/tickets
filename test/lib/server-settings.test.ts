@@ -31,7 +31,6 @@ import {
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
-  setTestEnv,
   TEST_ADMIN_PASSWORD,
   testCookie,
   testCsrfToken,
