@@ -341,6 +341,15 @@ const registerBunnySubdomainImpl = async (
     return err;
   }
 
+  // Extract record ID from response for cleanup on failure
+  let dnsRecordId: number | undefined;
+  try {
+    const parsed = JSON.parse(addResponse.text);
+    if (parsed.Id) dnsRecordId = parsed.Id;
+  } catch {
+    /* response may not be JSON; cleanup will rely on zone lookup */
+  }
+
   // 3. Register hostname with pull zone (add hostname + SSL)
   //    Retry to allow DNS propagation after CNAME record creation.
   let cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
@@ -352,9 +361,33 @@ const registerBunnySubdomainImpl = async (
     await bunnyCdnApi.delay(certRetryDelay(attempt));
     cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
   }
-  if (!cdnResult.ok) return cdnResult;
+
+  if (!cdnResult.ok) {
+    // Clean up: remove the DNS record we created since certificate setup failed
+    if (dnsRecordId !== undefined) {
+      await bunnyCdnApi.deleteDnsRecord(zoneId, dnsRecordId);
+    }
+    return cdnResult;
+  }
 
   return { ok: true, fullDomain };
+};
+
+/**
+ * Delete a DNS record by ID. Used to clean up CNAME records when
+ * certificate provisioning fails after DNS record creation.
+ */
+const deleteDnsRecordImpl = async (
+  zoneId: string,
+  recordId: number,
+): Promise<BunnyApiResult> => {
+  const url = `${BUNNY_API_BASE}/dnszone/${zoneId}/records/${recordId}`;
+  logDebug("Domain", `Deleting DNS record: ${url}`);
+  const response = await fetchText(url, {
+    method: "DELETE",
+    headers: { AccessKey: getBunnyApiKey() },
+  });
+  return okOrError(response, "Delete DNS record");
 };
 
 /** Stubbable API for testing */
@@ -366,6 +399,7 @@ export const bunnyCdnApi = {
   registerBunnySubdomain: registerBunnySubdomainImpl,
   getEdgeScript: getEdgeScriptImpl,
   getCdnHostname: getCdnHostnameImpl,
+  deleteDnsRecord: deleteDnsRecordImpl,
   delay,
 };
 

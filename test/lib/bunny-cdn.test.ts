@@ -834,8 +834,10 @@ describeWithEnv(
       });
     });
 
-    test("returns error when CDN validation fails after all retries", async () => {
+    test("returns error and deletes DNS record when CDN validation fails after all retries", async () => {
       let validateCallCount = 0;
+      let deletedZoneId: string | undefined;
+      let deletedRecordId: number | undefined;
       await withMockBunnyCdnApi(
         {
           ...availableMock,
@@ -843,18 +845,27 @@ describeWithEnv(
             validateCallCount++;
             return Promise.resolve({ ok: false as const, error: "SSL failed" });
           },
+          deleteDnsRecord: (zoneId: string, recordId: number) => {
+            deletedZoneId = zoneId;
+            deletedRecordId = recordId;
+            return Promise.resolve({ ok: true as const });
+          },
           delay: () => Promise.resolve(),
         },
         async () => {
           await withMocks(
             () =>
               stub(globalThis, "fetch", () =>
-                Promise.resolve(new Response(null, { status: 204 })),
+                Promise.resolve(
+                  new Response(JSON.stringify({ Id: 999 }), { status: 200 }),
+                ),
               ),
             async () => {
               const result = await registerBunnySubdomain("myevent");
               expect(result).toEqual({ ok: false, error: "SSL failed" });
               expect(validateCallCount).toBe(5);
+              expect(deletedZoneId).toBe("42");
+              expect(deletedRecordId).toBe(999);
             },
           );
         },
@@ -923,6 +934,44 @@ describeWithEnv(
               expect(validateCallCount).toBe(1);
             },
           );
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
+  "deleteDnsRecord",
+  { env: { BUNNY_API_KEY: "test-key", BUNNY_DNS_ZONE_ID: "42" } },
+  () => {
+    test("sends DELETE request to correct URL", async () => {
+      const calls: { url: string; init: RequestInit | undefined }[] = [];
+      await withMocks(
+        () => stubFetchWithRecorder(calls),
+        async () => {
+          const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
+          expect(result).toEqual({ ok: true });
+          expect(calls).toHaveLength(1);
+          expect(calls.at(0)!.url).toBe(
+            "https://api.bunny.net/dnszone/42/records/999",
+          );
+          expect(calls.at(0)!.init!.method).toBe("DELETE");
+        },
+      );
+    });
+
+    test("returns error when API fails", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Not found", { status: 404 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
+          expect(result).toEqual({
+            ok: false,
+            error: "Delete DNS record failed (404): Not found",
+          });
         },
       );
     });
