@@ -211,10 +211,10 @@ for (const file of allFiles) {
     let target = resolved;
     const allSrcFiles = [...srcFiles, ...testUtilFiles];
     if (!allSrcFiles.includes(target)) {
-      if (allSrcFiles.includes(target + ".ts")) target = target + ".ts";
-      else if (allSrcFiles.includes(target + ".tsx")) target = target + ".tsx";
-      else if (allSrcFiles.includes(target + "/index.ts")) {
-        target = target + "/index.ts";
+      if (allSrcFiles.includes(`${target}.ts`)) target = `${target}.ts`;
+      else if (allSrcFiles.includes(`${target}.tsx`)) target = `${target}.tsx`;
+      else if (allSrcFiles.includes(`${target}/index.ts`)) {
+        target = `${target}/index.ts`;
       }
     }
 

@@ -31,7 +31,6 @@ const withErrorSpy = bracket(
 );
 
 describeWithEnv("email", { db: true }, () => {
-  // biome-ignore lint/suspicious/noExplicitAny: Deno's fetch stub type is incompatible with Stub generics
   // deno-lint-ignore no-explicit-any
   let fetchStub: any;
   let originalFetch: typeof fetch;
@@ -162,7 +161,7 @@ describeWithEnv("email", { db: true }, () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.resend.com/emails");
-      expect(getFetchHeaders()["Authorization"]).toBe("Bearer re_test_key");
+      expect(getFetchHeaders().Authorization).toBe("Bearer re_test_key");
       const body = getFetchJsonBody();
       expect(body.from).toBe("tickets@example.com");
       expect(body.to).toEqual(["user@test.com"]);
@@ -204,7 +203,7 @@ describeWithEnv("email", { db: true }, () => {
 
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.sendgrid.com/v3/mail/send");
-      expect(getFetchHeaders()["Authorization"]).toBe("Bearer re_test_key");
+      expect(getFetchHeaders().Authorization).toBe("Bearer re_test_key");
       const body = getFetchJsonBody();
       expect(body.personalizations).toEqual([
         { to: [{ email: "user@test.com" }] },
@@ -241,7 +240,7 @@ describeWithEnv("email", { db: true }, () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.mailgun.net/v3/example.com/messages");
-      expect(getFetchHeaders()["Authorization"]).toBe(mailgunBasicAuth);
+      expect(getFetchHeaders().Authorization).toBe(mailgunBasicAuth);
       expect(getFetchHeaders()).not.toHaveProperty("Content-Type");
       const body = getFetchFormBody();
       expect(body.get("from")).toBe("tickets@example.com");
@@ -263,7 +262,7 @@ describeWithEnv("email", { db: true }, () => {
       expect(fetchStub.calls.length).toBe(1);
       const [url] = getFetchArgs();
       expect(url).toBe("https://api.eu.mailgun.net/v3/example.com/messages");
-      expect(getFetchHeaders()["Authorization"]).toBe(mailgunBasicAuth);
+      expect(getFetchHeaders().Authorization).toBe(mailgunBasicAuth);
       const body = getFetchFormBody();
       expect(body.get("from")).toBe("tickets@example.com");
       expect(body.get("to")).toBe("user@test.com");

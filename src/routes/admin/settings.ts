@@ -7,12 +7,22 @@ import {
   isValidPemCertificate,
   isValidPemPrivateKey,
 } from "#lib/apple-wallet.ts";
-import { getCdnHostname, validateCustomDomain } from "#lib/bunny-cdn.ts";
+import {
+  checkSubdomainAvailable,
+  getCdnHostname,
+  registerBunnySubdomain,
+  validateCustomDomain,
+} from "#lib/bunny-cdn.ts";
 import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
-import { getEffectiveDomain, isBunnyCdnEnabled } from "#lib/config.ts";
+import {
+  getBunnyDnsSubdomainSuffix,
+  getEffectiveDomain,
+  isBunnyCdnEnabled,
+  isBunnyDnsEnabled,
+} from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { isValidCountry } from "#lib/countries.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -120,8 +130,9 @@ const getSettingsPageState = () => {
 };
 
 /** Gather state for the advanced settings page */
-const getAdvancedSettingsPageState = async () => {
+const getAdvancedSettingsPageState = async (subdomainPreview = "") => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
+  const bunnyDnsEnabled = isBunnyDnsEnabled();
   const confirmationTemplates = settings.email.templateSet("confirmation");
   const adminTemplates = settings.email.templateSet("admin");
   const cdnResult = bunnyCdnConfigured ? await getCdnHostname() : null;
@@ -140,10 +151,15 @@ const getAdvancedSettingsPageState = async () => {
     confirmationTemplates,
     adminTemplates,
     bunnyCdnEnabled: bunnyCdnConfigured,
-    customDomain: bunnyCdnConfigured ? settings.customDomain : "",
-    customDomainLastValidated: bunnyCdnConfigured
-      ? settings.customDomainLastValidated
+    bunnyDnsEnabled,
+    bunnySubdomain: settings.bunnySubdomain,
+    bunnyDnsSubdomainSuffix: bunnyDnsEnabled
+      ? getBunnyDnsSubdomainSuffix()
       : "",
+    subdomainPreview,
+    customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
+    customDomainLastValidated:
+      (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
     cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
     appleWalletConfigured: settings.appleWallet.hasDbConfig,
     appleWalletPassTypeId: settings.appleWallet.passTypeId,
@@ -172,8 +188,11 @@ const renderSettingsPage = (session: AuthSession) => {
 };
 
 /** Render the advanced settings page with current state */
-const renderAdvancedSettingsPage = async (session: AuthSession) => {
-  const state = await getAdvancedSettingsPageState();
+const renderAdvancedSettingsPage = async (
+  session: AuthSession,
+  subdomainPreview = "",
+) => {
+  const state = await getAdvancedSettingsPageState(subdomainPreview);
   return adminAdvancedSettingsPage(session, state);
 };
 
@@ -264,8 +283,14 @@ const handleAdminSettingsAdvancedGet: TypedRouteHandler<
   "GET /admin/settings-advanced"
 > = (request) =>
   requireOwnerOr(request, async (session) => {
-    setFormSuccess(getSearchParam(request, "form"), getFlash().success);
-    return htmlResponse(await renderAdvancedSettingsPage(session));
+    const flash = getFlash();
+    setFormSuccess(getSearchParam(request, "form"), flash.success);
+    const subdomainPreview = flash.success
+      ? getSearchParam(request, "subdomain")
+      : "";
+    return htmlResponse(
+      await renderAdvancedSettingsPage(session, subdomainPreview),
+    );
   });
 
 /**
@@ -1134,6 +1159,73 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
   },
 );
 
+/** Valid subdomain pattern: lowercase alphanumeric + hyphens, no leading/trailing hyphen */
+const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
+
+/** Handle POST /admin/settings/host-subdomain - preview or register subdomain */
+const handleHostSubdomainPost = advancedSettingsRoute(
+  async (form, errorPage) => {
+    if (!isBunnyDnsEnabled()) {
+      return errorPage("Not configured", 400, FORM_ID_HOST_SUBDOMAIN);
+    }
+    if (settings.bunnySubdomain) {
+      return errorPage(
+        "Subdomain has already been set and cannot be changed",
+        400,
+        FORM_ID_HOST_SUBDOMAIN,
+      );
+    }
+
+    const raw = form.getString("subdomain").toLowerCase().trim();
+    if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
+      return errorPage("Invalid subdomain format", 400, FORM_ID_HOST_SUBDOMAIN);
+    }
+
+    const save = form.getString("save");
+
+    if (!save) {
+      // Preview: check availability only
+      const check = await checkSubdomainAvailable(raw);
+      if (!check.ok) {
+        return errorPage(check.error, 502, FORM_ID_HOST_SUBDOMAIN);
+      }
+      if (!check.available) {
+        return errorPage(
+          `Subdomain "${raw}" is already taken`,
+          409,
+          FORM_ID_HOST_SUBDOMAIN,
+        );
+      }
+      return redirect(
+        "/admin/settings-advanced",
+        `${raw}${getBunnyDnsSubdomainSuffix()} is available`,
+        true,
+        {
+          formId: FORM_ID_HOST_SUBDOMAIN,
+          params: { subdomain: raw },
+        },
+      );
+    }
+
+    // Save: actually register
+    const result = await registerBunnySubdomain(raw);
+    if (!result.ok) {
+      return errorPage(result.error, 502, FORM_ID_HOST_SUBDOMAIN);
+    }
+
+    await settings.update.bunnySubdomain(result.fullDomain);
+    await logActivity(`Host subdomain set to ${result.fullDomain}`);
+    return redirect(
+      "/admin/settings-advanced",
+      `Subdomain registered: ${result.fullDomain}`,
+      true,
+      { formId: FORM_ID_HOST_SUBDOMAIN },
+    );
+  },
+);
+
 /**
  * Handle POST /admin/settings/apple-wallet - owner only
  */
@@ -1379,6 +1471,7 @@ export const settingsRoutes = defineRoutes({
     handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
+  "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/google-wallet": handleGoogleWalletPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
