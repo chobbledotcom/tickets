@@ -3,10 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import {
-  flushPendingWork,
-  runWithPendingWork,
-} from "#lib/pending-work.ts";
+import { flushPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
 import {
   buildWebhookPayload,
   type RegistrationEntry,

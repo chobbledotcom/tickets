@@ -225,8 +225,8 @@ interface BunnyDnsZone {
   Records: BunnyDnsRecord[];
 }
 
-/** Bunny DNS record type for CNAME */
-const DNS_RECORD_TYPE_CNAME = 5;
+/** Bunny DNS record type for CNAME (0=A, 1=AAAA, 2=CNAME, 3=TXT, 4=MX, 5=Redirect) */
+const DNS_RECORD_TYPE_CNAME = 2;
 
 /**
  * Get a DNS zone by ID, returning the zone domain and records.

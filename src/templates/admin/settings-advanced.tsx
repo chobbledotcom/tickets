@@ -2,10 +2,10 @@
  * Admin advanced settings page template
  */
 
+import type { SafeHtml } from "#jsx/jsx-runtime";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm } from "#lib/forms.tsx";
-import type { SafeHtml } from "#jsx/jsx-runtime";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -93,7 +93,9 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         </label>
         <footer>
           <button type="submit">Register Subdomain</button>
-          <a href="/admin/settings/advanced#settings-host-subdomain" class="secondary">Cancel</a>
+          <a href="/admin/settings/advanced#settings-host-subdomain">
+            <strong>Cancel</strong>
+          </a>
         </footer>
       </>
     );

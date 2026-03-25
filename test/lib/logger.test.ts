@@ -18,10 +18,7 @@ import {
   redactPath,
   runWithRequestId,
 } from "#lib/logger.ts";
-import {
-  flushPendingWork,
-  runWithPendingWork,
-} from "#lib/pending-work.ts";
+import { flushPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
 import {
   createTestDbWithSetup,
   createTestEvent,
