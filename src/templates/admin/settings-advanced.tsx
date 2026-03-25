@@ -2,10 +2,10 @@
  * Admin advanced settings page template
  */
 
+import type { SafeHtml } from "#jsx/jsx-runtime";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm } from "#lib/forms.tsx";
-import type { SafeHtml } from "#jsx/jsx-runtime";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -50,13 +50,11 @@ export type AdvancedSettingsPageState = {
 };
 
 const SubdomainIntroProse = (): SafeHtml => (
-  <div class="prose">
-    <p>
-      You can choose a prettier domain name for your tickets site. Enter a
-      subdomain into the box below to preview the full URL &mdash; you can
-      change your mind before saving, but once set this cannot be changed.
-    </p>
-  </div>
+  <p>
+    You can choose a prettier domain name for your tickets site. Enter a
+    subdomain into the box below to preview the full URL &mdash; you can change
+    your mind before saving, but once set this cannot be changed.
+  </p>
 );
 
 const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
@@ -93,7 +91,12 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         </label>
         <footer>
           <button type="submit">Register Subdomain</button>
-          <a href="/admin/settings/advanced#settings-host-subdomain" class="secondary">Cancel</a>
+          <a
+            href="/admin/settings/advanced#settings-host-subdomain"
+            class="secondary"
+          >
+            Cancel
+          </a>
         </footer>
       </>
     );
