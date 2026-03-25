@@ -257,6 +257,13 @@ describeWithEnv("db", { db: true }, () => {
       expect(settings.wrappedPrivateKey).toBeTruthy();
     });
 
+    test("isComplete reloads cache when it has expired", async () => {
+      settings.invalidateCache();
+      // Cache is now invalid; isComplete should reload it from the DB
+      const result = await settings.setup.isComplete();
+      expect(result).toBe(true);
+    });
+
     test("CONFIG_KEYS contains expected keys", () => {
       expect(CONFIG_KEYS.COUNTRY).toBe("country");
       expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
