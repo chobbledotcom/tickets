@@ -437,8 +437,6 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
   });
 
-
-
   describe("Tracking parameter stripping", () => {
     describe("getCleanUrl", () => {
       test("returns null when URL has no tracking params", () => {
