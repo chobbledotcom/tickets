@@ -30,21 +30,35 @@ describeWithEnv(
         expect(isStorageEnabled()).toBe(false);
       });
 
-      test("returns false when only STORAGE_ZONE_NAME is set", () => {
-        Deno.env.set("STORAGE_ZONE_NAME", "myzone");
-        expect(isStorageEnabled()).toBe(false);
-      });
+      describeWithEnv(
+        "when only STORAGE_ZONE_NAME is set",
+        { env: { STORAGE_ZONE_NAME: "myzone" } },
+        () => {
+          test("returns false", () => {
+            expect(isStorageEnabled()).toBe(false);
+          });
+        },
+      );
 
-      test("returns false when only STORAGE_ZONE_KEY is set", () => {
-        Deno.env.set("STORAGE_ZONE_KEY", "mykey");
-        expect(isStorageEnabled()).toBe(false);
-      });
+      describeWithEnv(
+        "when only STORAGE_ZONE_KEY is set",
+        { env: { STORAGE_ZONE_KEY: "mykey" } },
+        () => {
+          test("returns false", () => {
+            expect(isStorageEnabled()).toBe(false);
+          });
+        },
+      );
 
-      test("returns true when both env vars are set", () => {
-        Deno.env.set("STORAGE_ZONE_NAME", "myzone");
-        Deno.env.set("STORAGE_ZONE_KEY", "mykey");
-        expect(isStorageEnabled()).toBe(true);
-      });
+      describeWithEnv(
+        "when both env vars are set",
+        { env: { STORAGE_ZONE_NAME: "myzone", STORAGE_ZONE_KEY: "mykey" } },
+        () => {
+          test("returns true", () => {
+            expect(isStorageEnabled()).toBe(true);
+          });
+        },
+      );
     });
 
     describe("getImageProxyUrl", () => {

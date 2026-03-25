@@ -223,21 +223,25 @@ describeWithEnv(
   },
   () => {
     describe("POST /admin/event/:id/edit (image upload via edit form)", () => {
-      test("ignores image when storage is not configured", async () => {
-        Deno.env.delete("STORAGE_ZONE_NAME");
-        Deno.env.delete("STORAGE_ZONE_KEY");
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+      describeWithEnv(
+        "when storage is not configured",
+        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
+        () => {
+          test("ignores image", async () => {
+            const { event, cookie, csrfToken } = await setupEventAndLogin();
 
-        const response = await submitEditJpeg(
-          event.id,
-          cookie,
-          csrfToken,
-          "test.jpg",
-        );
-        expect(response.status).toBe(302);
-        const updated = await getEventWithCount(event.id);
-        expect(updated?.image_url).toBe("");
-      });
+            const response = await submitEditJpeg(
+              event.id,
+              cookie,
+              csrfToken,
+              "test.jpg",
+            );
+            expect(response.status).toBe(302);
+            const updated = await getEventWithCount(event.id);
+            expect(updated?.image_url).toBe("");
+          });
+        },
+      );
 
       test("updates event without image when no file is uploaded", async () => {
         const event = await createTestEvent();
@@ -562,11 +566,15 @@ describeWithEnv(
         expect((await proxyRequest("bmp")).status).toBe(404);
       });
 
-      test("returns 404 when storage is not enabled", async () => {
-        Deno.env.delete("STORAGE_ZONE_NAME");
-        Deno.env.delete("STORAGE_ZONE_KEY");
-        expect((await proxyRequest()).status).toBe(404);
-      });
+      describeWithEnv(
+        "when storage is not enabled",
+        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
+        () => {
+          test("returns 404", async () => {
+            expect((await proxyRequest()).status).toBe(404);
+          });
+        },
+      );
 
       test("returns 404 for non-GET method", async () => {
         const request = new Request(`http://localhost${PROXY_PATH}.jpg`, {
@@ -611,25 +619,29 @@ describeWithEnv(
         });
       });
 
-      test("ignores attachment when storage is not configured", async () => {
-        Deno.env.delete("STORAGE_ZONE_NAME");
-        Deno.env.delete("STORAGE_ZONE_KEY");
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+      describeWithEnv(
+        "when storage is not configured",
+        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
+        () => {
+          test("ignores attachment", async () => {
+            const { event, cookie, csrfToken } = await setupEventAndLogin();
 
-        const response = await submitEditAttachment(
-          event.id,
-          cookie,
-          csrfToken,
-          {
-            name: "guide.pdf",
-            data: PDF_BYTES,
-            contentType: "application/pdf",
-          },
-        );
-        expect(response.status).toBe(302);
-        const updated = await getEventWithCount(event.id);
-        expect(updated?.attachment_url).toBe("");
-      });
+            const response = await submitEditAttachment(
+              event.id,
+              cookie,
+              csrfToken,
+              {
+                name: "guide.pdf",
+                data: PDF_BYTES,
+                contentType: "application/pdf",
+              },
+            );
+            expect(response.status).toBe(302);
+            const updated = await getEventWithCount(event.id);
+            expect(updated?.attachment_url).toBe("");
+          });
+        },
+      );
 
       test("uploads attachment and updates event", async () => {
         const { event, cookie, csrfToken } = await setupEventAndLogin();

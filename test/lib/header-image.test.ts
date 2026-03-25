@@ -145,12 +145,16 @@ describeWithEnv(
         await expectHtmlResponse(response, 200, "Header Image");
       });
 
-      test("hides header image section when storage is disabled", async () => {
-        Deno.env.delete("STORAGE_ZONE_NAME");
-        Deno.env.delete("STORAGE_ZONE_KEY");
-        const html = await assertAdminHtml("/admin/settings");
-        expect(html).not.toContain("Header Image");
-      });
+      describeWithEnv(
+        "when storage is disabled",
+        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
+        () => {
+          test("hides header image section", async () => {
+            const html = await assertAdminHtml("/admin/settings");
+            expect(html).not.toContain("Header Image");
+          });
+        },
+      );
 
       test("shows remove button when header image is set", async () => {
         await settings.update.headerImageUrl("existing.jpg");
@@ -233,17 +237,20 @@ describeWithEnv(
         await expectHtmlResponse(response, 400, "No image file provided");
       });
 
-      test("returns error when storage is not configured", async () => {
-        Deno.env.delete("STORAGE_ZONE_NAME");
-        Deno.env.delete("STORAGE_ZONE_KEY");
-
-        const response = await submitHeaderJpeg("logo.jpg");
-        await expectHtmlResponse(
-          response,
-          400,
-          "Image storage is not configured",
-        );
-      });
+      describeWithEnv(
+        "when storage is not configured",
+        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
+        () => {
+          test("returns error", async () => {
+            const response = await submitHeaderJpeg("logo.jpg");
+            await expectHtmlResponse(
+              response,
+              400,
+              "Image storage is not configured",
+            );
+          });
+        },
+      );
 
       test("deletes old header image when uploading new one", async () => {
         await settings.update.headerImageUrl("old-header.jpg");
