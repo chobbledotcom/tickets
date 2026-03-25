@@ -1113,28 +1113,38 @@ const handleCustomDomainPost = advancedSettingsRoute(
       return errorPage("Invalid domain format", 400, "settings-custom-domain");
     }
 
-    await settings.update.customDomain(raw);
-    await logActivity(`Custom domain set to ${raw}`);
+    const taskResult = await settings.withCurrentTask(
+      "custom-domain",
+      async () => {
+        await settings.update.customDomain(raw);
+        await logActivity(`Custom domain set to ${raw}`);
 
-    // Attempt validation immediately after saving
-    const result = await validateCustomDomain(raw);
-    if (result.ok) {
-      await settings.update.customDomainLastValidated();
-      await logActivity(`Custom domain validated: ${raw}`);
-      return redirect(
-        "/admin/settings-advanced",
-        "Custom domain saved and validated",
-        true,
-        { formId: "settings-custom-domain" },
-      );
-    }
+        // Attempt validation immediately after saving
+        const result = await validateCustomDomain(raw);
+        if (result.ok) {
+          await settings.update.customDomainLastValidated();
+          await logActivity(`Custom domain validated: ${raw}`);
+          return redirect(
+            "/admin/settings-advanced",
+            "Custom domain saved and validated",
+            true,
+            { formId: "settings-custom-domain" },
+          );
+        }
 
-    return redirect(
-      "/admin/settings-advanced",
-      `Custom domain saved but validation failed: ${result.error}`,
-      false,
-      { formId: "settings-custom-domain" },
+        return redirect(
+          "/admin/settings-advanced",
+          `Custom domain saved but validation failed: ${result.error}`,
+          false,
+          { formId: "settings-custom-domain" },
+        );
+      },
     );
+
+    if (!taskResult.ok) {
+      return errorPage(taskResult.error, 409, "settings-custom-domain");
+    }
+    return taskResult.value;
   },
 );
 
@@ -1158,19 +1168,37 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
       );
     }
 
-    const result = await validateCustomDomain(customDomain);
-    if (!result.ok) {
-      return errorPage(result.error, 502, "settings-custom-domain-validate");
-    }
+    const taskResult = await settings.withCurrentTask(
+      "custom-domain-validate",
+      async () => {
+        const result = await validateCustomDomain(customDomain);
+        if (!result.ok) {
+          return errorPage(
+            result.error,
+            502,
+            "settings-custom-domain-validate",
+          );
+        }
 
-    await settings.update.customDomainLastValidated();
-    await logActivity(`Custom domain validated: ${customDomain}`);
-    return redirect(
-      "/admin/settings-advanced",
-      "Custom domain validated successfully",
-      true,
-      { formId: "settings-custom-domain-validate" },
+        await settings.update.customDomainLastValidated();
+        await logActivity(`Custom domain validated: ${customDomain}`);
+        return redirect(
+          "/admin/settings-advanced",
+          "Custom domain validated successfully",
+          true,
+          { formId: "settings-custom-domain-validate" },
+        );
+      },
     );
+
+    if (!taskResult.ok) {
+      return errorPage(
+        taskResult.error,
+        409,
+        "settings-custom-domain-validate",
+      );
+    }
+    return taskResult.value;
   },
 );
 
@@ -1224,20 +1252,30 @@ const handleHostSubdomainPost = advancedSettingsRoute(
       );
     }
 
-    // Save: actually register
-    const result = await registerBunnySubdomain(raw);
-    if (!result.ok) {
-      return errorPage(result.error, 502, FORM_ID_HOST_SUBDOMAIN);
-    }
+    // Save: actually register (guarded by current_task)
+    const taskResult = await settings.withCurrentTask(
+      "host-subdomain",
+      async () => {
+        const result = await registerBunnySubdomain(raw);
+        if (!result.ok) {
+          return errorPage(result.error, 502, FORM_ID_HOST_SUBDOMAIN);
+        }
 
-    await settings.update.bunnySubdomain(result.fullDomain);
-    await logActivity(`Host subdomain set to ${result.fullDomain}`);
-    return redirect(
-      "/admin/settings-advanced",
-      `Subdomain registered: ${result.fullDomain}`,
-      true,
-      { formId: FORM_ID_HOST_SUBDOMAIN },
+        await settings.update.bunnySubdomain(result.fullDomain);
+        await logActivity(`Host subdomain set to ${result.fullDomain}`);
+        return redirect(
+          "/admin/settings-advanced",
+          `Subdomain registered: ${result.fullDomain}`,
+          true,
+          { formId: FORM_ID_HOST_SUBDOMAIN },
+        );
+      },
     );
+
+    if (!taskResult.ok) {
+      return errorPage(taskResult.error, 409, FORM_ID_HOST_SUBDOMAIN);
+    }
+    return taskResult.value;
   },
 );
 
