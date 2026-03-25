@@ -431,6 +431,10 @@ const processRequest = async (
     );
     if (trackingRedirect) return trackingRedirect;
 
+    // Ensure settings cache is populated before reading custom domain.
+    // loadAll() is a no-op when the cache is still valid (60 s TTL).
+    await settings.loadAll();
+
     loadEffectiveDomain(effectiveRequest.url);
     const embeddable = isEmbeddablePath(path);
 
