@@ -147,9 +147,7 @@ const pickTypedFields = (
  * Build EventInput defaults from an existing event (for updates).
  * Maps snake_case Event fields to camelCase EventInput keys.
  */
-const existingToDefaults = (
-  existing: EventWithCount,
-): FieldRecord => {
+const existingToDefaults = (existing: EventWithCount): FieldRecord => {
   const result: FieldRecord = {};
   for (const [apiKey, outKey] of optionalFields) {
     const val = existing[apiKey as keyof EventWithCount];
