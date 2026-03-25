@@ -13,6 +13,7 @@ import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
+import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
 import {
@@ -259,8 +260,10 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
   const usersResult = await getClient().execute("SELECT * FROM users");
   cachedSetupUsers = usersResult.rows.map((r) => ({ ...r }));
 
-  // Perform one admin login and cache the session for reuse
-  const session = await loginAsAdmin();
+  // Create admin session directly (bypasses handleRequest pipeline whose
+  // isSetupComplete() check can fail under parallel test execution when
+  // another worker invalidates the shared settings cache singleton).
+  const session = await createDirectAdminSession();
   const sessionsResult = await getClient().execute(
     "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions LIMIT 1",
   );
@@ -385,7 +388,6 @@ export const mockMultipartRequest = (
     formData.append(key, value);
   }
   if (file) {
-    // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BlobPart in Deno's TS
     // deno-lint-ignore no-explicit-any
     const blob = new Blob([file.data as any], { type: file.contentType });
     formData.append(file.fieldName, blob, file.name);
@@ -780,13 +782,32 @@ export const withMocks = async <
     await body(mocks);
   } finally {
     if (typeof (mocks as Restorable).restore === "function") {
-      (mocks as Restorable).restore!();
+      (mocks as Restorable).restore?.();
     } else {
       for (const mock of Object.values(mocks as Record<string, Restorable>)) {
         mock.restore?.();
       }
     }
     await cleanup?.();
+  }
+};
+
+/** Temporarily replace bunnyCdnApi methods and restore after test */
+export const withMockBunnyCdnApi = async (
+  overrides: Partial<typeof bunnyCdnApi>,
+  fn: () => Promise<void>,
+): Promise<void> => {
+  const originals: Partial<typeof bunnyCdnApi> = {};
+  for (const key of Object.keys(overrides) as (keyof typeof bunnyCdnApi)[]) {
+    // deno-lint-ignore no-explicit-any
+    originals[key] = bunnyCdnApi[key] as any;
+    // deno-lint-ignore no-explicit-any
+    bunnyCdnApi[key] = overrides[key] as any;
+  }
+  try {
+    await fn();
+  } finally {
+    Object.assign(bunnyCdnApi, originals);
   }
 };
 
@@ -819,6 +840,47 @@ export const testEventInput = (
 let testSession: { cookie: string; csrfToken: string } | null = null;
 
 /**
+ * Create an admin session directly in the DB without going through handleRequest().
+ * This avoids the isSetupComplete() check in the request pipeline, which can
+ * return false under parallel test execution when another worker invalidates
+ * the shared settings cache singleton between loadAll() and isSetupComplete().
+ */
+const createDirectAdminSession = async (): Promise<{
+  cookie: string;
+  csrfToken: string;
+}> => {
+  const { deriveKEK, generateSecureToken, unwrapKey, wrapKeyWithToken } =
+    await import("#lib/crypto.ts");
+  const { createSession: createDbSession } = await import(
+    "#lib/db/sessions.ts"
+  );
+  const { buildSessionCookie } = await import("#lib/cookies.ts");
+  const { getUserByUsername, verifyUserPassword } = await import(
+    "#lib/db/users.ts"
+  );
+  const { nowMs } = await import("#lib/now.ts");
+
+  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+  if (!user?.wrapped_data_key)
+    throw new Error("Admin user not found after setup");
+  const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
+  if (!passwordHash)
+    throw new Error("Admin password verification failed after setup");
+  const kek = await deriveKEK(passwordHash);
+  const dataKey = await unwrapKey(user.wrapped_data_key, kek);
+
+  const token = generateSecureToken();
+  const csrfToken = generateSecureToken();
+  const expires = nowMs() + 24 * 60 * 60 * 1000;
+  const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
+  await createDbSession(token, csrfToken, expires, wrappedDataKey, user.id);
+
+  const cookie = buildSessionCookie(token);
+  const signedCsrf = await signCsrfToken();
+  return { cookie, csrfToken: signedCsrf };
+};
+
+/**
  * Perform a fresh admin login and return the cookie and CSRF token.
  * Unlike getTestSession, this does NOT cache — each call creates a new session.
  * Use in tests that need an isolated authenticated session.
@@ -846,7 +908,7 @@ export const loginAsAdmin = async (): Promise<{
   loginResponse.body?.cancel();
   const cookie = loginResponse.headers
     .getSetCookie()
-    .find((c) => c.startsWith(getSessionCookieName() + "="));
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
   if (!cookie) throw new Error("No session cookie in login response");
   const csrfToken = await signCsrfToken();
 

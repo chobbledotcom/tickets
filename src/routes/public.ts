@@ -596,7 +596,7 @@ const getMultiTicketContext = async (
     Promise.resolve(settings.terms),
     getQuestionsWithEventIds(eventIds),
   ]);
-  return { dates, terms: terms ?? "", ...questionsResult };
+  return { dates, terms, ...questionsResult };
 };
 
 /** Shared context provider for multi-ticket pages */

@@ -2192,8 +2192,8 @@ describe("html", () => {
         session: TEST_SESSION,
       });
       const failedSection = html
-        .split("Failed Payments")[1]!
-        .split("Add Attendee")[0]!;
+        .split("Failed Payments")[1]
+        ?.split("Add Attendee")[0]!;
       expect(failedSection).toContain("Jane Stuck");
       expect(failedSection).toContain("Delete");
       expect(failedSection).toContain("/delete-incomplete");
@@ -2728,6 +2728,9 @@ describe("html", () => {
         confirmationTemplates: { subject: "", html: "", text: "" },
         adminTemplates: { subject: "", html: "", text: "" },
         bunnyCdnEnabled: false,
+        bunnyDnsEnabled: false,
+        bunnySubdomain: "",
+        bunnyDnsSubdomainSuffix: "",
         customDomain: "",
         customDomainLastValidated: "",
         cdnHostname: "",
@@ -2739,6 +2742,7 @@ describe("html", () => {
         googleWalletIssuerId: "",
         googleWalletServiceAccountEmail: "",
         hostGoogleWalletLabel: "",
+        subdomainPreview: "",
         theme: "light",
       };
 
@@ -2807,6 +2811,20 @@ describe("html", () => {
         advancedDefaultState,
       );
       expect(html).toContain('href="/admin/settings"');
+    });
+
+    test("shows subdomain preview confirmation when subdomainPreview is set", () => {
+      const html = adminAdvancedSettingsPage(TEST_SESSION, {
+        ...advancedDefaultState,
+        bunnyDnsEnabled: true,
+        bunnyDnsSubdomainSuffix: ".tickets.example.com",
+        subdomainPreview: "myevent",
+      });
+      expect(html).toContain("myevent.tickets.example.com");
+      expect(html).toContain("is available");
+      expect(html).toContain('name="save"');
+      expect(html).toContain("Confirm registration");
+      expect(html).toContain('value="myevent"');
     });
   });
 
@@ -3447,12 +3465,12 @@ describe("html", () => {
     const dateField = eventFields.find((f) => f.name === "date")!;
 
     test("accepts valid datetime value", () => {
-      const result = dateField.validate!("2026-06-15T14:00");
+      const result = dateField.validate?.("2026-06-15T14:00");
       expect(result).toBeNull();
     });
 
     test("rejects invalid datetime value", () => {
-      const result = dateField.validate!("not-a-date");
+      const result = dateField.validate?.("not-a-date");
       expect(result).toBe("Please enter a valid date and time");
     });
   });

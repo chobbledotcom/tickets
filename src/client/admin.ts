@@ -3,6 +3,23 @@
 
 import { buildEmbedSnippets } from "#lib/embed.ts";
 
+/** POST a form-encoded body with a CSRF token, return parsed JSON. */
+const csrfPost = async (
+  url: string,
+  csrfToken: string,
+  extraBody = "",
+  // deno-lint-ignore no-explicit-any
+): Promise<any> => {
+  const body = `csrf_token=${encodeURIComponent(csrfToken)}${extraBody}`;
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  return res.json();
+};
+
 /* Select-on-click: auto-select input contents when clicked */
 for (const el of document.querySelectorAll<HTMLInputElement>(
   "[data-select-on-click]",
@@ -227,25 +244,6 @@ if (paymentResult && window.opener) {
  * @param cssClass - CSS class for result formatting
  * @param formatLines - extract display lines from JSON response
  */
-/** POST a CSRF-protected test request and return the parsed JSON */
-const postTestRequest = async (
-  button: HTMLButtonElement,
-  url: string,
-  // deno-lint-ignore no-explicit-any
-  // biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
-): Promise<any> => {
-  const csrfInput = button
-    .closest("form")
-    ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
-  const csrfToken = csrfInput?.value ?? "";
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: `csrf_token=${encodeURIComponent(csrfToken)}`,
-  });
-  return res.json();
-};
 
 const setupTestButton = (
   btnId: string,
@@ -265,7 +263,10 @@ const setupTestButton = (
     resultDiv.classList.add("hidden");
     resultDiv.classList.remove("success", "error");
     try {
-      const data = await postTestRequest(button, url);
+      const csrfInput = button
+        .closest("form")
+        ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
+      const data = await csrfPost(url, csrfInput?.value ?? "");
       resultDiv.textContent = formatLines(data).join("\n");
       resultDiv.classList.remove("hidden", "success", "error");
       resultDiv.classList.add(data.ok ? "success" : "error", cssClass);

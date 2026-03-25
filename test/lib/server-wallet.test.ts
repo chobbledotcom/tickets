@@ -47,7 +47,6 @@ const fetchPkpassResponse = (token: string) =>
   awaitTestRequest(`/wallet/${token}.pkpass`);
 
 /** Fetch and parse pass.json from a pkpass response */
-// biome-ignore lint/suspicious/noExplicitAny: JSON.parse returns dynamic pkpass structure with deep nesting
 // deno-lint-ignore no-explicit-any
 const parsePkpassJson = async (token: string): Promise<Record<string, any>> => {
   const response = await fetchPkpassResponse(token);

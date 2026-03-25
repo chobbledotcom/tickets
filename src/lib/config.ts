@@ -22,7 +22,7 @@ export const isPaymentsEnabled = (): boolean => {
  * Returns 0 if not set.
  */
 export const getBookingFee = (): number =>
-  Number.parseFloat(settings.bookingFee!) || 0;
+  Number.parseFloat(settings.bookingFee) || 0;
 
 /**
  * Effective domain: custom_domain (from DB) if set, otherwise the request's
@@ -35,8 +35,13 @@ const effectiveDomainState = { domain: null as string | null };
 export const loadEffectiveDomain = (requestUrl: string): string => {
   const custom = settings.customDomain;
   const validated = custom ? settings.customDomainLastValidated : null;
-  effectiveDomainState.domain =
-    custom && validated ? custom : new URL(requestUrl).hostname;
+  if (custom && validated) {
+    effectiveDomainState.domain = custom;
+  } else if (settings.bunnySubdomain) {
+    effectiveDomainState.domain = settings.bunnySubdomain;
+  } else {
+    effectiveDomainState.domain = new URL(requestUrl).hostname;
+  }
   return effectiveDomainState.domain;
 };
 
@@ -67,9 +72,10 @@ export const getEmbedHosts = async (): Promise<string[]> => {
 
 /**
  * Check if Bunny CDN pull zone management is enabled
- * Requires BUNNY_API_KEY to be set
+ * Requires both BUNNY_API_KEY and BUNNY_SCRIPT_ID to be set
  */
-export const isBunnyCdnEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
+export const isBunnyCdnEnabled = (): boolean =>
+  !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_SCRIPT_ID");
 
 /**
  * Get the Bunny CDN API key from environment
@@ -77,8 +83,20 @@ export const isBunnyCdnEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
 export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
 
 /**
- * Get the CDN hostname derived from the effective domain.
- * Replaces ".bunny.run" with ".b-cdn.net" for the CNAME target.
+ * Check if Bunny DNS subdomain feature is enabled.
+ * Requires BUNNY_API_KEY and BUNNY_DNS_ZONE_ID to be set.
  */
-export const getCdnHostname = (): string =>
-  getEffectiveDomain().replace(/\.bunny\.run$/, ".b-cdn.net");
+export const isBunnyDnsEnabled = (): boolean =>
+  !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_DNS_ZONE_ID");
+
+/** Get the Bunny DNS zone ID from environment */
+export const getBunnyDnsZoneId = (): string => requireEnv("BUNNY_DNS_ZONE_ID");
+
+/** Get the Bunny DNS subdomain suffix (e.g. ".tickets") from environment */
+export const getBunnyDnsSubdomainSuffix = (): string =>
+  getEnv("BUNNY_DNS_SUBDOMAIN_SUFFIX") ?? "";
+
+/**
+ * Get the Bunny Edge Script ID from environment
+ */
+export const getBunnyScriptId = (): string => requireEnv("BUNNY_SCRIPT_ID");

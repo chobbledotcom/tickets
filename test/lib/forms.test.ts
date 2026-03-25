@@ -457,7 +457,7 @@ describe("forms", () => {
       const termsField = groupCreateFields.find(
         (f) => f.name === "terms_and_conditions",
       )!;
-      const error = termsField.validate!("x".repeat(MAX_TEXTAREA_LENGTH + 1));
+      const error = termsField.validate?.("x".repeat(MAX_TEXTAREA_LENGTH + 1));
       expect(error).toContain(`${MAX_TEXTAREA_LENGTH} characters or fewer`);
     });
 
@@ -465,7 +465,7 @@ describe("forms", () => {
       const termsField = groupCreateFields.find(
         (f) => f.name === "terms_and_conditions",
       )!;
-      const error = termsField.validate!("x".repeat(MAX_TEXTAREA_LENGTH));
+      const error = termsField.validate?.("x".repeat(MAX_TEXTAREA_LENGTH));
       expect(error).toBeNull();
     });
   });

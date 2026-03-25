@@ -46,149 +46,144 @@ describe("apple-wallet", () => {
   // Certs are cached in generateTestCerts — no per-test RSA keygen
   const creds: SigningCredentials = generateTestCerts();
 
-  describe("generatePassJson", () => {
-    test("includes required top-level fields", () => {
-      const pass = generatePassJson(makePassData(), creds);
+  describe("buildPkpass integration", () => {
+    /** Helper to extract and parse pass.json from a pkpass ZIP */
+    const extractPassJson = (pkpass: Uint8Array) =>
+      JSON.parse(new TextDecoder().decode(unzipSync(pkpass)["pass.json"]!));
+
+    test("includes all required top-level fields and barcode", () => {
+      const pass = extractPassJson(buildPkpass(makePassData(), creds));
+
       expect(pass.formatVersion).toBe(1);
       expect(pass.passTypeIdentifier).toBe("pass.com.test.tickets");
       expect(pass.teamIdentifier).toBe("TESTTEAM01");
       expect(pass.serialNumber).toBe("ABC123");
       expect(pass.organizationName).toBe("Test Platform");
       expect(pass.description).toBe("Ticket for Summer Concert");
-    });
 
-    test("includes barcode with QR format", () => {
-      const pass = generatePassJson(makePassData(), creds);
       const barcodes = pass.barcodes as Array<Record<string, string>>;
       expect(barcodes).toHaveLength(1);
       expect(barcodes[0]!.format).toBe("PKBarcodeFormatQR");
       expect(barcodes[0]!.message).toBe("https://example.com/checkin/ABC123");
       expect(barcodes[0]!.messageEncoding).toBe("iso-8859-1");
-    });
 
-    test("includes event name in primary fields", () => {
-      const pass = generatePassJson(makePassData(), creds);
       const ticket = pass.eventTicket as TicketFields;
       expect(ticket.primaryFields[0]!.value).toBe("Summer Concert");
-    });
 
-    test("includes event date in secondary fields", () => {
-      const pass = generatePassJson(makePassData(), creds);
-      const ticket = pass.eventTicket as TicketFields;
-      const dateField = ticket.secondaryFields.find((f) => f.key === "date");
+      const dateField = ticket.secondaryFields.find(
+        (f: Record<string, unknown>) => f.key === "date",
+      );
       expect(dateField).toBeDefined();
       expect(dateField!.value).toBe("2026-06-15T19:00:00Z");
-    });
 
-    test("includes location in secondary fields", () => {
-      const pass = generatePassJson(makePassData(), creds);
-      const ticket = pass.eventTicket as TicketFields;
       const locationField = ticket.secondaryFields.find(
-        (f) => f.key === "location",
+        (f: Record<string, unknown>) => f.key === "location",
       );
       expect(locationField).toBeDefined();
       expect(locationField!.value).toBe("Town Hall");
-    });
 
-    test("omits date when eventDate is empty", () => {
-      const pass = generatePassJson(makePassData({ eventDate: "" }), creds);
-      const ticket = pass.eventTicket as TicketFields;
-      expect(
-        ticket.secondaryFields.find((f) => f.key === "date"),
-      ).toBeUndefined();
-      expect(pass.relevantDate).toBeUndefined();
-    });
-
-    test("omits location when eventLocation is empty", () => {
-      const pass = generatePassJson(makePassData({ eventLocation: "" }), creds);
-      const ticket = pass.eventTicket as TicketFields;
-      expect(
-        ticket.secondaryFields.find((f) => f.key === "location"),
-      ).toBeUndefined();
-    });
-
-    test("includes quantity when greater than 1", () => {
-      const pass = generatePassJson(makePassData({ quantity: 3 }), creds);
-      const ticket = pass.eventTicket as TicketFields;
-      const qtyField = ticket.auxiliaryFields.find((f) => f.key === "qty");
-      expect(qtyField).toBeDefined();
-      expect(qtyField!.value).toBe(3);
-    });
-
-    test("omits quantity when equal to 1", () => {
-      const pass = generatePassJson(makePassData({ quantity: 1 }), creds);
-      const ticket = pass.eventTicket as TicketFields;
-      expect(
-        ticket.auxiliaryFields.find((f) => f.key === "qty"),
-      ).toBeUndefined();
-    });
-
-    test("includes price when greater than 0", () => {
-      const pass = generatePassJson(
-        makePassData({ pricePaid: 2500, currencyCode: "EUR" }),
-        creds,
-      );
-      const ticket = pass.eventTicket as TicketFields;
-      const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
-      expect(priceField).toBeDefined();
-      expect(priceField!.value).toBe(25);
-      expect(priceField!.currencyCode).toBe("EUR");
-    });
-
-    test("omits price when zero", () => {
-      const pass = generatePassJson(makePassData({ pricePaid: 0 }), creds);
-      const ticket = pass.eventTicket as TicketFields;
-      expect(
-        ticket.auxiliaryFields.find((f) => f.key === "price"),
-      ).toBeUndefined();
-    });
-
-    test("includes attendee booking date when present", () => {
-      const pass = generatePassJson(
-        makePassData({ attendeeDate: "2026-06-15" }),
-        creds,
-      );
-      const ticket = pass.eventTicket as TicketFields;
-      const dateField = ticket.auxiliaryFields.find(
-        (f) => f.key === "booking-date",
-      );
-      expect(dateField).toBeDefined();
-      expect(dateField!.value).toBe("2026-06-15");
-    });
-
-    test("sets relevantDate from eventDate", () => {
-      const pass = generatePassJson(makePassData(), creds);
       expect(pass.relevantDate).toBe("2026-06-15T19:00:00Z");
-    });
 
-    test("uses default colors when not specified", () => {
-      const pass = generatePassJson(makePassData(), creds);
       expect(pass.foregroundColor).toBe("rgb(0, 0, 0)");
       expect(pass.backgroundColor).toBe("rgb(255, 255, 255)");
       expect(pass.labelColor).toBe("rgb(100, 100, 100)");
-    });
 
-    test("uses custom colors when provided", () => {
-      const pass = generatePassJson(
-        makePassData({
-          foregroundColor: "rgb(255, 0, 0)",
-          backgroundColor: "rgb(0, 0, 255)",
-          labelColor: "rgb(0, 255, 0)",
-        }),
-        creds,
-      );
-      expect(pass.foregroundColor).toBe("rgb(255, 0, 0)");
-      expect(pass.backgroundColor).toBe("rgb(0, 0, 255)");
-      expect(pass.labelColor).toBe("rgb(0, 255, 0)");
-    });
-
-    test("includes webServiceURL and authenticationToken for auto-updates", () => {
-      const pass = generatePassJson(makePassData(), creds);
       expect(pass.webServiceURL).toBe("https://example.com");
       expect(pass.authenticationToken).toBe("ABC123----------");
       expect(
         (pass.authenticationToken as string).length,
       ).toBeGreaterThanOrEqual(16);
+    });
+
+    test("omits date, location, qty, and price when data is empty or default", () => {
+      const pass = extractPassJson(
+        buildPkpass(
+          makePassData({
+            eventDate: "",
+            eventLocation: "",
+            quantity: 1,
+            pricePaid: 0,
+          }),
+          creds,
+        ),
+      );
+      const ticket = pass.eventTicket as TicketFields;
+
+      expect(
+        ticket.secondaryFields.find(
+          (f: Record<string, unknown>) => f.key === "date",
+        ),
+      ).toBeUndefined();
+      expect(pass.relevantDate).toBeUndefined();
+
+      expect(
+        ticket.secondaryFields.find(
+          (f: Record<string, unknown>) => f.key === "location",
+        ),
+      ).toBeUndefined();
+
+      expect(
+        ticket.auxiliaryFields.find(
+          (f: Record<string, unknown>) => f.key === "qty",
+        ),
+      ).toBeUndefined();
+
+      expect(
+        ticket.auxiliaryFields.find(
+          (f: Record<string, unknown>) => f.key === "price",
+        ),
+      ).toBeUndefined();
+    });
+
+    test("includes quantity, price, and booking date when present", () => {
+      const pass = extractPassJson(
+        buildPkpass(
+          makePassData({
+            quantity: 3,
+            pricePaid: 2500,
+            currencyCode: "EUR",
+            attendeeDate: "2026-06-15",
+          }),
+          creds,
+        ),
+      );
+      const ticket = pass.eventTicket as TicketFields;
+
+      const qtyField = ticket.auxiliaryFields.find(
+        (f: Record<string, unknown>) => f.key === "qty",
+      );
+      expect(qtyField).toBeDefined();
+      expect(qtyField!.value).toBe(3);
+
+      const priceField = ticket.auxiliaryFields.find(
+        (f: Record<string, unknown>) => f.key === "price",
+      );
+      expect(priceField).toBeDefined();
+      expect(priceField!.value).toBe(25);
+      expect(priceField!.currencyCode).toBe("EUR");
+
+      const bookingField = ticket.auxiliaryFields.find(
+        (f: Record<string, unknown>) => f.key === "booking-date",
+      );
+      expect(bookingField).toBeDefined();
+      expect(bookingField!.value).toBe("2026-06-15");
+    });
+
+    test("uses custom colors when provided", () => {
+      const pass = extractPassJson(
+        buildPkpass(
+          makePassData({
+            foregroundColor: "rgb(255, 0, 0)",
+            backgroundColor: "rgb(0, 0, 255)",
+            labelColor: "rgb(0, 255, 0)",
+          }),
+          creds,
+        ),
+      );
+
+      expect(pass.foregroundColor).toBe("rgb(255, 0, 0)");
+      expect(pass.backgroundColor).toBe("rgb(0, 0, 255)");
+      expect(pass.labelColor).toBe("rgb(0, 255, 0)");
     });
   });
 

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { settings } from "#lib/db/settings.ts";
 import { LIMIT_ENTRIES } from "#lib/limits.ts";
 import { handleRequest } from "#routes";
@@ -266,8 +267,39 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     afterEach(() => restoreEnv());
 
     test("shows CDN as configured when Bunny CDN is enabled", async () => {
-      restoreEnv = setTestEnv({ BUNNY_API_KEY: "test-key" });
-      await assertAdminHtml("/admin/debug", "badge-ok", "CDN management");
+      restoreEnv = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "99",
+      });
+      const original = bunnyCdnApi.getCdnHostname;
+      bunnyCdnApi.getCdnHostname = () =>
+        Promise.resolve({ ok: true as const, hostname: "mysite.b-cdn.net" });
+      try {
+        const html = await assertAdminHtml(
+          "/admin/debug",
+          "badge-ok",
+          "CDN management",
+          "mysite.b-cdn.net",
+        );
+      } finally {
+        bunnyCdnApi.getCdnHostname = original;
+      }
+    });
+
+    test("shows empty CDN hostname when edge script API fails", async () => {
+      restoreEnv = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "99",
+      });
+      const original = bunnyCdnApi.getCdnHostname;
+      bunnyCdnApi.getCdnHostname = () =>
+        Promise.resolve({ ok: false as const, error: "API error" });
+      try {
+        const html = await assertAdminHtml("/admin/debug", "badge-ok");
+        expect(html).not.toContain("mysite.b-cdn.net");
+      } finally {
+        bunnyCdnApi.getCdnHostname = original;
+      }
     });
   });
 

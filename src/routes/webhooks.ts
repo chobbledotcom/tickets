@@ -520,7 +520,6 @@ const processPaymentSession = async (
     event: EventWithCount;
     expectedPrice: number;
   }[] = [];
-  let expectedTotal = 0;
 
   for (const item of intent.items) {
     const vp = await validateAndPrice(
@@ -533,7 +532,6 @@ const processPaymentSession = async (
       event: vp.event,
       expectedPrice: vp.expectedPrice,
     });
-    expectedTotal += vp.expectedPrice;
   }
 
   // Price validation
@@ -927,11 +925,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   }
 
   if (!sessionResult) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: "Ignoring webhook for unrecognized payment session",
-    });
-    logDebug("Webhook", `Ignored payload: ${payload}`);
+    logDebug(
+      "Webhook",
+      `Ignoring webhook for unrecognized payment session: ${payload}`,
+    );
     return webhookAckResponse();
   }
 
@@ -942,11 +939,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // carry our _origin marker.
   const origin = session.metadata._origin;
   if (origin !== getEffectiveDomain()) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: "Ignoring webhook for unrecognized payment session",
-    });
-    logDebug("Webhook", `Ignored payload: ${payload}`);
+    logDebug(
+      "Webhook",
+      `Ignoring webhook for unrecognized payment session (origin=${origin}): ${payload}`,
+    );
     return webhookAckResponse();
   }
 

@@ -304,6 +304,7 @@ type RedirectOpts = {
   formId?: string;
   cookie?: string;
   form?: URLSearchParams;
+  params?: Record<string, string>;
 };
 
 /**
@@ -327,6 +328,11 @@ export const redirect = (
   if (opts?.formId) {
     u.searchParams.set("form", opts.formId);
     u.hash = opts.formId;
+  }
+  if (opts?.params) {
+    for (const [k, v] of Object.entries(opts.params)) {
+      u.searchParams.set(k, v);
+    }
   }
   const flash = buildFlashCookie(flashId, message, succeeded);
   const response = redirectResponse(u.pathname + u.search + u.hash, flash);

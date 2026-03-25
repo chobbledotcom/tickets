@@ -7,15 +7,21 @@ import {
   isValidPemCertificate,
   isValidPemPrivateKey,
 } from "#lib/apple-wallet.ts";
-import { validateCustomDomain } from "#lib/bunny-cdn.ts";
+import {
+  checkSubdomainAvailable,
+  getCdnHostname,
+  registerBunnySubdomain,
+  validateCustomDomain,
+} from "#lib/bunny-cdn.ts";
 import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import {
-  getCdnHostname,
+  getBunnyDnsSubdomainSuffix,
   getEffectiveDomain,
   isBunnyCdnEnabled,
+  isBunnyDnsEnabled,
 } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { isValidCountry } from "#lib/countries.ts";
@@ -109,64 +115,63 @@ const getSettingsPageState = () => {
     paymentProvider: settings.paymentProvider ?? "",
     squareTokenConfigured: settings.square.hasToken,
     squareSandbox: settings.square.sandbox,
-    squareWebhookConfigured: settings.square.webhookSignatureKey !== null,
+    squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
     webhookUrl: getWebhookUrl(),
-    bookingFee: settings.bookingFee!,
-    embedHosts: settings.embedHosts ?? "",
-    termsAndConditions: settings.terms ?? "",
-    businessEmail: settings.businessEmail ?? "",
+    bookingFee: settings.bookingFee,
+    embedHosts: settings.embedHosts,
+    termsAndConditions: settings.terms,
+    businessEmail: settings.businessEmail,
     theme: settings.theme,
     showPublicSite: settings.showPublicSite,
     country: settings.country,
-    headerImageUrl: settings.headerImageUrl ?? "",
+    headerImageUrl: settings.headerImageUrl,
     storageEnabled: isStorageEnabled(),
   };
 };
 
 /** Gather state for the advanced settings page */
-const getAdvancedSettingsPageState = () => {
+const getAdvancedSettingsPageState = async (subdomainPreview = "") => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
+  const bunnyDnsEnabled = isBunnyDnsEnabled();
   const confirmationTemplates = settings.email.templateSet("confirmation");
   const adminTemplates = settings.email.templateSet("admin");
+  const cdnResult = bunnyCdnConfigured ? await getCdnHostname() : null;
   return {
     showPublicApi: settings.showPublicApi,
-    emailProvider: settings.email.provider ?? "",
+    emailProvider: settings.email.provider,
     emailApiKeyConfigured: settings.email.hasApiKey,
-    emailFromAddress: settings.email.fromAddress ?? "",
+    emailFromAddress: settings.email.fromAddress,
     hostEmailLabel: (() => {
       const hostConfig = getHostEmailConfig();
       if (!hostConfig) return "";
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
-    businessEmail: settings.businessEmail ?? "",
-    confirmationTemplates: {
-      subject: confirmationTemplates.subject ?? "",
-      html: confirmationTemplates.html ?? "",
-      text: confirmationTemplates.text ?? "",
-    },
-    adminTemplates: {
-      subject: adminTemplates.subject ?? "",
-      html: adminTemplates.html ?? "",
-      text: adminTemplates.text ?? "",
-    },
+    businessEmail: settings.businessEmail,
+    confirmationTemplates,
+    adminTemplates,
     bunnyCdnEnabled: bunnyCdnConfigured,
+    bunnyDnsEnabled,
+    bunnySubdomain: settings.bunnySubdomain,
+    bunnyDnsSubdomainSuffix: bunnyDnsEnabled
+      ? getBunnyDnsSubdomainSuffix()
+      : "",
+    subdomainPreview,
     customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
     customDomainLastValidated:
       (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
-    cdnHostname: bunnyCdnConfigured ? getCdnHostname() : "",
+    cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
     appleWalletConfigured: settings.appleWallet.hasDbConfig,
-    appleWalletPassTypeId: settings.appleWallet.passTypeId ?? "",
-    appleWalletTeamId: settings.appleWallet.teamId ?? "",
+    appleWalletPassTypeId: settings.appleWallet.passTypeId,
+    appleWalletTeamId: settings.appleWallet.teamId,
     hostAppleWalletLabel: (() => {
       const hostConfig = settings.appleWallet.hostConfig;
       if (!hostConfig) return "";
       return `Host env (${hostConfig.passTypeId})`;
     })(),
     googleWalletConfigured: settings.googleWallet.hasDbConfig,
-    googleWalletIssuerId: settings.googleWallet.issuerId ?? "",
-    googleWalletServiceAccountEmail:
-      settings.googleWallet.serviceAccountEmail ?? "",
+    googleWalletIssuerId: settings.googleWallet.issuerId,
+    googleWalletServiceAccountEmail: settings.googleWallet.serviceAccountEmail,
     hostGoogleWalletLabel: (() => {
       const hostConfig = settings.googleWallet.hostConfig;
       if (!hostConfig) return "";
@@ -183,8 +188,11 @@ const renderSettingsPage = (session: AuthSession) => {
 };
 
 /** Render the advanced settings page with current state */
-const renderAdvancedSettingsPage = (session: AuthSession) => {
-  const state = getAdvancedSettingsPageState();
+const renderAdvancedSettingsPage = async (
+  session: AuthSession,
+  subdomainPreview = "",
+) => {
+  const state = await getAdvancedSettingsPageState(subdomainPreview);
   return adminAdvancedSettingsPage(session, state);
 };
 
@@ -275,8 +283,14 @@ const handleAdminSettingsAdvancedGet: TypedRouteHandler<
   "GET /admin/settings-advanced"
 > = (request) =>
   requireOwnerOr(request, async (session) => {
-    setFormSuccess(getSearchParam(request, "form"), getFlash().success);
-    return htmlResponse(await renderAdvancedSettingsPage(session));
+    const flash = getFlash();
+    setFormSuccess(getSearchParam(request, "form"), flash.success);
+    const subdomainPreview = flash.success
+      ? getSearchParam(request, "subdomain")
+      : "";
+    return htmlResponse(
+      await renderAdvancedSettingsPage(session, subdomainPreview),
+    );
   });
 
 /**
@@ -872,7 +886,7 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
 const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
-  const businessEmail = settings.businessEmail ?? "";
+  const businessEmail = settings.businessEmail;
   if (!businessEmail)
     return errorPage("No business email set", 400, "settings-email-test");
   const status = await sendTestEmail(config, businessEmail);
@@ -1145,6 +1159,73 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
   },
 );
 
+/** Valid subdomain pattern: lowercase alphanumeric + hyphens, no leading/trailing hyphen */
+const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
+
+/** Handle POST /admin/settings/host-subdomain - preview or register subdomain */
+const handleHostSubdomainPost = advancedSettingsRoute(
+  async (form, errorPage) => {
+    if (!isBunnyDnsEnabled()) {
+      return errorPage("Not configured", 400, FORM_ID_HOST_SUBDOMAIN);
+    }
+    if (settings.bunnySubdomain) {
+      return errorPage(
+        "Subdomain has already been set and cannot be changed",
+        400,
+        FORM_ID_HOST_SUBDOMAIN,
+      );
+    }
+
+    const raw = form.getString("subdomain").toLowerCase().trim();
+    if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
+      return errorPage("Invalid subdomain format", 400, FORM_ID_HOST_SUBDOMAIN);
+    }
+
+    const save = form.getString("save");
+
+    if (!save) {
+      // Preview: check availability only
+      const check = await checkSubdomainAvailable(raw);
+      if (!check.ok) {
+        return errorPage(check.error, 502, FORM_ID_HOST_SUBDOMAIN);
+      }
+      if (!check.available) {
+        return errorPage(
+          `Subdomain "${raw}" is already taken`,
+          409,
+          FORM_ID_HOST_SUBDOMAIN,
+        );
+      }
+      return redirect(
+        "/admin/settings-advanced",
+        `${raw}${getBunnyDnsSubdomainSuffix()} is available`,
+        true,
+        {
+          formId: FORM_ID_HOST_SUBDOMAIN,
+          params: { subdomain: raw },
+        },
+      );
+    }
+
+    // Save: actually register
+    const result = await registerBunnySubdomain(raw);
+    if (!result.ok) {
+      return errorPage(result.error, 502, FORM_ID_HOST_SUBDOMAIN);
+    }
+
+    await settings.update.bunnySubdomain(result.fullDomain);
+    await logActivity(`Host subdomain set to ${result.fullDomain}`);
+    return redirect(
+      "/admin/settings-advanced",
+      `Subdomain registered: ${result.fullDomain}`,
+      true,
+      { formId: FORM_ID_HOST_SUBDOMAIN },
+    );
+  },
+);
+
 /**
  * Handle POST /admin/settings/apple-wallet - owner only
  */
@@ -1390,6 +1471,7 @@ export const settingsRoutes = defineRoutes({
     handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
+  "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/google-wallet": handleGoogleWalletPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,

@@ -80,7 +80,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // The success message should be inside the form, not as a global banner
       const formMatch = html.match(/id="settings-country"[\s\S]*?<\/form>/);
       expect(formMatch).toBeDefined();
-      expect(formMatch![0]).toContain("Country updated");
+      expect(formMatch?.[0]).toContain("Country updated");
     });
 
     test("does not show success on non-matching forms", async () => {
@@ -94,7 +94,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // The theme form should not contain the success message
       const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
       expect(themeFormMatch).toBeDefined();
-      expect(themeFormMatch![0]).not.toContain("Country updated");
+      expect(themeFormMatch?.[0]).not.toContain("Country updated");
     });
 
     test("each settings form has an id attribute", async () => {
@@ -557,7 +557,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         response,
         expect.stringContaining("Embed host restrictions removed"),
       );
-      expect(settings.embedHosts).toBe(null);
+      expect(settings.embedHosts).toBe("");
     });
 
     test("rejects invalid embed host pattern", async () => {

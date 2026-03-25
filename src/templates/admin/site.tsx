@@ -29,8 +29,8 @@ const SiteSubNav = (): JSX.Element => (
  */
 export const adminSiteHomePage = (
   session: AdminSession,
-  websiteTitle: string | null,
-  homepageText: string | null,
+  websiteTitle: string,
+  homepageText: string,
   error?: string,
   success?: string,
 ): string =>
@@ -57,7 +57,7 @@ export const adminSiteHomePage = (
           id="website_title"
           name="website_title"
           maxlength="128"
-          value={websiteTitle ?? ""}
+          value={websiteTitle}
           autocomplete="off"
         />
 
@@ -74,7 +74,7 @@ export const adminSiteHomePage = (
           maxlength={MAX_TEXTAREA_LENGTH}
           placeholder="Welcome to our site..."
         >
-          {homepageText ?? ""}
+          {homepageText}
         </textarea>
 
         <button type="submit">Save</button>
@@ -87,7 +87,7 @@ export const adminSiteHomePage = (
  */
 export const adminSiteContactPage = (
   session: AdminSession,
-  contactPageText: string | null,
+  contactPageText: string,
   error?: string,
   success?: string,
 ): string =>
@@ -115,7 +115,7 @@ export const adminSiteContactPage = (
           maxlength={MAX_TEXTAREA_LENGTH}
           placeholder="Get in touch with us..."
         >
-          {contactPageText ?? ""}
+          {contactPageText}
         </textarea>
 
         <button type="submit">Save</button>
