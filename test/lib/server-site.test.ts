@@ -68,6 +68,18 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Homepage updated");
     });
+
+    test("displays error message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest(
+        `/admin/site?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Title is required", false)}`,
+        },
+      );
+      const html = await response.text();
+      expect(html).toContain("Title is required");
+    });
   });
 
   describe("POST /admin/site", () => {
@@ -185,6 +197,18 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       );
       const html = await response.text();
       expect(html).toContain("Contact page updated");
+    });
+
+    test("displays error message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest(
+        `/admin/site/contact?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Something went wrong", false)}`,
+        },
+      );
+      const html = await response.text();
+      expect(html).toContain("Something went wrong");
     });
   });
 

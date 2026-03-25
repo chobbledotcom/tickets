@@ -29,10 +29,10 @@ import { adminLoginPage } from "#templates/admin/login.tsx";
 
 /** Login page response helper */
 export const loginResponse = async (
-  request?: Request,
+  request: Request,
   status = 200,
 ): Promise<Response> => {
-  const flash = request ? applyFlash(request) : { error: undefined };
+  const flash = applyFlash(request);
   await signCsrfToken();
   return htmlResponse(adminLoginPage(flash.error), status);
 };

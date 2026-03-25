@@ -1449,6 +1449,27 @@ export const followRedirect = (
   handler: (request: Request) => Promise<Response>,
 ): Promise<Response> => handler(mockRequest(expectRedirect(response)));
 
+/**
+ * Follow a 302 redirect, carrying the Set-Cookie flash cookie into the
+ * follow-up GET request so the flash context is populated by middleware.
+ */
+export const followRedirectWithFlash = (
+  response: Response,
+  handler: (request: Request) => Promise<Response>,
+  extraCookie?: string,
+): Promise<Response> => {
+  const location = expectRedirect(response);
+  const setCookies = response.headers.getSetCookie();
+  const flashCookie = setCookies
+    .map((c) => c.split(";")[0])
+    .filter((c) => c.startsWith("flash_"))
+    .join("; ");
+  const cookie = [flashCookie, extraCookie].filter(Boolean).join("; ");
+  return handler(
+    mockRequest(location, cookie ? { headers: { cookie } } : {}),
+  );
+};
+
 /** Assert a result object has ok:false with the expected error string. */
 export const expectResultError =
   (expectedError: string) =>

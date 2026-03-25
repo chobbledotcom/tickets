@@ -17,6 +17,7 @@ import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
+  followRedirectWithFlash,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
@@ -569,6 +570,29 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         );
       });
 
+      test("shows registered subdomain and custom domain text", async () => {
+        setBunnyDnsEnv();
+        const cookie = await testCookie();
+        const token = cookie.split("=").slice(1).join("=").split(";")[0];
+        await settings.update.bunnySubdomain("myevent.tickets.example.com");
+        const response = await handleRequest(
+          mockRequestWithHost(
+            "/admin/settings-advanced",
+            "myevent.tickets.example.com",
+            {
+              headers: {
+                cookie: `__Host-session=${token}`,
+              },
+            },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("myevent.tickets.example.com");
+        expect(html).toContain("permanent and cannot be changed");
+        expect(html).toContain("can be active at the same time");
+      });
+
       describe("POST /admin/settings/host-subdomain", () => {
         test("rejects when DNS is not configured", async () => {
           Deno.env.delete("BUNNY_API_KEY");
@@ -660,6 +684,41 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               const location = response.headers.get("location")!;
               expect(location).toContain("form=settings-host-subdomain");
               expectFlash(response, expect.stringContaining("is available"));
+            },
+          );
+        });
+
+        test("renders subdomain preview on page after availability check", async () => {
+          setBunnyDnsEnv();
+          await withMockBunnyCdnApi(
+            {
+              checkSubdomainAvailable: () =>
+                Promise.resolve({
+                  ok: true as const,
+                  available: true,
+                  fullDomain: "myevent.tickets.example.com",
+                }),
+            },
+            async () => {
+              const cookie = await testCookie();
+              const postResponse = await handleRequest(
+                mockFormRequest(
+                  "/admin/settings/host-subdomain",
+                  {
+                    subdomain: "myevent",
+                    csrf_token: await testCsrfToken(),
+                  },
+                  cookie,
+                ),
+              );
+              const page = await followRedirectWithFlash(
+                postResponse,
+                handleRequest,
+                cookie,
+              );
+              const html = await page.text();
+              expect(html).toContain("myevent.tickets.example.com");
+              expect(html).toContain("is available");
             },
           );
         });

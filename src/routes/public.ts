@@ -149,12 +149,12 @@ export const handlePublicContact = (): Response =>
 const renderTicketPage = (
   event: EventWithCount,
   ctx: TicketContext,
-  opts: { isClosed?: boolean; baseUrl?: string; error?: string },
+  opts: { isClosed: boolean; baseUrl?: string; error?: string },
 ) =>
   ticketPage(
     event,
     opts.error,
-    opts.isClosed ?? false,
+    opts.isClosed,
     ctx.dates,
     ctx.terms,
     opts.baseUrl,
@@ -166,7 +166,7 @@ const ticketResponseWithToken =
   (
     event: EventWithCount,
     ctx: TicketContext,
-    opts: { isClosed?: boolean; baseUrl?: string } = {},
+    opts: { isClosed: boolean; baseUrl?: string },
   ) =>
   (error?: string, status = 200) =>
     htmlResponse(renderTicketPage(event, ctx, { ...opts, error }), status);

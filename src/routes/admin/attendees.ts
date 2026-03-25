@@ -237,7 +237,7 @@ const handleAdminAttendeeDeleteGet = attendeeGetRoute(
   (data, session, request) => {
     applyFlash(request);
     return htmlResponse(
-      adminDeleteAttendeePage(data, session, undefined, getReturnUrl(request)),
+      adminDeleteAttendeePage(data, session, getReturnUrl(request)),
     );
   },
 );
@@ -624,7 +624,6 @@ const handleEditAttendeeGet = (
         adminEditAttendeePage(
           data,
           session,
-          undefined,
           getReturnUrl(request),
           flash.success,
         ),
@@ -749,7 +748,6 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
       adminResendNotificationPage(
         data,
         session,
-        undefined,
         getReturnUrl(request),
       ),
     );

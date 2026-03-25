@@ -120,12 +120,10 @@ export const adminApiKeysPage = (
 export const adminDeleteApiKeyPage = (
   apiKey: { id: number; name: string },
   session: AdminSession,
-  error?: string,
 ): string =>
   String(
     <Layout title={`Delete: ${apiKey.name}`}>
       <AdminNav session={session} active="/admin/users" />
-      {error && <div class="error">{error}</div>}
 
       <article>
         <aside>
