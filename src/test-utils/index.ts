@@ -1243,7 +1243,9 @@ export const expectStatus =
  * const body = await expectJsonResponse(200)(response);
  */
 export const expectJsonResponse =
-  <T = Record<string, unknown>>(
+  // biome-ignore lint/suspicious/noExplicitAny: response.json() returns any; callers access nested fields freely
+  // deno-lint-ignore no-explicit-any
+  <T = any>(
     status: number,
     assertions?: (body: T) => void,
   ) =>
