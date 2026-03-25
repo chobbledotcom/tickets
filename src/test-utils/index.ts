@@ -1230,6 +1230,31 @@ export const expectStatus =
   };
 
 /**
+ * Assert status, parse JSON body, and run assertions on the result.
+ * Curried for pipe-friendly use.
+ *
+ * @example
+ * // Inline assertions
+ * const body = await expectJsonResponse(201, (b) => {
+ *   expect(b.event.name).toBe("New Event");
+ * })(response);
+ *
+ * // Status-only (just parse)
+ * const body = await expectJsonResponse(200)(response);
+ */
+export const expectJsonResponse =
+  <T = Record<string, unknown>>(
+    status: number,
+    assertions?: (body: T) => void,
+  ) =>
+  async (response: Response): Promise<T> => {
+    expect(response.status).toBe(status);
+    const body = (await response.json()) as T;
+    assertions?.(body);
+    return body;
+  };
+
+/**
  * Assert status and check that the HTML body contains all given substrings.
  * Returns the HTML string for further assertions.
  */
