@@ -91,7 +91,10 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
           <input type="checkbox" name="save" value="1" /> Confirm registration
           (cannot be undone)
         </label>
-        <button type="submit">Register Subdomain</button>
+        <footer>
+          <button type="submit">Register Subdomain</button>
+          <a href="/admin/settings/advanced#settings-host-subdomain" class="secondary">Cancel</a>
+        </footer>
       </>
     );
   }
