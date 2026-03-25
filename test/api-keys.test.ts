@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildSessionCookie, getSessionCookieName } from "#lib/cookies.ts";
+import { buildSessionCookie } from "#lib/cookies.ts";
 import {
   generateSecureToken,
   hmacHash,
@@ -19,7 +19,7 @@ import {
   touchApiKeyLastUsed,
 } from "#lib/db/api-keys.ts";
 import { getDb } from "#lib/db/client.ts";
-import { createSession, getSession } from "#lib/db/sessions.ts";
+import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
   createTestEvent,
@@ -31,7 +31,6 @@ import {
   flashCookieHeader,
   expectJsonResponse,
   getTestDataKey,
-  matchGroup,
   mockRequest,
   testCookie,
   testCsrfToken,
@@ -636,8 +635,7 @@ describeWithEnv("API Keys", { db: true }, () => {
         }),
       );
 
-      // deno-lint-ignore no-explicit-any
-      const body = await expectJsonResponse<Record<string, any>>(200, (body) => {
+      const body = await expectJsonResponse(200, (body) => {
         expect(body.events).toBeDefined();
         expect(body.events.length).toBeGreaterThan(0);
         expect(body.admin_level).toBe("owner");

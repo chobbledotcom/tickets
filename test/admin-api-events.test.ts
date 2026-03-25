@@ -5,7 +5,6 @@ import {
   getEventWithCount,
   invalidateEventsCache,
 } from "#lib/db/events.ts";
-import type { EventWithCount } from "#lib/types.ts";
 import { handleRequest } from "#routes";
 import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
 import {

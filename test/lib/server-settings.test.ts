@@ -554,8 +554,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
           );
-          // deno-lint-ignore no-explicit-any
-          await expectJsonResponse<Record<string, any>>(200, (json) => {
+          await expectJsonResponse(200, (json) => {
             expect(json.ok).toBe(false);
             expect(json.apiKey.valid).toBe(false);
             expect(json.apiKey.error).toContain(
@@ -594,8 +593,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          // deno-lint-ignore no-explicit-any
-          await expectJsonResponse<Record<string, any>>(200, (json) => {
+          await expectJsonResponse(200, (json) => {
             expect(json.ok).toBe(true);
             expect(json.apiKey.valid).toBe(true);
             expect(json.apiKey.mode).toBe("test");
@@ -632,8 +630,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          // deno-lint-ignore no-explicit-any
-          await expectJsonResponse<Record<string, any>>(200, (json) => {
+          await expectJsonResponse(200, (json) => {
             expect(json.ok).toBe(false);
             expect(json.apiKey.valid).toBe(true);
             expect(json.webhooks).toHaveLength(0);
@@ -894,8 +891,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
           );
-          // deno-lint-ignore no-explicit-any
-          await expectJsonResponse<Record<string, any>>(200, (json) => {
+          await expectJsonResponse(200, (json) => {
             expect(json.ok).toBe(false);
             expect(json.accessToken.valid).toBe(false);
             expect(json.accessToken.error).toContain(
@@ -930,8 +926,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          // deno-lint-ignore no-explicit-any
-          await expectJsonResponse<Record<string, any>>(200, (json) => {
+          await expectJsonResponse(200, (json) => {
             expect(json.ok).toBe(true);
             expect(json.accessToken.valid).toBe(true);
             expect(json.accessToken.mode).toBe("sandbox");
@@ -965,8 +960,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          // deno-lint-ignore no-explicit-any
-          await expectJsonResponse<Record<string, any>>(200, (json) => {
+          await expectJsonResponse(200, (json) => {
             expect(json.ok).toBe(false);
             expect(json.accessToken.valid).toBe(true);
             expect(json.location.configured).toBe(false);
