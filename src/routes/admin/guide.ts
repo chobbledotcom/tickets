@@ -22,6 +22,8 @@ const handleAdminGuideGet = (request: Request): Promise<Response> =>
         hostEmailFromAddress: hostEmail?.fromAddress ?? null,
         hostAppleWalletPassTypeId:
           settings.appleWallet.hostConfig?.passTypeId ?? null,
+        hostGoogleWalletIssuerId:
+          settings.googleWallet.hostConfig?.issuerId ?? null,
       }),
     );
   });

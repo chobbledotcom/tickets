@@ -204,6 +204,47 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       }
     });
 
+    test("contains Google Wallet section", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Google Wallet");
+      expect(html).toContain("Add to Google Wallet");
+      expect(html).toContain("Issuer ID");
+      expect(html).toContain("Service Account Email");
+      expect(html).toContain("Service Account Private Key");
+    });
+
+    test("shows default Google Wallet setup when no host config", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("You need three values from");
+      expect(html).not.toContain(
+        "already configured by your server administrator\nusing issuer ID",
+      );
+    });
+
+    test("shows host Google Wallet config when env vars set", async () => {
+      Deno.env.set("GOOGLE_WALLET_ISSUER_ID", "3388000000012345678");
+      Deno.env.set(
+        "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
+        "wallet@project.iam.gserviceaccount.com",
+      );
+      Deno.env.set("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY", "pem-key-data");
+      try {
+        const { response } = await adminGet("/admin/guide");
+        const html = await response.text();
+        expect(html).toContain(
+          "already configured by your server administrator",
+        );
+        expect(html).toContain("3388000000012345678");
+        expect(html).toContain("You need three values from");
+      } finally {
+        Deno.env.delete("GOOGLE_WALLET_ISSUER_ID");
+        Deno.env.delete("GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL");
+        Deno.env.delete("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY");
+      }
+    });
+
     test("shows default wallet setup instructions when no host wallet configured", async () => {
       const html = await assertAdminHtml(
         "/admin/guide",

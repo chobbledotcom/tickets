@@ -23,6 +23,7 @@ export type GuideHostConfig = {
   hostEmailProvider: string | null;
   hostEmailFromAddress: string | null;
   hostAppleWalletPassTypeId: string | null;
+  hostGoogleWalletIssuerId: string | null;
 };
 
 const Section = ({
@@ -1006,6 +1007,57 @@ export const adminGuidePage = (
             notifications &mdash; updates arrive on Apple's polling schedule.
             Attendees can also pull down on the pass in Wallet to force an
             immediate refresh.
+          </p>
+        </Q>
+      </Section>
+
+      <Section title="Google Wallet">
+        <Q q="What is Google Wallet integration?">
+          <p>
+            When configured, attendees see an{" "}
+            <strong>Add to Google Wallet</strong> button on their ticket page.
+            Tapping it adds the ticket to their Android device's Google Wallet
+            app. The pass shows the event name, date, location, ticket quantity,
+            price paid, and a QR code for check-in.
+          </p>
+        </Q>
+
+        <Q q="How do I set up Google Wallet?">
+          {hostConfig?.hostGoogleWalletIssuerId && (
+            <p>
+              Google Wallet is already configured by your server administrator
+              using issuer ID <code>{hostConfig.hostGoogleWalletIssuerId}</code>
+              . The Add to Google Wallet button should appear automatically on
+              all ticket pages. You can override this by entering your own
+              credentials in <a href="/admin/settings">Settings</a>.
+            </p>
+          )}
+          <p>
+            Go to <a href="/admin/settings">Settings</a>, click{" "}
+            <strong>Advanced Settings</strong>, and find the{" "}
+            <strong>Google Wallet</strong> section. You need three values from
+            your Google Cloud account:
+          </p>
+          <ol>
+            <li>
+              <strong>Issuer ID</strong> &mdash; from the{" "}
+              <a href="https://pay.google.com/business/console/">
+                Google Wallet Business Console
+              </a>
+            </li>
+            <li>
+              <strong>Service Account Email</strong> &mdash; a Google Cloud
+              service account with the Google Wallet API enabled
+            </li>
+            <li>
+              <strong>Service Account Private Key</strong> &mdash; PEM-encoded
+              RSA private key for the service account
+            </li>
+          </ol>
+          <p>
+            All three fields are required. Once saved, the Add to Google Wallet
+            button appears automatically on all ticket pages. If none are
+            configured, the feature is simply hidden.
           </p>
         </Q>
       </Section>
