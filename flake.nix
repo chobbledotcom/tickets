@@ -17,6 +17,7 @@
         default = pkgs.mkShell {
           packages = [
             pkgs.deno
+            pkgs.typescript-go
             pkgs.openssl
             pkgs.buildah
           ];
