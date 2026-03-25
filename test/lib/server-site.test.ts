@@ -4,6 +4,7 @@ import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#lib/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { handleRequest } from "#routes";
 import {
+  adminFormPost,
   awaitTestRequest,
   describeWithEnv,
   expectAdminRedirect,
@@ -15,7 +16,6 @@ import {
   mockFormRequest,
   mockRequest,
   testCookie,
-  testCsrfToken,
 } from "#test-utils";
 
 /** Assert a 302 redirect with a flash cookie containing the given text */
@@ -92,17 +92,10 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("saves website title and homepage text", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site",
-          {
-            website_title: "My Site",
-            homepage_text: "Welcome!",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site", {
+        website_title: "My Site",
+        homepage_text: "Welcome!",
+      });
       expectRedirectContaining(response, "Homepage updated");
 
       expect(settings.websiteTitle).toBe("My Site");
@@ -112,34 +105,20 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     test("clears values when empty", async () => {
       await settings.update.websiteTitle("Old Title");
       await settings.update.homepageText("Old Text");
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site",
-          {
-            website_title: "",
-            homepage_text: "",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site", {
+        website_title: "",
+        homepage_text: "",
+      });
       expect(response.status).toBe(302);
       expect(settings.websiteTitle).toBe("");
       expect(settings.homepageText).toBe("");
     });
 
     test("rejects title exceeding max length", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site",
-          {
-            website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
-            homepage_text: "",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site", {
+        website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
+        homepage_text: "",
+      });
       await expectHtmlResponse(
         response,
         400,
@@ -148,17 +127,10 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("rejects homepage text exceeding max length", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site",
-          {
-            website_title: "",
-            homepage_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site", {
+        website_title: "",
+        homepage_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+      });
       await expectHtmlResponse(
         response,
         400,
@@ -167,13 +139,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("handles missing fields gracefully", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site");
       expect(response.status).toBe(302);
     });
   });
@@ -241,41 +207,26 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("saves contact page text", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site/contact",
-          { contact_page_text: "Email us!", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site/contact", {
+        contact_page_text: "Email us!",
+      });
       expectRedirectContaining(response, "Contact page updated");
       expect(settings.contactPageText).toBe("Email us!");
     });
 
     test("clears contact text when empty", async () => {
       await settings.update.contactPageText("Old text");
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site/contact",
-          { contact_page_text: "", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site/contact", {
+        contact_page_text: "",
+      });
       expect(response.status).toBe(302);
       expect(settings.contactPageText).toBe("");
     });
 
     test("rejects text exceeding max length", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site/contact",
-          {
-            contact_page_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site/contact", {
+        contact_page_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+      });
       await expectHtmlResponse(
         response,
         400,
@@ -284,13 +235,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("handles missing field gracefully", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/site/contact",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/site/contact");
       expect(response.status).toBe(302);
     });
   });
