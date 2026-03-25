@@ -2480,15 +2480,23 @@ export const withStorageMock = (
   fn: (fetchCalls: string[]) => Promise<void>,
 ): Promise<void> =>
   withFetchMock(async (originalFetch) => {
-    const fetchCalls: string[] = [];
-    installUrlHandler(originalFetch, (url) => {
-      fetchCalls.push(url);
-      if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
-        return Promise.resolve(cdnOkResponse());
-      }
-      return null;
+    const restoreEnv = setTestEnv({
+      STORAGE_ZONE_NAME: "testzone",
+      STORAGE_ZONE_KEY: "testkey",
     });
-    await fn(fetchCalls);
+    try {
+      const fetchCalls: string[] = [];
+      installUrlHandler(originalFetch, (url) => {
+        fetchCalls.push(url);
+        if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
+          return Promise.resolve(cdnOkResponse());
+        }
+        return null;
+      });
+      await fn(fetchCalls);
+    } finally {
+      restoreEnv();
+    }
   });
 
 /** Mock fetch where CDN requests return a fixed response, others pass through */
