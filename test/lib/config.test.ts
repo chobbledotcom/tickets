@@ -2,14 +2,11 @@ import process from "node:process";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
-  getAllowedDomain,
   getBookingFee,
   getEffectiveDomain,
   isPaymentsEnabled,
   loadEffectiveDomain,
-  resetAllowedDomain,
   resetEffectiveDomain,
-  setAllowedDomainForTest,
   setEffectiveDomainForTest,
 } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
@@ -58,91 +55,69 @@ describe("config", () => {
     });
   });
 
-  describe("getAllowedDomain", () => {
-    afterEach(() => resetAllowedDomain());
-
-    test("returns set value via test override", () => {
-      setAllowedDomainForTest("example.com");
-      expect(getAllowedDomain()).toBe("example.com");
-    });
-
-    test("returns localhost when set for testing", () => {
-      setAllowedDomainForTest("localhost");
-      expect(getAllowedDomain()).toBe("localhost");
-    });
-  });
-
   describe("getEffectiveDomain", () => {
     afterEach(() => {
-      resetAllowedDomain();
       resetEffectiveDomain();
     });
 
-    test("returns ALLOWED_DOMAIN when no custom domain is set", async () => {
-      setAllowedDomainForTest("mysite.bunny.run");
-      const result = await loadEffectiveDomain();
+    test("returns request hostname when no custom domain is set", async () => {
+      const result = await loadEffectiveDomain("https://mysite.bunny.run/");
       expect(result).toBe("mysite.bunny.run");
       expect(getEffectiveDomain()).toBe("mysite.bunny.run");
     });
 
     test("returns custom domain when set and validated in DB", async () => {
-      setAllowedDomainForTest("mysite.bunny.run");
       await settings.update.customDomain("tickets.example.com");
       await settings.update.customDomainLastValidated();
       settings.invalidateCache();
       await settings.loadAll();
-      const result = await loadEffectiveDomain();
+      const result = await loadEffectiveDomain("https://mysite.bunny.run/");
       expect(result).toBe("tickets.example.com");
       expect(getEffectiveDomain()).toBe("tickets.example.com");
     });
 
-    test("falls back to ALLOWED_DOMAIN when custom domain is set but not validated", async () => {
-      setAllowedDomainForTest("mysite.bunny.run");
+    test("falls back to request hostname when custom domain is set but not validated", async () => {
       await settings.update.customDomain("tickets.example.com");
       settings.invalidateCache();
-      const result = await loadEffectiveDomain();
+      const result = await loadEffectiveDomain("https://mysite.bunny.run/");
       expect(result).toBe("mysite.bunny.run");
       expect(getEffectiveDomain()).toBe("mysite.bunny.run");
     });
 
-    test("falls back to ALLOWED_DOMAIN after custom domain is cleared", async () => {
-      setAllowedDomainForTest("mysite.bunny.run");
+    test("falls back to request hostname after custom domain is cleared", async () => {
       await settings.update.customDomain("tickets.example.com");
       await settings.update.customDomainLastValidated();
       settings.invalidateCache();
       await settings.loadAll();
-      await loadEffectiveDomain();
+      await loadEffectiveDomain("https://mysite.bunny.run/");
       expect(getEffectiveDomain()).toBe("tickets.example.com");
 
       await settings.update.customDomain("");
       settings.invalidateCache();
       await settings.loadAll();
-      await loadEffectiveDomain();
+      await loadEffectiveDomain("https://mysite.bunny.run/");
       expect(getEffectiveDomain()).toBe("mysite.bunny.run");
     });
 
-    test("falls back to ALLOWED_DOMAIN before loadEffectiveDomain is called", () => {
-      setAllowedDomainForTest("mysite.bunny.run");
-      expect(getEffectiveDomain()).toBe("mysite.bunny.run");
+    test("returns localhost before loadEffectiveDomain is called", () => {
+      expect(getEffectiveDomain()).toBe("localhost");
     });
 
     test("setEffectiveDomainForTest overrides the cached value", () => {
-      setAllowedDomainForTest("mysite.bunny.run");
       setEffectiveDomainForTest("custom.example.com");
       expect(getEffectiveDomain()).toBe("custom.example.com");
     });
 
     test("resetEffectiveDomain clears the cached value", async () => {
-      setAllowedDomainForTest("mysite.bunny.run");
       await settings.update.customDomain("tickets.example.com");
       await settings.update.customDomainLastValidated();
       settings.invalidateCache();
       await settings.loadAll();
-      await loadEffectiveDomain();
+      await loadEffectiveDomain("https://mysite.bunny.run/");
       expect(getEffectiveDomain()).toBe("tickets.example.com");
 
       resetEffectiveDomain();
-      expect(getEffectiveDomain()).toBe("mysite.bunny.run");
+      expect(getEffectiveDomain()).toBe("localhost");
     });
   });
 

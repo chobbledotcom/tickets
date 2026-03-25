@@ -31,7 +31,6 @@
             export DB_ENCRYPTION_KEY="$(openssl rand -base64 32)"
             export DB_URL=":memory:"
             export PORT=8080
-            export ALLOWED_DOMAIN="localhost"
           '';
         };
       });

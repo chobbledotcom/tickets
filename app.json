@@ -16,10 +16,6 @@
     "DB_ENCRYPTION_KEY": {
       "description": "32-byte base64-encoded AES-256 encryption key",
       "required": true
-    },
-    "ALLOWED_DOMAIN": {
-      "description": "Domain for security validation (e.g. your-app.herokuapp.com)",
-      "required": true
     }
   }
 }

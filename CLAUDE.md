@@ -85,7 +85,6 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)
 - `DB_TOKEN` - Database auth token (required for remote databases)
 - `DB_ENCRYPTION_KEY` - 32-byte base64-encoded encryption key (required)
-- `ALLOWED_DOMAIN` - Domain for security validation (required)
 
 ### Optional
 
