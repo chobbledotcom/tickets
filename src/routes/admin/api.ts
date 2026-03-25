@@ -78,6 +78,9 @@ type FieldType = "string" | "number" | "boolean" | "string[]";
 /** The possible value types for event fields */
 type FieldValue = string | number | boolean | string[];
 
+/** Partial EventInput fields keyed by camelCase name */
+type FieldRecord = Record<string, FieldValue>;
+
 /**
  * Field mapping: [apiKey, eventInputKey, type]
  *
@@ -126,8 +129,8 @@ const matchesType = (val: unknown, type: FieldType): val is FieldValue =>
 const pickTypedFields = (
   body: Record<string, unknown>,
   fields: FieldMapping[],
-): Record<string, FieldValue> => {
-  const result: Record<string, FieldValue> = {};
+): FieldRecord => {
+  const result: FieldRecord = {};
   for (const [apiKey, outKey, type] of fields) {
     const val = body[apiKey];
     if (val === undefined) continue;
@@ -146,8 +149,8 @@ const pickTypedFields = (
  */
 const existingToDefaults = (
   existing: EventWithCount,
-): Record<string, FieldValue> => {
-  const result: Record<string, FieldValue> = {};
+): FieldRecord => {
+  const result: FieldRecord = {};
   for (const [apiKey, outKey] of optionalFields) {
     const val = existing[apiKey as keyof EventWithCount];
     result[outKey] = val === null ? "" : val;
