@@ -10,7 +10,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { sendNtfyError } from "#lib/ntfy.ts";
-import { addPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
+import {
+  addPendingWork,
+  hasPendingWorkScope,
+  runWithPendingWork,
+} from "#lib/pending-work.ts";
 
 /** Request-scoped random ID for correlating log entries */
 const requestIdStorage = new AsyncLocalStorage<string>();
@@ -282,8 +286,10 @@ export const logErrorLocal = (context: ErrorContext): void => {
 export const logError = (context: ErrorContext): void => {
   logErrorLocal(context);
 
-  addPendingWork(sendNtfyError(context.code));
-  addPendingWork(persistErrorToActivityLog(context));
+  if (hasPendingWorkScope()) {
+    addPendingWork(sendNtfyError(context.code));
+    addPendingWork(persistErrorToActivityLog(context));
+  }
 };
 
 /**

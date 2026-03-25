@@ -19,6 +19,10 @@ import {
   runWithRequestId,
 } from "#lib/logger.ts";
 import {
+  flushPendingWork,
+  runWithPendingWork,
+} from "#lib/pending-work.ts";
+import {
   createTestDbWithSetup,
   createTestEvent,
   describeWithEnv,
@@ -240,13 +244,16 @@ describe("logger", () => {
       ]);
     });
 
-    test("sends ntfy notification when NTFY_URL is configured", () => {
+    test("sends ntfy notification when NTFY_URL is configured", async () => {
       const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );
 
-      logError({ code: ErrorCode.DB_QUERY });
+      await runWithPendingWork(async () => {
+        logError({ code: ErrorCode.DB_QUERY });
+        await flushPendingWork();
+      });
 
       expect(fetchStub.calls.length).toBe(1);
       const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
@@ -260,10 +267,6 @@ describe("logger", () => {
     describe("activity log persistence", () => {
       beforeEach(async () => {
         await createTestDbWithSetup();
-        // Drain floating promises from earlier logError calls in the parent block
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        resetDb();
-        await createTestDbWithSetup();
       });
 
       afterEach(() => {
@@ -271,11 +274,13 @@ describe("logger", () => {
       });
 
       test("persists error to activity log", async () => {
-        logError({
-          code: ErrorCode.STRIPE_CHECKOUT,
-          detail: "session creation failed",
+        await runWithPendingWork(async () => {
+          logError({
+            code: ErrorCode.STRIPE_CHECKOUT,
+            detail: "session creation failed",
+          });
+          await flushPendingWork();
         });
-        await new Promise((resolve) => setTimeout(resolve, 50));
 
         const entries = await getAllActivityLog();
         const match = entries.find(
@@ -289,12 +294,14 @@ describe("logger", () => {
 
       test("persists error with event ID to activity log", async () => {
         const event = await createTestEvent();
-        logError({
-          code: ErrorCode.PAYMENT_REFUND,
-          eventId: event.id,
-          detail: "refund declined",
+        await runWithPendingWork(async () => {
+          logError({
+            code: ErrorCode.PAYMENT_REFUND,
+            eventId: event.id,
+            detail: "refund declined",
+          });
+          await flushPendingWork();
         });
-        await new Promise((resolve) => setTimeout(resolve, 50));
 
         const entries = await getAllActivityLog();
         const match = entries.find(
@@ -305,8 +312,10 @@ describe("logger", () => {
       });
 
       test("persists error without detail to activity log", async () => {
-        logError({ code: ErrorCode.DB_CONNECTION });
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await runWithPendingWork(async () => {
+          logError({ code: ErrorCode.DB_CONNECTION });
+          await flushPendingWork();
+        });
 
         const entries = await getAllActivityLog();
         const match = entries.find(
@@ -318,9 +327,11 @@ describe("logger", () => {
       test("guards against recursive logError during persistence", async () => {
         // Call logError twice rapidly — the guard prevents the second from
         // persisting to the activity log while the first is still writing
-        logError({ code: ErrorCode.DB_CONNECTION });
-        logError({ code: ErrorCode.DB_QUERY });
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await runWithPendingWork(async () => {
+          logError({ code: ErrorCode.DB_CONNECTION });
+          logError({ code: ErrorCode.DB_QUERY });
+          await flushPendingWork();
+        });
 
         const entries = await getAllActivityLog();
         const connError = entries.find(
