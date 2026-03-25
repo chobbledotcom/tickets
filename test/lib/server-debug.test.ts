@@ -10,6 +10,7 @@ import {
 } from "#templates/admin/debug.tsx";
 import {
   adminGet,
+  assertAdminHtml,
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
@@ -32,103 +33,88 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows breadcrumb back to settings", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain('href="/admin/settings"');
-      expect(html).toContain("Settings");
+      await assertAdminHtml("/admin/debug", 'href="/admin/settings"', "Settings");
     });
 
     test("shows Build section", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Build");
-      expect(html).toContain("Timestamp");
-      expect(html).toContain("Commit");
+      await assertAdminHtml("/admin/debug", "Build", "Timestamp", "Commit");
     });
 
     test("shows Apple Wallet section", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Apple Wallet");
-      expect(html).toContain("DB config");
-      expect(html).toContain("Env var config");
-      expect(html).toContain("Active source");
-      expect(html).toContain("Pass Type ID");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Apple Wallet",
+        "DB config",
+        "Env var config",
+        "Active source",
+        "Pass Type ID",
+      );
     });
 
     test("shows Apple Wallet cert validation as Not set when unconfigured", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Signing certificate");
-      expect(html).toContain("Signing key");
-      expect(html).toContain("WWDR certificate");
-      expect(html).toContain("Not set");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Signing certificate",
+        "Signing key",
+        "WWDR certificate",
+        "Not set",
+      );
     });
 
     test("shows Payments section", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Payments");
-      expect(html).toContain("Provider");
-      expect(html).toContain("API key");
-      expect(html).toContain("Webhook");
+      await assertAdminHtml("/admin/debug", "Payments", "Provider", "API key", "Webhook");
     });
 
     test("shows Email section", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Email");
-      expect(html).toContain("Provider (DB)");
-      expect(html).toContain("From address");
-      expect(html).toContain("Host provider (env)");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Email",
+        "Provider (DB)",
+        "From address",
+        "Host provider (env)",
+      );
     });
 
     test("shows Notifications section", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Notifications (ntfy)");
-      expect(html).toContain("NTFY URL");
+      await assertAdminHtml("/admin/debug", "Notifications (ntfy)", "NTFY URL");
     });
 
     test("shows combined Bunny section with storage, CDN, and DNS", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Bunny");
-      expect(html).toContain("Storage zone (images)");
-      expect(html).toContain("CDN management");
-      expect(html).toContain("CDN hostname");
-      expect(html).toContain("Custom domain");
-      expect(html).toContain("DNS subdomain");
-      expect(html).toContain("Subdomain suffix");
-      expect(html).toContain("Registered subdomain");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Bunny",
+        "Storage zone (images)",
+        "CDN management",
+        "CDN hostname",
+        "Custom domain",
+        "DNS subdomain",
+        "Subdomain suffix",
+        "Registered subdomain",
+      );
     });
 
     test("shows combined Database &amp; Domain section", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Database &amp; Domain");
-      expect(html).toContain("DB_URL");
-      expect(html).toContain("Effective domain");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Database &amp; Domain",
+        "DB_URL",
+        "Effective domain",
+      );
     });
 
     test("does not expose secret keys or full URLs", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
+      const html = await assertAdminHtml("/admin/debug");
       expect(html).not.toContain("sk_test_");
       expect(html).not.toContain("sk_live_");
       expect(html).not.toContain("ntfy.sh");
     });
 
     test("shows Configured/Not configured badges", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Not configured");
+      await assertAdminHtml("/admin/debug", "Not configured");
     });
 
     test("shows no secrets disclaimer", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("No secrets or keys are shown");
+      await assertAdminHtml("/admin/debug", "No secrets or keys are shown");
     });
   });
 
@@ -140,10 +126,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         secret: "whsec_fake",
         endpointId: "we_fake",
       });
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("stripe");
-      expect(html).toContain("Configured");
+      await assertAdminHtml("/admin/debug", "stripe", "Configured");
     });
   });
 
@@ -151,9 +134,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     test("shows square as provider with webhook status", async () => {
       await settings.update.paymentProvider("square");
       await settings.update.square.webhookSignatureKey("sig_fake");
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("square");
+      await assertAdminHtml("/admin/debug", "square");
     });
   });
 
@@ -167,11 +148,12 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         settings.update.appleWallet.signingKey(certs.signingKey),
         settings.update.appleWallet.wwdrCert(certs.wwdrCert),
       ]);
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Database");
-      expect(html).toContain("pass.com.test.tickets");
-      expect(html).toContain("Valid");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Database",
+        "pass.com.test.tickets",
+        "Valid",
+      );
     });
 
     test("shows Invalid PEM for bad certificate data", async () => {
@@ -182,9 +164,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         settings.update.appleWallet.signingKey("not-a-valid-pem"),
         settings.update.appleWallet.wwdrCert("not-a-valid-pem"),
       ]);
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Invalid PEM");
+      await assertAdminHtml("/admin/debug", "Invalid PEM");
     });
   });
 
@@ -202,10 +182,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         APPLE_WALLET_SIGNING_KEY: certs.signingKey,
         APPLE_WALLET_WWDR_CERT: certs.wwdrCert,
       });
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Environment variables");
-      expect(html).toContain("pass.com.env.test");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Environment variables",
+        "pass.com.env.test",
+      );
     });
   });
 
@@ -220,20 +201,19 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         HOST_EMAIL_API_KEY: "re_test_key",
         HOST_EMAIL_FROM_ADDRESS: "test@example.com",
       });
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("resend");
+      await assertAdminHtml("/admin/debug", "resend");
     });
   });
 
   describe("GET /admin/debug with Google Wallet section", () => {
     test("shows Google Wallet section when unconfigured", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Google Wallet");
-      expect(html).toContain("Issuer ID");
-      expect(html).toContain("Private key");
-      expect(html).toContain("Not set");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Google Wallet",
+        "Issuer ID",
+        "Private key",
+        "Not set",
+      );
     });
   });
 
@@ -247,11 +227,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         ),
         settings.update.googleWallet.serviceAccountKey(creds.serviceAccountKey),
       ]);
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Database");
-      expect(html).toContain(creds.issuerId);
-      expect(html).toContain("Valid");
+      await assertAdminHtml("/admin/debug", "Database", creds.issuerId, "Valid");
     });
 
     test("shows Invalid key for bad private key data", async () => {
@@ -262,9 +238,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         ),
         settings.update.googleWallet.serviceAccountKey("not-a-valid-key"),
       ]);
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Invalid key");
+      await assertAdminHtml("/admin/debug", "Invalid key");
     });
   });
 
@@ -280,10 +254,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "env@test.iam.gserviceaccount.com",
         GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: creds.serviceAccountKey,
       });
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Environment variables");
-      expect(html).toContain("9876543210");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Environment variables",
+        "9876543210",
+      );
     });
   });
 
@@ -301,11 +276,12 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       bunnyCdnApi.getCdnHostname = () =>
         Promise.resolve({ ok: true as const, hostname: "mysite.b-cdn.net" });
       try {
-        const { response } = await adminGet("/admin/debug");
-        const html = await response.text();
-        expect(html).toContain("badge-ok");
-        expect(html).toContain("CDN management");
-        expect(html).toContain("mysite.b-cdn.net");
+        await assertAdminHtml(
+          "/admin/debug",
+          "badge-ok",
+          "CDN management",
+          "mysite.b-cdn.net",
+        );
       } finally {
         bunnyCdnApi.getCdnHostname = original;
       }
@@ -320,9 +296,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       bunnyCdnApi.getCdnHostname = () =>
         Promise.resolve({ ok: false as const, error: "API error" });
       try {
-        const { response } = await adminGet("/admin/debug");
-        const html = await response.text();
-        expect(html).toContain("badge-ok");
+        const html = await assertAdminHtml("/admin/debug", "badge-ok");
         expect(html).not.toContain("mysite.b-cdn.net");
       } finally {
         bunnyCdnApi.getCdnHostname = original;
@@ -341,10 +315,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         BUNNY_DNS_ZONE_ID: "12345",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
       });
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("DNS subdomain");
-      expect(html).toContain(".tickets");
+      await assertAdminHtml("/admin/debug", "DNS subdomain", ".tickets");
     });
 
     test("shows registered subdomain when set", () => {
@@ -403,9 +374,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
   describe("Limits section", () => {
     test("shows limits table with all entries", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Limits");
+      const html = await assertAdminHtml("/admin/debug", "Limits");
       for (const entry of LIMIT_ENTRIES) {
         expect(html).toContain(entry.envKey);
         expect(html).toContain(entry.label);

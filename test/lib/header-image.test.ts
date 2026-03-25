@@ -6,19 +6,19 @@ import { resetHeaderImage, setHeaderImageForTest } from "#lib/header-image.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
+  assertAdminHtml,
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
+  JPEG_HEADER,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
   testCookie,
   testCsrfToken,
+  withStorageMock,
 } from "#test-utils";
-
-/** JPEG magic bytes for a valid test image */
-const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 /** Submit a file to the header-image upload endpoint */
 const submitHeaderImage = async (
@@ -74,40 +74,6 @@ const submitHeaderImageDelete = async (
 const expectSettingsRedirect = (response: Response): void => {
   expect(response.status).toBe(302);
   expect(response.headers.get("location")).toContain("/admin/settings");
-};
-
-/** Mock fetch to intercept Bunny CDN API calls */
-const withStorageMock = async (
-  fn: (fetchCalls: string[]) => Promise<void>,
-): Promise<void> => {
-  const originalFetch = globalThis.fetch;
-  const fetchCalls: string[] = [];
-  globalThis.fetch = (
-    input: string | URL | Request,
-    init?: RequestInit,
-  ): Promise<Response> => {
-    const url =
-      typeof input === "string"
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
-    fetchCalls.push(url);
-    if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
-      return Promise.resolve(
-        new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), {
-          status: 201,
-        }),
-      );
-    }
-    return originalFetch(input, init);
-  };
-
-  try {
-    await fn(fetchCalls);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
 };
 
 describe("header image", () => {
@@ -184,8 +150,7 @@ describeWithEnv(
         { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
         () => {
           test("hides header image section", async () => {
-            const { response } = await adminGet("/admin/settings");
-            const html = await response.text();
+            const html = await assertAdminHtml("/admin/settings");
             expect(html).not.toContain("Header Image");
           });
         },
@@ -386,8 +351,7 @@ describeWithEnv(
 
       test("does not render header image when not set", async () => {
         resetHeaderImage();
-        const { response } = await adminGet("/admin/settings");
-        const html = await response.text();
+        const html = await assertAdminHtml("/admin/settings");
         expect(html).not.toContain('class="header-image"');
       });
     });

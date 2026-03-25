@@ -9,6 +9,7 @@ import { handleRequest } from "#routes";
 import {
   adminFormPost,
   adminGet,
+  assertAdminHtml,
   awaitTestRequest,
   createTestAttendee,
   createTestEvent,
@@ -856,10 +857,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         maxAttendees: 25,
       });
 
-      const { response } = await adminGet(`/admin/group/${group.id}/edit`);
-      const html = await response.text();
-      expect(html).toContain("max_attendees");
-      expect(html).toContain("25");
+      await assertAdminHtml(`/admin/group/${group.id}/edit`, "max_attendees", "25");
     });
 
     test("updates max_attendees via edit", async () => {
@@ -880,9 +878,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
-      const html = await response.text();
-      expect(html).toContain("0 / 100");
+      await assertAdminHtml(`/admin/group/${group.id}`, "0 / 100");
     });
 
     test("detail page shows plain attendee count when no group max set", async () => {
@@ -891,20 +887,18 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "detail-no-max",
       });
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
-      const html = await response.text();
       // Attendees row should show just "0" not "0 / X"
-      expect(html).toContain("<th>Attendees</th>");
-      expect(html).toContain("<td>0</td>");
+      await assertAdminHtml(
+        `/admin/group/${group.id}`,
+        "<th>Attendees</th>",
+        "<td>0</td>",
+      );
     });
   });
 
   describe("nav link", () => {
     test("groups link visible to owners", async () => {
-      const { response } = await adminGet("/admin/groups");
-      const html = await response.text();
-      expect(html).toContain("/admin/groups");
-      expect(html).toContain("Groups");
+      await assertAdminHtml("/admin/groups", "/admin/groups", "Groups");
     });
 
     test("groups link visible to managers", async () => {

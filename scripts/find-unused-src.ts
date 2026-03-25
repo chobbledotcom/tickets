@@ -34,18 +34,20 @@ for (const [alias, target] of Object.entries(importMapRaw)) {
 aliasMap.sort((a, b) => b.alias.length - a.alias.length);
 
 /** Resolve an import specifier to a relative file path (from project root) */
-function resolveImport(specifier: string, fromFile: string): string | null {
+/** Try to resolve a specifier via the alias map */
+function resolveAlias(specifier: string): string | null {
   for (const { alias, path: aliasPath } of aliasMap) {
-    if (alias.endsWith("/")) {
-      if (specifier.startsWith(alias)) {
-        return aliasPath + specifier.slice(alias.length);
-      }
-    } else {
-      if (specifier === alias) {
-        return aliasPath;
-      }
+    if (alias.endsWith("/") && specifier.startsWith(alias)) {
+      return aliasPath + specifier.slice(alias.length);
     }
+    if (specifier === alias) return aliasPath;
   }
+  return null;
+}
+
+function resolveImport(specifier: string, fromFile: string): string | null {
+  const aliased = resolveAlias(specifier);
+  if (aliased) return aliased;
 
   if (specifier.startsWith("./") || specifier.startsWith("../")) {
     const fromDir = path.dirname(fromFile);
@@ -56,24 +58,35 @@ function resolveImport(specifier: string, fromFile: string): string | null {
   return null;
 }
 
+const isTypeScriptFile = (name: string): boolean =>
+  name.endsWith(".ts") || name.endsWith(".tsx");
+
+/** List direct entries in a directory, classifying as files or subdirs */
+function listEntries(d: string): { dirs: string[]; files: string[] } {
+  const dirs: string[] = [];
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+    const full = path.join(d, entry.name);
+    if (entry.isDirectory()) dirs.push(full);
+    else if (isTypeScriptFile(entry.name))
+      files.push(path.relative(ROOT, full));
+  }
+  return { dirs, files };
+}
+
 /** Collect all .ts/.tsx files in a directory recursively */
 function collectFiles(dir: string): string[] {
-  const files: string[] = [];
   const fullDir = path.resolve(ROOT, dir);
-  if (!fs.existsSync(fullDir)) return files;
+  if (!fs.existsSync(fullDir)) return [];
 
-  function recurse(d: string) {
-    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
-      const full = path.join(d, entry.name);
-      if (entry.isDirectory()) {
-        recurse(full);
-      } else if (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) {
-        files.push(path.relative(ROOT, full));
-      }
-    }
+  const result: string[] = [];
+  const pending = [fullDir];
+  while (pending.length > 0) {
+    const { dirs, files } = listEntries(pending.pop()!);
+    result.push(...files);
+    pending.push(...dirs);
   }
-  recurse(fullDir);
-  return files.sort();
+  return result.sort();
 }
 
 /** Extract both static and dynamic import specifiers from a file */
@@ -93,8 +106,7 @@ function extractImports(
   const staticRegex =
     /(?:import|export)\s+(?:type\s+)?(?:\{([^}]*)\}|(\*\s+as\s+\w+)|\w+)?\s*(?:,\s*\{([^}]*)\})?\s*(?:from\s+)?["']([^"']+)["']/g;
 
-  let match;
-  while ((match = staticRegex.exec(content)) !== null) {
+  for (const match of content.matchAll(staticRegex)) {
     const namedImports = (match[1] || "") + (match[3] || "");
     const specifier = match[4]!;
     const names = namedImports
@@ -115,7 +127,7 @@ function extractImports(
   const dynamicRegex =
     /(?:const\s+\{([^}]*)\}\s*=\s*)?await\s+import\(\s*["']([^"']+)["']\s*\)/g;
 
-  while ((match = dynamicRegex.exec(content)) !== null) {
+  for (const match of content.matchAll(dynamicRegex)) {
     const namedImports = match[1] || "";
     const specifier = match[2]!;
     const names = namedImports
@@ -133,38 +145,42 @@ function extractImports(
   return imports;
 }
 
-/** Extract exported names from a file */
-function extractExports(filePath: string): string[] {
-  const content = fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
-  const exports: string[] = [];
+/** Patterns that match named export declarations */
+const EXPORT_PATTERNS: RegExp[] = [
+  /export\s+function\s+(\w+)/g,
+  /export\s+(?:const|let|var)\s+(\w+)/g,
+  /export\s+class\s+(\w+)/g,
+  /export\s+(?:type|interface)\s+(\w+)/g,
+  /export\s+enum\s+(\w+)/g,
+];
 
-  for (const m of content.matchAll(/export\s+function\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
-  for (const m of content.matchAll(/export\s+(?:const|let|var)\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
-  for (const m of content.matchAll(/export\s+class\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
-  for (const m of content.matchAll(/export\s+(?:type|interface)\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
-  for (const m of content.matchAll(/export\s+enum\s+(\w+)/g)) {
-    exports.push(m[1]!);
-  }
+/** Extract names from `export { a, b as c }` blocks (not re-exports) */
+const extractBraceExports = (content: string): string[] => {
+  const names: string[] = [];
   for (const m of content.matchAll(/export\s+\{([^}]+)\}(?!\s*from)/g)) {
     for (const name of m[1]!.split(",")) {
       const trimmed = name
         .trim()
         .replace(/\s+as\s+\w+/, "")
         .trim();
-      if (trimmed) exports.push(trimmed);
+      if (trimmed) names.push(trimmed);
     }
   }
-  if (/export\s+default\s/.test(content)) {
-    exports.push("default");
+  return names;
+};
+
+/** Extract exported names from a file */
+function extractExports(filePath: string): string[] {
+  const content = fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
+  const exports: string[] = [];
+
+  for (const pattern of EXPORT_PATTERNS) {
+    for (const m of content.matchAll(pattern)) {
+      exports.push(m[1]!);
+    }
   }
+  exports.push(...extractBraceExports(content));
+  if (/export\s+default\s/.test(content)) exports.push("default");
 
   return [...new Set(exports)];
 }

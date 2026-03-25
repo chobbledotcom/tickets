@@ -1,97 +1,46 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { generateSecureToken, unwrapKeyWithToken } from "#lib/crypto.ts";
-import { createApiKey } from "#lib/db/api-keys.ts";
 import {
   eventsTable,
   getEventWithCount,
   invalidateEventsCache,
 } from "#lib/db/events.ts";
-import { getSession } from "#lib/db/sessions.ts";
-import type { EventWithCount } from "#lib/types.ts";
 import { handleRequest } from "#routes";
 import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
 import {
+  apiRequest,
+  assertJson,
+  createTestApiKeyToken,
   createTestEvent,
   createTestGroup,
   describeWithEnv,
   mockRequest,
   testCookie,
   testCsrfToken,
+  testEventWithCount,
 } from "#test-utils";
-
-/** Helper to get the DATA_KEY from the test session */
-const getTestDataKey = async (): Promise<CryptoKey> => {
-  const cookie = await testCookie();
-  const sessionMatch = cookie.match(
-    new RegExp(`${getSessionCookieName()}=([^;]+)`),
-  );
-  const token = sessionMatch?.[1]!;
-  const session = await getSession(token);
-  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
-};
-
-/** Create an API key and return its token */
-const createTestApiKey = async (): Promise<string> => {
-  const dataKey = await getTestDataKey();
-  const { apiKey } = await createApiKey(
-    1,
-    "Test API Key",
-    dataKey,
-    generateSecureToken,
-  );
-  return apiKey;
-};
-
-/** Helper to make authenticated JSON API requests */
-const apiRequest = async (
-  path: string,
-  options: {
-    method?: string;
-    body?: Record<string, unknown>;
-    apiKey?: string;
-  } = {},
-): Promise<Response> => {
-  const apiKey = options.apiKey ?? (await createTestApiKey());
-  const headers: Record<string, string> = {
-    authorization: `Bearer ${apiKey}`,
-  };
-  const method = options.method ?? "GET";
-  if (method !== "GET") {
-    headers["content-type"] = "application/json";
-  }
-  const init: RequestInit = {
-    method,
-    headers,
-    body: method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
-  };
-  return handleRequest(mockRequest(path, init));
-};
 
 describeWithEnv("Admin API - Events", { db: true }, () => {
   describe("GET /api/admin/events/:eventId", () => {
     test("returns single event by ID", async () => {
       const event = await createTestEvent({ name: "Detail Event" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        apiKey,
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.name).toBe("Detail Event");
-      expect(body.event.id).toBe(event.id);
-      expect(body.event.slug_index).toBeUndefined();
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, { apiKey }),
+        200,
+        (body) => {
+          expect(body.event.name).toBe("Detail Event");
+          expect(body.event.id).toBe(event.id);
+          expect(body.event.slug_index).toBeUndefined();
+        },
+      );
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await apiRequest("/api/admin/events/99999");
-
-      expect(response.status).toBe(404);
-      const body = await response.json();
-      expect(body.message).toBe("Event not found");
+      await assertJson(apiRequest("/api/admin/events/99999"), 404, (body) => {
+        expect(body.message).toBe("Event not found");
+      });
     });
 
     test("returns 401 without auth", async () => {
@@ -105,93 +54,103 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const response = await handleRequest(
-        mockRequest(`/api/admin/events/${event.id}`, {
-          headers: { cookie, "x-csrf-token": csrfToken },
-        }),
+      await assertJson(
+        handleRequest(
+          mockRequest(`/api/admin/events/${event.id}`, {
+            headers: { cookie, "x-csrf-token": csrfToken },
+          }),
+        ),
+        200,
+        (body) => {
+          expect(body.event.name).toBe("Cookie Detail");
+        },
       );
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.name).toBe("Cookie Detail");
     });
   });
 
   describe("POST /api/admin/events", () => {
     test("creates event with required fields", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "New API Event",
-          max_attendees: 50,
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "New API Event",
+            max_attendees: 50,
+          },
+        }),
+        201,
+        (body) => {
+          expect(body.event.name).toBe("New API Event");
+          expect(body.event.max_attendees).toBe(50);
+          expect(body.event.id).toBeGreaterThan(0);
+          expect(body.event.slug_index).toBeUndefined();
         },
-      });
-
-      expect(response.status).toBe(201);
-      const body = await response.json();
-      expect(body.event.name).toBe("New API Event");
-      expect(body.event.max_attendees).toBe(50);
-      expect(body.event.id).toBeGreaterThan(0);
-      expect(body.event.slug_index).toBeUndefined();
+      );
     });
 
     test("creates event with all optional fields", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "Full Event",
-          max_attendees: 100,
-          description: "A test event",
-          location: "Test Hall",
-          unit_price: 500,
-          max_quantity: 5,
-          max_price: 1000,
-          fields: "email,phone",
-          event_type: "standard",
-          non_transferable: true,
-          can_pay_more: true,
-          hidden: false,
-          thank_you_url: "https://example.com/thanks",
-          webhook_url: "https://example.com/webhook",
-          minimum_days_before: 2,
-          maximum_days_after: 60,
-          bookable_days: ["Monday", "Tuesday"],
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "Full Event",
+            max_attendees: 100,
+            description: "A test event",
+            location: "Test Hall",
+            unit_price: 500,
+            max_quantity: 5,
+            max_price: 1000,
+            fields: "email,phone",
+            event_type: "standard",
+            non_transferable: true,
+            can_pay_more: true,
+            hidden: false,
+            thank_you_url: "https://example.com/thanks",
+            webhook_url: "https://example.com/webhook",
+            minimum_days_before: 2,
+            maximum_days_after: 60,
+            bookable_days: ["Monday", "Tuesday"],
+          },
+        }),
+        201,
+        (body) => {
+          expect(body.event.name).toBe("Full Event");
+          expect(body.event.description).toBe("A test event");
+          expect(body.event.location).toBe("Test Hall");
+          expect(body.event.unit_price).toBe(500);
+          expect(body.event.max_quantity).toBe(5);
+          expect(body.event.max_price).toBe(1000);
+          expect(body.event.non_transferable).toBe(true);
+          expect(body.event.can_pay_more).toBe(true);
+          expect(body.event.hidden).toBe(false);
         },
-      });
-
-      expect(response.status).toBe(201);
-      const body = await response.json();
-      expect(body.event.name).toBe("Full Event");
-      expect(body.event.description).toBe("A test event");
-      expect(body.event.location).toBe("Test Hall");
-      expect(body.event.unit_price).toBe(500);
-      expect(body.event.max_quantity).toBe(5);
-      expect(body.event.max_price).toBe(1000);
-      expect(body.event.non_transferable).toBe(true);
-      expect(body.event.can_pay_more).toBe(true);
-      expect(body.event.hidden).toBe(false);
+      );
     });
 
     test("returns 400 when name is missing", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: { max_attendees: 50 },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("name is required");
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: { max_attendees: 50 },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toBe("name is required");
+        },
+      );
     });
 
     test("returns 400 when max_attendees is missing", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: { name: "No Max" },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("max_attendees is required and must be >= 1");
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: { name: "No Max" },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toBe("max_attendees is required and must be >= 1");
+        },
+      );
     });
 
     test("returns 400 when max_attendees is zero", async () => {
@@ -204,35 +163,39 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     });
 
     test("validates can_pay_more requires sufficient max_price", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "Pay More Event",
-          max_attendees: 10,
-          unit_price: 500,
-          can_pay_more: true,
-          max_price: 500,
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "Pay More Event",
+            max_attendees: 10,
+            unit_price: 500,
+            can_pay_more: true,
+            max_price: 500,
+          },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toContain("Maximum price");
         },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toContain("Maximum price");
+      );
     });
 
     test("validates group exists", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "Group Event",
-          max_attendees: 10,
-          group_id: 99999,
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "Group Event",
+            max_attendees: 10,
+            group_id: 99999,
+          },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toBe("Selected group does not exist");
         },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("Selected group does not exist");
+      );
     });
   });
 
@@ -240,15 +203,17 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("updates event name", async () => {
       const event = await createTestEvent({ name: "Original" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { name: "Updated Name" },
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.name).toBe("Updated Name");
-      expect(body.event.id).toBe(event.id);
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { name: "Updated Name" },
+        }),
+        200,
+        (body) => {
+          expect(body.event.name).toBe("Updated Name");
+          expect(body.event.id).toBe(event.id);
+        },
+      );
     });
 
     test("updates event with partial fields", async () => {
@@ -257,16 +222,18 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
         maxAttendees: 50,
       });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { max_attendees: 100, description: "Updated desc" },
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.name).toBe("Partial Update");
-      expect(body.event.max_attendees).toBe(100);
-      expect(body.event.description).toBe("Updated desc");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { max_attendees: 100, description: "Updated desc" },
+        }),
+        200,
+        (body) => {
+          expect(body.event.name).toBe("Partial Update");
+          expect(body.event.max_attendees).toBe(100);
+          expect(body.event.description).toBe("Updated desc");
+        },
+      );
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -281,14 +248,16 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("returns 400 when name is empty string", async () => {
       const event = await createTestEvent({ name: "Will Empty" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { name: "" },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("name cannot be empty");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { name: "" },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toBe("name cannot be empty");
+        },
+      );
     });
 
     test("rejects duplicate slug", async () => {
@@ -296,27 +265,31 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const event2 = await createTestEvent({ name: "Event Two" });
 
       // Use event1's slug for event2
-      const response = await apiRequest(`/api/admin/events/${event2.id}`, {
-        method: "PUT",
-        body: { slug: event1.slug },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("Slug is already in use by another event");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event2.id}`, {
+          method: "PUT",
+          body: { slug: event1.slug },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toBe("Slug is already in use by another event");
+        },
+      );
     });
 
     test("allows keeping the same slug", async () => {
       const event = await createTestEvent({ name: "Keep Slug" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { slug: event.slug, name: "Renamed" },
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.name).toBe("Renamed");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { slug: event.slug, name: "Renamed" },
+        }),
+        200,
+        (body) => {
+          expect(body.event.name).toBe("Renamed");
+        },
+      );
     });
   });
 
@@ -324,14 +297,16 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("deletes event with matching confirm_name", async () => {
       const event = await createTestEvent({ name: "Delete Me" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "DELETE",
-        body: { confirm_name: "Delete Me" },
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.status).toBe("ok");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "DELETE",
+          body: { confirm_name: "Delete Me" },
+        }),
+        200,
+        (body) => {
+          expect(body.status).toBe("ok");
+        },
+      );
 
       // Verify event is gone
       invalidateEventsCache();
@@ -342,14 +317,16 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("rejects with wrong confirm_name", async () => {
       const event = await createTestEvent({ name: "Protect Me" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "DELETE",
-        body: { confirm_name: "Wrong Name" },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toContain("Event name does not match");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "DELETE",
+          body: { confirm_name: "Wrong Name" },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toContain("Event name does not match");
+        },
+      );
     });
 
     test("rejects without confirm_name", async () => {
@@ -388,20 +365,22 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("deactivates an active event", async () => {
       const event = await createTestEvent({ name: "Active Event" });
 
-      const response = await apiRequest(
-        `/api/admin/events/${event.id}/deactivate`,
-        { method: "POST" },
+      await assertJson(
+        apiRequest(
+          `/api/admin/events/${event.id}/deactivate`,
+          { method: "POST" },
+        ),
+        200,
+        (body) => {
+          expect(body.event.active).toBe(false);
+          expect(body.event.name).toBe("Active Event");
+        },
       );
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.active).toBe(false);
-      expect(body.event.name).toBe("Active Event");
     });
 
     test("returns 400 when event is already deactivated", async () => {
       const event = await createTestEvent({ name: "Inactive Event" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       // Deactivate first
       await apiRequest(`/api/admin/events/${event.id}/deactivate`, {
@@ -410,14 +389,16 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       });
 
       // Try to deactivate again
-      const response = await apiRequest(
-        `/api/admin/events/${event.id}/deactivate`,
-        { method: "POST", apiKey },
+      await assertJson(
+        apiRequest(
+          `/api/admin/events/${event.id}/deactivate`,
+          { method: "POST", apiKey },
+        ),
+        400,
+        (body) => {
+          expect(body.message).toBe("Event is already deactivated");
+        },
       );
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("Event is already deactivated");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -432,7 +413,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
   describe("POST /api/admin/events/:eventId/reactivate", () => {
     test("reactivates a deactivated event", async () => {
       const event = await createTestEvent({ name: "Reactivate Event" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       // Deactivate first
       await apiRequest(`/api/admin/events/${event.id}/deactivate`, {
@@ -441,28 +422,32 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       });
 
       // Now reactivate
-      const response = await apiRequest(
-        `/api/admin/events/${event.id}/reactivate`,
-        { method: "POST", apiKey },
+      await assertJson(
+        apiRequest(
+          `/api/admin/events/${event.id}/reactivate`,
+          { method: "POST", apiKey },
+        ),
+        200,
+        (body) => {
+          expect(body.event.active).toBe(true);
+          expect(body.event.name).toBe("Reactivate Event");
+        },
       );
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.active).toBe(true);
-      expect(body.event.name).toBe("Reactivate Event");
     });
 
     test("returns 400 when event is already active", async () => {
       const event = await createTestEvent({ name: "Already Active" });
 
-      const response = await apiRequest(
-        `/api/admin/events/${event.id}/reactivate`,
-        { method: "POST" },
+      await assertJson(
+        apiRequest(
+          `/api/admin/events/${event.id}/reactivate`,
+          { method: "POST" },
+        ),
+        400,
+        (body) => {
+          expect(body.message).toBe("Event is already active");
+        },
       );
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("Event is already active");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -476,33 +461,37 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
   describe("POST /api/admin/events - date and closes_at handling", () => {
     test("creates event with date and closes_at", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "Dated Event",
-          max_attendees: 20,
-          date: "2026-06-15T10:00:00Z",
-          closes_at: "2026-06-14T23:59:00Z",
-          active: true,
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "Dated Event",
+            max_attendees: 20,
+            date: "2026-06-15T10:00:00Z",
+            closes_at: "2026-06-14T23:59:00Z",
+            active: true,
+          },
+        }),
+        201,
+        (body) => {
+          expect(body.event.date).toBe("2026-06-15T10:00:00.000Z");
+          expect(body.event.closes_at).toBe("2026-06-14T23:59:00.000Z");
+          expect(body.event.active).toBe(true);
         },
-      });
-
-      expect(response.status).toBe(201);
-      const body = await response.json();
-      expect(body.event.date).toBe("2026-06-15T10:00:00.000Z");
-      expect(body.event.closes_at).toBe("2026-06-14T23:59:00.000Z");
-      expect(body.event.active).toBe(true);
+      );
     });
 
     test("creates event with empty name string returns error", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: { name: "   ", max_attendees: 10 },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("name is required");
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: { name: "   ", max_attendees: 10 },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toBe("name is required");
+        },
+      );
     });
   });
 
@@ -510,56 +499,58 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("updates all fields on an event", async () => {
       const event = await createTestEvent({ name: "Full Update" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: {
-          name: "Fully Updated",
-          max_attendees: 200,
-          max_price: 5000,
-          description: "New desc",
-          date: "2026-12-25T18:00:00Z",
-          location: "New Location",
-          group_id: 0,
-          unit_price: 1000,
-          max_quantity: 10,
-          thank_you_url: "https://new.example.com/thanks",
-          webhook_url: "https://new.example.com/hook",
-          active: true,
-          fields: "email,phone,address",
-          closes_at: "2026-12-24T23:59:00Z",
-          event_type: "daily",
-          bookable_days: ["Monday", "Wednesday", "Friday"],
-          minimum_days_before: 3,
-          maximum_days_after: 30,
-          non_transferable: true,
-          can_pay_more: true,
-          hidden: true,
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: {
+            name: "Fully Updated",
+            max_attendees: 200,
+            max_price: 5000,
+            description: "New desc",
+            date: "2026-12-25T18:00:00Z",
+            location: "New Location",
+            group_id: 0,
+            unit_price: 1000,
+            max_quantity: 10,
+            thank_you_url: "https://new.example.com/thanks",
+            webhook_url: "https://new.example.com/hook",
+            active: true,
+            fields: "email,phone,address",
+            closes_at: "2026-12-24T23:59:00Z",
+            event_type: "daily",
+            bookable_days: ["Monday", "Wednesday", "Friday"],
+            minimum_days_before: 3,
+            maximum_days_after: 30,
+            non_transferable: true,
+            can_pay_more: true,
+            hidden: true,
+          },
+        }),
+        200,
+        (body) => {
+          expect(body.event.name).toBe("Fully Updated");
+          expect(body.event.max_attendees).toBe(200);
+          expect(body.event.location).toBe("New Location");
+          expect(body.event.unit_price).toBe(1000);
+          expect(body.event.max_quantity).toBe(10);
+          expect(body.event.event_type).toBe("daily");
+          expect(body.event.bookable_days).toEqual([
+            "Monday",
+            "Wednesday",
+            "Friday",
+          ]);
+          expect(body.event.minimum_days_before).toBe(3);
+          expect(body.event.maximum_days_after).toBe(30);
+          expect(body.event.non_transferable).toBe(true);
+          expect(body.event.can_pay_more).toBe(true);
+          expect(body.event.hidden).toBe(true);
         },
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.name).toBe("Fully Updated");
-      expect(body.event.max_attendees).toBe(200);
-      expect(body.event.location).toBe("New Location");
-      expect(body.event.unit_price).toBe(1000);
-      expect(body.event.max_quantity).toBe(10);
-      expect(body.event.event_type).toBe("daily");
-      expect(body.event.bookable_days).toEqual([
-        "Monday",
-        "Wednesday",
-        "Friday",
-      ]);
-      expect(body.event.minimum_days_before).toBe(3);
-      expect(body.event.maximum_days_after).toBe(30);
-      expect(body.event.non_transferable).toBe(true);
-      expect(body.event.can_pay_more).toBe(true);
-      expect(body.event.hidden).toBe(true);
+      );
     });
 
     test("clears date by setting it to null", async () => {
       const event = await createTestEvent({ name: "Clear Date" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       // First set a date
       await apiRequest(`/api/admin/events/${event.id}`, {
@@ -569,20 +560,22 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       });
 
       // Then clear it
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { date: null },
-        apiKey,
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.date).toBe("");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { date: null },
+          apiKey,
+        }),
+        200,
+        (body) => {
+          expect(body.event.date).toBe("");
+        },
+      );
     });
 
     test("clears closes_at by setting it to null", async () => {
       const event = await createTestEvent({ name: "Clear Closes" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       // First set closes_at
       await apiRequest(`/api/admin/events/${event.id}`, {
@@ -592,45 +585,51 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       });
 
       // Then clear it
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { closes_at: null },
-        apiKey,
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.event.closes_at).toBeNull();
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { closes_at: null },
+          apiKey,
+        }),
+        200,
+        (body) => {
+          expect(body.event.closes_at).toBeNull();
+        },
+      );
     });
 
     test("returns 400 for max_attendees less than 1", async () => {
       const event = await createTestEvent({ name: "Bad Max" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { max_attendees: 0 },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("max_attendees must be >= 1");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { max_attendees: 0 },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toBe("max_attendees must be >= 1");
+        },
+      );
     });
 
     test("validates can_pay_more max_price on update", async () => {
       const event = await createTestEvent({ name: "Pay More Update" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: {
-          unit_price: 500,
-          can_pay_more: true,
-          max_price: 500,
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: {
+            unit_price: 500,
+            can_pay_more: true,
+            max_price: 500,
+          },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toContain("Maximum price");
         },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toContain("Maximum price");
+      );
     });
   });
 
@@ -644,14 +643,16 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       });
       invalidateEventsCache();
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "DELETE",
-        body: { confirm_name: "Media Event" },
-      });
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.status).toBe("ok");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "DELETE",
+          body: { confirm_name: "Media Event" },
+        }),
+        200,
+        (body) => {
+          expect(body.status).toBe("ok");
+        },
+      );
     });
   });
 
@@ -692,19 +693,21 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("creates event in a valid group", async () => {
       const group = await createTestGroup({ name: "Valid Group" });
 
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "Grouped Event",
-          max_attendees: 10,
-          group_id: group.id,
-          event_type: "standard",
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "Grouped Event",
+            max_attendees: 10,
+            group_id: group.id,
+            event_type: "standard",
+          },
+        }),
+        201,
+        (body) => {
+          expect(body.event.group_id).toBe(group.id);
         },
-      });
-
-      expect(response.status).toBe(201);
-      const body = await response.json();
-      expect(body.event.group_id).toBe(group.id);
+      );
     });
 
     test("rejects event with mismatched type in group", async () => {
@@ -722,52 +725,58 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       });
 
       // Try to create a daily event in the same group
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "Daily In Group",
-          max_attendees: 10,
-          group_id: group.id,
-          event_type: "daily",
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "Daily In Group",
+            max_attendees: 10,
+            group_id: group.id,
+            event_type: "daily",
+          },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toContain("same type");
         },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toContain("same type");
+      );
     });
 
     test("can_pay_more with valid max_price passes validation", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "Pay More Valid",
-          max_attendees: 10,
-          unit_price: 500,
-          can_pay_more: true,
-          max_price: 700,
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "Pay More Valid",
+            max_attendees: 10,
+            unit_price: 500,
+            can_pay_more: true,
+            max_price: 700,
+          },
+        }),
+        201,
+        (body) => {
+          expect(body.event.can_pay_more).toBe(true);
         },
-      });
-
-      expect(response.status).toBe(201);
-      const body = await response.json();
-      expect(body.event.can_pay_more).toBe(true);
+      );
     });
 
     test("can_pay_more without unit_price passes validation", async () => {
-      const response = await apiRequest("/api/admin/events", {
-        method: "POST",
-        body: {
-          name: "Free Pay More",
-          max_attendees: 10,
-          can_pay_more: true,
-          max_price: 200,
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          method: "POST",
+          body: {
+            name: "Free Pay More",
+            max_attendees: 10,
+            can_pay_more: true,
+            max_price: 200,
+          },
+        }),
+        201,
+        (body) => {
+          expect(body.event.can_pay_more).toBe(true);
         },
-      });
-
-      expect(response.status).toBe(201);
-      const body = await response.json();
-      expect(body.event.can_pay_more).toBe(true);
+      );
     });
   });
 
@@ -775,14 +784,16 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("rejects update with invalid group", async () => {
       const event = await createTestEvent({ name: "Update Group" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { group_id: 99999 },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toBe("Selected group does not exist");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { group_id: 99999 },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toBe("Selected group does not exist");
+        },
+      );
     });
 
     test("rejects update with mismatched group event type", async () => {
@@ -802,50 +813,37 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       // Create a separate event and try to add it as daily to same group
       const event = await createTestEvent({ name: "Move To Group" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { group_id: group.id, event_type: "daily" },
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.message).toContain("same type");
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          method: "PUT",
+          body: { group_id: group.id, event_type: "daily" },
+        }),
+        400,
+        (body) => {
+          expect(body.message).toContain("same type");
+        },
+      );
     });
   });
 
   describe("bodyToUpdateInput", () => {
     test("preserves existing values when fields not provided", async () => {
-      const existing = {
-        id: 1,
+      const existing = testEventWithCount({
         name: "Existing",
         slug: "existing-slug",
-        slug_index: "idx",
         description: "Existing desc",
         date: "2026-01-01T00:00:00.000Z",
         location: "Old Place",
-        group_id: 0,
         max_attendees: 50,
         unit_price: 100,
         max_quantity: 2,
         thank_you_url: "https://old.com/thanks",
         webhook_url: "https://old.com/hook",
-        active: true,
-        fields: "email",
         closes_at: "2026-01-02T00:00:00.000Z",
-        event_type: "standard",
         bookable_days: ["Monday"],
         minimum_days_before: 1,
         maximum_days_after: 90,
-        image_url: "",
-        attachment_url: "",
-        attachment_name: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
-        created: "2026-01-01T00:00:00.000Z",
-        attendee_count: 0,
-      } as EventWithCount;
+      });
 
       const result = await bodyToUpdateInput({}, existing);
       expect(result.ok).toBe(true);
@@ -872,37 +870,12 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     });
 
     test("preserves existing closes_at null as empty string", async () => {
-      const existing = {
-        id: 1,
+      const existing = testEventWithCount({
         name: "No Closes",
         slug: "no-closes",
-        slug_index: "idx",
-        description: "",
-        date: "",
-        location: "",
-        group_id: 0,
         max_attendees: 10,
-        unit_price: 0,
-        max_quantity: 1,
-        thank_you_url: "",
-        webhook_url: "",
-        active: true,
-        fields: "email",
         closes_at: null,
-        event_type: "standard",
-        bookable_days: [],
-        minimum_days_before: 1,
-        maximum_days_after: 90,
-        image_url: "",
-        attachment_url: "",
-        attachment_name: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
-        created: "2026-01-01T00:00:00.000Z",
-        attendee_count: 0,
-      } as EventWithCount;
+      });
 
       const result = await bodyToUpdateInput({}, existing);
       expect(result.ok).toBe(true);

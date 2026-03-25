@@ -2743,6 +2743,7 @@ describe("html", () => {
         googleWalletServiceAccountEmail: "",
         hostGoogleWalletLabel: "",
         subdomainPreview: "",
+        subdomainPreviewFullDomain: "",
         theme: "light",
       };
 
@@ -2819,6 +2820,7 @@ describe("html", () => {
         bunnyDnsEnabled: true,
         bunnyDnsSubdomainSuffix: ".tickets.example.com",
         subdomainPreview: "myevent",
+        subdomainPreviewFullDomain: "myevent.tickets.example.com",
       });
       expect(html).toContain("myevent.tickets.example.com");
       expect(html).toContain("is available");
