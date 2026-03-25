@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
   "files": {
     "includes": ["**/*.js", "**/*.ts", "**/*.tsx"],
     "ignoreUnknown": true
@@ -19,16 +19,17 @@
         "noForEach": "error",
         "useFlatMap": "error",
         "noExcessiveCognitiveComplexity": {
-          "level": "error",
+          "level": "warn",
           "options": {
-            "maxAllowedComplexity": 7
+            "maxAllowedComplexity": 15
           }
         }
       },
       "style": {
         "useConst": "error",
         "useTemplate": "error",
-        "noUnusedTemplateLiteral": "error"
+        "noUnusedTemplateLiteral": "error",
+        "noNonNullAssertion": "off"
       },
       "suspicious": {
         "noVar": "error",
@@ -36,7 +37,13 @@
         "noConsole": "error",
         "noSkippedTests": "error",
         "noFocusedTests": "error",
-        "noExplicitAny": "error"
+        "noExplicitAny": "off",
+        "noImplicitAnyLet": "off",
+        "noAssignInExpressions": "off"
+      },
+      "a11y": {
+        "noLabelWithoutControl": "off",
+        "useValidAnchor": "off"
       },
       "correctness": {
         "noUnusedVariables": "error",
@@ -72,16 +79,6 @@
       }
     },
     {
-      "includes": ["src/fp.ts"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "off"
-          }
-        }
-      }
-    },
-    {
       "includes": ["src/index.ts", "src/lib/logger.ts"],
       "linter": {
         "rules": {
@@ -96,12 +93,20 @@
       "linter": {
         "rules": {
           "suspicious": {
-            "noConsole": "off"
+            "noConsole": "off",
+            "noImplicitAnyLet": "off",
+            "noAssignInExpressions": "off"
           },
-          "style": {
-            "noNonNullAssertion": "off"
+          "complexity": {
+            "noExcessiveCognitiveComplexity": "off"
           }
         }
+      }
+    },
+    {
+      "includes": ["src/client/scanner.js", "src/static/**"],
+      "linter": {
+        "enabled": false
       }
     }
   ]

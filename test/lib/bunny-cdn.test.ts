@@ -11,8 +11,8 @@ import {
   getCdnHostname,
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
-  resetAllowedDomain,
-  setAllowedDomainForTest,
+  resetEffectiveDomain,
+  setEffectiveDomainForTest,
 } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { describeWithEnv, withMockBunnyCdnApi, withMocks } from "#test-utils";
@@ -67,15 +67,15 @@ describeWithEnv(
 );
 
 describe("getCdnHostname", () => {
-  afterEach(() => resetAllowedDomain());
+  afterEach(() => resetEffectiveDomain());
 
   test("replaces .bunny.run with .b-cdn.net", () => {
-    setAllowedDomainForTest("mysite.bunny.run");
+    setEffectiveDomainForTest("mysite.bunny.run");
     expect(getCdnHostname()).toBe("mysite.b-cdn.net");
   });
 
   test("returns domain unchanged when not .bunny.run", () => {
-    setAllowedDomainForTest("example.com");
+    setEffectiveDomainForTest("example.com");
     expect(getCdnHostname()).toBe("example.com");
   });
 });
@@ -96,8 +96,8 @@ describeWithEnv(
   "findPullZoneId",
   { env: { BUNNY_API_KEY: "test-bunny-key" } },
   () => {
-    beforeEach(() => setAllowedDomainForTest("mysite.bunny.run"));
-    afterEach(() => resetAllowedDomain());
+    beforeEach(() => setEffectiveDomainForTest("mysite.bunny.run"));
+    afterEach(() => resetEffectiveDomain());
 
     test("returns pull zone ID when matching hostname is found", async () => {
       await withMocks(
@@ -202,8 +202,8 @@ describeWithEnv(
   "validateCustomDomain (real implementation)",
   { env: { BUNNY_API_KEY: "test-bunny-key" } },
   () => {
-    beforeEach(() => setAllowedDomainForTest("mysite.bunny.run"));
-    afterEach(() => resetAllowedDomain());
+    beforeEach(() => setEffectiveDomainForTest("mysite.bunny.run"));
+    afterEach(() => resetEffectiveDomain());
 
     const fixedPullZone = {
       findPullZoneId: () => Promise.resolve({ ok: true as const, id: 12345 }),
@@ -603,8 +603,8 @@ describeWithEnv(
     },
   },
   () => {
-    beforeEach(() => setAllowedDomainForTest("mysite.bunny.run"));
-    afterEach(() => resetAllowedDomain());
+    beforeEach(() => setEffectiveDomainForTest("mysite.bunny.run"));
+    afterEach(() => resetEffectiveDomain());
 
     const availableMock = {
       checkSubdomainAvailable: () =>

@@ -898,7 +898,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         expect(html).toContain('id="settings-custom-domain-validate"');
         expect(html).toContain("CNAME");
         expect(html).toContain("tickets.example.com");
-        // CDN hostname is derived from ALLOWED_DOMAIN (localhost in tests)
+        // CDN hostname is derived from the effective domain (localhost in tests)
         expect(html).toContain("localhost");
       });
 

@@ -112,11 +112,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       expect(html).toContain("DB_URL");
     });
 
-    test("shows Domain section with ALLOWED_DOMAIN", async () => {
+    test("shows Domain section with effective domain", async () => {
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
       expect(html).toContain("Domain");
-      expect(html).toContain("ALLOWED_DOMAIN");
+      expect(html).toContain("Effective Domain");
     });
 
     test("does not expose secret keys or full URLs", async () => {

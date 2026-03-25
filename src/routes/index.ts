@@ -23,7 +23,6 @@ import {
   createRequestTimer,
   ErrorCode,
   formatRequestError,
-  logDebug,
   logError,
   logRequest,
   runWithRequestId,
@@ -33,14 +32,10 @@ import { runWithRequestCache } from "#lib/request-cache.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
 import {
   applySecurityHeaders,
-  buildDomainRedirectUrl,
   contentTypeRejectionResponse,
-  domainRedirectResponse,
   getCleanUrl,
-  getDomainRejectionReason,
   isEmbeddablePath,
   isValidContentType,
-  isValidDomain,
   isWebhookPath,
 } from "#routes/middleware.ts";
 import { createRouter } from "#routes/router.ts";
@@ -184,8 +179,6 @@ export {
   getSecurityHeaders,
   isEmbeddablePath,
   isValidContentType,
-  isValidDomain,
-  normalizeHostname,
 } from "#routes/middleware.ts";
 
 // Re-export types
@@ -321,22 +314,28 @@ export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  // Buffer webhook body BEFORE entering async context wrappers. The Bunny Edge
+  // Buffer POST bodies BEFORE entering async context wrappers. The Bunny Edge
   // runtime can garbage-collect the underlying request body resource during
   // awaits, so we must capture it while the resource is still alive.
+  // This applies to webhook bodies (JSON) and multipart form uploads (file
+  // data backed by Blob resources that are especially prone to GC).
   // Use normalizePath on the raw pathname so trailing-slash variants like
   // /payment/webhook/ are correctly detected (the router normalizes later,
   // but by then the body resource may already be garbage-collected).
   const { pathname } = new URL(request.url);
-  const webhookBody =
-    request.method === "POST" && isWebhookPath(normalizePath(pathname))
-      ? new Uint8Array(await request.arrayBuffer())
-      : undefined;
-  const effectiveRequest = webhookBody
+  const contentType = request.headers.get("content-type") ?? "";
+  const needsBodyBuffer =
+    request.method === "POST" &&
+    (isWebhookPath(normalizePath(pathname)) ||
+      contentType.startsWith("multipart/form-data"));
+  const bufferedBody = needsBodyBuffer
+    ? new Uint8Array(await request.arrayBuffer())
+    : undefined;
+  const effectiveRequest = bufferedBody
     ? new Request(request.url, {
         method: request.method,
         headers: request.headers,
-        body: webhookBody,
+        body: bufferedBody,
       })
     : request;
 
@@ -366,24 +365,12 @@ export const handleRequest = async (
               }
             }
 
-            // Load effective domain (custom_domain from DB if set, else ALLOWED_DOMAIN)
-            // before domain validation so redirects go to the right host.
-            loadEffectiveDomain();
+            // Ensure settings cache is populated before reading custom domain.
+            // loadAll() is a no-op when the cache is still valid (60 s TTL).
+            await settings.loadAll();
 
-            // Domain validation: redirect requests from unauthorized domains to the effective domain
-            if (!isValidDomain(effectiveRequest)) {
-              const redirectUrl = buildDomainRedirectUrl(effectiveRequest);
-              logDebug(
-                "Domain",
-                `Redirecting to ${redirectUrl} (${getDomainRejectionReason(effectiveRequest)})`,
-              );
-              return logAndReturn(
-                domainRedirectResponse(redirectUrl),
-                method,
-                path,
-                getElapsed,
-              );
-            }
+            // Load effective domain (custom_domain from DB if set, else request hostname)
+            loadEffectiveDomain(effectiveRequest.url);
 
             const embeddable = isEmbeddablePath(path);
 

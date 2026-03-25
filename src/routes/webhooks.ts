@@ -16,11 +16,7 @@
 
 import { map, unique } from "#fp";
 import { calculateBookingFee } from "#lib/booking-fee.ts";
-import {
-  getAllowedDomain,
-  getBookingFee,
-  getEffectiveDomain,
-} from "#lib/config.ts";
+import { getBookingFee, getEffectiveDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -524,7 +520,6 @@ const processPaymentSession = async (
     event: EventWithCount;
     expectedPrice: number;
   }[] = [];
-  let expectedTotal = 0;
 
   for (const item of intent.items) {
     const vp = await validateAndPrice(
@@ -537,7 +532,6 @@ const processPaymentSession = async (
       event: vp.event,
       expectedPrice: vp.expectedPrice,
     });
-    expectedTotal += vp.expectedPrice;
   }
 
   // Price validation
@@ -945,7 +939,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // different application sharing the same payment provider account will not
   // carry our _origin marker.
   const origin = session.metadata._origin;
-  if (origin !== getEffectiveDomain() && origin !== getAllowedDomain()) {
+  if (origin !== getEffectiveDomain()) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Ignoring webhook for unrecognized payment session",

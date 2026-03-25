@@ -14,7 +14,7 @@ import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
-import { resetAllowedDomain } from "#lib/config.ts";
+import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
 import {
   clearEncryptionKeyCache,
@@ -293,7 +293,7 @@ export const resetDb = (): void => {
   resetSessionCache();
   resetTestSession();
   setDemoModeForTest(false);
-  resetAllowedDomain();
+  resetEffectiveDomain();
   resetHostEmailConfig();
   settings.appleWallet.resetHostConfig();
   settings.clearTestOverrides();
@@ -383,7 +383,6 @@ export const mockMultipartRequest = (
     formData.append(key, value);
   }
   if (file) {
-    // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BlobPart in Deno's TS
     // deno-lint-ignore no-explicit-any
     const blob = new Blob([file.data as any], { type: file.contentType });
     formData.append(file.fieldName, blob, file.name);
@@ -522,11 +521,11 @@ export const describeWithEnv = (
     let restoreEnv: () => void;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
-      if (options.env) restoreEnv = setTestEnv(options.env);
       if (options.db) {
         resetTestSlugCounter();
         await createTestDbWithSetup();
       }
+      if (options.env) restoreEnv = setTestEnv(options.env);
     });
     afterEach(() => {
       if (options.db) resetDb();
@@ -860,9 +859,10 @@ export const loginAsAdmin = async (): Promise<{
       loginCsrfToken,
     ),
   );
+  loginResponse.body?.cancel();
   const cookie = loginResponse.headers
     .getSetCookie()
-    .find((c) => c.startsWith(getSessionCookieName() + "="));
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
   if (!cookie) throw new Error("No session cookie in login response");
   const csrfToken = await signCsrfToken();
 
@@ -955,6 +955,7 @@ const authenticatedRequest = async <T>(
       session.cookie,
     ),
   );
+  response.body?.cancel();
 
   if (response.status !== 302) {
     throw new Error(`Failed to ${errorContext}: ${response.status}`);
@@ -1215,6 +1216,7 @@ export const createTestAttendee = async (
       `Failed to create attendee: ${response.status} - ${body.slice(0, 200)}`,
     );
   }
+  response.body?.cancel();
 
   // Return the most recent attendee (DESC order puts newest first)
   const afterAttendees = await getAttendeesRaw(eventId);
@@ -1268,6 +1270,7 @@ export const expectRedirect = (
   ...patterns: (string | RegExp)[]
 ): string => {
   expect(response.status).toBe(302);
+  response.body?.cancel();
   const location = getRedirectLocation(response);
   for (const p of patterns) {
     if (typeof p === "string") {
@@ -1297,6 +1300,7 @@ export const expectFlash = (
   message: string | any,
   succeeded = true,
 ): Response => {
+  response.body?.cancel();
   const cookies = response.headers.getSetCookie();
   const flash = cookies.find((c) => c.startsWith("flash_"));
   if (!flash) throw new Error("No flash cookie in response");
@@ -1583,6 +1587,7 @@ export const createTestInvite = async (
       cookie,
     ),
   );
+  inviteResponse.body?.cancel();
   const location = inviteResponse.headers.get("location") ?? "";
   const url = new URL(location, "http://localhost");
   const inviteLink = url.searchParams.get("invite") ?? "";

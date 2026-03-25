@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  buildEventTicketClass,
-  buildEventTicketObject,
   buildGoogleWalletUrl,
   buildJwtPayload,
   type GoogleWalletCredentials,
@@ -36,133 +34,133 @@ describe("google-wallet", () => {
     if (!creds) creds = await generateGoogleTestCreds();
   };
 
-  describe("buildEventTicketClass", () => {
-    test("includes issuer name and event name", async () => {
-      await ensureCreds();
-      const cls = buildEventTicketClass(makePassData(), creds);
-      expect(cls.issuerName).toBe("Test Platform");
-      const eventName = cls.eventName as { defaultValue: { value: string } };
-      expect(eventName.defaultValue!.value).toBe("Summer Concert");
-    });
+  describe("buildGoogleWalletUrl integration", () => {
+    /** Helper to extract JWT payload from a Google Wallet save URL */
+    const extractPayload = async (data: WalletPassData) => {
+      const url = await buildGoogleWalletUrl(data, creds);
+      const jwt = url.replace("https://pay.google.com/gp/v/save/", "");
+      const payloadPart = jwt.split(".")[1]!;
+      const padded =
+        payloadPart + "=".repeat((4 - (payloadPart.length % 4)) % 4);
+      return JSON.parse(atob(padded.replace(/-/g, "+").replace(/_/g, "/")));
+    };
 
-    test("includes class id based on issuer and serial", async () => {
+    test("includes class with issuer name, event name, and correct ids", async () => {
       await ensureCreds();
-      const cls = buildEventTicketClass(makePassData(), creds);
+      const decoded = await extractPayload(makePassData());
+      const cls = decoded.payload.eventTicketClasses[0];
       expect(cls.id).toBe("1234567890.ABC123-class");
+      expect(cls.issuerName).toBe("Test Platform");
+      expect(cls.eventName.defaultValue.value).toBe("Summer Concert");
     });
 
-    test("includes date/time when eventDate is present", async () => {
+    test("includes object with id, classId, QR barcode, and ACTIVE state", async () => {
       await ensureCreds();
-      const cls = buildEventTicketClass(makePassData(), creds);
-      const dt = cls.dateTime as Record<string, string>;
-      expect(dt.start).toBe("2026-06-15T19:00:00Z");
+      const decoded = await extractPayload(makePassData());
+      const obj = decoded.payload.eventTicketObjects[0];
+      expect(obj.id).toBe("1234567890.ABC123");
+      expect(obj.classId).toBe("1234567890.ABC123-class");
+      expect(obj.state).toBe("ACTIVE");
+      expect(obj.barcode.type).toBe("QR_CODE");
+      expect(obj.barcode.value).toBe("https://example.com/checkin/ABC123");
     });
 
-    test("omits date/time when eventDate is empty", async () => {
+    test("includes dateTime when eventDate is present", async () => {
       await ensureCreds();
-      const cls = buildEventTicketClass(makePassData({ eventDate: "" }), creds);
+      const decoded = await extractPayload(makePassData());
+      const cls = decoded.payload.eventTicketClasses[0];
+      expect(cls.dateTime.start).toBe("2026-06-15T19:00:00Z");
+    });
+
+    test("omits dateTime when eventDate is empty", async () => {
+      await ensureCreds();
+      const decoded = await extractPayload(makePassData({ eventDate: "" }));
+      const cls = decoded.payload.eventTicketClasses[0];
       expect(cls.dateTime).toBeUndefined();
     });
 
     test("includes venue when eventLocation is present", async () => {
       await ensureCreds();
-      const cls = buildEventTicketClass(makePassData(), creds);
-      const venue = cls.venue as { name: { defaultValue: { value: string } } };
-      expect(venue.name!.defaultValue!.value).toBe("Town Hall");
+      const decoded = await extractPayload(makePassData());
+      const cls = decoded.payload.eventTicketClasses[0];
+      expect(cls.venue.name.defaultValue.value).toBe("Town Hall");
     });
 
     test("omits venue when eventLocation is empty", async () => {
       await ensureCreds();
-      const cls = buildEventTicketClass(
-        makePassData({ eventLocation: "" }),
-        creds,
-      );
+      const decoded = await extractPayload(makePassData({ eventLocation: "" }));
+      const cls = decoded.payload.eventTicketClasses[0];
       expect(cls.venue).toBeUndefined();
-    });
-  });
-
-  describe("buildEventTicketObject", () => {
-    test("includes object id and class reference", async () => {
-      await ensureCreds();
-      const obj = buildEventTicketObject(makePassData(), creds);
-      expect(obj.id).toBe("1234567890.ABC123");
-      expect(obj.classId).toBe("1234567890.ABC123-class");
-    });
-
-    test("includes QR code barcode", async () => {
-      await ensureCreds();
-      const obj = buildEventTicketObject(makePassData(), creds);
-      const barcode = obj.barcode as Record<string, string>;
-      expect(barcode.type).toBe("QR_CODE");
-      expect(barcode.value).toBe("https://example.com/checkin/ABC123");
-    });
-
-    test("state is ACTIVE", async () => {
-      await ensureCreds();
-      const obj = buildEventTicketObject(makePassData(), creds);
-      expect(obj.state).toBe("ACTIVE");
     });
 
     test("omits textModulesData when no optional fields", async () => {
       await ensureCreds();
-      const obj = buildEventTicketObject(makePassData(), creds);
+      const decoded = await extractPayload(makePassData());
+      const obj = decoded.payload.eventTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
-    test("includes booking date when present", async () => {
+    test("includes booking date when attendeeDate is present", async () => {
       await ensureCreds();
-      const obj = buildEventTicketObject(
+      const decoded = await extractPayload(
         makePassData({ attendeeDate: "2026-06-15" }),
-        creds,
       );
-      const modules = obj.textModulesData as Array<Record<string, string>>;
-      const bookingDate = modules.find((m) => m.id === "booking-date");
+      const obj = decoded.payload.eventTicketObjects[0];
+      const bookingDate = obj.textModulesData.find(
+        (m: Record<string, string>) => m.id === "booking-date",
+      );
       expect(bookingDate).toBeDefined();
-      expect(bookingDate!.body).toBe("2026-06-15");
+      expect(bookingDate.body).toBe("2026-06-15");
     });
 
     test("includes quantity when greater than 1", async () => {
       await ensureCreds();
-      const obj = buildEventTicketObject(makePassData({ quantity: 3 }), creds);
-      const modules = obj.textModulesData as Array<Record<string, string>>;
-      const qty = modules.find((m) => m.id === "qty");
+      const decoded = await extractPayload(makePassData({ quantity: 3 }));
+      const obj = decoded.payload.eventTicketObjects[0];
+      const qty = obj.textModulesData.find(
+        (m: Record<string, string>) => m.id === "qty",
+      );
       expect(qty).toBeDefined();
-      expect(qty!.body).toBe("3");
+      expect(qty.body).toBe("3");
     });
 
     test("omits quantity when equal to 1", async () => {
       await ensureCreds();
-      const obj = buildEventTicketObject(makePassData({ quantity: 1 }), creds);
+      const decoded = await extractPayload(makePassData({ quantity: 1 }));
+      const obj = decoded.payload.eventTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
-    test("includes price when greater than 0", async () => {
+    test("includes price with 2-decimal currency (GBP)", async () => {
       await ensureCreds();
-      const obj = buildEventTicketObject(
+      const decoded = await extractPayload(
         makePassData({ pricePaid: 2500, currencyCode: "EUR" }),
-        creds,
       );
-      const modules = obj.textModulesData as Array<Record<string, string>>;
-      const price = modules.find((m) => m.id === "price");
+      const obj = decoded.payload.eventTicketObjects[0];
+      const price = obj.textModulesData.find(
+        (m: Record<string, string>) => m.id === "price",
+      );
       expect(price).toBeDefined();
-      expect(price!.body).toBe("25 EUR");
+      expect(price.body).toBe("25 EUR");
     });
 
     test("omits price when zero", async () => {
       await ensureCreds();
-      const obj = buildEventTicketObject(makePassData({ pricePaid: 0 }), creds);
+      const decoded = await extractPayload(makePassData({ pricePaid: 0 }));
+      const obj = decoded.payload.eventTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
-    test("converts price using currency decimal places for JPY (0 decimals)", async () => {
+    test("formats price with 0-decimal currency (JPY)", async () => {
       await ensureCreds();
-      const obj = buildEventTicketObject(
+      const decoded = await extractPayload(
         makePassData({ pricePaid: 1000, currencyCode: "JPY" }),
-        creds,
       );
-      const modules = obj.textModulesData as Array<Record<string, string>>;
-      const price = modules.find((m) => m.id === "price");
-      expect(price!.body).toBe("1000 JPY");
+      const obj = decoded.payload.eventTicketObjects[0];
+      const price = obj.textModulesData.find(
+        (m: Record<string, string>) => m.id === "price",
+      );
+      expect(price.body).toBe("1000 JPY");
     });
   });
 
