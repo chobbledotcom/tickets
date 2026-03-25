@@ -314,7 +314,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "2", attendees_per_event: "0", csrf_token: csrf1 },
+          { event_count: "2", attendees_per_event: "0", csrf_token: csrf1! },
           await testCookie(),
         ),
       );
@@ -331,7 +331,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "3", attendees_per_event: "0", csrf_token: csrf2 },
+          { event_count: "3", attendees_per_event: "0", csrf_token: csrf2! },
           await testCookie(),
         ),
       );

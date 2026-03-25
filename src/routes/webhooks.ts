@@ -39,6 +39,7 @@ import {
   getActivePaymentProvider,
   type SessionMetadata,
   type ValidatedPaymentSession,
+  type WebhookEvent,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
@@ -557,7 +558,7 @@ const validatePerItemPrices = async (
     return priceMismatchRefund(
       session,
       `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
-      validatedItems[0]?.event.id,
+      validatedItems[0]!.event.id,
     );
   }
   return null;
@@ -665,13 +666,13 @@ const saveEventAnswers = async (
 };
 
 /** Handle already-reserved session: return appropriate result */
-const handleExistingReservation = (
-  reservation: { existing: { attendee_id: number | null } },
+const handleExistingReservation = async (
+  reservation: { existing: ProcessedPayment },
   intent: BookingIntent,
-): PaymentResult => {
+): Promise<PaymentResult> => {
   const { existing } = reservation;
   if (existing.attendee_id !== null) {
-    return alreadyProcessedResult(intent.items[0]?.e, existing);
+    return alreadyProcessedResult(intent.items[0]!.e, existing);
   }
   return {
     success: false,
@@ -960,7 +961,7 @@ type WebhookVerifyResult =
   | {
       ok: true;
       provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object;
-      event: { type: string } & Record<string, unknown>;
+      event: WebhookEvent;
     }
   | { ok: false; response: Response };
 
@@ -1008,7 +1009,7 @@ type WebhookSessionResult =
 
 const resolveWebhookSession = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  event: Record<string, unknown>,
+  event: WebhookEvent,
   payload: string,
 ): Promise<WebhookSessionResult> => {
   const sessionResult = await provider.resolveWebhookSession(event);

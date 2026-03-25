@@ -133,7 +133,7 @@ describeWithEnv("dates", { db: true }, () => {
 
       const dates = getAvailableDates(event, []);
       const earliest = dates[0];
-      expect(earliest >= addDays(today(), 3)).toBe(true);
+      expect(earliest! >= addDays(today(), 3)).toBe(true);
     });
 
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
@@ -147,7 +147,7 @@ describeWithEnv("dates", { db: true }, () => {
       const dates = getAvailableDates(event, []);
       const latest = dates[dates.length - 1];
       // Should extend close to 730 days (2 years)
-      expect(latest >= addDays(today(), 700)).toBe(true);
+      expect(latest! >= addDays(today(), 700)).toBe(true);
     });
 
     test("respects maximum_days_after when non-zero", () => {
@@ -160,7 +160,7 @@ describeWithEnv("dates", { db: true }, () => {
 
       const dates = getAvailableDates(event, []);
       const latest = dates[dates.length - 1];
-      expect(latest <= addDays(today(), 7)).toBe(true);
+      expect(latest! <= addDays(today(), 7)).toBe(true);
     });
 
     test("returns empty array when no bookable days match", () => {

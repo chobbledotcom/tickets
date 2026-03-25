@@ -71,7 +71,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     const html = await getResponse.text();
     const csrfToken = extractCsrfToken(html);
     return handleRequest(
-      mockFormRequest("/demo/reset", { ...fields, csrf_token: csrfToken }),
+      mockFormRequest("/demo/reset", { ...fields, csrf_token: csrfToken! }),
     );
   }
 

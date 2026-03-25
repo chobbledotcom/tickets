@@ -627,14 +627,14 @@ describe("forms", () => {
 
     test("phone field has validation", () => {
       const phoneField = getTicketFields("phone", false)[1];
-      expect(phoneField.validate).toBeDefined();
-      expect(phoneField.required).toBe(true);
+      expect(phoneField!.validate).toBeDefined();
+      expect(phoneField!.required).toBe(true);
     });
 
     test("email field has validation", () => {
       const emailField = getTicketFields("email", false)[1];
-      expect(emailField.validate).toBeDefined();
-      expect(emailField.required).toBe(true);
+      expect(emailField!.validate).toBeDefined();
+      expect(emailField!.required).toBe(true);
     });
 
     test("returns name and address fields for address setting", () => {
@@ -655,9 +655,9 @@ describe("forms", () => {
 
     test("address field has validation", () => {
       const addrField = getTicketFields("address", false)[1];
-      expect(addrField.validate).toBeDefined();
-      expect(addrField.required).toBe(true);
-      expect(addrField.type).toBe("textarea");
+      expect(addrField!.validate).toBeDefined();
+      expect(addrField!.required).toBe(true);
+      expect(addrField!.type).toBe("textarea");
     });
 
     test("returns name and special_instructions fields for special_instructions setting", () => {
@@ -669,9 +669,9 @@ describe("forms", () => {
 
     test("special_instructions field has validation", () => {
       const field = getTicketFields("special_instructions", false)[1];
-      expect(field.validate).toBeDefined();
-      expect(field.required).toBe(true);
-      expect(field.type).toBe("textarea");
+      expect(field!.validate).toBeDefined();
+      expect(field!.required).toBe(true);
+      expect(field!.type).toBe("textarea");
     });
 
     test("returns all five contact fields for email,phone,address,special_instructions setting", () => {

@@ -140,7 +140,7 @@ describe("code quality", () => {
         const content = srcContents.get(file);
 
         for (const { pattern, description } of FORBIDDEN_PATTERNS) {
-          if (pattern.test(content)) {
+          if (pattern.test(content!)) {
             violations.push(`${relativePath}: ${description}`);
           }
         }
@@ -168,7 +168,7 @@ describe("code quality", () => {
       if (TEST_UTILITY_FILES.includes(relativePath)) continue;
       const lines = srcContents.get(file)?.split("\n");
       let lineNum = 0;
-      for (const line of lines) {
+      for (const line of lines!) {
         lineNum++;
         const v = check({ relativePath, line, lineNum });
         if (v) violations.push(v);
@@ -213,7 +213,7 @@ describe("code quality", () => {
       for (const file of srcFiles) {
         const relativePath = getRelativePath(file);
         const content = srcContents.get(file);
-        const lines = content.split("\n");
+        const lines = content!.split("\n");
 
         let lineNum = 0;
         for (const line of lines) {
@@ -406,7 +406,7 @@ describe("code quality", () => {
     ): boolean => {
       // Check if it's used within the same file
       const sourceContent = srcContents.get(sourceFile);
-      if (isUsedInSameFile(symbolName, sourceContent)) {
+      if (isUsedInSameFile(symbolName, sourceContent!)) {
         return true;
       }
 
@@ -423,14 +423,14 @@ describe("code quality", () => {
         // Skip test utilities - imports there don't count as production usage
         if (TEST_UTILITY_PATHS.includes(relativePath)) continue;
 
-        if (importPattern.test(srcContents.get(file))) {
+        if (importPattern.test(srcContents.get(file)!)) {
           return true;
         }
       }
 
       // Also check .tsx files as importers
       for (const file of tsxFiles) {
-        if (importPattern.test(tsxContents.get(file))) {
+        if (importPattern.test(tsxContents.get(file)!)) {
           return true;
         }
       }
@@ -445,7 +445,7 @@ describe("code quality", () => {
       );
 
       for (const testFile of testFiles) {
-        if (importPattern.test(testContents.get(testFile))) {
+        if (importPattern.test(testContents.get(testFile)!)) {
           return true;
         }
       }
@@ -476,9 +476,9 @@ describe("code quality", () => {
       const violations: string[] = [];
 
       const content = srcContents.get(file);
-      if (isPrimarilyReExportModule(content)) return violations;
+      if (isPrimarilyReExportModule(content!)) return violations;
 
-      const exports = extractExports(content);
+      const exports = extractExports(content!);
 
       for (const exportName of exports) {
         const hookKey = `${relativePath}:${exportName}`;

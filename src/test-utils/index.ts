@@ -1277,7 +1277,8 @@ export const FLASH_TEST_ID = "t001";
  */
 export const expectFlash = (
   response: Response,
-  message: string | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  message: string | undefined | (Record<string, any>),
   succeeded = true,
 ): Response => {
   response.body?.cancel();

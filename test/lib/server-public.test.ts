@@ -850,7 +850,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           name: "Test User",
           email: "test@example.com",
           quantity: "1",
-          csrf_token: csrfToken,
+          csrf_token: csrfToken!,
         }),
       );
       expect(response.status).toBe(302);
@@ -1819,7 +1819,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           name: "Jane Doe",
           email: "jane@example.com",
           quantity: "1",
-          csrf_token: csrfToken,
+          csrf_token: csrfToken!,
         }),
       );
       expect(response.status).toBe(302);
@@ -4220,8 +4220,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       // Verify answers were saved
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);
-      const batch = await getAttendeeAnswersBatch([attendees[0]?.id]);
-      expect(batch.get(attendees[0]?.id)).toEqual([answer1.id]);
+      const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
+      expect(batch.get(attendees[0]!.id)).toEqual([answer1.id]);
     });
 
     test("returns error when required question is unanswered", async () => {
@@ -4328,9 +4328,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
       const att2 = await getAttendeesRaw(event2.id);
-      const batch = await getAttendeeAnswersBatch([att1[0]?.id, att2[0]?.id]);
-      expect(batch.get(att1[0]?.id)).toEqual([answer1.id]);
-      expect(batch.get(att2[0]?.id)).toEqual([answer1.id]);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
+      expect(batch.get(att1[0]!.id)).toEqual([answer1.id]);
+      expect(batch.get(att2[0]!.id)).toEqual([answer1.id]);
     });
 
     test("saves event-specific answers only for each attendee", async () => {
@@ -4377,9 +4377,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
       const att2 = await getAttendeesRaw(event2.id);
-      const batch = await getAttendeeAnswersBatch([att1[0]?.id, att2[0]?.id]);
-      expect(batch.get(att1[0]?.id)).toEqual([a1.id]);
-      expect(batch.get(att2[0]?.id)).toEqual([a2.id]);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
+      expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
+      expect(batch.get(att2[0]!.id)).toEqual([a2.id]);
     });
 
     test("skips non-selected events in event answer map", async () => {
@@ -4418,8 +4418,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
       expect(att1.length).toBe(1);
-      const batch = await getAttendeeAnswersBatch([att1[0]?.id]);
-      expect(batch.get(att1[0]?.id)).toEqual([a1.id]);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id]);
+      expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
       const att2 = await getAttendeesRaw(event2.id);
       expect(att2.length).toBe(0);
     });

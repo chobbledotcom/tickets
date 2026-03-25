@@ -538,7 +538,7 @@ describe("payment-helpers", () => {
         quantity: 1,
         answerIds: [10, 20],
       });
-      expect(JSON.parse(result.answer_ids)).toEqual({ "1": [10, 20] });
+      expect(JSON.parse(result.answer_ids!)).toEqual({ "1": [10, 20] });
     });
 
     test("excludes answer_ids when empty array", () => {
@@ -582,7 +582,7 @@ describe("payment-helpers", () => {
       expect(result.multi).toBe("1");
       expect(result.name).toBe("Alice");
       expect(result.email).toBe("alice@example.com");
-      const parsedItems = JSON.parse(result.items);
+      const parsedItems = JSON.parse(result.items!);
       expect(parsedItems).toEqual([
         { e: 1, q: 2, p: 2000 },
         { e: 2, q: 1, p: 500 },
@@ -665,7 +665,7 @@ describe("payment-helpers", () => {
         eventAnswerIds: { "1": [10], "2": [20, 21] },
       };
       const result = buildCartMetadata(intent);
-      expect(JSON.parse(result.answer_ids)).toEqual({
+      expect(JSON.parse(result.answer_ids!)).toEqual({
         "1": [10],
         "2": [20, 21],
       });

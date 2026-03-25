@@ -1458,7 +1458,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         expect(html).toContain("https://example.com/verified-thanks");
 
         // Token in the link should match the one in the redirect URL
-        const tokenFromUrl = decodeURIComponent(location.split("tokens=")[1]);
+        const tokenFromUrl = decodeURIComponent(location.split("tokens=")[1]!);
         expect(html).toContain(`/t/${tokenFromUrl}`);
       } finally {
         mockRetrieve.restore();

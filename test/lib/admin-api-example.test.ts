@@ -42,7 +42,7 @@ describe("endpoint docs", () => {
   test("all endpoint requests (when present) are valid JSON", () => {
     for (const endpoint of allEndpoints) {
       if (endpoint.request) {
-        expect(() => JSON.parse(endpoint.request)).not.toThrow();
+        expect(() => JSON.parse(endpoint.request!)).not.toThrow();
       }
     }
   });

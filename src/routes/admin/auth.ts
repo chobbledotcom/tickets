@@ -92,20 +92,20 @@ const authenticateUser = async (
   | {
       ok: true;
       user: Awaited<ReturnType<typeof getUserByUsername>> & object;
-      passwordHash: CryptoKey;
+      passwordHash: string;
     }
   | { ok: false; response: Response }
 > => {
   const user = await getUserByUsername(username);
   if (!user) {
     await recordFailedLogin(clientIp);
-    return { ok: false, response: loginResponse("Invalid credentials", 401) };
+    return { ok: false, response: await loginResponse("Invalid credentials", 401) };
   }
 
   const passwordHash = await verifyUserPassword(user, password);
   if (!passwordHash) {
     await recordFailedLogin(clientIp);
-    return { ok: false, response: loginResponse("Invalid credentials", 401) };
+    return { ok: false, response: await loginResponse("Invalid credentials", 401) };
   }
 
   return { ok: true, user, passwordHash };

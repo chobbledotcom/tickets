@@ -651,7 +651,7 @@ const computeDailySuffix = (
 const prepareAttendeeData = (
   attendees: Attendee[],
   hasPaidEvent: boolean,
-  activeFilter: string,
+  activeFilter: AttendeeFilter,
 ) => {
   const incompleteAttendees = hasPaidEvent
     ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)

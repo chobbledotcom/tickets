@@ -12,7 +12,7 @@ export type DebugPageState = {
   appleWallet: {
     dbConfigured: boolean;
     envConfigured: boolean;
-    passTypeId: string;
+    passTypeId: string | undefined;
     source: string;
     certValidation: {
       signingCert: string;
@@ -23,7 +23,7 @@ export type DebugPageState = {
   googleWallet: {
     dbConfigured: boolean;
     envConfigured: boolean;
-    issuerId: string;
+    issuerId: string | undefined;
     source: string;
     privateKeyValid: string;
   };

@@ -179,8 +179,8 @@ describeWithEnv("email-renderer", { db: true }, () => {
         ...sampleData,
         entries: [
           {
-            ...sampleData.entries[0],
-            attendee: { ...sampleData.entries[0]?.attendee, quantity: 1 },
+            ...sampleData.entries[0]!,
+            attendee: { ...sampleData.entries[0]!.attendee, quantity: 1 },
           },
         ],
       };
@@ -204,11 +204,11 @@ describeWithEnv("email-renderer", { db: true }, () => {
         ...sampleData,
         entries: [
           {
-            ...sampleData.entries[0],
+            ...sampleData.entries[0]!,
             event: { name: "Event A", slug: "a", is_paid: false },
           },
           {
-            ...sampleData.entries[0],
+            ...sampleData.entries[0]!,
             event: { name: "Event B", slug: "b", is_paid: false },
           },
         ],
@@ -233,9 +233,9 @@ describeWithEnv("email-renderer", { db: true }, () => {
         ...sampleData,
         entries: [
           {
-            ...sampleData.entries[0],
+            ...sampleData.entries[0]!,
             attendee: {
-              ...sampleData.entries[0]?.attendee,
+              ...sampleData.entries[0]!.attendee,
               date: "2026-04-15",
             },
           },

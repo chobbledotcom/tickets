@@ -527,7 +527,7 @@ const renderEditError = async (
 const validateSlugAndEvent = async (
   input: EventInput,
   existingId?: number,
-): Promise<string | null | undefined> => {
+): Promise<string | null> => {
   const taken = await isSlugTaken(input.slug, Number(existingId));
   if (taken) return "Slug is already in use by another event";
   return validateEventInput(input);

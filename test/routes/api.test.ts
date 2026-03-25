@@ -156,22 +156,22 @@ describeWithEnv("Public API", { db: true }, () => {
       const { events } = await fetchEventsList();
       const event = events[0];
       // Should NOT have internal fields
-      expect(event.id).toBeUndefined();
-      expect(event.max_attendees).toBeUndefined();
-      expect(event.attendee_count).toBeUndefined();
-      expect(event.closes_at).toBeUndefined();
-      expect(event.slug_index).toBeUndefined();
-      expect(event.group_id).toBeUndefined();
-      expect(event.webhook_url).toBeUndefined();
-      expect(event.thank_you_url).toBeUndefined();
-      expect(event.hidden).toBeUndefined();
-      expect(event.active).toBeUndefined();
+      expect(event!.id).toBeUndefined();
+      expect(event!.max_attendees).toBeUndefined();
+      expect(event!.attendee_count).toBeUndefined();
+      expect(event!.closes_at).toBeUndefined();
+      expect(event!.slug_index).toBeUndefined();
+      expect(event!.group_id).toBeUndefined();
+      expect(event!.webhook_url).toBeUndefined();
+      expect(event!.thank_you_url).toBeUndefined();
+      expect(event!.hidden).toBeUndefined();
+      expect(event!.active).toBeUndefined();
       // Should have public fields
-      expect(event.name).toBeDefined();
-      expect(event.slug).toBeDefined();
-      expect(event.isSoldOut).toBe(false);
-      expect(event.isClosed).toBe(false);
-      expect(typeof event.maxPurchasable).toBe("number");
+      expect(event!.name).toBeDefined();
+      expect(event!.slug).toBeDefined();
+      expect(event!.isSoldOut).toBe(false);
+      expect(event!.isClosed).toBe(false);
+      expect(typeof event!.maxPurchasable).toBe("number");
     });
 
     test("sets isSoldOut when event is at capacity", async () => {

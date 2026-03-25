@@ -1515,8 +1515,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event1.id);
         expect(attendees.length).toBe(1);
-        const answerMap = await getAttendeeAnswersBatch([attendees[0]?.id]);
-        const attendeeAnswers = answerMap.get(attendees[0]?.id) ?? [];
+        const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        const attendeeAnswers = answerMap.get(attendees[0]!.id) ?? [];
         expect(attendeeAnswers).toEqual([a.id]);
       } finally {
         mockVerify.restore();
@@ -3969,9 +3969,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(att2.length).toBe(1);
 
         // Verify answers saved only for event1's attendee (question belongs to event1 only)
-        const batch = await getAttendeeAnswersBatch([att1[0]?.id, att2[0]?.id]);
-        expect(batch.get(att1[0]?.id)).toEqual([a1.id]);
-        expect(batch.get(att2[0]?.id)).toBeUndefined();
+        const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
+        expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
+        expect(batch.get(att2[0]!.id)).toBeUndefined();
       } finally {
         mockVerify.restore();
       }
@@ -4030,8 +4030,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees.length).toBe(1);
 
         // Verify custom question answers were saved
-        const batch = await getAttendeeAnswersBatch([attendees[0]?.id]);
-        expect(batch.get(attendees[0]?.id)).toEqual([a1.id]);
+        const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        expect(batch.get(attendees[0]!.id)).toEqual([a1.id]);
       } finally {
         mockVerify.restore();
       }

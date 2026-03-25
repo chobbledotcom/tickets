@@ -260,7 +260,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       ]);
       expect(questionEventMap.get(q1.id)).toEqual([event1.id]);
       const q2Events = questionEventMap.get(q2.id);
-      expect(q2Events.sort()).toEqual([event1.id, event2.id].sort());
+      expect(q2Events!.sort()).toEqual([event1.id, event2.id].sort());
     });
 
     test("returns empty for no events", async () => {
@@ -421,10 +421,10 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(all).toHaveLength(2);
 
       const qWithA1 = all.find((q) => q.text === "Q1");
-      expect(qWithA1.answers).toHaveLength(2);
+      expect(qWithA1!.answers).toHaveLength(2);
 
       const qWithA2 = all.find((q) => q.text === "Q2");
-      expect(qWithA2.answers).toHaveLength(1);
+      expect(qWithA2!.answers).toHaveLength(1);
     });
   });
 

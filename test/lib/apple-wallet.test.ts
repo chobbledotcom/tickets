@@ -299,10 +299,10 @@ describe("apple-wallet", () => {
       const manifest = JSON.parse(
         new TextDecoder().decode(files["manifest.json"]),
       );
-      expect(manifest["pass.json"]).toBe(sha1Hex(files["pass.json"]));
-      expect(manifest["icon.png"]).toBe(sha1Hex(files["icon.png"]));
-      expect(manifest["icon@2x.png"]).toBe(sha1Hex(files["icon@2x.png"]));
-      expect(manifest["icon@3x.png"]).toBe(sha1Hex(files["icon@3x.png"]));
+      expect(manifest["pass.json"]).toBe(sha1Hex(files["pass.json"]!));
+      expect(manifest["icon.png"]).toBe(sha1Hex(files["icon.png"]!));
+      expect(manifest["icon@2x.png"]).toBe(sha1Hex(files["icon@2x.png"]!));
+      expect(manifest["icon@3x.png"]).toBe(sha1Hex(files["icon@3x.png"]!));
     });
 
     test("produces different pkpass for different serial numbers", () => {

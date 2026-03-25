@@ -421,10 +421,10 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const colCount = countColumns(vis, showActions);
 
   const answerTextMap = vis.showAnswers
-    ? buildAnswerTextMap(opts.questionData?.questions)
+    ? buildAnswerTextMap(opts.questionData!.questions)
     : new Map<number, string>();
   const answerQuestionMap = vis.showAnswers
-    ? buildAnswerQuestionMap(opts.questionData?.questions)
+    ? buildAnswerQuestionMap(opts.questionData!.questions)
     : new Map<number, string>();
 
   const rows =

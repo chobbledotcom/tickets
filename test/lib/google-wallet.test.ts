@@ -211,7 +211,7 @@ describe("google-wallet", () => {
       const payloadPart = jwt.split(".")[1];
       // Add padding if needed
       const padded =
-        payloadPart + "=".repeat((4 - (payloadPart.length % 4)) % 4);
+        payloadPart! + "=".repeat((4 - (payloadPart!.length % 4)) % 4);
       const payloadJson = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
       const decoded = JSON.parse(payloadJson);
       expect(decoded.iss).toBe(creds.serviceAccountEmail);

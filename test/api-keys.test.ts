@@ -43,7 +43,7 @@ const getTestDataKey = async (): Promise<CryptoKey> => {
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
   );
   const session = await getSession(token);
-  return unwrapKeyWithToken(session?.wrapped_data_key, token);
+  return unwrapKeyWithToken(session!.wrapped_data_key!, token!);
 };
 
 describeWithEnv("API Keys", { db: true }, () => {
@@ -77,7 +77,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const found = await getApiKeyByToken(apiKey);
       const unwrapped = await unwrapKeyWithToken(
-        found?.wrapped_data_key,
+        found!.wrapped_data_key,
         apiKey,
       );
       expect(unwrapped).not.toBeNull();
@@ -99,7 +99,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const found = await getApiKeyByToken(apiKey);
       await expect(
-        unwrapKeyWithToken(found?.wrapped_data_key, "wrong-token"),
+        unwrapKeyWithToken(found!.wrapped_data_key, "wrong-token"),
       ).rejects.toThrow();
     });
 
@@ -233,7 +233,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const body = new URLSearchParams({
         name: "My Test Key",
-        csrf_token: csrfToken,
+        csrf_token: csrfToken!,
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
@@ -272,7 +272,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const body = new URLSearchParams({
         name: "",
-        csrf_token: csrfToken,
+        csrf_token: csrfToken!,
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
@@ -295,7 +295,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
+        csrf_token: csrfToken!,
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
@@ -318,7 +318,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const body = new URLSearchParams({
         name: "x".repeat(101),
-        csrf_token: csrfToken,
+        csrf_token: csrfToken!,
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
@@ -340,7 +340,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
+        csrf_token: csrfToken!,
         confirm_identifier: "anything",
       });
       const response = await handleRequest(
@@ -418,7 +418,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
+        csrf_token: csrfToken!,
         confirm_identifier: "Doomed Key",
       });
       const response = await handleRequest(
@@ -449,7 +449,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
+        csrf_token: csrfToken!,
         confirm_identifier: "Wrong Name",
       });
       const response = await handleRequest(
@@ -597,7 +597,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const body = new URLSearchParams({
         name: "No Key Session",
-        csrf_token: csrfToken,
+        csrf_token: csrfToken!,
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {

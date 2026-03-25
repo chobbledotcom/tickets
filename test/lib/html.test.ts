@@ -3074,7 +3074,7 @@ describe("html", () => {
       );
       const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
       const optionTexts = [
-        ...(selectMatch[1] as string).matchAll(/>([^<]+)</g),
+        ...(selectMatch![1] as string).matchAll(/>([^<]+)</g),
       ].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Sunday 8 March 2026",
@@ -3108,7 +3108,7 @@ describe("html", () => {
       );
       const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
       const optionTexts = [
-        ...(selectMatch[1] as string).matchAll(/>([^<]+)</g),
+        ...(selectMatch![1] as string).matchAll(/>([^<]+)</g),
       ].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Sunday 8 March 2026",
@@ -3140,7 +3140,7 @@ describe("html", () => {
       );
       const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
       const optionTexts = [
-        ...(selectMatch[1] as string).matchAll(/>([^<]+)</g),
+        ...(selectMatch![1] as string).matchAll(/>([^<]+)</g),
       ].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Select a date",
@@ -3447,12 +3447,12 @@ describe("html", () => {
     const dateField = eventFields.find((f) => f.name === "date");
 
     test("accepts valid datetime value", () => {
-      const result = dateField.validate?.("2026-06-15T14:00");
+      const result = dateField!.validate?.("2026-06-15T14:00");
       expect(result).toBeNull();
     });
 
     test("rejects invalid datetime value", () => {
-      const result = dateField.validate?.("not-a-date");
+      const result = dateField!.validate?.("not-a-date");
       expect(result).toBe("Please enter a valid date and time");
     });
   });
@@ -4047,7 +4047,7 @@ describe("html", () => {
     const answer = question.answers[0];
 
     test("renders confirmation form with answer text", () => {
-      const html = adminAnswerDeletePage(question, answer, TEST_SESSION);
+      const html = adminAnswerDeletePage(question, answer!, TEST_SESSION);
       expect(html).toContain("Delete Answer");
       expect(html).toContain("Small");
       expect(html).toContain('name="confirm_identifier"');
@@ -4055,14 +4055,14 @@ describe("html", () => {
     });
 
     test("shows question context", () => {
-      const html = adminAnswerDeletePage(question, answer, TEST_SESSION);
+      const html = adminAnswerDeletePage(question, answer!, TEST_SESSION);
       expect(html).toContain("T-shirt size?");
     });
 
     test("renders error message when provided", () => {
       const html = adminAnswerDeletePage(
         question,
-        answer,
+        answer!,
         TEST_SESSION,
         "Text does not match",
       );

@@ -624,9 +624,9 @@ describe("square", () => {
             ?.args[0] as CreatePaymentLinkInput;
           expect(args.order.lineItems).toHaveLength(2);
           const feeItem = args.order.lineItems[1];
-          expect(feeItem.name).toBe("Booking fee");
+          expect(feeItem!.name).toBe("Booking fee");
           // 2.5% of 2000 (2 × 1000) = 50
-          expect(feeItem.basePriceMoney.amount).toBe(BigInt(50));
+          expect(feeItem!.basePriceMoney.amount).toBe(BigInt(50));
         },
       );
     });
@@ -1058,7 +1058,7 @@ describe("square", () => {
           expect(args.order.metadata.name).toBe("Alice Wonder");
           expect(args.order.metadata.email).toBe("alice@example.com");
           expect(args.order.metadata.phone).toBe("555-1111");
-          const items = JSON.parse(args.order.metadata.items);
+          const items = JSON.parse(args.order.metadata.items!);
           expect(items).toHaveLength(2);
           expect(items[0]).toEqual({ e: 10, q: 2, p: 3000 });
           expect(items[1]).toEqual({ e: 20, q: 1, p: 3000 });
@@ -1782,11 +1782,11 @@ describe("square", () => {
       });
 
       // Response prefers long_url (checkout.square.site) over short url (square.link)
-      expect(result.paymentLink?.orderId).toBe("ord_rest");
-      expect(result.paymentLink?.url).toBe("https://checkout.square.site/rest");
+      expect(result!.paymentLink?.orderId).toBe("ord_rest");
+      expect(result!.paymentLink?.url).toBe("https://checkout.square.site/rest");
 
       // Request verification
-      const [url, opts] = mockFetch.calls[0].args;
+      const [url, opts] = mockFetch.calls[0]!.args;
       expect(url).toBe(
         "https://connect.squareupsandbox.com/v2/online-checkout/payment-links",
       );
@@ -1794,7 +1794,7 @@ describe("square", () => {
       expect(opts.headers?.Authorization).toBe("Bearer EAAAl_rest_test");
       expect(opts.headers?.["Square-Version"]).toBe("2025-01-23");
 
-      const body = JSON.parse(opts.body);
+      const body = JSON.parse(opts.body!);
       expect(body.idempotency_key).toBe("idem-rest");
       expect(body.order.location_id).toBe("L_rest");
       expect(body.order.line_items[0].base_price_money.amount).toBe(2500);
@@ -1840,8 +1840,8 @@ describe("square", () => {
         prePopulatedData: { buyerEmail: "a@b.com" },
       });
 
-      expect(result.paymentLink?.orderId).toBe("ord_short");
-      expect(result.paymentLink?.url).toBe("https://square.link/short");
+      expect(result!.paymentLink?.orderId).toBe("ord_short");
+      expect(result!.paymentLink?.url).toBe("https://square.link/short");
     });
 
     test("omits buyer_phone_number from request when not provided", async () => {
@@ -1894,7 +1894,7 @@ describe("square", () => {
         prePopulatedData: { buyerEmail: "a@b.com" },
       });
 
-      expect(result.paymentLink).toBeUndefined();
+      expect(result!.paymentLink).toBeUndefined();
     });
 
     test("orders.get fetches correct URL and maps response to camelCase", async () => {
@@ -1923,13 +1923,13 @@ describe("square", () => {
       expect(mockFetch.calls[0]?.args[0]).toBe(
         "https://connect.squareupsandbox.com/v2/orders/ord_100",
       );
-      expect(result.order?.id).toBe("ord_100");
-      expect(result.order?.metadata?.event_id).toBe("5");
-      expect(result.order?.tenders?.[0]?.paymentId).toBe("pay_1");
-      expect(result.order?.tenders?.[1]?.paymentId).toBeNull();
-      expect(result.order?.state).toBe("COMPLETED");
-      expect(result.order?.totalMoney?.amount).toBe(BigInt(5000));
-      expect(result.order?.totalMoney?.currency).toBe("USD");
+      expect(result!.order?.id).toBe("ord_100");
+      expect(result!.order?.metadata?.event_id).toBe("5");
+      expect(result!.order?.tenders?.[0]?.paymentId).toBe("pay_1");
+      expect(result!.order?.tenders?.[1]?.paymentId).toBeNull();
+      expect(result!.order?.state).toBe("COMPLETED");
+      expect(result!.order?.totalMoney?.amount).toBe(BigInt(5000));
+      expect(result!.order?.totalMoney?.currency).toBe("USD");
     });
 
     test("orders.get handles missing total_money", async () => {
@@ -1945,8 +1945,8 @@ describe("square", () => {
 
       const client = await getSquareClient();
       const result = await client?.orders.get({ orderId: "ord_no_total" });
-      expect(result.order?.id).toBe("ord_no_total");
-      expect(result.order?.totalMoney).toBeUndefined();
+      expect(result!.order?.id).toBe("ord_no_total");
+      expect(result!.order?.totalMoney).toBeUndefined();
     });
 
     test("orders.get returns null order when API returns none", async () => {
@@ -1959,7 +1959,7 @@ describe("square", () => {
 
       const client = await getSquareClient();
       const result = await client?.orders.get({ orderId: "missing" });
-      expect(result.order).toBeNull();
+      expect(result!.order).toBeNull();
     });
 
     test("payments.get maps response with BigInt amounts", async () => {
@@ -1985,10 +1985,10 @@ describe("square", () => {
       expect(mockFetch.calls[0]?.args[0]).toBe(
         "https://connect.squareupsandbox.com/v2/payments/pay_1",
       );
-      expect(result.payment?.id).toBe("pay_1");
-      expect(result.payment?.orderId).toBe("ord_1");
-      expect(result.payment?.amountMoney?.amount).toBe(BigInt(3000));
-      expect(result.payment?.refundedMoney?.amount).toBe(BigInt(1000));
+      expect(result!.payment?.id).toBe("pay_1");
+      expect(result!.payment?.orderId).toBe("ord_1");
+      expect(result!.payment?.amountMoney?.amount).toBe(BigInt(3000));
+      expect(result!.payment?.refundedMoney?.amount).toBe(BigInt(1000));
     });
 
     test("payments.get handles missing amount_money", async () => {
@@ -2008,8 +2008,8 @@ describe("square", () => {
 
       const client = await getSquareClient();
       const result = await client?.payments.get({ paymentId: "pay_no_amount" });
-      expect(result.payment?.id).toBe("pay_no_amount");
-      expect(result.payment?.amountMoney).toBeUndefined();
+      expect(result!.payment?.id).toBe("pay_no_amount");
+      expect(result!.payment?.amountMoney).toBeUndefined();
     });
 
     test("payments.get handles missing refunded_money", async () => {
@@ -2030,8 +2030,8 @@ describe("square", () => {
 
       const client = await getSquareClient();
       const result = await client?.payments.get({ paymentId: "pay_2" });
-      expect(result.payment?.amountMoney?.amount).toBe(BigInt(2000));
-      expect(result.payment?.refundedMoney).toBeUndefined();
+      expect(result!.payment?.amountMoney?.amount).toBe(BigInt(2000));
+      expect(result!.payment?.refundedMoney).toBeUndefined();
     });
 
     test("payments.get returns null payment when API returns none", async () => {
@@ -2044,7 +2044,7 @@ describe("square", () => {
 
       const client = await getSquareClient();
       const result = await client?.payments.get({ paymentId: "missing" });
-      expect(result.payment).toBeNull();
+      expect(result!.payment).toBeNull();
     });
 
     test("refunds.refundPayment sends correct snake_case body", async () => {
@@ -2062,10 +2062,10 @@ describe("square", () => {
         amountMoney: { amount: BigInt(3000), currency: "GBP" },
       });
 
-      const [url, opts] = mockFetch.calls[0].args;
+      const [url, opts] = mockFetch.calls[0]!.args;
       expect(url).toBe("https://connect.squareupsandbox.com/v2/refunds");
       expect(opts.method).toBe("POST");
-      const body = JSON.parse(opts.body);
+      const body = JSON.parse(opts.body!);
       expect(body.idempotency_key).toBe("idem-ref");
       expect(body.payment_id).toBe("pay_1");
       expect(body.amount_money.amount).toBe(3000);
@@ -2111,10 +2111,10 @@ describe("square", () => {
       expect(mockFetch.calls[0]?.args[0]).toBe(
         "https://connect.squareupsandbox.com/v2/locations",
       );
-      expect(result.locations).toHaveLength(2);
-      expect(result.locations?.[0]?.id).toBe("L_1");
-      expect(result.locations?.[0]?.name).toBe("Main");
-      expect(result.locations?.[1]?.status).toBe("INACTIVE");
+      expect(result!.locations).toHaveLength(2);
+      expect(result!.locations?.[0]?.id).toBe("L_1");
+      expect(result!.locations?.[0]?.name).toBe("Main");
+      expect(result!.locations?.[1]?.status).toBe("INACTIVE");
     });
 
     test("uses production URL when sandbox is disabled", async () => {

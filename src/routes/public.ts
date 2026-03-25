@@ -67,6 +67,7 @@ import {
   extractContact,
   mergeEventFields,
   tryValidateTicketFields,
+  type TicketFormValues,
 } from "#templates/fields.ts";
 import { successPage } from "#templates/payment.tsx";
 import {
@@ -457,7 +458,7 @@ const validateSingleTicketForm = async (
 ): Promise<
   | {
       ok: true;
-      values: Record<string, string>;
+      values: TicketFormValues;
       answerIds: number[];
       date: string | null;
       customPrice: number | undefined;
@@ -716,7 +717,7 @@ const buildAnswerMapForSelected = (
 
 /** Save per-event question answers for free multi-ticket registrations */
 const saveMultiTicketAnswers = async (
-  entries: { event: EventWithCount; attendee: { id: number } }[],
+  entries: { event: { id: number }; attendee: { id: number } }[],
   eventAnswerMap: Record<string, number[]>,
 ): Promise<void> => {
   for (const { event, attendee } of entries) {

@@ -365,28 +365,28 @@ describeWithEnv(
             const addCall = calls.at(0);
             const certCall = calls.at(1);
             const sslCall = calls.at(2);
-            expect(addCall.url).toBe(
+            expect(addCall!.url).toBe(
               "https://api.bunny.net/pullzone/12345/addHostname",
             );
-            expect(addCall.init?.method).toBe("POST");
-            expect(addCall.init?.headers).toEqual({
+            expect(addCall!.init?.method).toBe("POST");
+            expect(addCall!.init?.headers).toEqual({
               AccessKey: "test-bunny-key",
               "Content-Type": "application/json",
             });
-            expect(JSON.parse(addCall.init?.body as string)).toEqual({
+            expect(JSON.parse(addCall!.init?.body as string)).toEqual({
               Hostname: "cdn.example.com",
             });
-            expect(certCall.url).toBe(
+            expect(certCall!.url).toBe(
               "https://api.bunny.net/pullzone/loadFreeCertificate?hostname=cdn.example.com",
             );
-            expect(certCall.init?.method).toBe("GET");
-            expect(certCall.init?.headers).toEqual({
+            expect(certCall!.init?.method).toBe("GET");
+            expect(certCall!.init?.headers).toEqual({
               AccessKey: "test-bunny-key",
             });
-            expect(sslCall.url).toBe(
+            expect(sslCall!.url).toBe(
               "https://api.bunny.net/pullzone/12345/setForceSSL",
             );
-            expect(JSON.parse(sslCall.init?.body as string)).toEqual({
+            expect(JSON.parse(sslCall!.init?.body as string)).toEqual({
               Hostname: "cdn.example.com",
               ForceSSL: true,
             });
@@ -608,6 +608,6 @@ describeWithEnv("custom domain settings", { db: true }, () => {
     const value = settings.customDomainLastValidated;
     expect(value).not.toBeNull();
     // Should be a valid ISO 8601 date
-    expect(new Date(value).toISOString()).toBe(value);
+    expect(new Date(value!).toISOString()).toBe(value);
   });
 });

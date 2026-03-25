@@ -2898,7 +2898,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           "/admin/event/1/edit",
           {
             name: "Edit Target",
-            slug: event.slug,
+            slug: event!.slug,
             max_attendees: "50",
             max_quantity: "1",
             event_type: "daily",

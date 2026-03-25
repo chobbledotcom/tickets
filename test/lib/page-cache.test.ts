@@ -125,7 +125,7 @@ describeWithEnv("page content cache", { db: true }, () => {
       const startTime = await seedAndBypassCache();
 
       // Advance to just before TTL boundary — cache still valid
-      fakeTime.now = startTime + SETTINGS_CACHE_TTL_MS - 1;
+      fakeTime!.now = startTime + SETTINGS_CACHE_TTL_MS - 1;
       expect(settings.terms).toBe("Original");
     });
 
@@ -133,7 +133,7 @@ describeWithEnv("page content cache", { db: true }, () => {
       const startTime = await seedAndBypassCache();
 
       // Advance past TTL
-      fakeTime.now = startTime + SETTINGS_CACHE_TTL_MS + 1;
+      fakeTime!.now = startTime + SETTINGS_CACHE_TTL_MS + 1;
       // Cache expired — loadAll() re-fetches from DB and picks up new value
       await settings.loadAll();
       expect(settings.terms).toBe("Changed");

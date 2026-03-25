@@ -28,8 +28,8 @@ const getTestDataKey = async (): Promise<CryptoKey> => {
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
   );
   const token = sessionMatch?.[1];
-  const session = await getSession(token);
-  return unwrapKeyWithToken(session?.wrapped_data_key, token);
+  const session = await getSession(token!);
+  return unwrapKeyWithToken(session!.wrapped_data_key!, token!);
 };
 
 /** Create an API key and return its token */

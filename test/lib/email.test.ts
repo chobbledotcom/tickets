@@ -441,7 +441,7 @@ describeWithEnv("email", { db: true }, () => {
     test("attachment content is base64-encoded UTF-8 SVG", async () => {
       const attachments = await buildTicketAttachments([makeEntry()], "GBP");
 
-      const binary = atob(attachments[0]?.content);
+      const binary = atob(attachments[0]!.content);
       const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
       const decoded = new TextDecoder().decode(bytes);
       expect(decoded).toContain("<?xml");
@@ -455,7 +455,7 @@ describeWithEnv("email", { db: true }, () => {
         "GBP",
       );
 
-      const binary = atob(attachments[0]?.content);
+      const binary = atob(attachments[0]!.content);
       const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
       const decoded = new TextDecoder().decode(bytes);
       expect(decoded).toContain("Café Müsik");

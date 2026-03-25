@@ -141,7 +141,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
   /** Perform the confirmed delete and redirect */
   const performConfirmedDelete = async (
     id: number,
-    row: Record<string, unknown>,
+    row: Row,
   ): Promise<Response> => {
     const result = await cfg.resource.delete(id);
     if ("notFound" in result) return notFoundResponse();

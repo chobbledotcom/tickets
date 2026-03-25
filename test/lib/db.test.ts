@@ -262,7 +262,7 @@ describeWithEnv("db", { db: true }, () => {
       // Password is now stored on the user row, verify via user-based API
       const user = await getUserByUsername("setupuser");
       expect(user).not.toBeNull();
-      const hash = await verifyUserPassword(user, "mypassword");
+      const hash = await verifyUserPassword(user!, "mypassword");
       expect(hash).toBeTruthy();
       expect(hash).toContain("pbkdf2:");
       expect(settings.currency).toBe("USD");
@@ -362,7 +362,7 @@ describeWithEnv("db", { db: true }, () => {
       // Use the user created by createTestDbWithSetup
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const result = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
+      const result = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(result).toBeTruthy();
       expect(result).toContain("pbkdf2:");
     });
@@ -370,7 +370,7 @@ describeWithEnv("db", { db: true }, () => {
     test("verifyUserPassword returns null for wrong password", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const result = await verifyUserPassword(user, "wrong");
+      const result = await verifyUserPassword(user!, "wrong");
       expect(result).toBeNull();
     });
 
@@ -380,13 +380,13 @@ describeWithEnv("db", { db: true }, () => {
       expect(user).not.toBeNull();
       const oldWrappedKey = user?.wrapped_data_key;
 
-      const oldHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
+      const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(oldHash).toBeTruthy();
 
       const success = await settings.updateUserPassword(
-        user?.id,
-        oldHash,
-        user?.wrapped_data_key,
+        user!.id,
+        oldHash!,
+        user!.wrapped_data_key!,
         "newpassword456",
       );
       expect(success).toBe(true);
@@ -397,12 +397,12 @@ describeWithEnv("db", { db: true }, () => {
 
       // Old password should no longer work
       expect(
-        await verifyUserPassword(updatedUser, TEST_ADMIN_PASSWORD),
+        await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD),
       ).toBeNull();
 
       // New password should work
       expect(
-        await verifyUserPassword(updatedUser, "newpassword456"),
+        await verifyUserPassword(updatedUser!, "newpassword456"),
       ).toBeTruthy();
     });
 
@@ -413,9 +413,9 @@ describeWithEnv("db", { db: true }, () => {
       const { settings: s } = await import("#lib/db/settings.ts");
       // Pass a bogus password hash - KEK derivation will produce wrong key
       const success = await s.updateUserPassword(
-        user?.id,
+        user!.id,
         "pbkdf2:bogus:hash",
-        user?.wrapped_data_key,
+        user!.wrapped_data_key!,
         "newpassword",
       );
       expect(success).toBe(false);
@@ -423,7 +423,7 @@ describeWithEnv("db", { db: true }, () => {
       // Original password should still work
       const unchanged = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(
-        await verifyUserPassword(unchanged, TEST_ADMIN_PASSWORD),
+        await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD),
       ).toBeTruthy();
     });
 
@@ -451,13 +451,13 @@ describeWithEnv("db", { db: true }, () => {
       // Change the password using user-based API
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const oldHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
+      const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(oldHash).toBeTruthy();
 
       const changeSuccess = await settings.updateUserPassword(
-        user?.id,
-        oldHash,
-        user?.wrapped_data_key,
+        user!.id,
+        oldHash!,
+        user!.wrapped_data_key!,
         newPassword,
       );
       expect(changeSuccess).toBe(true);
@@ -476,18 +476,18 @@ describeWithEnv("db", { db: true }, () => {
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(updatedUser).not.toBeNull();
       const newPasswordHash = await verifyUserPassword(
-        updatedUser,
+        updatedUser!,
         newPassword,
       );
       expect(newPasswordHash).toBeTruthy();
 
-      const kek = await deriveKEK(newPasswordHash);
-      const dataKey = await unwrapKey(updatedUser?.wrapped_data_key, kek);
+      const kek = await deriveKEK(newPasswordHash!);
+      const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = settings.wrappedPrivateKey;
       expect(wrappedPrivateKey).toBeTruthy();
 
-      const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
+      const privateKeyJwk = await decryptWithKey(wrappedPrivateKey!, dataKey);
       const privateKey = await importPrivateKey(privateKeyJwk);
 
       // Decrypt the attendee created BEFORE password change
@@ -1518,14 +1518,14 @@ describeWithEnv("db", { db: true }, () => {
       await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
 
       // Verify initial password works
-      const initialHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
+      const initialHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(initialHash).toBeTruthy();
 
       // Update password using user-based API
       const success = await settings.updateUserPassword(
-        user?.id,
-        initialHash,
-        user?.wrapped_data_key,
+        user!.id,
+        initialHash!,
+        user!.wrapped_data_key!,
         "new-password-123",
       );
       expect(success).toBe(true);
@@ -1533,14 +1533,14 @@ describeWithEnv("db", { db: true }, () => {
       // Verify new password works
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
       const newValid = await verifyUserPassword(
-        updatedUser,
+        updatedUser!,
         "new-password-123",
       );
       expect(newValid).toBeTruthy();
 
       // Verify old password no longer works
       const oldValid = await verifyUserPassword(
-        updatedUser,
+        updatedUser!,
         TEST_ADMIN_PASSWORD,
       );
       expect(oldValid).toBeNull();
@@ -2411,14 +2411,14 @@ describeWithEnv("db", { db: true }, () => {
       // Use the user from createTestDbWithSetup
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
+      const passwordHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(passwordHash).toBeTruthy();
 
       // Pass corrupted wrapped_data_key - unwrap will fail
       const { settings: s } = await import("#lib/db/settings.ts");
       const result = await s.updateUserPassword(
-        user?.id,
-        passwordHash,
+        user!.id,
+        passwordHash!,
         "corrupted_wrapped_data_key",
         "newpassword",
       );

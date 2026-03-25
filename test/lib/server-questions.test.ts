@@ -31,7 +31,7 @@ const createQuestion = async (text: string): Promise<number> => {
   const questions = await getAllQuestionsWithAnswers();
   const found = questions.find((q) => q.text === text);
   expect(found).toBeTruthy();
-  return found?.id;
+  return found!.id;
 };
 
 /** Helper: add an answer to a question via the admin form */
@@ -47,7 +47,7 @@ const addAnswer = async (questionId: number, text: string): Promise<number> => {
   const question = await getQuestionWithAnswers(questionId);
   const found = question?.answers.find((a) => a.text === text);
   expect(found).toBeTruthy();
-  return found?.id;
+  return found!.id;
 };
 
 describeWithEnv("server (admin questions)", { db: true }, () => {

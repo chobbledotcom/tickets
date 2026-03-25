@@ -70,19 +70,19 @@ const insertLegacyAttendee = async (
   const pubKey = settings.publicKey;
   const [encName, encEmail, encPhone, encPaymentId, encPricePaid] =
     await Promise.all([
-      encryptAttendeePII(fields.name, pubKey),
-      encryptAttendeePII(fields.email, pubKey),
-      encryptAttendeePII(fields.phone ?? "", pubKey),
-      encryptAttendeePII(fields.paymentId ?? "", pubKey),
+      encryptAttendeePII(fields.name!, pubKey!),
+      encryptAttendeePII(fields.email!, pubKey!),
+      encryptAttendeePII(fields.phone ?? "", pubKey!),
+      encryptAttendeePII(fields.paymentId ?? "", pubKey!),
       encrypt(String(fields.pricePaid ?? 0)),
     ]);
   const encCheckedIn = fields.checkedIn
-    ? await encryptAttendeePII("true", pubKey)
-    : await encryptAttendeePII("false", pubKey);
+    ? await encryptAttendeePII("true", pubKey!)
+    : await encryptAttendeePII("false", pubKey!);
   const encRefunded = fields.refunded
-    ? await encryptAttendeePII("true", pubKey)
-    : await encryptAttendeePII("false", pubKey);
-  const encToken = await encryptAttendeePII("tok_legacy", pubKey);
+    ? await encryptAttendeePII("true", pubKey!)
+    : await encryptAttendeePII("false", pubKey!);
+  const encToken = await encryptAttendeePII("tok_legacy", pubKey!);
   await getDb().execute({
     sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, created, quantity)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1)`,
@@ -91,8 +91,8 @@ const insertLegacyAttendee = async (
       encName,
       encEmail,
       encPhone,
-      await encryptAttendeePII("", pubKey),
-      await encryptAttendeePII("", pubKey),
+      await encryptAttendeePII("", pubKey!),
+      await encryptAttendeePII("", pubKey!),
       encPaymentId,
       encPricePaid,
       encCheckedIn,
@@ -244,7 +244,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
         pi: "",
         t: "tok_old",
       });
-      const encrypted = await encryptAttendeePII(blobWithoutVersion, pubKey);
+      const encrypted = await encryptAttendeePII(blobWithoutVersion, pubKey!);
       await getDb().execute({
         sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, pii_blob, checked_in_v2, refunded_v2, price_paid_v2, created, quantity)
               VALUES (?, '', '', '', '', '', '', '', '', '', '', ?, 0, 0, 0, datetime('now'), 1)`,
@@ -294,7 +294,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
       const rows = await getAttendeesRaw(event.id);
       const privateKey = await getTestPrivateKey();
-      const json = await decryptAttendeePII(rows[0]?.pii_blob, privateKey);
+      const json = await decryptAttendeePII(rows[0]!.pii_blob, privateKey);
       const blob = JSON.parse(json);
       expect(blob.v).toBe(PII_BLOB_VERSION);
     });
