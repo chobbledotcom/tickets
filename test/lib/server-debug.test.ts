@@ -79,26 +79,27 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await assertAdminHtml("/admin/debug", "Notifications (ntfy)", "NTFY URL");
     });
 
-    test("shows Bunny Storage section", async () => {
-      await assertAdminHtml("/admin/debug", "Bunny Storage (images)", "Storage zone");
-    });
-
-    test("shows Bunny CDN section", async () => {
+    test("shows combined Bunny section with storage, CDN, and DNS", async () => {
       await assertAdminHtml(
         "/admin/debug",
-        "Bunny CDN",
+        "Bunny",
+        "Storage zone (images)",
         "CDN management",
         "CDN hostname",
         "Custom domain",
+        "DNS subdomain",
+        "Subdomain suffix",
+        "Registered subdomain",
       );
     });
 
-    test("shows Database section", async () => {
-      await assertAdminHtml("/admin/debug", "Database", "DB_URL");
-    });
-
-    test("shows Domain section with effective domain", async () => {
-      await assertAdminHtml("/admin/debug", "Domain", "Effective Domain");
+    test("shows combined Database &amp; Domain section", async () => {
+      await assertAdminHtml(
+        "/admin/debug",
+        "Database &amp; Domain",
+        "DB_URL",
+        "Effective domain",
+      );
     });
 
     test("does not expose secret keys or full URLs", async () => {
@@ -303,6 +304,74 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
   });
 
+  describe("GET /admin/debug with Bunny DNS enabled", () => {
+    let restoreEnv: () => void;
+
+    afterEach(() => restoreEnv());
+
+    test("shows DNS subdomain as configured with suffix", async () => {
+      restoreEnv = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_DNS_ZONE_ID: "12345",
+        BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+      });
+      await assertAdminHtml("/admin/debug", "DNS subdomain", ".tickets");
+    });
+
+    test("shows registered subdomain when set", () => {
+      const state: DebugPageState = {
+        build: { timestamp: "", commit: "" },
+        appleWallet: {
+          dbConfigured: false,
+          envConfigured: false,
+          passTypeId: "",
+          source: "",
+          certValidation: {
+            signingCert: "Not set",
+            signingKey: "Not set",
+            wwdrCert: "Not set",
+          },
+        },
+        googleWallet: {
+          dbConfigured: false,
+          envConfigured: false,
+          issuerId: "",
+          source: "",
+          privateKeyValid: "Not set",
+        },
+        payment: {
+          provider: "",
+          keyConfigured: false,
+          webhookConfigured: false,
+        },
+        email: {
+          provider: "",
+          apiKeyConfigured: false,
+          fromAddress: "",
+          hostProvider: "",
+        },
+        ntfy: { configured: false },
+        bunny: {
+          storageEnabled: false,
+          cdnEnabled: false,
+          cdnHostname: "",
+          customDomain: "",
+          dnsEnabled: true,
+          subdomainSuffix: ".tickets",
+          registeredSubdomain: "myevent.example.com",
+        },
+        database: { hostConfigured: false },
+        domain: "localhost",
+        limits: [],
+        theme: "light",
+      };
+      const session = { adminLevel: "owner" as const };
+      const html = adminDebugPage(session, state);
+      expect(html).toContain("myevent.example.com");
+      expect(html).toContain(".tickets");
+    });
+  });
+
   describe("Limits section", () => {
     test("shows limits table with all entries", async () => {
       const html = await assertAdminHtml("/admin/debug", "Limits");
@@ -345,8 +414,15 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           hostProvider: "",
         },
         ntfy: { configured: false },
-        storage: { enabled: false },
-        bunnyCdn: { enabled: false, cdnHostname: "", customDomain: "" },
+        bunny: {
+          storageEnabled: false,
+          cdnEnabled: false,
+          cdnHostname: "",
+          customDomain: "",
+          dnsEnabled: false,
+          subdomainSuffix: "",
+          registeredSubdomain: "",
+        },
         database: { hostConfigured: false },
         domain: "localhost",
         limits: [
