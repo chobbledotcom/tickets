@@ -738,6 +738,26 @@ export const getAddAttendeeFields = (
   return result;
 };
 
+/** New password field (reused across setup, change password, and join forms) */
+const newPasswordField = (name: string, label: string): Field => ({
+  name,
+  label,
+  type: "password",
+  required: true,
+  minlength: 8,
+  hint: "Minimum 8 characters",
+  autocomplete: "new-password",
+});
+
+/** Confirm password field (reused across setup, change password, and join forms) */
+const confirmPasswordField = (name: string, label: string): Field => ({
+  name,
+  label,
+  type: "password",
+  required: true,
+  autocomplete: "new-password",
+});
+
 /**
  * Setup form field definitions
  * Note: Stripe keys are now configured via environment variables
@@ -752,22 +772,8 @@ export const setupFields: Field[] = [
     autocomplete: "username",
     validate: validateUsername,
   },
-  {
-    name: "admin_password",
-    label: "Admin Password *",
-    type: "password",
-    required: true,
-    minlength: 8,
-    hint: "Minimum 8 characters",
-    autocomplete: "new-password",
-  },
-  {
-    name: "admin_password_confirm",
-    label: "Confirm Admin Password *",
-    type: "password",
-    required: true,
-    autocomplete: "new-password",
-  },
+  newPasswordField("admin_password", "Admin Password *"),
+  confirmPasswordField("admin_password_confirm", "Confirm Admin Password *"),
 ];
 
 /**
@@ -781,22 +787,8 @@ export const changePasswordFields: Field[] = [
     required: true,
     autocomplete: "current-password",
   },
-  {
-    name: "new_password",
-    label: "New Password",
-    type: "password",
-    required: true,
-    minlength: 8,
-    hint: "Minimum 8 characters",
-    autocomplete: "new-password",
-  },
-  {
-    name: "new_password_confirm",
-    label: "Confirm New Password",
-    type: "password",
-    required: true,
-    autocomplete: "new-password",
-  },
+  newPasswordField("new_password", "New Password"),
+  confirmPasswordField("new_password_confirm", "Confirm New Password"),
 ];
 
 /**
@@ -873,20 +865,6 @@ export const inviteUserFields: Field[] = [
  * Join (set password) form field definitions
  */
 export const joinFields: Field[] = [
-  {
-    name: "password",
-    label: "Password",
-    type: "password",
-    required: true,
-    minlength: 8,
-    hint: "Minimum 8 characters",
-    autocomplete: "new-password",
-  },
-  {
-    name: "password_confirm",
-    label: "Confirm Password",
-    type: "password",
-    required: true,
-    autocomplete: "new-password",
-  },
+  newPasswordField("password", "Password"),
+  confirmPasswordField("password_confirm", "Confirm Password"),
 ];
