@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { signAttachmentUrl } from "#lib/attachment-url.ts";
 import { encryptBytes } from "#lib/crypto.ts";
 import { getAttendeeRaw } from "#lib/db/attendees.ts";
@@ -63,6 +63,9 @@ describeWithEnv(
       Deno.env.delete("STORAGE_ZONE_NAME");
       Deno.env.delete("STORAGE_ZONE_KEY");
     };
+
+    // Clean up storage env vars after each test to avoid leaking to other suites
+    afterEach(() => disableStorage());
 
     /** Create an event+attendee with an attachment configured */
     const setupAttachment = async () => {
