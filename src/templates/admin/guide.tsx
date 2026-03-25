@@ -72,8 +72,9 @@ export const adminGuidePage = (
       <Section title="Getting Started">
         <Q q="How do I create an event?">
           <p>
-            From the <strong>Events</strong> page, fill in the form at the
-            bottom. Give your event a name, set the capacity, and choose which
+            From the <strong>Events</strong> page, click{" "}
+            <strong>Add Event</strong>. Give your event a name, set the
+            capacity, and choose which
             contact details to collect (any combination of email, phone, postal
             address, and special instructions &mdash; or none at all for
             name-only registration). You can leave the price blank for free
@@ -250,7 +251,8 @@ export const adminGuidePage = (
           <p>
             When creating or editing an event, use the image upload field to
             attach a picture. The image is displayed on the booking page and in
-            the public events listing. Supported formats include JPEG and PNG.
+            the public events listing. Supported formats are JPEG, PNG, GIF,
+            and WebP.
           </p>
         </Q>
 
@@ -1052,7 +1054,8 @@ export const adminGuidePage = (
             Yes. On any event's attendee list, click <strong>Export CSV</strong>
             . The export includes name, email, phone, address, special
             instructions, quantity, registration date, amount paid, transaction
-            ID, check-in status, and ticket URL. For daily events, you can
+            ID, check-in status, ticket token, and ticket URL. For daily
+            events, you can
             filter by date before exporting.
           </p>
         </Q>
@@ -1461,8 +1464,9 @@ export const adminGuidePage = (
             </li>
           </ul>
           <p>
-            Both feeds include all active events with open registration. They
-            update automatically as you add, change, or close events.
+            Both feeds include all active, non-hidden events with open
+            registration. Hidden events are excluded. They update automatically
+            as you add, change, or close events.
           </p>
         </Q>
 
