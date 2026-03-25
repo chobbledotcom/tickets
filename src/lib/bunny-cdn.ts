@@ -353,7 +353,11 @@ const registerBunnySubdomainImpl = async (
   // 3. Register hostname with pull zone (add hostname + SSL)
   //    Retry to allow DNS propagation after CNAME record creation.
   let cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
-  for (let attempt = 0; attempt < CERT_RETRY_COUNT && !cdnResult.ok; attempt++) {
+  for (
+    let attempt = 0;
+    attempt < CERT_RETRY_COUNT && !cdnResult.ok;
+    attempt++
+  ) {
     logDebug(
       "Domain",
       `Certificate not ready, retrying in ${certRetryDelay(attempt)}ms (attempt ${attempt + 1}/${CERT_RETRY_COUNT})`,
