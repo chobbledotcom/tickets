@@ -14,6 +14,10 @@ type BunnyApiResult =
   | { ok: true }
   | { ok: false; error: string; errorKey?: string };
 
+type CdnHostnameResult =
+  | { ok: true; hostname: string }
+  | { ok: false; error: string };
+
 const HOSTNAME_ALREADY_REGISTERED = "pullzone.hostname_already_registered";
 
 interface EdgeScriptLinkedPullZone {
@@ -50,37 +54,38 @@ const getEdgeScriptImpl = async (): Promise<
   return { ok: true, data };
 };
 
+/** Map edge script data to a result, returning early on API error. */
+const withEdgeScript = async <T>(
+  fn: (data: EdgeScriptResponse) => T,
+): Promise<T | { ok: false; error: string; errorKey?: string }> => {
+  const result = await bunnyCdnApi.getEdgeScript();
+  if (!result.ok) return result;
+  return fn(result.data);
+};
+
 /**
  * Find the pull zone ID via the edge script's linked pull zones.
  */
 const findPullZoneIdImpl = async (): Promise<
   { ok: true; id: number } | { ok: false; error: string; errorKey?: string }
-> => {
-  const result = await bunnyCdnApi.getEdgeScript();
-  if (!result.ok) return result;
-
-  const zone = result.data.LinkedPullZones[0];
-  if (!zone) {
-    return {
-      ok: false,
-      error: `Edge script ${getBunnyScriptId()} has no linked pull zones`,
-    };
-  }
-
-  return { ok: true, id: zone.Id };
-};
+> =>
+  withEdgeScript((data) => {
+    const zone = data.LinkedPullZones[0];
+    if (!zone) {
+      return {
+        ok: false as const,
+        error: `Edge script ${getBunnyScriptId()} has no linked pull zones`,
+      };
+    }
+    return { ok: true as const, id: zone.Id };
+  });
 
 /**
  * Get the CDN hostname (DefaultHostname) from the edge script.
  * This is the stable hostname for CNAME targets, independent of request URL.
  */
-const getCdnHostnameImpl = async (): Promise<
-  { ok: true; hostname: string } | { ok: false; error: string }
-> => {
-  const result = await bunnyCdnApi.getEdgeScript();
-  if (!result.ok) return result;
-  return { ok: true, hostname: result.data.DefaultHostname };
-};
+const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
+  withEdgeScript((data) => ({ ok: true as const, hostname: data.DefaultHostname }));
 
 /** Parse a Bunny API error response into a BunnyApiResult. */
 const parseBunnyError = async (
@@ -204,6 +209,5 @@ export const validateCustomDomain = (
 ): Promise<BunnyApiResult> => bunnyCdnApi.validateCustomDomain(hostname);
 
 /** Get CDN hostname (delegates to bunnyCdnApi for testability). */
-export const getCdnHostname = (): Promise<
-  { ok: true; hostname: string } | { ok: false; error: string }
-> => bunnyCdnApi.getCdnHostname();
+export const getCdnHostname = (): Promise<CdnHostnameResult> =>
+  bunnyCdnApi.getCdnHostname();
