@@ -49,6 +49,16 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
 };
 
+const SubdomainIntroProse = (): SafeHtml => (
+  <div class="prose">
+    <p>
+      You can choose a prettier domain name for your tickets site. Enter a
+      subdomain into the box below to preview the full URL &mdash; you can
+      change your mind before saving, but once set this cannot be changed.
+    </p>
+  </div>
+);
+
 const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   if (s.bunnySubdomain) {
     return (
@@ -72,13 +82,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   if (s.subdomainPreview) {
     return (
       <>
-        <div class="prose">
-          <p>
-            You can choose a prettier domain name for your tickets site. Enter a
-            subdomain into the box below to preview the full URL &mdash; you can
-            change your mind before saving, but once set this cannot be changed.
-          </p>
-        </div>
+        <SubdomainIntroProse />
         <p>
           <strong>{s.subdomainPreviewFullDomain}</strong> is available.
         </p>
@@ -93,13 +97,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   }
   return (
     <>
-      <div class="prose">
-        <p>
-          You can choose a prettier domain name for your tickets site. Enter a
-          subdomain into the box below to preview the full URL &mdash; you can
-          change your mind before saving, but once set this cannot be changed.
-        </p>
-      </div>
+      <SubdomainIntroProse />
       <label>
         Subdomain
         <input
