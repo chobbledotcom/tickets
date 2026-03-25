@@ -57,9 +57,8 @@ import {
   parseEmbedHosts,
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
-import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
-import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
+import { validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
@@ -82,8 +81,9 @@ import {
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
+  applyFlash,
   type AuthSession,
-  getSearchParam,
+  errorRedirect,
   htmlResponse,
   jsonResponse,
   redirect,
@@ -208,13 +208,13 @@ const renderAdvancedSettingsPage = async (
 const settingsPageWithError =
   (_session: AuthSession) =>
   (error: string, _status: number, formId: string): Response =>
-    redirect("/admin/settings", error, false, { formId });
+    errorRedirect("/admin/settings", error, formId);
 
 /** Redirect back to advanced settings page with error flash (PRG pattern) */
 const advancedSettingsPageWithError =
   (_session: AuthSession) =>
   (error: string, _status: number, formId: string): Response =>
-    redirect("/admin/settings-advanced", error, false, { formId });
+    errorRedirect("/admin/settings-advanced", error, formId);
 
 type ErrorPageFn = (
   error: string,
@@ -274,10 +274,7 @@ const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (
   request,
 ) =>
   requireOwnerOr(request, async (session) => {
-    const flash = getFlash();
-    const formId = getSearchParam(request, "form");
-    setFormSuccess(formId, flash.success);
-    if (flash.error) setFormError(formId, flash.error);
+    applyFlash(request);
     return htmlResponse(await renderSettingsPage(session));
   });
 
@@ -288,16 +285,9 @@ const handleAdminSettingsAdvancedGet: TypedRouteHandler<
   "GET /admin/settings-advanced"
 > = (request) =>
   requireOwnerOr(request, async (session) => {
-    const flash = getFlash();
-    const formId = getSearchParam(request, "form");
-    setFormSuccess(formId, flash.success);
-    if (flash.error) setFormError(formId, flash.error);
-    const subdomainPreview = flash.success
-      ? getSearchParam(request, "subdomain")
-      : "";
-    const subdomainPreviewFullDomain = flash.success
-      ? getSearchParam(request, "fullDomain")
-      : "";
+    const flash = applyFlash(request);
+    const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
+      flash.result?.split("\n") ?? [];
     return htmlResponse(
       await renderAdvancedSettingsPage(
         session,
@@ -786,24 +776,29 @@ const handleBookingFeePost = settingsRoute(processBookingFeeForm);
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
   withOwnerAuthMultipartForm(request, async (_session, formData) => {
     if (!isStorageEnabled()) {
-      return htmlResponse("Image storage is not configured", 400);
+      return errorRedirect(
+        "/admin/settings",
+        "Image storage is not configured",
+        "settings-header-image",
+      );
     }
 
     const entry = formData.get("header_image");
     if (!(entry instanceof File) || entry.size === 0) {
-      return redirect("/admin/settings", "No image file provided", false, {
-        formId: "settings-header-image",
-      });
+      return errorRedirect(
+        "/admin/settings",
+        "No image file provided",
+        "settings-header-image",
+      );
     }
 
     const data = new Uint8Array(await entry.arrayBuffer());
     const validation = validateImage(data, entry.type);
     if (!validation.valid) {
-      return redirect(
+      return errorRedirect(
         "/admin/settings",
         IMAGE_ERROR_MESSAGES[validation.error],
-        false,
-        { formId: "settings-header-image" },
+        "settings-header-image",
       );
     }
 
@@ -837,7 +832,11 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
 /** Handle POST /admin/settings/header-image/delete - owner only */
 const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   if (!settings.headerImageUrl) {
-    return htmlResponse("No header image to remove", 400);
+    return errorRedirect(
+      "/admin/settings",
+      "No header image to remove",
+      "settings-header-image",
+    );
   }
 
   const [deleteResult] = await Promise.allSettled([
@@ -1220,7 +1219,7 @@ const handleHostSubdomainPost = advancedSettingsRoute(
         true,
         {
           formId: FORM_ID_HOST_SUBDOMAIN,
-          params: { subdomain: raw, fullDomain: check.fullDomain },
+          result: `${raw}\n${check.fullDomain}`,
         },
       );
     }

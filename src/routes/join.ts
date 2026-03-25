@@ -12,7 +12,13 @@ import {
 import { validateForm } from "#lib/forms.tsx";
 import type { User } from "#lib/types.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { htmlResponse, redirect, withCsrfForm } from "#routes/utils.ts";
+import {
+  applyFlash,
+  errorRedirect,
+  htmlResponse,
+  redirect,
+  withCsrfForm,
+} from "#routes/utils.ts";
 import { type JoinFormValues, joinFields } from "#templates/fields.ts";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
 
@@ -58,12 +64,13 @@ type InviteCodeParams = { code: string };
  * Handle GET /join/:code
  */
 const handleJoinGet = (
-  _request: Request,
+  request: Request,
   { code }: InviteCodeParams,
 ): Promise<Response> =>
   withValidInvite(code, async (code, _user, username) => {
     await signCsrfToken();
-    return htmlResponse(joinPage(code, username));
+    const flash = applyFlash(request);
+    return htmlResponse(joinPage(code, username, flash.error));
   });
 
 /**
@@ -73,33 +80,29 @@ const handleJoinPost = (
   request: Request,
   { code }: InviteCodeParams,
 ): Promise<Response> =>
-  withValidInvite(code, (code, user, username) =>
+  withValidInvite(code, (code, user, _username) =>
     withCsrfForm(
       request,
-      (message, status) =>
-        htmlResponse(joinPage(code, username, message), status),
+      (message) => errorRedirect(`/join/${code}`, message),
       async (form) => {
         // Validate password fields
         const validation = validateForm<JoinFormValues>(form, joinFields);
         if (!validation.valid) {
-          return htmlResponse(joinPage(code, username, validation.error), 400);
+          return errorRedirect(`/join/${code}`, validation.error);
         }
 
         const { password, password_confirm: passwordConfirm } =
           validation.values;
 
         if (password.length < 8) {
-          return htmlResponse(
-            joinPage(code, username, "Password must be at least 8 characters"),
-            400,
+          return errorRedirect(
+            `/join/${code}`,
+            "Password must be at least 8 characters",
           );
         }
 
         if (password !== passwordConfirm) {
-          return htmlResponse(
-            joinPage(code, username, "Passwords do not match"),
-            400,
-          );
+          return errorRedirect(`/join/${code}`, "Passwords do not match");
         }
 
         // Set the password and clear the invite code

@@ -4,6 +4,8 @@ import type { FormParams } from "#lib/form-data.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
 import {
+  applyFlash,
+  errorRedirect,
   htmlResponse,
   type IdRouteHandler,
   notFoundResponse,
@@ -74,18 +76,20 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const authHtml =
     (render: (session: AdminSession) => string | Promise<string>) =>
     (request: Request): Promise<Response> =>
-      requireAuth(request, async (session) =>
-        htmlResponse(await render(session)),
-      );
+      requireAuth(request, async (session) => {
+        applyFlash(request);
+        return htmlResponse(await render(session));
+      });
 
   const authRowHtml =
     (render: (row: Row, session: AdminSession) => string): IdRouteHandler =>
     (request, { id }) =>
-      requireAuth(request, (session) =>
-        orNotFound(cfg.resource.table.findById(id), (row) =>
+      requireAuth(request, (session) => {
+        applyFlash(request);
+        return orNotFound(cfg.resource.table.findById(id), (row) =>
           htmlResponse(render(row, session)),
-        ),
-      );
+        );
+      });
 
   const logAndRedirect = async (
     verb: string,
@@ -105,7 +109,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const newGet = authHtml(cfg.renderNew);
 
-  const createHandler: FormHandler = async (session, form) => {
+  const createHandler: FormHandler = async (_session, form) => {
     const result = await cfg.resource.create(form);
     return result.ok
       ? await logAndRedirect(
@@ -113,7 +117,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
           cfg.getName(result.row),
           cfg.getRowPath?.(result.row),
         )
-      : htmlResponse(cfg.renderNew(session, result.error), 400);
+      : errorRedirect(`${cfg.listPath}/new`, result.error);
   };
 
   const createPost = authForm(createHandler);
@@ -121,7 +125,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const editGet = authRowHtml(cfg.renderEdit);
 
   const editPost: IdRouteHandler = (request, { id }) =>
-    withFormAuth(request, async (session, form) => {
+    withFormAuth(request, async (_session, form) => {
       const result = await cfg.resource.update(id, form);
       if (result.ok) {
         return logAndRedirect(
@@ -131,23 +135,21 @@ const createCrudHandlersWithAuth = <Row, Input>(
         );
       }
       if ("notFound" in result) return notFoundResponse();
-      return orNotFound(cfg.resource.table.findById(id), (row) =>
-        htmlResponse(cfg.renderEdit(row, session, result.error), 400),
-      );
+      return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
     });
 
   const deleteGet = authRowHtml(cfg.renderDelete);
 
   const deletePost: IdRouteHandler = (request, { id }) =>
-    withFormAuth(request, (session, form) =>
+    withFormAuth(request, (_session, form) =>
       orNotFound(cfg.resource.table.findById(id), async (row) => {
         const confirm = String(form.get("confirm_identifier"));
         const nameMatches = cfg.resource.verifyName(row, confirm);
 
         if (!nameMatches) {
-          return htmlResponse(
-            cfg.renderDelete(row, session, cfg.deleteConfirmError),
-            400,
+          return errorRedirect(
+            `${cfg.listPath}/${id}/delete`,
+            cfg.deleteConfirmError,
           );
         }
 

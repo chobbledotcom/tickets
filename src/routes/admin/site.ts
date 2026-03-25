@@ -10,11 +10,11 @@ import {
   SITE_CONTACT_DEMO_FIELDS,
   SITE_HOME_DEMO_FIELDS,
 } from "#lib/demo.ts";
-import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  applyFlash,
   type AuthSession,
   htmlResponse,
   redirect,
@@ -32,22 +32,15 @@ type PageRenderer = (
   success?: string,
 ) => string;
 
-/** Build error page callback for a given renderer */
-const errorPageFor =
-  (session: AuthSession, render: PageRenderer) =>
-  (error: string, status: number): Response =>
-    htmlResponse(render(session, error), status);
-
 /** Owner-only GET route that renders a site editor page */
 const siteGetRoute =
   (render: PageRenderer) =>
-  (request: Request): Promise<Response> => {
-    const flash = getFlash();
-    return requireOwnerOr(request, (session) => {
+  (request: Request): Promise<Response> =>
+    requireOwnerOr(request, (session) => {
+      const flash = applyFlash(request);
       const html = render(session, flash.error, flash.success);
       return htmlResponse(html);
     });
-  };
 
 type SitePostHandler = (
   session: AuthSession,
@@ -82,23 +75,22 @@ const renderContactPage: PageRenderer = (session, error, success) => {
 };
 
 /** Handle POST /admin/site - save homepage */
-const handleSiteHomePost = sitePostRoute(async (session, form) => {
+const handleSiteHomePost = sitePostRoute(async (_session, form) => {
   applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
-  const showError = errorPageFor(session, renderHomePage);
 
   const titleRaw = form.getString("website_title");
   if (titleRaw.length > MAX_WEBSITE_TITLE_LENGTH) {
-    return showError(
+    return errorRedirect(
+      "/admin/site",
       `Website title must be ${MAX_WEBSITE_TITLE_LENGTH} characters or fewer (currently ${titleRaw.length})`,
-      400,
     );
   }
 
   const textRaw = form.getString("homepage_text");
   if (textRaw.length > MAX_TEXTAREA_LENGTH) {
-    return showError(
+    return errorRedirect(
+      "/admin/site",
       `Homepage text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${textRaw.length})`,
-      400,
     );
   }
 
@@ -109,13 +101,13 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
 });
 
 /** Handle POST /admin/site/contact - save contact page */
-const handleSiteContactPost = sitePostRoute(async (session, form) => {
+const handleSiteContactPost = sitePostRoute(async (_session, form) => {
   applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
   const textRaw = form.getString("contact_page_text");
   if (textRaw.length > MAX_TEXTAREA_LENGTH) {
-    return errorPageFor(session, renderContactPage)(
+    return errorRedirect(
+      "/admin/site/contact",
       `Contact page text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${textRaw.length})`,
-      400,
     );
   }
 
