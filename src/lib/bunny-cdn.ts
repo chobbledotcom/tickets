@@ -100,6 +100,18 @@ const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
     hostname: toCnameTarget(data.DefaultHostname),
   }));
 
+/** Drain a successful response or parse an error. */
+const okOrError = async (
+  response: Response,
+  label: string,
+): Promise<BunnyApiResult> => {
+  if (response.status === 204 || response.ok) {
+    await drainResponse(response);
+    return { ok: true };
+  }
+  return parseBunnyError(response, label);
+};
+
 /** Parse a Bunny API error response into a BunnyApiResult. */
 const parseBunnyError = async (
   response: Response,
@@ -140,11 +152,7 @@ const pullZonePost = async (
     body: JSON.stringify(body),
   });
 
-  if (response.status === 204 || response.ok) {
-    await drainResponse(response);
-    return { ok: true };
-  }
-  return parseBunnyError(response, label);
+  return okOrError(response, label);
 };
 
 /** Request a free Let's Encrypt certificate for a hostname on a pull zone. */
@@ -158,11 +166,7 @@ const loadFreeCertificate = async (
     headers: { AccessKey: getBunnyApiKey() },
   });
 
-  if (response.ok) {
-    await drainResponse(response);
-    return { ok: true };
-  }
-  return parseBunnyError(response, "Load free certificate");
+  return okOrError(response, "Load free certificate");
 };
 
 /**
