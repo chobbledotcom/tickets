@@ -1320,19 +1320,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             await assertFormRedirect(
               "/admin/settings/reset-database",
               {
-            confirm_phrase:
-              "The site will be fully reset and all data will be lost.",
-          },
-          "/setup/",
-          "Database reset",
-        );
-        expect(
-          deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
+                confirm_phrase:
+                  "The site will be fully reset and all data will be lost.",
+              },
+              "/setup/",
+              "Database reset",
+            );
+            expect(
+              deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
             ).toBe(true);
             expect(
-              deletedUrls.some((u) =>
-                u.includes("admin-reset-attachment.pdf")
-              ),
+              deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),
             ).toBe(true);
           }),
       );

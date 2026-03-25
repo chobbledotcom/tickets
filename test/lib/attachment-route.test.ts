@@ -4,6 +4,7 @@ import { signAttachmentUrl } from "#lib/attachment-url.ts";
 import { encryptBytes } from "#lib/crypto.ts";
 import { getAttendeeRaw } from "#lib/db/attendees.ts";
 import { eventsTable } from "#lib/db/events.ts";
+import { runWithStorageConfig } from "#lib/storage.ts";
 import { handleRequest } from "#routes";
 import { getMimeType } from "#routes/attachments.ts";
 import {
@@ -14,7 +15,6 @@ import {
   withFetchMock,
   withStorageDisabled,
 } from "#test-utils";
-import { runWithStorageConfig } from "#lib/storage.ts";
 
 describe("getMimeType", () => {
   test("returns application/pdf for .pdf", () => {
@@ -84,20 +84,18 @@ describeWithEnv(
       data: Uint8Array,
       fn: () => Promise<void>,
     ): Promise<void> =>
-      runWithStorageConfig(
-        { zoneName: "testzone", zoneKey: "testkey" },
-        () =>
-          withFetchMock(async (originalFetch) => {
-            const encrypted = await encryptBytes(data);
-            installUrlHandler(originalFetch, (url) => {
-              if (url.includes("storage.bunnycdn.com")) {
-                // deno-lint-ignore no-explicit-any
-                return Promise.resolve(new Response(encrypted as any));
-              }
-              return null;
-            });
-            await fn();
-          }),
+      runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () =>
+        withFetchMock(async (originalFetch) => {
+          const encrypted = await encryptBytes(data);
+          installUrlHandler(originalFetch, (url) => {
+            if (url.includes("storage.bunnycdn.com")) {
+              // deno-lint-ignore no-explicit-any
+              return Promise.resolve(new Response(encrypted as any));
+            }
+            return null;
+          });
+          await fn();
+        }),
       );
 
     test("returns 404 when storage is not enabled", async () => {
@@ -111,10 +109,7 @@ describeWithEnv(
 
     /** Shorthand for running a test body with storage enabled */
     const withStorage = <T>(fn: () => T): T =>
-      runWithStorageConfig(
-        { zoneName: "testzone", zoneKey: "testkey" },
-        fn,
-      );
+      runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, fn);
 
     test("returns 403 when query params are missing", async () => {
       await withStorage(async () => {
@@ -220,7 +215,7 @@ describeWithEnv(
           });
           const response = await handleRequest(mockRequest(path));
           expect(response.status).toBe(404);
-        })
+        }),
       );
     });
 
