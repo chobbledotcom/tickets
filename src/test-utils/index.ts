@@ -521,11 +521,11 @@ export const describeWithEnv = (
     let restoreEnv: () => void;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
-      if (options.env) restoreEnv = setTestEnv(options.env);
       if (options.db) {
         resetTestSlugCounter();
         await createTestDbWithSetup();
       }
+      if (options.env) restoreEnv = setTestEnv(options.env);
     });
     afterEach(() => {
       if (options.db) resetDb();

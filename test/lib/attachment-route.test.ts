@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { signAttachmentUrl } from "#lib/attachment-url.ts";
 import { encryptBytes } from "#lib/crypto.ts";
 import { getAttendeeRaw } from "#lib/db/attendees.ts";
@@ -48,6 +48,10 @@ describe("getMimeType", () => {
 describeWithEnv(
   "GET /attachment/:id",
   {
+    env: {
+      STORAGE_ZONE_NAME: undefined,
+      STORAGE_ZONE_KEY: undefined,
+    },
     db: true,
     encryptionKey: true,
   },
@@ -57,15 +61,6 @@ describeWithEnv(
       Deno.env.set("STORAGE_ZONE_NAME", "testzone");
       Deno.env.set("STORAGE_ZONE_KEY", "testkey");
     };
-
-    /** Disable storage by removing env vars */
-    const disableStorage = () => {
-      Deno.env.delete("STORAGE_ZONE_NAME");
-      Deno.env.delete("STORAGE_ZONE_KEY");
-    };
-
-    // Clean up storage env vars after each test to avoid leaking to other suites
-    afterEach(() => disableStorage());
 
     /** Create an event+attendee with an attachment configured */
     const setupAttachment = async () => {
@@ -106,7 +101,6 @@ describeWithEnv(
       });
 
     test("returns 404 when storage is not enabled", async () => {
-      disableStorage();
       const { eventId, attendeeId } = await setupAttachment();
       const path = await signUrl(eventId, attendeeId);
       const response = await handleRequest(mockRequest(path));
