@@ -299,9 +299,38 @@ const writeEncrypted = async (key: string, value: string): Promise<void> => {
   await writeRaw(key, await encrypt(value));
 };
 
+/** Factory: write encrypted value + update snapshot. */
+const encryptedUpdate =
+  (ck: string, sk: StringSettingKey) =>
+  async (v: string): Promise<void> => {
+    await writeEncrypted(ck, v);
+    setSnapshotField(sk, v);
+  };
+
+/** Factory: write-or-delete plaintext value + update snapshot. */
+const plaintextUpdate =
+  (ck: string, sk: StringSettingKey) =>
+  async (v: string): Promise<void> => {
+    await writeOrDelete(ck, v);
+    setSnapshotField(sk, v);
+  };
+
 // ---------------------------------------------------------------------------
 // Snapshot builder — called by loadAll()
 // ---------------------------------------------------------------------------
+
+/** Mapping: CONFIG_KEY → snapshot field for plaintext string values (default ""). */
+const PLAINTEXT_FIELDS: [string, StringSettingKey][] = [
+  [CONFIG_KEYS.TERMS_AND_CONDITIONS, "terms"],
+  [CONFIG_KEYS.EMAIL_PROVIDER, "emailProvider"],
+  [CONFIG_KEYS.CUSTOM_DOMAIN, "customDomain"],
+  [CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, "customDomainLastValidated"],
+  [CONFIG_KEYS.BUNNY_SUBDOMAIN, "bunnySubdomain"],
+  [CONFIG_KEYS.PUBLIC_KEY, "publicKey"],
+  [CONFIG_KEYS.WRAPPED_PRIVATE_KEY, "wrappedPrivateKey"],
+  [CONFIG_KEYS.SQUARE_LOCATION_ID, "squareLocationId"],
+  [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, "stripeWebhookEndpointId"],
+];
 
 /** Mapping: CONFIG_KEY → snapshot field for encrypted values. */
 const ENCRYPTED_FIELDS: [string, StringSettingKey][] = [
@@ -358,19 +387,11 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
   data.paymentProvider =
     rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
-  data.terms = raw.get(CONFIG_KEYS.TERMS_AND_CONDITIONS) ?? "";
-  data.emailProvider = raw.get(CONFIG_KEYS.EMAIL_PROVIDER) ?? "";
+  for (const [ck, sk] of PLAINTEXT_FIELDS) {
+    setSnapshotField(sk, raw.get(ck) ?? "");
+  }
   data.bookingFee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
-  data.customDomain = raw.get(CONFIG_KEYS.CUSTOM_DOMAIN) ?? "";
-  data.customDomainLastValidated =
-    raw.get(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED) ?? "";
-  data.bunnySubdomain = raw.get(CONFIG_KEYS.BUNNY_SUBDOMAIN) ?? "";
-  data.publicKey = raw.get(CONFIG_KEYS.PUBLIC_KEY) ?? "";
-  data.wrappedPrivateKey = raw.get(CONFIG_KEYS.WRAPPED_PRIVATE_KEY) ?? "";
-  data.squareLocationId = raw.get(CONFIG_KEYS.SQUARE_LOCATION_ID) ?? "";
   data.squareSandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
-  data.stripeWebhookEndpointId =
-    raw.get(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID) ?? "";
   const m = raw.get(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED);
   data.attendeeBlobMigrated = m !== undefined && m !== "" && m !== null;
 
@@ -854,56 +875,33 @@ export const settings = {
       await deleteRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
       data.paymentProvider = null;
     },
-    terms: async (v: string): Promise<void> => {
-      await writeOrDelete(CONFIG_KEYS.TERMS_AND_CONDITIONS, v);
-      data.terms = v;
-    },
+    terms: plaintextUpdate(CONFIG_KEYS.TERMS_AND_CONDITIONS, "terms"),
     bookingFee: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
       data.bookingFee = v || "0";
     },
-    customDomain: async (v: string): Promise<void> => {
-      await writeOrDelete(CONFIG_KEYS.CUSTOM_DOMAIN, v);
-      data.customDomain = v;
-    },
+    customDomain: plaintextUpdate(CONFIG_KEYS.CUSTOM_DOMAIN, "customDomain"),
     customDomainLastValidated: async (): Promise<void> => {
       const ts = new Date().toISOString();
       await writeRaw(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, ts);
       data.customDomainLastValidated = ts;
     },
-    bunnySubdomain: async (v: string): Promise<void> => {
-      await writeOrDelete(CONFIG_KEYS.BUNNY_SUBDOMAIN, v);
-      data.bunnySubdomain = v;
-    },
-    headerImageUrl: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.HEADER_IMAGE_URL, v);
-      data.headerImageUrl = v;
-    },
-    websiteTitle: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.WEBSITE_TITLE, v);
-      data.websiteTitle = v;
-    },
-    homepageText: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.HOMEPAGE_TEXT, v);
-      data.homepageText = v;
-    },
-    contactPageText: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.CONTACT_PAGE_TEXT, v);
-      data.contactPageText = v;
-    },
-    businessEmail: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.BUSINESS_EMAIL, v);
-      data.businessEmail = v;
-    },
-    embedHosts: async (v: string): Promise<void> => {
-      if (v === "") {
-        await writeOrDelete(CONFIG_KEYS.EMBED_HOSTS, "");
-        data.embedHosts = "";
-        return;
-      }
-      await writeRaw(CONFIG_KEYS.EMBED_HOSTS, await encrypt(v));
-      data.embedHosts = v;
-    },
+    bunnySubdomain: plaintextUpdate(
+      CONFIG_KEYS.BUNNY_SUBDOMAIN,
+      "bunnySubdomain",
+    ),
+    headerImageUrl: encryptedUpdate(
+      CONFIG_KEYS.HEADER_IMAGE_URL,
+      "headerImageUrl",
+    ),
+    websiteTitle: encryptedUpdate(CONFIG_KEYS.WEBSITE_TITLE, "websiteTitle"),
+    homepageText: encryptedUpdate(CONFIG_KEYS.HOMEPAGE_TEXT, "homepageText"),
+    contactPageText: encryptedUpdate(
+      CONFIG_KEYS.CONTACT_PAGE_TEXT,
+      "contactPageText",
+    ),
+    businessEmail: encryptedUpdate(CONFIG_KEYS.BUSINESS_EMAIL, "businessEmail"),
+    embedHosts: encryptedUpdate(CONFIG_KEYS.EMBED_HOSTS, "embedHosts"),
     attendeeBlobMigrated: async (): Promise<void> => {
       await writeRaw(
         CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED,
@@ -914,10 +912,10 @@ export const settings = {
 
     // --- Stripe writes ---
     stripe: {
-      secretKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.STRIPE_SECRET_KEY, v);
-        data.stripeSecretKey = v;
-      },
+      secretKey: encryptedUpdate(
+        CONFIG_KEYS.STRIPE_SECRET_KEY,
+        "stripeSecretKey",
+      ),
       webhookConfig: async (config: {
         secret: string;
         endpointId: string;
@@ -937,14 +935,14 @@ export const settings = {
 
     // --- Square writes ---
     square: {
-      accessToken: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.SQUARE_ACCESS_TOKEN, v);
-        data.squareAccessToken = v;
-      },
-      webhookSignatureKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY, v);
-        data.squareWebhookSignatureKey = v;
-      },
+      accessToken: encryptedUpdate(
+        CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
+        "squareAccessToken",
+      ),
+      webhookSignatureKey: encryptedUpdate(
+        CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
+        "squareWebhookSignatureKey",
+      ),
       locationId: async (v: string): Promise<void> => {
         await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, v);
         data.squareLocationId = v;
@@ -957,18 +955,12 @@ export const settings = {
 
     // --- Email writes ---
     email: {
-      provider: async (v: string): Promise<void> => {
-        await writeOrDelete(CONFIG_KEYS.EMAIL_PROVIDER, v);
-        data.emailProvider = v;
-      },
-      apiKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.EMAIL_API_KEY, v);
-        data.emailApiKey = v;
-      },
-      fromAddress: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.EMAIL_FROM_ADDRESS, v);
-        data.emailFromAddress = v;
-      },
+      provider: plaintextUpdate(CONFIG_KEYS.EMAIL_PROVIDER, "emailProvider"),
+      apiKey: encryptedUpdate(CONFIG_KEYS.EMAIL_API_KEY, "emailApiKey"),
+      fromAddress: encryptedUpdate(
+        CONFIG_KEYS.EMAIL_FROM_ADDRESS,
+        "emailFromAddress",
+      ),
       template: async (
         type: EmailTemplateType,
         format: EmailTemplateFormat,
@@ -982,45 +974,42 @@ export const settings = {
 
     // --- Apple Wallet writes ---
     appleWallet: {
-      passTypeId: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID, v);
-        data.appleWalletPassTypeId = v;
-      },
-      teamId: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_TEAM_ID, v);
-        data.appleWalletTeamId = v;
-      },
-      signingCert: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT, v);
-        data.appleWalletSigningCert = v;
-      },
-      signingKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY, v);
-        data.appleWalletSigningKey = v;
-      },
-      wwdrCert: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, v);
-        data.appleWalletWwdrCert = v;
-      },
+      passTypeId: encryptedUpdate(
+        CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
+        "appleWalletPassTypeId",
+      ),
+      teamId: encryptedUpdate(
+        CONFIG_KEYS.APPLE_WALLET_TEAM_ID,
+        "appleWalletTeamId",
+      ),
+      signingCert: encryptedUpdate(
+        CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT,
+        "appleWalletSigningCert",
+      ),
+      signingKey: encryptedUpdate(
+        CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
+        "appleWalletSigningKey",
+      ),
+      wwdrCert: encryptedUpdate(
+        CONFIG_KEYS.APPLE_WALLET_WWDR_CERT,
+        "appleWalletWwdrCert",
+      ),
     },
 
     // --- Google Wallet writes ---
     googleWallet: {
-      issuerId: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID, v);
-        data.googleWalletIssuerId = v;
-      },
-      serviceAccountEmail: async (v: string): Promise<void> => {
-        await writeEncrypted(
-          CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
-          v,
-        );
-        data.googleWalletServiceAccountEmail = v;
-      },
-      serviceAccountKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY, v);
-        data.googleWalletServiceAccountKey = v;
-      },
+      issuerId: encryptedUpdate(
+        CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
+        "googleWalletIssuerId",
+      ),
+      serviceAccountEmail: encryptedUpdate(
+        CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
+        "googleWalletServiceAccountEmail",
+      ),
+      serviceAccountKey: encryptedUpdate(
+        CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
+        "googleWalletServiceAccountKey",
+      ),
     },
   },
 };
