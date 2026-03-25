@@ -590,10 +590,28 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
   describeWithEnv(
     "custom domain",
-    { env: { BUNNY_API_KEY: undefined } },
+    { env: { BUNNY_API_KEY: undefined, BUNNY_SCRIPT_ID: undefined } },
     () => {
+      let restoreCdnHostname: (() => void) | null = null;
+      afterEach(() => {
+        if (restoreCdnHostname) {
+          restoreCdnHostname();
+          restoreCdnHostname = null;
+        }
+      });
+
       const setBunnyEnv = () => {
         Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
+        Deno.env.set("BUNNY_SCRIPT_ID", "99");
+        const original = bunnyCdnApi.getCdnHostname;
+        bunnyCdnApi.getCdnHostname = () =>
+          Promise.resolve({
+            ok: true as const,
+            hostname: "mysite.b-cdn.net",
+          });
+        restoreCdnHostname = () => {
+          bunnyCdnApi.getCdnHostname = original;
+        };
       };
 
       test("does not show custom domain form when Bunny CDN is not configured", async () => {
@@ -634,8 +652,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         expect(html).toContain('id="settings-custom-domain-validate"');
         expect(html).toContain("CNAME");
         expect(html).toContain("tickets.example.com");
-        // CDN hostname is derived from the effective domain (localhost in tests)
-        expect(html).toContain("localhost");
+        // CDN hostname is fetched from the edge script API
+        expect(html).toContain("mysite.b-cdn.net");
       });
 
       test("shows warning when custom domain is not validated", async () => {

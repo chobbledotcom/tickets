@@ -8,11 +8,8 @@ import {
   isValidPemPrivateKey,
 } from "#lib/apple-wallet.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#lib/build-info.ts";
-import {
-  getCdnHostname,
-  getEffectiveDomain,
-  isBunnyCdnEnabled,
-} from "#lib/config.ts";
+import { getCdnHostname } from "#lib/bunny-cdn.ts";
+import { getEffectiveDomain, isBunnyCdnEnabled } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { getHostEmailConfig } from "#lib/email.ts";
 import { getEnv } from "#lib/env.ts";
@@ -58,6 +55,8 @@ const validateAppleWalletCerts = (
 /** Gather debug state concurrently */
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
+  const bunnyCdnResult = bunnyCdnEnabled ? await getCdnHostname() : null;
+  const bunnyCdnCdnHostname = bunnyCdnResult?.ok ? bunnyCdnResult.hostname : "";
 
   const hostEmailConfig = getHostEmailConfig();
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
@@ -149,7 +148,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     },
     bunnyCdn: {
       enabled: bunnyCdnEnabled,
-      cdnHostname: bunnyCdnEnabled ? getCdnHostname() : "",
+      cdnHostname: bunnyCdnCdnHostname,
       customDomain: bunnyCdnEnabled ? settings.customDomain : "",
     },
     database: {

@@ -1,11 +1,11 @@
 /**
  * Bunny CDN pull zone API integration.
  * Adds a custom hostname to a pull zone and enables force SSL.
- * Only used when BUNNY_API_KEY env var is set.
- * The pull zone ID is discovered automatically by matching hostnames.
+ * Only used when BUNNY_API_KEY and BUNNY_SCRIPT_ID env vars are set.
+ * The pull zone is discovered via the Edge Script API, not request hostname.
  */
 
-import { getBunnyApiKey, getCdnHostname } from "#lib/config.ts";
+import { getBunnyApiKey, getBunnyScriptId } from "#lib/config.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
@@ -14,53 +14,78 @@ type BunnyApiResult =
   | { ok: true }
   | { ok: false; error: string; errorKey?: string };
 
+type CdnHostnameResult =
+  | { ok: true; hostname: string }
+  | { ok: false; error: string };
+
 const HOSTNAME_ALREADY_REGISTERED = "pullzone.hostname_already_registered";
 
-interface BunnyHostname {
-  Value: string;
-}
-
-interface BunnyPullZone {
+interface EdgeScriptLinkedPullZone {
   Id: number;
-  Hostnames: BunnyHostname[];
+  PullZoneName: string;
+  DefaultHostname: string;
 }
 
-interface BunnyPullZoneListResponse {
-  Items: BunnyPullZone[];
-  HasMoreItems: boolean;
+interface EdgeScriptResponse {
+  Id: number;
+  DefaultHostname: string;
+  LinkedPullZones: EdgeScriptLinkedPullZone[];
 }
 
 /**
- * Find the pull zone ID by searching pull zones for the CDN hostname
- * (effective domain with .bunny.run replaced by .b-cdn.net).
+ * Fetch the edge script details from the Bunny API using BUNNY_SCRIPT_ID.
+ * Returns the DefaultHostname and LinkedPullZones.
  */
-const findPullZoneIdImpl = async (): Promise<
-  { ok: true; id: number } | { ok: false; error: string; errorKey?: string }
+const getEdgeScriptImpl = async (): Promise<
+  | { ok: true; data: EdgeScriptResponse }
+  | { ok: false; error: string; errorKey?: string }
 > => {
-  const cdnHostname = getCdnHostname();
+  const scriptId = getBunnyScriptId();
   const response = await fetch(
-    `${BUNNY_API_BASE}/pullzone?search=${encodeURIComponent(cdnHostname)}`,
+    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}`,
     { headers: { AccessKey: getBunnyApiKey() } },
   );
 
   if (!response.ok) {
-    return parseBunnyError(response, "List pull zones");
+    return parseBunnyError(response, "Get edge script");
   }
 
-  const data: BunnyPullZoneListResponse = await response.json();
-  const zone = data.Items.find((z) =>
-    z.Hostnames.some((h) => h.Value === cdnHostname),
-  );
-
-  if (!zone) {
-    return {
-      ok: false,
-      error: `No pull zone found with hostname ${cdnHostname}`,
-    };
-  }
-
-  return { ok: true, id: zone.Id };
+  const data: EdgeScriptResponse = await response.json();
+  return { ok: true, data };
 };
+
+/** Map edge script data to a result, returning early on API error. */
+const withEdgeScript = async <T>(
+  fn: (data: EdgeScriptResponse) => T,
+): Promise<T | { ok: false; error: string; errorKey?: string }> => {
+  const result = await bunnyCdnApi.getEdgeScript();
+  if (!result.ok) return result;
+  return fn(result.data);
+};
+
+/**
+ * Find the pull zone ID via the edge script's linked pull zones.
+ */
+const findPullZoneIdImpl = (): Promise<
+  { ok: true; id: number } | { ok: false; error: string; errorKey?: string }
+> =>
+  withEdgeScript((data) => {
+    const zone = data.LinkedPullZones[0];
+    if (!zone) {
+      return {
+        ok: false as const,
+        error: `Edge script ${getBunnyScriptId()} has no linked pull zones`,
+      };
+    }
+    return { ok: true as const, id: zone.Id };
+  });
+
+/**
+ * Get the CDN hostname (DefaultHostname) from the edge script.
+ * This is the stable hostname for CNAME targets, independent of request URL.
+ */
+const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
+  withEdgeScript((data) => ({ ok: true as const, hostname: data.DefaultHostname }));
 
 /** Parse a Bunny API error response into a BunnyApiResult. */
 const parseBunnyError = async (
@@ -174,9 +199,15 @@ const validateCustomDomainImpl = async (
 export const bunnyCdnApi = {
   validateCustomDomain: validateCustomDomainImpl,
   findPullZoneId: findPullZoneIdImpl,
+  getEdgeScript: getEdgeScriptImpl,
+  getCdnHostname: getCdnHostnameImpl,
 };
 
 /** Validate a custom domain (delegates to bunnyCdnApi for testability). */
 export const validateCustomDomain = (
   hostname: string,
 ): Promise<BunnyApiResult> => bunnyCdnApi.validateCustomDomain(hostname);
+
+/** Get CDN hostname (delegates to bunnyCdnApi for testability). */
+export const getCdnHostname = (): Promise<CdnHostnameResult> =>
+  bunnyCdnApi.getCdnHostname();

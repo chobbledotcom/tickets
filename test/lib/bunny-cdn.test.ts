@@ -1,13 +1,15 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { bunnyCdnApi, validateCustomDomain } from "#lib/bunny-cdn.ts";
+import {
+  bunnyCdnApi,
+  getCdnHostname,
+  validateCustomDomain,
+} from "#lib/bunny-cdn.ts";
 import {
   getBunnyApiKey,
-  getCdnHostname,
+  getBunnyScriptId,
   isBunnyCdnEnabled,
-  resetEffectiveDomain,
-  setEffectiveDomainForTest,
 } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
@@ -48,46 +50,45 @@ const stubFetchWithRecorder = (
     },
   );
 
-/** Build a pull zone Items response */
-const pullZoneResponse = (
-  items: { Id: number; hostname: string }[],
-  hasMore = false,
+/** Build an edge script API response */
+const edgeScriptResponse = (
+  pullZones: {
+    Id: number;
+    PullZoneName: string;
+    DefaultHostname: string;
+  }[] = [],
+  defaultHostname = "mysite.b-cdn.net",
 ) => ({
-  Items: items.map(({ Id, hostname }) => ({
-    Id,
-    Hostnames: [{ Value: hostname }],
-  })),
-  HasMoreItems: hasMore,
+  Id: 1,
+  DefaultHostname: defaultHostname,
+  LinkedPullZones: pullZones,
 });
 
 describeWithEnv(
   "isBunnyCdnEnabled",
-  { env: { BUNNY_API_KEY: undefined } },
+  { env: { BUNNY_API_KEY: undefined, BUNNY_SCRIPT_ID: undefined } },
   () => {
-    test("returns false when BUNNY_API_KEY is not set", () => {
+    test("returns false when neither env var is set", () => {
       expect(isBunnyCdnEnabled()).toBe(false);
     });
 
-    test("returns true when BUNNY_API_KEY is set", () => {
+    test("returns false when only BUNNY_API_KEY is set", () => {
       Deno.env.set("BUNNY_API_KEY", "test-key");
+      expect(isBunnyCdnEnabled()).toBe(false);
+    });
+
+    test("returns false when only BUNNY_SCRIPT_ID is set", () => {
+      Deno.env.set("BUNNY_SCRIPT_ID", "123");
+      expect(isBunnyCdnEnabled()).toBe(false);
+    });
+
+    test("returns true when both env vars are set", () => {
+      Deno.env.set("BUNNY_API_KEY", "test-key");
+      Deno.env.set("BUNNY_SCRIPT_ID", "123");
       expect(isBunnyCdnEnabled()).toBe(true);
     });
   },
 );
-
-describe("getCdnHostname", () => {
-  afterEach(() => resetEffectiveDomain());
-
-  test("replaces .bunny.run with .b-cdn.net", () => {
-    setEffectiveDomainForTest("mysite.bunny.run");
-    expect(getCdnHostname()).toBe("mysite.b-cdn.net");
-  });
-
-  test("returns domain unchanged when not .bunny.run", () => {
-    setEffectiveDomainForTest("example.com");
-    expect(getCdnHostname()).toBe("example.com");
-  });
-});
 
 describe("validateCustomDomain", () => {
   test("delegates to bunnyCdnApi.validateCustomDomain", async () => {
@@ -115,33 +116,40 @@ describeWithEnv("getBunnyApiKey", { env: { BUNNY_API_KEY: undefined } }, () => {
 });
 
 describeWithEnv(
-  "findPullZoneId",
-  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  "getBunnyScriptId",
+  { env: { BUNNY_SCRIPT_ID: undefined } },
   () => {
-    beforeEach(() => setEffectiveDomainForTest("mysite.bunny.run"));
-    afterEach(() => resetEffectiveDomain());
+    test("getBunnyScriptId returns the env var value", () => {
+      Deno.env.set("BUNNY_SCRIPT_ID", "42");
+      expect(getBunnyScriptId()).toBe("42");
+    });
+  },
+);
 
-    test("returns pull zone ID when matching hostname is found", async () => {
+describeWithEnv(
+  "getEdgeScript",
+  { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
+  () => {
+    test("returns edge script data on success", async () => {
+      const response = edgeScriptResponse([
+        {
+          Id: 222,
+          PullZoneName: "mysite",
+          DefaultHostname: "mysite.b-cdn.net",
+        },
+      ]);
       await withMocks(
-        () =>
-          stubFetchJson(
-            pullZoneResponse([
-              { Id: 111, hostname: "other.b-cdn.net" },
-              { Id: 222, hostname: "mysite.b-cdn.net" },
-            ]),
-          ),
+        () => stubFetchJson(response),
         async () => {
-          const result = await bunnyCdnApi.findPullZoneId();
-          expect(result).toEqual({ ok: true, id: 222 });
+          const result = await bunnyCdnApi.getEdgeScript();
+          expect(result).toEqual({ ok: true, data: response });
         },
       );
     });
 
     test("sends correct request to Bunny API", async () => {
       const calls: { url: string; init: RequestInit | undefined }[] = [];
-      const response = pullZoneResponse([
-        { Id: 42, hostname: "mysite.b-cdn.net" },
-      ]);
+      const response = edgeScriptResponse();
       await withMocks(
         () =>
           stub(
@@ -153,29 +161,13 @@ describeWithEnv(
             },
           ),
         async () => {
-          await bunnyCdnApi.findPullZoneId();
+          await bunnyCdnApi.getEdgeScript();
           expect(calls).toHaveLength(1);
           expect(calls.at(0)!.url).toBe(
-            "https://api.bunny.net/pullzone?search=mysite.b-cdn.net",
+            "https://api.bunny.net/compute/script/99",
           );
           expect(calls.at(0)!.init!.headers).toEqual({
             AccessKey: "test-bunny-key",
-          });
-        },
-      );
-    });
-
-    test("returns error when no matching pull zone is found", async () => {
-      await withMocks(
-        () =>
-          stubFetchJson(
-            pullZoneResponse([{ Id: 111, hostname: "other.b-cdn.net" }]),
-          ),
-        async () => {
-          const result = await bunnyCdnApi.findPullZoneId();
-          expect(result).toEqual({
-            ok: false,
-            error: "No pull zone found with hostname mysite.b-cdn.net",
           });
         },
       );
@@ -188,10 +180,10 @@ describeWithEnv(
             Promise.resolve(new Response("Unauthorized", { status: 401 })),
           ),
         async () => {
-          const result = await bunnyCdnApi.findPullZoneId();
+          const result = await bunnyCdnApi.getEdgeScript();
           expect(result).toEqual({
             ok: false,
-            error: "List pull zones failed (401): Unauthorized",
+            error: "Get edge script failed (401): Unauthorized",
           });
         },
       );
@@ -199,20 +191,132 @@ describeWithEnv(
 
     test("returns errorKey from JSON error response", async () => {
       const jsonBody = JSON.stringify({
-        ErrorKey: "pullzone.rate_limited",
-        Message: "Too many requests.",
+        ErrorKey: "script.not_found",
+        Message: "Script not found.",
       });
       await withMocks(
         () =>
           stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response(jsonBody, { status: 429 })),
+            Promise.resolve(new Response(jsonBody, { status: 404 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.getEdgeScript();
+          expect(result).toEqual({
+            ok: false,
+            error: "Get edge script failed (404): Script not found.",
+            errorKey: "script.not_found",
+          });
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
+  "findPullZoneId",
+  { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
+  () => {
+    test("returns pull zone ID from first linked pull zone", async () => {
+      const response = edgeScriptResponse([
+        {
+          Id: 222,
+          PullZoneName: "mysite",
+          DefaultHostname: "mysite.b-cdn.net",
+        },
+      ]);
+      await withMocks(
+        () => stubFetchJson(response),
+        async () => {
+          const result = await bunnyCdnApi.findPullZoneId();
+          expect(result).toEqual({ ok: true, id: 222 });
+        },
+      );
+    });
+
+    test("returns error when no linked pull zones", async () => {
+      const response = edgeScriptResponse([]);
+      await withMocks(
+        () => stubFetchJson(response),
+        async () => {
+          const result = await bunnyCdnApi.findPullZoneId();
+          expect(result).toEqual({
+            ok: false,
+            error: "Edge script 99 has no linked pull zones",
+          });
+        },
+      );
+    });
+
+    test("returns error when edge script API fails", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Unauthorized", { status: 401 })),
           ),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
           expect(result).toEqual({
             ok: false,
-            error: "List pull zones failed (429): Too many requests.",
-            errorKey: "pullzone.rate_limited",
+            error: "Get edge script failed (401): Unauthorized",
+          });
+        },
+      );
+    });
+  },
+);
+
+describe("getCdnHostname", () => {
+  test("delegates to bunnyCdnApi.getCdnHostname", async () => {
+    const original = bunnyCdnApi.getCdnHostname;
+    bunnyCdnApi.getCdnHostname = () =>
+      Promise.resolve({ ok: true as const, hostname: "mysite.b-cdn.net" });
+    try {
+      const result = await getCdnHostname();
+      expect(result).toEqual({ ok: true, hostname: "mysite.b-cdn.net" });
+    } finally {
+      bunnyCdnApi.getCdnHostname = original;
+    }
+  });
+
+  test("returns error from bunnyCdnApi", async () => {
+    const original = bunnyCdnApi.getCdnHostname;
+    bunnyCdnApi.getCdnHostname = () =>
+      Promise.resolve({ ok: false as const, error: "API error" });
+    try {
+      const result = await getCdnHostname();
+      expect(result).toEqual({ ok: false, error: "API error" });
+    } finally {
+      bunnyCdnApi.getCdnHostname = original;
+    }
+  });
+});
+
+describeWithEnv(
+  "getCdnHostname (real implementation)",
+  { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
+  () => {
+    test("returns DefaultHostname from edge script", async () => {
+      const response = edgeScriptResponse([], "mysite.b-cdn.net");
+      await withMocks(
+        () => stubFetchJson(response),
+        async () => {
+          const result = await bunnyCdnApi.getCdnHostname();
+          expect(result).toEqual({ ok: true, hostname: "mysite.b-cdn.net" });
+        },
+      );
+    });
+
+    test("returns error when edge script API fails", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Not found", { status: 404 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.getCdnHostname();
+          expect(result).toEqual({
+            ok: false,
+            error: "Get edge script failed (404): Not found",
           });
         },
       );
@@ -222,11 +326,8 @@ describeWithEnv(
 
 describeWithEnv(
   "validateCustomDomain (real implementation)",
-  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
   () => {
-    beforeEach(() => setEffectiveDomainForTest("mysite.bunny.run"));
-    afterEach(() => resetEffectiveDomain());
-
     /** Helper: stub findPullZoneId to return a fixed ID */
     const withFixedPullZoneId = (fn: () => Promise<void>): Promise<void> => {
       const original = bunnyCdnApi.findPullZoneId;
@@ -299,14 +400,14 @@ describeWithEnv(
       bunnyCdnApi.findPullZoneId = () =>
         Promise.resolve({
           ok: false as const,
-          error: "No pull zone found with hostname mysite.b-cdn.net",
+          error: "Edge script 99 has no linked pull zones",
         });
       try {
         const result =
           await bunnyCdnApi.validateCustomDomain("cdn.example.com");
         expect(result).toEqual({
           ok: false,
-          error: "No pull zone found with hostname mysite.b-cdn.net",
+          error: "Edge script 99 has no linked pull zones",
         });
       } finally {
         bunnyCdnApi.findPullZoneId = original;
