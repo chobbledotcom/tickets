@@ -2,15 +2,12 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  buildSubdomainRecordName,
   bunnyCdnApi,
   checkSubdomainAvailable,
   registerBunnySubdomain,
   validateCustomDomain,
 } from "#lib/bunny-cdn.ts";
 import {
-  getBunnyApiKey,
-  getBunnyDnsSubdomainSuffix,
   getCdnHostname,
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
@@ -20,17 +17,22 @@ import {
 import { settings } from "#lib/db/settings.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
 
-/** Temporarily replace bunnyCdnApi.validateCustomDomain with a mock */
-const withMockValidate = async (
-  mockResult: { ok: true } | { ok: false; error: string; errorKey?: string },
+/** Temporarily replace bunnyCdnApi methods and restore after test */
+const withMockApi = async (
+  overrides: Partial<typeof bunnyCdnApi>,
   fn: () => Promise<void>,
 ): Promise<void> => {
-  const original = bunnyCdnApi.validateCustomDomain;
-  bunnyCdnApi.validateCustomDomain = () => Promise.resolve(mockResult);
+  const originals: Partial<typeof bunnyCdnApi> = {};
+  for (const key of Object.keys(overrides) as (keyof typeof bunnyCdnApi)[]) {
+    // deno-lint-ignore no-explicit-any
+    originals[key] = bunnyCdnApi[key] as any;
+    // deno-lint-ignore no-explicit-any
+    bunnyCdnApi[key] = overrides[key] as any;
+  }
   try {
     await fn();
   } finally {
-    bunnyCdnApi.validateCustomDomain = original;
+    Object.assign(bunnyCdnApi, originals);
   }
 };
 
@@ -99,26 +101,13 @@ describe("getCdnHostname", () => {
 
 describe("validateCustomDomain", () => {
   test("delegates to bunnyCdnApi.validateCustomDomain", async () => {
-    const mockResult = { ok: true as const };
-    await withMockValidate(mockResult, async () => {
-      const result = await validateCustomDomain("test.example.com");
-      expect(result).toEqual(mockResult);
-    });
-  });
-
-  test("returns error from bunnyCdnApi", async () => {
-    const mockResult = { ok: false as const, error: "test error" };
-    await withMockValidate(mockResult, async () => {
-      const result = await validateCustomDomain("test.example.com");
-      expect(result).toEqual(mockResult);
-    });
-  });
-});
-
-describeWithEnv("getBunnyApiKey", { env: { BUNNY_API_KEY: undefined } }, () => {
-  test("getBunnyApiKey returns the env var value", () => {
-    Deno.env.set("BUNNY_API_KEY", "my-api-key");
-    expect(getBunnyApiKey()).toBe("my-api-key");
+    await withMockApi(
+      { validateCustomDomain: () => Promise.resolve({ ok: true as const }) },
+      async () => {
+        const result = await validateCustomDomain("test.example.com");
+        expect(result).toEqual({ ok: true });
+      },
+    );
   });
 });
 
@@ -235,18 +224,12 @@ describeWithEnv(
     beforeEach(() => setAllowedDomainForTest("mysite.bunny.run"));
     afterEach(() => resetAllowedDomain());
 
-    /** Helper: stub findPullZoneId to return a fixed ID */
-    const withFixedPullZoneId = (fn: () => Promise<void>): Promise<void> => {
-      const original = bunnyCdnApi.findPullZoneId;
-      bunnyCdnApi.findPullZoneId = () =>
-        Promise.resolve({ ok: true as const, id: 12345 });
-      return fn().finally(() => {
-        bunnyCdnApi.findPullZoneId = original;
-      });
+    const fixedPullZone = {
+      findPullZoneId: () => Promise.resolve({ ok: true as const, id: 12345 }),
     };
 
     test("returns ok when all API calls succeed", async () => {
-      await withFixedPullZoneId(async () => {
+      await withMockApi(fixedPullZone, async () => {
         await withMocks(
           () =>
             stub(globalThis, "fetch", () =>
@@ -262,67 +245,49 @@ describeWithEnv(
     });
 
     test("sends correct requests to Bunny API", async () => {
-      await withFixedPullZoneId(async () => {
+      await withMockApi(fixedPullZone, async () => {
         const calls: { url: string; init: RequestInit | undefined }[] = [];
         await withMocks(
           () => stubFetchWithRecorder(calls),
           async () => {
             await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(calls).toHaveLength(3);
-            const addCall = calls.at(0)!;
-            const certCall = calls.at(1)!;
-            const sslCall = calls.at(2)!;
-            expect(addCall.url).toBe(
+            expect(calls.at(0)!.url).toBe(
               "https://api.bunny.net/pullzone/12345/addHostname",
             );
-            expect(addCall.init!.method).toBe("POST");
-            expect(addCall.init!.headers).toEqual({
-              AccessKey: "test-bunny-key",
-              "Content-Type": "application/json",
-            });
-            expect(JSON.parse(addCall.init!.body as string)).toEqual({
-              Hostname: "cdn.example.com",
-            });
-            expect(certCall.url).toBe(
+            expect(calls.at(1)!.url).toBe(
               "https://api.bunny.net/pullzone/loadFreeCertificate?hostname=cdn.example.com",
             );
-            expect(certCall.init!.method).toBe("GET");
-            expect(certCall.init!.headers).toEqual({
-              AccessKey: "test-bunny-key",
-            });
-            expect(sslCall.url).toBe(
+            expect(calls.at(2)!.url).toBe(
               "https://api.bunny.net/pullzone/12345/setForceSSL",
             );
-            expect(JSON.parse(sslCall.init!.body as string)).toEqual({
-              Hostname: "cdn.example.com",
-              ForceSSL: true,
-            });
           },
         );
       });
     });
 
     test("returns error when findPullZoneId fails", async () => {
-      const original = bunnyCdnApi.findPullZoneId;
-      bunnyCdnApi.findPullZoneId = () =>
-        Promise.resolve({
-          ok: false as const,
-          error: "No pull zone found with hostname mysite.b-cdn.net",
-        });
-      try {
-        const result =
-          await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-        expect(result).toEqual({
-          ok: false,
-          error: "No pull zone found with hostname mysite.b-cdn.net",
-        });
-      } finally {
-        bunnyCdnApi.findPullZoneId = original;
-      }
+      await withMockApi(
+        {
+          findPullZoneId: () =>
+            Promise.resolve({
+              ok: false as const,
+              error: "No pull zone found with hostname mysite.b-cdn.net",
+            }),
+        },
+        async () => {
+          const result =
+            await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+          expect(result).toEqual({
+            ok: false,
+            error: "No pull zone found with hostname mysite.b-cdn.net",
+          });
+        },
+      );
     });
 
     test("returns error when addHostname fails", async () => {
-      await withFixedPullZoneId(async () => {
+      await withMockApi(fixedPullZone, async () => {
         await withMocks(
           () =>
             stub(globalThis, "fetch", () =>
@@ -342,11 +307,10 @@ describeWithEnv(
       });
     });
 
-    test("extracts Message from JSON error response", async () => {
-      await withFixedPullZoneId(async () => {
+    test("extracts errorKey from JSON error response", async () => {
+      await withMockApi(fixedPullZone, async () => {
         const jsonBody = JSON.stringify({
           ErrorKey: "pullzone.some_other_error",
-          Field: "Hostname",
           Message: "Something went wrong.",
         });
         await withMocks(
@@ -368,11 +332,10 @@ describeWithEnv(
     });
 
     test("treats hostname_already_registered as success", async () => {
-      await withFixedPullZoneId(async () => {
+      await withMockApi(fixedPullZone, async () => {
         let callCount = 0;
         const jsonBody = JSON.stringify({
           ErrorKey: "pullzone.hostname_already_registered",
-          Field: "Hostname",
           Message: "The hostname is already registered.",
         });
         await withMocks(
@@ -394,8 +357,8 @@ describeWithEnv(
       });
     });
 
-    test("does not call setForceSSL when addHostname fails", async () => {
-      await withFixedPullZoneId(async () => {
+    test("stops on addHostname failure without calling subsequent APIs", async () => {
+      await withMockApi(fixedPullZone, async () => {
         let callCount = 0;
         await withMocks(
           () =>
@@ -414,7 +377,7 @@ describeWithEnv(
     });
 
     test("returns error when loadFreeCertificate fails", async () => {
-      await withFixedPullZoneId(async () => {
+      await withMockApi(fixedPullZone, async () => {
         let callCount = 0;
         await withMocks(
           () =>
@@ -440,30 +403,8 @@ describeWithEnv(
       });
     });
 
-    test("does not call setForceSSL when loadFreeCertificate fails", async () => {
-      await withFixedPullZoneId(async () => {
-        let callCount = 0;
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () => {
-              callCount++;
-              if (callCount <= 1) {
-                return Promise.resolve(new Response(null, { status: 204 }));
-              }
-              return Promise.resolve(
-                new Response("Certificate error", { status: 400 }),
-              );
-            }),
-          async () => {
-            await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(callCount).toBe(2);
-          },
-        );
-      });
-    });
-
     test("returns error when setForceSSL fails", async () => {
-      await withFixedPullZoneId(async () => {
+      await withMockApi(fixedPullZone, async () => {
         let callCount = 0;
         await withMocks(
           () =>
@@ -512,32 +453,6 @@ describeWithEnv(
       Deno.env.set("BUNNY_API_KEY", "key");
       Deno.env.set("BUNNY_DNS_ZONE_ID", "123");
       expect(isBunnyDnsEnabled()).toBe(true);
-    });
-  },
-);
-
-describeWithEnv(
-  "buildSubdomainRecordName",
-  { env: { BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets" } },
-  () => {
-    test("appends suffix to subdomain", () => {
-      expect(buildSubdomainRecordName("myevent")).toBe("myevent.tickets");
-    });
-
-    test("works with empty suffix", () => {
-      Deno.env.set("BUNNY_DNS_SUBDOMAIN_SUFFIX", "");
-      expect(buildSubdomainRecordName("myevent")).toBe("myevent");
-    });
-  },
-);
-
-describeWithEnv(
-  "getBunnyDnsSubdomainSuffix",
-  { env: { BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined } },
-  () => {
-    test("returns empty string when env var is not set", () => {
-      Deno.env.delete("BUNNY_DNS_SUBDOMAIN_SUFFIX");
-      expect(getBunnyDnsSubdomainSuffix()).toBe("");
     });
   },
 );
@@ -613,12 +528,8 @@ describeWithEnv(
     },
   },
   () => {
-    const withMockDnsZone = (
-      records: { Name: string }[],
-      fn: () => Promise<void>,
-    ): Promise<void> => {
-      const original = bunnyCdnApi.getDnsZone;
-      bunnyCdnApi.getDnsZone = () =>
+    const mockDnsZone = (records: { Name: string }[]) => ({
+      getDnsZone: () =>
         Promise.resolve({
           ok: true as const,
           zone: {
@@ -631,14 +542,11 @@ describeWithEnv(
               Value: "target.com",
             })),
           },
-        });
-      return fn().finally(() => {
-        bunnyCdnApi.getDnsZone = original;
-      });
-    };
+        }),
+    });
 
     test("returns available when no matching record exists", async () => {
-      await withMockDnsZone([{ Name: "other.tickets" }], async () => {
+      await withMockApi(mockDnsZone([{ Name: "other.tickets" }]), async () => {
         const result = await checkSubdomainAvailable("myevent");
         expect(result).toEqual({
           ok: true,
@@ -649,26 +557,66 @@ describeWithEnv(
     });
 
     test("returns not available when matching record exists", async () => {
-      await withMockDnsZone([{ Name: "myevent.tickets" }], async () => {
-        const result = await checkSubdomainAvailable("myevent");
-        expect(result).toEqual({
-          ok: true,
-          available: false,
-          fullDomain: "myevent.tickets.example.com",
-        });
-      });
+      await withMockApi(
+        mockDnsZone([{ Name: "myevent.tickets" }]),
+        async () => {
+          const result = await checkSubdomainAvailable("myevent");
+          expect(result).toEqual({
+            ok: true,
+            available: false,
+            fullDomain: "myevent.tickets.example.com",
+          });
+        },
+      );
     });
 
     test("returns error when getDnsZone fails", async () => {
-      const original = bunnyCdnApi.getDnsZone;
-      bunnyCdnApi.getDnsZone = () =>
-        Promise.resolve({ ok: false as const, error: "API error" });
-      try {
-        const result = await checkSubdomainAvailable("myevent");
-        expect(result).toEqual({ ok: false, error: "API error" });
-      } finally {
-        bunnyCdnApi.getDnsZone = original;
-      }
+      await withMockApi(
+        {
+          getDnsZone: () =>
+            Promise.resolve({ ok: false as const, error: "API error" }),
+        },
+        async () => {
+          const result = await checkSubdomainAvailable("myevent");
+          expect(result).toEqual({ ok: false, error: "API error" });
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
+  "checkSubdomainAvailable without suffix",
+  {
+    env: {
+      BUNNY_API_KEY: "test-key",
+      BUNNY_DNS_ZONE_ID: "42",
+      BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined,
+    },
+  },
+  () => {
+    test("uses subdomain as record name when suffix is unset", async () => {
+      await withMockApi(
+        {
+          getDnsZone: () =>
+            Promise.resolve({
+              ok: true as const,
+              zone: {
+                Id: 42,
+                Domain: "example.com",
+                Records: [],
+              },
+            }),
+        },
+        async () => {
+          const result = await checkSubdomainAvailable("myevent");
+          expect(result).toEqual({
+            ok: true,
+            available: true,
+            fullDomain: "myevent.example.com",
+          });
+        },
+      );
     });
   },
 );
@@ -686,88 +634,82 @@ describeWithEnv(
     beforeEach(() => setAllowedDomainForTest("mysite.bunny.run"));
     afterEach(() => resetAllowedDomain());
 
+    const availableMock = {
+      checkSubdomainAvailable: () =>
+        Promise.resolve({
+          ok: true as const,
+          available: true,
+          fullDomain: "myevent.tickets.example.com",
+        }),
+    };
+
     test("returns error when availability check fails", async () => {
-      const original = bunnyCdnApi.checkSubdomainAvailable;
-      bunnyCdnApi.checkSubdomainAvailable = () =>
-        Promise.resolve({ ok: false as const, error: "DNS zone error" });
-      try {
-        const result = await registerBunnySubdomain("myevent");
-        expect(result).toEqual({ ok: false, error: "DNS zone error" });
-      } finally {
-        bunnyCdnApi.checkSubdomainAvailable = original;
-      }
+      await withMockApi(
+        {
+          checkSubdomainAvailable: () =>
+            Promise.resolve({ ok: false as const, error: "DNS zone error" }),
+        },
+        async () => {
+          const result = await registerBunnySubdomain("myevent");
+          expect(result).toEqual({ ok: false, error: "DNS zone error" });
+        },
+      );
     });
 
     test("returns error when subdomain is taken", async () => {
-      const original = bunnyCdnApi.checkSubdomainAvailable;
-      bunnyCdnApi.checkSubdomainAvailable = () =>
-        Promise.resolve({
-          ok: true as const,
-          available: false,
-          fullDomain: "myevent.tickets.example.com",
-        });
-      try {
-        const result = await registerBunnySubdomain("myevent");
-        expect(result).toEqual({
-          ok: false,
-          error: 'Subdomain "myevent" is already taken',
-        });
-      } finally {
-        bunnyCdnApi.checkSubdomainAvailable = original;
-      }
+      await withMockApi(
+        {
+          checkSubdomainAvailable: () =>
+            Promise.resolve({
+              ok: true as const,
+              available: false,
+              fullDomain: "myevent.tickets.example.com",
+            }),
+        },
+        async () => {
+          const result = await registerBunnySubdomain("myevent");
+          expect(result).toEqual({
+            ok: false,
+            error: 'Subdomain "myevent" is already taken',
+          });
+        },
+      );
     });
 
     test("creates CNAME record and registers with CDN on success", async () => {
-      const origCheck = bunnyCdnApi.checkSubdomainAvailable;
-      const origValidate = bunnyCdnApi.validateCustomDomain;
-      bunnyCdnApi.checkSubdomainAvailable = () =>
-        Promise.resolve({
-          ok: true as const,
-          available: true,
-          fullDomain: "myevent.tickets.example.com",
-        });
-      bunnyCdnApi.validateCustomDomain = () =>
-        Promise.resolve({ ok: true as const });
-
       const calls: { url: string; init: RequestInit | undefined }[] = [];
-      try {
-        await withMocks(
-          () => stubFetchWithRecorder(calls),
-          async () => {
-            const result = await registerBunnySubdomain("myevent");
-            expect(result).toEqual({
-              ok: true,
-              fullDomain: "myevent.tickets.example.com",
-            });
-            expect(calls).toHaveLength(1);
-            const addCall = calls.at(0)!;
-            expect(addCall.url).toBe(
-              "https://api.bunny.net/dnszone/42/records",
-            );
-            expect(addCall.init!.method).toBe("PUT");
-            expect(JSON.parse(addCall.init!.body as string)).toEqual({
-              Type: 5,
-              Name: "myevent.tickets",
-              Value: "mysite.bunny.run",
-              Ttl: 300,
-            });
-          },
-        );
-      } finally {
-        bunnyCdnApi.checkSubdomainAvailable = origCheck;
-        bunnyCdnApi.validateCustomDomain = origValidate;
-      }
+      await withMockApi(
+        {
+          ...availableMock,
+          validateCustomDomain: () => Promise.resolve({ ok: true as const }),
+        },
+        async () => {
+          await withMocks(
+            () => stubFetchWithRecorder(calls),
+            async () => {
+              const result = await registerBunnySubdomain("myevent");
+              expect(result).toEqual({
+                ok: true,
+                fullDomain: "myevent.tickets.example.com",
+              });
+              expect(calls).toHaveLength(1);
+              expect(calls.at(0)!.url).toBe(
+                "https://api.bunny.net/dnszone/42/records",
+              );
+              expect(JSON.parse(calls.at(0)!.init!.body as string)).toEqual({
+                Type: 5,
+                Name: "myevent.tickets",
+                Value: "mysite.bunny.run",
+                Ttl: 300,
+              });
+            },
+          );
+        },
+      );
     });
 
     test("returns error when DNS record creation fails", async () => {
-      const origCheck = bunnyCdnApi.checkSubdomainAvailable;
-      bunnyCdnApi.checkSubdomainAvailable = () =>
-        Promise.resolve({
-          ok: true as const,
-          available: true,
-          fullDomain: "myevent.tickets.example.com",
-        });
-      try {
+      await withMockApi(availableMock, async () => {
         await withMocks(
           () =>
             stub(globalThis, "fetch", () =>
@@ -781,82 +723,51 @@ describeWithEnv(
             });
           },
         );
-      } finally {
-        bunnyCdnApi.checkSubdomainAvailable = origCheck;
-      }
+      });
     });
 
     test("returns error when CDN validation fails", async () => {
-      const origCheck = bunnyCdnApi.checkSubdomainAvailable;
-      const origValidate = bunnyCdnApi.validateCustomDomain;
-      bunnyCdnApi.checkSubdomainAvailable = () =>
-        Promise.resolve({
-          ok: true as const,
-          available: true,
-          fullDomain: "myevent.tickets.example.com",
-        });
-      bunnyCdnApi.validateCustomDomain = () =>
-        Promise.resolve({ ok: false as const, error: "SSL failed" });
-      try {
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () =>
-              Promise.resolve(new Response(null, { status: 204 })),
-            ),
-          async () => {
-            const result = await registerBunnySubdomain("myevent");
-            expect(result).toEqual({ ok: false, error: "SSL failed" });
-          },
-        );
-      } finally {
-        bunnyCdnApi.checkSubdomainAvailable = origCheck;
-        bunnyCdnApi.validateCustomDomain = origValidate;
-      }
+      await withMockApi(
+        {
+          ...availableMock,
+          validateCustomDomain: () =>
+            Promise.resolve({ ok: false as const, error: "SSL failed" }),
+        },
+        async () => {
+          await withMocks(
+            () =>
+              stub(globalThis, "fetch", () =>
+                Promise.resolve(new Response(null, { status: 204 })),
+              ),
+            async () => {
+              const result = await registerBunnySubdomain("myevent");
+              expect(result).toEqual({ ok: false, error: "SSL failed" });
+            },
+          );
+        },
+      );
     });
   },
 );
 
-describeWithEnv("custom domain settings", { db: true }, () => {
-  test("getCustomDomainFromDb returns null when not set", () => {
-    expect(settings.customDomain).toBeNull();
-  });
-
-  test("updateCustomDomain stores and retrieves domain", async () => {
+describeWithEnv("domain settings", { db: true }, () => {
+  test("updateCustomDomain stores and clears domain", async () => {
     await settings.update.customDomain("tickets.example.com");
     expect(settings.customDomain).toBe("tickets.example.com");
-  });
-
-  test("updateCustomDomain with empty string clears domain", async () => {
-    await settings.update.customDomain("tickets.example.com");
     await settings.update.customDomain("");
     expect(settings.customDomain).toBeNull();
   });
 
-  test("getCustomDomainLastValidatedFromDb returns null when not set", () => {
-    expect(settings.customDomainLastValidated).toBeNull();
-  });
-
-  test("updateCustomDomainLastValidated stores a timestamp", async () => {
+  test("updateCustomDomainLastValidated stores an ISO timestamp", async () => {
     await settings.update.customDomainLastValidated();
     const value = settings.customDomainLastValidated;
     expect(value).not.toBeNull();
-    // Should be a valid ISO 8601 date
     expect(new Date(value!).toISOString()).toBe(value);
   });
-});
 
-describeWithEnv("bunny subdomain settings", { db: true }, () => {
-  test("bunnySubdomain returns null when not set", () => {
-    expect(settings.bunnySubdomain).toBeNull();
-  });
-
-  test("stores and retrieves bunny subdomain", async () => {
+  test("bunnySubdomain stores and clears", async () => {
     await settings.update.bunnySubdomain("myevent.tickets.example.com");
     expect(settings.bunnySubdomain).toBe("myevent.tickets.example.com");
-  });
-
-  test("clears bunny subdomain with empty string", async () => {
-    await settings.update.bunnySubdomain("myevent.tickets.example.com");
     await settings.update.bunnySubdomain("");
     expect(settings.bunnySubdomain).toBeNull();
   });

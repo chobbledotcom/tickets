@@ -67,12 +67,6 @@ export const loadEffectiveDomain = (): string => {
   return effectiveDomainState.domain;
 };
 
-/**
- * Get the bunny subdomain from DB (if set).
- * Used by domain validation to also accept the bunny subdomain for 301 redirects.
- */
-export const getBunnySubdomain = (): string | null => settings.bunnySubdomain;
-
 /** Get the effective domain synchronously (falls back to ALLOWED_DOMAIN). */
 export const getEffectiveDomain = (): string =>
   effectiveDomainState.domain ?? getAllowedDomain();
