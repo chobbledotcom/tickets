@@ -158,6 +158,28 @@ export const redactPath = (path: string): string => {
   // Redact numeric IDs in admin paths: /admin/events/123 -> /admin/events/[id]
   redacted = redacted.replace(/\/(\d+)(\/|$)/g, "/[id]$2");
 
+  // Redact tokens in wallet webservice paths:
+  // /v1/devices/:device/registrations/:passType/:token → redact device + token
+  // /v1/passes/:passType/:token → redact token
+  redacted = redacted.replace(
+    /^\/v1\/devices\/[^/]+/,
+    "/v1/devices/[redacted]",
+  );
+  redacted = redacted.replace(
+    /^\/v1\/passes\/([^/]+)\/[^/]+/,
+    "/v1/passes/$1/[redacted]",
+  );
+  redacted = redacted.replace(
+    /^\/v1\/devices\/\[redacted\]\/registrations\/([^/]+)\/[^/]+/,
+    "/v1/devices/[redacted]/registrations/$1/[redacted]",
+  );
+
+  // Redact tokens in wallet download paths: /wallet/:token → redact token
+  redacted = redacted.replace(/^\/wallet\/[^/]+/, "/wallet/[redacted]");
+
+  // Redact tokens in checkin paths: /checkin/:token → redact token
+  redacted = redacted.replace(/^\/checkin\/[^/]+/, "/checkin/[redacted]");
+
   return redacted;
 };
 
@@ -284,7 +306,8 @@ export type LogCategory =
   | "Square"
   | "Domain"
   | "Email"
-  | "Storage";
+  | "Storage"
+  | "Wallet";
 
 /**
  * Log a debug message with category prefix
