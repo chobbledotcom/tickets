@@ -75,6 +75,9 @@ export type DeleteEventBody = { confirm_name: string };
 /** Field type tag for runtime checking */
 type FieldType = "string" | "number" | "boolean" | "string[]";
 
+/** The possible value types for event fields */
+type FieldValue = string | number | boolean | string[];
+
 /**
  * Field mapping: [apiKey, eventInputKey, type]
  *
@@ -106,7 +109,7 @@ const optionalFields: FieldMapping[] = [
 ];
 
 /** Check whether a value matches the expected field type */
-const matchesType = (val: unknown, type: FieldType): boolean =>
+const matchesType = (val: unknown, type: FieldType): val is FieldValue =>
   type === "string"
     ? typeof val === "string"
     : type === "number"
@@ -123,8 +126,8 @@ const matchesType = (val: unknown, type: FieldType): boolean =>
 const pickTypedFields = (
   body: Record<string, unknown>,
   fields: FieldMapping[],
-): Record<string, unknown> => {
-  const result: Record<string, unknown> = {};
+): Record<string, FieldValue> => {
+  const result: Record<string, FieldValue> = {};
   for (const [apiKey, outKey, type] of fields) {
     const val = body[apiKey];
     if (val === undefined) continue;
@@ -143,8 +146,8 @@ const pickTypedFields = (
  */
 const existingToDefaults = (
   existing: EventWithCount,
-): Record<string, unknown> => {
-  const result: Record<string, unknown> = {};
+): Record<string, FieldValue> => {
+  const result: Record<string, FieldValue> = {};
   for (const [apiKey, outKey] of optionalFields) {
     const val = existing[apiKey as keyof EventWithCount];
     result[outKey] = val === null ? "" : val;
