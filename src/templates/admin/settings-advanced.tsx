@@ -588,26 +588,20 @@ export const adminAdvancedSettingsPage = (
                     To use your custom domain, create a <strong>CNAME</strong>{" "}
                     record:
                   </p>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Type</th>
-                        <th>Name</th>
-                        <th>Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>CNAME</td>
-                        <td>
-                          <code>{s.customDomain}</code>
-                        </td>
-                        <td>
-                          <code>{s.cdnHostname}</code>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <ul>
+                    <li>
+                      <strong>Type:</strong> CNAME
+                    </li>
+                    <li>
+                      <strong>Name:</strong> <code>{s.customDomain}</code>
+                    </li>
+                    <li>
+                      <strong>Value:</strong> <code>{s.cdnHostname}</code>
+                    </li>
+                    <li>
+                      <strong>TTL:</strong> 3600
+                    </li>
+                  </ul>
                   <p>
                     Once the DNS record is in place, click the button below to
                     validate and enable SSL.

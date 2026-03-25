@@ -16,7 +16,12 @@ import {
 
 describeWithEnv("admin debug footer", { db: true }, () => {
   test("owner sees footer on admin dashboard", async () => {
-    await assertAdminHtml("/admin/", "Chobble Tickets", "<details>", "<summary>");
+    await assertAdminHtml(
+      "/admin/",
+      "Chobble Tickets",
+      "<details>",
+      "<summary>",
+    );
   });
 
   test("footer contains SQL queries", async () => {

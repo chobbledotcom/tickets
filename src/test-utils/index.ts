@@ -23,8 +23,8 @@ import {
   unwrapKeyWithToken,
 } from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { createApiKey } from "#lib/db/api-keys.ts";
 import { toMajorUnits } from "#lib/currency.ts";
+import { createApiKey } from "#lib/db/api-keys.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
   type EventInput,
@@ -1307,16 +1307,13 @@ export const expectStatus =
 export const expectJsonResponse =
   // biome-ignore lint/suspicious/noExplicitAny: response.json() returns any; callers access nested fields freely
   // deno-lint-ignore no-explicit-any
-  <T = any>(
-    status: number,
-    assertions?: (body: T) => void,
-  ) =>
-  async (response: Response): Promise<T> => {
-    expect(response.status).toBe(status);
-    const body = (await response.json()) as T;
-    assertions?.(body);
-    return body;
-  };
+    <T = any>(status: number, assertions?: (body: T) => void) =>
+    async (response: Response): Promise<T> => {
+      expect(response.status).toBe(status);
+      const body = (await response.json()) as T;
+      assertions?.(body);
+      return body;
+    };
 
 /**
  * Assert status and JSON body on a response promise in one call.

@@ -14,13 +14,13 @@ import { handleRequest } from "#routes";
 import {
   adminFormPost,
   assertFormRedirect,
+  assertJson,
   awaitTestRequest,
   createTestEvent,
   describeWithEnv,
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
-  assertJson,
   expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
@@ -459,17 +459,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
           );
-          await assertJson(
-            Promise.resolve(response),
-            200,
-            (json) => {
-              expect(json.ok).toBe(false);
-              expect(json.apiKey.valid).toBe(false);
-              expect(json.apiKey.error).toContain(
-                "No Stripe secret key configured",
-              );
-            },
-          );
+          await assertJson(Promise.resolve(response), 200, (json) => {
+            expect(json.ok).toBe(false);
+            expect(json.apiKey.valid).toBe(false);
+            expect(json.apiKey.error).toContain(
+              "No Stripe secret key configured",
+            );
+          });
         },
       );
     });
@@ -496,23 +492,19 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           const { response } = await adminFormPost(
             "/admin/settings/stripe/test",
           );
-          await assertJson(
-            Promise.resolve(response),
-            200,
-            (json) => {
-              expect(json.ok).toBe(true);
-              expect(json.apiKey.valid).toBe(true);
-              expect(json.apiKey.mode).toBe("test");
-              expect(json.webhooks).toHaveLength(1);
-              expect(json.webhooks[0].url).toBe(
-                "https://example.com/payment/webhook",
-              );
-              expect(json.webhooks[0].status).toBe("enabled");
-              expect(json.webhooks[0].enabledEvents).toContain(
-                "checkout.session.completed",
-              );
-            },
-          );
+          await assertJson(Promise.resolve(response), 200, (json) => {
+            expect(json.ok).toBe(true);
+            expect(json.apiKey.valid).toBe(true);
+            expect(json.apiKey.mode).toBe("test");
+            expect(json.webhooks).toHaveLength(1);
+            expect(json.webhooks[0].url).toBe(
+              "https://example.com/payment/webhook",
+            );
+            expect(json.webhooks[0].status).toBe("enabled");
+            expect(json.webhooks[0].enabledEvents).toContain(
+              "checkout.session.completed",
+            );
+          });
         },
       );
     });
@@ -531,15 +523,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           const { response } = await adminFormPost(
             "/admin/settings/stripe/test",
           );
-          await assertJson(
-            Promise.resolve(response),
-            200,
-            (json) => {
-              expect(json.ok).toBe(false);
-              expect(json.apiKey.valid).toBe(true);
-              expect(json.webhooks).toHaveLength(0);
-            },
-          );
+          await assertJson(Promise.resolve(response), 200, (json) => {
+            expect(json.ok).toBe(false);
+            expect(json.apiKey.valid).toBe(true);
+            expect(json.webhooks).toHaveLength(0);
+          });
         },
       );
     });
@@ -547,10 +535,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/embed-hosts", () => {
     test("clears embed hosts when empty", async () => {
-      const { response } = await adminFormPost(
-        "/admin/settings/embed-hosts",
-        { embed_hosts: "   " },
-      );
+      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "   ",
+      });
 
       expect(response.status).toBe(302);
       expectFlash(
@@ -561,19 +548,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects invalid embed host pattern", async () => {
-      const { response } = await adminFormPost(
-        "/admin/settings/embed-hosts",
-        { embed_hosts: "*" },
-      );
+      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "*",
+      });
 
       await expectHtmlResponse(response, 400, "Bare wildcard");
     });
 
     test("normalizes and saves embed hosts", async () => {
-      const { response } = await adminFormPost(
-        "/admin/settings/embed-hosts",
-        { embed_hosts: "Example.com, *.Sub.Example.com" },
-      );
+      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "Example.com, *.Sub.Example.com",
+      });
 
       expect(response.status).toBe(302);
       expectFlash(
@@ -740,17 +725,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
           );
-          await assertJson(
-            Promise.resolve(response),
-            200,
-            (json) => {
-              expect(json.ok).toBe(false);
-              expect(json.accessToken.valid).toBe(false);
-              expect(json.accessToken.error).toContain(
-                "No Square access token configured",
-              );
-            },
-          );
+          await assertJson(Promise.resolve(response), 200, (json) => {
+            expect(json.ok).toBe(false);
+            expect(json.accessToken.valid).toBe(false);
+            expect(json.accessToken.error).toContain(
+              "No Square access token configured",
+            );
+          });
         },
       );
     });
@@ -775,18 +756,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           const { response } = await adminFormPost(
             "/admin/settings/square/test",
           );
-          await assertJson(
-            Promise.resolve(response),
-            200,
-            (json) => {
-              expect(json.ok).toBe(true);
-              expect(json.accessToken.valid).toBe(true);
-              expect(json.accessToken.mode).toBe("sandbox");
-              expect(json.location.configured).toBe(true);
-              expect(json.location.name).toBe("Test Location");
-              expect(json.webhook.configured).toBe(true);
-            },
-          );
+          await assertJson(Promise.resolve(response), 200, (json) => {
+            expect(json.ok).toBe(true);
+            expect(json.accessToken.valid).toBe(true);
+            expect(json.accessToken.mode).toBe("sandbox");
+            expect(json.location.configured).toBe(true);
+            expect(json.location.name).toBe("Test Location");
+            expect(json.webhook.configured).toBe(true);
+          });
         },
       );
     });
@@ -809,16 +786,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           const { response } = await adminFormPost(
             "/admin/settings/square/test",
           );
-          await assertJson(
-            Promise.resolve(response),
-            200,
-            (json) => {
-              expect(json.ok).toBe(false);
-              expect(json.accessToken.valid).toBe(true);
-              expect(json.location.configured).toBe(false);
-              expect(json.location.error).toContain("No location ID configured");
-            },
-          );
+          await assertJson(Promise.resolve(response), 200, (json) => {
+            expect(json.ok).toBe(false);
+            expect(json.accessToken.valid).toBe(true);
+            expect(json.location.configured).toBe(false);
+            expect(json.location.error).toContain("No location ID configured");
+          });
         },
       );
     });

@@ -11,8 +11,8 @@ import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
 import { formatCountdown, withCookie } from "#routes/utils.ts";
 import {
-  adminGet,
   adminFormPost,
+  adminGet,
   awaitTestRequest,
   createTestAttendee,
   createTestEvent,
@@ -740,16 +740,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event/999/edit",
-        {
-          name: "Updated Event",
-          slug: "updated-event",
-          max_attendees: "50",
-          max_quantity: "1",
-          thank_you_url: "https://example.com/updated",
-        },
-      );
+      const { response } = await adminFormPost("/admin/event/999/edit", {
+        name: "Updated Event",
+        slug: "updated-event",
+        max_attendees: "50",
+        max_quantity: "1",
+        thank_you_url: "https://example.com/updated",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -1390,10 +1387,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event/999/delete",
-        { confirm_identifier: "Test Event" },
-      );
+      const { response } = await adminFormPost("/admin/event/999/delete", {
+        confirm_identifier: "Test Event",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -1586,16 +1582,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event with unit_price", () => {
     test("creates event with unit_price when authenticated", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event",
-        {
-          name: "Paid Event",
-          max_attendees: "50",
-          max_quantity: "1",
-          thank_you_url: "https://example.com/thanks",
-          unit_price: "10.00",
-        },
-      );
+      const { response } = await adminFormPost("/admin/event", {
+        name: "Paid Event",
+        max_attendees: "50",
+        max_quantity: "1",
+        thank_you_url: "https://example.com/thanks",
+        unit_price: "10.00",
+      });
       expect(response.status).toBe(302);
     });
   });
@@ -1806,20 +1799,18 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event/:id/deactivate (event not found)", () => {
     test("returns 404 when event does not exist", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event/999/deactivate",
-        { confirm_identifier: "something" },
-      );
+      const { response } = await adminFormPost("/admin/event/999/deactivate", {
+        confirm_identifier: "something",
+      });
       expect(response.status).toBe(404);
     });
   });
 
   describe("POST /admin/event/:id/reactivate (event not found)", () => {
     test("returns 404 when event does not exist", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event/999/reactivate",
-        { confirm_identifier: "something" },
-      );
+      const { response } = await adminFormPost("/admin/event/999/reactivate", {
+        confirm_identifier: "something",
+      });
       expect(response.status).toBe(404);
     });
   });
@@ -1942,13 +1933,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event/:id/edit validation error", () => {
     test("shows error when editing non-existent event", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event/99999/edit",
-        {
-          name: "Updated Name",
-          max_attendees: "50",
-        },
-      );
+      const { response } = await adminFormPost("/admin/event/99999/edit", {
+        name: "Updated Name",
+        max_attendees: "50",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -2157,15 +2145,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       try {
         await withExpectedError(async () => {
-          const { response } = await adminFormPost(
-            "/admin/event",
-            {
-              name: "Collision Event",
-              max_attendees: "50",
-              max_quantity: "1",
-              thank_you_url: "https://example.com",
-            },
-          );
+          const { response } = await adminFormPost("/admin/event", {
+            name: "Collision Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com",
+          });
           await expectHtmlResponse(response, 503, "Temporary Error");
         });
       } finally {
@@ -2750,16 +2735,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("rejects invalid event_type value", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event",
-        {
-          name: "Bad Type Event",
-          max_attendees: "50",
-          max_quantity: "1",
-          thank_you_url: "https://example.com",
-          event_type: "invalid",
-        },
-      );
+      const { response } = await adminFormPost("/admin/event", {
+        name: "Bad Type Event",
+        max_attendees: "50",
+        max_quantity: "1",
+        thank_you_url: "https://example.com",
+        event_type: "invalid",
+      });
       expectStatus(400)(response);
     });
 

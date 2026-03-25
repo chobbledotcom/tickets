@@ -15,6 +15,7 @@ import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
+  assertJson,
   awaitTestRequest,
   createTestEvent,
   createTestGroup,
@@ -23,7 +24,6 @@ import {
   describeWithEnv,
   expectCheckoutRedirect,
   expectHtmlResponse,
-  assertJson,
   expectRedirect,
   getTicketCsrfToken,
   matchGroup,
@@ -445,13 +445,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
   describe("GET /health", () => {
     test("returns health status", async () => {
-      await assertJson(
-        handleRequest(mockRequest("/health")),
-        200,
-        (json) => {
-          expect(json).toEqual({ status: "ok" });
-        },
-      );
+      await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
+        expect(json).toEqual({ status: "ok" });
+      });
     });
 
     test("returns 404 for non-GET requests to /health", async () => {
