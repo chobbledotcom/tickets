@@ -218,7 +218,7 @@ const handleAdminAttendeeDeleteGet = attendeeGetRoute(
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAttendeeDelete = attendeeFormAction(
-  async (data, _session, form, eventId, attendeeId) =>
+  (data, _session, form, eventId, attendeeId) =>
     withVerifiedName(form, data, eventId, attendeeId, "delete", "deletion", async () => {
       await deleteAttendee(attendeeId);
       await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
@@ -324,7 +324,7 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAttendeeRefund = attendeeFormAction(
-  async (data, _session, form, eventId, attendeeId) =>
+  (data, _session, form, eventId, attendeeId) =>
     withVerifiedName(form, data, eventId, attendeeId, "refund", "refund", async () => {
       if (!data.attendee.payment_id)
         return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
@@ -730,7 +730,7 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
 const handleResendNotification = attendeeFormAction(
-  async (data, _session, form, eventId, attendeeId) =>
+  (data, _session, form, eventId, attendeeId) =>
     withVerifiedName(form, data, eventId, attendeeId, "resend-notification", undefined, async () => {
       await Promise.all([
         logAndNotifyRegistration([
