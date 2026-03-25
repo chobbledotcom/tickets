@@ -22,6 +22,10 @@ export const addPendingWork = (p: Promise<void>): void => {
   if (pending) pending.push(p);
 };
 
+/** Consume and discard a fetch response body to prevent resource leaks. */
+export const drainResponse = (response: Response): Promise<void> =>
+  response.body?.cancel() ?? Promise.resolve();
+
 /** Await all queued work. Call before returning the response. */
 export const flushPendingWork = async (): Promise<void> => {
   const pending = pendingWork.getStore();

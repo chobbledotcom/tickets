@@ -10,6 +10,7 @@ import { settings } from "#lib/db/settings.ts";
 import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { drainResponse } from "#lib/pending-work.ts";
 import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
@@ -244,7 +245,7 @@ export const sendEmail = async (
         : { ...headers, "Content-Type": "application/json" },
       body: isFormData ? body : JSON.stringify(body),
     });
-    await response.body?.cancel();
+    await drainResponse(response);
     if (!response.ok) {
       logError({
         code: ErrorCode.EMAIL_SEND,

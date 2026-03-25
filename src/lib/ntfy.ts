@@ -7,6 +7,7 @@
 import { getEffectiveDomain } from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logErrorLocal } from "#lib/logger.ts";
+import { drainResponse } from "#lib/pending-work.ts";
 
 /**
  * Send an error notification to the configured ntfy URL
@@ -28,7 +29,7 @@ export const sendNtfyError = async (code: string): Promise<void> => {
       },
       body: code,
     });
-    await response.body?.cancel();
+    await drainResponse(response);
   } catch {
     logErrorLocal({ code: ErrorCode.CDN_REQUEST, detail: "ntfy send failed" });
   }

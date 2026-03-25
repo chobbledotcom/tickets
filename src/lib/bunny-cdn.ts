@@ -13,6 +13,7 @@ import {
   getEffectiveDomain,
 } from "#lib/config.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { drainResponse } from "#lib/pending-work.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -140,7 +141,7 @@ const pullZonePost = async (
   });
 
   if (response.status === 204 || response.ok) {
-    await response.body?.cancel();
+    await drainResponse(response);
     return { ok: true };
   }
   return parseBunnyError(response, label);
@@ -158,7 +159,7 @@ const loadFreeCertificate = async (
   });
 
   if (response.ok) {
-    await response.body?.cancel();
+    await drainResponse(response);
     return { ok: true };
   }
   return parseBunnyError(response, "Load free certificate");
@@ -322,7 +323,7 @@ const registerBunnySubdomainImpl = async (
     logError({ code: ErrorCode.CDN_REQUEST, detail: err.error });
     return err;
   }
-  await addResponse.body?.cancel();
+  await drainResponse(addResponse);
 
   // 3. Register hostname with pull zone (add hostname + SSL)
   const cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);

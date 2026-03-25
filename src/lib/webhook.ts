@@ -9,7 +9,7 @@ import { settings } from "#lib/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
-import { addPendingWork } from "#lib/pending-work.ts";
+import { addPendingWork, drainResponse } from "#lib/pending-work.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import { type ContactInfo, isPaidEvent } from "#lib/types.ts";
 
@@ -116,7 +116,7 @@ export const sendWebhook = async (
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    await response.body?.cancel();
+    await drainResponse(response);
     if (!response.ok) {
       const eventName = payload.tickets.map((t) => t.event_name).join(", ");
       logError({
