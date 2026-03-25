@@ -94,25 +94,27 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
 
     test("returns serial numbers and lastUpdated for valid request", async () => {
       await configureAppleWallet();
-      const response = await walletRequest(
+      await walletRequest(
         "/v1/devices/abc123/registrations/pass.com.test.tickets",
         { headers: { Authorization: "ApplePass my-serial------" } },
+      ).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.serialNumbers).toEqual(["my-serial"]);
+          expect(body.lastUpdated).toBeDefined();
+        }),
       );
-      await expectJsonResponse(200, (body) => {
-        expect(body.serialNumbers).toEqual(["my-serial"]);
-        expect(body.lastUpdated).toBeDefined();
-      })(response);
     });
 
     test("ignores passesUpdatedSince parameter", async () => {
       await configureAppleWallet();
-      const response = await walletRequest(
+      await walletRequest(
         "/v1/devices/abc123/registrations/pass.com.test.tickets?passesUpdatedSince=12345",
         { headers: { Authorization: "ApplePass my-serial------" } },
+      ).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.serialNumbers).toEqual(["my-serial"]);
+        }),
       );
-      await expectJsonResponse(200, (body) => {
-        expect(body.serialNumbers).toEqual(["my-serial"]);
-      })(response);
     });
   });
 

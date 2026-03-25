@@ -61,10 +61,11 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("health check still works", async () => {
-        const response = await handleRequest(mockRequest("/health"));
-        await expectJsonResponse(200, (json) => {
-          expect(json).toEqual({ status: "ok" });
-        })(response);
+        await handleRequest(mockRequest("/health")).then(
+          expectJsonResponse(200, (json) => {
+            expect(json).toEqual({ status: "ok" });
+          }),
+        );
       });
 
       test("GET /setup/ shows setup page", async () => {

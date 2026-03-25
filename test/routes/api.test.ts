@@ -346,12 +346,13 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("returns 400 for invalid JSON body", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const response = await handleRequest(
+      await handleRequest(
         rawPostRequest(event.slug, "application/json", "not valid json{{{"),
+      ).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.error).toBe("Invalid JSON body");
+        }),
       );
-      await expectJsonResponse(400, (body) => {
-        expect(body.error).toBe("Invalid JSON body");
-      })(response);
     });
 
     test("returns 400 for wrong content-type", async () => {

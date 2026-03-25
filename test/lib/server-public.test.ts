@@ -445,10 +445,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
   describe("GET /health", () => {
     test("returns health status", async () => {
-      const response = await handleRequest(mockRequest("/health"));
-      await expectJsonResponse(200, (json) => {
-        expect(json).toEqual({ status: "ok" });
-      })(response);
+      await handleRequest(mockRequest("/health")).then(
+        expectJsonResponse(200, (json) => {
+          expect(json).toEqual({ status: "ok" });
+        }),
+      );
     });
 
     test("returns 404 for non-GET requests to /health", async () => {

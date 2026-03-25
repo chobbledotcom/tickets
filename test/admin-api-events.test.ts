@@ -54,15 +54,15 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const response = await handleRequest(
+      await handleRequest(
         mockRequest(`/api/admin/events/${event.id}`, {
           headers: { cookie, "x-csrf-token": csrfToken },
         }),
+      ).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.event.name).toBe("Cookie Detail");
+        }),
       );
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.event.name).toBe("Cookie Detail");
-      })(response);
     });
   });
 

@@ -584,7 +584,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          const response = await handleRequest(
+          await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe/test",
               {
@@ -592,20 +592,21 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               },
               await testCookie(),
             ),
+          ).then(
+            expectJsonResponse(200, (json) => {
+              expect(json.ok).toBe(true);
+              expect(json.apiKey.valid).toBe(true);
+              expect(json.apiKey.mode).toBe("test");
+              expect(json.webhooks).toHaveLength(1);
+              expect(json.webhooks[0].url).toBe(
+                "https://example.com/payment/webhook",
+              );
+              expect(json.webhooks[0].status).toBe("enabled");
+              expect(json.webhooks[0].enabledEvents).toContain(
+                "checkout.session.completed",
+              );
+            }),
           );
-          await expectJsonResponse(200, (json) => {
-            expect(json.ok).toBe(true);
-            expect(json.apiKey.valid).toBe(true);
-            expect(json.apiKey.mode).toBe("test");
-            expect(json.webhooks).toHaveLength(1);
-            expect(json.webhooks[0].url).toBe(
-              "https://example.com/payment/webhook",
-            );
-            expect(json.webhooks[0].status).toBe("enabled");
-            expect(json.webhooks[0].enabledEvents).toContain(
-              "checkout.session.completed",
-            );
-          })(response);
         },
       );
     });
@@ -621,7 +622,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          const response = await handleRequest(
+          await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe/test",
               {
@@ -629,12 +630,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               },
               await testCookie(),
             ),
+          ).then(
+            expectJsonResponse(200, (json) => {
+              expect(json.ok).toBe(false);
+              expect(json.apiKey.valid).toBe(true);
+              expect(json.webhooks).toHaveLength(0);
+            }),
           );
-          await expectJsonResponse(200, (json) => {
-            expect(json.ok).toBe(false);
-            expect(json.apiKey.valid).toBe(true);
-            expect(json.webhooks).toHaveLength(0);
-          })(response);
         },
       );
     });
@@ -919,21 +921,22 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          const response = await handleRequest(
+          await handleRequest(
             mockFormRequest(
               "/admin/settings/square/test",
               { csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
+          ).then(
+            expectJsonResponse(200, (json) => {
+              expect(json.ok).toBe(true);
+              expect(json.accessToken.valid).toBe(true);
+              expect(json.accessToken.mode).toBe("sandbox");
+              expect(json.location.configured).toBe(true);
+              expect(json.location.name).toBe("Test Location");
+              expect(json.webhook.configured).toBe(true);
+            }),
           );
-          await expectJsonResponse(200, (json) => {
-            expect(json.ok).toBe(true);
-            expect(json.accessToken.valid).toBe(true);
-            expect(json.accessToken.mode).toBe("sandbox");
-            expect(json.location.configured).toBe(true);
-            expect(json.location.name).toBe("Test Location");
-            expect(json.webhook.configured).toBe(true);
-          })(response);
         },
       );
     });
@@ -953,19 +956,20 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          const response = await handleRequest(
+          await handleRequest(
             mockFormRequest(
               "/admin/settings/square/test",
               { csrf_token: await testCsrfToken() },
               await testCookie(),
             ),
+          ).then(
+            expectJsonResponse(200, (json) => {
+              expect(json.ok).toBe(false);
+              expect(json.accessToken.valid).toBe(true);
+              expect(json.location.configured).toBe(false);
+              expect(json.location.error).toContain("No location ID configured");
+            }),
           );
-          await expectJsonResponse(200, (json) => {
-            expect(json.ok).toBe(false);
-            expect(json.accessToken.valid).toBe(true);
-            expect(json.location.configured).toBe(false);
-            expect(json.location.error).toContain("No location ID configured");
-          })(response);
         },
       );
     });

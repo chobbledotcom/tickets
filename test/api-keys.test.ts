@@ -505,15 +505,15 @@ describeWithEnv("API Keys", { db: true }, () => {
         generateSecureToken,
       );
 
-      const response = await handleRequest(
+      await handleRequest(
         mockRequest("/api/admin/events", {
           headers: { authorization: `Bearer ${apiKey}` },
         }),
+      ).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.events).toBeDefined();
+        }),
       );
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.events).toBeDefined();
-      })(response);
     });
 
     test("rejects Bearer token on admin HTML pages", async () => {
@@ -629,17 +629,17 @@ describeWithEnv("API Keys", { db: true }, () => {
         generateSecureToken,
       );
 
-      const response = await handleRequest(
+      const body = await handleRequest(
         mockRequest("/api/admin/events", {
           headers: { authorization: `Bearer ${apiKey}` },
         }),
+      ).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.events).toBeDefined();
+          expect(body.events.length).toBeGreaterThan(0);
+          expect(body.admin_level).toBe("owner");
+        }),
       );
-
-      const body = await expectJsonResponse(200, (body) => {
-        expect(body.events).toBeDefined();
-        expect(body.events.length).toBeGreaterThan(0);
-        expect(body.admin_level).toBe("owner");
-      })(response);
 
       // Verify snake_case keys and no internal fields
       const event = body.events[0];
@@ -656,18 +656,18 @@ describeWithEnv("API Keys", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const response = await handleRequest(
+      await handleRequest(
         mockRequest("/api/admin/events", {
           headers: {
             cookie,
             "x-csrf-token": csrfToken,
           },
         }),
+      ).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.events).toBeDefined();
+        }),
       );
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.events).toBeDefined();
-      })(response);
     });
 
     test("GET /api/admin/events returns 401 for invalid API key", async () => {

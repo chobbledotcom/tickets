@@ -67,14 +67,13 @@ describeWithEnv("admin email templates", { db: true }, () => {
     );
   }
 
-  async function expectJsonError(
-    response: Response,
+  function expectJsonError(
     status: number,
     errorSubstring: string,
   ) {
-    await expectJsonResponse(status, (json) => {
+    return expectJsonResponse(status, (json) => {
       expect(json.error).toContain(errorSubstring);
-    })(response);
+    });
   }
 
   describe("settings page", () => {
@@ -262,64 +261,58 @@ describeWithEnv("admin email templates", { db: true }, () => {
 
   describe("POST /admin/settings/email-templates/preview", () => {
     test("renders template preview with sample data", async () => {
-      const response = await postPreviewForm({
+      await postPreviewForm({
         type: "confirmation",
         template: "Hello {{ attendee.name }}",
         format: "text",
-      });
-
-      await expectJsonResponse(200, (json) => {
-        expect(json.rendered).toBe("Hello Jane Smith");
-      })(response);
+      }).then(
+        expectJsonResponse(200, (json) => {
+          expect(json.rendered).toBe("Hello Jane Smith");
+        }),
+      );
     });
 
     test("returns error for invalid template syntax", async () => {
-      const response = await postPreviewForm({
+      await postPreviewForm({
         type: "confirmation",
         template: "{% invalid %}",
         format: "text",
-      });
-
-      await expectJsonError(response, 400, "Template syntax error");
+      }).then(expectJsonError(400, "Template syntax error"));
     });
 
     test("returns error for invalid template type", async () => {
-      const response = await postPreviewForm({
+      await postPreviewForm({
         type: "invalid",
         template: "test",
         format: "text",
-      });
-
-      await expectJsonError(response, 400, "Invalid template type");
+      }).then(expectJsonError(400, "Invalid template type"));
     });
 
     test("defaults missing preview fields to empty and rejects invalid type", async () => {
-      const response = await postPreviewForm({});
-
-      await expectJsonError(response, 400, "Invalid template type");
+      await postPreviewForm({}).then(
+        expectJsonError(400, "Invalid template type"),
+      );
     });
 
     test("returns error when template render throws", async () => {
-      const response = await postPreviewForm({
+      await postPreviewForm({
         type: "confirmation",
         template: '{% render "nonexistent" %}',
         format: "text",
-      });
-
-      await expectJsonError(response, 400, "nonexistent");
+      }).then(expectJsonError(400, "nonexistent"));
     });
 
     test("renders currency filter in preview", async () => {
-      const response = await postPreviewForm({
+      await postPreviewForm({
         type: "confirmation",
         template:
           "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
         format: "html",
-      });
-
-      await expectJsonResponse(200, (json) => {
-        expect(json.rendered).toContain("£");
-      })(response);
+      }).then(
+        expectJsonResponse(200, (json) => {
+          expect(json.rendered).toContain("£");
+        }),
+      );
     });
   });
 });
