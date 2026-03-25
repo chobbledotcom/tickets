@@ -10,11 +10,11 @@ import { handleRequest } from "#routes";
 import { isJsonApiPath } from "#routes/middleware.ts";
 import {
   adminGet,
+  assertJson,
   awaitTestRequest,
   createTestAttendeeWithToken,
   createTestEvent,
   describeWithEnv,
-  assertJson,
   expectHtmlResponse,
   setupEventAndLogin,
   testCookie,

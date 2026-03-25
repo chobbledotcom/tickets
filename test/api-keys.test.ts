@@ -22,6 +22,7 @@ import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
+  assertJson,
   createTestApiKeyFull,
   createTestEvent,
   describeWithEnv,
@@ -30,7 +31,6 @@ import {
   extractCsrfToken,
   FLASH_TEST_ID,
   flashCookieHeader,
-  assertJson,
   mockRequest,
   testCookie,
   testCsrfToken,
