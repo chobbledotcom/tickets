@@ -1271,11 +1271,14 @@ export const expectJsonResponse =
  * });
  */
 // deno-lint-ignore no-explicit-any
-export const assertJson = <T = any>(
+export const assertJson = async <T = any>(
   request: Promise<Response>,
   status: number,
   assertions?: (body: T) => void,
-): Promise<T> => request.then(expectJsonResponse(status, assertions));
+): Promise<T> => {
+  const response = await request;
+  return expectJsonResponse<T>(status, assertions)(response);
+};
 
 /**
  * Assert status and check that the HTML body contains all given substrings.
