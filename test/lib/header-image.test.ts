@@ -15,6 +15,7 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
+  setTestEnv,
   testCookie,
   testCsrfToken,
   withStorageMock,
@@ -360,6 +361,13 @@ describeWithEnv(
       test("serves header image via proxy route", async () => {
         const encrypted = await encryptBytes(JPEG_HEADER);
 
+        // Set storage env vars in the test body so concurrent tests that
+        // clear them (e.g. "when storage is disabled") don't cause a race
+        // where isStorageEnabled() returns false.
+        const restoreEnv = setTestEnv({
+          STORAGE_ZONE_NAME: "testzone",
+          STORAGE_ZONE_KEY: "testkey",
+        });
         const originalFetch = globalThis.fetch;
         globalThis.fetch = (
           input: string | URL | Request,
@@ -392,6 +400,7 @@ describeWithEnv(
           );
         } finally {
           globalThis.fetch = originalFetch;
+          restoreEnv();
         }
       });
     });
