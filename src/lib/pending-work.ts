@@ -22,24 +22,6 @@ export const addPendingWork = (p: Promise<void>): void => {
   if (pending) pending.push(p);
 };
 
-/** Result of a fetch where the body has already been consumed. */
-export type DrainedResponse = {
-  status: number;
-  ok: boolean;
-  text: string;
-  headers: Headers;
-};
-
-/** Fetch wrapper that eagerly reads the response body, preventing resource leaks. */
-export const fetchDrained = async (
-  url: string,
-  init?: RequestInit,
-): Promise<DrainedResponse> => {
-  const response = await fetch(url, init);
-  const text = await response.text();
-  return { status: response.status, ok: response.ok, text, headers: response.headers };
-};
-
 /** Await all queued work. Call before returning the response. */
 export const flushPendingWork = async (): Promise<void> => {
   const pending = pendingWork.getStore();

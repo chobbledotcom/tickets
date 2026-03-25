@@ -10,7 +10,7 @@ import { settings } from "#lib/db/settings.ts";
 import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import { fetchDrained } from "#lib/pending-work.ts";
+import { fetchDrained } from "#lib/fetch.ts";
 import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";

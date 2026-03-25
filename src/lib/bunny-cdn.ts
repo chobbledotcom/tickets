@@ -12,7 +12,7 @@ import {
   getBunnyScriptId,
 } from "#lib/config.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import { type DrainedResponse, fetchDrained } from "#lib/pending-work.ts";
+import { type FetchResult, fetchDrained } from "#lib/fetch.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -101,16 +101,14 @@ const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
 
 /** Return ok for a successful response or parse an error. */
 const okOrError = (
-  response: DrainedResponse,
+  response: FetchResult,
   label: string,
 ): BunnyApiResult =>
-  response.status === 204 || response.ok
-    ? { ok: true }
-    : parseBunnyError(response, label);
+  response.ok ? { ok: true } : parseBunnyError(response, label);
 
 /** Parse a Bunny API error response into a BunnyApiResult. */
 const parseBunnyError = (
-  response: DrainedResponse,
+  response: FetchResult,
   label: string,
 ): BunnyApiResult & { ok: false } => {
   let message = response.text;

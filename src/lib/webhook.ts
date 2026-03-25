@@ -9,7 +9,8 @@ import { settings } from "#lib/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
-import { addPendingWork, fetchDrained } from "#lib/pending-work.ts";
+import { fetchDrained } from "#lib/fetch.ts";
+import { addPendingWork } from "#lib/pending-work.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import { type ContactInfo, isPaidEvent } from "#lib/types.ts";
 

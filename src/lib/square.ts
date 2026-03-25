@@ -19,7 +19,7 @@ import {
   hmacToBase64,
   secureCompare,
 } from "#lib/payment-crypto.ts";
-import { fetchDrained } from "#lib/pending-work.ts";
+import { fetchDrained } from "#lib/fetch.ts";
 import {
   buildCartMetadata,
   buildSingleIntentMetadata,
