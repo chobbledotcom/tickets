@@ -142,9 +142,9 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
     if (row.a_id !== null) {
       questionMap.get(row.q_id)?.answers.push({
         id: row.a_id,
-        question_id: row.a_question_id!,
-        text: row.a_text!,
-        sort_order: row.a_sort_order!,
+        question_id: row.a_question_id as number,
+        text: row.a_text as string,
+        sort_order: row.a_sort_order as number,
       });
     }
   }
@@ -371,7 +371,7 @@ export const getQuestionWithAnswers = async (
   const rows = await fetchQuestions("WHERE q.id = ?", [id]);
   if (rows.length === 0) return null;
   // rows is non-empty so groupJoinedRows always returns at least one entry
-  return (await groupJoinedRows(rows))[0]!;
+  return (await groupJoinedRows(rows))[0] as QuestionWithAnswers;
 };
 
 /** Get total counts for each answer across all bookings */
@@ -425,5 +425,5 @@ export const getNextAnswerSortOrder = async (
     "SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order FROM answers WHERE question_id = ?",
     [questionId],
   );
-  return row?.next_order;
+  return row?.next_order ?? 0;
 };

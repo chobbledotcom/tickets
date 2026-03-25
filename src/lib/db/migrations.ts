@@ -112,6 +112,109 @@ const isDbUpToDate = async (): Promise<boolean> => {
   }
 };
 
+/** Rename stripe_session_id → payment_session_id in processed_payments */
+const migrateProcessedPaymentsColumn = async (): Promise<void> => {
+  if (!(await tableHasColumn("processed_payments", "stripe_session_id"))) {
+    return;
+  }
+  await getDb().execute(`
+    CREATE TABLE IF NOT EXISTS processed_payments_new (
+      payment_session_id TEXT PRIMARY KEY,
+      attendee_id INTEGER,
+      processed_at TEXT NOT NULL,
+      FOREIGN KEY (attendee_id) REFERENCES attendees(id)
+    )
+  `);
+  await getDb().execute(`
+    INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
+    SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments
+    WHERE typeof(stripe_session_id) = 'text'
+  `);
+  await getDb().execute(`
+    INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
+    SELECT payment_session_id, attendee_id, processed_at FROM processed_payments
+    WHERE typeof(payment_session_id) = 'text'
+  `);
+  await getDb().execute("DROP TABLE processed_payments");
+  await getDb().execute(
+    "ALTER TABLE processed_payments_new RENAME TO processed_payments",
+  );
+};
+
+/** Migrate single-admin credentials to users table (pre-multi-user installs) */
+const migrateAdminToUsersTable = async (): Promise<void> => {
+  const existingPasswordHash = settings.getCachedRaw("admin_password");
+  const userCountRows = await queryAll<{ count: number }>(
+    "SELECT COUNT(*) as count FROM users",
+  );
+  const hasNoUsers = (userCountRows[0]?.count ?? 0) === 0;
+
+  if (!existingPasswordHash || !hasNoUsers) return;
+
+  const username = "admin";
+  const usernameIndex = await hmacHash(username);
+  const encryptedUsername = await encrypt(username);
+  const encryptedPasswordHash = await encrypt(existingPasswordHash);
+  const encryptedAdminLevel = await encrypt("owner");
+
+  await getDb().execute({
+    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+          VALUES (?, ?, ?, ?, ?)`,
+    args: [
+      encryptedUsername,
+      usernameIndex,
+      encryptedPasswordHash,
+      settings.getCachedRaw("wrapped_data_key"),
+      encryptedAdminLevel,
+    ],
+  });
+};
+
+/** Backfill attendees with random ticket tokens */
+const backfillTicketTokens = async (): Promise<void> => {
+  const rows = await queryAll<{ id: number }>(
+    `SELECT id FROM attendees WHERE ticket_token = ''`,
+  );
+  for (const row of rows) {
+    await getDb().execute({
+      sql: "UPDATE attendees SET ticket_token = ? WHERE id = ?",
+      args: [generateTicketToken(), row.id],
+    });
+  }
+};
+
+/** Encrypt plaintext ticket tokens and generate HMAC indexes */
+const backfillTicketTokenEncryption = async (): Promise<void> => {
+  const pubKey = settings.publicKey;
+  if (!pubKey) return;
+
+  const attendees = await queryAll<{ id: number; ticket_token: string }>(
+    "SELECT id, ticket_token FROM attendees WHERE ticket_token_index IS NULL",
+  );
+
+  for (const attendee of attendees) {
+    const plaintextToken = attendee.ticket_token;
+    const encryptedToken = await encryptAttendeePII(plaintextToken, pubKey);
+    const tokenIndex = await computeTicketTokenIndex(plaintextToken);
+
+    await getDb().execute({
+      sql: "UPDATE attendees SET ticket_token = ?, ticket_token_index = ? WHERE id = ?",
+      args: [encryptedToken, tokenIndex, attendee.id],
+    });
+  }
+};
+
+/** Backfill checked_in column with encrypted "false" */
+const backfillCheckedIn = async (): Promise<void> => {
+  const publicKey = settings.publicKey;
+  if (!publicKey) return;
+  const encryptedFalse = await encryptAttendeePII("false", publicKey);
+  await getDb().execute({
+    sql: `UPDATE attendees SET checked_in = ? WHERE checked_in = ''`,
+    args: [encryptedFalse],
+  });
+};
+
 /**
  * Initialize database tables
  */
@@ -236,32 +339,7 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Migration: rename stripe_session_id -> payment_session_id for existing databases
-  // SQLite doesn't support ALTER COLUMN RENAME before 3.25, so recreate the table
-  // Guard: only run destructive DROP+RENAME if the old column still exists
-  if (await tableHasColumn("processed_payments", "stripe_session_id")) {
-    await getDb().execute(`
-      CREATE TABLE IF NOT EXISTS processed_payments_new (
-        payment_session_id TEXT PRIMARY KEY,
-        attendee_id INTEGER,
-        processed_at TEXT NOT NULL,
-        FOREIGN KEY (attendee_id) REFERENCES attendees(id)
-      )
-    `);
-    await getDb().execute(`
-      INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
-      SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments
-      WHERE typeof(stripe_session_id) = 'text'
-    `);
-    await getDb().execute(`
-      INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
-      SELECT payment_session_id, attendee_id, processed_at FROM processed_payments
-      WHERE typeof(payment_session_id) = 'text'
-    `);
-    await getDb().execute("DROP TABLE processed_payments");
-    await getDb().execute(
-      "ALTER TABLE processed_payments_new RENAME TO processed_payments",
-    );
-  }
+  await migrateProcessedPaymentsColumn();
 
   // Migration: add price_paid column to attendees (encrypted with DB_ENCRYPTION_KEY)
   await runMigration("ALTER TABLE attendees ADD COLUMN price_paid TEXT");
@@ -305,15 +383,7 @@ export const initDb = async (): Promise<void> => {
   await runMigration(
     `ALTER TABLE attendees ADD COLUMN checked_in TEXT NOT NULL DEFAULT ''`,
   );
-  // Backfill existing attendees with encrypted "false" if public key is available
-  const publicKey = settings.publicKey;
-  if (publicKey) {
-    const encryptedFalse = await encryptAttendeePII("false", publicKey);
-    await getDb().execute({
-      sql: `UPDATE attendees SET checked_in = ? WHERE checked_in = ''`,
-      args: [encryptedFalse],
-    });
-  }
+  await backfillCheckedIn();
 
   // Migration: add closes_at column to events (encrypted, empty string = no deadline)
   await runMigration("ALTER TABLE events ADD COLUMN closes_at TEXT");
@@ -341,34 +411,7 @@ export const initDb = async (): Promise<void> => {
   );
 
   // Migration: migrate existing single-admin credentials to users table
-  // For pre-multi-user installations, admin_password and wrapped_data_key are in settings
-  {
-    const existingPasswordHash = settings.getCachedRaw("admin_password");
-    const userCountRows = await queryAll<{ count: number }>(
-      "SELECT COUNT(*) as count FROM users",
-    );
-    const hasNoUsers = userCountRows[0]?.count === 0;
-
-    if (existingPasswordHash && hasNoUsers) {
-      const username = "admin";
-      const usernameIndex = await hmacHash(username);
-      const encryptedUsername = await encrypt(username);
-      const encryptedPasswordHash = await encrypt(existingPasswordHash);
-      const encryptedAdminLevel = await encrypt("owner");
-
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-              VALUES (?, ?, ?, ?, ?)`,
-        args: [
-          encryptedUsername,
-          usernameIndex,
-          encryptedPasswordHash,
-          settings.getCachedRaw("wrapped_data_key"),
-          encryptedAdminLevel,
-        ],
-      });
-    }
-  }
+  await migrateAdminToUsersTable();
 
   // Migration: add user_id column to sessions (nullable for migration compatibility)
   await runMigration("ALTER TABLE sessions ADD COLUMN user_id INTEGER");
@@ -382,17 +425,7 @@ export const initDb = async (): Promise<void> => {
   );
 
   // Backfill existing attendees with random tokens
-  {
-    const rows = await queryAll<{ id: number }>(
-      `SELECT id FROM attendees WHERE ticket_token = ''`,
-    );
-    for (const row of rows) {
-      await getDb().execute({
-        sql: "UPDATE attendees SET ticket_token = ? WHERE id = ?",
-        args: [generateTicketToken(), row.id],
-      });
-    }
-  }
+  await backfillTicketTokens();
 
   // Create unique index on ticket_token for fast lookups
   await runMigration(
@@ -490,27 +523,7 @@ export const initDb = async (): Promise<void> => {
   );
 
   // Backfill: encrypt existing plaintext ticket_token values and generate HMAC indexes
-  {
-    const pubKey = settings.publicKey;
-    if (pubKey) {
-      // Get all attendees that need migration (those with plaintext tokens or missing index)
-      const attendees = await queryAll<{ id: number; ticket_token: string }>(
-        "SELECT id, ticket_token FROM attendees WHERE ticket_token_index IS NULL",
-      );
-
-      for (const attendee of attendees) {
-        // Token is plaintext - encrypt it and generate index
-        const plaintextToken = attendee.ticket_token;
-        const encryptedToken = await encryptAttendeePII(plaintextToken, pubKey);
-        const tokenIndex = await computeTicketTokenIndex(plaintextToken);
-
-        await getDb().execute({
-          sql: "UPDATE attendees SET ticket_token = ?, ticket_token_index = ? WHERE id = ?",
-          args: [encryptedToken, tokenIndex, attendee.id],
-        });
-      }
-    }
-  }
+  await backfillTicketTokenEncryption();
 
   // Drop old unique index on ticket_token (tokens are now encrypted, so index is not useful)
   await runMigration("DROP INDEX IF EXISTS idx_attendees_ticket_token");

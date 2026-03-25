@@ -77,14 +77,38 @@ export const deleteAllStaleReservations = async (): Promise<number> => {
   return result.rowsAffected;
 };
 
+/** Check if an error is a duplicate key constraint violation */
+const isDuplicateKeyError = (e: unknown): boolean => {
+  const msg = String(e);
+  return (
+    msg.includes("UNIQUE constraint") || msg.includes("PRIMARY KEY constraint")
+  );
+};
+
+/** Handle a duplicate session reservation: retry if stale, return existing otherwise */
+const handleExistingReservation = async (
+  sessionId: string,
+): Promise<ReserveSessionResult> => {
+  const existing = await isSessionProcessed(sessionId);
+  if (!existing) {
+    // Race condition edge case: record existed but was deleted
+    return reserveSession(sessionId);
+  }
+  // Check if reservation is stale (abandoned by crashed process)
+  if (
+    existing.attendee_id === null &&
+    isReservationStale(existing.processed_at)
+  ) {
+    await deleteStaleReservation(sessionId);
+    return reserveSession(sessionId);
+  }
+  return { reserved: false, existing };
+};
+
 /**
- * Reserve a payment session for processing (first phase of two-phase lock)
+ * Reserve a payment session for processing (first phase of two-phase lock).
  * Inserts with NULL attendee_id to claim the session.
- * Returns { reserved: true } if we claimed it, or { reserved: false, existing } if already claimed.
- *
- * Handles abandoned reservations: if an existing reservation has NULL attendee_id
- * and is older than STALE_RESERVATION_MS, we assume the process crashed and
- * delete the stale record to allow retry.
+ * Handles abandoned reservations by deleting stale records and retrying.
  */
 export const reserveSession = async (
   sessionId: string,
@@ -96,30 +120,7 @@ export const reserveSession = async (
     });
     return { reserved: true };
   } catch (e) {
-    const errorMsg = String(e);
-    if (
-      errorMsg.includes("UNIQUE constraint") ||
-      errorMsg.includes("PRIMARY KEY constraint")
-    ) {
-      // Session already claimed - get existing record
-      const existing = await isSessionProcessed(sessionId);
-      if (!existing) {
-        // Race condition edge case: record existed but was deleted
-        // Shouldn't happen in practice, treat as reservable
-        return reserveSession(sessionId);
-      }
-
-      // Check if reservation is stale (abandoned by crashed process)
-      if (
-        existing.attendee_id === null &&
-        isReservationStale(existing.processed_at)
-      ) {
-        await deleteStaleReservation(sessionId);
-        return reserveSession(sessionId);
-      }
-
-      return { reserved: false, existing };
-    }
+    if (isDuplicateKeyError(e)) return handleExistingReservation(sessionId);
     throw e;
   }
 };
