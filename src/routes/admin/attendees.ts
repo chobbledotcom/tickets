@@ -745,11 +745,7 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
   (data, session, request) => {
     applyFlash(request);
     return htmlResponse(
-      adminResendNotificationPage(
-        data,
-        session,
-        getReturnUrl(request),
-      ),
+      adminResendNotificationPage(data, session, getReturnUrl(request)),
     );
   },
 );
