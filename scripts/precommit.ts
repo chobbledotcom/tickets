@@ -21,7 +21,7 @@ interface Step {
 
 /** Extract only failures and errors from deno test output */
 const filterTestOutput = (stdout: string, stderr: string): string => {
-  const combined = stdout + "\n" + stderr;
+  const combined = `${stdout}\n${stderr}`;
   const lines = combined.split("\n");
   const output: string[] = [];
   let capturing = false;

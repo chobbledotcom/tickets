@@ -13,6 +13,7 @@ import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
+import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
 import {
@@ -384,7 +385,6 @@ export const mockMultipartRequest = (
     formData.append(key, value);
   }
   if (file) {
-    // biome-ignore lint/suspicious/noExplicitAny: Uint8Array<ArrayBufferLike> not assignable to BlobPart in Deno's TS
     // deno-lint-ignore no-explicit-any
     const blob = new Blob([file.data as any], { type: file.contentType });
     formData.append(file.fieldName, blob, file.name);
@@ -789,6 +789,25 @@ export const withMocks = async <
   }
 };
 
+/** Temporarily replace bunnyCdnApi methods and restore after test */
+export const withMockBunnyCdnApi = async (
+  overrides: Partial<typeof bunnyCdnApi>,
+  fn: () => Promise<void>,
+): Promise<void> => {
+  const originals: Partial<typeof bunnyCdnApi> = {};
+  for (const key of Object.keys(overrides) as (keyof typeof bunnyCdnApi)[]) {
+    // deno-lint-ignore no-explicit-any
+    originals[key] = bunnyCdnApi[key] as any;
+    // deno-lint-ignore no-explicit-any
+    bunnyCdnApi[key] = overrides[key] as any;
+  }
+  try {
+    await fn();
+  } finally {
+    Object.assign(bunnyCdnApi, originals);
+  }
+};
+
 /** Counter for generating unique test event names */
 const nameCounter = { value: 0 };
 
@@ -886,7 +905,7 @@ export const loginAsAdmin = async (): Promise<{
   loginResponse.body?.cancel();
   const cookie = loginResponse.headers
     .getSetCookie()
-    .find((c) => c.startsWith(getSessionCookieName() + "="));
+    .find((c) => c.startsWith(`${getSessionCookieName()}=`));
   if (!cookie) throw new Error("No session cookie in login response");
   const csrfToken = await signCsrfToken();
 

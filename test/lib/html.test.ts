@@ -2728,6 +2728,9 @@ describe("html", () => {
         confirmationTemplates: { subject: "", html: "", text: "" },
         adminTemplates: { subject: "", html: "", text: "" },
         bunnyCdnEnabled: false,
+        bunnyDnsEnabled: false,
+        bunnySubdomain: "",
+        bunnyDnsSubdomainSuffix: "",
         customDomain: "",
         customDomainLastValidated: "",
         cdnHostname: "",
@@ -2739,6 +2742,7 @@ describe("html", () => {
         googleWalletIssuerId: "",
         googleWalletServiceAccountEmail: "",
         hostGoogleWalletLabel: "",
+        subdomainPreview: "",
         theme: "light",
       };
 
@@ -2807,6 +2811,20 @@ describe("html", () => {
         advancedDefaultState,
       );
       expect(html).toContain('href="/admin/settings"');
+    });
+
+    test("shows subdomain preview confirmation when subdomainPreview is set", () => {
+      const html = adminAdvancedSettingsPage(TEST_SESSION, {
+        ...advancedDefaultState,
+        bunnyDnsEnabled: true,
+        bunnyDnsSubdomainSuffix: ".tickets.example.com",
+        subdomainPreview: "myevent",
+      });
+      expect(html).toContain("myevent.tickets.example.com");
+      expect(html).toContain("is available");
+      expect(html).toContain('name="save"');
+      expect(html).toContain("Confirm registration");
+      expect(html).toContain('value="myevent"');
     });
   });
 

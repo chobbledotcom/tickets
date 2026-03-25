@@ -3,6 +3,23 @@
 
 import { buildEmbedSnippets } from "#lib/embed.ts";
 
+/** POST a form-encoded body with a CSRF token, return parsed JSON. */
+const csrfPost = async (
+  url: string,
+  csrfToken: string,
+  extraBody = "",
+  // deno-lint-ignore no-explicit-any
+): Promise<any> => {
+  const body = `csrf_token=${encodeURIComponent(csrfToken)}${extraBody}`;
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  return res.json();
+};
+
 /* Select-on-click: auto-select input contents when clicked */
 for (const el of document.querySelectorAll<HTMLInputElement>(
   "[data-select-on-click]",
@@ -247,14 +264,7 @@ const setupTestButton = (
       const csrfInput = button
         .closest("form")
         ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
-      const csrfToken = csrfInput?.value ?? "";
-      const res = await fetch(url, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: `csrf_token=${encodeURIComponent(csrfToken)}`,
-      });
-      const data = await res.json();
+      const data = await csrfPost(url, csrfInput?.value ?? "");
       resultDiv.textContent = formatLines(data).join("\n");
       resultDiv.classList.remove("hidden", "success", "error");
       resultDiv.classList.add(data.ok ? "success" : "error", cssClass);
