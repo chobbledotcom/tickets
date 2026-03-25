@@ -33,7 +33,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows breadcrumb back to settings", async () => {
-      await assertAdminHtml("/admin/debug", 'href="/admin/settings"', "Settings");
+      await assertAdminHtml(
+        "/admin/debug",
+        'href="/admin/settings"',
+        "Settings",
+      );
     });
 
     test("shows Build section", async () => {
@@ -62,7 +66,13 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows Payments section", async () => {
-      await assertAdminHtml("/admin/debug", "Payments", "Provider", "API key", "Webhook");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Payments",
+        "Provider",
+        "API key",
+        "Webhook",
+      );
     });
 
     test("shows Email section", async () => {
@@ -227,7 +237,12 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         ),
         settings.update.googleWallet.serviceAccountKey(creds.serviceAccountKey),
       ]);
-      await assertAdminHtml("/admin/debug", "Database", creds.issuerId, "Valid");
+      await assertAdminHtml(
+        "/admin/debug",
+        "Database",
+        creds.issuerId,
+        "Valid",
+      );
     });
 
     test("shows Invalid key for bad private key data", async () => {

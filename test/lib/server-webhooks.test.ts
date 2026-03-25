@@ -11,6 +11,7 @@ import {
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
+  assertJson,
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
@@ -21,7 +22,6 @@ import {
   setupStripe,
   stubWebhookVerify,
   webhookMeta,
-  assertJson,
   withExpectedError,
 } from "#test-utils";
 

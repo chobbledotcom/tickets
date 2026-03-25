@@ -700,14 +700,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { response } = await adminFormPost(
-        "/admin/event/999/attendee",
-        {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          quantity: "1",
-        },
-      );
+      const { response } = await adminFormPost("/admin/event/999/attendee", {
+        name: "Jane Doe",
+        email: "jane@example.com",
+        quantity: "1",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -1090,17 +1087,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const { response } = await adminFormPost(
-        "/admin/attendees/999",
-        {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: "1",
-        },
-      );
+      const { response } = await adminFormPost("/admin/attendees/999", {
+        name: "Jane Doe",
+        email: "jane@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        event_id: "1",
+      });
       expect(response.status).toBe(404);
     });
 

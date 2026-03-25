@@ -4,9 +4,9 @@ import { unzipSync } from "fflate";
 import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
+  assertJson,
   createTestAttendeeWithToken,
   describeWithEnv,
-  assertJson,
   generateTestCerts,
 } from "#test-utils";
 

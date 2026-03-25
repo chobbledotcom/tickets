@@ -3,11 +3,11 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { handleRequest } from "#routes";
 import {
+  assertJson,
   awaitTestRequest,
   createTestDb,
   describeWithEnv,
   expectHtmlResponse,
-  assertJson,
   expectRedirect,
   getSetupCsrfToken,
   mockFormRequest,
@@ -61,13 +61,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("health check still works", async () => {
-        await assertJson(
-          handleRequest(mockRequest("/health")),
-          200,
-          (json) => {
-            expect(json).toEqual({ status: "ok" });
-          },
-        );
+        await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
+          expect(json).toEqual({ status: "ok" });
+        });
       });
 
       test("GET /setup/ shows setup page", async () => {
