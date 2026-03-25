@@ -275,7 +275,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       bunnyCdnApi.getCdnHostname = () =>
         Promise.resolve({ ok: true as const, hostname: "mysite.b-cdn.net" });
       try {
-        const html = await assertAdminHtml(
+        await assertAdminHtml(
           "/admin/debug",
           "badge-ok",
           "CDN management",

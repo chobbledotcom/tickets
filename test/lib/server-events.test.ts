@@ -13,7 +13,6 @@ import { formatCountdown, withCookie } from "#routes/utils.ts";
 import {
   adminGet,
   adminFormPost,
-  assertFormRedirect,
   awaitTestRequest,
   createTestAttendee,
   createTestEvent,

@@ -13,7 +13,6 @@ import {
   adminAttendeeAction,
   adminEventPage,
   adminFormPost,
-  assertFormRedirect,
   awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,

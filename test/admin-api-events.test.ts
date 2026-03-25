@@ -14,7 +14,6 @@ import {
   createTestEvent,
   createTestGroup,
   describeWithEnv,
-  expectJsonResponse,
   mockRequest,
   testCookie,
   testCsrfToken,
