@@ -20,7 +20,7 @@ export const sendNtfyError = async (code: string): Promise<void> => {
   const domain = getEffectiveDomain();
 
   try {
-    await fetch(ntfyUrl, {
+    const response = await fetch(ntfyUrl, {
       method: "POST",
       headers: {
         Title: `${domain} error`,
@@ -28,6 +28,7 @@ export const sendNtfyError = async (code: string): Promise<void> => {
       },
       body: code,
     });
+    await response.body?.cancel();
   } catch {
     logErrorLocal({ code: ErrorCode.CDN_REQUEST, detail: "ntfy send failed" });
   }

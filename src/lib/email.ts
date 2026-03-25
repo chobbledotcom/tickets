@@ -244,6 +244,7 @@ export const sendEmail = async (
         : { ...headers, "Content-Type": "application/json" },
       body: isFormData ? body : JSON.stringify(body),
     });
+    await response.body?.cancel();
     if (!response.ok) {
       logError({
         code: ErrorCode.EMAIL_SEND,

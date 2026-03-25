@@ -116,6 +116,7 @@ export const sendWebhook = async (
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    await response.body?.cancel();
     if (!response.ok) {
       const eventName = payload.tickets.map((t) => t.event_name).join(", ");
       logError({

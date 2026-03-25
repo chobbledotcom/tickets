@@ -139,7 +139,10 @@ const pullZonePost = async (
     body: JSON.stringify(body),
   });
 
-  if (response.status === 204 || response.ok) return { ok: true };
+  if (response.status === 204 || response.ok) {
+    await response.body?.cancel();
+    return { ok: true };
+  }
   return parseBunnyError(response, label);
 };
 
@@ -154,7 +157,10 @@ const loadFreeCertificate = async (
     headers: { AccessKey: getBunnyApiKey() },
   });
 
-  if (response.ok) return { ok: true };
+  if (response.ok) {
+    await response.body?.cancel();
+    return { ok: true };
+  }
   return parseBunnyError(response, "Load free certificate");
 };
 
@@ -316,6 +322,7 @@ const registerBunnySubdomainImpl = async (
     logError({ code: ErrorCode.CDN_REQUEST, detail: err.error });
     return err;
   }
+  await addResponse.body?.cancel();
 
   // 3. Register hostname with pull zone (add hostname + SSL)
   const cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
