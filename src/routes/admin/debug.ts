@@ -9,7 +9,12 @@ import {
 } from "#lib/apple-wallet.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#lib/build-info.ts";
 import { getCdnHostname } from "#lib/bunny-cdn.ts";
-import { getEffectiveDomain, isBunnyCdnEnabled } from "#lib/config.ts";
+import {
+  getBunnyDnsSubdomainSuffix,
+  getEffectiveDomain,
+  isBunnyCdnEnabled,
+  isBunnyDnsEnabled,
+} from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { getHostEmailConfig } from "#lib/email.ts";
 import { getEnv } from "#lib/env.ts";
@@ -143,13 +148,14 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     ntfy: {
       configured: !!getEnv("NTFY_URL"),
     },
-    storage: {
-      enabled: isStorageEnabled(),
-    },
-    bunnyCdn: {
-      enabled: bunnyCdnEnabled,
+    bunny: {
+      storageEnabled: isStorageEnabled(),
+      cdnEnabled: bunnyCdnEnabled,
       cdnHostname: bunnyCdnCdnHostname,
       customDomain: bunnyCdnEnabled ? settings.customDomain : "",
+      dnsEnabled: isBunnyDnsEnabled(),
+      subdomainSuffix: getBunnyDnsSubdomainSuffix(),
+      registeredSubdomain: settings.bunnySubdomain,
     },
     database: {
       hostConfigured: !!getEnv("DB_URL"),

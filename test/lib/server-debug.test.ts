@@ -90,34 +90,25 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       expect(html).toContain("NTFY URL");
     });
 
-    test("shows Bunny Storage section", async () => {
+    test("shows combined Bunny section with storage, CDN, and DNS", async () => {
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
-      expect(html).toContain("Bunny Storage (images)");
-      expect(html).toContain("Storage zone");
-    });
-
-    test("shows Bunny CDN section", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Bunny CDN");
+      expect(html).toContain("Bunny");
+      expect(html).toContain("Storage zone (images)");
       expect(html).toContain("CDN management");
       expect(html).toContain("CDN hostname");
       expect(html).toContain("Custom domain");
+      expect(html).toContain("DNS subdomain");
+      expect(html).toContain("Subdomain suffix");
+      expect(html).toContain("Registered subdomain");
     });
 
-    test("shows Database section", async () => {
+    test("shows combined Database &amp; Domain section", async () => {
       const { response } = await adminGet("/admin/debug");
       const html = await response.text();
-      expect(html).toContain("Database");
+      expect(html).toContain("Database &amp; Domain");
       expect(html).toContain("DB_URL");
-    });
-
-    test("shows Domain section with effective domain", async () => {
-      const { response } = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(html).toContain("Domain");
-      expect(html).toContain("Effective Domain");
+      expect(html).toContain("Effective domain");
     });
 
     test("does not expose secret keys or full URLs", async () => {
@@ -339,6 +330,77 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
   });
 
+  describe("GET /admin/debug with Bunny DNS enabled", () => {
+    let restoreEnv: () => void;
+
+    afterEach(() => restoreEnv());
+
+    test("shows DNS subdomain as configured with suffix", async () => {
+      restoreEnv = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_DNS_ZONE_ID: "12345",
+        BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+      });
+      const { response } = await adminGet("/admin/debug");
+      const html = await response.text();
+      expect(html).toContain("DNS subdomain");
+      expect(html).toContain(".tickets");
+    });
+
+    test("shows registered subdomain when set", () => {
+      const state: DebugPageState = {
+        build: { timestamp: "", commit: "" },
+        appleWallet: {
+          dbConfigured: false,
+          envConfigured: false,
+          passTypeId: "",
+          source: "",
+          certValidation: {
+            signingCert: "Not set",
+            signingKey: "Not set",
+            wwdrCert: "Not set",
+          },
+        },
+        googleWallet: {
+          dbConfigured: false,
+          envConfigured: false,
+          issuerId: "",
+          source: "",
+          privateKeyValid: "Not set",
+        },
+        payment: {
+          provider: "",
+          keyConfigured: false,
+          webhookConfigured: false,
+        },
+        email: {
+          provider: "",
+          apiKeyConfigured: false,
+          fromAddress: "",
+          hostProvider: "",
+        },
+        ntfy: { configured: false },
+        bunny: {
+          storageEnabled: false,
+          cdnEnabled: false,
+          cdnHostname: "",
+          customDomain: "",
+          dnsEnabled: true,
+          subdomainSuffix: ".tickets",
+          registeredSubdomain: "myevent.example.com",
+        },
+        database: { hostConfigured: false },
+        domain: "localhost",
+        limits: [],
+        theme: "light",
+      };
+      const session = { adminLevel: "owner" as const };
+      const html = adminDebugPage(session, state);
+      expect(html).toContain("myevent.example.com");
+      expect(html).toContain(".tickets");
+    });
+  });
+
   describe("Limits section", () => {
     test("shows limits table with all entries", async () => {
       const { response } = await adminGet("/admin/debug");
@@ -383,8 +445,15 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           hostProvider: "",
         },
         ntfy: { configured: false },
-        storage: { enabled: false },
-        bunnyCdn: { enabled: false, cdnHostname: "", customDomain: "" },
+        bunny: {
+          storageEnabled: false,
+          cdnEnabled: false,
+          cdnHostname: "",
+          customDomain: "",
+          dnsEnabled: false,
+          subdomainSuffix: "",
+          registeredSubdomain: "",
+        },
         database: { hostConfigured: false },
         domain: "localhost",
         limits: [
