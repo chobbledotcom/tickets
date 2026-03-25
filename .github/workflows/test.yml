@@ -60,6 +60,5 @@ jobs:
         env:
           STRIPE_MOCK_HOST: localhost
           STRIPE_MOCK_PORT: "12111"
-          ALLOWED_DOMAIN: localhost
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
         run: deno task test:coverage

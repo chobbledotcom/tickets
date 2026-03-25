@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
+import {
+  resetEffectiveDomain,
+  setEffectiveDomainForTest,
+} from "#lib/config.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import type { Attendee } from "#lib/types.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
@@ -50,11 +53,11 @@ const makeQuestions = (): QuestionWithAnswers[] => [
 
 describe("CSV with custom questions", () => {
   beforeEach(() => {
-    setAllowedDomainForTest("example.com");
+    setEffectiveDomainForTest("example.com");
   });
 
   afterEach(() => {
-    resetAllowedDomain();
+    resetEffectiveDomain();
   });
 
   test("includes question columns in header", () => {

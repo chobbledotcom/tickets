@@ -23,7 +23,6 @@ import {
   createRequestTimer,
   ErrorCode,
   formatRequestError,
-  logDebug,
   logError,
   logRequest,
   runWithRequestId,
@@ -33,14 +32,10 @@ import { runWithRequestCache } from "#lib/request-cache.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
 import {
   applySecurityHeaders,
-  buildDomainRedirectUrl,
   contentTypeRejectionResponse,
-  domainRedirectResponse,
   getCleanUrl,
-  getDomainRejectionReason,
   isEmbeddablePath,
   isValidContentType,
-  isValidDomain,
   isWebhookPath,
 } from "#routes/middleware.ts";
 import { createRouter } from "#routes/router.ts";
@@ -184,8 +179,6 @@ export {
   getSecurityHeaders,
   isEmbeddablePath,
   isValidContentType,
-  isValidDomain,
-  normalizeHostname,
 } from "#routes/middleware.ts";
 
 // Re-export types
@@ -372,24 +365,8 @@ export const handleRequest = async (
               }
             }
 
-            // Load effective domain (custom_domain from DB if set, else ALLOWED_DOMAIN)
-            // before domain validation so redirects go to the right host.
-            loadEffectiveDomain();
-
-            // Domain validation: redirect requests from unauthorized domains to the effective domain
-            if (!isValidDomain(effectiveRequest)) {
-              const redirectUrl = buildDomainRedirectUrl(effectiveRequest);
-              logDebug(
-                "Domain",
-                `Redirecting to ${redirectUrl} (${getDomainRejectionReason(effectiveRequest)})`,
-              );
-              return logAndReturn(
-                domainRedirectResponse(redirectUrl),
-                method,
-                path,
-                getElapsed,
-              );
-            }
+            // Load effective domain (custom_domain from DB if set, else request hostname)
+            loadEffectiveDomain(effectiveRequest.url);
 
             const embeddable = isEmbeddablePath(path);
 

@@ -9,9 +9,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
-  resetAllowedDomain,
   resetEffectiveDomain,
-  setAllowedDomainForTest,
   setEffectiveDomainForTest,
 } from "#lib/config.ts";
 import { buildWebhookPayload, type RegistrationEntry } from "#lib/webhook.ts";
@@ -43,12 +41,10 @@ describe("webhook example", () => {
     const { updateBusinessEmail } = await import("#lib/business-email.ts");
     await updateBusinessEmail(EXAMPLE_BUSINESS_EMAIL);
 
-    // Set ALLOWED_DOMAIN and effective domain to match the example domain
-    setAllowedDomainForTest(exampleDomain);
+    // Set effective domain to match the example domain
     setEffectiveDomainForTest(exampleDomain);
     domainStub = {
       restore: () => {
-        resetAllowedDomain();
         resetEffectiveDomain();
       },
     };

@@ -315,9 +315,6 @@ describe("code quality", () => {
       "routes/utils.ts:withCookie",
       // Reset cache registry between tests
       "lib/cache-registry.ts:resetCacheRegistry",
-      // Reset cached allowed domain between tests
-      "lib/config.ts:resetAllowedDomain",
-      "lib/config.ts:setAllowedDomainForTest",
       // Reset cached effective domain between tests
       "lib/config.ts:resetEffectiveDomain",
       "lib/config.ts:setEffectiveDomainForTest",

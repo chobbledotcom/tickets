@@ -32,7 +32,7 @@ interface BunnyPullZoneListResponse {
 
 /**
  * Find the pull zone ID by searching pull zones for the CDN hostname
- * (ALLOWED_DOMAIN with .bunny.run replaced by .b-cdn.net).
+ * (effective domain with .bunny.run replaced by .b-cdn.net).
  */
 const findPullZoneIdImpl = async (): Promise<
   { ok: true; id: number } | { ok: false; error: string; errorKey?: string }

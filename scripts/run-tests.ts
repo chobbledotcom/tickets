@@ -125,7 +125,6 @@ const runTests = async (useCoverage: boolean): Promise<number> => {
       ...Deno.env.toObject(),
       STRIPE_MOCK_HOST: "localhost",
       STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
-      ALLOWED_DOMAIN: "localhost",
       DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "3",
     },
   });
@@ -253,7 +252,6 @@ const main = async (): Promise<void> => {
 
   Deno.env.set("STRIPE_MOCK_HOST", "localhost");
   Deno.env.set("STRIPE_MOCK_PORT", String(STRIPE_MOCK_PORT));
-  Deno.env.set("ALLOWED_DOMAIN", "localhost");
 
   const useCoverage = Deno.args.includes("--coverage");
   const exitCode = await runTests(useCoverage);

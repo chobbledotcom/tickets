@@ -4,7 +4,6 @@
  * Payment provider and keys are configured via admin settings (stored encrypted in DB)
  */
 
-import { lazyRef } from "#fp";
 import { settings } from "#lib/db/settings.ts";
 import { getEnv, requireEnv } from "#lib/env.ts";
 
@@ -26,45 +25,24 @@ export const getBookingFee = (): number =>
   Number.parseFloat(settings.bookingFee!) || 0;
 
 /**
- * Get allowed domain for security validation (runtime config via Bunny secrets)
- * This is a required configuration that hardens origin validation
- */
-const [getAllowedDomainOverride, setAllowedDomainOverride] = lazyRef<
-  string | null
->(() => null);
-
-export const getAllowedDomain = (): string =>
-  getAllowedDomainOverride() ?? requireEnv("ALLOWED_DOMAIN");
-
-/** Reset cached allowed domain value (for testing and cache invalidation) */
-export const resetAllowedDomain = (): void => setAllowedDomainOverride(null);
-
-/**
- * Explicitly set allowed domain (for testing).
- * Bypasses Deno.env to avoid races between parallel test workers.
- */
-export const setAllowedDomainForTest = (domain: string): void =>
-  setAllowedDomainOverride(domain);
-
-/**
- * Effective domain: custom_domain (from DB) if set, otherwise ALLOWED_DOMAIN.
- * Loaded async once per request via loadEffectiveDomain(), then read
+ * Effective domain: custom_domain (from DB) if set, otherwise the request's
+ * own hostname. Loaded once per request via loadEffectiveDomain(), then read
  * synchronously via getEffectiveDomain().
  */
 const effectiveDomainState = { domain: null as string | null };
 
-/** Load the effective domain from DB (call early in request pipeline). */
-export const loadEffectiveDomain = (): string => {
+/** Load the effective domain from DB, falling back to the request URL hostname. */
+export const loadEffectiveDomain = (requestUrl: string): string => {
   const custom = settings.customDomain;
   const validated = custom ? settings.customDomainLastValidated : null;
   effectiveDomainState.domain =
-    custom && validated ? custom : getAllowedDomain();
+    custom && validated ? custom : new URL(requestUrl).hostname;
   return effectiveDomainState.domain;
 };
 
-/** Get the effective domain synchronously (falls back to ALLOWED_DOMAIN). */
+/** Get the effective domain synchronously (must call loadEffectiveDomain first). */
 export const getEffectiveDomain = (): string =>
-  effectiveDomainState.domain ?? getAllowedDomain();
+  effectiveDomainState.domain ?? "localhost";
 
 /** Reset effective domain cache (for testing). */
 export const resetEffectiveDomain = (): void => {
@@ -99,8 +77,8 @@ export const isBunnyCdnEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
 export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
 
 /**
- * Get the CDN hostname derived from ALLOWED_DOMAIN.
+ * Get the CDN hostname derived from the effective domain.
  * Replaces ".bunny.run" with ".b-cdn.net" for the CNAME target.
  */
 export const getCdnHostname = (): string =>
-  getAllowedDomain().replace(/\.bunny\.run$/, ".b-cdn.net");
+  getEffectiveDomain().replace(/\.bunny\.run$/, ".b-cdn.net");
