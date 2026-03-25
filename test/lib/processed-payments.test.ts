@@ -176,7 +176,7 @@ describeWithEnv("processed-payments", { db: true }, () => {
       // Raw value in DB is encrypted (enc:1: prefix)
       expect(record?.ticket_tokens).toMatch(/^enc:1:/);
       // Decrypts to the original joined tokens
-      const decrypted = await decryptSessionTokens(record!.ticket_tokens);
+      const decrypted = await decryptSessionTokens(record?.ticket_tokens);
       expect(decrypted).toBe("tok_abc+tok_def");
     });
 
@@ -266,7 +266,7 @@ describeWithEnv("processed-payments", { db: true }, () => {
       expect(record).not.toBeNull();
       expect(record?.processed_at).toBeDefined();
       // Timestamp should be a valid ISO string close to current time
-      const processedMs = new Date(record!.processed_at).getTime();
+      const processedMs = new Date(record?.processed_at).getTime();
       expect(Math.abs(processedMs - Date.now())).toBeLessThan(5000);
     });
   });

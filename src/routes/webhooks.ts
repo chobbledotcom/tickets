@@ -497,7 +497,7 @@ const processPaymentSession = async (
     const { existing } = reservation;
 
     if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.items[0]!.e, existing);
+      return alreadyProcessedResult(intent.items[0]?.e, existing);
     }
 
     // Session reserved but not finalized — another request is processing
@@ -520,7 +520,7 @@ const processPaymentSession = async (
     event: EventWithCount;
     expectedPrice: number;
   }[] = [];
-  let expectedTotal = 0;
+  let _expectedTotal = 0;
 
   for (const item of intent.items) {
     const vp = await validateAndPrice(
@@ -533,7 +533,7 @@ const processPaymentSession = async (
       event: vp.event,
       expectedPrice: vp.expectedPrice,
     });
-    expectedTotal += vp.expectedPrice;
+    _expectedTotal += vp.expectedPrice;
   }
 
   // Price validation
@@ -563,7 +563,7 @@ const processPaymentSession = async (
       return priceMismatchRefund(
         session,
         `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
-        validatedItems[0]!.event.id,
+        validatedItems[0]?.event.id,
       );
     }
   } else if (isSingleItemCheckout) {
@@ -576,7 +576,7 @@ const processPaymentSession = async (
         expectedPrice,
         event,
         bookingFeePercent,
-        intent.items[0]!.q,
+        intent.items[0]?.q,
       )
     ) {
       return priceMismatchRefund(

@@ -63,24 +63,24 @@ describe("apple-wallet", () => {
 
       const barcodes = pass.barcodes as Array<Record<string, string>>;
       expect(barcodes).toHaveLength(1);
-      expect(barcodes[0]!.format).toBe("PKBarcodeFormatQR");
-      expect(barcodes[0]!.message).toBe("https://example.com/checkin/ABC123");
-      expect(barcodes[0]!.messageEncoding).toBe("iso-8859-1");
+      expect(barcodes[0]?.format).toBe("PKBarcodeFormatQR");
+      expect(barcodes[0]?.message).toBe("https://example.com/checkin/ABC123");
+      expect(barcodes[0]?.messageEncoding).toBe("iso-8859-1");
 
       const ticket = pass.eventTicket as TicketFields;
-      expect(ticket.primaryFields[0]!.value).toBe("Summer Concert");
+      expect(ticket.primaryFields[0]?.value).toBe("Summer Concert");
 
       const dateField = ticket.secondaryFields.find(
         (f: Record<string, unknown>) => f.key === "date",
       );
       expect(dateField).toBeDefined();
-      expect(dateField!.value).toBe("2026-06-15T19:00:00Z");
+      expect(dateField?.value).toBe("2026-06-15T19:00:00Z");
 
       const locationField = ticket.secondaryFields.find(
         (f: Record<string, unknown>) => f.key === "location",
       );
       expect(locationField).toBeDefined();
-      expect(locationField!.value).toBe("Town Hall");
+      expect(locationField?.value).toBe("Town Hall");
 
       expect(pass.relevantDate).toBe("2026-06-15T19:00:00Z");
 
@@ -153,20 +153,20 @@ describe("apple-wallet", () => {
         (f: Record<string, unknown>) => f.key === "qty",
       );
       expect(qtyField).toBeDefined();
-      expect(qtyField!.value).toBe(3);
+      expect(qtyField?.value).toBe(3);
 
       const priceField = ticket.auxiliaryFields.find(
         (f: Record<string, unknown>) => f.key === "price",
       );
       expect(priceField).toBeDefined();
-      expect(priceField!.value).toBe(25);
-      expect(priceField!.currencyCode).toBe("EUR");
+      expect(priceField?.value).toBe(25);
+      expect(priceField?.currencyCode).toBe("EUR");
 
       const bookingField = ticket.auxiliaryFields.find(
         (f: Record<string, unknown>) => f.key === "booking-date",
       );
       expect(bookingField).toBeDefined();
-      expect(bookingField!.value).toBe("2026-06-15");
+      expect(bookingField?.value).toBe("2026-06-15");
     });
 
     test("uses custom colors when provided", () => {
@@ -375,8 +375,8 @@ describe("apple-wallet", () => {
       );
       const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
-      expect(priceField!.value).toBe(1000);
-      expect(priceField!.currencyCode).toBe("JPY");
+      expect(priceField?.value).toBe(1000);
+      expect(priceField?.currencyCode).toBe("JPY");
     });
 
     test("converts price using currency decimal places for GBP (2 decimals)", () => {
@@ -386,8 +386,8 @@ describe("apple-wallet", () => {
       );
       const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
-      expect(priceField!.value).toBe(25);
-      expect(priceField!.currencyCode).toBe("GBP");
+      expect(priceField?.value).toBe(25);
+      expect(priceField?.currencyCode).toBe("GBP");
     });
   });
 });

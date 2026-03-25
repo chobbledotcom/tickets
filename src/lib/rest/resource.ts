@@ -57,7 +57,7 @@ type ValidateFn<Input, Id = InValue> =
 export interface Resource<
   Row,
   Input,
-  Values extends FieldValues = FieldValues,
+  _Values extends FieldValues = FieldValues,
 > {
   readonly table: Table<Row, Input>;
   readonly fields: Field[];

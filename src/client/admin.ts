@@ -353,7 +353,7 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
   };
   update();
   ta.addEventListener("input", update);
-  ta.parentNode!.insertBefore(counter, ta.nextSibling);
+  ta.parentNode?.insertBefore(counter, ta.nextSibling);
 }
 
 /* Multi-ticket question visibility: show questions only when at least one

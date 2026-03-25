@@ -166,7 +166,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
 
           // Verify refund was called
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
+          expect(mockRefund.calls[0]?.args).toEqual(["pi_test_123"]);
         },
         resetStripeClient,
       );
@@ -228,7 +228,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
 
           // Verify refund was called
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_second"]);
+          expect(mockRefund.calls[0]?.args).toEqual(["pi_second"]);
         },
         resetStripeClient,
       );
@@ -878,7 +878,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
 
           // Verify refund was called
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
+          expect(mockRefund.calls[0]?.args).toEqual(["pi_test_123"]);
         },
       );
     });

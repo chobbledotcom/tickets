@@ -782,8 +782,8 @@ export const squareApi: {
         tenders: order.tenders?.map(mapTender),
         state: order.state,
         totalMoney: {
-          amount: order.totalMoney!.amount!,
-          currency: order.totalMoney!.currency!,
+          amount: order.totalMoney?.amount!,
+          currency: order.totalMoney?.currency!,
         },
       };
     }, ErrorCode.SQUARE_ORDER),
@@ -825,8 +825,8 @@ export const squareApi: {
         idempotencyKey: crypto.randomUUID(),
         paymentId,
         amountMoney: {
-          amount: payment.amountMoney!.amount,
-          currency: payment.amountMoney!.currency as string,
+          amount: payment.amountMoney?.amount,
+          currency: payment.amountMoney?.currency as string,
         },
       });
       return true;

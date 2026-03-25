@@ -31,7 +31,7 @@ const createQuestion = async (text: string): Promise<number> => {
   const questions = await getAllQuestionsWithAnswers();
   const found = questions.find((q) => q.text === text);
   expect(found).toBeTruthy();
-  return found!.id;
+  return found?.id;
 };
 
 /** Helper: add an answer to a question via the admin form */
@@ -45,9 +45,9 @@ const addAnswer = async (questionId: number, text: string): Promise<number> => {
   // Get the answer ID from the DB
   const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
   const question = await getQuestionWithAnswers(questionId);
-  const found = question!.answers.find((a) => a.text === text);
+  const found = question?.answers.find((a) => a.text === text);
   expect(found).toBeTruthy();
-  return found!.id;
+  return found?.id;
 };
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -155,7 +155,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       // Verify the question was updated
       const { getQuestion } = await import("#lib/db/questions.ts");
       const updated = await getQuestion(id);
-      expect(updated!.text).toBe("After edit");
+      expect(updated?.text).toBe("After edit");
     });
 
     test("rejects empty text with error page", async () => {
@@ -221,12 +221,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
       const question = await getQuestionWithAnswers(id);
-      expect(question!.answers[0]!.text).toBe("First");
-      expect(question!.answers[0]!.sort_order).toBe(0);
-      expect(question!.answers[1]!.text).toBe("Second");
-      expect(question!.answers[1]!.sort_order).toBe(1);
-      expect(question!.answers[2]!.text).toBe("Third");
-      expect(question!.answers[2]!.sort_order).toBe(2);
+      expect(question?.answers[0]?.text).toBe("First");
+      expect(question?.answers[0]?.sort_order).toBe(0);
+      expect(question?.answers[1]?.text).toBe("Second");
+      expect(question?.answers[1]?.sort_order).toBe(1);
+      expect(question?.answers[2]?.text).toBe("Third");
+      expect(question?.answers[2]?.sort_order).toBe(2);
     });
   });
 
@@ -441,7 +441,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       // Verify answer is gone
       const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
       const question = await getQuestionWithAnswers(qId);
-      expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
+      expect(question?.answers.find((a) => a.id === aId)).toBeUndefined();
     });
 
     test("rejects deletion with wrong text", async () => {
@@ -456,7 +456,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       // Verify answer still exists
       const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
       const question = await getQuestionWithAnswers(qId);
-      expect(question!.answers.find((a) => a.id === aId)).toBeTruthy();
+      expect(question?.answers.find((a) => a.id === aId)).toBeTruthy();
     });
 
     test("rejects deletion when confirm_identifier is missing", async () => {

@@ -166,7 +166,7 @@ describe("code quality", () => {
     for (const file of srcFiles) {
       const relativePath = getRelativePath(file);
       if (TEST_UTILITY_FILES.includes(relativePath)) continue;
-      const lines = srcContents.get(file)!.split("\n");
+      const lines = srcContents.get(file)?.split("\n");
       let lineNum = 0;
       for (const line of lines) {
         lineNum++;

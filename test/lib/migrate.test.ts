@@ -181,10 +181,10 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
       // Verify the new columns are populated
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]!.pii_blob).not.toBe("");
-      expect(rows[0]!.price_paid_v2).toBe(1500);
-      expect(rows[0]!.checked_in_v2).toBe(0);
-      expect(rows[0]!.refunded_v2).toBe(0);
+      expect(rows[0]?.pii_blob).not.toBe("");
+      expect(rows[0]?.price_paid_v2).toBe(1500);
+      expect(rows[0]?.checked_in_v2).toBe(0);
+      expect(rows[0]?.refunded_v2).toBe(0);
     });
 
     test("preserves checked_in and refunded status during migration", async () => {
@@ -202,9 +202,9 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       await migrateAttendeeBatch(privateKey);
 
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]!.checked_in_v2).toBe(1);
-      expect(rows[0]!.refunded_v2).toBe(1);
-      expect(rows[0]!.price_paid_v2).toBe(2000);
+      expect(rows[0]?.checked_in_v2).toBe(1);
+      expect(rows[0]?.refunded_v2).toBe(1);
+      expect(rows[0]?.price_paid_v2).toBe(2000);
     });
 
     test("decrypts correctly from blob after migration", async () => {
@@ -223,12 +223,12 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       const rows = await getAttendeesRaw(event.id);
       const decrypted = await decryptAttendees(rows, privateKey);
 
-      expect(decrypted[0]!.name).toBe("Charlie");
-      expect(decrypted[0]!.email).toBe("charlie@test.com");
-      expect(decrypted[0]!.payment_id).toBe("pi_789");
-      expect(decrypted[0]!.price_paid).toBe("3000");
-      expect(decrypted[0]!.checked_in).toBe(false);
-      expect(decrypted[0]!.refunded).toBe(false);
+      expect(decrypted[0]?.name).toBe("Charlie");
+      expect(decrypted[0]?.email).toBe("charlie@test.com");
+      expect(decrypted[0]?.payment_id).toBe("pi_789");
+      expect(decrypted[0]?.price_paid).toBe("3000");
+      expect(decrypted[0]?.checked_in).toBe(false);
+      expect(decrypted[0]?.refunded).toBe(false);
     });
 
     test("decrypts pre-versioned blobs without v field", async () => {
@@ -254,8 +254,8 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       const privateKey = await getTestPrivateKey();
       const rows = await getAttendeesRaw(event.id);
       const decrypted = await decryptAttendees(rows, privateKey);
-      expect(decrypted[0]!.name).toBe("OldBlob");
-      expect(decrypted[0]!.email).toBe("old@test.com");
+      expect(decrypted[0]?.name).toBe("OldBlob");
+      expect(decrypted[0]?.email).toBe("old@test.com");
     });
 
     test("returns zero migrated when all attendees already migrated", async () => {
@@ -285,7 +285,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       );
 
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]!.pii_blob).not.toBe("");
+      expect(rows[0]?.pii_blob).not.toBe("");
     });
 
     test("pii_blob includes version field", async () => {
@@ -294,7 +294,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
       const rows = await getAttendeesRaw(event.id);
       const privateKey = await getTestPrivateKey();
-      const json = await decryptAttendeePII(rows[0]!.pii_blob, privateKey);
+      const json = await decryptAttendeePII(rows[0]?.pii_blob, privateKey);
       const blob = JSON.parse(json);
       expect(blob.v).toBe(PII_BLOB_VERSION);
     });
@@ -313,9 +313,9 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       );
 
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]!.price_paid_v2).toBe(2500);
-      expect(rows[0]!.checked_in_v2).toBe(0);
-      expect(rows[0]!.refunded_v2).toBe(0);
+      expect(rows[0]?.price_paid_v2).toBe(2500);
+      expect(rows[0]?.checked_in_v2).toBe(0);
+      expect(rows[0]?.refunded_v2).toBe(0);
     });
   });
 
@@ -332,7 +332,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       await updateCheckedIn(attendee.id, true);
 
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]!.checked_in_v2).toBe(1);
+      expect(rows[0]?.checked_in_v2).toBe(1);
     });
 
     test("sets checked_in_v2 back to 0 when unchecking", async () => {
@@ -348,7 +348,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       await updateCheckedIn(attendee.id, false);
 
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]!.checked_in_v2).toBe(0);
+      expect(rows[0]?.checked_in_v2).toBe(0);
     });
   });
 
@@ -369,7 +369,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       await markRefunded(attendee.id);
 
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]!.refunded_v2).toBe(1);
+      expect(rows[0]?.refunded_v2).toBe(1);
     });
   });
 

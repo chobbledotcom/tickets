@@ -356,7 +356,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
         const url = new URL(location, "http://localhost");
         const flashId = url.searchParams.get("flash");
         expect(flashId).toBeDefined();
-        expect(flashId!.length).toBe(4);
+        expect(flashId?.length).toBe(4);
       }));
 
     test("keys flash cookie by the flash ID in the URL", () =>
@@ -556,7 +556,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const response = await router(req, "/item/my-test-event", "GET");
       expect(response).not.toBeNull();
       expect(capturedParams.slug).toBe("my-test-event");
-      const text = await response!.text();
+      const text = await response?.text();
       expect(text).toBe("matched slug");
     });
 
@@ -573,7 +573,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const response = await router(req, "/file/my-file.txt", "GET");
       expect(response).not.toBeNull();
       expect(capturedParams.name).toBe("my-file.txt");
-      const text = await response!.text();
+      const text = await response?.text();
       expect(text).toBe("matched generic");
     });
 

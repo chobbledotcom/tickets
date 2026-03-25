@@ -808,7 +808,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
-      expect(attendees[0]!.quantity).toBe(2);
+      expect(attendees[0]?.quantity).toBe(2);
     });
 
     test("redirects with error on validation failure", async () => {
@@ -926,7 +926,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
-      expect(attendees[0]!.date).toBe(futureDate);
+      expect(attendees[0]?.date).toBe(futureDate);
     });
 
     test("event page shows add attendee form", async () => {
@@ -1388,7 +1388,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
       expect(updated).not.toBeNull();
-      expect(updated!.event_id).toBe(event2.id);
+      expect(updated?.event_id).toBe(event2.id);
     });
 
     test("event page shows edit success message", async () => {
@@ -1603,7 +1603,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(3);
+      expect(updated?.quantity).toBe(3);
     });
 
     test("shows quantity field on edit form", async () => {
@@ -1655,7 +1655,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(3);
+      expect(updated?.quantity).toBe(3);
     });
 
     test("rejects quantity increase when not enough spots", async () => {
@@ -1717,7 +1717,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(1);
+      expect(updated?.quantity).toBe(1);
     });
 
     test("rejects non-existent event_id on quantity update", async () => {
@@ -1781,7 +1781,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(1);
+      expect(updated?.quantity).toBe(1);
     });
 
     test("clamps quantity 0 to 1 instead of using falsy default", async () => {
@@ -1816,7 +1816,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
       // Math.max(1, 0) = 1, but via explicit NaN check, not || 1 falsy coercion
-      expect(updated!.quantity).toBe(1);
+      expect(updated?.quantity).toBe(1);
     });
 
     test("defaults missing quantity to 1", async () => {
@@ -1849,7 +1849,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(1);
+      expect(updated?.quantity).toBe(1);
     });
   });
 
@@ -2276,7 +2276,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
               `/admin/attendees/${attendee.id}`,
             );
             expectFlash(response, expect.stringContaining("refunded"));
-            expect(mockRefunded.calls[0]!.args).toEqual(["pi_refresh_refund"]);
+            expect(mockRefunded.calls[0]?.args).toEqual(["pi_refresh_refund"]);
           } finally {
             mockRefunded.restore();
           }

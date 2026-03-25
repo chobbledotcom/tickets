@@ -155,7 +155,7 @@ describe("detail-rows", () => {
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
       expect(attendeeRow).toBeDefined();
-      expect(attendeeRow!.value).toBe("5");
+      expect(attendeeRow?.value).toBe("5");
     });
 
     test("includes attendees row with count, capacity, and remain", () => {
@@ -166,8 +166,8 @@ describe("detail-rows", () => {
         hasPaidEvent: false,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).toContain("5 / 20");
-      expect(attendeeRow!.value).toContain("15 remain");
+      expect(attendeeRow?.value).toContain("5 / 20");
+      expect(attendeeRow?.value).toContain("15 remain");
     });
 
     test("shows danger-text when near capacity", () => {
@@ -178,7 +178,7 @@ describe("detail-rows", () => {
         hasPaidEvent: false,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).toContain("danger-text");
+      expect(attendeeRow?.value).toContain("danger-text");
     });
 
     test("does not show danger-text when well below capacity", () => {
@@ -189,7 +189,7 @@ describe("detail-rows", () => {
         hasPaidEvent: false,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).not.toContain("danger-text");
+      expect(attendeeRow?.value).not.toContain("danger-text");
     });
 
     test("does not show danger-text when no capacity set", () => {
@@ -200,7 +200,7 @@ describe("detail-rows", () => {
         hasPaidEvent: false,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).not.toContain("danger-text");
+      expect(attendeeRow?.value).not.toContain("danger-text");
     });
 
     test("skips attendees row when skipAttendees is true", () => {
@@ -227,8 +227,8 @@ describe("detail-rows", () => {
       });
       const checkedIn = rows.find((r) => r.key === "Checked In");
       expect(checkedIn).toBeDefined();
-      expect(checkedIn!.value).toContain("1 / 2");
-      expect(checkedIn!.value).toContain("1 remain");
+      expect(checkedIn?.value).toContain("1 / 2");
+      expect(checkedIn?.value).toContain("1 remain");
     });
 
     test("shows split checked-in rows for multi-quantity", () => {

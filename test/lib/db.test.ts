@@ -269,7 +269,7 @@ describeWithEnv("db", { db: true }, () => {
 
       // Key hierarchy should be generated
       expect(settings.publicKey).toBeTruthy();
-      expect(user!.wrapped_data_key).toBeTruthy();
+      expect(user?.wrapped_data_key).toBeTruthy();
       expect(settings.wrappedPrivateKey).toBeTruthy();
     });
 
@@ -378,22 +378,22 @@ describeWithEnv("db", { db: true }, () => {
       // Use the user from createTestDbWithSetup
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const oldWrappedKey = user!.wrapped_data_key;
+      const oldWrappedKey = user?.wrapped_data_key;
 
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(oldHash).toBeTruthy();
 
       const success = await settings.updateUserPassword(
-        user!.id,
+        user?.id,
         oldHash!,
-        user!.wrapped_data_key!,
+        user?.wrapped_data_key!,
         "newpassword456",
       );
       expect(success).toBe(true);
 
       // Wrapped key should be different (re-wrapped with new KEK)
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(updatedUser!.wrapped_data_key).not.toBe(oldWrappedKey);
+      expect(updatedUser?.wrapped_data_key).not.toBe(oldWrappedKey);
 
       // Old password should no longer work
       expect(
@@ -413,9 +413,9 @@ describeWithEnv("db", { db: true }, () => {
       const { settings: s } = await import("#lib/db/settings.ts");
       // Pass a bogus password hash - KEK derivation will produce wrong key
       const success = await s.updateUserPassword(
-        user!.id,
+        user?.id,
         "pbkdf2:bogus:hash",
-        user!.wrapped_data_key!,
+        user?.wrapped_data_key!,
         "newpassword",
       );
       expect(success).toBe(false);
@@ -455,9 +455,9 @@ describeWithEnv("db", { db: true }, () => {
       expect(oldHash).toBeTruthy();
 
       const changeSuccess = await settings.updateUserPassword(
-        user!.id,
+        user?.id,
         oldHash!,
-        user!.wrapped_data_key!,
+        user?.wrapped_data_key!,
         newPassword,
       );
       expect(changeSuccess).toBe(true);
@@ -482,7 +482,7 @@ describeWithEnv("db", { db: true }, () => {
       expect(newPasswordHash).toBeTruthy();
 
       const kek = await deriveKEK(newPasswordHash!);
-      const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
+      const dataKey = await unwrapKey(updatedUser?.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = settings.wrappedPrivateKey;
       expect(wrappedPrivateKey).toBeTruthy();
@@ -735,7 +735,7 @@ describeWithEnv("db", { db: true }, () => {
 
       const allLog = await getAllActivityLog();
       expect(allLog).toHaveLength(1);
-      expect(allLog[0]!.message).toBe("Global action");
+      expect(allLog[0]?.message).toBe("Global action");
     });
 
     test("deleteEvent works with no attendees", async () => {
@@ -1523,9 +1523,9 @@ describeWithEnv("db", { db: true }, () => {
 
       // Update password using user-based API
       const success = await settings.updateUserPassword(
-        user!.id,
+        user?.id,
         initialHash!,
-        user!.wrapped_data_key!,
+        user?.wrapped_data_key!,
         "new-password-123",
       );
       expect(success).toBe(true);
@@ -2417,7 +2417,7 @@ describeWithEnv("db", { db: true }, () => {
       // Pass corrupted wrapped_data_key - unwrap will fail
       const { settings: s } = await import("#lib/db/settings.ts");
       const result = await s.updateUserPassword(
-        user!.id,
+        user?.id,
         passwordHash!,
         "corrupted_wrapped_data_key",
         "newpassword",
