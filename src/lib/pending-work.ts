@@ -16,6 +16,10 @@ const pendingWork = new AsyncLocalStorage<Promise<void>[]>();
 export const runWithPendingWork = <T>(fn: () => T): T =>
   pendingWork.run([], fn);
 
+/** True when running inside a `runWithPendingWork` scope (i.e. a request). */
+export const hasPendingWorkScope = (): boolean =>
+  pendingWork.getStore() !== undefined;
+
 /** Queue a promise that must complete before the response is sent */
 export const addPendingWork = (p: Promise<void>): void => {
   const pending = pendingWork.getStore();

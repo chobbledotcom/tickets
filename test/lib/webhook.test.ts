@@ -4,6 +4,10 @@ import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import {
+  flushPendingWork,
+  runWithPendingWork,
+} from "#lib/pending-work.ts";
+import {
   buildWebhookPayload,
   type RegistrationEntry,
   sendRegistrationWebhooks,
@@ -316,15 +320,17 @@ describe("webhook", () => {
     ): Promise<
       ReturnType<typeof getAllActivityLog> extends Promise<infer T> ? T : never
     > => {
-      await withErrorSpy(async () => {
-        restubFetch(() => Promise.resolve(new Response("Error", { status })));
-        const payload = await buildWebhookPayload(
-          registrationEntries ?? defaultEntries(),
-          "GBP",
-        );
-        await sendWebhook("https://example.com/webhook", payload);
+      await runWithPendingWork(async () => {
+        await withErrorSpy(async () => {
+          restubFetch(() => Promise.resolve(new Response("Error", { status })));
+          const payload = await buildWebhookPayload(
+            registrationEntries ?? defaultEntries(),
+            "GBP",
+          );
+          await sendWebhook("https://example.com/webhook", payload);
+        });
+        await flushPendingWork();
       });
-      await new Promise((resolve) => setTimeout(resolve, 50));
       return getAllActivityLog();
     };
 
