@@ -654,7 +654,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         response,
         expect.stringContaining("Embed host restrictions removed"),
       );
-      expect(settings.embedHosts).toBe(null);
+      expect(settings.embedHosts).toBe("");
     });
 
     test("rejects invalid embed host pattern", async () => {
