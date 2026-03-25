@@ -546,11 +546,9 @@ const withCurrentTask = async <T>(
     args: [taskName, CONFIG_KEYS.CURRENT_TASK],
   });
   if (claim.rowsAffected === 0) {
-    // Another task holds the lock — read its name for the error message
-    const existing = snap("current_task") || "(unknown)";
     return {
       ok: false,
-      error: `Another task is already in progress: ${existing}`,
+      error: "Another task is already in progress",
     };
   }
   const state = getCacheState();
