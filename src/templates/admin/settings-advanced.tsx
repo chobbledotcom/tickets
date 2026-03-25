@@ -108,7 +108,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         <input
           type="text"
           name="subdomain"
-          placeholder="myevent"
+          placeholder="my-business-name"
           autocomplete="off"
           pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
         />
