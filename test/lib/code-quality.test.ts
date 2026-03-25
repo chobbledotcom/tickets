@@ -332,6 +332,8 @@ describe("code quality", () => {
       "lib/timezone.ts:isValidTimezone",
       // Attachment size constant (now re-exported from limits.ts, not detected by export patterns)
       "lib/storage.ts:MAX_ATTACHMENT_SIZE",
+      // AsyncLocalStorage-based storage config for concurrent test isolation
+      "lib/storage.ts:runWithStorageConfig",
       // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
       "lib/limits.ts:readLimit",
       // Settings cache TTL constant used by tests to verify caching behavior
