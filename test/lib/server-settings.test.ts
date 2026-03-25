@@ -12,6 +12,8 @@ import { squareApi } from "#lib/square.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
+  adminFormPost,
+  assertFormRedirect,
   awaitTestRequest,
   createTestEvent,
   describeWithEnv,
@@ -149,82 +151,47 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects missing required fields", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: "",
-            new_password: "",
-            new_password_confirm: "",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: "",
+        new_password: "",
+        new_password_confirm: "",
+      });
       await expectHtmlResponse(response, 400, "required");
     });
 
     test("rejects password shorter than 8 characters", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "short",
-            new_password_confirm: "short",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "short",
+        new_password_confirm: "short",
+      });
       await expectHtmlResponse(response, 400, "at least 8 characters");
     });
 
     test("rejects mismatched passwords", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "newpassword123",
-            new_password_confirm: "differentpassword",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "newpassword123",
+        new_password_confirm: "differentpassword",
+      });
       await expectHtmlResponse(response, 400, "do not match");
     });
 
     test("rejects incorrect current password", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: "wrongpassword",
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: "wrongpassword",
+        new_password: "newpassword123",
+        new_password_confirm: "newpassword123",
+      });
       await expectHtmlResponse(response, 401, "Current password is incorrect");
     });
 
     test("changes password and invalidates session", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "newpassword123",
+        new_password_confirm: "newpassword123",
+      });
 
       // Should redirect to admin login with success message and session cleared
       expect(response.status).toBe(302);
@@ -261,18 +228,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       invalidateUsersCache();
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "newpassword123",
+        new_password_confirm: "newpassword123",
+      });
       await expectHtmlResponse(response, 500, "Failed to update password");
     });
   });
@@ -302,31 +262,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects missing stripe key", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/stripe",
-          {
-            stripe_secret_key: "",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/stripe", {
+        stripe_secret_key: "",
+      });
       await expectHtmlResponse(response, 400, "required");
     });
 
     test("rejects invalid stripe key format", async () => {
       await settings.update.paymentProvider("stripe");
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/stripe",
-          {
-            stripe_secret_key: "invalid_key_123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/stripe", {
+        stripe_secret_key: "invalid_key_123",
+      });
       await expectHtmlResponse(
         response,
         400,
@@ -338,16 +284,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("rejects restricted key format", async () => {
       await settings.update.paymentProvider("stripe");
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/stripe",
-          {
-            stripe_secret_key: "rk_test_abc123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/stripe", {
+        stripe_secret_key: "rk_test_abc123",
+      });
       await expectHtmlResponse(response, 400, "Invalid Stripe key format");
     });
 
@@ -362,16 +301,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_new_key_123",
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
-            ),
-          );
+          const { response } = await adminFormPost("/admin/settings/stripe", {
+            stripe_secret_key: "sk_test_new_key_123",
+          });
 
           expect(response.status).toBe(302);
           expectRedirect(response, "/admin/settings");
@@ -408,16 +340,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           ),
         async () => {
           // Set the Stripe key
-          await handleRequest(
-            mockFormRequest(
-              "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_configured",
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
-            ),
-          );
+          await adminFormPost("/admin/settings/stripe", {
+            stripe_secret_key: "sk_test_configured",
+          });
 
           // Check the settings page shows it's configured and has test button
           const response = await awaitTestRequest("/admin/settings", {
@@ -442,16 +367,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          await handleRequest(
-            mockFormRequest(
-              "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_mode_check",
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
-            ),
-          );
+          await adminFormPost("/admin/settings/stripe", {
+            stripe_secret_key: "sk_test_mode_check",
+          });
 
           const response = await awaitTestRequest("/admin/settings", {
             cookie: await testCookie(),
@@ -474,16 +392,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          await handleRequest(
-            mockFormRequest(
-              "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_live_mode_check",
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
-            ),
-          );
+          await adminFormPost("/admin/settings/stripe", {
+            stripe_secret_key: "sk_live_mode_check",
+          });
 
           const response = await awaitTestRequest("/admin/settings", {
             cookie: await testCookie(),
@@ -542,14 +453,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              "/admin/settings/stripe/test",
-              {
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
-            ),
+          const { response } = await adminFormPost(
+            "/admin/settings/stripe/test",
           );
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
@@ -588,16 +493,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
+          const { response } = await adminFormPost(
+            "/admin/settings/stripe/test",
+          );
           await assertJson(
-            handleRequest(
-              mockFormRequest(
-                "/admin/settings/stripe/test",
-                {
-                  csrf_token: await testCsrfToken(),
-                },
-                await testCookie(),
-              ),
-            ),
+            Promise.resolve(response),
             200,
             (json) => {
               expect(json.ok).toBe(true);
@@ -628,16 +528,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
+          const { response } = await adminFormPost(
+            "/admin/settings/stripe/test",
+          );
           await assertJson(
-            handleRequest(
-              mockFormRequest(
-                "/admin/settings/stripe/test",
-                {
-                  csrf_token: await testCsrfToken(),
-                },
-                await testCookie(),
-              ),
-            ),
+            Promise.resolve(response),
             200,
             (json) => {
               expect(json.ok).toBe(false);
@@ -652,12 +547,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/embed-hosts", () => {
     test("clears embed hosts when empty", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          { embed_hosts: "   ", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/embed-hosts",
+        { embed_hosts: "   " },
       );
 
       expect(response.status).toBe(302);
@@ -669,27 +561,18 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects invalid embed host pattern", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          { embed_hosts: "*", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/embed-hosts",
+        { embed_hosts: "*" },
       );
 
       await expectHtmlResponse(response, 400, "Bare wildcard");
     });
 
     test("normalizes and saves embed hosts", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          {
-            embed_hosts: "Example.com, *.Sub.Example.com",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/embed-hosts",
+        { embed_hosts: "Example.com, *.Sub.Example.com" },
       );
 
       expect(response.status).toBe(302);
@@ -728,47 +611,26 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects missing square access token", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/square",
-          {
-            square_access_token: "",
-            square_location_id: "L_test_123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/square", {
+        square_access_token: "",
+        square_location_id: "L_test_123",
+      });
       await expectHtmlResponse(response, 400, "required");
     });
 
     test("rejects missing location ID", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/square",
-          {
-            square_access_token: "EAAAl_test_123",
-            square_location_id: "",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/square", {
+        square_access_token: "EAAAl_test_123",
+        square_location_id: "",
+      });
       await expectHtmlResponse(response, 400, "required");
     });
 
     test("updates Square credentials successfully", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/square",
-          {
-            square_access_token: "EAAAl_test_new",
-            square_location_id: "L_test_456",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/square", {
+        square_access_token: "EAAAl_test_new",
+        square_location_id: "L_test_456",
+      });
 
       expect(response.status).toBe(302);
       expectFlash(
@@ -790,17 +652,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("settings page shows Square is configured after setting token", async () => {
       // Set the Square credentials
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/square",
-          {
-            square_access_token: "EAAAl_test_configured",
-            square_location_id: "L_test_configured",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/square", {
+        square_access_token: "EAAAl_test_configured",
+        square_location_id: "L_test_configured",
+      });
 
       // Check the settings page shows it's configured
       const response = await awaitTestRequest("/admin/settings", {
@@ -824,29 +679,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects missing webhook signature key", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/square-webhook",
-          {
-            square_webhook_signature_key: "",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/square-webhook",
+        { square_webhook_signature_key: "" },
       );
       await expectHtmlResponse(response, 400, "required");
     });
 
     test("updates Square webhook key successfully", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/square-webhook",
-          {
-            square_webhook_signature_key: "sig_key_new",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/square-webhook",
+        { square_webhook_signature_key: "sig_key_new" },
       );
 
       expect(response.status).toBe(302);
@@ -891,12 +734,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              "/admin/settings/square/test",
-              { csrf_token: await testCsrfToken() },
-              await testCookie(),
-            ),
+          const { response } = await adminFormPost(
+            "/admin/settings/square/test",
           );
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
@@ -933,14 +772,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
+          const { response } = await adminFormPost(
+            "/admin/settings/square/test",
+          );
           await assertJson(
-            handleRequest(
-              mockFormRequest(
-                "/admin/settings/square/test",
-                { csrf_token: await testCsrfToken() },
-                await testCookie(),
-              ),
-            ),
+            Promise.resolve(response),
             200,
             (json) => {
               expect(json.ok).toBe(true);
@@ -970,14 +806,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
+          const { response } = await adminFormPost(
+            "/admin/settings/square/test",
+          );
           await assertJson(
-            handleRequest(
-              mockFormRequest(
-                "/admin/settings/square/test",
-                { csrf_token: await testCsrfToken() },
-                await testCookie(),
-              ),
-            ),
+            Promise.resolve(response),
             200,
             (json) => {
               expect(json.ok).toBe(false);
@@ -993,15 +826,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/payment-provider (square)", () => {
     test("sets provider to square", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/payment-provider",
-          {
-            payment_provider: "square",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        { payment_provider: "square" },
       );
 
       expect(response.status).toBe(302);
@@ -1022,15 +849,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("sets payment provider to stripe", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/payment-provider",
-          {
-            payment_provider: "stripe",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        { payment_provider: "stripe" },
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -1040,15 +861,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("disables payment provider with none", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/payment-provider",
-          {
-            payment_provider: "none",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        { payment_provider: "none" },
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -1058,15 +873,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects invalid payment provider", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/payment-provider",
-          {
-            payment_provider: "invalid-provider",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        { payment_provider: "invalid-provider" },
       );
       await expectHtmlResponse(response, 400, "Invalid payment provider");
     });
@@ -1084,16 +893,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       try {
         await settings.update.paymentProvider("stripe");
 
-        const response = await handleRequest(
-          mockFormRequest(
-            "/admin/settings/stripe",
-            {
-              stripe_secret_key: "sk_test_webhook_fail",
-              csrf_token: await testCsrfToken(),
-            },
-            await testCookie(),
-          ),
-        );
+        const { response } = await adminFormPost("/admin/settings/stripe", {
+          stripe_secret_key: "sk_test_webhook_fail",
+        });
         await expectHtmlResponse(
           response,
           400,
@@ -1108,24 +910,16 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   describe("admin/settings.ts (form.get fallbacks)", () => {
     test("payment provider POST without payment_provider field uses empty fallback", async () => {
       // Submit without payment_provider field at all
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/payment-provider",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
       );
       await expectHtmlResponse(response, 400, "Invalid payment provider");
     });
 
     test("reset database POST without confirm_phrase field uses empty fallback", async () => {
       // Submit without confirm_phrase field
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/reset-database",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/reset-database",
       );
       await expectHtmlResponse(
         response,
@@ -1160,17 +954,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("saves terms and conditions", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/terms",
-          {
-            terms_and_conditions:
-              "By registering you agree to our event policy.",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/terms", {
+        terms_and_conditions: "By registering you agree to our event policy.",
+      });
 
       expect(response.status).toBe(302);
       expectFlash(
@@ -1180,16 +966,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects terms exceeding max length", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/terms",
-          {
-            terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/terms", {
+        terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+      });
 
       await expectHtmlResponse(
         response,
@@ -1199,16 +978,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("accepts terms at exactly max length", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/terms",
-          {
-            terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH),
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/terms", {
+        terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH),
+      });
 
       expect(response.status).toBe(302);
       expectFlash(
@@ -1219,28 +991,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("clears terms when empty", async () => {
       // First save some terms
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/terms",
-          {
-            terms_and_conditions: "Some terms",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/terms", {
+        terms_and_conditions: "Some terms",
+      });
 
       // Now clear them
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/terms",
-          {
-            terms_and_conditions: "",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/terms", {
+        terms_and_conditions: "",
+      });
 
       expect(response.status).toBe(302);
       expectFlash(
@@ -1250,13 +1008,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("handles missing terms field gracefully", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/terms",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/terms");
 
       expect(response.status).toBe(302);
       expectFlash(
@@ -1344,15 +1096,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("updates business email successfully", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/business-email",
-          {
-            business_email: "contact@example.com",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/business-email",
+        { business_email: "contact@example.com" },
       );
 
       expect(response.status).toBe(302);
@@ -1369,15 +1115,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(settings.businessEmail ?? "").toBe("old@example.com");
 
       // Then clear it
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/business-email",
-          {
-            business_email: "",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/business-email",
+        { business_email: "" },
       );
 
       expect(response.status).toBe(302);
@@ -1387,15 +1127,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects invalid email format", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/business-email",
-          {
-            business_email: "not-an-email",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/settings/business-email",
+        { business_email: "not-an-email" },
       );
 
       await expectHtmlResponse(response, 400, "Invalid email format");
@@ -1404,18 +1138,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("audit logging", () => {
     test("logs activity when password is changed", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "newpassword123",
+        new_password_confirm: "newpassword123",
+      });
 
       const logs = await getAllActivityLog();
       expect(logs.some((l) => l.message.includes("Password changed"))).toBe(
@@ -1424,13 +1151,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when payment provider is set", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/payment-provider",
-          { payment_provider: "stripe", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/payment-provider", {
+        payment_provider: "stripe",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1439,13 +1162,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when payment provider is disabled", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/payment-provider",
-          { payment_provider: "none", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/payment-provider", {
+        payment_provider: "none",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1464,16 +1183,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          await handleRequest(
-            mockFormRequest(
-              "/admin/settings/stripe",
-              {
-                stripe_secret_key: "sk_test_log_key",
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
-            ),
-          );
+          await adminFormPost("/admin/settings/stripe", {
+            stripe_secret_key: "sk_test_log_key",
+          });
 
           const logs = await getAllActivityLog();
           expect(
@@ -1484,17 +1196,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when Square credentials are configured", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/square",
-          {
-            square_access_token: "EAAAl_test_log",
-            square_location_id: "L_test_log",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/square", {
+        square_access_token: "EAAAl_test_log",
+        square_location_id: "L_test_log",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1503,16 +1208,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when Square webhook key is configured", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/square-webhook",
-          {
-            square_webhook_signature_key: "sig_key_log",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/square-webhook", {
+        square_webhook_signature_key: "sig_key_log",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1523,16 +1221,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when terms and conditions are updated", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/terms",
-          {
-            terms_and_conditions: "New terms",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/terms", {
+        terms_and_conditions: "New terms",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1541,13 +1232,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when terms and conditions are removed", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/terms",
-          { terms_and_conditions: "", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/terms", {
+        terms_and_conditions: "",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1556,16 +1243,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when business email is updated", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/business-email",
-          {
-            business_email: "audit@example.com",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/business-email", {
+        business_email: "audit@example.com",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1574,13 +1254,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when business email is cleared", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/business-email",
-          { business_email: "", csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/business-email", {
+        business_email: "",
+      });
 
       const logs = await getAllActivityLog();
       expect(
@@ -1589,17 +1265,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("logs activity when database reset is initiated", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/reset-database",
-          {
-            confirm_phrase:
-              "The site will be fully reset and all data will be lost.",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      await adminFormPost("/admin/settings/reset-database", {
+        confirm_phrase:
+          "The site will be fully reset and all data will be lost.",
+      });
 
       // After reset, the activity_log table is wiped, so we can't check it.
       // Instead, verify the reset succeeded (redirects to /setup/)
@@ -1632,19 +1301,15 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           return null;
         });
 
-        const response = await handleRequest(
-          mockFormRequest(
-            "/admin/settings/reset-database",
-            {
-              confirm_phrase:
-                "The site will be fully reset and all data will be lost.",
-              csrf_token: await testCsrfToken(),
-            },
-            await testCookie(),
-          ),
+        await assertFormRedirect(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
+          },
+          "/setup/",
+          "Database reset",
         );
-
-        expectRedirectWithFlash("/setup/", "Database reset")(response);
         expect(
           deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
         ).toBe(true);
