@@ -5,8 +5,8 @@
  * After that, every setting is a plain sync property:
  *
  *   settings.theme            // "light"
- *   settings.headerImageUrl   // string | null
- *   settings.stripe.secretKey // string | null
+ *   settings.headerImageUrl   // string
+ *   settings.stripe.secretKey // string
  *
  * Writes go through `settings.update.*`:
  *
@@ -90,7 +90,7 @@ export const CONFIG_KEYS = {
   ATTENDEE_BLOB_MIGRATED: "attendee_blob_migrated",
 } as const;
 
-export const MASK_SENTINEL = "••••••••";
+export const MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
 export const isMaskSentinel = (value: string): boolean =>
   value === MASK_SENTINEL;
 
@@ -126,97 +126,93 @@ export type EmailTemplateType = "confirmation" | "admin";
 /** Valid email template formats */
 export type EmailTemplateFormat = "subject" | "html" | "text";
 
-const TEMPLATE_SNAPSHOT_KEYS: Record<string, StringSettingKey> = {
-  "confirmation:subject": "emailTplConfirmationSubject",
-  "confirmation:html": "emailTplConfirmationHtml",
-  "confirmation:text": "emailTplConfirmationText",
-  "admin:subject": "emailTplAdminSubject",
-  "admin:html": "emailTplAdminHtml",
-  "admin:text": "emailTplAdminText",
-};
-
-const TEMPLATE_CONFIG_KEYS: Record<string, string> = {
-  "confirmation:subject": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
-  "confirmation:html": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
-  "confirmation:text": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
-  "admin:subject": CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
-  "admin:html": CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
-  "admin:text": CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
+/** Template type:format → config key (no separate mapping needed). */
+const TEMPLATE_KEYS: Record<string, StringSettingKey> = {
+  "confirmation:subject": "email_tpl_confirmation_subject",
+  "confirmation:html": "email_tpl_confirmation_html",
+  "confirmation:text": "email_tpl_confirmation_text",
+  "admin:subject": "email_tpl_admin_subject",
+  "admin:html": "email_tpl_admin_html",
+  "admin:text": "email_tpl_admin_text",
 };
 
 // ---------------------------------------------------------------------------
-// String setting fields — defined once, type + defaults derived from it
+// String setting keys — plaintext and encrypted
 // ---------------------------------------------------------------------------
 
-/** Every snapshot key whose type is `string` (default: ""). Empty string = no value. */
-const STRING_SETTING_KEYS = [
-  // Plaintext
-  "terms",
-  "emailProvider",
-  "customDomain",
-  "customDomainLastValidated",
-  "publicKey",
-  "wrappedPrivateKey",
-  "squareLocationId",
-  "stripeWebhookEndpointId",
-  // Encrypted (pre-decrypted by loadAll)
-  "businessEmail",
-  "headerImageUrl",
-  "websiteTitle",
-  "homepageText",
-  "contactPageText",
-  "stripeSecretKey",
-  "stripeWebhookSecret",
-  "squareAccessToken",
-  "squareWebhookSignatureKey",
-  "embedHosts",
-  "emailApiKey",
-  "emailFromAddress",
-  "emailTplConfirmationSubject",
-  "emailTplConfirmationHtml",
-  "emailTplConfirmationText",
-  "emailTplAdminSubject",
-  "emailTplAdminHtml",
-  "emailTplAdminText",
-  "appleWalletPassTypeId",
-  "appleWalletTeamId",
-  "appleWalletSigningCert",
-  "appleWalletSigningKey",
-  "appleWalletWwdrCert",
-  "googleWalletIssuerId",
-  "googleWalletServiceAccountEmail",
-  "googleWalletServiceAccountKey",
-  "bunnySubdomain",
+/** Plaintext string config keys (stored unencrypted, default ""). */
+const PLAINTEXT_KEYS = [
+  CONFIG_KEYS.TERMS_AND_CONDITIONS,
+  CONFIG_KEYS.EMAIL_PROVIDER,
+  CONFIG_KEYS.CUSTOM_DOMAIN,
+  CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+  CONFIG_KEYS.BUNNY_SUBDOMAIN,
+  CONFIG_KEYS.PUBLIC_KEY,
+  CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
+  CONFIG_KEYS.SQUARE_LOCATION_ID,
+  CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
 ] as const;
 
-/** Union of all string-setting snapshot keys (derived from the array). */
-export type StringSettingKey = (typeof STRING_SETTING_KEYS)[number];
+/** Encrypted string config keys (decrypted during loadAll, default ""). */
+const ENCRYPTED_KEYS = [
+  CONFIG_KEYS.BUSINESS_EMAIL,
+  CONFIG_KEYS.HEADER_IMAGE_URL,
+  CONFIG_KEYS.WEBSITE_TITLE,
+  CONFIG_KEYS.HOMEPAGE_TEXT,
+  CONFIG_KEYS.CONTACT_PAGE_TEXT,
+  CONFIG_KEYS.STRIPE_SECRET_KEY,
+  CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
+  CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
+  CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
+  CONFIG_KEYS.EMBED_HOSTS,
+  CONFIG_KEYS.EMAIL_API_KEY,
+  CONFIG_KEYS.EMAIL_FROM_ADDRESS,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
+  CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
+  CONFIG_KEYS.APPLE_WALLET_TEAM_ID,
+  CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT,
+  CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
+  CONFIG_KEYS.APPLE_WALLET_WWDR_CERT,
+  CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
+  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
+  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
+] as const;
+
+/** Union of all string-setting snapshot keys. */
+export type StringSettingKey =
+  | (typeof PLAINTEXT_KEYS)[number]
+  | (typeof ENCRYPTED_KEYS)[number];
 
 /** All string setting fields: empty string means "no value". */
 type StringSettingFields = Record<StringSettingKey, string>;
 
 /** Generate empty-string defaults for every string setting field. */
-const stringSettingDefaults: StringSettingFields = Object.fromEntries(
-  STRING_SETTING_KEYS.map((k) => [k, ""]),
+const stringSettingDefaults = Object.fromEntries(
+  [...PLAINTEXT_KEYS, ...ENCRYPTED_KEYS].map((k) => [k, ""]),
 ) as StringSettingFields;
 
 // ---------------------------------------------------------------------------
 // Full snapshot type + initial data
 // ---------------------------------------------------------------------------
 
-/** Non-nullable / non-string snapshot fields that need explicit types. */
+/** Non-string snapshot fields that need explicit types. */
 type SpecificFields = {
   country: string;
   theme: Theme;
-  showPublicSite: boolean;
-  showPublicApi: boolean;
-  paymentProvider: PaymentProviderType | null;
-  bookingFee: string;
-  squareSandbox: boolean;
-  attendeeBlobMigrated: boolean;
+  show_public_site: boolean;
+  show_public_api: boolean;
+  payment_provider: PaymentProviderType | null;
+  booking_fee: string;
+  square_sandbox: boolean;
+  attendee_blob_migrated: boolean;
   currency: string;
   timezone: string;
-  phonePrefix: string;
+  phone_prefix: string;
 };
 
 /** Full settings snapshot type. */
@@ -226,21 +222,21 @@ export type SettingsData = SpecificFields & StringSettingFields;
 const data: SettingsData = {
   country: DEFAULT_COUNTRY,
   theme: "light",
-  showPublicSite: false,
-  showPublicApi: false,
-  paymentProvider: null,
-  bookingFee: "0",
-  squareSandbox: false,
-  attendeeBlobMigrated: false,
+  show_public_site: false,
+  show_public_api: false,
+  payment_provider: null,
+  booking_fee: "0",
+  square_sandbox: false,
+  attendee_blob_migrated: false,
   currency: "GBP",
   timezone: DEFAULT_TIMEZONE,
-  phonePrefix: "+44",
+  phone_prefix: "+44",
   ...stringSettingDefaults,
 };
 
 const defaults: Readonly<SettingsData> = { ...data };
 
-/** Type-safe setter for a single snapshot field (avoids TS indexed-write `never` issue). */
+/** Type-safe setter for a single snapshot field. */
 const setSnapshotField = <K extends keyof SettingsData>(
   key: K,
   value: SettingsData[K],
@@ -299,93 +295,67 @@ const writeEncrypted = async (key: string, value: string): Promise<void> => {
   await writeRaw(key, await encrypt(value));
 };
 
+/** Factory: write encrypted value + update snapshot. */
+const encryptedUpdate =
+  (key: StringSettingKey) =>
+  async (v: string): Promise<void> => {
+    await writeEncrypted(key, v);
+    setSnapshotField(key, v);
+  };
+
+/** Factory: write-or-delete plaintext value + update snapshot. */
+const plaintextUpdate =
+  (key: StringSettingKey) =>
+  async (v: string): Promise<void> => {
+    await writeOrDelete(key, v);
+    setSnapshotField(key, v);
+  };
+
 // ---------------------------------------------------------------------------
 // Snapshot builder — called by loadAll()
 // ---------------------------------------------------------------------------
-
-/** Mapping: CONFIG_KEY → snapshot field for encrypted values. */
-const ENCRYPTED_FIELDS: [string, StringSettingKey][] = [
-  [CONFIG_KEYS.BUSINESS_EMAIL, "businessEmail"],
-  [CONFIG_KEYS.HEADER_IMAGE_URL, "headerImageUrl"],
-  [CONFIG_KEYS.WEBSITE_TITLE, "websiteTitle"],
-  [CONFIG_KEYS.HOMEPAGE_TEXT, "homepageText"],
-  [CONFIG_KEYS.CONTACT_PAGE_TEXT, "contactPageText"],
-  [CONFIG_KEYS.STRIPE_SECRET_KEY, "stripeSecretKey"],
-  [CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, "stripeWebhookSecret"],
-  [CONFIG_KEYS.SQUARE_ACCESS_TOKEN, "squareAccessToken"],
-  [CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY, "squareWebhookSignatureKey"],
-  [CONFIG_KEYS.EMBED_HOSTS, "embedHosts"],
-  [CONFIG_KEYS.EMAIL_API_KEY, "emailApiKey"],
-  [CONFIG_KEYS.EMAIL_FROM_ADDRESS, "emailFromAddress"],
-  [CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT, "emailTplConfirmationSubject"],
-  [CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML, "emailTplConfirmationHtml"],
-  [CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT, "emailTplConfirmationText"],
-  [CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT, "emailTplAdminSubject"],
-  [CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML, "emailTplAdminHtml"],
-  [CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT, "emailTplAdminText"],
-  [CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID, "appleWalletPassTypeId"],
-  [CONFIG_KEYS.APPLE_WALLET_TEAM_ID, "appleWalletTeamId"],
-  [CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT, "appleWalletSigningCert"],
-  [CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY, "appleWalletSigningKey"],
-  [CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, "appleWalletWwdrCert"],
-  [CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID, "googleWalletIssuerId"],
-  [
-    CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
-    "googleWalletServiceAccountEmail",
-  ],
-  [
-    CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
-    "googleWalletServiceAccountKey",
-  ],
-];
 
 type CountryInfo = ReturnType<typeof getCountry>;
 const applyCountryDerived = (info: CountryInfo): void => {
   data.currency = info.currency;
   data.timezone = info.timezone;
-  data.phonePrefix = info.phonePrefix;
+  data.phone_prefix = info.phonePrefix;
 };
 
 const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
-  // Plaintext fields
+  // Plaintext special fields
   const country = raw.get(CONFIG_KEYS.COUNTRY) || DEFAULT_COUNTRY;
   const info = getCountry(country);
 
   data.country = country;
   data.theme = raw.get(CONFIG_KEYS.THEME) === "dark" ? "dark" : "light";
-  data.showPublicSite = raw.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
-  data.showPublicApi = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
+  data.show_public_site = raw.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
+  data.show_public_api = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
   const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
-  data.paymentProvider =
+  data.payment_provider =
     rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
-  data.terms = raw.get(CONFIG_KEYS.TERMS_AND_CONDITIONS) ?? "";
-  data.emailProvider = raw.get(CONFIG_KEYS.EMAIL_PROVIDER) ?? "";
-  data.bookingFee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
-  data.customDomain = raw.get(CONFIG_KEYS.CUSTOM_DOMAIN) ?? "";
-  data.customDomainLastValidated =
-    raw.get(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED) ?? "";
-  data.bunnySubdomain = raw.get(CONFIG_KEYS.BUNNY_SUBDOMAIN) ?? "";
-  data.publicKey = raw.get(CONFIG_KEYS.PUBLIC_KEY) ?? "";
-  data.wrappedPrivateKey = raw.get(CONFIG_KEYS.WRAPPED_PRIVATE_KEY) ?? "";
-  data.squareLocationId = raw.get(CONFIG_KEYS.SQUARE_LOCATION_ID) ?? "";
-  data.squareSandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
-  data.stripeWebhookEndpointId =
-    raw.get(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID) ?? "";
+  data.booking_fee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
+  data.square_sandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
   const m = raw.get(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED);
-  data.attendeeBlobMigrated = m !== undefined && m !== "" && m !== null;
+  data.attendee_blob_migrated = m !== undefined && m !== "" && m !== null;
+
+  // Plaintext string fields — config key IS the snapshot key
+  for (const key of PLAINTEXT_KEYS) {
+    setSnapshotField(key, raw.get(key) ?? "");
+  }
 
   // Derived
   applyCountryDerived(info);
 
   // Encrypted — parallel decrypt
   const values = await Promise.all(
-    ENCRYPTED_FIELDS.map(([key]) => {
+    ENCRYPTED_KEYS.map((key) => {
       const v = raw.get(key);
       return v ? decrypt(v) : "";
     }),
   );
-  for (let i = 0; i < ENCRYPTED_FIELDS.length; i++) {
-    setSnapshotField(ENCRYPTED_FIELDS[i]![1], values[i]!);
+  for (let i = 0; i < ENCRYPTED_KEYS.length; i++) {
+    setSnapshotField(ENCRYPTED_KEYS[i]!, values[i]!);
   }
 };
 
@@ -601,55 +571,55 @@ export const settings = {
     return snap("theme");
   },
   get showPublicSite(): boolean {
-    return snap("showPublicSite");
+    return snap("show_public_site");
   },
   get showPublicApi(): boolean {
-    return snap("showPublicApi");
+    return snap("show_public_api");
   },
   get paymentProvider(): PaymentProviderType | null {
-    return snap("paymentProvider");
+    return snap("payment_provider");
   },
   get terms(): string {
-    return snap("terms");
+    return snap("terms_and_conditions");
   },
   get bookingFee(): string {
-    return snap("bookingFee");
+    return snap("booking_fee");
   },
   get customDomain(): string {
-    return snap("customDomain");
+    return snap("custom_domain");
   },
   get customDomainLastValidated(): string {
-    return snap("customDomainLastValidated");
+    return snap("custom_domain_last_validated");
   },
   get bunnySubdomain(): string {
-    return snap("bunnySubdomain");
+    return snap("bunny_subdomain");
   },
   get publicKey(): string {
-    return snap("publicKey");
+    return snap("public_key");
   },
   get wrappedPrivateKey(): string {
-    return snap("wrappedPrivateKey");
+    return snap("wrapped_private_key");
   },
   get headerImageUrl(): string {
-    return snap("headerImageUrl");
+    return snap("header_image_url");
   },
   get websiteTitle(): string {
-    return snap("websiteTitle");
+    return snap("website_title");
   },
   get homepageText(): string {
-    return snap("homepageText");
+    return snap("homepage_text");
   },
   get contactPageText(): string {
-    return snap("contactPageText");
+    return snap("contact_page_text");
   },
   get businessEmail(): string {
-    return snap("businessEmail");
+    return snap("business_email");
   },
   get embedHosts(): string {
-    return snap("embedHosts");
+    return snap("embed_hosts");
   },
   get attendeeBlobMigrated(): boolean {
-    return snap("attendeeBlobMigrated");
+    return snap("attendee_blob_migrated");
   },
 
   // Derived from country
@@ -660,67 +630,67 @@ export const settings = {
     return snap("timezone");
   },
   get phonePrefix(): string {
-    return snap("phonePrefix");
+    return snap("phone_prefix");
   },
 
   // --- Stripe ---
   stripe: {
     get secretKey(): string {
-      return snap("stripeSecretKey");
+      return snap("stripe_secret_key");
     },
     get hasKey(): boolean {
-      return snap("stripeSecretKey") !== "";
+      return snap("stripe_secret_key") !== "";
     },
     get keyMode(): "test" | "live" | null {
-      const k = snap("stripeSecretKey");
+      const k = snap("stripe_secret_key");
       if (!k) return null;
       if (k.startsWith("sk_test_")) return "test";
       if (k.startsWith("sk_live_")) return "live";
       return null;
     },
     get webhookSecret(): string {
-      return snap("stripeWebhookSecret");
+      return snap("stripe_webhook_secret");
     },
     get webhookEndpointId(): string {
-      return snap("stripeWebhookEndpointId");
+      return snap("stripe_webhook_endpoint_id");
     },
   },
 
   // --- Square ---
   square: {
     get accessToken(): string {
-      return snap("squareAccessToken");
+      return snap("square_access_token");
     },
     get hasToken(): boolean {
-      return snap("squareAccessToken") !== "";
+      return snap("square_access_token") !== "";
     },
     get webhookSignatureKey(): string {
-      return snap("squareWebhookSignatureKey");
+      return snap("square_webhook_signature_key");
     },
     get locationId(): string {
-      return snap("squareLocationId");
+      return snap("square_location_id");
     },
     get sandbox(): boolean {
-      return snap("squareSandbox");
+      return snap("square_sandbox");
     },
   },
 
   // --- Email ---
   email: {
     get provider(): string {
-      return snap("emailProvider");
+      return snap("email_provider");
     },
     get apiKey(): string {
-      return snap("emailApiKey");
+      return snap("email_api_key");
     },
     get hasApiKey(): boolean {
-      return snap("emailApiKey") !== "";
+      return snap("email_api_key") !== "";
     },
     get fromAddress(): string {
-      return snap("emailFromAddress");
+      return snap("email_from_address");
     },
     template(type: EmailTemplateType, format: EmailTemplateFormat): string {
-      return snap(TEMPLATE_SNAPSHOT_KEYS[`${type}:${format}`]!);
+      return snap(TEMPLATE_KEYS[`${type}:${format}`]!);
     },
     templateSet(type: EmailTemplateType): {
       subject: string;
@@ -738,19 +708,19 @@ export const settings = {
   // --- Apple Wallet ---
   appleWallet: {
     get passTypeId(): string {
-      return snap("appleWalletPassTypeId");
+      return snap("apple_wallet_pass_type_id");
     },
     get teamId(): string {
-      return snap("appleWalletTeamId");
+      return snap("apple_wallet_team_id");
     },
     get signingCert(): string {
-      return snap("appleWalletSigningCert");
+      return snap("apple_wallet_signing_cert");
     },
     get signingKey(): string {
-      return snap("appleWalletSigningKey");
+      return snap("apple_wallet_signing_key");
     },
     get wwdrCert(): string {
-      return snap("appleWalletWwdrCert");
+      return snap("apple_wallet_wwdr_cert");
     },
     get hasDbConfig(): boolean {
       return !!(
@@ -787,13 +757,13 @@ export const settings = {
   // --- Google Wallet ---
   googleWallet: {
     get issuerId(): string {
-      return snap("googleWalletIssuerId");
+      return snap("google_wallet_issuer_id");
     },
     get serviceAccountEmail(): string {
-      return snap("googleWalletServiceAccountEmail");
+      return snap("google_wallet_service_account_email");
     },
     get serviceAccountKey(): string {
-      return snap("googleWalletServiceAccountKey");
+      return snap("google_wallet_service_account_key");
     },
     get hasDbConfig(): boolean {
       const { issuerId, serviceAccountEmail, serviceAccountKey } = this;
@@ -840,84 +810,49 @@ export const settings = {
     },
     showPublicSite: async (v: boolean): Promise<void> => {
       await writeRaw(CONFIG_KEYS.SHOW_PUBLIC_SITE, v ? "true" : "false");
-      data.showPublicSite = v;
+      data.show_public_site = v;
     },
     showPublicApi: async (v: boolean): Promise<void> => {
       await writeRaw(CONFIG_KEYS.SHOW_PUBLIC_API, v ? "true" : "false");
-      data.showPublicApi = v;
+      data.show_public_api = v;
     },
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
       await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
-      data.paymentProvider = v;
+      data.payment_provider = v;
     },
     clearPaymentProvider: async (): Promise<void> => {
       await deleteRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
-      data.paymentProvider = null;
+      data.payment_provider = null;
     },
-    terms: async (v: string): Promise<void> => {
-      await writeOrDelete(CONFIG_KEYS.TERMS_AND_CONDITIONS, v);
-      data.terms = v;
-    },
+    terms: plaintextUpdate(CONFIG_KEYS.TERMS_AND_CONDITIONS),
     bookingFee: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
-      data.bookingFee = v || "0";
+      data.booking_fee = v || "0";
     },
-    customDomain: async (v: string): Promise<void> => {
-      await writeOrDelete(CONFIG_KEYS.CUSTOM_DOMAIN, v);
-      data.customDomain = v;
-    },
+    customDomain: plaintextUpdate(CONFIG_KEYS.CUSTOM_DOMAIN),
     customDomainLastValidated: async (): Promise<void> => {
       const ts = new Date().toISOString();
       await writeRaw(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, ts);
-      data.customDomainLastValidated = ts;
+      data.custom_domain_last_validated = ts;
     },
-    bunnySubdomain: async (v: string): Promise<void> => {
-      await writeOrDelete(CONFIG_KEYS.BUNNY_SUBDOMAIN, v);
-      data.bunnySubdomain = v;
-    },
-    headerImageUrl: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.HEADER_IMAGE_URL, v);
-      data.headerImageUrl = v;
-    },
-    websiteTitle: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.WEBSITE_TITLE, v);
-      data.websiteTitle = v;
-    },
-    homepageText: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.HOMEPAGE_TEXT, v);
-      data.homepageText = v;
-    },
-    contactPageText: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.CONTACT_PAGE_TEXT, v);
-      data.contactPageText = v;
-    },
-    businessEmail: async (v: string): Promise<void> => {
-      await writeEncrypted(CONFIG_KEYS.BUSINESS_EMAIL, v);
-      data.businessEmail = v;
-    },
-    embedHosts: async (v: string): Promise<void> => {
-      if (v === "") {
-        await writeOrDelete(CONFIG_KEYS.EMBED_HOSTS, "");
-        data.embedHosts = "";
-        return;
-      }
-      await writeRaw(CONFIG_KEYS.EMBED_HOSTS, await encrypt(v));
-      data.embedHosts = v;
-    },
+    bunnySubdomain: plaintextUpdate(CONFIG_KEYS.BUNNY_SUBDOMAIN),
+    headerImageUrl: encryptedUpdate(CONFIG_KEYS.HEADER_IMAGE_URL),
+    websiteTitle: encryptedUpdate(CONFIG_KEYS.WEBSITE_TITLE),
+    homepageText: encryptedUpdate(CONFIG_KEYS.HOMEPAGE_TEXT),
+    contactPageText: encryptedUpdate(CONFIG_KEYS.CONTACT_PAGE_TEXT),
+    businessEmail: encryptedUpdate(CONFIG_KEYS.BUSINESS_EMAIL),
+    embedHosts: encryptedUpdate(CONFIG_KEYS.EMBED_HOSTS),
     attendeeBlobMigrated: async (): Promise<void> => {
       await writeRaw(
         CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED,
         new Date().toISOString(),
       );
-      data.attendeeBlobMigrated = true;
+      data.attendee_blob_migrated = true;
     },
 
     // --- Stripe writes ---
     stripe: {
-      secretKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.STRIPE_SECRET_KEY, v);
-        data.stripeSecretKey = v;
-      },
+      secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
       webhookConfig: async (config: {
         secret: string;
         endpointId: string;
@@ -930,97 +865,61 @@ export const settings = {
           CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
           config.endpointId,
         );
-        data.stripeWebhookSecret = config.secret;
-        data.stripeWebhookEndpointId = config.endpointId;
+        data.stripe_webhook_secret = config.secret;
+        data.stripe_webhook_endpoint_id = config.endpointId;
       },
     },
 
     // --- Square writes ---
     square: {
-      accessToken: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.SQUARE_ACCESS_TOKEN, v);
-        data.squareAccessToken = v;
-      },
-      webhookSignatureKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY, v);
-        data.squareWebhookSignatureKey = v;
-      },
+      accessToken: encryptedUpdate(CONFIG_KEYS.SQUARE_ACCESS_TOKEN),
+      webhookSignatureKey: encryptedUpdate(
+        CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
+      ),
       locationId: async (v: string): Promise<void> => {
         await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, v);
-        data.squareLocationId = v;
+        data.square_location_id = v;
       },
       sandbox: async (v: boolean): Promise<void> => {
         await writeRaw(CONFIG_KEYS.SQUARE_SANDBOX, v ? "true" : "false");
-        data.squareSandbox = v;
+        data.square_sandbox = v;
       },
     },
 
     // --- Email writes ---
     email: {
-      provider: async (v: string): Promise<void> => {
-        await writeOrDelete(CONFIG_KEYS.EMAIL_PROVIDER, v);
-        data.emailProvider = v;
-      },
-      apiKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.EMAIL_API_KEY, v);
-        data.emailApiKey = v;
-      },
-      fromAddress: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.EMAIL_FROM_ADDRESS, v);
-        data.emailFromAddress = v;
-      },
+      provider: plaintextUpdate(CONFIG_KEYS.EMAIL_PROVIDER),
+      apiKey: encryptedUpdate(CONFIG_KEYS.EMAIL_API_KEY),
+      fromAddress: encryptedUpdate(CONFIG_KEYS.EMAIL_FROM_ADDRESS),
       template: async (
         type: EmailTemplateType,
         format: EmailTemplateFormat,
         content: string,
       ): Promise<void> => {
-        const k = `${type}:${format}`;
-        await writeEncrypted(TEMPLATE_CONFIG_KEYS[k]!, content);
-        setSnapshotField(TEMPLATE_SNAPSHOT_KEYS[k]!, content);
+        const key = TEMPLATE_KEYS[`${type}:${format}`]!;
+        await writeEncrypted(key, content);
+        setSnapshotField(key, content);
       },
     },
 
     // --- Apple Wallet writes ---
     appleWallet: {
-      passTypeId: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID, v);
-        data.appleWalletPassTypeId = v;
-      },
-      teamId: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_TEAM_ID, v);
-        data.appleWalletTeamId = v;
-      },
-      signingCert: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT, v);
-        data.appleWalletSigningCert = v;
-      },
-      signingKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY, v);
-        data.appleWalletSigningKey = v;
-      },
-      wwdrCert: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, v);
-        data.appleWalletWwdrCert = v;
-      },
+      passTypeId: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID),
+      teamId: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_TEAM_ID),
+      signingCert: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT),
+      signingKey: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY),
+      wwdrCert: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT),
     },
 
     // --- Google Wallet writes ---
     googleWallet: {
-      issuerId: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID, v);
-        data.googleWalletIssuerId = v;
-      },
-      serviceAccountEmail: async (v: string): Promise<void> => {
-        await writeEncrypted(
-          CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
-          v,
-        );
-        data.googleWalletServiceAccountEmail = v;
-      },
-      serviceAccountKey: async (v: string): Promise<void> => {
-        await writeEncrypted(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY, v);
-        data.googleWalletServiceAccountKey = v;
-      },
+      issuerId: encryptedUpdate(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID),
+      serviceAccountEmail: encryptedUpdate(
+        CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
+      ),
+      serviceAccountKey: encryptedUpdate(
+        CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
+      ),
     },
   },
 };
