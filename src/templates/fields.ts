@@ -738,24 +738,18 @@ export const getAddAttendeeFields = (
   return result;
 };
 
-/** New password field (reused across setup, change password, and join forms) */
-const newPasswordField = (name: string, label: string): Field => ({
-  name,
-  label,
-  type: "password",
-  required: true,
-  minlength: 8,
-  hint: "Minimum 8 characters",
-  autocomplete: "new-password",
-});
-
-/** Confirm password field (reused across setup, change password, and join forms) */
-const confirmPasswordField = (name: string, label: string): Field => ({
+/** Password field with new-password autocomplete (reused across setup, change password, and join forms) */
+const newPasswordField = (
+  name: string,
+  label: string,
+  { confirm }: { confirm?: boolean } = {},
+): Field => ({
   name,
   label,
   type: "password",
   required: true,
   autocomplete: "new-password",
+  ...(!confirm && { minlength: 8, hint: "Minimum 8 characters" }),
 });
 
 /**
@@ -773,7 +767,7 @@ export const setupFields: Field[] = [
     validate: validateUsername,
   },
   newPasswordField("admin_password", "Admin Password *"),
-  confirmPasswordField("admin_password_confirm", "Confirm Admin Password *"),
+  newPasswordField("admin_password_confirm", "Confirm Admin Password *", { confirm: true }),
 ];
 
 /**
@@ -788,7 +782,7 @@ export const changePasswordFields: Field[] = [
     autocomplete: "current-password",
   },
   newPasswordField("new_password", "New Password"),
-  confirmPasswordField("new_password_confirm", "Confirm New Password"),
+  newPasswordField("new_password_confirm", "Confirm New Password", { confirm: true }),
 ];
 
 /**
@@ -866,5 +860,5 @@ export const inviteUserFields: Field[] = [
  */
 export const joinFields: Field[] = [
   newPasswordField("password", "Password"),
-  confirmPasswordField("password_confirm", "Confirm Password"),
+  newPasswordField("password_confirm", "Confirm Password", { confirm: true }),
 ];
