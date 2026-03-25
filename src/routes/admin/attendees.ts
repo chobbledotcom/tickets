@@ -219,7 +219,7 @@ const verifiedAttendeeAction = (
   confirmLabel: string | undefined,
   handler: VerifiedAction,
 ) =>
-  attendeeFormAction(async (data, _session, form, eventId, attendeeId) => {
+  attendeeFormAction((data, _session, form, eventId, attendeeId) => {
     const error = verifyNameForAction(
       form,
       data,
@@ -761,7 +761,7 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
 const handleResendNotification = verifiedAttendeeAction(
   "resend-notification",
   undefined,
-  async (data, form, eventId, attendeeId) => {
+  async (data, form, eventId, _attendeeId) => {
     await Promise.all([
       logAndNotifyRegistration([
         { event: data.event, attendee: data.attendee },
