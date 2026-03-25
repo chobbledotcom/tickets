@@ -125,7 +125,7 @@ export type EmailTemplateType = "confirmation" | "admin";
 /** Valid email template formats */
 export type EmailTemplateFormat = "subject" | "html" | "text";
 
-const TEMPLATE_SNAPSHOT_KEYS: Record<string, keyof typeof data> = {
+const TEMPLATE_SNAPSHOT_KEYS: Record<string, NullableStringKey> = {
   "confirmation:subject": "emailTplConfirmationSubject",
   "confirmation:html": "emailTplConfirmationHtml",
   "confirmation:text": "emailTplConfirmationText",
@@ -143,112 +143,97 @@ const TEMPLATE_CONFIG_KEYS: Record<string, string> = {
   "admin:text": CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
 };
 
-/** Typed shape of the settings snapshot — single source of truth. */
-export type SettingsData = {
-  // --- Plaintext ---
+// ---------------------------------------------------------------------------
+// Nullable string fields — defined once, type + defaults derived from it
+// ---------------------------------------------------------------------------
+
+/** Every snapshot key whose type is `string | null` (default: null). */
+const NULLABLE_STRING_KEYS = [
+  // Plaintext
+  "terms",
+  "emailProvider",
+  "customDomain",
+  "customDomainLastValidated",
+  "publicKey",
+  "wrappedPrivateKey",
+  "squareLocationId",
+  "stripeWebhookEndpointId",
+  // Encrypted (pre-decrypted by loadAll)
+  "businessEmail",
+  "headerImageUrl",
+  "websiteTitle",
+  "homepageText",
+  "contactPageText",
+  "stripeSecretKey",
+  "stripeWebhookSecret",
+  "squareAccessToken",
+  "squareWebhookSignatureKey",
+  "embedHosts",
+  "emailApiKey",
+  "emailFromAddress",
+  "emailTplConfirmationSubject",
+  "emailTplConfirmationHtml",
+  "emailTplConfirmationText",
+  "emailTplAdminSubject",
+  "emailTplAdminHtml",
+  "emailTplAdminText",
+  "appleWalletPassTypeId",
+  "appleWalletTeamId",
+  "appleWalletSigningCert",
+  "appleWalletSigningKey",
+  "appleWalletWwdrCert",
+  "googleWalletIssuerId",
+  "googleWalletServiceAccountEmail",
+  "googleWalletServiceAccountKey",
+] as const;
+
+/** Union of all nullable-string snapshot keys (derived from the array). */
+export type NullableStringKey = (typeof NULLABLE_STRING_KEYS)[number];
+
+/** All nullable string fields share the same shape. */
+type NullableStringFields = Record<NullableStringKey, string | null>;
+
+/** Generate null defaults for every nullable string field. */
+const nullStringDefaults: NullableStringFields = Object.fromEntries(
+  NULLABLE_STRING_KEYS.map((k) => [k, null]),
+) as NullableStringFields;
+
+// ---------------------------------------------------------------------------
+// Full snapshot type + initial data
+// ---------------------------------------------------------------------------
+
+/** Non-nullable / non-string snapshot fields that need explicit types. */
+type SpecificFields = {
   country: string;
   theme: Theme;
   showPublicSite: boolean;
   showPublicApi: boolean;
   paymentProvider: PaymentProviderType | null;
-  terms: string | null;
-  emailProvider: string | null;
   bookingFee: string;
-  customDomain: string | null;
-  customDomainLastValidated: string | null;
-  publicKey: string | null;
-  wrappedPrivateKey: string | null;
-  squareLocationId: string | null;
   squareSandbox: boolean;
-  stripeWebhookEndpointId: string | null;
   attendeeBlobMigrated: boolean;
-
-  // --- Derived from country ---
   currency: string;
   timezone: string;
   phonePrefix: string;
-
-  // --- Encrypted (pre-decrypted by loadAll) ---
-  businessEmail: string | null;
-  headerImageUrl: string | null;
-  websiteTitle: string | null;
-  homepageText: string | null;
-  contactPageText: string | null;
-  stripeSecretKey: string | null;
-  stripeWebhookSecret: string | null;
-  squareAccessToken: string | null;
-  squareWebhookSignatureKey: string | null;
-  embedHosts: string | null;
-  emailApiKey: string | null;
-  emailFromAddress: string | null;
-  emailTplConfirmationSubject: string | null;
-  emailTplConfirmationHtml: string | null;
-  emailTplConfirmationText: string | null;
-  emailTplAdminSubject: string | null;
-  emailTplAdminHtml: string | null;
-  emailTplAdminText: string | null;
-  appleWalletPassTypeId: string | null;
-  appleWalletTeamId: string | null;
-  appleWalletSigningCert: string | null;
-  appleWalletSigningKey: string | null;
-  appleWalletWwdrCert: string | null;
-  googleWalletIssuerId: string | null;
-  googleWalletServiceAccountEmail: string | null;
-  googleWalletServiceAccountKey: string | null;
 };
+
+/** Full settings snapshot type. */
+export type SettingsData = SpecificFields & NullableStringFields;
 
 /** Mutable snapshot of all settings. Populated by loadAll(). */
 const data: SettingsData = {
-  // --- Plaintext ---
   country: DEFAULT_COUNTRY,
   theme: "light",
   showPublicSite: false,
   showPublicApi: false,
   paymentProvider: null,
-  terms: null,
-  emailProvider: null,
   bookingFee: "0",
-  customDomain: null,
-  customDomainLastValidated: null,
-  publicKey: null,
-  wrappedPrivateKey: null,
-  squareLocationId: null,
   squareSandbox: false,
-  stripeWebhookEndpointId: null,
   attendeeBlobMigrated: false,
-
-  // --- Derived from country ---
   currency: "GBP",
   timezone: DEFAULT_TIMEZONE,
   phonePrefix: "+44",
-
-  // --- Encrypted (pre-decrypted by loadAll) ---
-  businessEmail: null,
-  headerImageUrl: null,
-  websiteTitle: null,
-  homepageText: null,
-  contactPageText: null,
-  stripeSecretKey: null,
-  stripeWebhookSecret: null,
-  squareAccessToken: null,
-  squareWebhookSignatureKey: null,
-  embedHosts: null,
-  emailApiKey: null,
-  emailFromAddress: null,
-  emailTplConfirmationSubject: null,
-  emailTplConfirmationHtml: null,
-  emailTplConfirmationText: null,
-  emailTplAdminSubject: null,
-  emailTplAdminHtml: null,
-  emailTplAdminText: null,
-  appleWalletPassTypeId: null,
-  appleWalletTeamId: null,
-  appleWalletSigningCert: null,
-  appleWalletSigningKey: null,
-  appleWalletWwdrCert: null,
-  googleWalletIssuerId: null,
-  googleWalletServiceAccountEmail: null,
-  googleWalletServiceAccountKey: null,
+  ...nullStringDefaults,
 };
 
 const defaults: Readonly<SettingsData> = { ...data };
@@ -315,11 +300,6 @@ const writeEncrypted = async (key: string, value: string): Promise<void> => {
 // ---------------------------------------------------------------------------
 // Snapshot builder — called by loadAll()
 // ---------------------------------------------------------------------------
-
-/** Keys in SettingsData whose value type is string | null (the encrypted fields). */
-type NullableStringKey = {
-  [K in keyof SettingsData]: SettingsData[K] extends string | null ? K : never;
-}[keyof SettingsData];
 
 /** Mapping: CONFIG_KEY → snapshot field for encrypted values. */
 const ENCRYPTED_FIELDS: [string, NullableStringKey][] = [
@@ -737,9 +717,7 @@ export const settings = {
       type: EmailTemplateType,
       format: EmailTemplateFormat,
     ): string | null {
-      return snap(
-        TEMPLATE_SNAPSHOT_KEYS[`${type}:${format}`] as keyof SettingsData,
-      ) as string | null;
+      return snap(TEMPLATE_SNAPSHOT_KEYS[`${type}:${format}`]!);
     },
     templateSet(type: EmailTemplateType): {
       subject: string | null;
@@ -995,8 +973,7 @@ export const settings = {
       ): Promise<void> => {
         const k = `${type}:${format}`;
         await writeEncrypted(TEMPLATE_CONFIG_KEYS[k]!, content);
-        (data as Record<string, unknown>)[TEMPLATE_SNAPSHOT_KEYS[k]!] =
-          content || null;
+        setSnapshotField(TEMPLATE_SNAPSHOT_KEYS[k]!, content || null);
       },
     },
 
