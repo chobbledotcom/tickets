@@ -68,10 +68,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
           <a href={`https://${s.bunnySubdomain}`}>
             <strong>{s.bunnySubdomain}</strong>
           </a>
-          .{" "}
-          {s.customDomain && s.customDomainLastValidated
-            ? `Visitors will be redirected to your custom domain (${s.customDomain}).`
-            : "You can also set a custom domain below."}
+          . {!s.customDomain && "You can also set a custom domain below."}
         </p>
         <p>
           <small>This subdomain is permanent and cannot be changed.</small>
