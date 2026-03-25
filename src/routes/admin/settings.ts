@@ -130,7 +130,10 @@ const getSettingsPageState = () => {
 };
 
 /** Gather state for the advanced settings page */
-const getAdvancedSettingsPageState = async (subdomainPreview = "") => {
+const getAdvancedSettingsPageState = async (
+  subdomainPreview = "",
+  subdomainPreviewFullDomain = "",
+) => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
   const bunnyDnsEnabled = isBunnyDnsEnabled();
   const confirmationTemplates = settings.email.templateSet("confirmation");
@@ -157,6 +160,7 @@ const getAdvancedSettingsPageState = async (subdomainPreview = "") => {
       ? getBunnyDnsSubdomainSuffix()
       : "",
     subdomainPreview,
+    subdomainPreviewFullDomain,
     customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
     customDomainLastValidated:
       (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
@@ -191,8 +195,12 @@ const renderSettingsPage = (session: AuthSession) => {
 const renderAdvancedSettingsPage = async (
   session: AuthSession,
   subdomainPreview = "",
+  subdomainPreviewFullDomain = "",
 ) => {
-  const state = await getAdvancedSettingsPageState(subdomainPreview);
+  const state = await getAdvancedSettingsPageState(
+    subdomainPreview,
+    subdomainPreviewFullDomain,
+  );
   return adminAdvancedSettingsPage(session, state);
 };
 
@@ -288,8 +296,15 @@ const handleAdminSettingsAdvancedGet: TypedRouteHandler<
     const subdomainPreview = flash.success
       ? getSearchParam(request, "subdomain")
       : "";
+    const subdomainPreviewFullDomain = flash.success
+      ? getSearchParam(request, "fullDomain")
+      : "";
     return htmlResponse(
-      await renderAdvancedSettingsPage(session, subdomainPreview),
+      await renderAdvancedSettingsPage(
+        session,
+        subdomainPreview,
+        subdomainPreviewFullDomain,
+      ),
     );
   });
 
@@ -1200,11 +1215,11 @@ const handleHostSubdomainPost = advancedSettingsRoute(
       }
       return redirect(
         "/admin/settings-advanced",
-        `${raw}${getBunnyDnsSubdomainSuffix()} is available`,
+        `${check.fullDomain} is available`,
         true,
         {
           formId: FORM_ID_HOST_SUBDOMAIN,
-          params: { subdomain: raw },
+          params: { subdomain: raw, fullDomain: check.fullDomain },
         },
       );
     }
