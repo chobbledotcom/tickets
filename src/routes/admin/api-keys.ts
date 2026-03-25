@@ -37,11 +37,12 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
     const keys = await getApiKeysForUser(session.userId);
     const flash = getFlash();
     // The API key is embedded in the flash success message after a newline
-    const newLineIdx = flash.success?.indexOf("\n") ?? -1;
+    const successMsg = flash.success ?? "";
+    const newLineIdx = successMsg.indexOf("\n");
     const success =
-      newLineIdx >= 0 ? flash.success!.slice(0, newLineIdx) : flash.success;
+      newLineIdx >= 0 ? successMsg.slice(0, newLineIdx) : flash.success;
     const newKey =
-      newLineIdx >= 0 ? flash.success!.slice(newLineIdx + 1) : undefined;
+      newLineIdx >= 0 ? successMsg.slice(newLineIdx + 1) : undefined;
     return htmlResponse(
       adminApiKeysPage(keys, session, {
         success,

@@ -782,8 +782,8 @@ export const squareApi: {
         tenders: order.tenders?.map(mapTender),
         state: order.state,
         totalMoney: {
-          amount: order.totalMoney!.amount!,
-          currency: order.totalMoney!.currency!,
+          amount: (order.totalMoney?.amount ?? BigInt(0)) as bigint,
+          currency: (order.totalMoney?.currency ?? "") as string,
         },
       };
     }, ErrorCode.SQUARE_ORDER),
@@ -820,13 +820,16 @@ export const squareApi: {
       return false;
     }
 
+    const refundAmount = payment.amountMoney.amount;
+    const refundCurrency = payment.amountMoney.currency as string;
+
     const result = await withClient(async (client) => {
       await client.refunds.refundPayment({
         idempotencyKey: crypto.randomUUID(),
         paymentId,
         amountMoney: {
-          amount: payment.amountMoney!.amount,
-          currency: payment.amountMoney!.currency as string,
+          amount: refundAmount,
+          currency: refundCurrency,
         },
       });
       return true;

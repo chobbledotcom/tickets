@@ -100,7 +100,7 @@ const answerCols = (
     const matched = answerIds.find((aid) =>
       q.answers.some((a) => a.id === aid),
     );
-    return escapeCsvValue(matched ? answerTextMap.get(matched)! : "");
+    return escapeCsvValue(matched ? (answerTextMap.get(matched) ?? "") : "");
   });
 
 /** CSV options for question/answer data */

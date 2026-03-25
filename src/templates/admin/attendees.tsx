@@ -210,7 +210,7 @@ const renderEventSelector = (
   // Build options HTML
   const options = eventIds
     .map((id) => {
-      const event = allEvents.find((e) => e.id === id)!;
+      const event = allEvents.find((e) => e.id === id) as EventWithCount;
       const selected = id === currentEventId ? " selected" : "";
       return `<option value="${id}"${selected}>${event.name}${!event.active ? " (inactive)" : ""}</option>`;
     })

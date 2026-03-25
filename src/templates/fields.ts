@@ -255,7 +255,7 @@ const validateEventType = (value: string): string | null => {
 };
 
 /** Valid day names for bookable_days (Monday-first for display) */
-export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
+export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0] as string];
 
 /** Check if a string is a valid day name */
 const isValidDayName = (s: string): boolean =>
@@ -564,10 +564,10 @@ export const groupCreateFields: Field[] = [
 
 /** Group form field definitions (edit - includes slug) */
 export const groupFields: Field[] = [
-  groupCreateFields[0]!,
+  groupCreateFields[0] as Field,
   slugField,
-  groupCreateFields[1]!,
-  groupCreateFields[2]!,
+  groupCreateFields[1] as Field,
+  groupCreateFields[2] as Field,
 ];
 
 /** Name field shown on all ticket forms */

@@ -365,10 +365,6 @@ export const handleRequest = async (
               }
             }
 
-            // Ensure settings cache is populated before reading custom domain.
-            // loadAll() is a no-op when the cache is still valid (60 s TTL).
-            await settings.loadAll();
-
             // Load effective domain (custom_domain from DB if set, else request hostname)
             loadEffectiveDomain(effectiveRequest.url);
 

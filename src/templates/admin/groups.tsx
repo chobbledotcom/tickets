@@ -175,7 +175,7 @@ const buildAttendeeRows = (
   );
   return pipe(
     map((a: Attendee): AttendeeTableRow => {
-      const event = eventMap.get(a.event_id)!;
+      const event = eventMap.get(a.event_id) as EventWithCount;
       return {
         attendee: a,
         eventId: event.id,
