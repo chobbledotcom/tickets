@@ -9,6 +9,7 @@ import {
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
+  expectJsonResponse,
   setupStripe,
 } from "#test-utils";
 
@@ -78,6 +79,19 @@ describeWithEnv("Public API", { db: true }, () => {
         method: "POST",
         body: bookingBody,
       }),
+    );
+    const body = await jsonBody(response);
+    return { response, body };
+  };
+
+  /** Fetch availability for an event by slug, with optional query string */
+  const fetchAvailability = async (
+    slug: string,
+    query = "",
+  ): Promise<{ response: Response; body: Record<string, unknown> }> => {
+    const qs = query ? `?${query}` : "";
+    const response = await handleRequest(
+      apiRequest(`/api/events/${slug}/availability${qs}`),
     );
     const body = await jsonBody(response);
     return { response, body };
@@ -240,11 +254,8 @@ describeWithEnv("Public API", { db: true }, () => {
   describe("GET /api/events/:slug/availability", () => {
     test("returns available true when spots exist", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}/availability`),
-      );
+      const { response, body } = await fetchAvailability(event.slug);
       expect(response.status).toBe(200);
-      const body = await jsonBody(response);
       expect(body.available).toBe(true);
       expectCorsHeaders(response);
     });
@@ -252,10 +263,7 @@ describeWithEnv("Public API", { db: true }, () => {
     test("returns available false when sold out", async () => {
       const event = await createTestEvent({ maxAttendees: 1 });
       await createTestAttendeeDirect(event.id, "Alice", "a@test.com");
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}/availability`),
-      );
-      const body = await jsonBody(response);
+      const { body } = await fetchAvailability(event.slug);
       expect(body.available).toBe(false);
     });
 
@@ -263,38 +271,27 @@ describeWithEnv("Public API", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 2 });
       await createTestAttendeeDirect(event.id, "Alice", "a@test.com");
       // 1 spot left, requesting 2
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}/availability?quantity=2`),
-      );
-      const body = await jsonBody(response);
+      const { body } = await fetchAvailability(event.slug, "quantity=2");
       expect(body.available).toBe(false);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(
-        apiRequest("/api/events/nonexistent/availability"),
-      );
+      const { response } = await fetchAvailability("nonexistent");
       expect(response.status).toBe(404);
     });
 
     test("preserves quantity 0 instead of defaulting to 1", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}/availability?quantity=0`),
-      );
+      const { response, body } = await fetchAvailability(event.slug, "quantity=0");
       expect(response.status).toBe(200);
-      const body = await jsonBody(response);
       // quantity=0 should be treated as 0, not silently become 1
       expect(body.available).toBe(true);
     });
 
     test("handles invalid quantity gracefully", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const response = await handleRequest(
-        apiRequest(`/api/events/${event.slug}/availability?quantity=abc`),
-      );
+      const { response, body } = await fetchAvailability(event.slug, "quantity=abc");
       expect(response.status).toBe(200);
-      const body = await jsonBody(response);
       expect(body.available).toBe(true);
     });
   });
@@ -352,9 +349,9 @@ describeWithEnv("Public API", { db: true }, () => {
       const response = await handleRequest(
         rawPostRequest(event.slug, "application/json", "not valid json{{{"),
       );
-      expect(response.status).toBe(400);
-      const body = await jsonBody(response);
-      expect(body.error).toBe("Invalid JSON body");
+      await expectJsonResponse(400, (body) => {
+        expect(body.error).toBe("Invalid JSON body");
+      })(response);
     });
 
     test("returns 400 for wrong content-type", async () => {
