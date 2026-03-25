@@ -29,6 +29,7 @@ import {
   extractCsrfToken,
   FLASH_TEST_ID,
   flashCookieHeader,
+  expectJsonResponse,
   getTestDataKey,
   matchGroup,
   mockRequest,
@@ -511,9 +512,9 @@ describeWithEnv("API Keys", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.events).toBeDefined();
+      await expectJsonResponse(200, (body) => {
+        expect(body.events).toBeDefined();
+      })(response);
     });
 
     test("rejects Bearer token on admin HTML pages", async () => {
@@ -635,11 +636,12 @@ describeWithEnv("API Keys", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.events).toBeDefined();
-      expect(body.events.length).toBeGreaterThan(0);
-      expect(body.admin_level).toBe("owner");
+      // deno-lint-ignore no-explicit-any
+      const body = await expectJsonResponse<Record<string, any>>(200, (body) => {
+        expect(body.events).toBeDefined();
+        expect(body.events.length).toBeGreaterThan(0);
+        expect(body.admin_level).toBe("owner");
+      })(response);
 
       // Verify snake_case keys and no internal fields
       const event = body.events[0];
@@ -665,9 +667,9 @@ describeWithEnv("API Keys", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.events).toBeDefined();
+      await expectJsonResponse(200, (body) => {
+        expect(body.events).toBeDefined();
+      })(response);
     });
 
     test("GET /api/admin/events returns 401 for invalid API key", async () => {

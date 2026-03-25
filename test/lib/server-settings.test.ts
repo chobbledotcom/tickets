@@ -18,6 +18,7 @@ import {
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectJsonResponse,
   expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
@@ -550,16 +551,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(200);
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
           );
-          const json = await response.json();
-          expect(json.ok).toBe(false);
-          expect(json.apiKey.valid).toBe(false);
-          expect(json.apiKey.error).toContain(
-            "No Stripe secret key configured",
-          );
+          // deno-lint-ignore no-explicit-any
+          await expectJsonResponse<Record<string, any>>(200, (json) => {
+            expect(json.ok).toBe(false);
+            expect(json.apiKey.valid).toBe(false);
+            expect(json.apiKey.error).toContain(
+              "No Stripe secret key configured",
+            );
+          })(response);
         },
       );
     });
@@ -592,19 +594,20 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(200);
-          const json = await response.json();
-          expect(json.ok).toBe(true);
-          expect(json.apiKey.valid).toBe(true);
-          expect(json.apiKey.mode).toBe("test");
-          expect(json.webhooks).toHaveLength(1);
-          expect(json.webhooks[0].url).toBe(
-            "https://example.com/payment/webhook",
-          );
-          expect(json.webhooks[0].status).toBe("enabled");
-          expect(json.webhooks[0].enabledEvents).toContain(
-            "checkout.session.completed",
-          );
+          // deno-lint-ignore no-explicit-any
+          await expectJsonResponse<Record<string, any>>(200, (json) => {
+            expect(json.ok).toBe(true);
+            expect(json.apiKey.valid).toBe(true);
+            expect(json.apiKey.mode).toBe("test");
+            expect(json.webhooks).toHaveLength(1);
+            expect(json.webhooks[0].url).toBe(
+              "https://example.com/payment/webhook",
+            );
+            expect(json.webhooks[0].status).toBe("enabled");
+            expect(json.webhooks[0].enabledEvents).toContain(
+              "checkout.session.completed",
+            );
+          })(response);
         },
       );
     });
@@ -629,11 +632,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(200);
-          const json = await response.json();
-          expect(json.ok).toBe(false);
-          expect(json.apiKey.valid).toBe(true);
-          expect(json.webhooks).toHaveLength(0);
+          // deno-lint-ignore no-explicit-any
+          await expectJsonResponse<Record<string, any>>(200, (json) => {
+            expect(json.ok).toBe(false);
+            expect(json.apiKey.valid).toBe(true);
+            expect(json.webhooks).toHaveLength(0);
+          })(response);
         },
       );
     });
@@ -887,16 +891,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(200);
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
           );
-          const json = await response.json();
-          expect(json.ok).toBe(false);
-          expect(json.accessToken.valid).toBe(false);
-          expect(json.accessToken.error).toContain(
-            "No Square access token configured",
-          );
+          // deno-lint-ignore no-explicit-any
+          await expectJsonResponse<Record<string, any>>(200, (json) => {
+            expect(json.ok).toBe(false);
+            expect(json.accessToken.valid).toBe(false);
+            expect(json.accessToken.error).toContain(
+              "No Square access token configured",
+            );
+          })(response);
         },
       );
     });
@@ -925,14 +930,15 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(200);
-          const json = await response.json();
-          expect(json.ok).toBe(true);
-          expect(json.accessToken.valid).toBe(true);
-          expect(json.accessToken.mode).toBe("sandbox");
-          expect(json.location.configured).toBe(true);
-          expect(json.location.name).toBe("Test Location");
-          expect(json.webhook.configured).toBe(true);
+          // deno-lint-ignore no-explicit-any
+          await expectJsonResponse<Record<string, any>>(200, (json) => {
+            expect(json.ok).toBe(true);
+            expect(json.accessToken.valid).toBe(true);
+            expect(json.accessToken.mode).toBe("sandbox");
+            expect(json.location.configured).toBe(true);
+            expect(json.location.name).toBe("Test Location");
+            expect(json.webhook.configured).toBe(true);
+          })(response);
         },
       );
     });
@@ -959,12 +965,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(200);
-          const json = await response.json();
-          expect(json.ok).toBe(false);
-          expect(json.accessToken.valid).toBe(true);
-          expect(json.location.configured).toBe(false);
-          expect(json.location.error).toContain("No location ID configured");
+          // deno-lint-ignore no-explicit-any
+          await expectJsonResponse<Record<string, any>>(200, (json) => {
+            expect(json.ok).toBe(false);
+            expect(json.accessToken.valid).toBe(true);
+            expect(json.location.configured).toBe(false);
+            expect(json.location.error).toContain("No location ID configured");
+          })(response);
         },
       );
     });

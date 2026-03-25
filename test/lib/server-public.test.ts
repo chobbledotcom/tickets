@@ -23,6 +23,7 @@ import {
   describeWithEnv,
   expectCheckoutRedirect,
   expectHtmlResponse,
+  expectJsonResponse,
   expectRedirect,
   getTicketCsrfToken,
   matchGroup,
@@ -445,9 +446,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /health", () => {
     test("returns health status", async () => {
       const response = await handleRequest(mockRequest("/health"));
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json).toEqual({ status: "ok" });
+      await expectJsonResponse(200, (json) => {
+        expect(json).toEqual({ status: "ok" });
+      })(response);
     });
 
     test("returns 404 for non-GET requests to /health", async () => {

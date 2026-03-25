@@ -9,6 +9,7 @@ import {
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
+  expectJsonResponse,
   mockFormRequest,
   testCookie,
   testCsrfToken,
@@ -71,9 +72,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
     status: number,
     errorSubstring: string,
   ) {
-    expect(response.status).toBe(status);
-    const json = await response.json();
-    expect(json.error).toContain(errorSubstring);
+    await expectJsonResponse(status, (json) => {
+      expect(json.error).toContain(errorSubstring);
+    })(response);
   }
 
   describe("settings page", () => {
@@ -267,9 +268,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
         format: "text",
       });
 
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json.rendered).toBe("Hello Jane Smith");
+      await expectJsonResponse(200, (json) => {
+        expect(json.rendered).toBe("Hello Jane Smith");
+      })(response);
     });
 
     test("returns error for invalid template syntax", async () => {
@@ -316,9 +317,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
         format: "html",
       });
 
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json.rendered).toContain("£");
+      await expectJsonResponse(200, (json) => {
+        expect(json.rendered).toContain("£");
+      })(response);
     });
   });
 });

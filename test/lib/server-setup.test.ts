@@ -7,6 +7,7 @@ import {
   createTestDb,
   describeWithEnv,
   expectHtmlResponse,
+  expectJsonResponse,
   expectRedirect,
   getSetupCsrfToken,
   mockFormRequest,
@@ -61,9 +62,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("health check still works", async () => {
         const response = await handleRequest(mockRequest("/health"));
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json).toEqual({ status: "ok" });
+        await expectJsonResponse(200, (json) => {
+          expect(json).toEqual({ status: "ok" });
+        })(response);
       });
 
       test("GET /setup/ shows setup page", async () => {

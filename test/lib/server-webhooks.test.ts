@@ -21,6 +21,7 @@ import {
   setupStripe,
   stubWebhookVerify,
   webhookMeta,
+  expectJsonResponse,
   withExpectedError,
 } from "#test-utils";
 
@@ -126,9 +127,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -164,9 +165,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         // Returns 200 to prevent provider retries
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -212,10 +213,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.status).toBe("pending");
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.status).toBe("pending");
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -261,10 +262,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        })(response);
 
         // Verify attendee was created with encrypted PII blob
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -333,10 +334,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        })(response);
 
         // Verify attendees were created for both events
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -489,11 +490,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         // Webhook returns 200 even for business logic failures to prevent retries
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("sold out");
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("sold out");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -719,9 +720,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
 
         // Verify attendee was created with encrypted PII blob
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -810,9 +811,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         // Returns 200 to prevent provider retries
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -1198,9 +1199,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -1262,10 +1263,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("no longer accepting");
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("no longer accepting");
+        })(response);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
@@ -1338,10 +1339,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("sold out");
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("sold out");
+        })(response);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
@@ -1378,10 +1379,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBeUndefined();
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -1442,9 +1443,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -1560,9 +1561,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("Event not found");
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.error).toContain("Event not found");
+        })(response);
         // Event not found should NOT trigger a refund (webhook may be for a different instance)
         expect(mockRefund.calls.length).toBe(0);
       } finally {
@@ -1636,9 +1637,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("sold out");
+        await expectJsonResponse(200, (json) => {
+          expect(json.error).toContain("sold out");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -1704,9 +1705,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("Event not found");
+        await expectJsonResponse(200, (json) => {
+          expect(json.error).toContain("Event not found");
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -1753,9 +1754,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("no longer accepting");
+        await expectJsonResponse(200, (json) => {
+          expect(json.error).toContain("no longer accepting");
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -1882,9 +1883,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("no longer accepting");
+        await expectJsonResponse(200, (json) => {
+          expect(json.error).toContain("no longer accepting");
+        })(response);
       } finally {
         mockVerify.restore();
         mockGetConfigured.restore();
@@ -1938,9 +1939,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("Event not found");
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.error).toContain("Event not found");
+        })(response);
 
         // Event not found should NOT trigger a refund (webhook may be for a different instance)
         expect(mockRefund.calls.length).toBe(0);
@@ -2072,9 +2073,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         // Returns 200 to prevent provider retries
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -2107,10 +2108,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.status).toBe("pending");
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.status).toBe("pending");
+        })(response);
       } finally {
         mockVerify.restore();
         mockResolve.restore();
@@ -2145,9 +2146,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         // Returns 200 to prevent provider retries
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+        })(response);
       } finally {
         mockVerify.restore();
         mockResolve.restore();
@@ -2302,10 +2303,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         // "completed" is not a valid payment status, so paymentStatus defaults to "unpaid"
         // This means the session is treated as unpaid and returns a pending acknowledgement
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.status).toBe("pending");
+        await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.status).toBe("pending");
+        })(response);
       } finally {
         mockVerify.restore();
       }
@@ -2351,9 +2352,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
@@ -2412,11 +2413,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
-        expect(json.error).toContain("changed");
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("price");
+          expect(json.error).toContain("changed");
+        })(response);
 
         // Verify no attendee was created
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -2488,11 +2489,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
-        expect(json.error).toContain("changed");
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("price");
+          expect(json.error).toContain("changed");
+        })(response);
 
         // Verify no attendees were created
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -2601,9 +2602,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
@@ -2653,9 +2654,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
@@ -2767,9 +2768,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_closed" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("registration closed");
+        await expectJsonResponse(200, (json) => {
+          expect(json.error).toContain("registration closed");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -2832,10 +2833,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_multi_closed" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("registration for");
-        expect(json.error).toContain("closed");
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.error).toContain("registration for");
+          expect(json.error).toContain("closed");
+        })(response);
 
         // Verify event1 attendee was rolled back
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -2909,9 +2910,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
 
         // Verify daily event attendee has the date set
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -2972,11 +2973,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         // Returns 200 to prevent provider retries
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        // Should not attempt to process or refund
-        expect(json.processed).toBeUndefined();
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          // Should not attempt to process or refund
+          expect(json.processed).toBeUndefined();
+        })(response);
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -3022,10 +3023,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBeUndefined();
+        })(response);
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -3081,10 +3082,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBeUndefined();
+        })(response);
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -3282,9 +3283,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
 
         // Verify attendee was created with the actual amount paid (2500), not the minimum (1000)
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -3348,9 +3349,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
 
         // Verify both attendees were created with correct per-item prices
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -3421,10 +3422,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
+        await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("price");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3478,10 +3479,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
+        await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("price");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3535,10 +3536,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
+        await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("price");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3690,10 +3691,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
+        await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("price");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3748,10 +3749,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
+        await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("price");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3802,9 +3803,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(true);
+        })(response);
 
         // Verify one attendee record was created (quantity=2 is stored on the record)
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -3866,10 +3867,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(false);
-        expect(json.error).toContain("price");
+        await expectJsonResponse(200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toContain("price");
+        })(response);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3956,10 +3957,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        })(response);
 
         // Verify attendees were created
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -4020,10 +4021,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
+        const json = await expectJsonResponse(200, (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        })(response);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);

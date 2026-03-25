@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import {
   createTestAttendeeWithToken,
   describeWithEnv,
+  expectJsonResponse,
   generateTestCerts,
 } from "#test-utils";
 
@@ -97,10 +98,10 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
         "/v1/devices/abc123/registrations/pass.com.test.tickets",
         { headers: { Authorization: "ApplePass my-serial------" } },
       );
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.serialNumbers).toEqual(["my-serial"]);
-      expect(body.lastUpdated).toBeDefined();
+      await expectJsonResponse(200, (body) => {
+        expect(body.serialNumbers).toEqual(["my-serial"]);
+        expect(body.lastUpdated).toBeDefined();
+      })(response);
     });
 
     test("ignores passesUpdatedSince parameter", async () => {
@@ -109,9 +110,9 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
         "/v1/devices/abc123/registrations/pass.com.test.tickets?passesUpdatedSince=12345",
         { headers: { Authorization: "ApplePass my-serial------" } },
       );
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.serialNumbers).toEqual(["my-serial"]);
+      await expectJsonResponse(200, (body) => {
+        expect(body.serialNumbers).toEqual(["my-serial"]);
+      })(response);
     });
   });
 
