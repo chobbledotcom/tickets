@@ -8,7 +8,7 @@ import {
   createTestAttendeeWithToken,
   describeWithEnv,
   expectAdminRedirect,
-  expectFlash,
+  expectRedirectWithFlash,
   generateTestCerts,
   getHeader,
   mockFormRequest,
@@ -259,102 +259,94 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_pass_type_id: "",
     });
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
       expect.stringContaining("Pass Type ID is required"),
       false,
-    );
+    )(response);
   });
 
   test("requires Team ID", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_team_id: "",
     });
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
       expect.stringContaining("Team ID is required"),
       false,
-    );
+    )(response);
   });
 
   test("requires signing certificate on initial setup", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_cert: "",
     });
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
       expect.stringContaining("Signing certificate is required"),
       false,
-    );
+    )(response);
   });
 
   test("requires signing key on initial setup", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_key: "",
     });
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
       expect.stringContaining("Signing private key is required"),
       false,
-    );
+    )(response);
   });
 
   test("requires WWDR certificate on initial setup", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_wwdr_cert: "",
     });
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
       expect.stringContaining("WWDR certificate is required"),
       false,
-    );
+    )(response);
   });
 
   test("rejects invalid PEM signing certificate", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_cert: "not a valid cert",
     });
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
       expect.stringContaining(
         "Signing certificate is not a valid PEM certificate",
       ),
       false,
-    );
+    )(response);
   });
 
   test("rejects invalid PEM signing key", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_key: "not a valid key",
     });
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
       expect.stringContaining(
         "Signing private key is not a valid PEM private key",
       ),
       false,
-    );
+    )(response);
   });
 
   test("rejects invalid PEM WWDR certificate", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_wwdr_cert: "not a valid cert",
     });
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
       expect.stringContaining(
         "WWDR certificate is not a valid PEM certificate",
       ),
       false,
-    );
+    )(response);
   });
 
   test("saves all settings successfully", async () => {
@@ -362,8 +354,10 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_pass_type_id: "pass.com.test.tickets",
     });
 
-    expect(response.status).toBe(302);
-    expectFlash(response, "Apple Wallet settings updated");
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
+      "Apple Wallet settings updated",
+    )(response);
 
     expect(settings.appleWallet.hasConfig).toBe(true);
     expect(settings.appleWallet.passTypeId).toBe("pass.com.test.tickets");
@@ -382,8 +376,10 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_wwdr_cert: "",
     });
 
-    expect(response.status).toBe(302);
-    expectFlash(response, "Apple Wallet configuration cleared");
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
+      "Apple Wallet configuration cleared",
+    )(response);
     expect(settings.appleWallet.hasConfig).toBe(false);
   });
 

@@ -94,7 +94,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
             href="/admin/settings-advanced#settings-host-subdomain"
             class="secondary"
           >
-            Cancel
+            <strong>Cancel</strong>
           </a>
         </footer>
       </>

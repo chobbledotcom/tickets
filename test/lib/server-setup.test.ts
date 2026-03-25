@@ -7,7 +7,6 @@ import {
   awaitTestRequest,
   createTestDb,
   describeWithEnv,
-  expectFlash,
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
@@ -102,12 +101,11 @@ describeWithEnv("server (setup)", { db: true }, () => {
             country: "US",
           }),
         );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
+        expectRedirectWithFlash(
+          "/setup/",
           expect.stringContaining("Invalid or expired form"),
           false,
-        );
+        )(response);
       });
 
       test("POST /setup/ with invalid CSRF token rejects request", async () => {
@@ -121,12 +119,11 @@ describeWithEnv("server (setup)", { db: true }, () => {
             csrf_token: "wrong-token-in-form",
           }),
         );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
+        expectRedirectWithFlash(
+          "/setup/",
           expect.stringContaining("Invalid or expired form"),
           false,
-        );
+        )(response);
       });
 
       test("POST /setup/ with empty password shows validation error", async () => {
@@ -134,20 +131,22 @@ describeWithEnv("server (setup)", { db: true }, () => {
           admin_password: "",
           admin_password_confirm: "",
         });
-        expect(response.status).toBe(302);
-        expectFlash(response, expect.stringContaining("Admin Password"), false);
+        expectRedirectWithFlash(
+          "/setup/",
+          expect.stringContaining("Admin Password"),
+          false,
+        )(response);
       });
 
       test("POST /setup/ with mismatched passwords shows error", async () => {
         const response = await submitSetupFormWithDefaults({
           admin_password_confirm: "different",
         });
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
+        expectRedirectWithFlash(
+          "/setup/",
           expect.stringContaining("Passwords do not match"),
           false,
-        );
+        )(response);
       });
 
       test("POST /setup/ with short password shows error", async () => {
@@ -155,32 +154,33 @@ describeWithEnv("server (setup)", { db: true }, () => {
           admin_password: "short",
           admin_password_confirm: "short",
         });
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
+        expectRedirectWithFlash(
+          "/setup/",
           expect.stringContaining("at least 8 characters"),
           false,
-        );
+        )(response);
       });
 
       test("POST /setup/ with invalid country shows error", async () => {
         const response = await submitSetupFormWithDefaults({
           country: "XX",
         });
-        expect(response.status).toBe(302);
-        expectFlash(response, expect.stringContaining("valid country"), false);
+        expectRedirectWithFlash(
+          "/setup/",
+          expect.stringContaining("valid country"),
+          false,
+        )(response);
       });
 
       test("POST /setup/ without accepting agreement shows error", async () => {
         const response = await submitSetupFormWithDefaults({
           accept_agreement: "", // Explicitly not accepting
         });
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
+        expectRedirectWithFlash(
+          "/setup/",
           expect.stringContaining("must accept the Data Controller Agreement"),
           false,
-        );
+        )(response);
       });
 
       test("POST /setup/ normalizes lowercase country to uppercase", async () => {

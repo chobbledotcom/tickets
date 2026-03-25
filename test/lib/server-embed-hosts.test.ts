@@ -7,8 +7,8 @@ import {
   adminGet,
   awaitTestRequest,
   describeWithEnv,
-  expectFlash,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   getEmbeddableTicketResponse,
   getHeader,
   mockFormRequest,
@@ -23,8 +23,11 @@ async function postInvalidEmbedHosts(
   const { response } = await adminFormPost("/admin/settings/embed-hosts", {
     embed_hosts: hosts,
   });
-  expect(response.status).toBe(302);
-  expectFlash(response, expect.stringContaining(expectedError), false);
+  expectRedirectWithFlash(
+    "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
+    expect.stringContaining(expectedError),
+    false,
+  )(response);
 }
 
 /** Post embed hosts form and assert a 302 redirect with expected flash message */
@@ -36,8 +39,10 @@ async function postEmbedHostsExpectRedirect(
     "/admin/settings/embed-hosts",
     fields,
   );
-  expect(response.status).toBe(302);
-  expectFlash(response, expectedMessage);
+  expectRedirectWithFlash(
+    "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
+    expectedMessage,
+  )(response);
 }
 
 /** Create an embeddable event and return its ticket page CSP header */
@@ -130,8 +135,10 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
         ),
       );
 
-      expect(response.status).toBe(302);
-      expectFlash(response, "Embed host restrictions removed");
+      expectRedirectWithFlash(
+        "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
+        "Embed host restrictions removed",
+      )(response);
     });
 
     test("rejects invalid host pattern", async () => {

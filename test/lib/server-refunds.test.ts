@@ -247,8 +247,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("rejects mismatched attendee name", async () => {
       const ctx = await setupRefundTest("pi_test_789");
       const response = await submitRefund(ctx, { confirm_name: "Wrong Name" });
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("does not match"), false);
+      expectRedirectWithFlash(
+        `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/refund`,
+        expect.stringContaining("does not match"),
+        false,
+      )(response);
     });
 
     test("returns error when attendee has no payment", async () => {
@@ -266,23 +269,21 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
         expect.stringContaining("no payment to refund"),
         false,
-      );
+      )(response);
     });
 
     test("returns error when no payment provider configured", async () => {
       const ctx = await setupRefundTest("pi_test_noprov");
       const response = await submitRefund(ctx);
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/refund`,
         expect.stringContaining("No payment provider configured"),
         false,
-      );
+      )(response);
     });
 
     test("successfully refunds attendee payment", async () => {
@@ -303,8 +304,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
       await withRefundMock(false, async () => {
         const response = await submitRefund(ctx);
-        expect(response.status).toBe(302);
-        expectFlash(response, expect.stringContaining("Refund failed"), false);
+        expectRedirectWithFlash(
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/refund`,
+          expect.stringContaining("Refund failed"),
+          false,
+        )(response);
       });
     });
 
@@ -317,8 +321,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           ctx.cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("does not match"), false);
+      expectRedirectWithFlash(
+        `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/refund`,
+        expect.stringContaining("does not match"),
+        false,
+      )(response);
     });
   });
 
@@ -408,8 +415,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await submitRefundAll(ctx, {
         confirm_name: "Wrong Event Name",
       });
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("does not match"), false);
+      expectRedirectWithFlash(
+        `/admin/event/${ctx.event.id}/refund-all`,
+        expect.stringContaining("does not match"),
+        false,
+      )(response);
     });
 
     test("rejects when confirm_name is missing", async () => {
@@ -421,8 +431,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           ctx.cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("does not match"), false);
+      expectRedirectWithFlash(
+        `/admin/event/${ctx.event.id}/refund-all`,
+        expect.stringContaining("does not match"),
+        false,
+      )(response);
     });
 
     test("returns error when no attendees have payments", async () => {
@@ -440,23 +453,21 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}/refund-all`,
         expect.stringContaining("No attendees have payments to refund"),
         false,
-      );
+      )(response);
     });
 
     test("returns error when no payment provider configured", async () => {
       const ctx = await setupRefundTest("pi_noprov_all");
       const response = await submitRefundAll(ctx);
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        `/admin/event/${ctx.event.id}/refund-all`,
         expect.stringContaining("No payment provider configured"),
         false,
-      );
+      )(response);
     });
 
     test("successfully refunds all attendees", async () => {
@@ -508,17 +519,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           ),
         );
         expect(mockRefund.calls.length).toBe(30);
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
+        expectRedirectWithFlash(
+          `/admin/event/${event.id}/refund-all`,
           expect.stringContaining("30 attendee(s) refunded"),
-          true,
-        );
-        expectFlash(
-          response,
-          expect.stringContaining("2 remaining"),
-          true,
-        );
+        )(response);
+        expectFlash(response, expect.stringContaining("2 remaining"), true);
       });
     });
 
@@ -540,17 +545,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
             await testCookie(),
           ),
         );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
+        expectRedirectWithFlash(
+          `/admin/event/${event.id}/refund-all`,
           expect.stringContaining("30 failed"),
           false,
-        );
-        expectFlash(
-          response,
-          expect.stringContaining("2 remaining"),
-          false,
-        );
+        )(response);
+        expectFlash(response, expect.stringContaining("2 remaining"), false);
       });
     });
 
@@ -579,17 +579,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
+          expectRedirectWithFlash(
+            `/admin/event/${event.id}/refund-all`,
             expect.stringContaining("1 refund(s) succeeded"),
             false,
-          );
-          expectFlash(
-            response,
-            expect.stringContaining("1 failed"),
-            false,
-          );
+          )(response);
+          expectFlash(response, expect.stringContaining("1 failed"), false);
         },
       );
     });
@@ -612,12 +607,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await markAsRefunded(ctx.attendee.id);
 
       const response = await submitRefund(ctx);
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/refund`,
         expect.stringContaining("already been refunded"),
         false,
-      );
+      )(response);
     });
 
     test("refund-all excludes already-refunded attendees", async () => {
@@ -651,12 +645,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
         // Verify attendee is marked as refunded by trying to refund again
         const retryResponse = await submitRefund(ctx);
-        expect(retryResponse.status).toBe(302);
-        expectFlash(
-          retryResponse,
+        expectRedirectWithFlash(
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/refund`,
           expect.stringContaining("already been refunded"),
           false,
-        );
+        )(retryResponse);
       });
     });
   });

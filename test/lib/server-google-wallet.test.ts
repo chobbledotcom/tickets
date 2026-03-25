@@ -8,8 +8,8 @@ import {
   createTestAttendeeWithToken,
   describeWithEnv,
   expectAdminRedirect,
-  expectFlash,
   expectRedirect,
+  expectRedirectWithFlash,
   generateGoogleTestCreds,
   loginAsAdmin,
   mockFormRequest,
@@ -176,12 +176,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         cookie,
       ),
     );
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       expect.stringContaining("Issuer ID is required"),
       false,
-    );
+    )(response);
   });
 
   test("requires Service Account Email", async () => {
@@ -199,12 +198,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         cookie,
       ),
     );
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       expect.stringContaining("Service account email is required"),
       false,
-    );
+    )(response);
   });
 
   test("requires private key on initial setup", async () => {
@@ -223,12 +221,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         cookie,
       ),
     );
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       expect.stringContaining("Service account private key is required"),
       false,
-    );
+    )(response);
   });
 
   test("rejects invalid PEM private key", async () => {
@@ -247,14 +244,13 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         cookie,
       ),
     );
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       expect.stringContaining(
         "Service account private key is not a valid PEM private key",
       ),
       false,
-    );
+    )(response);
   });
 
   test("saves all settings successfully", async () => {
@@ -274,8 +270,10 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       ),
     );
 
-    expect(response.status).toBe(302);
-    expectFlash(response, "Google Wallet settings updated");
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
+      "Google Wallet settings updated",
+    )(response);
 
     expect(settings.googleWallet.hasConfig).toBe(true);
     expect(settings.googleWallet.issuerId).toBe("1234567890");
@@ -302,8 +300,10 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       ),
     );
 
-    expect(response.status).toBe(302);
-    expectFlash(response, "Google Wallet configuration cleared");
+    expectRedirectWithFlash(
+      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
+      "Google Wallet configuration cleared",
+    )(response);
     expect(settings.googleWallet.hasDbConfig).toBe(false);
   });
 

@@ -96,7 +96,7 @@ const withValidatedText = (
   errorMsg: string,
   onValid: (id: number, text: string) => Promise<Response>,
 ) =>
-  ownerFormById(async (id, _session, form) => {
+  ownerFormById((id, _session, form) => {
     const textOrError = requireTextOrError(form, id, errorMsg);
     return textOrError instanceof Response
       ? textOrError
