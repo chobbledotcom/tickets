@@ -101,7 +101,7 @@ export const buildTemplateData = (
   return {
     entries: templateEntries,
     event_names: eventNames(entries),
-    attendee: templateEntries[0]?.attendee,
+    attendee: (templateEntries[0] as TemplateEntry).attendee,
     ticket_url: ticketUrl,
     currency,
   };

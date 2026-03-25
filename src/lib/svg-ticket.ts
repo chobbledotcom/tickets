@@ -40,7 +40,7 @@ export const extractViewBox = (
 ): { width: number; height: number } => {
   const match = svg.match(/viewBox="([^"]+)"/);
   if (!match) return { width: QR_SIZE, height: QR_SIZE };
-  const parts = match[1]?.split(/\s+/).map(Number);
+  const parts = (match[1] ?? "").split(/\s+/).map(Number);
   return { width: parts[2] ?? QR_SIZE, height: parts[3] ?? QR_SIZE };
 };
 

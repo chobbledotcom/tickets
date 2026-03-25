@@ -18,7 +18,7 @@ import {
 import { groupsTable, validateGroupEventType } from "#lib/db/groups.ts";
 import { generateUniqueSlug } from "#lib/slug.ts";
 import { tryDeleteImage } from "#lib/storage.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { EventType, EventWithCount } from "#lib/types.ts";
 
 /** Generate a unique event slug, retrying on collision */
 export const generateUniqueEventSlug = (excludeEventId?: number) =>
@@ -44,7 +44,7 @@ const validateGroup = async (
   if (!group) return "Selected group does not exist";
   return validateGroupEventType(
     input.groupId,
-    input.eventType as string,
+    input.eventType as EventType,
     existingId,
   );
 };
