@@ -834,12 +834,16 @@ describeWithEnv(
       });
     });
 
-    test("returns error when CDN validation fails", async () => {
+    test("returns error when CDN validation fails after all retries", async () => {
+      let validateCallCount = 0;
       await withMockBunnyCdnApi(
         {
           ...availableMock,
-          validateCustomDomain: () =>
-            Promise.resolve({ ok: false as const, error: "SSL failed" }),
+          validateCustomDomain: () => {
+            validateCallCount++;
+            return Promise.resolve({ ok: false as const, error: "SSL failed" });
+          },
+          delay: () => Promise.resolve(),
         },
         async () => {
           await withMocks(
@@ -850,6 +854,73 @@ describeWithEnv(
             async () => {
               const result = await registerBunnySubdomain("myevent");
               expect(result).toEqual({ ok: false, error: "SSL failed" });
+              expect(validateCallCount).toBe(5);
+            },
+          );
+        },
+      );
+    });
+
+    test("retries certificate loading and succeeds after DNS propagation", async () => {
+      let validateCallCount = 0;
+      await withMockBunnyCdnApi(
+        {
+          ...availableMock,
+          validateCustomDomain: () => {
+            validateCallCount++;
+            if (validateCallCount < 3) {
+              return Promise.resolve({
+                ok: false as const,
+                error: "Not pointing to our servers",
+              });
+            }
+            return Promise.resolve({ ok: true as const });
+          },
+          delay: () => Promise.resolve(),
+        },
+        async () => {
+          await withMocks(
+            () =>
+              stub(globalThis, "fetch", () =>
+                Promise.resolve(new Response(null, { status: 204 })),
+              ),
+            async () => {
+              const result = await registerBunnySubdomain("myevent");
+              expect(result).toEqual({
+                ok: true,
+                fullDomain: "myevent.tickets.example.com",
+              });
+              expect(validateCallCount).toBe(3);
+            },
+          );
+        },
+      );
+    });
+
+    test("does not retry when first validation succeeds", async () => {
+      let validateCallCount = 0;
+      await withMockBunnyCdnApi(
+        {
+          ...availableMock,
+          validateCustomDomain: () => {
+            validateCallCount++;
+            return Promise.resolve({ ok: true as const });
+          },
+          delay: () => Promise.resolve(),
+        },
+        async () => {
+          await withMocks(
+            () =>
+              stub(globalThis, "fetch", () =>
+                Promise.resolve(new Response(null, { status: 204 })),
+              ),
+            async () => {
+              const result = await registerBunnySubdomain("myevent");
+              expect(result).toEqual({
+                ok: true,
+                fullDomain: "myevent.tickets.example.com",
+              });
+              expect(validateCallCount).toBe(1);
             },
           );
         },
