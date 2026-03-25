@@ -9,6 +9,7 @@ import { toBase64 } from "#lib/crypto.ts";
 import { settings } from "#lib/db/settings.ts";
 import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
 import { getEnv } from "#lib/env.ts";
+import { fetchText } from "#lib/fetch.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
@@ -237,20 +238,20 @@ export const sendEmail = async (
   try {
     const [url, headers, body] = buildRequest(config, msg);
     const isFormData = body instanceof FormData;
-    const response = await fetch(url, {
+    const { ok, status } = await fetchText(url, {
       method: "POST",
       headers: isFormData
         ? headers
         : { ...headers, "Content-Type": "application/json" },
       body: isFormData ? body : JSON.stringify(body),
     });
-    if (!response.ok) {
+    if (!ok) {
       logError({
         code: ErrorCode.EMAIL_SEND,
-        detail: `status=${response.status} to=${msg.to}`,
+        detail: `status=${status} to=${msg.to}`,
       });
     }
-    return response.status;
+    return status;
   } catch (error) {
     logError({
       code: ErrorCode.EMAIL_SEND,

@@ -7,6 +7,7 @@ import { compact, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { settings } from "#lib/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
+import { fetchText } from "#lib/fetch.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
@@ -111,17 +112,17 @@ export const sendWebhook = async (
   eventId?: number,
 ): Promise<void> => {
   try {
-    const response = await fetch(webhookUrl, {
+    const { ok, status } = await fetchText(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!response.ok) {
+    if (!ok) {
       const eventName = payload.tickets.map((t) => t.event_name).join(", ");
       logError({
         code: ErrorCode.WEBHOOK_SEND,
         eventId,
-        detail: `status=${response.status} for '${eventName}'`,
+        detail: `status=${status} for '${eventName}'`,
       });
     }
   } catch (error) {

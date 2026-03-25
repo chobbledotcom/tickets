@@ -13,6 +13,7 @@
 import { lazyRef, map } from "#fp";
 import { getBookingFeeAmount, itemsSubtotal } from "#lib/booking-fee.ts";
 import { settings } from "#lib/db/settings.ts";
+import { fetchText } from "#lib/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   computeHmacSha256,
@@ -191,7 +192,7 @@ const squareFetch = async (
   path: string,
   options?: { method?: string; body?: unknown },
 ): Promise<unknown> => {
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetchText(`${baseUrl}${path}`, {
     method: options?.method ?? "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -202,11 +203,10 @@ const squareFetch = async (
   });
 
   if (!response.ok) {
-    const bodyText = await response.text();
-    throw new Error(`Status code: ${response.status} Body: ${bodyText}`);
+    throw new Error(`Status code: ${response.status} Body: ${response.text}`);
   }
 
-  return response.json();
+  return JSON.parse(response.text);
 };
 
 /** Square REST API response shapes (snake_case) */
