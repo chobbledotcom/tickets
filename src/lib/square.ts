@@ -19,6 +19,7 @@ import {
   hmacToBase64,
   secureCompare,
 } from "#lib/payment-crypto.ts";
+import { fetchDrained } from "#lib/pending-work.ts";
 import {
   buildCartMetadata,
   buildSingleIntentMetadata,
@@ -191,7 +192,7 @@ const squareFetch = async (
   path: string,
   options?: { method?: string; body?: unknown },
 ): Promise<unknown> => {
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetchDrained(`${baseUrl}${path}`, {
     method: options?.method ?? "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -202,11 +203,10 @@ const squareFetch = async (
   });
 
   if (!response.ok) {
-    const bodyText = await response.text();
-    throw new Error(`Status code: ${response.status} Body: ${bodyText}`);
+    throw new Error(`Status code: ${response.status} Body: ${response.text}`);
   }
 
-  return response.json();
+  return JSON.parse(response.text);
 };
 
 /** Square REST API response shapes (snake_case) */

@@ -9,7 +9,7 @@ import { settings } from "#lib/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
-import { addPendingWork, drainResponse } from "#lib/pending-work.ts";
+import { addPendingWork, fetchDrained } from "#lib/pending-work.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import { type ContactInfo, isPaidEvent } from "#lib/types.ts";
 
@@ -111,18 +111,17 @@ export const sendWebhook = async (
   eventId?: number,
 ): Promise<void> => {
   try {
-    const response = await fetch(webhookUrl, {
+    const { ok, status } = await fetchDrained(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    await drainResponse(response);
-    if (!response.ok) {
+    if (!ok) {
       const eventName = payload.tickets.map((t) => t.event_name).join(", ");
       logError({
         code: ErrorCode.WEBHOOK_SEND,
         eventId,
-        detail: `status=${response.status} for '${eventName}'`,
+        detail: `status=${status} for '${eventName}'`,
       });
     }
   } catch (error) {

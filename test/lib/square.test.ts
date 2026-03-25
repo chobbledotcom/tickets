@@ -1728,9 +1728,18 @@ describe("square", () => {
     };
     let mockFetch: { calls: FetchCall[] };
 
-    /** Create a mock fetch with the given implementation and assign to globalThis */
+    /** Create a mock fetch with the given implementation and assign to globalThis.
+     *  Wraps responses to add text() from json() when missing (fetchDrained reads text). */
     const installMockFetch = (impl: (...args: unknown[]) => unknown) => {
-      mockFetch = spy(impl) as unknown as typeof mockFetch;
+      const wrapped = async (...args: unknown[]) => {
+        const res = (await impl(...args)) as Record<string, unknown>;
+        if (!res.text && res.json) {
+          const data = await (res.json as () => Promise<unknown>)();
+          res.text = () => Promise.resolve(JSON.stringify(data));
+        }
+        return res;
+      };
+      mockFetch = spy(wrapped) as unknown as typeof mockFetch;
       globalThis.fetch = mockFetch as unknown as typeof fetch;
     };
 
