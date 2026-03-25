@@ -5,15 +5,43 @@
  * Files are encrypted with DB_ENCRYPTION_KEY before upload.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
-import { getEnv, requireEnv } from "#lib/env.ts";
+import { getEnv } from "#lib/env.ts";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
   MAX_IMAGE_SIZE,
 } from "#lib/limits.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+
+// ---------------------------------------------------------------------------
+// Per-context storage config (eliminates env var races in concurrent tests)
+// ---------------------------------------------------------------------------
+
+interface StorageConfig {
+  zoneName: string;
+  zoneKey: string;
+}
+
+const storageConfigStore = new AsyncLocalStorage<StorageConfig>();
+
+/** Run `fn` with an isolated storage configuration (test-only). */
+export const runWithStorageConfig = <T>(
+  config: StorageConfig,
+  fn: () => T,
+): T => storageConfigStore.run(config, fn);
+
+/** Read storage config: AsyncLocalStorage context first, then env vars. */
+const getStorageConfig = (): StorageConfig => {
+  const ctx = storageConfigStore.getStore();
+  if (ctx) return ctx;
+  return {
+    zoneName: getEnv("STORAGE_ZONE_NAME") ?? "",
+    zoneKey: getEnv("STORAGE_ZONE_KEY") ?? "",
+  };
+};
 
 /** Supported image types — single source of truth for mime, extension, and magic bytes */
 const IMAGE_TYPES = [
@@ -31,8 +59,7 @@ const EXT_TO_MIME = Object.fromEntries(IMAGE_TYPES.map((t) => [t.ext, t.mime]));
  * Check if image storage is enabled (both env vars are set)
  */
 export const isStorageEnabled = (): boolean => {
-  const zoneName = getEnv("STORAGE_ZONE_NAME");
-  const zoneKey = getEnv("STORAGE_ZONE_KEY");
+  const { zoneName, zoneKey } = getStorageConfig();
   return !!zoneName && !!zoneKey;
 };
 
@@ -145,8 +172,10 @@ export const generateImageFilename = (detectedType: string): string => {
 
 /** Connect to the Bunny storage zone */
 const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
-  const zoneName = requireEnv("STORAGE_ZONE_NAME");
-  const zoneKey = requireEnv("STORAGE_ZONE_KEY");
+  const { zoneName, zoneKey } = getStorageConfig();
+  if (!zoneName || !zoneKey) {
+    throw new Error("Required environment variable STORAGE_ZONE_NAME is not set");
+  }
   return BunnyStorageSDK.zone.connect_with_accesskey(
     BunnyStorageSDK.regions.StorageRegion.Falkenstein,
     zoneName,
@@ -224,7 +253,7 @@ export const downloadImage = async (
   try {
     const sz = connectZone();
     const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
-    const encrypted = await collectStream(stream);
+    const encrypted = await collectStream(stream as ReadableStream<Uint8Array>);
     return decryptBytes(encrypted);
   } catch (err) {
     if (isFileNotFound(err)) return null;
