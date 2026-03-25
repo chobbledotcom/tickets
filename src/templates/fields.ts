@@ -216,6 +216,10 @@ const usernameFieldBase: Field = {
   label: "Username",
   type: "text",
   required: true,
+  minlength: 2,
+  maxlength: 32,
+  pattern: "[a-zA-Z0-9_-]+",
+  title: "Letters, numbers, hyphens, and underscores only",
 };
 
 /**
@@ -397,6 +401,8 @@ export const eventFields: Field[] = [
     label: "Ticket Price (leave empty for free)",
     type: "text",
     inputmode: "decimal",
+    pattern: "\\d+(\\.\\d{1,2})?",
+    title: "A non-negative number (e.g. 10.00)",
     placeholder: "e.g. 10.00",
     validate: validateNonNegativePrice,
   },
@@ -412,6 +418,8 @@ export const eventFields: Field[] = [
     label: "Maximum Price (for pay more)",
     type: "text",
     inputmode: "decimal",
+    pattern: "\\d+(\\.\\d{1,2})?",
+    title: "A non-negative number (e.g. 100.00)",
     placeholder: "e.g. 100.00",
     defaultValue: "100.00",
     get hint() {
@@ -519,6 +527,8 @@ export const slugField: Field = {
   label: "Slug",
   type: "text",
   required: true,
+  pattern: "[a-z0-9-]+",
+  title: "Lowercase letters, numbers, and hyphens only",
   hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
   validate: (value: string) => validateSlug(normalizeSlug(value)),
 };
@@ -596,6 +606,9 @@ const phoneField: Field = {
   type: "text",
   required: true,
   autocomplete: "tel",
+  pattern: "[+\\d][\\d\\s\\-()]{5,}",
+  title:
+    "Phone number (digits, spaces, hyphens, parentheses, optional leading +)",
   validate: validatePhone,
 };
 
@@ -614,6 +627,7 @@ const addressField: Field = {
   label: "Your Address",
   type: "textarea",
   required: true,
+  maxlength: MAX_ADDRESS_LENGTH,
   autocomplete: "street-address",
   validate: validateAddress,
 };
@@ -633,6 +647,7 @@ const specialInstructionsField: Field = {
   label: "Special Instructions",
   type: "textarea",
   required: true,
+  maxlength: MAX_SPECIAL_INSTRUCTIONS_LENGTH,
   validate: validateSpecialInstructions,
 };
 
@@ -723,6 +738,20 @@ export const getAddAttendeeFields = (
   return result;
 };
 
+/** Password field with new-password autocomplete (reused across setup, change password, and join forms) */
+const newPasswordField = (
+  name: string,
+  label: string,
+  { confirm }: { confirm?: boolean } = {},
+): Field => ({
+  name,
+  label,
+  type: "password",
+  required: true,
+  autocomplete: "new-password",
+  ...(!confirm && { minlength: 8, hint: "Minimum 8 characters" }),
+});
+
 /**
  * Setup form field definitions
  * Note: Stripe keys are now configured via environment variables
@@ -737,21 +766,8 @@ export const setupFields: Field[] = [
     autocomplete: "username",
     validate: validateUsername,
   },
-  {
-    name: "admin_password",
-    label: "Admin Password *",
-    type: "password",
-    required: true,
-    hint: "Minimum 8 characters",
-    autocomplete: "new-password",
-  },
-  {
-    name: "admin_password_confirm",
-    label: "Confirm Admin Password *",
-    type: "password",
-    required: true,
-    autocomplete: "new-password",
-  },
+  newPasswordField("admin_password", "Admin Password *"),
+  newPasswordField("admin_password_confirm", "Confirm Admin Password *", { confirm: true }),
 ];
 
 /**
@@ -765,21 +781,8 @@ export const changePasswordFields: Field[] = [
     required: true,
     autocomplete: "current-password",
   },
-  {
-    name: "new_password",
-    label: "New Password",
-    type: "password",
-    required: true,
-    hint: "Minimum 8 characters",
-    autocomplete: "new-password",
-  },
-  {
-    name: "new_password_confirm",
-    label: "Confirm New Password",
-    type: "password",
-    required: true,
-    autocomplete: "new-password",
-  },
+  newPasswordField("new_password", "New Password"),
+  newPasswordField("new_password_confirm", "Confirm New Password", { confirm: true }),
 ];
 
 /**
@@ -856,19 +859,6 @@ export const inviteUserFields: Field[] = [
  * Join (set password) form field definitions
  */
 export const joinFields: Field[] = [
-  {
-    name: "password",
-    label: "Password",
-    type: "password",
-    required: true,
-    hint: "Minimum 8 characters",
-    autocomplete: "new-password",
-  },
-  {
-    name: "password_confirm",
-    label: "Confirm Password",
-    type: "password",
-    required: true,
-    autocomplete: "new-password",
-  },
+  newPasswordField("password", "Password"),
+  newPasswordField("password_confirm", "Confirm Password", { confirm: true }),
 ];

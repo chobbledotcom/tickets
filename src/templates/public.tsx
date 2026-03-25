@@ -244,7 +244,7 @@ const renderPayMoreInput = (
       : `Your Price (optional, up to ${formatCurrency(maxPrice)})`;
   return (
     `<label>${rangeHint}` +
-    `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}"${minPrice > 0 ? " required" : ""} /></label>`
+    `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${minPrice > 0 ? " required" : ""} /></label>`
   );
 };
 
