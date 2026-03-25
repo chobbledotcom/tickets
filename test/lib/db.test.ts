@@ -233,6 +233,22 @@ describeWithEnv("db", { db: true }, () => {
     });
   });
 
+  describe("buildSnapshot via loadAll", () => {
+    test("loads valid payment provider from raw settings", async () => {
+      await settings.setRaw("payment_provider", "stripe");
+      settings.invalidateCache();
+      await settings.loadAll();
+      expect(settings.paymentProvider).toBe("stripe");
+    });
+
+    test("ignores invalid payment provider in raw settings", async () => {
+      await settings.setRaw("payment_provider", "not-a-provider");
+      settings.invalidateCache();
+      await settings.loadAll();
+      expect(settings.paymentProvider).toBeNull();
+    });
+  });
+
   describe("setup", () => {
     test("completeSetup sets all config values and generates key hierarchy", async () => {
       // Delete existing user from createTestDbWithSetup to test fresh setup
@@ -1669,6 +1685,13 @@ describeWithEnv("db", { db: true }, () => {
       const def = col.encrypted(encrypt, decrypt);
       expect(await def.write?.("hello")).toBe("enc:hello");
       expect(await def.read?.("enc:hello")).toBe("hello");
+    });
+
+    test("col.encryptedNullable wrapping simple column has no transforms", async () => {
+      const { col } = await import("#lib/db/table.ts");
+      const def = col.encryptedNullable(col.simple());
+      expect(def.write).toBeUndefined();
+      expect(def.read).toBeUndefined();
     });
 
     test("col.encryptedNullable handles null values", async () => {
