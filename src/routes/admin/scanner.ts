@@ -98,49 +98,56 @@ const checkScanPreConditions = async (
   return null;
 };
 
+/** Process a scan: resolve attendee, check pre-conditions, verify ID, check in */
+const processScan = async (
+  session: AuthSession,
+  body: Record<string, unknown>,
+  id: number,
+): Promise<Response> => {
+  if (typeof body.token !== "string") {
+    return jsonResponse({ status: "error", message: "Missing token" }, 400);
+  }
+
+  const token = body.token;
+  const force = body.force === true;
+  const idVerified = body.id_verified === true;
+
+  const resolved = await resolveScannedAttendee(token, session);
+  if (resolved instanceof Response) return resolved;
+  const attendee = resolved;
+
+  const preCondition = await checkScanPreConditions(attendee, id, force);
+  if (preCondition) return preCondition;
+
+  // Non-transferable event - require ID verification before check-in
+  const event = await getEventWithCount(force ? attendee.event_id : id);
+  if (event?.non_transferable && !idVerified) {
+    return jsonResponse({
+      status: "verify_id",
+      name: attendee.name,
+      quantity: attendee.quantity,
+    });
+  }
+
+  await updateCheckedIn(attendee.id, true);
+  const eventName = event?.name ?? (await getEventName(attendee.event_id));
+  await logActivity(
+    `Attendee checked in via scanner for '${eventName}'`,
+    attendee.event_id,
+  );
+
+  return jsonResponse({
+    status: "checked_in",
+    name: attendee.name,
+    quantity: attendee.quantity,
+  });
+};
+
 const handleScanPost = (
   request: Request,
   { id }: { id: number },
 ): Promise<Response> =>
-  withAuthJson(request, async (session, body) => {
-    if (typeof body.token !== "string") {
-      return jsonResponse({ status: "error", message: "Missing token" }, 400);
-    }
-
-    const token = body.token;
-    const force = body.force === true;
-    const idVerified = body.id_verified === true;
-
-    const resolved = await resolveScannedAttendee(token, session);
-    if (resolved instanceof Response) return resolved;
-    const attendee = resolved;
-
-    const preCondition = await checkScanPreConditions(attendee, id, force);
-    if (preCondition) return preCondition;
-
-    // Non-transferable event - require ID verification before check-in
-    const event = await getEventWithCount(force ? attendee.event_id : id);
-    if (event?.non_transferable && !idVerified) {
-      return jsonResponse({
-        status: "verify_id",
-        name: attendee.name,
-        quantity: attendee.quantity,
-      });
-    }
-
-    await updateCheckedIn(attendee.id, true);
-    const eventName = event?.name ?? (await getEventName(attendee.event_id));
-    await logActivity(
-      `Attendee checked in via scanner for '${eventName}'`,
-      attendee.event_id,
-    );
-
-    return jsonResponse({
-      status: "checked_in",
-      name: attendee.name,
-      quantity: attendee.quantity,
-    });
-  });
+  withAuthJson(request, (session, body) => processScan(session, body, id));
 
 /** Pattern matching scan API paths (used by middleware for content-type validation) */
 export const SCAN_API_PATTERN = /^\/admin\/event\/\d+\/scan$/;

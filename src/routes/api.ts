@@ -246,6 +246,12 @@ const parseApiCustomPrice = (
   return priceResult.price;
 };
 
+/** Parse and clamp the quantity from API body */
+const parseApiQuantity = (body: Record<string, unknown>, maxQuantity: number): number => {
+  const raw = Number.parseInt(String(body.quantity ?? "1"), 10);
+  return Number.isNaN(raw) || raw < 1 ? 1 : Math.min(raw, maxQuantity);
+};
+
 /** POST /api/events/:slug/book — create a booking */
 const handleBook = withActiveEvent(async (request, event) => {
   if (isRegistrationClosed(event)) {
@@ -262,10 +268,7 @@ const handleBook = withActiveEvent(async (request, event) => {
   );
   if (valResult instanceof Response) return valResult;
 
-  const rawQuantity = Number.parseInt(String(body.quantity ?? "1"), 10);
-  const quantity = Number.isNaN(rawQuantity) || rawQuantity < 1
-    ? 1
-    : Math.min(rawQuantity, event.max_quantity);
+  const quantity = parseApiQuantity(body, event.max_quantity);
 
   const dateResult = await validateDailyDate(event, body);
   if (dateResult instanceof Response) return dateResult;

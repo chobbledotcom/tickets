@@ -574,49 +574,55 @@ const handleCreateAttendeeFailure = (
   return redirect(`/admin/event/${eventId}`, errorMsg, false);
 };
 
+/** Build attendee creation input from validated form values */
+const buildAttendeeInput = (
+  values: AddAttendeeFormValues,
+  eventId: number,
+  isDaily: boolean,
+) => ({
+  eventId,
+  name: values.name,
+  email: values.email || "",
+  quantity: values.quantity,
+  phone: values.phone || "",
+  address: values.address || "",
+  special_instructions: values.special_instructions || "",
+  date: isDaily ? values.date : null,
+});
+
+/** Process add-attendee form: validate, create attendee, return response */
+const processAddAttendee = async (
+  form: FormParams,
+  eventId: number,
+): Promise<Response> => {
+  const event = await getEventWithCount(eventId);
+  if (!event) return notFoundResponse();
+
+  const isDaily = event.event_type === "daily";
+  const fields = getAddAttendeeFields(event.fields, isDaily);
+  applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
+  const validation = validateForm<AddAttendeeFormValues>(form, fields);
+  if (!validation.valid) {
+    return redirect(`/admin/event/${eventId}`, validation.error, false);
+  }
+
+  const result = await createAttendeeAtomic(
+    buildAttendeeInput(validation.values, eventId, isDaily),
+  );
+
+  if (!result.success)
+    return handleCreateAttendeeFailure(result.reason, eventId);
+
+  await logActivity(`Attendee '${validation.values.name}' added manually`, eventId);
+  return redirect(`/admin/event/${eventId}`, `Added ${validation.values.name}`, true);
+};
+
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
 const handleAddAttendee = (
   request: Request,
   { eventId }: { eventId: number },
 ): Promise<Response> =>
-  withAuthForm(request, async (_session, form) => {
-    const event = await getEventWithCount(eventId);
-    if (!event) return notFoundResponse();
-
-    const isDaily = event.event_type === "daily";
-    const fields = getAddAttendeeFields(event.fields, isDaily);
-    applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-    const validation = validateForm<AddAttendeeFormValues>(form, fields);
-    if (!validation.valid) {
-      return redirect(`/admin/event/${eventId}`, validation.error, false);
-    }
-
-    const {
-      name,
-      email,
-      phone,
-      address,
-      special_instructions,
-      quantity,
-      date,
-    } = validation.values;
-    const result = await createAttendeeAtomic({
-      eventId,
-      name,
-      email: email || "",
-      quantity,
-      phone: phone || "",
-      address: address || "",
-      special_instructions: special_instructions || "",
-      date: isDaily ? date : null,
-    });
-
-    if (!result.success)
-      return handleCreateAttendeeFailure(result.reason, eventId);
-
-    await logActivity(`Attendee '${name}' added manually`, eventId);
-    return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
-  });
+  withAuthForm(request, (_session, form) => processAddAttendee(form, eventId));
 
 /** Get all events (active + the current event), uniquified */
 const getEventsForSelector = async (

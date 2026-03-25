@@ -6,6 +6,7 @@
 
 import { filter, map } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
 import { settings } from "#lib/db/settings.ts";
 import type { Attendee } from "#lib/types.ts";
@@ -92,44 +93,59 @@ const handleCheckinGet = (
     return renderAdminView(rawAttendees, session, tokens, message);
   });
 
+/** Build check-in status message based on action and ticket counts */
+const buildCheckinMessage = (
+  checkedIn: boolean,
+  totalTickets: number,
+  uncheckedTickets: number,
+): string => {
+  if (!checkedIn) return "Checked out";
+  if (uncheckedTickets === 0)
+    return `Already checked in ${formatTicketCount(totalTickets)}`;
+  return `Checked in ${formatTicketCount(uncheckedTickets)}`;
+};
+
+/** Process check-in/check-out for a set of attendees */
+const processCheckin = async (
+  session: AuthSession,
+  form: FormParams,
+  tokens: string[],
+  rawAttendees: Attendee[],
+): Promise<Response> => {
+  const checkedIn = form.get("check_in") === "true";
+  const decrypted = await decryptWithSession(rawAttendees, session);
+  const eligible = filter((a: Attendee) => !a.refunded)(decrypted);
+
+  if (eligible.length === 0) {
+    return redirectResponse(
+      `/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`,
+    );
+  }
+
+  const totalTickets = sumTicketCount(eligible);
+  const uncheckedTickets = sumTicketCount(
+    eligible,
+    (attendee) => !attendee.checked_in,
+  );
+  await Promise.all(
+    map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible),
+  );
+
+  const message = buildCheckinMessage(checkedIn, totalTickets, uncheckedTickets);
+  return redirectResponse(
+    `/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`,
+  );
+};
+
 /** Handle POST /checkin/:tokens - set check-in status from form field */
 const handleCheckinPost = (
   request: Request,
   tokens: string[],
 ): Promise<Response> =>
   withAuthForm(request, (session, form) =>
-    withLookup(tokens, async (rawAttendees) => {
-      const checkedIn = form.get("check_in") === "true";
-      const decrypted = await decryptWithSession(rawAttendees, session);
-      const eligible = filter((a: Attendee) => !a.refunded)(decrypted);
-
-      if (eligible.length === 0) {
-        return redirectResponse(
-          `/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`,
-        );
-      }
-
-      const totalTickets = sumTicketCount(eligible);
-      const uncheckedTickets = sumTicketCount(
-        eligible,
-        (attendee) => !attendee.checked_in,
-      );
-      await Promise.all(
-        map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible),
-      );
-
-      let message: string;
-      if (!checkedIn) {
-        message = "Checked out";
-      } else if (uncheckedTickets === 0) {
-        message = `Already checked in ${formatTicketCount(totalTickets)}`;
-      } else {
-        message = `Checked in ${formatTicketCount(uncheckedTickets)}`;
-      }
-      return redirectResponse(
-        `/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`,
-      );
-    }),
+    withLookup(tokens, (rawAttendees) =>
+      processCheckin(session, form, tokens, rawAttendees),
+    ),
   );
 
 /** Route check-in requests */

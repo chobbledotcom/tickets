@@ -307,6 +307,131 @@ const logAndReturn = (
   return response;
 };
 
+/** Check for tracking params and return redirect response, or null */
+const checkTrackingRedirect = (
+  method: string,
+  url: URL,
+  path: string,
+  getElapsed: () => number,
+): Response | null => {
+  if (method !== "GET") return null;
+  const cleanUrl = getCleanUrl(url);
+  if (!cleanUrl) return null;
+  return logAndReturn(
+    new Response(null, { status: 301, headers: { location: cleanUrl } }),
+    method, path, getElapsed,
+  );
+};
+
+/** Handle request error: log, rethrow in tests, or return error response */
+const handleRequestError = (
+  error: unknown,
+  method: string,
+  path: string,
+  getElapsed: () => number,
+): Response => {
+  logError({
+    code: ErrorCode.CDN_REQUEST,
+    detail: formatRequestError(method, path, error),
+  });
+  if (
+    Deno.env.get("TEST_RETHROW_ERRORS") &&
+    !(error instanceof SessionKeyError) &&
+    !Deno.env.get("TEST_EXPECT_ERROR")
+  ) {
+    throw error;
+  }
+  if (error instanceof SessionKeyError) {
+    return logAndReturn(redirectResponse("/admin", clearSessionCookie()), method, path, getElapsed);
+  }
+  return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
+};
+
+/** Process request with flash context, error handling, and security headers */
+const handleWithFlashContext = async (
+  request: Request,
+  path: string,
+  method: string,
+  embeddable: boolean,
+  getElapsed: () => number,
+  server?: ServerContext,
+): Promise<Response> => {
+  try {
+    const flashId = new URL(request.url).searchParams.get("flash");
+    const flashRaw = flashId
+      ? parseCookies(request).get(`flash_${flashId}`)
+      : null;
+    const flash = flashRaw ? parseFlashValue(flashRaw) : null;
+    if (flash) setFlashContext(flash);
+
+    const response = await handleRequestInternal(request, path, method, server);
+
+    if (flashId && flash && hasFlash()) {
+      withCookie(response, clearFlashCookie(flashId));
+    }
+    resetFlashContext();
+
+    return logAndReturn(
+      await applySecurityHeaders(response, embeddable),
+      method, path, getElapsed,
+    );
+  } catch (error) {
+    return handleRequestError(error, method, path, getElapsed);
+  }
+};
+
+/**
+ * Handle incoming requests with security headers and domain validation
+ */
+/**
+ * Buffer POST bodies that may be garbage-collected by the Bunny Edge runtime.
+ * Must run BEFORE entering async context wrappers while the resource is alive.
+ */
+const bufferRequestBody = async (request: Request): Promise<Request> => {
+  const { pathname } = new URL(request.url);
+  const contentType = request.headers.get("content-type") ?? "";
+  const needsBuffer =
+    request.method === "POST" &&
+    (isWebhookPath(normalizePath(pathname)) ||
+      contentType.startsWith("multipart/form-data"));
+  if (!needsBuffer) return request;
+  const body = new Uint8Array(await request.arrayBuffer());
+  return new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body,
+  });
+};
+
+/** Core request processing inside the session context */
+const processRequest = async (
+  effectiveRequest: Request,
+  server?: ServerContext,
+): Promise<Response> => {
+  const { url, path, method } = parseRequest(effectiveRequest);
+  const getElapsed = createRequestTimer();
+  detectIframeMode(effectiveRequest.url);
+  clearSavedFormData();
+
+  try {
+    const trackingRedirect = checkTrackingRedirect(method, url, path, getElapsed);
+    if (trackingRedirect) return trackingRedirect;
+
+    loadEffectiveDomain(effectiveRequest.url);
+    const embeddable = isEmbeddablePath(path);
+
+    if (!isValidContentType(effectiveRequest, path)) {
+      return logAndReturn(contentTypeRejectionResponse(), method, path, getElapsed);
+    }
+
+    return await handleWithFlashContext(
+      effectiveRequest, path, method, embeddable, getElapsed, server,
+    );
+  } finally {
+    await flushPendingWork();
+  }
+};
+
 /**
  * Handle incoming requests with security headers and domain validation
  */
@@ -314,136 +439,12 @@ export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  // Buffer POST bodies BEFORE entering async context wrappers. The Bunny Edge
-  // runtime can garbage-collect the underlying request body resource during
-  // awaits, so we must capture it while the resource is still alive.
-  // This applies to webhook bodies (JSON) and multipart form uploads (file
-  // data backed by Blob resources that are especially prone to GC).
-  // Use normalizePath on the raw pathname so trailing-slash variants like
-  // /payment/webhook/ are correctly detected (the router normalizes later,
-  // but by then the body resource may already be garbage-collected).
-  const { pathname } = new URL(request.url);
-  const contentType = request.headers.get("content-type") ?? "";
-  const needsBodyBuffer =
-    request.method === "POST" &&
-    (isWebhookPath(normalizePath(pathname)) ||
-      contentType.startsWith("multipart/form-data"));
-  const bufferedBody = needsBodyBuffer
-    ? new Uint8Array(await request.arrayBuffer())
-    : undefined;
-  const effectiveRequest = bufferedBody
-    ? new Request(request.url, {
-        method: request.method,
-        headers: request.headers,
-        body: bufferedBody,
-      })
-    : request;
+  const effectiveRequest = await bufferRequestBody(request);
 
   return runWithRequestId(() =>
     runWithRequestCache(() =>
       runWithQueryLogContext(() =>
-        runWithSessionContext(async () => {
-          const { url, path, method } = parseRequest(effectiveRequest);
-          const getElapsed = createRequestTimer();
-          detectIframeMode(effectiveRequest.url);
-          clearSavedFormData();
-
-          try {
-            // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
-            if (method === "GET") {
-              const cleanUrl = getCleanUrl(url);
-              if (cleanUrl) {
-                return logAndReturn(
-                  new Response(null, {
-                    status: 301,
-                    headers: { location: cleanUrl },
-                  }),
-                  method,
-                  path,
-                  getElapsed,
-                );
-              }
-            }
-
-            // Load effective domain (custom_domain from DB if set, else request hostname)
-            loadEffectiveDomain(effectiveRequest.url);
-
-            const embeddable = isEmbeddablePath(path);
-
-            // Content-Type validation: reject POST requests without proper Content-Type
-            // (webhook endpoints accept JSON, all others require form-urlencoded)
-            if (!isValidContentType(effectiveRequest, path)) {
-              return logAndReturn(
-                contentTypeRejectionResponse(),
-                method,
-                path,
-                getElapsed,
-              );
-            }
-
-            try {
-              // Populate flash context from keyed cookie (flash ID in URL)
-              const flashId = new URL(effectiveRequest.url).searchParams.get(
-                "flash",
-              );
-              const flashRaw = flashId
-                ? parseCookies(effectiveRequest).get(`flash_${flashId}`)
-                : null;
-              const flash = flashRaw ? parseFlashValue(flashRaw) : null;
-              if (flash) setFlashContext(flash);
-
-              const response = await handleRequestInternal(
-                effectiveRequest,
-                path,
-                method,
-                server,
-              );
-
-              // Clear keyed flash cookie if one was consumed
-              if (flashId && flash && hasFlash()) {
-                withCookie(response, clearFlashCookie(flashId));
-              }
-              resetFlashContext();
-
-              return logAndReturn(
-                await applySecurityHeaders(response, embeddable),
-                method,
-                path,
-                getElapsed,
-              );
-            } catch (error) {
-              logError({
-                code: ErrorCode.CDN_REQUEST,
-                detail: formatRequestError(method, path, error),
-              });
-              // In tests, surface the real error instead of swallowing it
-              // behind a generic "Temporary Error" page
-              if (
-                Deno.env.get("TEST_RETHROW_ERRORS") &&
-                !(error instanceof SessionKeyError) &&
-                !Deno.env.get("TEST_EXPECT_ERROR")
-              ) {
-                throw error;
-              }
-              if (error instanceof SessionKeyError) {
-                return logAndReturn(
-                  redirectResponse("/admin", clearSessionCookie()),
-                  method,
-                  path,
-                  getElapsed,
-                );
-              }
-              return logAndReturn(
-                temporaryErrorResponse(),
-                method,
-                path,
-                getElapsed,
-              );
-            }
-          } finally {
-            await flushPendingWork();
-          }
-        }),
+        runWithSessionContext(() => processRequest(effectiveRequest, server)),
       ),
     ),
   );

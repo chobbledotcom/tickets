@@ -66,6 +66,38 @@ const handleJoinGet = (
     return htmlResponse(joinPage(code, username));
   });
 
+/** Validate and process the join form, setting the user's password */
+const processJoinForm = async (
+  form: import("#lib/form-data.ts").FormParams,
+  user: User,
+  code: string,
+  username: string,
+): Promise<Response> => {
+  const validation = validateForm<JoinFormValues>(form, joinFields);
+  if (!validation.valid) {
+    return htmlResponse(joinPage(code, username, validation.error), 400);
+  }
+
+  const { password, password_confirm: passwordConfirm } = validation.values;
+
+  if (password.length < 8) {
+    return htmlResponse(
+      joinPage(code, username, "Password must be at least 8 characters"),
+      400,
+    );
+  }
+
+  if (password !== passwordConfirm) {
+    return htmlResponse(
+      joinPage(code, username, "Passwords do not match"),
+      400,
+    );
+  }
+
+  await setUserPassword(user.id, password);
+  return redirect("/join/complete", "Password set successfully", true);
+};
+
 /**
  * Handle POST /join/:code
  */
@@ -78,35 +110,7 @@ const handleJoinPost = (
       request,
       (message, status) =>
         htmlResponse(joinPage(code, username, message), status),
-      async (form) => {
-        // Validate password fields
-        const validation = validateForm<JoinFormValues>(form, joinFields);
-        if (!validation.valid) {
-          return htmlResponse(joinPage(code, username, validation.error), 400);
-        }
-
-        const { password, password_confirm: passwordConfirm } =
-          validation.values;
-
-        if (password.length < 8) {
-          return htmlResponse(
-            joinPage(code, username, "Password must be at least 8 characters"),
-            400,
-          );
-        }
-
-        if (password !== passwordConfirm) {
-          return htmlResponse(
-            joinPage(code, username, "Passwords do not match"),
-            400,
-          );
-        }
-
-        // Set the password and clear the invite code
-        await setUserPassword(user.id, password);
-
-        return redirect("/join/complete", "Password set successfully", true);
-      },
+      (form) => processJoinForm(form, user, code, username),
     ),
   );
 

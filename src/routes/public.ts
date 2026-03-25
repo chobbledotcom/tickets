@@ -443,6 +443,37 @@ const parseTicketCustomPrice = (
   return priceResult.ok ? priceResult.price : showError(priceResult.error);
 };
 
+/** Validate single-ticket form inputs: fields, terms, answers, date, price */
+const validateSingleTicketForm = async (
+  form: FormParams,
+  event: EventWithCount,
+  ctx: TicketContext,
+  showError: (msg: string) => Response,
+): Promise<
+  | { ok: true; values: Record<string, string>; answerIds: number[]; date: string | null; customPrice: number | undefined }
+  | Response
+> => {
+  const valResult = tryValidateTicketFields(
+    form, event.fields, (msg) => showError(msg), isPaidEvent(event),
+  );
+  if (valResult instanceof Response) return valResult;
+
+  if (ctx.terms && form.get("agree_terms") !== "1") {
+    return showError("You must agree to the terms and conditions");
+  }
+
+  const answersResult = parseQuestionAnswers(form, ctx.questions);
+  if (!answersResult.ok) return showError(answersResult.error);
+
+  const dateResult = await validateDailyEventDate(form, event, ctx, showError);
+  if (dateResult instanceof Response) return dateResult;
+
+  const priceResult = parseTicketCustomPrice(form, event, showError);
+  if (priceResult instanceof Response) return priceResult;
+
+  return { ok: true, values: valResult, answerIds: answersResult.answerIds, date: dateResult, customPrice: priceResult };
+};
+
 const processTicketReservation = async (
   request: Request,
   event: EventWithCount,
@@ -459,32 +490,17 @@ const processTicketReservation = async (
     (message, status) => ticketResponseWithToken(event, ctx)(message, status),
     async (form) => {
       if (isRegistrationClosed(event)) return showError(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
-
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-      const valResult = tryValidateTicketFields(
-        form, event.fields, (msg) => showError(msg), isPaidEvent(event),
-      );
-      if (valResult instanceof Response) return valResult;
 
-      if (terms && form.get("agree_terms") !== "1") {
-        return showError("You must agree to the terms and conditions");
-      }
+      const validated = await validateSingleTicketForm(form, event, ctx, showError);
+      if (validated instanceof Response) return validated;
 
-      const answersResult = parseQuestionAnswers(form, questions);
-      if (!answersResult.ok) return showError(answersResult.error);
-
-      const dateResult = await validateDailyEventDate(form, event, ctx, showError);
-      if (dateResult instanceof Response) return dateResult;
-
-      const priceResult = parseTicketCustomPrice(form, event, showError);
-      if (priceResult instanceof Response) return priceResult;
-
-      const contact = extractContact(valResult);
+      const contact = extractContact(validated.values);
       const bookingResult = await processBooking(
-        event, contact, parseQuantity(form, event), dateResult,
-        getBaseUrl(request), priceResult, answersResult.answerIds,
+        event, contact, parseQuantity(form, event), validated.date,
+        getBaseUrl(request), validated.customPrice, validated.answerIds,
       );
-      return bookingResultToWebResponse(bookingResult, event, ctx, answersResult.answerIds);
+      return bookingResultToWebResponse(bookingResult, event, ctx, validated.answerIds);
     },
   );
 };
@@ -604,6 +620,229 @@ const loadMultiTicketMeta = (
   getContext: MultiTicketContextProvider,
 ): Promise<MultiTicketSharedContext> => getContext(activeEvents);
 
+/** Check if any selected event has closed registration */
+const checkClosedEvents = (
+  form: FormParams,
+  events: MultiTicketEvent[],
+): boolean => {
+  for (const { event, isClosed } of events) {
+    const selectedQty = Number.parseInt(form.get(`quantity_${event.id}`) || "0", 10);
+    if (isClosed && selectedQty > 0) return true;
+  }
+  return false;
+};
+
+/** Check if an event needs custom price parsing */
+const needsCustomPrice = (
+  event: EventWithCount,
+  quantities: Map<number, number>,
+): boolean => event.can_pay_more && (quantities.get(event.id) ?? 0) > 0;
+
+/** Parse custom prices for pay-more events, returning error string or Map */
+const parseMultiCustomPrices = (
+  form: FormParams,
+  events: MultiTicketEvent[],
+  quantities: Map<number, number>,
+): Map<number, number> | string => {
+  const customPrices = new Map<number, number>();
+  for (const { event } of events) {
+    if (!needsCustomPrice(event, quantities)) continue;
+    const priceResult = parseCustomPrice(
+      form, `custom_price_${event.id}`, event.unit_price, event.max_price,
+    );
+    if (!priceResult.ok) return `${event.name}: ${priceResult.error}`;
+    customPrices.set(event.id, priceResult.price);
+  }
+  return customPrices;
+};
+
+/** Build event answer map for selected events, or undefined if no answers */
+const buildAnswerMapForSelected = (
+  activeQuestions: QuestionWithAnswers[],
+  answerIds: number[],
+  questionEventMap: Map<number, number[]>,
+  selectedEventIds: Set<number>,
+): Record<string, number[]> | undefined =>
+  answerIds.length > 0
+    ? buildEventAnswerMap(activeQuestions, answerIds, questionEventMap, selectedEventIds)
+    : undefined;
+
+/** Save per-event question answers for free multi-ticket registrations */
+const saveMultiTicketAnswers = async (
+  entries: { event: EventWithCount; attendee: { id: number } }[],
+  eventAnswerMap: Record<string, number[]>,
+): Promise<void> => {
+  for (const { event, attendee } of entries) {
+    const answers = eventAnswerMap[String(event.id)];
+    if (answers && answers.length > 0) {
+      await saveAttendeeAnswers([attendee.id], answers);
+    }
+  }
+};
+
+/** Handle the paid multi-ticket path: check availability, build intent, start payment */
+const handleMultiPaidPath = async (
+  request: Request,
+  ctx: MultiTicketCtx,
+  items: ReturnType<typeof buildMultiRegistrationItems>,
+  quantities: Map<number, number>,
+  contact: ReturnType<typeof extractContact>,
+  date: string | null,
+  activeQuestions: QuestionWithAnswers[],
+  answerIds: number[],
+  selectedEventIds: Set<number>,
+  showError: (msg: string) => Response,
+): Promise<Response> => {
+  const available = await checkMultiAvailability(ctx.events, quantities, date);
+  if (!available) return showError("Sorry, some tickets are no longer available");
+  const eventAnswerIds = buildAnswerMapForSelected(
+    activeQuestions, answerIds, ctx.questionEventMap, selectedEventIds,
+  );
+  const intent: MultiRegistrationIntent = { ...contact, date, items, eventAnswerIds };
+  return handleMultiPaymentFlow(request, intent, ctx);
+};
+
+/** Handle the free multi-ticket path: create attendees and save answers */
+const handleMultiFreePath = async (
+  ctx: MultiTicketCtx,
+  quantities: Map<number, number>,
+  contact: ReturnType<typeof extractContact>,
+  date: string | null,
+  activeQuestions: QuestionWithAnswers[],
+  answerIds: number[],
+  selectedEventIds: Set<number>,
+  showError: (msg: string) => Response,
+): Promise<Response> => {
+  const result = await processMultiFreeReservation(ctx.events, quantities, contact, date);
+  if (!result.success) return showError(result.error);
+
+  const eventAnswerMap = buildAnswerMapForSelected(
+    activeQuestions, answerIds, ctx.questionEventMap, selectedEventIds,
+  );
+  if (eventAnswerMap) await saveMultiTicketAnswers(result.entries, eventAnswerMap);
+
+  const tokens = encodeURIComponent(result.tokens.join("+"));
+  return redirectResponse(`/ticket/reserved?tokens=${tokens}`);
+};
+
+/** Validated multi-ticket form data ready for processing */
+type MultiTicketValidated = {
+  quantities: Map<number, number>;
+  selectedEventIds: Set<number>;
+  activeQuestions: QuestionWithAnswers[];
+  answerIds: number[];
+  contact: ReturnType<typeof extractContact>;
+  date: string | null;
+  items: ReturnType<typeof buildMultiRegistrationItems>;
+};
+
+/** Filter questions relevant to selected events */
+const filterActiveQuestions = (
+  questions: QuestionWithAnswers[],
+  questionEventMap: Map<number, number[]>,
+  selectedEventIds: Set<number>,
+): QuestionWithAnswers[] =>
+  questions.filter((q) => {
+    const eventIds = questionEventMap.get(q.id);
+    return !eventIds || eventIds.some((eid) => selectedEventIds.has(eid));
+  });
+
+/** Validate multi-ticket date, returning date string or error response */
+const validateMultiDate = (
+  form: FormParams,
+  dates: string[],
+  showError: (msg: string) => Response,
+): string | null | Response => {
+  if (dates.length === 0) return null;
+  const date = validateSubmittedDate(form, dates);
+  if (!date) return showError("Please select a valid date");
+  return date;
+};
+
+/** Parse multi-ticket quantities, returning error or the quantities map */
+const parseAndValidateQuantities = (
+  form: FormParams,
+  ctx: MultiTicketCtx,
+  showError: (msg: string) => Response,
+): Map<number, number> | Response => {
+  if (ctx.terms && form.get("agree_terms") !== "1") {
+    return showError("You must agree to the terms and conditions");
+  }
+  if (checkClosedEvents(form, ctx.events)) {
+    return showError(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+  }
+  const quantities = parseMultiQuantities(form, ctx.events);
+  const totalQuantity = reduce(
+    (sum: number, qty: number) => sum + qty, 0,
+  )(Array.from(quantities.values()));
+  if (totalQuantity === 0) return showError("Please select at least one ticket");
+  return quantities;
+};
+
+/** Validate multi-ticket form and extract all needed data, or return error response */
+const validateMultiTicketForm = async (
+  form: FormParams,
+  ctx: MultiTicketCtx,
+  showError: (msg: string) => Response,
+): Promise<MultiTicketValidated | Response> => {
+  const anyPaid = ctx.events.some((e) => isPaidEvent(e.event));
+  const fieldResult = tryValidateTicketFields(
+    form, getMultiTicketFieldsSetting(ctx.events), showError, anyPaid,
+  );
+  if (fieldResult instanceof Response) return fieldResult;
+
+  const quantities = parseAndValidateQuantities(form, ctx, showError);
+  if (quantities instanceof Response) return quantities;
+
+  const selectedEventIds = new Set(quantities.keys());
+  const activeQuestions = filterActiveQuestions(ctx.questions, ctx.questionEventMap, selectedEventIds);
+  const answersResult = parseQuestionAnswers(form, activeQuestions);
+  if (!answersResult.ok) return showError(answersResult.error);
+
+  const dateResult = validateMultiDate(form, ctx.dates, showError);
+  if (dateResult instanceof Response) return dateResult;
+
+  const customPrices = parseMultiCustomPrices(form, ctx.events, quantities);
+  if (typeof customPrices === "string") return showError(customPrices);
+
+  return {
+    quantities,
+    selectedEventIds,
+    activeQuestions,
+    answerIds: answersResult.answerIds,
+    contact: extractContact(fieldResult),
+    date: dateResult,
+    items: buildMultiRegistrationItems(ctx.events, quantities, customPrices),
+  };
+};
+
+/** Process a validated multi-ticket submission (paid or free path) */
+const processMultiTicketSubmission = async (
+  request: Request,
+  ctx: MultiTicketCtx,
+  form: FormParams,
+): Promise<Response> => {
+  applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
+  const showError = multiTicketFormErrorResponse(ctx);
+
+  const validated = await validateMultiTicketForm(form, ctx, showError);
+  if (validated instanceof Response) return validated;
+
+  const { quantities, selectedEventIds, activeQuestions, answerIds, contact, date, items } = validated;
+
+  if (await anyRequiresPayment(items)) {
+    return handleMultiPaidPath(
+      request, ctx, items, quantities, contact, date,
+      activeQuestions, answerIds, selectedEventIds, showError,
+    );
+  }
+
+  return handleMultiFreePath(
+    ctx, quantities, contact, date,
+    activeQuestions, answerIds, selectedEventIds, showError,
+  );
+};
+
 /** Handle POST for multi-ticket registration */
 const submitMultiTicket = (
   request: Request,
@@ -612,170 +851,7 @@ const submitMultiTicket = (
   withCsrfForm(
     request,
     (message, status) => multiTicketResponse(ctx)(message, status),
-    async (form) => {
-      const { dates, terms } = ctx;
-
-      applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-
-      // Validate fields based on merged event settings
-      const errorResponse = multiTicketFormErrorResponse(ctx);
-      const anyPaid = ctx.events.some((e) => isPaidEvent(e.event));
-      const fieldResult = tryValidateTicketFields(
-        form,
-        getMultiTicketFieldsSetting(ctx.events),
-        errorResponse,
-        anyPaid,
-      );
-      if (fieldResult instanceof Response) return fieldResult;
-      const values = fieldResult;
-
-      // Validate terms and conditions acceptance if configured
-      if (terms && form.get("agree_terms") !== "1") {
-        return errorResponse("You must agree to the terms and conditions");
-      }
-
-      // Check if any event the user selected is now closed
-      for (const { event, isClosed } of ctx.events) {
-        const selectedQty = Number.parseInt(
-          form.get(`quantity_${event.id}`) || "0",
-          10,
-        );
-        if (isClosed && selectedQty > 0) {
-          return multiTicketFormErrorResponse(ctx)(
-            REGISTRATION_CLOSED_SUBMIT_MESSAGE,
-          );
-        }
-      }
-
-      // Parse quantities
-      const quantities = parseMultiQuantities(form, ctx.events);
-
-      // Check at least one ticket selected
-      const totalQuantity = reduce(
-        (sum: number, qty: number) => sum + qty,
-        0,
-      )(Array.from(quantities.values()));
-      if (totalQuantity === 0) {
-        return multiTicketFormErrorResponse(ctx)(
-          "Please select at least one ticket",
-        );
-      }
-
-      // Validate custom question answers (only for selected events)
-      const selectedEventIds = new Set(quantities.keys());
-      const activeQuestions = ctx.questions.filter((q) => {
-        const eventIds = ctx.questionEventMap.get(q.id);
-        return !eventIds || eventIds.some((eid) => selectedEventIds.has(eid));
-      });
-      const answersResult = parseQuestionAnswers(form, activeQuestions);
-      if (!answersResult.ok) {
-        return errorResponse(answersResult.error);
-      }
-
-      const contact = extractContact(values);
-
-      // For daily events, validate the submitted date
-      let date: string | null = null;
-      if (dates.length > 0) {
-        date = validateSubmittedDate(form, dates);
-        if (!date) {
-          return multiTicketFormErrorResponse(ctx)(
-            "Please select a valid date",
-          );
-        }
-      }
-
-      // Parse custom prices for pay-more events
-      const customPrices = new Map<number, number>();
-      for (const { event } of ctx.events) {
-        if (event.can_pay_more) {
-          const qty = quantities.get(event.id) ?? 0;
-          if (qty > 0) {
-            const priceResult = parseCustomPrice(
-              form,
-              `custom_price_${event.id}`,
-              event.unit_price,
-              event.max_price,
-            );
-            if (!priceResult.ok) {
-              return multiTicketFormErrorResponse(ctx)(
-                `${event.name}: ${priceResult.error}`,
-              );
-            }
-            customPrices.set(event.id, priceResult.price);
-          }
-        }
-      }
-
-      // Build registration items
-      const items = buildMultiRegistrationItems(
-        ctx.events,
-        quantities,
-        customPrices,
-      );
-
-      // Check if payment required
-      if (await anyRequiresPayment(items)) {
-        const available = await checkMultiAvailability(
-          ctx.events,
-          quantities,
-          date,
-        );
-        if (!available) {
-          return multiTicketFormErrorResponse(ctx)(
-            "Sorry, some tickets are no longer available",
-          );
-        }
-
-        const eventAnswerIds =
-          answersResult.answerIds.length > 0
-            ? buildEventAnswerMap(
-                activeQuestions,
-                answersResult.answerIds,
-                ctx.questionEventMap,
-                selectedEventIds,
-              )
-            : undefined;
-        const intent: MultiRegistrationIntent = {
-          ...contact,
-          date,
-          items,
-          eventAnswerIds,
-        };
-        return handleMultiPaymentFlow(request, intent, ctx);
-      }
-
-      // Free registration
-      const result = await processMultiFreeReservation(
-        ctx.events,
-        quantities,
-        contact,
-        date,
-      );
-
-      if (!result.success) {
-        return multiTicketFormErrorResponse(ctx)(result.error);
-      }
-
-      // Save per-event answers for each attendee
-      if (answersResult.answerIds.length > 0) {
-        const eventAnswerMap = buildEventAnswerMap(
-          activeQuestions,
-          answersResult.answerIds,
-          ctx.questionEventMap,
-          selectedEventIds,
-        );
-        for (const { event, attendee } of result.entries) {
-          const answers = eventAnswerMap[String(event.id)];
-          if (answers && answers.length > 0) {
-            await saveAttendeeAnswers([attendee.id], answers);
-          }
-        }
-      }
-
-      const tokens = encodeURIComponent(result.tokens.join("+"));
-      return redirectResponse(`/ticket/reserved?tokens=${tokens}`);
-    },
+    (form) => processMultiTicketSubmission(request, ctx, form),
   );
 
 const handleMultiTicket = async (

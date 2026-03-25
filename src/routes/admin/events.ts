@@ -112,28 +112,38 @@ const normalizeOptionalDatetime = (
 const parseUnitPrice = (value: string | undefined): number | undefined =>
   value ? toMinorUnits(Number.parseFloat(value)) : undefined;
 
-/** Extract common event fields from validated form values, normalizing datetimes to UTC */
-const extractCommonFields = (values: EventFormValues) => ({
-  name: values.name,
-  description: values.description,
+/** Extract scheduling-related fields from form values */
+const extractSchedulingFields = (values: EventFormValues) => ({
   date: normalizeOptionalDatetime(values.date ?? "", "date") ?? "",
-  location: values.location,
-  groupId: Number(values.group_id) || 0,
-  maxAttendees: values.max_attendees,
-  thankYouUrl: values.thank_you_url || "",
-  unitPrice: parseUnitPrice(values.unit_price),
-  maxQuantity: values.max_quantity,
-  webhookUrl: isDemoMode() ? "" : values.webhook_url || "",
-  fields: values.fields || "",
   closesAt: normalizeOptionalDatetime(values.closes_at, "closes_at"),
   eventType: values.event_type || "standard",
   bookableDays: parseBookableDays(values.bookable_days),
   minimumDaysBefore: values.minimum_days_before ?? 1,
   maximumDaysAfter: values.maximum_days_after ?? 90,
-  nonTransferable: values.non_transferable === "1",
+});
+
+/** Extract pricing and flag fields from form values */
+const extractPricingFields = (values: EventFormValues) => ({
+  unitPrice: parseUnitPrice(values.unit_price),
   canPayMore: values.can_pay_more === "1",
   maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
+  nonTransferable: values.non_transferable === "1",
   hidden: values.hidden === "1",
+});
+
+/** Extract common event fields from validated form values, normalizing datetimes to UTC */
+const extractCommonFields = (values: EventFormValues) => ({
+  name: values.name,
+  description: values.description,
+  location: values.location,
+  groupId: Number(values.group_id) || 0,
+  maxAttendees: values.max_attendees,
+  thankYouUrl: values.thank_you_url || "",
+  maxQuantity: values.max_quantity,
+  webhookUrl: isDemoMode() ? "" : values.webhook_url || "",
+  fields: values.fields || "",
+  ...extractSchedulingFields(values),
+  ...extractPricingFields(values),
 });
 
 /** Extract event input from validated form (async to compute slugIndex) */
