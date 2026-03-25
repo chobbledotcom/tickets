@@ -566,7 +566,7 @@ describeWithEnv(
       const zone = {
         Id: 42,
         Domain: "example.com",
-        Records: [{ Id: 1, Type: 5, Name: "existing", Value: "target.com" }],
+        Records: [{ Id: 1, Type: 2, Name: "existing", Value: "target.com" }],
       };
       await withMocks(
         () => stubFetchJson(zone),
@@ -629,7 +629,7 @@ const mockDnsZone = (records: { Name: string }[]) => ({
         Domain: "example.com",
         Records: records.map((r, i) => ({
           Id: i,
-          Type: 5,
+          Type: 2,
           ...r,
           Value: "target.com",
         })),
@@ -791,7 +791,7 @@ describeWithEnv(
                 "https://api.bunny.net/dnszone/42/records",
               );
               expect(JSON.parse(calls.at(0)!.init!.body as string)).toEqual({
-                Type: 5,
+                Type: 2,
                 Name: "myevent.tickets",
                 Value: "mysite.b-cdn.net",
                 Ttl: 300,
