@@ -4,12 +4,12 @@ import { stub } from "@std/testing/mock";
 import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
+  assertJson,
   createDailyTestEvent,
   createTestAttendeeDirect,
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
-  assertJson,
   setupStripe,
 } from "#test-utils";
 
@@ -282,7 +282,10 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("preserves quantity 0 instead of defaulting to 1", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const { response, body } = await fetchAvailability(event.slug, "quantity=0");
+      const { response, body } = await fetchAvailability(
+        event.slug,
+        "quantity=0",
+      );
       expect(response.status).toBe(200);
       // quantity=0 should be treated as 0, not silently become 1
       expect(body.available).toBe(true);
@@ -290,7 +293,10 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("handles invalid quantity gracefully", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const { response, body } = await fetchAvailability(event.slug, "quantity=abc");
+      const { response, body } = await fetchAvailability(
+        event.slug,
+        "quantity=abc",
+      );
       expect(response.status).toBe(200);
       expect(body.available).toBe(true);
     });

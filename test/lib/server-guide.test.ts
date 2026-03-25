@@ -126,12 +126,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains allow pay more info with max price", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "Allow Pay More",
-        "maximum",
-        "£1",
-      );
+      await assertAdminHtml("/admin/guide", "Allow Pay More", "maximum", "£1");
     });
 
     test("contains non-transferable tickets info", async () => {
@@ -177,12 +172,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains admin navigation", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "/admin/guide",
-        "Events",
-        "Logout",
-      );
+      await assertAdminHtml("/admin/guide", "/admin/guide", "Events", "Logout");
     });
 
     test("shows default email setup instructions when no host email configured", async () => {
