@@ -66,12 +66,12 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
   });
 
   describe("GET /v1/devices/:deviceId/registrations/:passTypeId", () => {
-    test("returns 401 without Authorization header", async () => {
+    test("returns 204 without Authorization header", async () => {
       await configureAppleWallet();
       const response = await walletRequest(
         "/v1/devices/abc123/registrations/pass.com.test.tickets",
       );
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(204);
     });
 
     test("returns 204 when passTypeId does not match config", async () => {

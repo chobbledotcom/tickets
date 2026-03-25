@@ -89,6 +89,8 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 ### Optional
 
 - `PORT` - Server port (defaults to 3000, local dev only)
+- `BUNNY_API_KEY` - Bunny API key (required for custom domain management, with `BUNNY_SCRIPT_ID`)
+- `BUNNY_SCRIPT_ID` - Bunny Edge Script ID (required for custom domain management, with `BUNNY_API_KEY`)
 - `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (required for image uploads)
 - `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image uploads)
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables subdomain feature when set with `BUNNY_API_KEY`)

@@ -97,7 +97,7 @@ export const buildWebhookPayload = (
       ticket_token: attendee.ticket_token,
     })),
     timestamp: nowIso(),
-    business_email: settings.businessEmail ?? "",
+    business_email: settings.businessEmail,
   };
 };
 

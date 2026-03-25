@@ -116,8 +116,8 @@ describe("header image", () => {
   });
 
   describe("settings.headerImageUrl", () => {
-    test("defaults to null", () => {
-      expect(settings.headerImageUrl).toBeNull();
+    test("defaults to empty string", () => {
+      expect(settings.headerImageUrl).toBe("");
     });
 
     test("returns value set by setHeaderImageForTest", () => {
@@ -127,18 +127,18 @@ describe("header image", () => {
   });
 
   describe("resetHeaderImage", () => {
-    test("resets to null after being set", () => {
+    test("resets to empty string after being set", () => {
       setHeaderImageForTest("test-image.jpg");
       resetHeaderImage();
-      expect(settings.headerImageUrl).toBeNull();
+      expect(settings.headerImageUrl).toBe("");
     });
   });
 });
 
 describeWithEnv("header image settings DB", { db: true }, () => {
-  test("getHeaderImageUrlFromDb returns null when not set", () => {
+  test("getHeaderImageUrlFromDb returns empty string when not set", () => {
     const url = settings.headerImageUrl;
-    expect(url).toBeNull();
+    expect(url).toBe("");
   });
 
   test("getHeaderImageUrlFromDb returns decrypted filename after update", async () => {
@@ -151,7 +151,7 @@ describeWithEnv("header image settings DB", { db: true }, () => {
     await settings.update.headerImageUrl("abc123.jpg");
     await settings.update.headerImageUrl("");
     const url = settings.headerImageUrl;
-    expect(url).toBeNull();
+    expect(url).toBe("");
   });
 });
 
@@ -334,7 +334,7 @@ describeWithEnv(
           expectSettingsRedirect(response);
 
           const url = settings.headerImageUrl;
-          expect(url).toBeNull();
+          expect(url).toBe("");
         });
       });
 

@@ -22,7 +22,7 @@ export const isPaymentsEnabled = (): boolean => {
  * Returns 0 if not set.
  */
 export const getBookingFee = (): number =>
-  Number.parseFloat(settings.bookingFee!) || 0;
+  Number.parseFloat(settings.bookingFee) || 0;
 
 /**
  * Effective domain: custom_domain (from DB) if set, otherwise the request's
@@ -72,9 +72,10 @@ export const getEmbedHosts = async (): Promise<string[]> => {
 
 /**
  * Check if Bunny CDN pull zone management is enabled
- * Requires BUNNY_API_KEY to be set
+ * Requires both BUNNY_API_KEY and BUNNY_SCRIPT_ID to be set
  */
-export const isBunnyCdnEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
+export const isBunnyCdnEnabled = (): boolean =>
+  !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_SCRIPT_ID");
 
 /**
  * Get the Bunny CDN API key from environment
@@ -96,8 +97,6 @@ export const getBunnyDnsSubdomainSuffix = (): string =>
   getEnv("BUNNY_DNS_SUBDOMAIN_SUFFIX") ?? "";
 
 /**
- * Get the CDN hostname derived from the effective domain.
- * Replaces ".bunny.run" with ".b-cdn.net" for the CNAME target.
+ * Get the Bunny Edge Script ID from environment
  */
-export const getCdnHostname = (): string =>
-  getEffectiveDomain().replace(/\.bunny\.run$/, ".b-cdn.net");
+export const getBunnyScriptId = (): string => requireEnv("BUNNY_SCRIPT_ID");

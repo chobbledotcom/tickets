@@ -594,16 +594,33 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     {
       env: {
         BUNNY_API_KEY: undefined,
+        BUNNY_SCRIPT_ID: undefined,
         BUNNY_DNS_ZONE_ID: undefined,
         BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined,
       },
     },
     () => {
+      let restoreCdnHostname: (() => void) | null = null;
+
       const setBunnyDnsEnv = () => {
         Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
+        Deno.env.set("BUNNY_SCRIPT_ID", "test-script-id");
         Deno.env.set("BUNNY_DNS_ZONE_ID", "42");
         Deno.env.set("BUNNY_DNS_SUBDOMAIN_SUFFIX", ".tickets");
+        const original = bunnyCdnApi.getCdnHostname;
+        bunnyCdnApi.getCdnHostname = () =>
+          Promise.resolve({ ok: true as const, hostname: "test.b-cdn.net" });
+        restoreCdnHostname = () => {
+          bunnyCdnApi.getCdnHostname = original;
+        };
       };
+
+      afterEach(() => {
+        if (restoreCdnHostname) {
+          restoreCdnHostname();
+          restoreCdnHostname = null;
+        }
+      });
 
       test("does not show host subdomain section when DNS not configured", async () => {
         const response = await awaitTestRequest("/admin/settings-advanced", {
@@ -854,10 +871,28 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
   describeWithEnv(
     "custom domain",
-    { env: { BUNNY_API_KEY: undefined } },
+    { env: { BUNNY_API_KEY: undefined, BUNNY_SCRIPT_ID: undefined } },
     () => {
+      let restoreCdnHostname: (() => void) | null = null;
+      afterEach(() => {
+        if (restoreCdnHostname) {
+          restoreCdnHostname();
+          restoreCdnHostname = null;
+        }
+      });
+
       const setBunnyEnv = () => {
         Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
+        Deno.env.set("BUNNY_SCRIPT_ID", "99");
+        const original = bunnyCdnApi.getCdnHostname;
+        bunnyCdnApi.getCdnHostname = () =>
+          Promise.resolve({
+            ok: true as const,
+            hostname: "mysite.b-cdn.net",
+          });
+        restoreCdnHostname = () => {
+          bunnyCdnApi.getCdnHostname = original;
+        };
       };
 
       test("does not show custom domain form when Bunny CDN is not configured", async () => {
@@ -898,8 +933,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         expect(html).toContain('id="settings-custom-domain-validate"');
         expect(html).toContain("CNAME");
         expect(html).toContain("tickets.example.com");
-        // CDN hostname is derived from the effective domain (localhost in tests)
-        expect(html).toContain("localhost");
+        // CDN hostname is fetched from the edge script API
+        expect(html).toContain("mysite.b-cdn.net");
       });
 
       test("shows warning when custom domain is not validated", async () => {
@@ -1020,7 +1055,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               false,
             );
             expect(settings.customDomain).toBe("tickets.example.com");
-            expect(settings.customDomainLastValidated).toBeNull();
+            expect(settings.customDomainLastValidated).toBe("");
           } finally {
             bunnyCdnApi.validateCustomDomain = original;
           }
@@ -1066,7 +1101,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             response,
             expect.stringContaining("Custom domain cleared"),
           );
-          expect(settings.customDomain).toBeNull();
+          expect(settings.customDomain).toBe("");
         });
 
         test("clears domain when field is missing from form", async () => {
@@ -1086,7 +1121,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             response,
             expect.stringContaining("Custom domain cleared"),
           );
-          expect(settings.customDomain).toBeNull();
+          expect(settings.customDomain).toBe("");
         });
 
         test("rejects invalid domain format", async () => {

@@ -9,6 +9,7 @@ import {
 } from "#lib/apple-wallet.ts";
 import {
   checkSubdomainAvailable,
+  getCdnHostname,
   registerBunnySubdomain,
   validateCustomDomain,
 } from "#lib/bunny-cdn.ts";
@@ -18,7 +19,6 @@ import {
 } from "#lib/business-email.ts";
 import {
   getBunnyDnsSubdomainSuffix,
-  getCdnHostname,
   getEffectiveDomain,
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
@@ -115,51 +115,44 @@ const getSettingsPageState = () => {
     paymentProvider: settings.paymentProvider ?? "",
     squareTokenConfigured: settings.square.hasToken,
     squareSandbox: settings.square.sandbox,
-    squareWebhookConfigured: settings.square.webhookSignatureKey !== null,
+    squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
     webhookUrl: getWebhookUrl(),
-    bookingFee: settings.bookingFee!,
-    embedHosts: settings.embedHosts ?? "",
-    termsAndConditions: settings.terms ?? "",
-    businessEmail: settings.businessEmail ?? "",
+    bookingFee: settings.bookingFee,
+    embedHosts: settings.embedHosts,
+    termsAndConditions: settings.terms,
+    businessEmail: settings.businessEmail,
     theme: settings.theme,
     showPublicSite: settings.showPublicSite,
     country: settings.country,
-    headerImageUrl: settings.headerImageUrl ?? "",
+    headerImageUrl: settings.headerImageUrl,
     storageEnabled: isStorageEnabled(),
   };
 };
 
 /** Gather state for the advanced settings page */
-const getAdvancedSettingsPageState = (subdomainPreview = "") => {
+const getAdvancedSettingsPageState = async (subdomainPreview = "") => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
   const bunnyDnsEnabled = isBunnyDnsEnabled();
   const confirmationTemplates = settings.email.templateSet("confirmation");
   const adminTemplates = settings.email.templateSet("admin");
+  const cdnResult = bunnyCdnConfigured ? await getCdnHostname() : null;
   return {
     showPublicApi: settings.showPublicApi,
-    emailProvider: settings.email.provider ?? "",
+    emailProvider: settings.email.provider,
     emailApiKeyConfigured: settings.email.hasApiKey,
-    emailFromAddress: settings.email.fromAddress ?? "",
+    emailFromAddress: settings.email.fromAddress,
     hostEmailLabel: (() => {
       const hostConfig = getHostEmailConfig();
       if (!hostConfig) return "";
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
-    businessEmail: settings.businessEmail ?? "",
-    confirmationTemplates: {
-      subject: confirmationTemplates.subject ?? "",
-      html: confirmationTemplates.html ?? "",
-      text: confirmationTemplates.text ?? "",
-    },
-    adminTemplates: {
-      subject: adminTemplates.subject ?? "",
-      html: adminTemplates.html ?? "",
-      text: adminTemplates.text ?? "",
-    },
+    businessEmail: settings.businessEmail,
+    confirmationTemplates,
+    adminTemplates,
     bunnyCdnEnabled: bunnyCdnConfigured,
     bunnyDnsEnabled,
-    bunnySubdomain: settings.bunnySubdomain ?? "",
+    bunnySubdomain: settings.bunnySubdomain,
     bunnyDnsSubdomainSuffix: bunnyDnsEnabled
       ? getBunnyDnsSubdomainSuffix()
       : "",
@@ -167,19 +160,18 @@ const getAdvancedSettingsPageState = (subdomainPreview = "") => {
     customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
     customDomainLastValidated:
       (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
-    cdnHostname: bunnyCdnConfigured ? getCdnHostname() : "",
+    cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
     appleWalletConfigured: settings.appleWallet.hasDbConfig,
-    appleWalletPassTypeId: settings.appleWallet.passTypeId ?? "",
-    appleWalletTeamId: settings.appleWallet.teamId ?? "",
+    appleWalletPassTypeId: settings.appleWallet.passTypeId,
+    appleWalletTeamId: settings.appleWallet.teamId,
     hostAppleWalletLabel: (() => {
       const hostConfig = settings.appleWallet.hostConfig;
       if (!hostConfig) return "";
       return `Host env (${hostConfig.passTypeId})`;
     })(),
     googleWalletConfigured: settings.googleWallet.hasDbConfig,
-    googleWalletIssuerId: settings.googleWallet.issuerId ?? "",
-    googleWalletServiceAccountEmail:
-      settings.googleWallet.serviceAccountEmail ?? "",
+    googleWalletIssuerId: settings.googleWallet.issuerId,
+    googleWalletServiceAccountEmail: settings.googleWallet.serviceAccountEmail,
     hostGoogleWalletLabel: (() => {
       const hostConfig = settings.googleWallet.hostConfig;
       if (!hostConfig) return "";
@@ -196,14 +188,13 @@ const renderSettingsPage = (session: AuthSession) => {
 };
 
 /** Render the advanced settings page with current state */
-const renderAdvancedSettingsPage = (
+const renderAdvancedSettingsPage = async (
   session: AuthSession,
   subdomainPreview = "",
-) =>
-  adminAdvancedSettingsPage(
-    session,
-    getAdvancedSettingsPageState(subdomainPreview),
-  );
+) => {
+  const state = await getAdvancedSettingsPageState(subdomainPreview);
+  return adminAdvancedSettingsPage(session, state);
+};
 
 /** Render settings page with error on a specific form */
 const settingsPageWithError =
@@ -895,7 +886,7 @@ const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
 const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
-  const businessEmail = settings.businessEmail ?? "";
+  const businessEmail = settings.businessEmail;
   if (!businessEmail)
     return errorPage("No business email set", 400, "settings-email-test");
   const status = await sendTestEmail(config, businessEmail);

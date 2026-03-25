@@ -37,6 +37,7 @@ import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { nowMs } from "#lib/now.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import type { PaymentProviderType, Settings, Theme } from "#lib/types.ts";
+import { isPaymentProvider } from "#lib/types.ts";
 
 // ---------------------------------------------------------------------------
 // Setting keys
@@ -125,7 +126,7 @@ export type EmailTemplateType = "confirmation" | "admin";
 /** Valid email template formats */
 export type EmailTemplateFormat = "subject" | "html" | "text";
 
-const TEMPLATE_SNAPSHOT_KEYS: Record<string, keyof typeof data> = {
+const TEMPLATE_SNAPSHOT_KEYS: Record<string, StringSettingKey> = {
   "confirmation:subject": "emailTplConfirmationSubject",
   "confirmation:html": "emailTplConfirmationHtml",
   "confirmation:text": "emailTplConfirmationText",
@@ -143,64 +144,109 @@ const TEMPLATE_CONFIG_KEYS: Record<string, string> = {
   "admin:text": CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
 };
 
+// ---------------------------------------------------------------------------
+// String setting fields — defined once, type + defaults derived from it
+// ---------------------------------------------------------------------------
+
+/** Every snapshot key whose type is `string` (default: ""). Empty string = no value. */
+const STRING_SETTING_KEYS = [
+  // Plaintext
+  "terms",
+  "emailProvider",
+  "customDomain",
+  "customDomainLastValidated",
+  "publicKey",
+  "wrappedPrivateKey",
+  "squareLocationId",
+  "stripeWebhookEndpointId",
+  // Encrypted (pre-decrypted by loadAll)
+  "businessEmail",
+  "headerImageUrl",
+  "websiteTitle",
+  "homepageText",
+  "contactPageText",
+  "stripeSecretKey",
+  "stripeWebhookSecret",
+  "squareAccessToken",
+  "squareWebhookSignatureKey",
+  "embedHosts",
+  "emailApiKey",
+  "emailFromAddress",
+  "emailTplConfirmationSubject",
+  "emailTplConfirmationHtml",
+  "emailTplConfirmationText",
+  "emailTplAdminSubject",
+  "emailTplAdminHtml",
+  "emailTplAdminText",
+  "appleWalletPassTypeId",
+  "appleWalletTeamId",
+  "appleWalletSigningCert",
+  "appleWalletSigningKey",
+  "appleWalletWwdrCert",
+  "googleWalletIssuerId",
+  "googleWalletServiceAccountEmail",
+  "googleWalletServiceAccountKey",
+  "bunnySubdomain",
+] as const;
+
+/** Union of all string-setting snapshot keys (derived from the array). */
+export type StringSettingKey = (typeof STRING_SETTING_KEYS)[number];
+
+/** All string setting fields: empty string means "no value". */
+type StringSettingFields = Record<StringSettingKey, string>;
+
+/** Generate empty-string defaults for every string setting field. */
+const stringSettingDefaults: StringSettingFields = Object.fromEntries(
+  STRING_SETTING_KEYS.map((k) => [k, ""]),
+) as StringSettingFields;
+
+// ---------------------------------------------------------------------------
+// Full snapshot type + initial data
+// ---------------------------------------------------------------------------
+
+/** Non-nullable / non-string snapshot fields that need explicit types. */
+type SpecificFields = {
+  country: string;
+  theme: Theme;
+  showPublicSite: boolean;
+  showPublicApi: boolean;
+  paymentProvider: PaymentProviderType | null;
+  bookingFee: string;
+  squareSandbox: boolean;
+  attendeeBlobMigrated: boolean;
+  currency: string;
+  timezone: string;
+  phonePrefix: string;
+};
+
+/** Full settings snapshot type. */
+export type SettingsData = SpecificFields & StringSettingFields;
+
 /** Mutable snapshot of all settings. Populated by loadAll(). */
-const data = {
-  // --- Plaintext ---
+const data: SettingsData = {
   country: DEFAULT_COUNTRY,
-  theme: "light" as Theme,
+  theme: "light",
   showPublicSite: false,
   showPublicApi: false,
-  paymentProvider: null as PaymentProviderType | null,
-  terms: null as string | null,
-  emailProvider: null as string | null,
+  paymentProvider: null,
   bookingFee: "0",
-  customDomain: null as string | null,
-  customDomainLastValidated: null as string | null,
-  bunnySubdomain: null as string | null,
-  publicKey: null as string | null,
-  wrappedPrivateKey: null as string | null,
-  squareLocationId: null as string | null,
   squareSandbox: false,
-  stripeWebhookEndpointId: null as string | null,
   attendeeBlobMigrated: false,
-
-  // --- Derived from country ---
   currency: "GBP",
   timezone: DEFAULT_TIMEZONE,
   phonePrefix: "+44",
-
-  // --- Encrypted (pre-decrypted by loadAll) ---
-  businessEmail: null as string | null,
-  headerImageUrl: null as string | null,
-  websiteTitle: null as string | null,
-  homepageText: null as string | null,
-  contactPageText: null as string | null,
-  stripeSecretKey: null as string | null,
-  stripeWebhookSecret: null as string | null,
-  squareAccessToken: null as string | null,
-  squareWebhookSignatureKey: null as string | null,
-  embedHosts: null as string | null,
-  emailApiKey: null as string | null,
-  emailFromAddress: null as string | null,
-  emailTplConfirmationSubject: null as string | null,
-  emailTplConfirmationHtml: null as string | null,
-  emailTplConfirmationText: null as string | null,
-  emailTplAdminSubject: null as string | null,
-  emailTplAdminHtml: null as string | null,
-  emailTplAdminText: null as string | null,
-  appleWalletPassTypeId: null as string | null,
-  appleWalletTeamId: null as string | null,
-  appleWalletSigningCert: null as string | null,
-  appleWalletSigningKey: null as string | null,
-  appleWalletWwdrCert: null as string | null,
-  googleWalletIssuerId: null as string | null,
-  googleWalletServiceAccountEmail: null as string | null,
-  googleWalletServiceAccountKey: null as string | null,
+  ...stringSettingDefaults,
 };
 
-type SettingsData = typeof data;
-
 const defaults: Readonly<SettingsData> = { ...data };
+
+/** Type-safe setter for a single snapshot field (avoids TS indexed-write `never` issue). */
+const setSnapshotField = <K extends keyof SettingsData>(
+  key: K,
+  value: SettingsData[K],
+): void => {
+  data[key] = value;
+};
 
 /** Test overrides — survive invalidateCache(), cleared by clearTestOverrides(). */
 const [getTestOverrides, setTestOverrides] = lazyRef<Record<string, unknown>>(
@@ -258,7 +304,7 @@ const writeEncrypted = async (key: string, value: string): Promise<void> => {
 // ---------------------------------------------------------------------------
 
 /** Mapping: CONFIG_KEY → snapshot field for encrypted values. */
-const ENCRYPTED_FIELDS: [string, keyof SettingsData][] = [
+const ENCRYPTED_FIELDS: [string, StringSettingKey][] = [
   [CONFIG_KEYS.BUSINESS_EMAIL, "businessEmail"],
   [CONFIG_KEYS.HEADER_IMAGE_URL, "headerImageUrl"],
   [CONFIG_KEYS.WEBSITE_TITLE, "websiteTitle"],
@@ -309,21 +355,22 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   data.theme = raw.get(CONFIG_KEYS.THEME) === "dark" ? "dark" : "light";
   data.showPublicSite = raw.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
   data.showPublicApi = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
+  const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
   data.paymentProvider =
-    (raw.get(CONFIG_KEYS.PAYMENT_PROVIDER) as PaymentProviderType) ?? null;
-  data.terms = raw.get(CONFIG_KEYS.TERMS_AND_CONDITIONS) ?? null;
-  data.emailProvider = raw.get(CONFIG_KEYS.EMAIL_PROVIDER) ?? null;
+    rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
+  data.terms = raw.get(CONFIG_KEYS.TERMS_AND_CONDITIONS) ?? "";
+  data.emailProvider = raw.get(CONFIG_KEYS.EMAIL_PROVIDER) ?? "";
   data.bookingFee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
-  data.customDomain = raw.get(CONFIG_KEYS.CUSTOM_DOMAIN) ?? null;
+  data.customDomain = raw.get(CONFIG_KEYS.CUSTOM_DOMAIN) ?? "";
   data.customDomainLastValidated =
-    raw.get(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED) ?? null;
-  data.bunnySubdomain = raw.get(CONFIG_KEYS.BUNNY_SUBDOMAIN) ?? null;
-  data.publicKey = raw.get(CONFIG_KEYS.PUBLIC_KEY) ?? null;
-  data.wrappedPrivateKey = raw.get(CONFIG_KEYS.WRAPPED_PRIVATE_KEY) ?? null;
-  data.squareLocationId = raw.get(CONFIG_KEYS.SQUARE_LOCATION_ID) ?? null;
+    raw.get(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED) ?? "";
+  data.bunnySubdomain = raw.get(CONFIG_KEYS.BUNNY_SUBDOMAIN) ?? "";
+  data.publicKey = raw.get(CONFIG_KEYS.PUBLIC_KEY) ?? "";
+  data.wrappedPrivateKey = raw.get(CONFIG_KEYS.WRAPPED_PRIVATE_KEY) ?? "";
+  data.squareLocationId = raw.get(CONFIG_KEYS.SQUARE_LOCATION_ID) ?? "";
   data.squareSandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
   data.stripeWebhookEndpointId =
-    raw.get(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID) ?? null;
+    raw.get(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID) ?? "";
   const m = raw.get(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED);
   data.attendeeBlobMigrated = m !== undefined && m !== "" && m !== null;
 
@@ -334,12 +381,11 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   const values = await Promise.all(
     ENCRYPTED_FIELDS.map(([key]) => {
       const v = raw.get(key);
-      return v ? decrypt(v) : null;
+      return v ? decrypt(v) : "";
     }),
   );
   for (let i = 0; i < ENCRYPTED_FIELDS.length; i++) {
-    const field = ENCRYPTED_FIELDS[i]!;
-    (data as Record<string, unknown>)[field[1]] = values[i] ?? null;
+    setSnapshotField(ENCRYPTED_FIELDS[i]![1], values[i]!);
   }
 };
 
@@ -363,10 +409,8 @@ const loadAll = async (): Promise<void> => {
 /** Full invalidation — clears raw cache AND resets snapshot to defaults. */
 const invalidateCache = (): void => {
   setCacheState(null);
-  for (const key of Object.keys(defaults)) {
-    (data as Record<string, unknown>)[key] = (
-      defaults as Record<string, unknown>
-    )[key];
+  for (const key of Object.keys(defaults) as (keyof SettingsData)[]) {
+    setSnapshotField(key, defaults[key]);
   }
 };
 
@@ -565,43 +609,43 @@ export const settings = {
   get paymentProvider(): PaymentProviderType | null {
     return snap("paymentProvider");
   },
-  get terms(): string | null {
+  get terms(): string {
     return snap("terms");
   },
   get bookingFee(): string {
     return snap("bookingFee");
   },
-  get customDomain(): string | null {
+  get customDomain(): string {
     return snap("customDomain");
   },
-  get customDomainLastValidated(): string | null {
+  get customDomainLastValidated(): string {
     return snap("customDomainLastValidated");
   },
-  get bunnySubdomain(): string | null {
+  get bunnySubdomain(): string {
     return snap("bunnySubdomain");
   },
-  get publicKey(): string | null {
+  get publicKey(): string {
     return snap("publicKey");
   },
-  get wrappedPrivateKey(): string | null {
+  get wrappedPrivateKey(): string {
     return snap("wrappedPrivateKey");
   },
-  get headerImageUrl(): string | null {
+  get headerImageUrl(): string {
     return snap("headerImageUrl");
   },
-  get websiteTitle(): string | null {
+  get websiteTitle(): string {
     return snap("websiteTitle");
   },
-  get homepageText(): string | null {
+  get homepageText(): string {
     return snap("homepageText");
   },
-  get contactPageText(): string | null {
+  get contactPageText(): string {
     return snap("contactPageText");
   },
-  get businessEmail(): string | null {
+  get businessEmail(): string {
     return snap("businessEmail");
   },
-  get embedHosts(): string | null {
+  get embedHosts(): string {
     return snap("embedHosts");
   },
   get attendeeBlobMigrated(): boolean {
@@ -621,11 +665,11 @@ export const settings = {
 
   // --- Stripe ---
   stripe: {
-    get secretKey(): string | null {
+    get secretKey(): string {
       return snap("stripeSecretKey");
     },
     get hasKey(): boolean {
-      return snap("stripeSecretKey") !== null;
+      return snap("stripeSecretKey") !== "";
     },
     get keyMode(): "test" | "live" | null {
       const k = snap("stripeSecretKey");
@@ -634,26 +678,26 @@ export const settings = {
       if (k.startsWith("sk_live_")) return "live";
       return null;
     },
-    get webhookSecret(): string | null {
+    get webhookSecret(): string {
       return snap("stripeWebhookSecret");
     },
-    get webhookEndpointId(): string | null {
+    get webhookEndpointId(): string {
       return snap("stripeWebhookEndpointId");
     },
   },
 
   // --- Square ---
   square: {
-    get accessToken(): string | null {
+    get accessToken(): string {
       return snap("squareAccessToken");
     },
     get hasToken(): boolean {
-      return snap("squareAccessToken") !== null;
+      return snap("squareAccessToken") !== "";
     },
-    get webhookSignatureKey(): string | null {
+    get webhookSignatureKey(): string {
       return snap("squareWebhookSignatureKey");
     },
-    get locationId(): string | null {
+    get locationId(): string {
       return snap("squareLocationId");
     },
     get sandbox(): boolean {
@@ -663,30 +707,25 @@ export const settings = {
 
   // --- Email ---
   email: {
-    get provider(): string | null {
+    get provider(): string {
       return snap("emailProvider");
     },
-    get apiKey(): string | null {
+    get apiKey(): string {
       return snap("emailApiKey");
     },
     get hasApiKey(): boolean {
-      return snap("emailApiKey") !== null;
+      return snap("emailApiKey") !== "";
     },
-    get fromAddress(): string | null {
+    get fromAddress(): string {
       return snap("emailFromAddress");
     },
-    template(
-      type: EmailTemplateType,
-      format: EmailTemplateFormat,
-    ): string | null {
-      return snap(
-        TEMPLATE_SNAPSHOT_KEYS[`${type}:${format}`] as keyof SettingsData,
-      ) as string | null;
+    template(type: EmailTemplateType, format: EmailTemplateFormat): string {
+      return snap(TEMPLATE_SNAPSHOT_KEYS[`${type}:${format}`]!);
     },
     templateSet(type: EmailTemplateType): {
-      subject: string | null;
-      html: string | null;
-      text: string | null;
+      subject: string;
+      html: string;
+      text: string;
     } {
       return {
         subject: this.template(type, "subject"),
@@ -698,28 +737,28 @@ export const settings = {
 
   // --- Apple Wallet ---
   appleWallet: {
-    get passTypeId(): string | null {
+    get passTypeId(): string {
       return snap("appleWalletPassTypeId");
     },
-    get teamId(): string | null {
+    get teamId(): string {
       return snap("appleWalletTeamId");
     },
-    get signingCert(): string | null {
+    get signingCert(): string {
       return snap("appleWalletSigningCert");
     },
-    get signingKey(): string | null {
+    get signingKey(): string {
       return snap("appleWalletSigningKey");
     },
-    get wwdrCert(): string | null {
+    get wwdrCert(): string {
       return snap("appleWalletWwdrCert");
     },
     get hasDbConfig(): boolean {
-      return (
-        this.passTypeId !== null &&
-        this.teamId !== null &&
-        this.signingCert !== null &&
-        this.signingKey !== null &&
-        this.wwdrCert !== null
+      return !!(
+        this.passTypeId &&
+        this.teamId &&
+        this.signingCert &&
+        this.signingKey &&
+        this.wwdrCert
       );
     },
     get dbConfig(): SigningCredentials | null {
@@ -747,22 +786,18 @@ export const settings = {
 
   // --- Google Wallet ---
   googleWallet: {
-    get issuerId(): string | null {
+    get issuerId(): string {
       return snap("googleWalletIssuerId");
     },
-    get serviceAccountEmail(): string | null {
+    get serviceAccountEmail(): string {
       return snap("googleWalletServiceAccountEmail");
     },
-    get serviceAccountKey(): string | null {
+    get serviceAccountKey(): string {
       return snap("googleWalletServiceAccountKey");
     },
     get hasDbConfig(): boolean {
       const { issuerId, serviceAccountEmail, serviceAccountKey } = this;
-      return (
-        issuerId !== null &&
-        serviceAccountEmail !== null &&
-        serviceAccountKey !== null
-      );
+      return !!(issuerId && serviceAccountEmail && serviceAccountKey);
     },
     get dbConfig(): GoogleWalletCredentials | null {
       return toGoogleCredentials(
@@ -821,7 +856,7 @@ export const settings = {
     },
     terms: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.TERMS_AND_CONDITIONS, v);
-      data.terms = v || null;
+      data.terms = v;
     },
     bookingFee: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
@@ -829,7 +864,7 @@ export const settings = {
     },
     customDomain: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.CUSTOM_DOMAIN, v);
-      data.customDomain = v || null;
+      data.customDomain = v;
     },
     customDomainLastValidated: async (): Promise<void> => {
       const ts = new Date().toISOString();
@@ -838,32 +873,32 @@ export const settings = {
     },
     bunnySubdomain: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.BUNNY_SUBDOMAIN, v);
-      data.bunnySubdomain = v || null;
+      data.bunnySubdomain = v;
     },
     headerImageUrl: async (v: string): Promise<void> => {
       await writeEncrypted(CONFIG_KEYS.HEADER_IMAGE_URL, v);
-      data.headerImageUrl = v || null;
+      data.headerImageUrl = v;
     },
     websiteTitle: async (v: string): Promise<void> => {
       await writeEncrypted(CONFIG_KEYS.WEBSITE_TITLE, v);
-      data.websiteTitle = v || null;
+      data.websiteTitle = v;
     },
     homepageText: async (v: string): Promise<void> => {
       await writeEncrypted(CONFIG_KEYS.HOMEPAGE_TEXT, v);
-      data.homepageText = v || null;
+      data.homepageText = v;
     },
     contactPageText: async (v: string): Promise<void> => {
       await writeEncrypted(CONFIG_KEYS.CONTACT_PAGE_TEXT, v);
-      data.contactPageText = v || null;
+      data.contactPageText = v;
     },
     businessEmail: async (v: string): Promise<void> => {
       await writeEncrypted(CONFIG_KEYS.BUSINESS_EMAIL, v);
-      data.businessEmail = v || null;
+      data.businessEmail = v;
     },
     embedHosts: async (v: string): Promise<void> => {
       if (v === "") {
         await writeOrDelete(CONFIG_KEYS.EMBED_HOSTS, "");
-        data.embedHosts = null;
+        data.embedHosts = "";
         return;
       }
       await writeRaw(CONFIG_KEYS.EMBED_HOSTS, await encrypt(v));
@@ -881,7 +916,7 @@ export const settings = {
     stripe: {
       secretKey: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.STRIPE_SECRET_KEY, v);
-        data.stripeSecretKey = v || null;
+        data.stripeSecretKey = v;
       },
       webhookConfig: async (config: {
         secret: string;
@@ -904,15 +939,15 @@ export const settings = {
     square: {
       accessToken: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.SQUARE_ACCESS_TOKEN, v);
-        data.squareAccessToken = v || null;
+        data.squareAccessToken = v;
       },
       webhookSignatureKey: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY, v);
-        data.squareWebhookSignatureKey = v || null;
+        data.squareWebhookSignatureKey = v;
       },
       locationId: async (v: string): Promise<void> => {
         await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, v);
-        data.squareLocationId = v || null;
+        data.squareLocationId = v;
       },
       sandbox: async (v: boolean): Promise<void> => {
         await writeRaw(CONFIG_KEYS.SQUARE_SANDBOX, v ? "true" : "false");
@@ -924,15 +959,15 @@ export const settings = {
     email: {
       provider: async (v: string): Promise<void> => {
         await writeOrDelete(CONFIG_KEYS.EMAIL_PROVIDER, v);
-        data.emailProvider = v || null;
+        data.emailProvider = v;
       },
       apiKey: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.EMAIL_API_KEY, v);
-        data.emailApiKey = v || null;
+        data.emailApiKey = v;
       },
       fromAddress: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.EMAIL_FROM_ADDRESS, v);
-        data.emailFromAddress = v || null;
+        data.emailFromAddress = v;
       },
       template: async (
         type: EmailTemplateType,
@@ -941,8 +976,7 @@ export const settings = {
       ): Promise<void> => {
         const k = `${type}:${format}`;
         await writeEncrypted(TEMPLATE_CONFIG_KEYS[k]!, content);
-        (data as Record<string, unknown>)[TEMPLATE_SNAPSHOT_KEYS[k]!] =
-          content || null;
+        setSnapshotField(TEMPLATE_SNAPSHOT_KEYS[k]!, content);
       },
     },
 
@@ -950,23 +984,23 @@ export const settings = {
     appleWallet: {
       passTypeId: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID, v);
-        data.appleWalletPassTypeId = v || null;
+        data.appleWalletPassTypeId = v;
       },
       teamId: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_TEAM_ID, v);
-        data.appleWalletTeamId = v || null;
+        data.appleWalletTeamId = v;
       },
       signingCert: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT, v);
-        data.appleWalletSigningCert = v || null;
+        data.appleWalletSigningCert = v;
       },
       signingKey: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY, v);
-        data.appleWalletSigningKey = v || null;
+        data.appleWalletSigningKey = v;
       },
       wwdrCert: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, v);
-        data.appleWalletWwdrCert = v || null;
+        data.appleWalletWwdrCert = v;
       },
     },
 
@@ -974,18 +1008,18 @@ export const settings = {
     googleWallet: {
       issuerId: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID, v);
-        data.googleWalletIssuerId = v || null;
+        data.googleWalletIssuerId = v;
       },
       serviceAccountEmail: async (v: string): Promise<void> => {
         await writeEncrypted(
           CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
           v,
         );
-        data.googleWalletServiceAccountEmail = v || null;
+        data.googleWalletServiceAccountEmail = v;
       },
       serviceAccountKey: async (v: string): Promise<void> => {
         await writeEncrypted(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY, v);
-        data.googleWalletServiceAccountKey = v || null;
+        data.googleWalletServiceAccountKey = v;
       },
     },
   },

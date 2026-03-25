@@ -230,7 +230,6 @@ export function defineRoutes<T extends string>(
 // Implementation accepts any function-valued record; the overload signature
 // above enforces type safety at call sites.
 export function defineRoutes(
-  // biome-ignore lint/complexity/noBannedTypes: intentional catch-all for typed route definitions
   // deno-lint-ignore ban-types
   routes: Record<string, Function>,
 ): Record<string, RouteHandlerFn> {
