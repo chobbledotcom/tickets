@@ -241,13 +241,20 @@ const parseApiCustomPrice = (
   body: Record<string, unknown>,
 ): number | undefined | Response => {
   if (!event.can_pay_more) return undefined;
-  const priceResult = parseCustomPrice(body.customPrice, event.unit_price, event.max_price);
+  const priceResult = parseCustomPrice(
+    body.customPrice,
+    event.unit_price,
+    event.max_price,
+  );
   if (!priceResult.ok) return apiResponse({ error: priceResult.error }, 400);
   return priceResult.price;
 };
 
 /** Parse and clamp the quantity from API body */
-const parseApiQuantity = (body: Record<string, unknown>, maxQuantity: number): number => {
+const parseApiQuantity = (
+  body: Record<string, unknown>,
+  maxQuantity: number,
+): number => {
   const raw = Number.parseInt(String(body.quantity ?? "1"), 10);
   return Number.isNaN(raw) || raw < 1 ? 1 : Math.min(raw, maxQuantity);
 };
@@ -264,7 +271,10 @@ const handleBook = withActiveEvent(async (request, event) => {
 
   const paid = isPaidEvent(event);
   const valResult = tryValidateTicketFields(
-    toFormParams(body), event.fields, (msg) => apiResponse({ error: msg }, 400), paid,
+    toFormParams(body),
+    event.fields,
+    (msg) => apiResponse({ error: msg }, 400),
+    paid,
   );
   if (valResult instanceof Response) return valResult;
 
@@ -278,7 +288,14 @@ const handleBook = withActiveEvent(async (request, event) => {
 
   const contact = extractContact(valResult);
   return bookingResultToResponse(
-    await processBooking(event, contact, quantity, dateResult, getBaseUrl(request), priceResult),
+    await processBooking(
+      event,
+      contact,
+      quantity,
+      dateResult,
+      getBaseUrl(request),
+      priceResult,
+    ),
   );
 });
 

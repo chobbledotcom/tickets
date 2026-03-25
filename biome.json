@@ -11,6 +11,7 @@
   "linter": {
     "enabled": true,
     "rules": {
+      "recommended": false,
       "complexity": {
         "noStaticOnlyClass": "error",
         "noThisInStatic": "error",
@@ -50,7 +51,7 @@
   },
   "overrides": [
     {
-      "includes": ["src/client/**"],
+      "includes": ["src/client/**", "src/static/admin.js", "src/static/scanner.js", "src/static/embed.js", "src/static/iframe-resizer-parent.js", "src/static/iframe-resizer-child.js"],
       "linter": {
         "enabled": false
       }

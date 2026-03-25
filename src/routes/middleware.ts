@@ -166,7 +166,9 @@ const hasTrackingParams = (searchParams: URLSearchParams): boolean => {
 };
 
 /** Build clean URLSearchParams with tracking params removed */
-const stripTrackingParams = (searchParams: URLSearchParams): URLSearchParams => {
+const stripTrackingParams = (
+  searchParams: URLSearchParams,
+): URLSearchParams => {
   const clean = new URLSearchParams();
   for (const [key, value] of searchParams.entries()) {
     if (!isTrackingParam(key)) clean.append(key, value);

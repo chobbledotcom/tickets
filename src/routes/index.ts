@@ -319,7 +319,9 @@ const checkTrackingRedirect = (
   if (!cleanUrl) return null;
   return logAndReturn(
     new Response(null, { status: 301, headers: { location: cleanUrl } }),
-    method, path, getElapsed,
+    method,
+    path,
+    getElapsed,
   );
 };
 
@@ -342,7 +344,12 @@ const handleRequestError = (
     throw error;
   }
   if (error instanceof SessionKeyError) {
-    return logAndReturn(redirectResponse("/admin", clearSessionCookie()), method, path, getElapsed);
+    return logAndReturn(
+      redirectResponse("/admin", clearSessionCookie()),
+      method,
+      path,
+      getElapsed,
+    );
   }
   return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
 };
@@ -373,7 +380,9 @@ const handleWithFlashContext = async (
 
     return logAndReturn(
       await applySecurityHeaders(response, embeddable),
-      method, path, getElapsed,
+      method,
+      path,
+      getElapsed,
     );
   } catch (error) {
     return handleRequestError(error, method, path, getElapsed);
@@ -414,18 +423,33 @@ const processRequest = async (
   clearSavedFormData();
 
   try {
-    const trackingRedirect = checkTrackingRedirect(method, url, path, getElapsed);
+    const trackingRedirect = checkTrackingRedirect(
+      method,
+      url,
+      path,
+      getElapsed,
+    );
     if (trackingRedirect) return trackingRedirect;
 
     loadEffectiveDomain(effectiveRequest.url);
     const embeddable = isEmbeddablePath(path);
 
     if (!isValidContentType(effectiveRequest, path)) {
-      return logAndReturn(contentTypeRejectionResponse(), method, path, getElapsed);
+      return logAndReturn(
+        contentTypeRejectionResponse(),
+        method,
+        path,
+        getElapsed,
+      );
     }
 
     return await handleWithFlashContext(
-      effectiveRequest, path, method, embeddable, getElapsed, server,
+      effectiveRequest,
+      path,
+      method,
+      embeddable,
+      getElapsed,
+      server,
     );
   } finally {
     await flushPendingWork();

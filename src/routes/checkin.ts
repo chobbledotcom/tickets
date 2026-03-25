@@ -6,9 +6,9 @@
 
 import { filter, map } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
-import type { FormParams } from "#lib/form-data.ts";
 import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
 import { settings } from "#lib/db/settings.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import type { Attendee } from "#lib/types.ts";
 import {
   createTokenRoute,
@@ -131,7 +131,11 @@ const processCheckin = async (
     map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible),
   );
 
-  const message = buildCheckinMessage(checkedIn, totalTickets, uncheckedTickets);
+  const message = buildCheckinMessage(
+    checkedIn,
+    totalTickets,
+    uncheckedTickets,
+  );
   return redirectResponse(
     `/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`,
   );

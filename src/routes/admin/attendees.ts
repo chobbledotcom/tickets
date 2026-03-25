@@ -613,8 +613,15 @@ const processAddAttendee = async (
   if (!result.success)
     return handleCreateAttendeeFailure(result.reason, eventId);
 
-  await logActivity(`Attendee '${validation.values.name}' added manually`, eventId);
-  return redirect(`/admin/event/${eventId}`, `Added ${validation.values.name}`, true);
+  await logActivity(
+    `Attendee '${validation.values.name}' added manually`,
+    eventId,
+  );
+  return redirect(
+    `/admin/event/${eventId}`,
+    `Added ${validation.values.name}`,
+    true,
+  );
 };
 
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
