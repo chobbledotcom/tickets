@@ -216,6 +216,10 @@ const usernameFieldBase: Field = {
   label: "Username",
   type: "text",
   required: true,
+  minlength: 2,
+  maxlength: 32,
+  pattern: "[a-zA-Z0-9_-]+",
+  title: "Letters, numbers, hyphens, and underscores only",
 };
 
 /**
@@ -397,6 +401,8 @@ export const eventFields: Field[] = [
     label: "Ticket Price (leave empty for free)",
     type: "text",
     inputmode: "decimal",
+    pattern: "\\d+(\\.\\d{1,2})?",
+    title: "A non-negative number (e.g. 10.00)",
     placeholder: "e.g. 10.00",
     validate: validateNonNegativePrice,
   },
@@ -412,6 +418,8 @@ export const eventFields: Field[] = [
     label: "Maximum Price (for pay more)",
     type: "text",
     inputmode: "decimal",
+    pattern: "\\d+(\\.\\d{1,2})?",
+    title: "A non-negative number (e.g. 100.00)",
     placeholder: "e.g. 100.00",
     defaultValue: "100.00",
     get hint() {
@@ -519,6 +527,8 @@ export const slugField: Field = {
   label: "Slug",
   type: "text",
   required: true,
+  pattern: "[a-z0-9-]+",
+  title: "Lowercase letters, numbers, and hyphens only",
   hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
   validate: (value: string) => validateSlug(normalizeSlug(value)),
 };
@@ -596,6 +606,9 @@ const phoneField: Field = {
   type: "text",
   required: true,
   autocomplete: "tel",
+  pattern: "[+\\d][\\d\\s\\-()]{5,}",
+  title:
+    "Phone number (digits, spaces, hyphens, parentheses, optional leading +)",
   validate: validatePhone,
 };
 
@@ -614,6 +627,7 @@ const addressField: Field = {
   label: "Your Address",
   type: "textarea",
   required: true,
+  maxlength: MAX_ADDRESS_LENGTH,
   autocomplete: "street-address",
   validate: validateAddress,
 };
@@ -633,6 +647,7 @@ const specialInstructionsField: Field = {
   label: "Special Instructions",
   type: "textarea",
   required: true,
+  maxlength: MAX_SPECIAL_INSTRUCTIONS_LENGTH,
   validate: validateSpecialInstructions,
 };
 
@@ -742,6 +757,7 @@ export const setupFields: Field[] = [
     label: "Admin Password *",
     type: "password",
     required: true,
+    minlength: 8,
     hint: "Minimum 8 characters",
     autocomplete: "new-password",
   },
@@ -770,6 +786,7 @@ export const changePasswordFields: Field[] = [
     label: "New Password",
     type: "password",
     required: true,
+    minlength: 8,
     hint: "Minimum 8 characters",
     autocomplete: "new-password",
   },
@@ -861,6 +878,7 @@ export const joinFields: Field[] = [
     label: "Password",
     type: "password",
     required: true,
+    minlength: 8,
     hint: "Minimum 8 characters",
     autocomplete: "new-password",
   },
