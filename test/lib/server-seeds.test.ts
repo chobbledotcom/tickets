@@ -8,13 +8,12 @@ import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import { handleRequest } from "#routes";
 import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
 import {
-  adminGet,
+  assertAdminHtml,
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
   expectAdminRedirect,
   expectFlash,
-  expectHtmlResponse,
   extractCsrfToken,
   mockFormRequest,
   mockRequest,
@@ -38,22 +37,20 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     });
 
     test("renders seeds page when authenticated", async () => {
-      const { response } = await adminGet("/admin/seeds");
-      await expectHtmlResponse(response, 200, "Seed Data");
+      await assertAdminHtml("/admin/seeds", "Seed Data");
     });
 
     test("contains form with event count and attendees per event fields", async () => {
-      const { response } = await adminGet("/admin/seeds");
-      const html = await response.text();
-      expect(html).toContain("event_count");
-      expect(html).toContain("attendees_per_event");
-      expect(html).toContain("Create Seed Data");
+      await assertAdminHtml(
+        "/admin/seeds",
+        "event_count",
+        "attendees_per_event",
+        "Create Seed Data",
+      );
     });
 
     test("contains back to dashboard link", async () => {
-      const { response } = await adminGet("/admin/seeds");
-      const html = await response.text();
-      expect(html).toContain('href="/admin"');
+      await assertAdminHtml("/admin/seeds", 'href="/admin"');
     });
   });
 

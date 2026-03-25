@@ -393,7 +393,8 @@ pre samp {
   white-space: pre-wrap;
 }
 
-small {
+small,
+.muted {
   color: var(--color-text-secondary);
 }
 
@@ -594,6 +595,12 @@ input[type="file"] {
 textarea {
   aspect-ratio: 4 / 3;
   resize: vertical;
+}
+
+@media (min-width: 769px) {
+  textarea {
+    aspect-ratio: 16 / 9;
+  }
 }
 
 input[readonly],

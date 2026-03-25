@@ -12,6 +12,7 @@ import { handleRequest } from "#routes";
 import { formatCountdown, withCookie } from "#routes/utils.ts";
 import {
   adminGet,
+  adminFormPost,
   awaitTestRequest,
   createTestAttendee,
   createTestEvent,
@@ -739,19 +740,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/edit",
-          {
-            name: "Updated Event",
-            slug: "updated-event",
-            max_attendees: "50",
-            max_quantity: "1",
-            thank_you_url: "https://example.com/updated",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/999/edit",
+        {
+          name: "Updated Event",
+          slug: "updated-event",
+          max_attendees: "50",
+          max_quantity: "1",
+          thank_you_url: "https://example.com/updated",
+        },
       );
       expect(response.status).toBe(404);
     });
@@ -1092,18 +1089,14 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       });
 
       // Try to change event2's slug to event1's slug
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event2.id}/edit`,
-          {
-            name: "Event Two",
-            slug: event1.slug,
-            max_attendees: "50",
-            max_quantity: "1",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        `/admin/event/${event2.id}/edit`,
+        {
+          name: "Event Two",
+          slug: event1.slug,
+          max_attendees: "50",
+          max_quantity: "1",
+        },
       );
       await expectHtmlResponse(
         response,
@@ -1397,15 +1390,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/delete",
-          {
-            confirm_identifier: "Test Event",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/999/delete",
+        { confirm_identifier: "Test Event" },
       );
       expect(response.status).toBe(404);
     });
@@ -1544,14 +1531,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       });
 
       // Delete with verify_identifier=false - no need for confirm_identifier
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/1/delete?verify_identifier=false",
-          {
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/1/delete?verify_identifier=false",
       );
       expect(response.status).toBe(302);
 
@@ -1562,12 +1543,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("returns 404 when event not found with verify_identifier=false", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/9999/delete?verify_identifier=false",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/9999/delete?verify_identifier=false",
       );
       expect(response.status).toBe(404);
     });
@@ -1609,19 +1586,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event with unit_price", () => {
     test("creates event with unit_price when authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event",
-          {
-            name: "Paid Event",
-            max_attendees: "50",
-            max_quantity: "1",
-            thank_you_url: "https://example.com/thanks",
-            unit_price: "10.00",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event",
+        {
+          name: "Paid Event",
+          max_attendees: "50",
+          max_quantity: "1",
+          thank_you_url: "https://example.com/thanks",
+          unit_price: "10.00",
+        },
       );
       expect(response.status).toBe(302);
     });
@@ -1833,15 +1806,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event/:id/deactivate (event not found)", () => {
     test("returns 404 when event does not exist", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/deactivate",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "something",
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/999/deactivate",
+        { confirm_identifier: "something" },
       );
       expect(response.status).toBe(404);
     });
@@ -1849,15 +1816,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event/:id/reactivate (event not found)", () => {
     test("returns 404 when event does not exist", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/reactivate",
-          {
-            csrf_token: await testCsrfToken(),
-            confirm_identifier: "something",
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/999/reactivate",
+        { confirm_identifier: "something" },
       );
       expect(response.status).toBe(404);
     });
@@ -1981,16 +1942,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event/:id/edit validation error", () => {
     test("shows error when editing non-existent event", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/99999/edit",
-          {
-            name: "Updated Name",
-            max_attendees: "50",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event/99999/edit",
+        {
+          name: "Updated Name",
+          max_attendees: "50",
+        },
       );
       expect(response.status).toBe(404);
     });
@@ -2136,17 +2093,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       try {
         // Send an update with empty name to trigger validation error
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/event/${event1.id}/edit`,
-            {
-              name: "",
-              max_attendees: "50",
-              max_quantity: "1",
-              csrf_token: await testCsrfToken(),
-            },
-            await testCookie(),
-          ),
+        const { response } = await adminFormPost(
+          `/admin/event/${event1.id}/edit`,
+          {
+            name: "",
+            max_attendees: "50",
+            max_quantity: "1",
+          },
         );
         // requireExists sees the row (first findById). Validation fails (empty name).
         // eventErrorPage calls getEventWithCount, but event was deleted, so returns 404.
@@ -2204,18 +2157,14 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       try {
         await withExpectedError(async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              "/admin/event",
-              {
-                name: "Collision Event",
-                max_attendees: "50",
-                max_quantity: "1",
-                thank_you_url: "https://example.com",
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
-            ),
+          const { response } = await adminFormPost(
+            "/admin/event",
+            {
+              name: "Collision Event",
+              max_attendees: "50",
+              max_quantity: "1",
+              thank_you_url: "https://example.com",
+            },
           );
           await expectHtmlResponse(response, 503, "Temporary Error");
         });
@@ -2801,19 +2750,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("rejects invalid event_type value", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event",
-          {
-            name: "Bad Type Event",
-            max_attendees: "50",
-            max_quantity: "1",
-            thank_you_url: "https://example.com",
-            event_type: "invalid",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
+      const { response } = await adminFormPost(
+        "/admin/event",
+        {
+          name: "Bad Type Event",
+          max_attendees: "50",
+          max_quantity: "1",
+          thank_you_url: "https://example.com",
+          event_type: "invalid",
+        },
       );
       expectStatus(400)(response);
     });

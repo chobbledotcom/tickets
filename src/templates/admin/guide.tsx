@@ -72,12 +72,13 @@ export const adminGuidePage = (
       <Section title="Getting Started">
         <Q q="How do I create an event?">
           <p>
-            From the <strong>Events</strong> page, fill in the form at the
-            bottom. Give your event a name, set the capacity, and choose which
-            contact details to collect (any combination of email, phone, postal
-            address, and special instructions &mdash; or none at all for
-            name-only registration). You can leave the price blank for free
-            events. Once created, share the booking link with your attendees.
+            From the <strong>Events</strong> page, click{" "}
+            <strong>Add Event</strong>. Give your event a name, set the
+            capacity, and choose which contact details to collect (any
+            combination of email, phone, postal address, and special
+            instructions &mdash; or none at all for name-only registration). You
+            can leave the price blank for free events. Once created, share the
+            booking link with your attendees.
           </p>
         </Q>
 
@@ -159,8 +160,10 @@ export const adminGuidePage = (
             group from the <strong>Groups</strong> page, then assign events to
             it using the group dropdown on the event form. Share{" "}
             <code>/ticket/your-group-slug</code> and attendees see all active
-            events in the group on one page. If you add terms and conditions to
-            a group, they replace the global T&amp;Cs for that page.
+            events in the group on one page. You can optionally set a maximum
+            attendee limit on the group to cap total bookings across all events
+            in it. If you add terms and conditions to a group, they replace the
+            global T&amp;Cs for that page.
           </p>
         </Q>
 
@@ -223,7 +226,8 @@ export const adminGuidePage = (
           </ul>
           <p>
             In <strong>Settings</strong>, add your website's domain to the embed
-            hosts list so the browser allows the iframe to load.
+            hosts list to restrict which sites can embed your forms. If no hosts
+            are listed, embedding is allowed from any site.
           </p>
         </Q>
 
@@ -242,7 +246,8 @@ export const adminGuidePage = (
             When creating or editing an event, enter a URL in the "thank you
             URL" field. After a successful booking or payment, attendees are
             redirected to that address instead of seeing the default
-            confirmation page. The URL must use HTTPS.
+            confirmation page. The URL must use HTTPS, or you can use a relative
+            path starting with <code>/</code>.
           </p>
         </Q>
 
@@ -250,7 +255,8 @@ export const adminGuidePage = (
           <p>
             When creating or editing an event, use the image upload field to
             attach a picture. The image is displayed on the booking page and in
-            the public events listing. Supported formats include JPEG and PNG.
+            the public events listing. Supported formats are JPEG, PNG, GIF, and
+            WebP.
           </p>
         </Q>
 
@@ -285,8 +291,10 @@ export const adminGuidePage = (
         <Q q="How do I duplicate an event?">
           <p>
             Open the event and click <strong>Duplicate</strong>. This creates a
-            new event with the same settings (name, capacity, price, fields,
-            etc.) so you can adjust what you need without starting from scratch.
+            new event pre-filled with the same capacity, price, fields, group,
+            and other settings so you can adjust what you need without starting
+            from scratch. The name is left blank for you to fill in, and the
+            image, attachment, and assigned questions are not copied.
           </p>
         </Q>
 
@@ -313,10 +321,10 @@ export const adminGuidePage = (
           <p>
             Open the event's attendee list, find the attendee, and click{" "}
             <strong>Edit</strong>. You can update their name, email, phone,
-            address, special instructions, and quantity. You can also reassign
-            them to a different event using the event dropdown. Quantity changes
-            are validated against the event's capacity and maximum tickets per
-            purchase.
+            address, special instructions, quantity, and custom question
+            answers. You can also reassign them to a different event using the
+            event dropdown. Quantity changes are validated against the event's
+            capacity and maximum tickets per purchase.
           </p>
         </Q>
 
@@ -342,10 +350,11 @@ export const adminGuidePage = (
 
         <Q q="How do I create a question?">
           <p>
-            Go to <strong>Questions</strong> in the admin menu, type your
-            question text, and click <strong>Add Question</strong>. Then open
-            the question and add your answer options. You can reorder answers
-            using the move-up and move-down buttons.
+            Open any event and click <strong>Questions</strong> in the event
+            menu, then follow the <strong>Manage Questions</strong> link. Type
+            your question text and click <strong>Add Question</strong>. Then
+            open the question and add your answer options. You can reorder
+            answers using the move-up and move-down buttons.
           </p>
         </Q>
 
@@ -372,8 +381,8 @@ export const adminGuidePage = (
           <p>
             Answers appear in the attendee table on event and group pages, so
             you can see at a glance what each attendee chose. They're also shown
-            on the individual attendee detail page, included in the CSV export,
-            and sent in webhook payloads.
+            on the individual attendee detail page and included in the CSV
+            export.
           </p>
         </Q>
       </Section>
@@ -402,11 +411,12 @@ export const adminGuidePage = (
         <Q q="What is the public site?">
           <p>
             When enabled in <strong>Settings</strong>, your domain shows a
-            public website with navigation for Home, Events, Terms &amp;
-            Conditions, and Contact pages. The <strong>Events</strong> page
-            lists all active events with booking links. Visitors can browse
-            event details and book directly. If the public site is disabled,
-            visitors can still book via direct ticket links.
+            public website with navigation for Home and Events, plus T&amp;Cs
+            and Contact links if you've set those up. The{" "}
+            <strong>Events</strong> page lists all active events with booking
+            links. Visitors can browse event details and book directly. If the
+            public site is disabled, visitors can still book via direct ticket
+            links.
           </p>
         </Q>
 
@@ -427,7 +437,8 @@ export const adminGuidePage = (
             <strong>Site</strong> section from the admin navigation. The
             homepage editor lets you set a website title (shown as the heading
             on all public pages) and homepage text. The contact page editor lets
-            you set contact information. Line breaks are preserved in both.
+            you set contact information. Both fields support Markdown
+            formatting.
           </p>
         </Q>
       </Section>
@@ -534,7 +545,7 @@ export const adminGuidePage = (
               <a href="https://dashboard.stripe.com">Stripe Dashboard</a>
             </li>
             <li>
-              Click <strong>Developers</strong> in the top navigation bar
+              Click <strong>Developers</strong> in the navigation menu
             </li>
             <li>
               Select <strong>API keys</strong> from the sidebar
@@ -748,9 +759,9 @@ export const adminGuidePage = (
           <p>
             When you&apos;re ready to go live, replace the test credentials with
             your production credentials in{" "}
-            <a href="/admin/settings">Settings</a>. The system will only accept
-            keys that start with a valid prefix (<code>sk_test_</code> or{" "}
-            <code>sk_live_</code>).
+            <a href="/admin/settings">Settings</a>. For Stripe, the system will
+            only accept keys that start with a valid prefix (
+            <code>sk_test_</code> or <code>sk_live_</code>).
           </p>
         </Q>
       </Section>
@@ -842,9 +853,10 @@ export const adminGuidePage = (
         <Q q="How do daily events work?">
           <p>
             Daily events let attendees choose a specific date when booking. You
-            set which days of the week are available (e.g. Monday to Friday) and
-            how far in advance people can book. The capacity limit applies
-            independently to each date.
+            set which days of the week are available (e.g. Monday to Friday),
+            the minimum number of days before a date can be booked, and the
+            maximum number of days into the future to show. The capacity limit
+            applies independently to each date.
           </p>
         </Q>
 
@@ -1002,10 +1014,10 @@ export const adminGuidePage = (
         <Q q="What's the difference between an owner and a manager?">
           <p>
             <strong>Owners</strong> have full access: events, calendar, groups,
-            users, settings, holidays, sessions, and the activity log.{" "}
-            <strong>Managers</strong> can see events, the calendar, groups, and
-            the activity log. They cannot change settings, manage users, or view
-            sessions.
+            users, site pages, settings, holidays, sessions, and the activity
+            log. <strong>Managers</strong> can see events, the calendar, groups,
+            and the activity log. They cannot change settings, manage users, or
+            view sessions.
           </p>
         </Q>
 
@@ -1051,17 +1063,20 @@ export const adminGuidePage = (
             Yes. On any event's attendee list, click <strong>Export CSV</strong>
             . The export includes name, email, phone, address, special
             instructions, quantity, registration date, amount paid, transaction
-            ID, check-in status, and ticket URL. For daily events, you can
-            filter by date before exporting.
+            ID, check-in status, ticket token, and ticket URL. For daily events,
+            the attendee list has a date filter &mdash; select a date to see
+            only that day's attendees, and the CSV export respects the same
+            filter.
           </p>
         </Q>
 
         <Q q="What does 'reset database' do?">
           <p>
             It permanently deletes <strong>everything</strong>: all events,
-            attendees, users, payment configuration, and sessions. The system
-            returns to its initial setup state. You must type a confirmation
-            phrase to proceed. This cannot be undone.
+            attendees, groups, questions, users, holidays, API keys, activity
+            logs, payment configuration, and sessions. The system returns to its
+            initial setup state. You must type a confirmation phrase to proceed.
+            This cannot be undone.
           </p>
         </Q>
       </Section>
@@ -1138,10 +1153,10 @@ export const adminGuidePage = (
         <Q q="What is the activity log?">
           <p>
             The <strong>Log</strong> page shows a chronological list of admin
-            actions such as event creation, attendee changes, and settings
-            updates. Both owners and managers can view the log. Each event also
-            has its own log, accessible from the event page, showing only
-            actions related to that event.
+            actions such as event creation, event updates, attendee changes, and
+            question changes. Both owners and managers can view the log. Each
+            event also has its own log, accessible from the event page, showing
+            only actions related to that event.
           </p>
         </Q>
       </Section>
@@ -1365,8 +1380,9 @@ export const adminGuidePage = (
               phone prefix in one step
             </li>
             <li>
-              <strong>Business email</strong> &mdash; included in webhook
-              notifications
+              <strong>Business email</strong> &mdash; receives admin
+              notification emails, used as reply-to on attendee confirmations,
+              and included in webhook payloads
             </li>
             <li>
               <strong>Payment provider</strong> &mdash; Stripe, Square, or none
@@ -1374,6 +1390,10 @@ export const adminGuidePage = (
             <li>
               <strong>Booking fee</strong> &mdash; percentage-based fee added to
               ticket prices (requires a payment provider)
+            </li>
+            <li>
+              <strong>Header image</strong> &mdash; upload a logo or banner
+              shown at the top of every page
             </li>
             <li>
               <strong>Embed hosts</strong> &mdash; restrict which websites can
@@ -1412,6 +1432,10 @@ export const adminGuidePage = (
               certificates for Add to Apple Wallet
             </li>
             <li>
+              <strong>Google Wallet</strong> &mdash; configure service account
+              credentials for Add to Google Wallet
+            </li>
+            <li>
               <strong>Email provider</strong> &mdash; choose and configure your
               email sending service
             </li>
@@ -1434,9 +1458,10 @@ export const adminGuidePage = (
           <p>
             The debug page at <code>/admin/debug</code> shows the configuration
             status of all integrated services (payments, email, Apple Wallet,
-            storage, CDN, notifications) without revealing any secrets or API
-            keys. It's useful for troubleshooting setup issues &mdash; you can
-            quickly see which services are configured and which are missing.
+            Google Wallet, storage, CDN, notifications, database) without
+            revealing any secrets or API keys. It's useful for troubleshooting
+            setup issues &mdash; you can quickly see which services are
+            configured and which are missing.
           </p>
         </Q>
       </Section>
@@ -1459,8 +1484,9 @@ export const adminGuidePage = (
             </li>
           </ul>
           <p>
-            Both feeds include all active events with open registration. They
-            update automatically as you add, change, or close events.
+            Both feeds include all active, non-hidden events with open
+            registration. Hidden events are excluded. They update automatically
+            as you add, change, or close events.
           </p>
         </Q>
 
@@ -1498,9 +1524,12 @@ export const adminGuidePage = (
           <p>
             The system includes a JSON API that exposes the same data and
             booking functionality as the web interface. It lets you build custom
-            frontends, integrate with other services, or automate bookings. No
-            API key is needed &mdash; the API is public, just like the booking
-            forms.
+            frontends, integrate with other services, or automate bookings. The
+            public endpoints below need no authentication. There is also an
+            admin API for managing events and attendees, which requires an API
+            key &mdash; create one from the{" "}
+            <a href="/admin/api-keys">API Keys</a> page under{" "}
+            <strong>Users</strong>.
           </p>
         </Q>
 

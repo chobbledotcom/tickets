@@ -40,13 +40,14 @@ export type DebugPageState = {
   ntfy: {
     configured: boolean;
   };
-  storage: {
-    enabled: boolean;
-  };
-  bunnyCdn: {
-    enabled: boolean;
+  bunny: {
+    storageEnabled: boolean;
+    cdnEnabled: boolean;
     cdnHostname: string;
     customDomain: string;
+    dnsEnabled: boolean;
+    subdomainSuffix: string;
+    registeredSubdomain: string;
   };
   database: {
     hostConfigured: boolean;
@@ -237,43 +238,49 @@ export const adminDebugPage = (
       </article>
 
       <article>
-        <h2>Bunny Storage (images)</h2>
+        <h2>Bunny</h2>
         <table>
           <tbody>
             <tr>
-              <td>Storage zone</td>
+              <td>Storage zone (images)</td>
               <td>
-                <StatusBadge ok={s.storage.enabled} />
+                <StatusBadge ok={s.bunny.storageEnabled} />
               </td>
             </tr>
-          </tbody>
-        </table>
-      </article>
-
-      <article>
-        <h2>Bunny CDN</h2>
-        <table>
-          <tbody>
             <tr>
               <td>CDN management</td>
               <td>
-                <StatusBadge ok={s.bunnyCdn.enabled} />
+                <StatusBadge ok={s.bunny.cdnEnabled} />
               </td>
             </tr>
             <tr>
               <td>CDN hostname</td>
-              <td>{s.bunnyCdn.cdnHostname || "—"}</td>
+              <td>{s.bunny.cdnHostname || "—"}</td>
             </tr>
             <tr>
               <td>Custom domain</td>
-              <td>{s.bunnyCdn.customDomain || "—"}</td>
+              <td>{s.bunny.customDomain || "—"}</td>
+            </tr>
+            <tr>
+              <td>DNS subdomain</td>
+              <td>
+                <StatusBadge ok={s.bunny.dnsEnabled} />
+              </td>
+            </tr>
+            <tr>
+              <td>Subdomain suffix</td>
+              <td>{s.bunny.subdomainSuffix || "—"}</td>
+            </tr>
+            <tr>
+              <td>Registered subdomain</td>
+              <td>{s.bunny.registeredSubdomain || "—"}</td>
             </tr>
           </tbody>
         </table>
       </article>
 
       <article>
-        <h2>Database</h2>
+        <h2>Database &amp; Domain</h2>
         <table>
           <tbody>
             <tr>
@@ -282,16 +289,8 @@ export const adminDebugPage = (
                 <StatusBadge ok={s.database.hostConfigured} />
               </td>
             </tr>
-          </tbody>
-        </table>
-      </article>
-
-      <article>
-        <h2>Domain</h2>
-        <table>
-          <tbody>
             <tr>
-              <td>Effective Domain</td>
+              <td>Effective domain</td>
               <td>{s.domain}</td>
             </tr>
           </tbody>
