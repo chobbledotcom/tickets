@@ -6,6 +6,7 @@
 
 import { getEffectiveDomain } from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
+import { fetchText } from "#lib/fetch.ts";
 import { ErrorCode, logErrorLocal } from "#lib/logger.ts";
 
 /**
@@ -20,7 +21,7 @@ export const sendNtfyError = async (code: string): Promise<void> => {
   const domain = getEffectiveDomain();
 
   try {
-    await fetch(ntfyUrl, {
+    await fetchText(ntfyUrl, {
       method: "POST",
       headers: {
         Title: `${domain} error`,

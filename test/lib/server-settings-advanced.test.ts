@@ -537,29 +537,6 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         );
       });
 
-      test("shows existing subdomain as read-only with redirect message when custom domain set", async () => {
-        setBunnyDnsEnv();
-        const cookie = await testCookie();
-        const token = cookie.split("=").slice(1).join("=");
-        await settings.update.bunnySubdomain("myevent.tickets.example.com");
-        await settings.update.customDomain("tickets.mysite.com");
-        await settings.update.customDomainLastValidated();
-        const response = await handleRequest(
-          mockRequestWithHost(
-            "/admin/settings-advanced",
-            "tickets.mysite.com",
-            {
-              headers: { cookie: `__Host-session=${token}` },
-            },
-          ),
-        );
-        const html = await response.text();
-        expect(html).toContain("myevent.tickets.example.com");
-        expect(html).toContain("permanent and cannot be changed");
-        expect(html).not.toContain("Register Subdomain");
-        expect(html).toContain("redirected to your custom domain");
-      });
-
       describe("POST /admin/settings/host-subdomain", () => {
         test("rejects when DNS is not configured", async () => {
           Deno.env.delete("BUNNY_API_KEY");

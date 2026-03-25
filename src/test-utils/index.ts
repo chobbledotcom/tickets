@@ -2470,11 +2470,10 @@ export const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 /** PDF magic bytes for test attachments / invalid-image-type tests */
 export const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 
-/** Standard CDN 201 success response */
+/** Standard CDN 201 success response (null body avoids ReadableStream leaks
+ *  when the Bunny SDK doesn't consume the response body after upload/remove) */
 export const cdnOkResponse = (): Response =>
-  new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), {
-    status: 201,
-  });
+  new Response(null, { status: 201 });
 
 /** Mock fetch to intercept Bunny CDN API calls, forwarding others to real fetch */
 export const withStorageMock = (

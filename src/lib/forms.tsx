@@ -37,9 +37,12 @@ export interface Field {
   hint?: string;
   hintHtml?: string;
   min?: number;
+  max?: number;
+  minlength?: number;
   inputmode?: string;
   maxlength?: number;
   pattern?: string;
+  title?: string;
   accept?: string;
   autofocus?: boolean;
   autocomplete?: string;
@@ -125,6 +128,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           required={field.required}
           placeholder={field.placeholder}
           maxlength={field.maxlength}
+          autocomplete={field.autocomplete}
         >
           <Raw html={escapeHtml(value)} />
         </textarea>
@@ -152,9 +156,12 @@ export const renderField = (field: Field, value: string = ""): string =>
           required={field.required}
           placeholder={field.placeholder}
           min={field.min}
+          max={field.max}
+          minlength={field.minlength}
           inputmode={field.inputmode}
           maxlength={field.maxlength}
           pattern={field.pattern}
+          title={field.title}
           autofocus={field.autofocus}
           autocomplete={field.autocomplete}
         />
