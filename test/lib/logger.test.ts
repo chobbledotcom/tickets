@@ -515,94 +515,110 @@ describe("logger", () => {
 
       test("prefixes logRequest with 4-char hex ID", () => {
         const debugSpy = spy(console, "debug");
+        try {
+          const callsBefore = debugSpy.calls.length;
+          runWithRequestId(() => {
+            logRequest({
+              method: "GET",
+              path: "/admin",
+              status: 200,
+              durationMs: 10,
+            });
+          });
 
-        runWithRequestId(() => {
+          const message = debugSpy.calls[callsBefore]!.args[0] as string;
+          expect(message).toMatch(
+            /^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/,
+          );
+        } finally {
+          debugSpy.restore();
+        }
+      });
+
+      test("prefixes logError with same request ID", () => {
+        const debugSpy = spy(console, "debug");
+        const errorSpy = spy(console, "error");
+        try {
+          const debugBefore = debugSpy.calls.length;
+          const errorBefore = errorSpy.calls.length;
+          runWithRequestId(() => {
+            logRequest({
+              method: "GET",
+              path: "/admin",
+              status: 200,
+              durationMs: 5,
+            });
+            logError({ code: ErrorCode.DB_CONNECTION });
+          });
+
+          const requestMsg = debugSpy.calls[debugBefore]!.args[0] as string;
+          const errorMsg = errorSpy.calls[errorBefore]!.args[0] as string;
+          const requestId = requestMsg.slice(1, 5);
+          expect(errorMsg).toBe(`[${requestId}] [Error] E_DB_CONNECTION`);
+        } finally {
+          debugSpy.restore();
+          errorSpy.restore();
+        }
+      });
+
+      test("prefixes logDebug with request ID", () => {
+        const debugSpy = spy(console, "debug");
+        try {
+          const callsBefore = debugSpy.calls.length;
+          runWithRequestId(() => {
+            logDebug("Setup", "test message");
+          });
+
+          const message = debugSpy.calls[callsBefore]!.args[0] as string;
+          expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Setup\] test message$/);
+        } finally {
+          debugSpy.restore();
+        }
+      });
+
+      test("different requests get different IDs", () => {
+        const debugSpy = spy(console, "debug");
+        try {
+          const ids: string[] = [];
+          for (let i = 0; i < 10; i++) {
+            const callsBefore = debugSpy.calls.length;
+            runWithRequestId(() => {
+              logRequest({
+                method: "GET",
+                path: "/",
+                status: 200,
+                durationMs: 0,
+              });
+            });
+            const call = debugSpy.calls[callsBefore];
+            ids.push((call!.args[0] as string).slice(1, 5));
+          }
+
+          // With 65536 possible values, 10 samples should not all be identical
+          const unique = new Set(ids);
+          expect(unique.size).toBeGreaterThan(1);
+        } finally {
+          debugSpy.restore();
+        }
+      });
+
+      test("no prefix outside request context", () => {
+        const debugSpy = spy(console, "debug");
+        try {
+          const callsBefore = debugSpy.calls.length;
           logRequest({
             method: "GET",
             path: "/admin",
             status: 200,
             durationMs: 10,
           });
-        });
 
-        const message = debugSpy.calls[0]!.args[0] as string;
-        expect(message).toMatch(
-          /^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/,
-        );
-        debugSpy.restore();
-      });
-
-      test("prefixes logError with same request ID", () => {
-        const debugSpy = spy(console, "debug");
-        const errorSpy = spy(console, "error");
-
-        runWithRequestId(() => {
-          logRequest({
-            method: "GET",
-            path: "/admin",
-            status: 200,
-            durationMs: 5,
-          });
-          logError({ code: ErrorCode.DB_CONNECTION });
-        });
-
-        const requestMsg = debugSpy.calls[0]!.args[0] as string;
-        const errorMsg = errorSpy.calls[0]!.args[0] as string;
-        const requestId = requestMsg.slice(1, 5);
-        expect(errorMsg).toBe(`[${requestId}] [Error] E_DB_CONNECTION`);
-
-        debugSpy.restore();
-        errorSpy.restore();
-      });
-
-      test("prefixes logDebug with request ID", () => {
-        const debugSpy = spy(console, "debug");
-
-        runWithRequestId(() => {
-          logDebug("Setup", "test message");
-        });
-
-        const message = debugSpy.calls[0]!.args[0] as string;
-        expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Setup\] test message$/);
-        debugSpy.restore();
-      });
-
-      test("different requests get different IDs", () => {
-        const debugSpy = spy(console, "debug");
-
-        const ids: string[] = [];
-        for (let i = 0; i < 10; i++) {
-          runWithRequestId(() => {
-            logRequest({
-              method: "GET",
-              path: "/",
-              status: 200,
-              durationMs: 0,
-            });
-          });
-          ids.push((debugSpy.calls[i]!.args[0] as string).slice(1, 5));
+          expect(debugSpy.calls[callsBefore]!.args).toEqual([
+            "[Request] GET /admin 200 10ms",
+          ]);
+        } finally {
+          debugSpy.restore();
         }
-
-        // With 65536 possible values, 10 samples should not all be identical
-        const unique = new Set(ids);
-        expect(unique.size).toBeGreaterThan(1);
-        debugSpy.restore();
-      });
-
-      test("no prefix outside request context", () => {
-        const debugSpy = spy(console, "debug");
-
-        logRequest({
-          method: "GET",
-          path: "/admin",
-          status: 200,
-          durationMs: 10,
-        });
-
-        expect(debugSpy.calls[0]!.args).toEqual([
-          "[Request] GET /admin 200 10ms",
-        ]);
-        debugSpy.restore();
       });
     },
   );
