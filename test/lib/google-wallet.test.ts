@@ -42,9 +42,7 @@ describe("google-wallet", () => {
       const payloadPart = jwt.split(".")[1]!;
       const padded =
         payloadPart + "=".repeat((4 - (payloadPart.length % 4)) % 4);
-      return JSON.parse(
-        atob(padded.replace(/-/g, "+").replace(/_/g, "/")),
-      );
+      return JSON.parse(atob(padded.replace(/-/g, "+").replace(/_/g, "/")));
     };
 
     test("includes class with issuer name, event name, and correct ids", async () => {
@@ -90,9 +88,7 @@ describe("google-wallet", () => {
 
     test("omits venue when eventLocation is empty", async () => {
       await ensureCreds();
-      const decoded = await extractPayload(
-        makePassData({ eventLocation: "" }),
-      );
+      const decoded = await extractPayload(makePassData({ eventLocation: "" }));
       const cls = decoded.payload.eventTicketClasses[0];
       expect(cls.venue).toBeUndefined();
     });

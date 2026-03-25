@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { ErrorCode } from "#lib/logger.ts";
 import {
   buildCartMetadata,
   buildSingleIntentMetadata,
@@ -13,7 +14,6 @@ import {
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
 import { isPaymentStatus, type SessionMetadata } from "#lib/payments.ts";
-import { ErrorCode } from "#lib/logger.ts";
 
 describe("payment-helpers", () => {
   describe("metadata round-trip: build → validate → extract", () => {
@@ -204,8 +204,9 @@ describe("payment-helpers", () => {
     });
 
     test("returns false when name is missing or empty", () => {
-      expect(hasRequiredSessionMetadata({ email: "a@b.com", event_id: "1" }))
-        .toBe(false);
+      expect(
+        hasRequiredSessionMetadata({ email: "a@b.com", event_id: "1" }),
+      ).toBe(false);
       expect(
         hasRequiredSessionMetadata({
           name: "",
@@ -216,8 +217,9 @@ describe("payment-helpers", () => {
     });
 
     test("returns false when neither event_id nor multi+items present", () => {
-      expect(hasRequiredSessionMetadata({ name: "Alice", email: "a@b.com" }))
-        .toBe(false);
+      expect(
+        hasRequiredSessionMetadata({ name: "Alice", email: "a@b.com" }),
+      ).toBe(false);
     });
 
     test("returns false when multi=1 but items missing", () => {
@@ -287,8 +289,7 @@ describe("payment-helpers", () => {
     test("returns value on success, null on error", async () => {
       expect(
         await safeAsync(() => Promise.resolve(42), ErrorCode.PAYMENT_CHECKOUT),
-      )
-        .toBe(42);
+      ).toBe(42);
       expect(
         await safeAsync(
           () => Promise.reject(new Error("boom")),
@@ -325,7 +326,7 @@ describe("payment-helpers", () => {
 
     test("passes client to operation", async () => {
       const withClient = createWithClient(() =>
-        Promise.resolve({ token: "abc" })
+        Promise.resolve({ token: "abc" }),
       );
       expect(
         await withClient(
@@ -337,7 +338,7 @@ describe("payment-helpers", () => {
 
     test("returns null on operation error, re-throws PaymentUserError", async () => {
       const withClient = createWithClient(() =>
-        Promise.resolve({ token: "abc" })
+        Promise.resolve({ token: "abc" }),
       );
       expect(
         await withClient(
@@ -356,20 +357,23 @@ describe("payment-helpers", () => {
 
   describe("toCheckoutResult", () => {
     test("returns result when both id and url present", () => {
-      expect(toCheckoutResult("sess_1", "https://pay.example.com", "Stripe"))
-        .toEqual({
-          sessionId: "sess_1",
-          checkoutUrl: "https://pay.example.com",
-        });
+      expect(
+        toCheckoutResult("sess_1", "https://pay.example.com", "Stripe"),
+      ).toEqual({
+        sessionId: "sess_1",
+        checkoutUrl: "https://pay.example.com",
+      });
     });
 
     test("returns null for missing or empty id/url", () => {
-      expect(toCheckoutResult(undefined, "https://pay.example.com", "Stripe"))
-        .toBeNull();
+      expect(
+        toCheckoutResult(undefined, "https://pay.example.com", "Stripe"),
+      ).toBeNull();
       expect(toCheckoutResult("sess_1", undefined, "Stripe")).toBeNull();
       expect(toCheckoutResult("sess_1", null, "Stripe")).toBeNull();
-      expect(toCheckoutResult("", "https://pay.example.com", "Stripe"))
-        .toBeNull();
+      expect(
+        toCheckoutResult("", "https://pay.example.com", "Stripe"),
+      ).toBeNull();
       expect(toCheckoutResult("sess_1", "", "Payment")).toBeNull();
     });
   });
