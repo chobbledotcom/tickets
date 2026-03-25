@@ -66,7 +66,7 @@ const withEdgeScript = async <T>(
 /**
  * Find the pull zone ID via the edge script's linked pull zones.
  */
-const findPullZoneIdImpl = async (): Promise<
+const findPullZoneIdImpl = (): Promise<
   { ok: true; id: number } | { ok: false; error: string; errorKey?: string }
 > =>
   withEdgeScript((data) => {
