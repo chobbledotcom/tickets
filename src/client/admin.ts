@@ -348,68 +348,6 @@ setupTestButton(
   },
 );
 
-/* Bunny subdomain check availability */
-{
-  const checkBtn = document.getElementById("bunny-subdomain-check-btn");
-  if (checkBtn instanceof HTMLButtonElement) {
-    const input = document.getElementById(
-      "bunny-subdomain-input",
-    ) as HTMLInputElement;
-    const resultDiv = document.getElementById("bunny-subdomain-result")!;
-    const saveBtn = document.getElementById(
-      "bunny-subdomain-save-btn",
-    ) as HTMLButtonElement;
-    const hiddenInput = document.getElementById(
-      "bunny-subdomain-hidden",
-    ) as HTMLInputElement;
-
-    checkBtn.addEventListener("click", async () => {
-      const subdomain = input.value.toLowerCase().trim();
-      if (!subdomain) {
-        resultDiv.textContent = "Please enter a subdomain.";
-        resultDiv.classList.remove("hidden", "success");
-        resultDiv.classList.add("error");
-        return;
-      }
-
-      checkBtn.disabled = true;
-      checkBtn.textContent = "Checking...";
-      resultDiv.classList.add("hidden");
-      saveBtn.disabled = true;
-
-      try {
-        const csrfInput = document
-          .getElementById("settings-bunny-subdomain-form")
-          ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
-        const data = await csrfPost(
-          "/admin/settings/bunny-subdomain/check",
-          csrfInput?.value ?? "",
-          `&subdomain=${encodeURIComponent(subdomain)}`,
-        );
-        resultDiv.classList.remove("hidden", "success", "error");
-        if (!data.ok) {
-          resultDiv.textContent = data.error;
-          resultDiv.classList.add("error");
-        } else if (data.available) {
-          resultDiv.textContent = `${data.fullDomain} is available!`;
-          resultDiv.classList.add("success");
-          hiddenInput.value = subdomain;
-          saveBtn.disabled = false;
-        } else {
-          resultDiv.textContent = `${data.fullDomain} is already taken.`;
-          resultDiv.classList.add("error");
-        }
-      } catch {
-        resultDiv.textContent = "Could not check subdomain availability.";
-        resultDiv.classList.remove("hidden");
-        resultDiv.classList.add("error");
-      }
-      checkBtn.disabled = false;
-      checkBtn.textContent = "Check Availability";
-    });
-  }
-}
-
 /* Remaining chars counter for textareas with maxlength */
 for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
   "textarea[maxlength]",

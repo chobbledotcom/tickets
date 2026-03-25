@@ -461,8 +461,11 @@ export const adminAdvancedSettingsPage = (
       )}
 
       {s.bunnyDnsEnabled && (
-        <div id="settings-bunny-subdomain">
-          <h2>Bunny Subdomain</h2>
+        <CsrfForm
+          action="/admin/settings/host-subdomain"
+          id="settings-host-subdomain"
+        >
+          <h2>Host Subdomain</h2>
           {s.bunnySubdomain ? (
             <div>
               <p>
@@ -492,7 +495,6 @@ export const adminAdvancedSettingsPage = (
                 <div class="subdomain-input-group">
                   <input
                     type="text"
-                    id="bunny-subdomain-input"
                     name="subdomain"
                     placeholder="myevent"
                     autocomplete="off"
@@ -503,32 +505,10 @@ export const adminAdvancedSettingsPage = (
                   </span>
                 </div>
               </label>
-              <div id="bunny-subdomain-result" class="hidden"></div>
-              <p>
-                <button
-                  type="button"
-                  id="bunny-subdomain-check-btn"
-                  class="secondary"
-                >
-                  Check Availability
-                </button>
-              </p>
-              <CsrfForm
-                action="/admin/settings/bunny-subdomain"
-                id="settings-bunny-subdomain-form"
-              >
-                <input
-                  type="hidden"
-                  name="subdomain"
-                  id="bunny-subdomain-hidden"
-                />
-                <button type="submit" id="bunny-subdomain-save-btn" disabled>
-                  Save Subdomain
-                </button>
-              </CsrfForm>
+              <button type="submit">Register Subdomain</button>
             </div>
           )}
-        </div>
+        </CsrfForm>
       )}
 
       {s.bunnyCdnEnabled && (

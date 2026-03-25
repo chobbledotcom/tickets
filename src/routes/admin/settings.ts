@@ -8,7 +8,6 @@ import {
   isValidPemPrivateKey,
 } from "#lib/apple-wallet.ts";
 import {
-  checkSubdomainAvailable,
   registerBunnySubdomain,
   validateCustomDomain,
 } from "#lib/bunny-cdn.ts";
@@ -1159,84 +1158,39 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
 /** Valid subdomain pattern: lowercase alphanumeric + hyphens, no leading/trailing hyphen */
 const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
-/** Handle POST /admin/settings/bunny-subdomain/check - check availability (JSON) */
-const handleBunnySubdomainCheckPost: TypedRouteHandler<
-  "POST /admin/settings/bunny-subdomain/check"
-> = (request) =>
-  withOwnerAuthForm(request, async (_session, form) => {
-    if (!isBunnyDnsEnabled()) {
-      return jsonResponse(
-        { ok: false, error: "Bunny DNS is not configured" },
-        400,
-      );
-    }
-    if (settings.bunnySubdomain) {
-      return jsonResponse(
-        { ok: false, error: "Bunny subdomain already set" },
-        400,
-      );
-    }
+const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
 
-    const raw = form.getString("subdomain").toLowerCase().trim();
-    if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
-      return jsonResponse(
-        { ok: false, error: "Invalid subdomain format" },
-        400,
-      );
-    }
-
-    const result = await checkSubdomainAvailable(raw);
-    if (!result.ok) {
-      return jsonResponse({ ok: false, error: result.error }, 502);
-    }
-
-    return jsonResponse({
-      ok: true,
-      available: result.available,
-      fullDomain: result.fullDomain,
-    });
-  });
-
-/** Handle POST /admin/settings/bunny-subdomain - register subdomain */
-const handleBunnySubdomainPost = advancedSettingsRoute(
+/** Handle POST /admin/settings/host-subdomain - check + register subdomain */
+const handleHostSubdomainPost = advancedSettingsRoute(
   async (form, errorPage) => {
     if (!isBunnyDnsEnabled()) {
-      return errorPage(
-        "Bunny DNS is not configured",
-        400,
-        "settings-bunny-subdomain",
-      );
+      return errorPage("Not configured", 400, FORM_ID_HOST_SUBDOMAIN);
     }
-
     if (settings.bunnySubdomain) {
       return errorPage(
-        "Bunny subdomain has already been set and cannot be changed",
+        "Subdomain has already been set and cannot be changed",
         400,
-        "settings-bunny-subdomain",
+        FORM_ID_HOST_SUBDOMAIN,
       );
     }
 
     const raw = form.getString("subdomain").toLowerCase().trim();
     if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
-      return errorPage(
-        "Invalid subdomain format",
-        400,
-        "settings-bunny-subdomain",
-      );
+      return errorPage("Invalid subdomain format", 400, FORM_ID_HOST_SUBDOMAIN);
     }
 
     const result = await registerBunnySubdomain(raw);
     if (!result.ok) {
-      return errorPage(result.error, 502, "settings-bunny-subdomain");
+      return errorPage(result.error, 502, FORM_ID_HOST_SUBDOMAIN);
     }
 
     await settings.update.bunnySubdomain(result.fullDomain);
-    await logActivity(`Bunny subdomain set to ${result.fullDomain}`);
+    await logActivity(`Host subdomain set to ${result.fullDomain}`);
     return redirect(
       "/admin/settings-advanced",
       `Subdomain registered: ${result.fullDomain}`,
       true,
-      { formId: "settings-bunny-subdomain" },
+      { formId: FORM_ID_HOST_SUBDOMAIN },
     );
   },
 );
@@ -1486,8 +1440,7 @@ export const settingsRoutes = defineRoutes({
     handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
-  "POST /admin/settings/bunny-subdomain/check": handleBunnySubdomainCheckPost,
-  "POST /admin/settings/bunny-subdomain": handleBunnySubdomainPost,
+  "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/google-wallet": handleGoogleWalletPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
