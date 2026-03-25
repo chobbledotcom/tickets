@@ -15,11 +15,6 @@ const manager = new StripeMockManager();
 // Configure encryption key for tests
 setupTestEncryptionKey();
 
-// Configure allowed domain for tests (security middleware)
-// Set via env var (not override) so it's the default for all tests.
-// Tests that need a different domain use setAllowedDomainForTest().
-Deno.env.set("ALLOWED_DOMAIN", "localhost");
-
 // Configure stripe-mock env vars
 Deno.env.set("STRIPE_MOCK_HOST", "localhost");
 Deno.env.set("STRIPE_MOCK_PORT", String(STRIPE_MOCK_PORT));

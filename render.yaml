@@ -11,7 +11,5 @@ services:
         sync: false
       - key: DB_ENCRYPTION_KEY
         sync: false
-      - key: ALLOWED_DOMAIN
-        sync: false
       - key: PORT
         value: "3000"

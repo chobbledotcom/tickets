@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
+import {
+  resetEffectiveDomain,
+  setEffectiveDomainForTest,
+} from "#lib/config.ts";
 import {
   buildFlashCookie,
   buildSessionCookie,
@@ -28,38 +31,38 @@ const expectSecureCookieAttributes = (cookie: string) => {
 };
 
 describe("isSecureMode", () => {
-  afterEach(() => resetAllowedDomain());
+  afterEach(() => resetEffectiveDomain());
 
   test("returns true for non-localhost domains", () => {
-    setAllowedDomainForTest("example.com");
+    setEffectiveDomainForTest("example.com");
     expect(isSecureMode()).toBe(true);
   });
 
   test("returns false for localhost", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     expect(isSecureMode()).toBe(false);
   });
 });
 
 describe("getSessionCookieName", () => {
-  afterEach(() => resetAllowedDomain());
+  afterEach(() => resetEffectiveDomain());
 
   test("returns __Host-session in secure mode", () => {
-    setAllowedDomainForTest("example.com");
+    setEffectiveDomainForTest("example.com");
     expect(getSessionCookieName()).toBe("__Host-session");
   });
 
   test("returns 'session' in dev mode", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     expect(getSessionCookieName()).toBe("session");
   });
 });
 
 describe("buildSessionCookie", () => {
-  afterEach(() => resetAllowedDomain());
+  afterEach(() => resetEffectiveDomain());
 
   test("includes __Host-session in secure mode with all required attributes", () => {
-    setAllowedDomainForTest("example.com");
+    setEffectiveDomainForTest("example.com");
     const cookie = buildSessionCookie("test-token");
     expect(cookie).toContain("__Host-session=test-token");
     expectSecureCookieAttributes(cookie);
@@ -67,7 +70,7 @@ describe("buildSessionCookie", () => {
   });
 
   test("includes 'session' in dev mode without Secure flag", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     const cookie = buildSessionCookie("test-token");
     expect(cookie).toContain("session=test-token");
     expectDevCookieAttributes(cookie);
@@ -75,17 +78,17 @@ describe("buildSessionCookie", () => {
   });
 
   test("respects custom maxAge", () => {
-    setAllowedDomainForTest("example.com");
+    setEffectiveDomainForTest("example.com");
     const cookie = buildSessionCookie("test-token", { maxAge: 3600 });
     expect(cookie).toContain("Max-Age=3600");
   });
 });
 
 describe("clearSessionCookie", () => {
-  afterEach(() => resetAllowedDomain());
+  afterEach(() => resetEffectiveDomain());
 
   test("includes __Host-session in secure mode with Max-Age=0", () => {
-    setAllowedDomainForTest("example.com");
+    setEffectiveDomainForTest("example.com");
     const cookie = clearSessionCookie();
     expect(cookie).toContain("__Host-session=");
     expectSecureCookieAttributes(cookie);
@@ -93,7 +96,7 @@ describe("clearSessionCookie", () => {
   });
 
   test("includes 'session' in dev mode without Secure flag", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     const cookie = clearSessionCookie();
     expect(cookie).toContain("session=");
     expectDevCookieAttributes(cookie);
@@ -102,38 +105,38 @@ describe("clearSessionCookie", () => {
 });
 
 describe("buildFlashCookie", () => {
-  afterEach(() => resetAllowedDomain());
+  afterEach(() => resetEffectiveDomain());
 
   test("keys cookie name by flash ID", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Saved", true);
     expect(cookie).toMatch(/^flash_abc123=/);
   });
 
   test("encodes success message", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Saved", true);
     expect(cookie).toContain(encodeURIComponent("s:Saved"));
   });
 
   test("encodes error message", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Failed", false);
     expect(cookie).toContain(encodeURIComponent("e:Failed"));
   });
 
   test("sets short Max-Age", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Saved", true);
     expect(cookie).toContain("Max-Age=10");
   });
 });
 
 describe("clearFlashCookie", () => {
-  afterEach(() => resetAllowedDomain());
+  afterEach(() => resetEffectiveDomain());
 
   test("clears the keyed cookie with Max-Age=0", () => {
-    setAllowedDomainForTest("localhost");
+    setEffectiveDomainForTest("localhost");
     const cookie = clearFlashCookie("abc123");
     expect(cookie).toMatch(/^flash_abc123=/);
     expect(cookie).toContain("Max-Age=0");

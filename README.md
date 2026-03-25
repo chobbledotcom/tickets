@@ -22,7 +22,6 @@ The recommended deployment. Fork the repo, connect it to Bunny, and deploy via G
    | `DB_URL` | Your Bunny database URL |
    | `DB_TOKEN` | Your Bunny database auth token |
    | `DB_ENCRYPTION_KEY` | 32-byte base64-encoded AES-256 key |
-   | `ALLOWED_DOMAIN` | Your domain (e.g. `tickets.example.com`) |
 
 5. **Add GitHub Actions secrets** to your repository: `BUNNY_SCRIPT_ID` and `BUNNY_ACCESS_KEY`
 
@@ -193,7 +192,6 @@ docker run -p 3000:3000 \
   -v tickets-data:/data \
   -e DB_URL="file:/data/tickets.db" \
   -e DB_ENCRYPTION_KEY="your-base64-key" \
-  -e ALLOWED_DOMAIN="your-domain.com" \
   chobble-tickets
 ```
 
@@ -215,8 +213,7 @@ Also deployable with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 
 # Run locally
 DB_URL=libsql://your-db.turso.io DB_TOKEN=your-token \
-  DB_ENCRYPTION_KEY=your-base64-key ALLOWED_DOMAIN=localhost \
-  deno task start
+  DB_ENCRYPTION_KEY=your-base64-key deno task start
 
 # Run tests (stripe-mock downloaded automatically)
 deno task test
@@ -244,7 +241,6 @@ deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:co
 | `DB_URL` | Yes | libsql database URL |
 | `DB_TOKEN` | Yes* | Database auth token (*remote databases) |
 | `DB_ENCRYPTION_KEY` | Yes | 32-byte base64-encoded AES-256 key |
-| `ALLOWED_DOMAIN` | Yes | Domain for security validation |
 
 See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables (email providers, Apple Wallet, image uploads, and more).
 

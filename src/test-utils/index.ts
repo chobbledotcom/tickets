@@ -13,7 +13,7 @@ import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
-import { resetAllowedDomain } from "#lib/config.ts";
+import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
 import {
   clearEncryptionKeyCache,
@@ -292,7 +292,7 @@ export const resetDb = (): void => {
   resetSessionCache();
   resetTestSession();
   setDemoModeForTest(false);
-  resetAllowedDomain();
+  resetEffectiveDomain();
   resetHostEmailConfig();
   settings.appleWallet.resetHostConfig();
   settings.clearTestOverrides();

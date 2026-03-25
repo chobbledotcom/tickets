@@ -291,7 +291,7 @@ export const adminDebugPage = (
         <table>
           <tbody>
             <tr>
-              <td>ALLOWED_DOMAIN</td>
+              <td>Effective Domain</td>
               <td>{s.domain}</td>
             </tr>
           </tbody>

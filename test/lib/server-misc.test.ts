@@ -1,16 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
-import { resetAllowedDomain, setAllowedDomainForTest } from "#lib/config.ts";
+import { stub } from "@std/testing/mock";
+import {
+  resetEffectiveDomain,
+  setEffectiveDomainForTest,
+} from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import { runWithRequestId } from "#lib/logger.ts";
-import {
-  getCleanUrl,
-  handleRequest,
-  isValidContentType,
-  normalizeHostname,
-} from "#routes";
+import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
 import {
   redirect,
   redirectResponse,
@@ -27,7 +25,6 @@ import {
   getHeader,
   mockFormRequest,
   mockRequest,
-  mockRequestWithHost,
   resetDb,
   testCookie,
   withExpectedError,
@@ -48,16 +45,6 @@ describeWithEnv("server (misc)", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
     return handleRequest(mockRequest(`/ticket/${event1.slug}+${event2.slug}`));
-  }
-
-  /** Run a request to an invalid domain and return the [Domain] debug log line */
-  async function getDomainDebugLog(request: Request) {
-    const debugSpy = spy(console, "debug");
-    await handleRequest(request);
-    const calls = debugSpy.calls.map((c) => c.args[0] as string);
-    const domainLog = calls.find((c) => c.includes("[Domain]"))!;
-    expect(domainLog).toBeDefined();
-    return { debugSpy, domainLog };
   }
 
   describe("security headers", () => {
@@ -148,14 +135,16 @@ describeWithEnv("server (misc)", { db: true }, () => {
       });
 
       test("includes Strict-Transport-Security on non-localhost domains", async () => {
-        setAllowedDomainForTest("example.com");
+        setEffectiveDomainForTest("example.com");
         try {
-          const response = await handleRequest(mockRequest("/"));
+          const response = await handleRequest(
+            mockRequest("https://example.com/"),
+          );
           expect(response.headers.get("strict-transport-security")).toBe(
             "max-age=63072000; includeSubDomains; preload",
           );
         } finally {
-          resetAllowedDomain();
+          resetEffectiveDomain();
         }
       });
 
@@ -448,145 +437,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
   });
 
-  describe("normalizeHostname", () => {
-    test("strips port from host", () => {
-      expect(normalizeHostname("localhost:3000")).toBe("localhost");
-    });
 
-    test("lowercases hostname", () => {
-      expect(normalizeHostname("LocalHost")).toBe("localhost");
-    });
-
-    test("strips trailing FQDN dot", () => {
-      expect(normalizeHostname("example.com.")).toBe("example.com");
-    });
-
-    test("handles port and trailing dot together", () => {
-      expect(normalizeHostname("Example.COM.:443")).toBe("example.com");
-    });
-
-    test("returns plain hostname unchanged", () => {
-      expect(normalizeHostname("localhost")).toBe("localhost");
-    });
-  });
-
-  describe("Domain validation", () => {
-    test("allows requests with valid domain", async () => {
-      const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(302); // Homepage redirects to /admin/
-    });
-
-    test("redirects GET requests from invalid domain to allowed domain", async () => {
-      const response = await handleRequest(
-        mockRequestWithHost("/", "evil.com"),
-      );
-      expect(response.status).toBe(301);
-      expect(response.headers.get("location")).toBe("http://localhost/");
-    });
-
-    test("redirects POST requests from invalid domain to allowed domain", async () => {
-      const response = await handleRequest(
-        mockRequestWithHost("/admin/login", "evil.com", {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-          },
-          body: "password=test",
-        }),
-      );
-      expect(response.status).toBe(301);
-      expect(response.headers.get("location")).toBe(
-        "http://localhost/admin/login",
-      );
-    });
-
-    test("allows requests with valid domain including port", async () => {
-      const response = await handleRequest(
-        mockRequestWithHost("/", "localhost:3000"),
-      );
-      expect(response.status).toBe(302); // Homepage redirects to /admin/
-    });
-
-    test("allows requests with case-different Host header", async () => {
-      const response = await handleRequest(
-        mockRequestWithHost("/", "LocalHost"),
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("allows requests with trailing FQDN dot in Host header", async () => {
-      const response = await handleRequest(
-        mockRequestWithHost("/", "localhost."),
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("allows requests without Host header when URL hostname matches", async () => {
-      const response = await handleRequest(
-        new Request("http://localhost/", {}),
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("redirects requests where neither Host header nor URL matches", async () => {
-      const request = new Request("http://evil.com/", {});
-      const response = await handleRequest(request);
-      expect(response.status).toBe(301);
-      expect(response.headers.get("location")).toBe("http://localhost/");
-    });
-
-    test("domain redirect response has security headers", async () => {
-      const response = await handleRequest(
-        mockRequestWithHost("/", "evil.com"),
-      );
-      expect(response.headers.get("x-frame-options")).toBe("DENY");
-      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
-    });
-
-    test("logs debug message with host details on domain redirect", async () => {
-      const { debugSpy, domainLog } = await getDomainDebugLog(
-        mockRequestWithHost("/", "evil.com"),
-      );
-      expect(domainLog).toContain("host=evil.com");
-      expect(domainLog).toContain("Redirecting to");
-      debugSpy.restore();
-    });
-
-    test("logs missing host header in domain redirect debug message", async () => {
-      const { debugSpy, domainLog } = await getDomainDebugLog(
-        new Request("http://evil.com/", {}),
-      );
-      expect(domainLog).toContain("host=missing");
-      expect(domainLog).toContain("url=evil.com");
-      debugSpy.restore();
-    });
-
-    test("preserves path and query string in domain redirect", async () => {
-      const response = await handleRequest(
-        mockRequestWithHost("/ticket/my-event?qty=2", "evil.com"),
-      );
-      expect(response.status).toBe(301);
-      expect(response.headers.get("location")).toBe(
-        "http://localhost/ticket/my-event?qty=2",
-      );
-    });
-
-    test("uses https scheme when allowed domain is not localhost", async () => {
-      setAllowedDomainForTest("example.com");
-      try {
-        const response = await handleRequest(
-          mockRequestWithHost("/ticket/my-event", "evil.com"),
-        );
-        expect(response.status).toBe(301);
-        expect(response.headers.get("location")).toBe(
-          "https://example.com/ticket/my-event",
-        );
-      } finally {
-        resetAllowedDomain();
-      }
-    });
-  });
 
   describe("Tracking parameter stripping", () => {
     describe("getCleanUrl", () => {

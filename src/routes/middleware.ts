@@ -86,65 +86,6 @@ export const isEmbeddablePath = (path: string): boolean =>
   EMBEDDABLE_PATH.test(path);
 
 /**
- * Normalize a hostname for comparison:
- * - Strip port (Host header may include :443 or :3000)
- * - Lowercase (DNS names are case-insensitive)
- * - Strip trailing dot (FQDN notation: "example.com." === "example.com")
- */
-export const normalizeHostname = (host: string): string => {
-  const colonIndex = host.indexOf(":");
-  const withoutPort = colonIndex === -1 ? host : host.slice(0, colonIndex);
-  const lowered = withoutPort.toLowerCase();
-  return lowered.endsWith(".") ? lowered.slice(0, -1) : lowered;
-};
-
-/**
- * Validate request domain against ALLOWED_DOMAIN.
- * Checks the Host header to prevent the app being served through unauthorized proxies.
- * Falls back to the request URL hostname for HTTP/2 requests or proxied
- * environments (e.g. Facebook in-app browser) where the Host header may be
- * absent or rewritten.
- * Returns true if the request should be allowed.
- */
-export const isValidDomain = (request: Request): boolean => {
-  const allowed = normalizeHostname(getEffectiveDomain());
-
-  // Check Host header (standard for HTTP/1.1)
-  const host = request.headers.get("host");
-  if (host && normalizeHostname(host) === allowed) {
-    return true;
-  }
-
-  // Fallback: check the request URL hostname (covers HTTP/2 :authority
-  // and CDN-rewritten requests where the Host header is missing or altered)
-  return normalizeHostname(new URL(request.url).host) === allowed;
-};
-
-/**
- * Build a redirect URL to the allowed domain, preserving the original path and query.
- */
-export const buildDomainRedirectUrl = (request: Request): string => {
-  const url = new URL(request.url);
-  const allowed = getEffectiveDomain();
-  const scheme = allowed === "localhost" ? "http" : "https";
-  return `${scheme}://${allowed}${url.pathname}${url.search}`;
-};
-
-/**
- * Build a privacy-safe rejection reason for domain validation failures.
- * Includes the Host header and URL hostname so operators can diagnose
- * why a request was rejected (e.g. Facebook in-app browser sending
- * unexpected headers).
- */
-export const getDomainRejectionReason = (request: Request): string => {
-  const host = request.headers.get("host");
-  const urlHost = new URL(request.url).host;
-  return host
-    ? `host=${normalizeHostname(host)} url=${normalizeHostname(urlHost)}`
-    : `host=missing url=${normalizeHostname(urlHost)}`;
-};
-
-/**
  * Check if path is a webhook endpoint that accepts JSON
  */
 export const isWebhookPath = (path: string): boolean =>
@@ -196,18 +137,6 @@ export const contentTypeRejectionResponse = (): Response =>
     status: 400,
     headers: {
       "content-type": "text/plain",
-      ...getSecurityHeaders(false),
-    },
-  });
-
-/**
- * Create domain redirect response (301 to allowed domain)
- */
-export const domainRedirectResponse = (redirectUrl: string): Response =>
-  new Response(null, {
-    status: 301,
-    headers: {
-      location: redirectUrl,
       ...getSecurityHeaders(false),
     },
   });
