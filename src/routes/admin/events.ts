@@ -62,6 +62,7 @@ import {
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  type AuthSession,
   authenticatedGetById,
   formDataToParams,
   getSearchParam,
@@ -101,40 +102,39 @@ import {
 const parseBookableDays = (value: string): string[] | undefined =>
   value ? splitCsv(value) : undefined;
 
+/** Normalize an optional datetime field, returning the original value if empty */
+const normalizeOptionalDatetime = (
+  value: string | undefined,
+  field: string,
+): string | undefined => (value ? normalizeDatetime(value, field) : value);
+
+/** Parse an optional unit price from string to minor units */
+const parseUnitPrice = (value: string | undefined): number | undefined =>
+  value ? toMinorUnits(Number.parseFloat(value)) : undefined;
+
 /** Extract common event fields from validated form values, normalizing datetimes to UTC */
-const extractCommonFields = (values: EventFormValues) => {
-  const rawDate = values.date ?? "";
-  const date = rawDate ? normalizeDatetime(rawDate, "date") : rawDate;
-  const unitPrice = values.unit_price
-    ? toMinorUnits(Number.parseFloat(values.unit_price))
-    : undefined;
-  const closesAt = values.closes_at
-    ? normalizeDatetime(values.closes_at, "closes_at")
-    : values.closes_at;
-  const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
-  return {
-    name: values.name,
-    description: values.description,
-    date,
-    location: values.location,
-    groupId: Number(values.group_id) || 0,
-    maxAttendees: values.max_attendees,
-    thankYouUrl: values.thank_you_url || "",
-    unitPrice,
-    maxQuantity: values.max_quantity,
-    webhookUrl,
-    fields: values.fields || "",
-    closesAt,
-    eventType: values.event_type || "standard",
-    bookableDays: parseBookableDays(values.bookable_days),
-    minimumDaysBefore: values.minimum_days_before ?? 1,
-    maximumDaysAfter: values.maximum_days_after ?? 90,
-    nonTransferable: values.non_transferable === "1",
-    canPayMore: values.can_pay_more === "1",
-    maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
-    hidden: values.hidden === "1",
-  };
-};
+const extractCommonFields = (values: EventFormValues) => ({
+  name: values.name,
+  description: values.description,
+  date: normalizeOptionalDatetime(values.date ?? "", "date") ?? "",
+  location: values.location,
+  groupId: Number(values.group_id) || 0,
+  maxAttendees: values.max_attendees,
+  thankYouUrl: values.thank_you_url || "",
+  unitPrice: parseUnitPrice(values.unit_price),
+  maxQuantity: values.max_quantity,
+  webhookUrl: isDemoMode() ? "" : values.webhook_url || "",
+  fields: values.fields || "",
+  closesAt: normalizeOptionalDatetime(values.closes_at, "closes_at"),
+  eventType: values.event_type || "standard",
+  bookableDays: parseBookableDays(values.bookable_days),
+  minimumDaysBefore: values.minimum_days_before ?? 1,
+  maximumDaysAfter: values.maximum_days_after ?? 90,
+  nonTransferable: values.non_transferable === "1",
+  canPayMore: values.can_pay_more === "1",
+  maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
+  hidden: values.hidden === "1",
+});
 
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (
@@ -162,30 +162,36 @@ const eventsResource = defineResource({
   validate: validateEventInput,
 });
 
-/** Generic form file processor: extract, validate, replace old, upload, update event */
-const processFormFile = async (opts: {
-  formData: FormData;
-  fieldName: string;
-  eventId: number;
-  existingUrl?: string;
-  validate: (data: Uint8Array, file: File) => string | null;
-  upload: (data: Uint8Array, file: File) => Promise<Partial<EventInput>>;
-  label: string;
-}): Promise<string | null> => {
-  if (!isStorageEnabled()) return null;
-  const entry = opts.formData.get(opts.fieldName);
-  if (!(entry instanceof File) || entry.size === 0) {
-    if (entry !== null && !(entry instanceof File)) {
-      logDebug(
-        "Storage",
-        `${opts.label} field "${opts.fieldName}" is ${typeof entry}, not File`,
-      );
-    }
-    return null;
+/** Extract a File from form data, logging a debug warning for non-File entries */
+const extractFormFile = (
+  formData: FormData,
+  fieldName: string,
+  label: string,
+): File | null => {
+  const entry = formData.get(fieldName);
+  if (entry instanceof File && entry.size > 0) return entry;
+  if (entry !== null && !(entry instanceof File)) {
+    logDebug(
+      "Storage",
+      `${label} field "${fieldName}" is ${typeof entry}, not File`,
+    );
   }
+  return null;
+};
 
-  const data = new Uint8Array(await entry.arrayBuffer());
-  const error = opts.validate(data, entry);
+/** Upload a file and update the event, returning error detail on failure */
+const uploadAndUpdateEvent = async (
+  file: File,
+  opts: {
+    eventId: number;
+    existingUrl?: string;
+    validate: (data: Uint8Array, file: File) => string | null;
+    upload: (data: Uint8Array, file: File) => Promise<Partial<EventInput>>;
+    label: string;
+  },
+): Promise<string | null> => {
+  const data = new Uint8Array(await file.arrayBuffer());
+  const error = opts.validate(data, file);
   if (error) return error;
 
   if (opts.existingUrl) {
@@ -196,7 +202,7 @@ const processFormFile = async (opts: {
     );
   }
 
-  const [uploadResult] = await Promise.allSettled([opts.upload(data, entry)]);
+  const [uploadResult] = await Promise.allSettled([opts.upload(data, file)]);
   if (uploadResult.status === "fulfilled") {
     await eventsTable.update(opts.eventId, uploadResult.value);
     await logActivity(`${opts.label} uploaded for event`, opts.eventId);
@@ -205,6 +211,22 @@ const processFormFile = async (opts: {
   const detail = `${opts.label} upload failed: ${String(uploadResult.reason)}`;
   logError({ code: ErrorCode.STORAGE_UPLOAD, detail, eventId: opts.eventId });
   return detail;
+};
+
+/** Generic form file processor: extract, validate, replace old, upload, update event */
+const processFormFile = (opts: {
+  formData: FormData;
+  fieldName: string;
+  eventId: number;
+  existingUrl?: string;
+  validate: (data: Uint8Array, file: File) => string | null;
+  upload: (data: Uint8Array, file: File) => Promise<Partial<EventInput>>;
+  label: string;
+}): Promise<string | null> => {
+  if (!isStorageEnabled()) return Promise.resolve(null);
+  const file = extractFormFile(opts.formData, opts.fieldName, opts.label);
+  if (!file) return Promise.resolve(null);
+  return uploadAndUpdateEvent(file, opts);
 };
 
 /** Process image from multipart form and attach to event. Returns error message if validation fails. */
@@ -476,6 +498,31 @@ const handleAdminEventDuplicateGet: TypedRouteHandler<"GET /admin/event/:id/dupl
 const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> =
   withEventAndGroupsPage(adminEventEditPage);
 
+/** Render event edit page with validation error, or 404 if event disappeared */
+const renderEditError = async (
+  id: number,
+  session: AuthSession,
+  error: string,
+): Promise<Response> => {
+  const ctx = await getEventAndGroups(id);
+  return ctx
+    ? htmlResponse(
+        adminEventEditPage(ctx.event, ctx.groups, session, error),
+        400,
+      )
+    : notFoundResponse();
+};
+
+/** Validate slug uniqueness and event input */
+const validateSlugAndEvent = async (
+  input: EventInput,
+  existingId?: number,
+): Promise<string | null | undefined> => {
+  const taken = await isSlugTaken(input.slug, Number(existingId));
+  if (taken) return "Slug is already in use by another event";
+  return validateEventInput(input);
+};
+
 /** Handle POST /admin/event/:id/edit */
 const handleAdminEventEditPost: TypedRouteHandler<
   "POST /admin/event/:id/edit"
@@ -487,17 +534,12 @@ const handleAdminEventEditPost: TypedRouteHandler<
     const form = formDataToParams(formData);
     applyDemoOverrides(form, EVENT_DEMO_FIELDS);
 
-    // Build a resource that includes the slug field and validates uniqueness
     const updateResource = defineResource({
       table: eventsTable,
       fields: [...eventFields, slugField, groupIdField],
       toInput: extractEventUpdateInput,
       nameField: "name",
-      validate: async (input, existingId) => {
-        const taken = await isSlugTaken(input.slug, Number(existingId));
-        if (taken) return "Slug is already in use by another event";
-        return validateEventInput(input);
-      },
+      validate: validateSlugAndEvent,
     });
 
     const result = await updateResource.update(id, form);
@@ -513,14 +555,7 @@ const handleAdminEventEditPost: TypedRouteHandler<
       );
     }
     if ("notFound" in result) return notFoundResponse();
-
-    const ctx = await getEventAndGroups(id);
-    return ctx
-      ? htmlResponse(
-          adminEventEditPage(ctx.event, ctx.groups, session, result.error),
-          400,
-        )
-      : notFoundResponse();
+    return renderEditError(id, session, result.error);
   });
 
 /**
@@ -668,6 +703,25 @@ const handleAdminEventDelete: TypedRouteHandler<
         orNotFound(getEventWithCount(id), performDelete),
       );
 
+/** Try to delete a stored file and update event fields, returning redirect response */
+const deleteStoredFile = async (
+  url: string,
+  eventId: number,
+  clearFields: Partial<EventInput>,
+  label: string,
+  eventName: string,
+): Promise<Response> => {
+  const [deleteResult] = await Promise.allSettled([deleteImage(url)]);
+  if (deleteResult.status === "fulfilled") {
+    await eventsTable.update(eventId, clearFields);
+    await logActivity(`${label} removed for '${eventName}'`, eventId);
+    return redirect(`/admin/event/${eventId}`, `${label} removed`, true);
+  }
+  const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
+  logError({ code: ErrorCode.STORAGE_DELETE, detail, eventId });
+  return redirect(`/admin/event/${eventId}`, `${label} removal failed`, false);
+};
+
 /** Generic handler for deleting an event's uploaded file (image or attachment) */
 const handleFileDelete =
   (
@@ -679,26 +733,9 @@ const handleFileDelete =
     withAuthForm(request, () =>
       orNotFound(getEventWithCount(id), async (event) => {
         const url = getUrl(event);
-        if (url) {
-          const [deleteResult] = await Promise.allSettled([deleteImage(url)]);
-          if (deleteResult.status === "fulfilled") {
-            await eventsTable.update(id, clearFields);
-            await logActivity(`${label} removed for '${event.name}'`, event);
-            return redirect(`/admin/event/${id}`, `${label} removed`, true);
-          }
-          const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
-          logError({
-            code: ErrorCode.STORAGE_DELETE,
-            detail,
-            eventId: event.id,
-          });
-          return redirect(
-            `/admin/event/${id}`,
-            `${label} removal failed`,
-            false,
-          );
-        }
-        return redirect(`/admin/event/${id}`, `${label} removed`, true);
+        if (!url)
+          return redirect(`/admin/event/${id}`, `${label} removed`, true);
+        return deleteStoredFile(url, id, clearFields, label, event.name);
       }),
     );
 

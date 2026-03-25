@@ -157,27 +157,30 @@ const TRACKING_PARAMS = [
 /** Check if a query parameter key is a tracking parameter */
 const isTrackingParam = (key: string): boolean => TRACKING_PARAMS.includes(key);
 
+/** Check if any search params are tracking parameters */
+const hasTrackingParams = (searchParams: URLSearchParams): boolean => {
+  for (const key of searchParams.keys()) {
+    if (isTrackingParam(key)) return true;
+  }
+  return false;
+};
+
+/** Build clean URLSearchParams with tracking params removed */
+const stripTrackingParams = (searchParams: URLSearchParams): URLSearchParams => {
+  const clean = new URLSearchParams();
+  for (const [key, value] of searchParams.entries()) {
+    if (!isTrackingParam(key)) clean.append(key, value);
+  }
+  return clean;
+};
+
 /**
  * Get clean URL path with tracking parameters stripped.
  * Returns the clean path (preserving non-tracking query params) or null if no stripping needed.
  */
 export const getCleanUrl = (url: URL): string | null => {
-  let hasTracking = false;
-  for (const key of url.searchParams.keys()) {
-    if (isTrackingParam(key)) {
-      hasTracking = true;
-      break;
-    }
-  }
-  if (!hasTracking) return null;
-
-  const clean = new URLSearchParams();
-  for (const [key, value] of url.searchParams.entries()) {
-    if (!isTrackingParam(key)) {
-      clean.append(key, value);
-    }
-  }
-  const search = clean.toString();
+  if (!hasTrackingParams(url.searchParams)) return null;
+  const search = stripTrackingParams(url.searchParams).toString();
   return search ? `${url.pathname}?${search}` : url.pathname;
 };
 

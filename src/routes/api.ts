@@ -220,6 +220,32 @@ const bookingResultToResponse = (
   }
 };
 
+/** Validate and parse the date for daily events, returning error response or date string */
+const validateDailyDate = async (
+  event: EventWithCount,
+  body: Record<string, unknown>,
+): Promise<string | null | Response> => {
+  if (event.event_type !== "daily") return null;
+  const submittedDate = String(body.date ?? "");
+  const holidays = await getActiveHolidays();
+  const availableDates = getAvailableDates(event, holidays);
+  if (!submittedDate || !availableDates.includes(submittedDate)) {
+    return apiResponse({ error: "Please select a valid date" }, 400);
+  }
+  return submittedDate;
+};
+
+/** Parse custom unit price for pay-more events, returning error response or price */
+const parseApiCustomPrice = (
+  event: EventWithCount,
+  body: Record<string, unknown>,
+): number | undefined | Response => {
+  if (!event.can_pay_more) return undefined;
+  const priceResult = parseCustomPrice(body.customPrice, event.unit_price, event.max_price);
+  if (!priceResult.ok) return apiResponse({ error: priceResult.error }, 400);
+  return priceResult.price;
+};
+
 /** POST /api/events/:slug/book — create a booking */
 const handleBook = withActiveEvent(async (request, event) => {
   if (isRegistrationClosed(event)) {
@@ -230,60 +256,26 @@ const handleBook = withActiveEvent(async (request, event) => {
   if (bodyOrError instanceof Response) return bodyOrError;
   const body = bodyOrError;
 
-  // Validate fields using the same form validation as the web
   const paid = isPaidEvent(event);
   const valResult = tryValidateTicketFields(
-    toFormParams(body),
-    event.fields,
-    (msg) => apiResponse({ error: msg }, 400),
-    paid,
+    toFormParams(body), event.fields, (msg) => apiResponse({ error: msg }, 400), paid,
   );
   if (valResult instanceof Response) return valResult;
-  const values = valResult;
 
-  // Parse quantity
   const rawQuantity = Number.parseInt(String(body.quantity ?? "1"), 10);
-  const quantity =
-    Number.isNaN(rawQuantity) || rawQuantity < 1
-      ? 1
-      : Math.min(rawQuantity, event.max_quantity);
+  const quantity = Number.isNaN(rawQuantity) || rawQuantity < 1
+    ? 1
+    : Math.min(rawQuantity, event.max_quantity);
 
-  // Validate date for daily events
-  let date: string | null = null;
-  if (event.event_type === "daily") {
-    const submittedDate = String(body.date ?? "");
-    const holidays = await getActiveHolidays();
-    const availableDates = getAvailableDates(event, holidays);
-    if (!submittedDate || !availableDates.includes(submittedDate)) {
-      return apiResponse({ error: "Please select a valid date" }, 400);
-    }
-    date = submittedDate;
-  }
+  const dateResult = await validateDailyDate(event, body);
+  if (dateResult instanceof Response) return dateResult;
 
-  // Parse custom price for pay-more events
-  let customUnitPrice: number | undefined;
-  if (event.can_pay_more) {
-    const priceResult = parseCustomPrice(
-      body.customPrice,
-      event.unit_price,
-      event.max_price,
-    );
-    if (!priceResult.ok) {
-      return apiResponse({ error: priceResult.error }, 400);
-    }
-    customUnitPrice = priceResult.price;
-  }
+  const priceResult = parseApiCustomPrice(event, body);
+  if (priceResult instanceof Response) return priceResult;
 
-  const contact = extractContact(values);
+  const contact = extractContact(valResult);
   return bookingResultToResponse(
-    await processBooking(
-      event,
-      contact,
-      quantity,
-      date,
-      getBaseUrl(request),
-      customUnitPrice,
-    ),
+    await processBooking(event, contact, quantity, dateResult, getBaseUrl(request), priceResult),
   );
 });
 

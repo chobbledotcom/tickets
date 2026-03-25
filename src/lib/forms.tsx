@@ -172,7 +172,9 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     case "checkbox-group":
       return renderCheckbox(field, value);
     case "datetime":
-      return <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />;
+      return (
+        <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />
+      );
     case "file":
       return <input type="file" name={field.name} accept={field.accept} />;
     default:

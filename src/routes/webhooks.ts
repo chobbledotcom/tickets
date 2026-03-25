@@ -512,7 +512,11 @@ const validateIntentItems = async (
       includeEventName,
     );
     if (!vp.ok) return validationFailure(session, vp, item.e);
-    validatedItems.push({ item, event: vp.event, expectedPrice: vp.expectedPrice });
+    validatedItems.push({
+      item,
+      event: vp.event,
+      expectedPrice: vp.expectedPrice,
+    });
   }
   return { ok: true, items: validatedItems };
 };
@@ -543,7 +547,10 @@ const validatePerItemPrices = async (
       mismatch.event.id,
     );
   }
-  const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+  const metadataTotal = validatedItems.reduce(
+    (sum, { item }) => sum + item.p,
+    0,
+  );
   const expectedCartTotal =
     metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
   if (session.amountTotal !== expectedCartTotal) {
@@ -566,7 +573,15 @@ const validateSingleItemPrice = async (
   const firstValidated = validatedItems[0] as ValidatedItem;
   const { event, expectedPrice } = firstValidated;
   const firstItem = intent.items[0] as BookingItem;
-  if (hasPriceMismatch(session.amountTotal, expectedPrice, event, bookingFeePercent, firstItem.q)) {
+  if (
+    hasPriceMismatch(
+      session.amountTotal,
+      expectedPrice,
+      event,
+      bookingFeePercent,
+      firstItem.q,
+    )
+  ) {
     return priceMismatchRefund(
       session,
       `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
@@ -604,7 +619,12 @@ const createAttendeesForItems = async (
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   for (const { item, event, expectedPrice } of validatedItems) {
     const pricePaid = computePricePaid(
-      item, event, expectedPrice, hasPerItemPrices, isSingleItemCheckout, session.amountTotal,
+      item,
+      event,
+      expectedPrice,
+      hasPerItemPrices,
+      isSingleItemCheckout,
+      session.amountTotal,
     );
 
     const result = await createAttendeeAtomic({
@@ -673,7 +693,12 @@ const validatePrices = (
     return validatePerItemPrices(session, validatedItems, bookingFeePercent);
   }
   if (isSingleItemCheckout) {
-    return validateSingleItemPrice(session, validatedItems, intent, bookingFeePercent);
+    return validateSingleItemPrice(
+      session,
+      validatedItems,
+      intent,
+      bookingFeePercent,
+    );
   }
   return Promise.resolve(null);
 };
@@ -692,16 +717,28 @@ const processPaymentSession = async (
 
   // Phase 2: Validate events and create attendees atomically
   const isSingleItemCheckout = !isCartSession(session.metadata);
-  const itemsResult = await validateIntentItems(session, intent, !isSingleItemCheckout);
+  const itemsResult = await validateIntentItems(
+    session,
+    intent,
+    !isSingleItemCheckout,
+  );
   if (!("ok" in itemsResult)) return itemsResult;
 
-  const priceError = await validatePrices(session, itemsResult.items, intent, isSingleItemCheckout);
+  const priceError = await validatePrices(
+    session,
+    itemsResult.items,
+    intent,
+    isSingleItemCheckout,
+  );
   if (priceError) return priceError;
 
   // Create attendees
   const createResult = await createAttendeesForItems(
-    itemsResult.items, intent, session,
-    intent.items.some((item) => item.p > 0), isSingleItemCheckout,
+    itemsResult.items,
+    intent,
+    session,
+    intent.items.some((item) => item.p > 0),
+    isSingleItemCheckout,
   );
   if (!("ok" in createResult)) return createResult;
   const createdAttendees = createResult.attendees;
@@ -920,7 +957,11 @@ const getWebhookSignatureHeader = (request: Request): string | null =>
 
 /** Verify webhook signature and get the verified event, or return error response */
 type WebhookVerifyResult =
-  | { ok: true; provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object; event: { type: string } & Record<string, unknown> }
+  | {
+      ok: true;
+      provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object;
+      event: { type: string } & Record<string, unknown>;
+    }
   | { ok: false; response: Response };
 
 const verifyWebhookRequest = async (
@@ -935,12 +976,18 @@ const verifyWebhookRequest = async (
       detail: "Webhook received but payment provider not configured",
     });
     logDebug("Webhook", `Rejected payload: ${payload}`);
-    return { ok: false, response: plainResponse("Payment provider not configured", 400) };
+    return {
+      ok: false,
+      response: plainResponse("Payment provider not configured", 400),
+    };
   }
 
   const webhookUrl = `https://${getEffectiveDomain()}/payment/webhook`;
   const verification = await provider.verifyWebhookSignature(
-    payload, signature, webhookUrl, payloadBytes,
+    payload,
+    signature,
+    webhookUrl,
+    payloadBytes,
   );
   if (!verification.valid) {
     logError({
@@ -969,13 +1016,19 @@ const resolveWebhookSession = async (
     return { ok: false, response: webhookAckResponse({ status: "pending" }) };
   }
   if (!sessionResult) {
-    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Ignoring webhook for unrecognized payment session" });
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Ignoring webhook for unrecognized payment session",
+    });
     logDebug("Webhook", `Ignored payload: ${payload}`);
     return { ok: false, response: webhookAckResponse() };
   }
 
   if (sessionResult.metadata._origin !== getEffectiveDomain()) {
-    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Ignoring webhook for unrecognized payment session" });
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Ignoring webhook for unrecognized payment session",
+    });
     logDebug("Webhook", `Ignored payload: ${payload}`);
     return { ok: false, response: webhookAckResponse() };
   }
@@ -993,9 +1046,15 @@ const resolveWebhookSession = async (
     ? extractBookingIntent(sessionResult)
     : extractIntent(sessionResult);
   if (!intent) {
-    logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Invalid cart session data for ${sessionResult.id}` });
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Invalid cart session data for ${sessionResult.id}`,
+    });
     logDebug("Webhook", `Rejected payload: ${payload}`);
-    return { ok: false, response: plainResponse("Invalid cart session data", 400) };
+    return {
+      ok: false,
+      response: plainResponse("Invalid cart session data", 400),
+    };
   }
 
   return { ok: true, session: sessionResult, intent };
@@ -1015,7 +1074,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   const signature = getWebhookSignatureHeader(request);
   if (!signature) {
-    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Webhook missing signature header" });
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Webhook missing signature header",
+    });
     logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Missing signature", 400);
   }

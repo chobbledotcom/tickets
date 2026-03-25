@@ -138,23 +138,30 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const deleteGet = authRowHtml(cfg.renderDelete);
 
+  /** Perform the confirmed delete and redirect */
+  const performConfirmedDelete = async (
+    id: number,
+    row: Record<string, unknown>,
+  ): Promise<Response> => {
+    const result = await cfg.resource.delete(id);
+    if ("notFound" in result) return notFoundResponse();
+    await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
+    return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
+  };
+
   const deletePost: IdRouteHandler = (request, { id }) =>
     withFormAuth(request, (session, form) =>
-      orNotFound(cfg.resource.table.findById(id), async (row) => {
+      orNotFound(cfg.resource.table.findById(id), (row) => {
         const confirm = String(form.get("confirm_identifier"));
-        const nameMatches = cfg.resource.verifyName(row, confirm);
-
-        if (!nameMatches) {
-          return htmlResponse(
-            cfg.renderDelete(row, session, cfg.deleteConfirmError),
-            400,
+        if (!cfg.resource.verifyName(row, confirm)) {
+          return Promise.resolve(
+            htmlResponse(
+              cfg.renderDelete(row, session, cfg.deleteConfirmError),
+              400,
+            ),
           );
         }
-
-        const result = await cfg.resource.delete(id);
-        if ("notFound" in result) return notFoundResponse();
-        await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
-        return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
+        return performConfirmedDelete(id, row);
       }),
     );
 

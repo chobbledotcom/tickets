@@ -15,6 +15,7 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 import type { Attendee } from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  type AuthSession,
   getPrivateKey,
   jsonResponse,
   withAuthJson,
@@ -49,6 +50,54 @@ const getEventName = async (eventId: number): Promise<string> => {
  * Scanner is intentionally one-way (check-in only, no check-out) to prevent
  * accidental check-outs from double-scans during rapid door check-in.
  */
+/** Resolve attendee from token, returning JSON error response if unavailable */
+const resolveScannedAttendee = async (
+  token: string,
+  session: AuthSession,
+): Promise<Attendee | Response> => {
+  const privateKey = await getPrivateKey(session);
+  if (!privateKey) {
+    logError({
+      code: ErrorCode.KEY_DERIVATION,
+      detail: "Scanner: private key unavailable",
+    });
+    return jsonResponse(
+      { status: "error", message: "Decryption unavailable" },
+      500,
+    );
+  }
+  const attendee = await resolveTokenAttendee(token, privateKey);
+  if (!attendee) return jsonResponse({ status: "not_found" }, 404);
+  return attendee;
+};
+
+/** Check pre-checkin conditions (refunded, wrong event, already checked in) */
+const checkScanPreConditions = async (
+  attendee: Attendee,
+  eventId: number,
+  force: boolean,
+): Promise<Response | null> => {
+  if (attendee.refunded) {
+    return jsonResponse({ status: "refunded", name: attendee.name });
+  }
+  if (attendee.event_id !== eventId && !force) {
+    const eventName = await getEventName(attendee.event_id);
+    return jsonResponse({
+      status: "wrong_event",
+      name: attendee.name,
+      eventName,
+    });
+  }
+  if (attendee.checked_in) {
+    return jsonResponse({
+      status: "already_checked_in",
+      name: attendee.name,
+      quantity: attendee.quantity,
+    });
+  }
+  return null;
+};
+
 const handleScanPost = (
   request: Request,
   { id }: { id: number },
@@ -62,49 +111,12 @@ const handleScanPost = (
     const force = body.force === true;
     const idVerified = body.id_verified === true;
 
-    const privateKey = await getPrivateKey(session);
-    if (!privateKey) {
-      logError({
-        code: ErrorCode.KEY_DERIVATION,
-        detail: "Scanner: private key unavailable",
-      });
-      return jsonResponse(
-        { status: "error", message: "Decryption unavailable" },
-        500,
-      );
-    }
+    const resolved = await resolveScannedAttendee(token, session);
+    if (resolved instanceof Response) return resolved;
+    const attendee = resolved;
 
-    const attendee = await resolveTokenAttendee(token, privateKey);
-    if (!attendee) {
-      return jsonResponse({ status: "not_found" }, 404);
-    }
-
-    // Refunded - cannot check in
-    if (attendee.refunded) {
-      return jsonResponse({
-        status: "refunded",
-        name: attendee.name,
-      });
-    }
-
-    // Wrong event - let client prompt for confirmation
-    if (attendee.event_id !== id && !force) {
-      const eventName = await getEventName(attendee.event_id);
-      return jsonResponse({
-        status: "wrong_event",
-        name: attendee.name,
-        eventName,
-      });
-    }
-
-    // Already checked in
-    if (attendee.checked_in) {
-      return jsonResponse({
-        status: "already_checked_in",
-        name: attendee.name,
-        quantity: attendee.quantity,
-      });
-    }
+    const preCondition = await checkScanPreConditions(attendee, id, force);
+    if (preCondition) return preCondition;
 
     // Non-transferable event - require ID verification before check-in
     const event = await getEventWithCount(force ? attendee.event_id : id);
@@ -116,7 +128,6 @@ const handleScanPost = (
       });
     }
 
-    // Check them in
     await updateCheckedIn(attendee.id, true);
     const eventName = event?.name ?? (await getEventName(attendee.event_id));
     await logActivity(

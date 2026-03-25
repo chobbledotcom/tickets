@@ -387,19 +387,14 @@ const handleAdminRefundAllGet = (
       : htmlResponse(adminRefundAllAttendeesPage(event, count, session));
   });
 
-/** Process bulk refund for all refundable attendees */
-const processRefundAll = async (
+/** Validate pre-conditions for bulk refund, returning error response if invalid */
+const validateRefundPreConditions = (
   event: EventWithCount,
-  attendees: Attendee[],
+  refundable: Attendee[],
   session: AuthSession,
-  form: FormParams,
-): Promise<Response> => {
-  const refundable = getRefundable(attendees);
-  const nameConfirmed = verifyIdentifier(
-    event.name,
-    form.getString("confirm_name"),
-  );
-  if (!nameConfirmed) {
+  confirmName: string,
+): Response | null => {
+  if (!verifyIdentifier(event.name, confirmName)) {
     return htmlResponse(
       adminRefundAllAttendeesPage(
         event,
@@ -410,13 +405,113 @@ const processRefundAll = async (
       400,
     );
   }
-
   if (refundable.length === 0) {
     return htmlResponse(
       adminRefundAllAttendeesPage(event, 0, session, NO_REFUNDABLE_ERROR),
       400,
     );
   }
+  return null;
+};
+
+/** Process refunds in chunks, returning counts of successes and failures */
+const executeBulkRefunds = async (
+  batch: Attendee[],
+  provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
+  eventId: number,
+): Promise<{ refundedCount: number; failedCount: number }> => {
+  const REFUND_CHUNK_SIZE = 5;
+  let refundedCount = 0;
+  let failedCount = 0;
+  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
+    const results = await Promise.all(
+      group.map(async (attendee) => {
+        const refunded = await provider.refundPayment(attendee.payment_id);
+        if (refunded) {
+          await markRefunded(attendee.id);
+          return true;
+        }
+        logError({
+          code: ErrorCode.PAYMENT_REFUND,
+          eventId,
+          detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+        });
+        return false;
+      }),
+    );
+    for (const success of results) {
+      if (success) refundedCount++;
+      else failedCount++;
+    }
+  }
+  return { refundedCount, failedCount };
+};
+
+/** Build the response after bulk refund execution */
+const buildRefundResponse = async (
+  event: EventWithCount,
+  session: AuthSession,
+  refundedCount: number,
+  failedCount: number,
+  totalRefundable: number,
+  remaining: number,
+): Promise<Response> => {
+  if (failedCount > 0) {
+    const msg =
+      remaining > 0
+        ? `${refundedCount} refund(s) succeeded, ${failedCount} failed. ${remaining} remaining — submit again to continue.`
+        : `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`;
+    await logActivity(
+      `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
+      event.id,
+    );
+    return htmlResponse(
+      adminRefundAllAttendeesPage(
+        event,
+        totalRefundable - refundedCount,
+        session,
+        msg,
+      ),
+      400,
+    );
+  }
+  if (remaining > 0) {
+    await logActivity(
+      `Bulk refund: ${refundedCount} of ${totalRefundable} refunded for '${event.name}'`,
+      event.id,
+    );
+    return htmlResponse(
+      adminRefundAllAttendeesPage(
+        event,
+        remaining,
+        session,
+        `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
+      ),
+    );
+  }
+  await logActivity(
+    `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
+    event.id,
+  );
+  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
+};
+
+/** Process bulk refund for all refundable attendees */
+const processRefundAll = async (
+  event: EventWithCount,
+  attendees: Attendee[],
+  session: AuthSession,
+  form: FormParams,
+): Promise<Response> => {
+  const refundable = getRefundable(attendees);
+
+  const preError = validateRefundPreConditions(
+    event,
+    refundable,
+    session,
+    form.getString("confirm_name"),
+  );
+  if (preError) return preError;
 
   const provider = await getActivePaymentProvider();
   if (!provider) {
@@ -431,74 +526,22 @@ const processRefundAll = async (
     );
   }
 
-  const REFUND_CHUNK_SIZE = 5;
   const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
   const remaining = refundable.length - batch.length;
-
-  let refundedCount = 0;
-  let failedCount = 0;
-  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
-    const results = await Promise.all(
-      group.map(async (attendee) => {
-        const refunded = await provider.refundPayment(attendee.payment_id);
-        if (refunded) {
-          await markRefunded(attendee.id);
-          return true;
-        }
-        logError({
-          code: ErrorCode.PAYMENT_REFUND,
-          eventId: event.id,
-          detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-        });
-        return false;
-      }),
-    );
-    for (const success of results) {
-      if (success) refundedCount++;
-      else failedCount++;
-    }
-  }
-
-  if (failedCount > 0) {
-    const msg =
-      remaining > 0
-        ? `${refundedCount} refund(s) succeeded, ${failedCount} failed. ${remaining} remaining — submit again to continue.`
-        : `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`;
-    await logActivity(
-      `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
-      event.id,
-    );
-    return htmlResponse(
-      adminRefundAllAttendeesPage(
-        event,
-        refundable.length - refundedCount,
-        session,
-        msg,
-      ),
-      400,
-    );
-  }
-
-  if (remaining > 0) {
-    await logActivity(
-      `Bulk refund: ${refundedCount} of ${refundable.length} refunded for '${event.name}'`,
-      event.id,
-    );
-    return htmlResponse(
-      adminRefundAllAttendeesPage(
-        event,
-        remaining,
-        session,
-        `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
-      ),
-    );
-  }
-
-  await logActivity(
-    `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
+  const { refundedCount, failedCount } = await executeBulkRefunds(
+    batch,
+    provider,
     event.id,
   );
-  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
+
+  return buildRefundResponse(
+    event,
+    session,
+    refundedCount,
+    failedCount,
+    refundable.length,
+    remaining,
+  );
 };
 
 /** Handle POST /admin/event/:id/refund-all */
@@ -511,6 +554,25 @@ const handleAdminRefundAllPost = (
       processRefundAll(event, attendees, session, form),
     ),
   );
+
+/** Handle a failed attendee creation: log and redirect with appropriate error */
+const handleCreateAttendeeFailure = (
+  reason: string,
+  eventId: number,
+): Response => {
+  if (reason === "encryption_error") {
+    logError({
+      code: ErrorCode.ENCRYPT_FAILED,
+      eventId,
+      detail: "manual add attendee",
+    });
+  }
+  const errorMsg =
+    reason === "capacity_exceeded"
+      ? "Not enough spots available"
+      : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
+  return redirect(`/admin/event/${eventId}`, errorMsg, false);
+};
 
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
 const handleAddAttendee = (
@@ -525,7 +587,6 @@ const handleAddAttendee = (
     const fields = getAddAttendeeFields(event.fields, isDaily);
     applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
     const validation = validateForm<AddAttendeeFormValues>(form, fields);
-
     if (!validation.valid) {
       return redirect(`/admin/event/${eventId}`, validation.error, false);
     }
@@ -539,7 +600,6 @@ const handleAddAttendee = (
       quantity,
       date,
     } = validation.values;
-
     const result = await createAttendeeAtomic({
       eventId,
       name,
@@ -551,20 +611,8 @@ const handleAddAttendee = (
       date: isDaily ? date : null,
     });
 
-    if (!result.success) {
-      if (result.reason === "encryption_error") {
-        logError({
-          code: ErrorCode.ENCRYPT_FAILED,
-          eventId,
-          detail: "manual add attendee",
-        });
-      }
-      const errorMsg =
-        result.reason === "capacity_exceeded"
-          ? "Not enough spots available"
-          : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
-      return redirect(`/admin/event/${eventId}`, errorMsg, false);
-    }
+    if (!result.success)
+      return handleCreateAttendeeFailure(result.reason, eventId);
 
     await logActivity(`Attendee '${name}' added manually`, eventId);
     return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
@@ -671,6 +719,51 @@ function parseQuantity(value: string, max: number): number {
 }
 
 /** Handle POST /admin/attendees/:attendeeId */
+/** Validate attendee edit form fields, returning error response or resolved target event */
+async function validateEditFields(
+  name: string,
+  eventId: number,
+  data: EditAttendeeData,
+  editError: (msg: string) => Response,
+): Promise<EventWithCount | Response> {
+  if (!name.trim()) return editError("Name is required");
+  if (!eventId) return editError("Event is required");
+  const targetEvent =
+    eventId === data.event.id ? data.event : await getEventWithCount(eventId);
+  if (!targetEvent) return editError("Event not found");
+  return targetEvent;
+}
+
+/** Check capacity for attendee edit (quantity increase or event change) */
+async function checkEditCapacity(
+  eventId: number,
+  quantity: number,
+  data: EditAttendeeData,
+): Promise<boolean> {
+  const quantityDelta = quantity - data.attendee.quantity;
+  const eventChanged = eventId !== data.attendee.event_id;
+  if (quantityDelta <= 0 && !eventChanged) return true;
+  const spotsNeeded = eventChanged ? quantity : quantityDelta;
+  return hasAvailableSpots(eventId, spotsNeeded, data.attendee.date);
+}
+
+/** Parse validated question answers from form */
+function parseEditAnswers(
+  form: FormParams,
+  questions: QuestionWithAnswers[],
+): number[] {
+  const answerIds: number[] = [];
+  for (const q of questions) {
+    const raw = form.get(`question_${q.id}`);
+    if (!raw) continue;
+    const answerId = Number.parseInt(raw, 10);
+    if (q.answers.some((a) => a.id === answerId)) {
+      answerIds.push(answerId);
+    }
+  }
+  return answerIds;
+}
+
 async function editAttendeeHandler(
   session: AuthSession,
   form: FormParams,
@@ -683,72 +776,41 @@ async function editAttendeeHandler(
       adminEditAttendeePage(data, session, msg, form.getString("return_url")),
       400,
     );
+
   const name = form.getString("name");
-  const email = form.getString("email");
-  const phone = form.getString("phone");
-  const address = form.getString("address");
-  const special_instructions = form.getString("special_instructions");
-  const event_id = Number(form.get("event_id")) || 0;
-
-  if (!name.trim()) return editError("Name is required");
-  if (!event_id) return editError("Event is required");
-
-  const targetEvent =
-    event_id === data.event.id ? data.event : await getEventWithCount(event_id);
-  if (!targetEvent) return editError("Event not found");
+  const eventId = Number(form.get("event_id")) || 0;
+  const resolved = await validateEditFields(name, eventId, data, editError);
+  if (resolved instanceof Response) return resolved;
+  const targetEvent = resolved;
 
   const quantity = parseQuantity(
     form.get("quantity") || "1",
     targetEvent.max_quantity,
   );
+  const capacityOk = await checkEditCapacity(eventId, quantity, data);
+  if (!capacityOk) return editError("Not enough spots available");
 
-  // Check capacity when quantity increases or event changes
-  const quantityDelta = quantity - data.attendee.quantity;
-  const eventChanged = event_id !== data.attendee.event_id;
-  if (quantityDelta > 0 || eventChanged) {
-    // For event change, check full quantity against new event; for same event, check only the delta
-    const spotsNeeded = eventChanged ? quantity : quantityDelta;
-    const available = await hasAvailableSpots(
-      event_id,
-      spotsNeeded,
-      data.attendee.date,
-    );
-    if (!available) return editError("Not enough spots available");
-  }
-
-  // Parse question answers
-  const answerIds: number[] = [];
-  for (const q of data.questions) {
-    const raw = form.get(`question_${q.id}`);
-    if (raw) {
-      const answerId = Number.parseInt(raw, 10);
-      if (q.answers.some((a) => a.id === answerId)) {
-        answerIds.push(answerId);
-      }
-    }
-  }
+  const answerIds = parseEditAnswers(form, data.questions);
 
   await updateAttendee(attendeeId, {
     name,
-    email,
-    phone,
-    address,
-    special_instructions,
-    event_id,
+    email: form.getString("email"),
+    phone: form.getString("phone"),
+    address: form.getString("address"),
+    special_instructions: form.getString("special_instructions"),
+    event_id: eventId,
     quantity,
     payment_id: data.attendee.payment_id,
     ticket_token: data.attendee.ticket_token,
   });
 
-  // Update answers (atomic delete + insert)
   if (data.questions.length > 0) {
     await saveAttendeeAnswers([attendeeId], answerIds);
   }
 
-  await logActivity(`Attendee '${name}' updated`, event_id);
-
+  await logActivity(`Attendee '${name}' updated`, eventId);
   return redirect(
-    `/admin/event/${event_id}#attendees`,
+    `/admin/event/${eventId}#attendees`,
     `Updated ${name}`,
     true,
     { form },

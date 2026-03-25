@@ -51,7 +51,9 @@ const handleTicketView = async (
     entry.attendee.price_paid = String(entry.attendee.price_paid_v2);
   }
   const cards = await Promise.all(
-    entries.map((entry, index) => buildTicketCard(entry, tokens[index] as string)),
+    entries.map((entry, index) =>
+      buildTicketCard(entry, tokens[index] as string),
+    ),
   );
   return htmlResponse(
     ticketViewPage(

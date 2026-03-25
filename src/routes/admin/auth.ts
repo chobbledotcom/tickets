@@ -75,7 +75,10 @@ const validateLoginPrerequisites = async (
     return loginResponse("Invalid or expired form. Please try again.", 403);
   }
   if (await isLoginRateLimited(clientIp)) {
-    return loginResponse("Too many login attempts. Please try again later.", 429);
+    return loginResponse(
+      "Too many login attempts. Please try again later.",
+      429,
+    );
   }
   return null;
 };
@@ -86,7 +89,11 @@ const authenticateUser = async (
   password: string,
   clientIp: string,
 ): Promise<
-  | { ok: true; user: Awaited<ReturnType<typeof getUserByUsername>> & object; passwordHash: CryptoKey }
+  | {
+      ok: true;
+      user: Awaited<ReturnType<typeof getUserByUsername>> & object;
+      passwordHash: CryptoKey;
+    }
   | { ok: false; response: Response }
 > => {
   const user = await getUserByUsername(username);
@@ -120,7 +127,11 @@ const handleAdminLogin = async (
   const validation = validateForm<LoginFormValues>(form, loginFields);
   if (!validation.valid) return loginResponse(validation.error, 400);
 
-  const auth = await authenticateUser(validation.values.username, validation.values.password, clientIp);
+  const auth = await authenticateUser(
+    validation.values.username,
+    validation.values.password,
+    clientIp,
+  );
   if (!auth.ok) return auth.response;
 
   const { user, passwordHash } = auth;

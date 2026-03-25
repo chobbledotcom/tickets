@@ -194,6 +194,21 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
     }),
   );
 
+/** Validate that all events have compatible types for the group */
+const validateEventTypesForGroup = async (
+  groupId: number,
+  eventIds: number[],
+): Promise<string | null> => {
+  for (const eventId of eventIds) {
+    const event = await getEvent(eventId);
+    if (event) {
+      const typeError = await validateGroupEventType(groupId, event.event_type);
+      if (typeError) return typeError;
+    }
+  }
+  return null;
+};
+
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
 const handleAddEventsToGroup: TypedRouteHandler<
   "POST /admin/group/:id/add-events"
@@ -205,19 +220,8 @@ const handleAddEventsToGroup: TypedRouteHandler<
         .map(Number)
         .filter((n) => n > 0);
       if (eventIds.length > 0) {
-        // Validate event types match the group's existing events
-        for (const eventId of eventIds) {
-          const event = await getEvent(eventId);
-          if (event) {
-            const typeError = await validateGroupEventType(
-              id,
-              event.event_type,
-            );
-            if (typeError) {
-              return redirect(`/admin/group/${id}`, typeError, false);
-            }
-          }
-        }
+        const typeError = await validateEventTypesForGroup(id, eventIds);
+        if (typeError) return redirect(`/admin/group/${id}`, typeError, false);
         await assignEventsToGroup(eventIds, id);
         await logActivity(
           `${eventIds.length} event(s) added to group '${group.name}'`,

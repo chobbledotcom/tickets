@@ -54,13 +54,11 @@ export const getMimeType = (filename: string): string => {
 const forbiddenResponse = (): Response =>
   new Response("Forbidden", { status: 403 });
 
-/** Handle GET /attachment/:id */
-const handleAttachmentDownload: TypedRouteHandler<
-  "GET /attachment/:id"
-> = async (request, { id }) => {
-  if (!isStorageEnabled()) return notFoundResponse();
-
-  // Extract and validate query params
+/** Validate attachment URL parameters and verify signature */
+const validateAttachmentAccess = async (
+  request: Request,
+  eventId: number,
+): Promise<{ attendeeId: number } | Response> => {
   const url = new URL(request.url);
   const attendeeIdStr = url.searchParams.get("a");
   const exp = url.searchParams.get("exp");
@@ -70,26 +68,32 @@ const handleAttachmentDownload: TypedRouteHandler<
   const attendeeId = Number.parseInt(attendeeIdStr, 10);
   if (Number.isNaN(attendeeId)) return forbiddenResponse();
 
-  // Verify signature and expiry
-  const valid = await verifyAttachmentUrl(id, attendeeId, exp, sig);
+  const valid = await verifyAttachmentUrl(eventId, attendeeId, exp, sig);
   if (!valid) return forbiddenResponse();
+  return { attendeeId };
+};
 
-  // Look up event and verify it has an attachment
+/** Handle GET /attachment/:id */
+const handleAttachmentDownload: TypedRouteHandler<
+  "GET /attachment/:id"
+> = async (request, { id }) => {
+  if (!isStorageEnabled()) return notFoundResponse();
+
+  const accessResult = await validateAttachmentAccess(request, id);
+  if (accessResult instanceof Response) return accessResult;
+  const { attendeeId } = accessResult;
+
   const event = await getEvent(id);
   if (!event || !event.attachment_url) return notFoundResponse();
 
-  // Verify attendee exists and belongs to this event
   const attendee = await getAttendeeRaw(attendeeId);
   if (!attendee || attendee.event_id !== id) return forbiddenResponse();
 
-  // Download and decrypt from CDN
   const data = await downloadImage(event.attachment_url);
   if (!data) return notFoundResponse();
 
-  // Increment download counter (fire-and-forget)
   await incrementAttachmentDownloads(attendeeId);
 
-  // Serve with Content-Disposition for proper download filename
   const contentType = getMimeType(event.attachment_name);
   return new Response(data.buffer as BodyInit, {
     headers: {

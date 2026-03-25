@@ -517,7 +517,8 @@ const validateSignatureParts = (
     return { ok: false, reason: "missing timestamp and signature" };
   }
   if (timestamp === 0) return { ok: false, reason: "missing timestamp" };
-  if (signatures.length === 0) return { ok: false, reason: "missing signature" };
+  if (signatures.length === 0)
+    return { ok: false, reason: "missing signature" };
   return { ok: true, timestamp, signatures };
 };
 

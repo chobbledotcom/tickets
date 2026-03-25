@@ -419,6 +419,30 @@ const validateSubmittedDate = (
   return submitted && dates.includes(submitted) ? submitted : null;
 };
 
+/** Validate daily event date, updating ctx.dates. Returns date string, null, or error response */
+const validateDailyEventDate = async (
+  form: FormParams,
+  event: EventWithCount,
+  ctx: TicketContext,
+  showError: (msg: string) => Response,
+): Promise<string | null | Response> => {
+  if (event.event_type !== "daily") return null;
+  ctx.dates = getAvailableDates(event, await getActiveHolidays());
+  const date = validateSubmittedDate(form, ctx.dates);
+  return date ?? showError("Please select a valid date");
+};
+
+/** Parse custom price for pay-more events. Returns price, undefined, or error response */
+const parseTicketCustomPrice = (
+  form: FormParams,
+  event: EventWithCount,
+  showError: (msg: string) => Response,
+): number | undefined | Response => {
+  if (!event.can_pay_more) return undefined;
+  const priceResult = parseCustomPrice(form, "custom_price", event.unit_price, event.max_price);
+  return priceResult.ok ? priceResult.price : showError(priceResult.error);
+};
+
 const processTicketReservation = async (
   request: Request,
   event: EventWithCount,
@@ -434,19 +458,13 @@ const processTicketReservation = async (
     request,
     (message, status) => ticketResponseWithToken(event, ctx)(message, status),
     async (form) => {
-      if (isRegistrationClosed(event)) {
-        return showError(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
-      }
+      if (isRegistrationClosed(event)) return showError(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
 
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       const valResult = tryValidateTicketFields(
-        form,
-        event.fields,
-        (msg) => showError(msg),
-        isPaidEvent(event),
+        form, event.fields, (msg) => showError(msg), isPaidEvent(event),
       );
       if (valResult instanceof Response) return valResult;
-      const values = valResult;
 
       if (terms && form.get("agree_terms") !== "1") {
         return showError("You must agree to the terms and conditions");
@@ -455,44 +473,18 @@ const processTicketReservation = async (
       const answersResult = parseQuestionAnswers(form, questions);
       if (!answersResult.ok) return showError(answersResult.error);
 
-      // For daily events, validate the submitted date against available dates
-      let date: string | null = null;
-      if (event.event_type === "daily") {
-        ctx.dates = getAvailableDates(event, await getActiveHolidays());
-        date = validateSubmittedDate(form, ctx.dates);
-        if (!date) return showError("Please select a valid date");
-      }
-      const quantity = parseQuantity(form, event);
+      const dateResult = await validateDailyEventDate(form, event, ctx, showError);
+      if (dateResult instanceof Response) return dateResult;
 
-      // Parse custom price for pay-more events
-      let customUnitPrice: number | undefined;
-      if (event.can_pay_more) {
-        const priceResult = parseCustomPrice(
-          form,
-          "custom_price",
-          event.unit_price,
-          event.max_price,
-        );
-        if (!priceResult.ok) return showError(priceResult.error);
-        customUnitPrice = priceResult.price;
-      }
+      const priceResult = parseTicketCustomPrice(form, event, showError);
+      if (priceResult instanceof Response) return priceResult;
 
-      const contact = extractContact(values);
+      const contact = extractContact(valResult);
       const bookingResult = await processBooking(
-        event,
-        contact,
-        quantity,
-        date,
-        getBaseUrl(request),
-        customUnitPrice,
-        answersResult.answerIds,
+        event, contact, parseQuantity(form, event), dateResult,
+        getBaseUrl(request), priceResult, answersResult.answerIds,
       );
-      return bookingResultToWebResponse(
-        bookingResult,
-        event,
-        ctx,
-        answersResult.answerIds,
-      );
+      return bookingResultToWebResponse(bookingResult, event, ctx, answersResult.answerIds);
     },
   );
 };
