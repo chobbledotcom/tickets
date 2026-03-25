@@ -659,10 +659,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               expect(response.status).toBe(302);
               const location = response.headers.get("location")!;
               expect(location).toContain("form=settings-host-subdomain");
-              expectFlash(
-                response,
-                expect.stringContaining("is available"),
-              );
+              expectFlash(response, expect.stringContaining("is available"));
             },
           );
         });

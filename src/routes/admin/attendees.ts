@@ -169,6 +169,22 @@ const verifyAttendeeName = (
   return null;
 };
 
+/** Verify attendee name for an admin action, building URL and message from action path */
+const verifyNameForAction = (
+  form: FormParams,
+  data: AttendeeWithEvent,
+  eventId: number,
+  attendeeId: number,
+  action: string,
+  confirmLabel?: string,
+): Response | null =>
+  verifyAttendeeName(
+    form,
+    data.attendee.name,
+    `/admin/event/${eventId}/attendee/${attendeeId}/${action}`,
+    `Attendee name does not match. Please type the exact name to confirm${confirmLabel ? ` ${confirmLabel}` : ""}.`,
+  );
+
 /** Attendee form handler that receives typed IDs */
 type AttendeeFormAction = (
   data: AttendeeWithEvent,
@@ -202,11 +218,13 @@ const handleAdminAttendeeDeleteGet = attendeeGetRoute(
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAttendeeDelete = attendeeFormAction(
   async (data, _session, form, eventId, attendeeId) => {
-    const error = verifyAttendeeName(
+    const error = verifyNameForAction(
       form,
-      data.attendee.name,
-      `/admin/event/${eventId}/attendee/${attendeeId}/delete`,
-      "Attendee name does not match. Please type the exact name to confirm deletion.",
+      data,
+      eventId,
+      attendeeId,
+      "delete",
+      "deletion",
     );
     if (error) return error;
 
@@ -315,11 +333,13 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAttendeeRefund = attendeeFormAction(
   async (data, _session, form, eventId, attendeeId) => {
-    const nameError = verifyAttendeeName(
+    const nameError = verifyNameForAction(
       form,
-      data.attendee.name,
-      `/admin/event/${eventId}/attendee/${attendeeId}/refund`,
-      "Attendee name does not match. Please type the exact name to confirm refund.",
+      data,
+      eventId,
+      attendeeId,
+      "refund",
+      "refund",
     );
     if (nameError) return nameError;
 
@@ -728,11 +748,12 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
 const handleResendNotification = attendeeFormAction(
   async (data, _session, form, eventId, attendeeId) => {
-    const error = verifyAttendeeName(
+    const error = verifyNameForAction(
       form,
-      data.attendee.name,
-      `/admin/event/${eventId}/attendee/${attendeeId}/resend-notification`,
-      "Attendee name does not match. Please type the exact name to confirm.",
+      data,
+      eventId,
+      attendeeId,
+      "resend-notification",
     );
     if (error) return error;
 
