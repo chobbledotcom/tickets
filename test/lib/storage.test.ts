@@ -14,7 +14,13 @@ import {
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
-import { describeWithEnv, installUrlHandler, withFetchMock } from "#test-utils";
+import {
+  describeWithEnv,
+  installUrlHandler,
+  setTestEnv,
+  withFetchMock,
+  withStorageDisabled,
+} from "#test-utils";
 
 describeWithEnv(
   "storage",
@@ -26,8 +32,10 @@ describeWithEnv(
   },
   () => {
     describe("isStorageEnabled", () => {
-      test("returns false when neither env var is set", () => {
-        expect(isStorageEnabled()).toBe(false);
+      test("returns false when neither env var is set", async () => {
+        await withStorageDisabled(async () => {
+          expect(isStorageEnabled()).toBe(false);
+        });
       });
 
       describeWithEnv(
@@ -339,27 +347,43 @@ describeWithEnv(
           ];
 
           await withFetchMock(async (originalFetch) => {
-            const deletedUrls: string[] = [];
-            installUrlHandler(originalFetch, (url) => {
-              if (url.includes("storage.bunnycdn.com")) {
-                deletedUrls.push(url);
-                return Promise.resolve(
-                  new Response(JSON.stringify({ HttpCode: 200 }), {
-                    status: 200,
-                  }),
-                );
-              }
-              return null;
+            const restoreEnv = setTestEnv({
+              STORAGE_ZONE_NAME: "testzone",
+              STORAGE_ZONE_KEY: "testkey",
             });
+            try {
+              const deletedUrls: string[] = [];
+              installUrlHandler(originalFetch, (url) => {
+                if (url.includes("storage.bunnycdn.com")) {
+                  deletedUrls.push(url);
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ HttpCode: 200 }), {
+                      status: 200,
+                    }),
+                  );
+                }
+                return null;
+              });
 
-            await deleteAllEventStorageFiles(events);
+              await deleteAllEventStorageFiles(events);
 
-            expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(true);
-            expect(deletedUrls.some((u) => u.includes("att1.pdf"))).toBe(true);
-            expect(deletedUrls.some((u) => u.includes("img2.png"))).toBe(true);
-            expect(deletedUrls.some((u) => u.includes("att3.pdf"))).toBe(true);
-            // Empty URLs should not trigger delete calls
-            expect(deletedUrls).toHaveLength(4);
+              expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(
+                true,
+              );
+              expect(deletedUrls.some((u) => u.includes("att1.pdf"))).toBe(
+                true,
+              );
+              expect(deletedUrls.some((u) => u.includes("img2.png"))).toBe(
+                true,
+              );
+              expect(deletedUrls.some((u) => u.includes("att3.pdf"))).toBe(
+                true,
+              );
+              // Empty URLs should not trigger delete calls
+              expect(deletedUrls).toHaveLength(4);
+            } finally {
+              restoreEnv();
+            }
           });
         });
 
@@ -397,27 +421,35 @@ describeWithEnv(
           ];
 
           await withFetchMock(async (originalFetch) => {
-            const deletedUrls: string[] = [];
-            installUrlHandler(originalFetch, (url) => {
-              if (url.includes("fail.jpg")) {
-                return Promise.reject(new Error("CDN error"));
-              }
-              if (url.includes("storage.bunnycdn.com")) {
-                deletedUrls.push(url);
-                return Promise.resolve(
-                  new Response(JSON.stringify({ HttpCode: 200 }), {
-                    status: 200,
-                  }),
-                );
-              }
-              return null;
+            const restoreEnv = setTestEnv({
+              STORAGE_ZONE_NAME: "testzone",
+              STORAGE_ZONE_KEY: "testkey",
             });
+            try {
+              const deletedUrls: string[] = [];
+              installUrlHandler(originalFetch, (url) => {
+                if (url.includes("fail.jpg")) {
+                  return Promise.reject(new Error("CDN error"));
+                }
+                if (url.includes("storage.bunnycdn.com")) {
+                  deletedUrls.push(url);
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ HttpCode: 200 }), {
+                      status: 200,
+                    }),
+                  );
+                }
+                return null;
+              });
 
-            await deleteAllEventStorageFiles(events);
+              await deleteAllEventStorageFiles(events);
 
-            expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(
-              true,
-            );
+              expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(
+                true,
+              );
+            } finally {
+              restoreEnv();
+            }
           });
         });
       },

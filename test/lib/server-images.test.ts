@@ -27,6 +27,7 @@ import {
   withCdnProxy,
   withExpectedError,
   withFetchMock,
+  withStorageDisabled,
   withStorageMock,
 } from "#test-utils";
 
@@ -228,17 +229,19 @@ describeWithEnv(
         { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
         () => {
           test("ignores image", async () => {
-            const { event, cookie, csrfToken } = await setupEventAndLogin();
+            await withStorageDisabled(async () => {
+              const { event, cookie, csrfToken } = await setupEventAndLogin();
 
-            const response = await submitEditJpeg(
-              event.id,
-              cookie,
-              csrfToken,
-              "test.jpg",
-            );
-            expect(response.status).toBe(302);
-            const updated = await getEventWithCount(event.id);
-            expect(updated?.image_url).toBe("");
+              const response = await submitEditJpeg(
+                event.id,
+                cookie,
+                csrfToken,
+                "test.jpg",
+              );
+              expect(response.status).toBe(302);
+              const updated = await getEventWithCount(event.id);
+              expect(updated?.image_url).toBe("");
+            });
           });
         },
       );
@@ -571,7 +574,9 @@ describeWithEnv(
         { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
         () => {
           test("returns 404", async () => {
-            expect((await proxyRequest()).status).toBe(404);
+            await withStorageDisabled(async () => {
+              expect((await proxyRequest()).status).toBe(404);
+            });
           });
         },
       );
@@ -624,21 +629,23 @@ describeWithEnv(
         { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
         () => {
           test("ignores attachment", async () => {
-            const { event, cookie, csrfToken } = await setupEventAndLogin();
+            await withStorageDisabled(async () => {
+              const { event, cookie, csrfToken } = await setupEventAndLogin();
 
-            const response = await submitEditAttachment(
-              event.id,
-              cookie,
-              csrfToken,
-              {
-                name: "guide.pdf",
-                data: PDF_BYTES,
-                contentType: "application/pdf",
-              },
-            );
-            expect(response.status).toBe(302);
-            const updated = await getEventWithCount(event.id);
-            expect(updated?.attachment_url).toBe("");
+              const response = await submitEditAttachment(
+                event.id,
+                cookie,
+                csrfToken,
+                {
+                  name: "guide.pdf",
+                  data: PDF_BYTES,
+                  contentType: "application/pdf",
+                },
+              );
+              expect(response.status).toBe(302);
+              const updated = await getEventWithCount(event.id);
+              expect(updated?.attachment_url).toBe("");
+            });
           });
         },
       );

@@ -2521,6 +2521,24 @@ export const withCdnProxy = (
     }
   });
 
+/**
+ * Run a callback with storage env vars explicitly unset.
+ * Prevents concurrent tests from making isStorageEnabled() return true.
+ */
+export const withStorageDisabled = async (
+  fn: () => Promise<void>,
+): Promise<void> => {
+  const restoreEnv = setTestEnv({
+    STORAGE_ZONE_NAME: undefined,
+    STORAGE_ZONE_KEY: undefined,
+  });
+  try {
+    await fn();
+  } finally {
+    restoreEnv();
+  }
+};
+
 // ---------------------------------------------------------------------------
 // API key helpers — shared across admin API and API key tests
 // ---------------------------------------------------------------------------

@@ -11,7 +11,9 @@ import {
   describeWithEnv,
   installUrlHandler,
   mockRequest,
+  setTestEnv,
   withFetchMock,
+  withStorageDisabled,
 } from "#test-utils";
 
 describe("getMimeType", () => {
@@ -57,9 +59,12 @@ describeWithEnv(
   },
   () => {
     /** Enable storage by setting the required env vars */
+    let restoreStorage: (() => void) | undefined;
     const enableStorage = () => {
-      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+      restoreStorage = setTestEnv({
+        STORAGE_ZONE_NAME: "testzone",
+        STORAGE_ZONE_KEY: "testkey",
+      });
     };
 
     /** Create an event+attendee with an attachment configured */
@@ -83,12 +88,13 @@ describeWithEnv(
       return await signAttachmentUrl(eventId, attendeeId);
     };
 
-    /** Mock CDN fetch to return encrypted data */
+    /** Mock CDN fetch to return encrypted data, pinning storage env vars */
     const withCdnMock = (
       data: Uint8Array,
       fn: () => Promise<void>,
     ): Promise<void> =>
       withFetchMock(async (originalFetch) => {
+        enableStorage();
         const encrypted = await encryptBytes(data);
         installUrlHandler(originalFetch, (url) => {
           if (url.includes("storage.bunnycdn.com")) {
@@ -101,10 +107,12 @@ describeWithEnv(
       });
 
     test("returns 404 when storage is not enabled", async () => {
-      const { eventId, attendeeId } = await setupAttachment();
-      const path = await signUrl(eventId, attendeeId);
-      const response = await handleRequest(mockRequest(path));
-      expect(response.status).toBe(404);
+      await withStorageDisabled(async () => {
+        const { eventId, attendeeId } = await setupAttachment();
+        const path = await signUrl(eventId, attendeeId);
+        const response = await handleRequest(mockRequest(path));
+        expect(response.status).toBe(404);
+      });
     });
 
     test("returns 403 when query params are missing", async () => {
