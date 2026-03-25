@@ -13,6 +13,7 @@ import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
+import { runWithStorageConfig } from "#lib/storage.ts";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
@@ -2479,65 +2480,48 @@ export const cdnOkResponse = (): Response =>
 export const withStorageMock = (
   fn: (fetchCalls: string[]) => Promise<void>,
 ): Promise<void> =>
-  withFetchMock(async (originalFetch) => {
-    const restoreEnv = setTestEnv({
-      STORAGE_ZONE_NAME: "testzone",
-      STORAGE_ZONE_KEY: "testkey",
-    });
-    try {
-      const fetchCalls: string[] = [];
-      installUrlHandler(originalFetch, (url) => {
-        fetchCalls.push(url);
-        if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
-          return Promise.resolve(cdnOkResponse());
-        }
-        return null;
-      });
-      await fn(fetchCalls);
-    } finally {
-      restoreEnv();
-    }
-  });
+  runWithStorageConfig(
+    { zoneName: "testzone", zoneKey: "testkey" },
+    () =>
+      withFetchMock(async (originalFetch) => {
+        const fetchCalls: string[] = [];
+        installUrlHandler(originalFetch, (url) => {
+          fetchCalls.push(url);
+          if (
+            url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")
+          ) {
+            return Promise.resolve(cdnOkResponse());
+          }
+          return null;
+        });
+        await fn(fetchCalls);
+      }),
+  );
 
 /** Mock fetch where CDN requests return a fixed response, others pass through */
 export const withCdnProxy = (
   respond: () => Response,
   fn: () => Promise<void>,
 ): Promise<void> =>
-  withFetchMock(async (originalFetch) => {
-    const restoreEnv = setTestEnv({
-      STORAGE_ZONE_NAME: "testzone",
-      STORAGE_ZONE_KEY: "testkey",
-    });
-    try {
-      installUrlHandler(originalFetch, (url) =>
-        url.includes("storage.bunnycdn.com")
-          ? Promise.resolve(respond())
-          : null,
-      );
-      await fn();
-    } finally {
-      restoreEnv();
-    }
-  });
+  runWithStorageConfig(
+    { zoneName: "testzone", zoneKey: "testkey" },
+    () =>
+      withFetchMock(async (originalFetch) => {
+        installUrlHandler(originalFetch, (url) =>
+          url.includes("storage.bunnycdn.com")
+            ? Promise.resolve(respond())
+            : null,
+        );
+        await fn();
+      }),
+  );
 
 /**
- * Run a callback with storage env vars explicitly unset.
- * Prevents concurrent tests from making isStorageEnabled() return true.
+ * Run a callback with storage explicitly disabled.
+ * Uses AsyncLocalStorage so concurrent tests cannot interfere.
  */
-export const withStorageDisabled = async (
-  fn: () => Promise<void>,
-): Promise<void> => {
-  const restoreEnv = setTestEnv({
-    STORAGE_ZONE_NAME: undefined,
-    STORAGE_ZONE_KEY: undefined,
-  });
-  try {
-    await fn();
-  } finally {
-    restoreEnv();
-  }
-};
+export const withStorageDisabled = <T>(fn: () => T): T =>
+  runWithStorageConfig({ zoneName: "", zoneKey: "" }, fn);
 
 // ---------------------------------------------------------------------------
 // API key helpers — shared across admin API and API key tests

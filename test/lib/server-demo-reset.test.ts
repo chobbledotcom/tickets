@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
+import { runWithStorageConfig } from "#lib/storage.ts";
 import { handleRequest } from "#routes";
 import {
   RESET_DATABASE_PHRASE,
@@ -150,10 +151,6 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
 
     test("deletes storage files for all events during reset", async () => {
       setDemoModeForTest(true);
-      const restore = setTestEnv({
-        STORAGE_ZONE_NAME: "testzone",
-        STORAGE_ZONE_KEY: "testkey",
-      });
 
       const event = await createTestEvent({ maxAttendees: 10 });
       await eventsTable.update(event.id, {
@@ -162,32 +159,37 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
         attachmentName: "doc.pdf",
       });
 
-      await withFetchMock(async (originalFetch) => {
-        const deletedUrls: string[] = [];
-        installUrlHandler(originalFetch, (url) => {
-          if (url.includes("storage.bunnycdn.com")) {
-            deletedUrls.push(url);
-            return Promise.resolve(
-              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
-            );
-          }
-          return null;
-        });
+      await runWithStorageConfig(
+        { zoneName: "testzone", zoneKey: "testkey" },
+        () =>
+          withFetchMock(async (originalFetch) => {
+            const deletedUrls: string[] = [];
+            installUrlHandler(originalFetch, (url) => {
+              if (url.includes("storage.bunnycdn.com")) {
+                deletedUrls.push(url);
+                return Promise.resolve(
+                  new Response(JSON.stringify({ HttpCode: 200 }), {
+                    status: 200,
+                  }),
+                );
+              }
+              return null;
+            });
 
-        const response = await submitDemoResetForm({
-          confirm_phrase: RESET_DATABASE_PHRASE,
-        });
+            const response = await submitDemoResetForm({
+              confirm_phrase: RESET_DATABASE_PHRASE,
+            });
 
-        expectRedirectWithFlash("/setup/", "Database reset")(response);
-        expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
-          true,
-        );
-        expect(
-          deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
-        ).toBe(true);
-      });
+            expectRedirectWithFlash("/setup/", "Database reset")(response);
+            expect(
+              deletedUrls.some((u) => u.includes("reset-image.jpg")),
+            ).toBe(true);
+            expect(
+              deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
+            ).toBe(true);
+          }),
+      );
 
-      restore();
       invalidateTestDbCache();
     });
   });

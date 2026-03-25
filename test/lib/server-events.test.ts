@@ -7,6 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { nowMs } from "#lib/now.ts";
+import { runWithStorageConfig } from "#lib/storage.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
 import { formatCountdown, withCookie } from "#routes/utils.ts";
@@ -3256,37 +3257,37 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         attachmentUrl: "uuid-guide.pdf",
         attachmentName: "Event Guide.pdf",
       });
-      const restore = setTestEnv({
-        STORAGE_ZONE_NAME: "testzone",
-        STORAGE_ZONE_KEY: "testkey",
-      });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
-      });
-      const html = await response.text();
-      expect(html).toContain("attachment-info");
-      expect(html).toContain("Event Guide.pdf");
-      expect(html).toContain("Remove Attachment");
-
-      restore();
+      await runWithStorageConfig(
+        { zoneName: "testzone", zoneKey: "testkey" },
+        async () => {
+          const response = await awaitTestRequest(
+            `/admin/event/${event.id}/edit`,
+            { cookie },
+          );
+          const html = await response.text();
+          expect(html).toContain("attachment-info");
+          expect(html).toContain("Event Guide.pdf");
+          expect(html).toContain("Remove Attachment");
+        },
+      );
     });
 
     test("admin event edit page does not show attachment info when empty", async () => {
       const { event, cookie } = await setupEventAndLogin();
-      const restore = setTestEnv({
-        STORAGE_ZONE_NAME: "testzone",
-        STORAGE_ZONE_KEY: "testkey",
-      });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
-      });
-      const html = await response.text();
-      expect(html).not.toContain("attachment-info");
-      expect(html).not.toContain("Remove Attachment");
-
-      restore();
+      await runWithStorageConfig(
+        { zoneName: "testzone", zoneKey: "testkey" },
+        async () => {
+          const response = await awaitTestRequest(
+            `/admin/event/${event.id}/edit`,
+            { cookie },
+          );
+          const html = await response.text();
+          expect(html).not.toContain("attachment-info");
+          expect(html).not.toContain("Remove Attachment");
+        },
+      );
     });
   });
 });

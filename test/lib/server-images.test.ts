@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#lib/crypto.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { eventsTable, getEvent, getEventWithCount } from "#lib/db/events.ts";
+import { runWithStorageConfig } from "#lib/storage.ts";
 import { handleRequest } from "#routes";
 import {
   cdnOkResponse,
@@ -726,28 +727,27 @@ describeWithEnv(
       test("reports error when attachment upload fails", async () => {
         const { event, cookie, csrfToken } = await setupEventAndLogin();
 
-        const restoreStorage = setTestEnv({
-          STORAGE_ZONE_NAME: "testzone",
-          STORAGE_ZONE_KEY: "testkey",
-        });
-        await withFetchMock(async (originalFetch) => {
-          installUrlHandler(originalFetch, () =>
-            Promise.reject(new Error("CDN unreachable")),
-          );
+        await runWithStorageConfig(
+          { zoneName: "testzone", zoneKey: "testkey" },
+          () =>
+            withFetchMock(async (originalFetch) => {
+              installUrlHandler(originalFetch, () =>
+                Promise.reject(new Error("CDN unreachable")),
+              );
 
-          const response = await submitEditAttachment(
-            event.id,
-            cookie,
-            csrfToken,
-            {
-              name: "guide.pdf",
-              data: PDF_BYTES,
-              contentType: "application/pdf",
-            },
-          );
-          expectImageErrorRedirect(response, "upload failed");
-        });
-        restoreStorage();
+              const response = await submitEditAttachment(
+                event.id,
+                cookie,
+                csrfToken,
+                {
+                  name: "guide.pdf",
+                  data: PDF_BYTES,
+                  contentType: "application/pdf",
+                },
+              );
+              expectImageErrorRedirect(response, "upload failed");
+            }),
+        );
       });
     });
 

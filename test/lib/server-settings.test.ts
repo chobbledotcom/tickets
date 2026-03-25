@@ -9,6 +9,7 @@ import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { squareApi } from "#lib/square.ts";
+import { runWithStorageConfig } from "#lib/storage.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -1250,11 +1251,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("deletes storage files for all events during admin reset", async () => {
-      const restore = setTestEnv({
-        STORAGE_ZONE_NAME: "testzone",
-        STORAGE_ZONE_KEY: "testkey",
-      });
-
       const event = await createTestEvent({ maxAttendees: 10 });
       await eventsTable.update(event.id, {
         imageUrl: "admin-reset-image.jpg",
@@ -1262,21 +1258,26 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         attachmentName: "doc.pdf",
       });
 
-      await withFetchMock(async (originalFetch) => {
-        const deletedUrls: string[] = [];
-        installUrlHandler(originalFetch, (url) => {
-          if (url.includes("storage.bunnycdn.com")) {
-            deletedUrls.push(url);
-            return Promise.resolve(
-              new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
-            );
-          }
-          return null;
-        });
+      await runWithStorageConfig(
+        { zoneName: "testzone", zoneKey: "testkey" },
+        () =>
+          withFetchMock(async (originalFetch) => {
+            const deletedUrls: string[] = [];
+            installUrlHandler(originalFetch, (url) => {
+              if (url.includes("storage.bunnycdn.com")) {
+                deletedUrls.push(url);
+                return Promise.resolve(
+                  new Response(JSON.stringify({ HttpCode: 200 }), {
+                    status: 200,
+                  }),
+                );
+              }
+              return null;
+            });
 
-        await assertFormRedirect(
-          "/admin/settings/reset-database",
-          {
+            await assertFormRedirect(
+              "/admin/settings/reset-database",
+              {
             confirm_phrase:
               "The site will be fully reset and all data will be lost.",
           },
@@ -1285,13 +1286,15 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         );
         expect(
           deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
-        ).toBe(true);
-        expect(
-          deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),
-        ).toBe(true);
-      });
+            ).toBe(true);
+            expect(
+              deletedUrls.some((u) =>
+                u.includes("admin-reset-attachment.pdf")
+              ),
+            ).toBe(true);
+          }),
+      );
 
-      restore();
       invalidateTestDbCache();
     });
   });

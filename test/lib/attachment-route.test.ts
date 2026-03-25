@@ -11,10 +11,10 @@ import {
   describeWithEnv,
   installUrlHandler,
   mockRequest,
-  setTestEnv,
   withFetchMock,
   withStorageDisabled,
 } from "#test-utils";
+import { runWithStorageConfig } from "#lib/storage.ts";
 
 describe("getMimeType", () => {
   test("returns application/pdf for .pdf", () => {
@@ -58,15 +58,6 @@ describeWithEnv(
     encryptionKey: true,
   },
   () => {
-    /** Enable storage by setting the required env vars */
-    let restoreStorage: (() => void) | undefined;
-    const enableStorage = () => {
-      restoreStorage = setTestEnv({
-        STORAGE_ZONE_NAME: "testzone",
-        STORAGE_ZONE_KEY: "testkey",
-      });
-    };
-
     /** Create an event+attendee with an attachment configured */
     const setupAttachment = async () => {
       const { event, attendee } = await createTestAttendeeWithToken(
@@ -88,23 +79,26 @@ describeWithEnv(
       return await signAttachmentUrl(eventId, attendeeId);
     };
 
-    /** Mock CDN fetch to return encrypted data, pinning storage env vars */
+    /** Mock CDN fetch to return encrypted data with isolated storage config */
     const withCdnMock = (
       data: Uint8Array,
       fn: () => Promise<void>,
     ): Promise<void> =>
-      withFetchMock(async (originalFetch) => {
-        enableStorage();
-        const encrypted = await encryptBytes(data);
-        installUrlHandler(originalFetch, (url) => {
-          if (url.includes("storage.bunnycdn.com")) {
-            // deno-lint-ignore no-explicit-any
-            return Promise.resolve(new Response(encrypted as any));
-          }
-          return null;
-        });
-        await fn();
-      });
+      runWithStorageConfig(
+        { zoneName: "testzone", zoneKey: "testkey" },
+        () =>
+          withFetchMock(async (originalFetch) => {
+            const encrypted = await encryptBytes(data);
+            installUrlHandler(originalFetch, (url) => {
+              if (url.includes("storage.bunnycdn.com")) {
+                // deno-lint-ignore no-explicit-any
+                return Promise.resolve(new Response(encrypted as any));
+              }
+              return null;
+            });
+            await fn();
+          }),
+      );
 
     test("returns 404 when storage is not enabled", async () => {
       await withStorageDisabled(async () => {
@@ -115,58 +109,69 @@ describeWithEnv(
       });
     });
 
+    /** Shorthand for running a test body with storage enabled */
+    const withStorage = <T>(fn: () => T): T =>
+      runWithStorageConfig(
+        { zoneName: "testzone", zoneKey: "testkey" },
+        fn,
+      );
+
     test("returns 403 when query params are missing", async () => {
-      enableStorage();
-      const response = await handleRequest(mockRequest("/attachment/1"));
-      expect(response.status).toBe(403);
+      await withStorage(async () => {
+        const response = await handleRequest(mockRequest("/attachment/1"));
+        expect(response.status).toBe(403);
+      });
     });
 
     test("returns 403 when attendee ID is not a number", async () => {
-      enableStorage();
-      const response = await handleRequest(
-        mockRequest("/attachment/1?a=abc&exp=123&sig=test"),
-      );
-      expect(response.status).toBe(403);
+      await withStorage(async () => {
+        const response = await handleRequest(
+          mockRequest("/attachment/1?a=abc&exp=123&sig=test"),
+        );
+        expect(response.status).toBe(403);
+      });
     });
 
     test("returns 403 when signature is invalid", async () => {
-      enableStorage();
-      const { eventId, attendeeId } = await setupAttachment();
-      const response = await handleRequest(
-        mockRequest(
-          `/attachment/${eventId}?a=${attendeeId}&exp=9999999999&sig=invalidsig`,
-        ),
-      );
-      expect(response.status).toBe(403);
+      await withStorage(async () => {
+        const { eventId, attendeeId } = await setupAttachment();
+        const response = await handleRequest(
+          mockRequest(
+            `/attachment/${eventId}?a=${attendeeId}&exp=9999999999&sig=invalidsig`,
+          ),
+        );
+        expect(response.status).toBe(403);
+      });
     });
 
     test("returns 404 when event has no attachment", async () => {
-      enableStorage();
-      const { event, attendee } = await createTestAttendeeWithToken(
-        "No Attach",
-        "noattach@example.com",
-      );
-      const path = await signUrl(event.id, attendee.id);
-      const response = await handleRequest(mockRequest(path));
-      expect(response.status).toBe(404);
+      await withStorage(async () => {
+        const { event, attendee } = await createTestAttendeeWithToken(
+          "No Attach",
+          "noattach@example.com",
+        );
+        const path = await signUrl(event.id, attendee.id);
+        const response = await handleRequest(mockRequest(path));
+        expect(response.status).toBe(404);
+      });
     });
 
     test("returns 403 when attendee does not belong to event", async () => {
-      enableStorage();
-      const { eventId } = await setupAttachment();
-      // Create a second attendee on a different event
-      const { attendee: otherAttendee } = await createTestAttendeeWithToken(
-        "Other User",
-        "other@example.com",
-      );
-      // Sign with the first event but the other attendee
-      const path = await signUrl(eventId, otherAttendee.id);
-      const response = await handleRequest(mockRequest(path));
-      expect(response.status).toBe(403);
+      await withStorage(async () => {
+        const { eventId } = await setupAttachment();
+        // Create a second attendee on a different event
+        const { attendee: otherAttendee } = await createTestAttendeeWithToken(
+          "Other User",
+          "other@example.com",
+        );
+        // Sign with the first event but the other attendee
+        const path = await signUrl(eventId, otherAttendee.id);
+        const response = await handleRequest(mockRequest(path));
+        expect(response.status).toBe(403);
+      });
     });
 
     test("serves decrypted file with correct Content-Type and Content-Disposition", async () => {
-      enableStorage();
       const { eventId, attendeeId } = await setupAttachment();
       const path = await signUrl(eventId, attendeeId);
       const fileContent = new TextEncoder().encode("hello pdf content");
@@ -184,7 +189,6 @@ describeWithEnv(
     });
 
     test("increments attachment_downloads counter", async () => {
-      enableStorage();
       const { eventId, attendeeId } = await setupAttachment();
       const path = await signUrl(eventId, attendeeId);
       const fileContent = new TextEncoder().encode("data");
@@ -201,24 +205,26 @@ describeWithEnv(
     });
 
     test("returns 404 when CDN download fails", async () => {
-      enableStorage();
       const { eventId, attendeeId } = await setupAttachment();
       const path = await signUrl(eventId, attendeeId);
 
-      await withFetchMock(async (originalFetch) => {
-        installUrlHandler(originalFetch, (url) => {
-          if (url.includes("storage.bunnycdn.com")) {
-            return Promise.resolve(new Response("Not Found", { status: 404 }));
-          }
-          return null;
-        });
-        const response = await handleRequest(mockRequest(path));
-        expect(response.status).toBe(404);
-      });
+      await withStorage(() =>
+        withFetchMock(async (originalFetch) => {
+          installUrlHandler(originalFetch, (url) => {
+            if (url.includes("storage.bunnycdn.com")) {
+              return Promise.resolve(
+                new Response("Not Found", { status: 404 }),
+              );
+            }
+            return null;
+          });
+          const response = await handleRequest(mockRequest(path));
+          expect(response.status).toBe(404);
+        })
+      );
     });
 
     test("returns public cache control for CDN caching", async () => {
-      enableStorage();
       const { eventId, attendeeId } = await setupAttachment();
       const path = await signUrl(eventId, attendeeId);
       const fileContent = new TextEncoder().encode("data");
