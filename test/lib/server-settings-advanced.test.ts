@@ -742,6 +742,29 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             },
           );
         });
+
+        test("rejects registration when a task is already in progress", async () => {
+          setBunnyDnsEnv();
+          await settings.update.currentTask("some-other-task");
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/host-subdomain",
+                {
+                  subdomain: "myevent",
+                  save: "1",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            expect(response.status).toBe(409);
+            const html = await response.text();
+            expect(html).toContain("Another task is already in progress");
+          } finally {
+            await settings.update.currentTask("");
+          }
+        });
       });
     },
   );
