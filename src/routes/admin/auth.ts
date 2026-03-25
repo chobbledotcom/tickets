@@ -20,6 +20,7 @@ import { loginResponse } from "#routes/admin/dashboard.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
+  type FormParams,
   generateSecureToken,
   getAuthenticatedSession,
   getClientIp,
@@ -64,6 +65,45 @@ const createLoginSession = async (
 /**
  * Handle POST /admin/login
  */
+/** Validate CSRF token and rate limiting, returning error response if failed */
+const validateLoginPrerequisites = async (
+  form: FormParams,
+  clientIp: string,
+): Promise<Response | null> => {
+  const csrfForm = form.getString("csrf_token");
+  if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
+    return loginResponse("Invalid or expired form. Please try again.", 403);
+  }
+  if (await isLoginRateLimited(clientIp)) {
+    return loginResponse("Too many login attempts. Please try again later.", 429);
+  }
+  return null;
+};
+
+/** Authenticate user credentials, returning the user and password hash or error */
+const authenticateUser = async (
+  username: string,
+  password: string,
+  clientIp: string,
+): Promise<
+  | { ok: true; user: Awaited<ReturnType<typeof getUserByUsername>> & object; passwordHash: CryptoKey }
+  | { ok: false; response: Response }
+> => {
+  const user = await getUserByUsername(username);
+  if (!user) {
+    await recordFailedLogin(clientIp);
+    return { ok: false, response: loginResponse("Invalid credentials", 401) };
+  }
+
+  const passwordHash = await verifyUserPassword(user, password);
+  if (!passwordHash) {
+    await recordFailedLogin(clientIp);
+    return { ok: false, response: loginResponse("Invalid credentials", 401) };
+  }
+
+  return { ok: true, user, passwordHash };
+};
+
 const handleAdminLogin = async (
   request: Request,
   _params: Record<string, never>,
@@ -72,49 +112,20 @@ const handleAdminLogin = async (
   await randomDelay();
 
   const form = await parseFormData(request);
-
-  // Validate login CSRF token (signed token pattern)
-  const csrfForm = form.getString("csrf_token");
-  if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
-    return loginResponse("Invalid or expired form. Please try again.", 403);
-  }
-
   const clientIp = getClientIp(request, server);
 
-  // Check rate limiting
-  if (await isLoginRateLimited(clientIp)) {
-    return loginResponse(
-      "Too many login attempts. Please try again later.",
-      429,
-    );
-  }
+  const prereqError = await validateLoginPrerequisites(form, clientIp);
+  if (prereqError) return prereqError;
 
   const validation = validateForm<LoginFormValues>(form, loginFields);
+  if (!validation.valid) return loginResponse(validation.error, 400);
 
-  if (!validation.valid) {
-    return loginResponse(validation.error, 400);
-  }
+  const auth = await authenticateUser(validation.values.username, validation.values.password, clientIp);
+  if (!auth.ok) return auth.response;
 
-  const { username, password } = validation.values;
-
-  // Look up user by username
-  const user = await getUserByUsername(username);
-  if (!user) {
-    await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
-  }
-
-  // Verify password (decrypt stored hash, then verify)
-  const passwordHash = await verifyUserPassword(user, password);
-  if (!passwordHash) {
-    await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
-  }
-
-  // Clear failed attempts on successful login
+  const { user, passwordHash } = auth;
   await clearLoginAttempts(clientIp);
 
-  // Check if user has a wrapped data key (fully activated)
   if (!user.wrapped_data_key) {
     return loginResponse(
       "Your account has not been activated yet. Please contact the site owner.",
@@ -122,13 +133,11 @@ const handleAdminLogin = async (
     );
   }
 
-  // Unwrap DATA_KEY using password-derived KEK
   const kek = await deriveKEK(passwordHash);
   let dataKey: CryptoKey;
   try {
     dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
-    // KEK mismatch - this shouldn't happen if password verification passed
     return loginResponse("Invalid credentials", 401);
   }
 

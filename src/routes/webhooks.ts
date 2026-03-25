@@ -304,6 +304,16 @@ type EventValidation =
   | { ok: true; event: EventWithCount }
   | { ok: false; error: string; status?: number };
 
+/** Build event validation error with optional event name prefix */
+const eventValidationError = (
+  name: string | undefined,
+  withName: string,
+  withoutName: string,
+): EventValidation => ({
+  ok: false,
+  error: name ? withName : withoutName,
+});
+
 const validateEventForPayment = async (
   eventId: number,
   includeEventName = false,
@@ -312,20 +322,18 @@ const validateEventForPayment = async (
   if (!event) return { ok: false, error: "Event not found", status: 404 };
   const name = includeEventName ? event.name : undefined;
   if (!event.active) {
-    return {
-      ok: false,
-      error: name
-        ? `${name} is no longer accepting registrations.`
-        : "This event is no longer accepting registrations.",
-    };
+    return eventValidationError(
+      name,
+      `${name} is no longer accepting registrations.`,
+      "This event is no longer accepting registrations.",
+    );
   }
   if (isRegistrationClosed(event)) {
-    return {
-      ok: false,
-      error: name
-        ? `Sorry, registration for ${name} closed while you were completing payment.`
-        : "Sorry, registration closed while you were completing payment.",
-    };
+    return eventValidationError(
+      name,
+      `Sorry, registration for ${name} closed while you were completing payment.`,
+      "Sorry, registration closed while you were completing payment.",
+    );
   }
   return { ok: true, event };
 };
@@ -509,20 +517,31 @@ const validateIntentItems = async (
   return { ok: true, items: validatedItems };
 };
 
+/** Check per-item price mismatch, returning the first mismatched item or null */
+const findPerItemMismatch = (
+  validatedItems: ValidatedItem[],
+): ValidatedItem | null => {
+  for (const vi of validatedItems) {
+    if (hasPriceMismatch(vi.item.p, vi.expectedPrice, vi.event, 0, vi.item.q)) {
+      return vi;
+    }
+  }
+  return null;
+};
+
 /** Validate per-item prices against expected event prices */
-const validatePerItemPrices = (
+const validatePerItemPrices = async (
   session: ValidatedPaymentSession,
   validatedItems: ValidatedItem[],
   bookingFeePercent: number,
-): PaymentResult | null => {
-  for (const { item, event, expectedPrice } of validatedItems) {
-    if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
-      return priceMismatchRefund(
-        session,
-        `Per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
-        event.id,
-      ) as unknown as PaymentResult;
-    }
+): Promise<PaymentResult | null> => {
+  const mismatch = findPerItemMismatch(validatedItems);
+  if (mismatch) {
+    return priceMismatchRefund(
+      session,
+      `Per-item price mismatch for event ${mismatch.event.id}: metadata p=${mismatch.item.p} but expected ${mismatch.expectedPrice} (can_pay_more=${mismatch.event.can_pay_more})`,
+      mismatch.event.id,
+    );
   }
   const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
   const expectedCartTotal =
@@ -532,18 +551,18 @@ const validatePerItemPrices = (
       session,
       `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
       validatedItems[0]?.event.id,
-    ) as unknown as PaymentResult;
+    );
   }
   return null;
 };
 
 /** Validate single-item checkout price */
-const validateSingleItemPrice = (
+const validateSingleItemPrice = async (
   session: ValidatedPaymentSession,
   validatedItems: ValidatedItem[],
   intent: BookingIntent,
   bookingFeePercent: number,
-): PaymentResult | null => {
+): Promise<PaymentResult | null> => {
   const firstValidated = validatedItems[0] as ValidatedItem;
   const { event, expectedPrice } = firstValidated;
   const firstItem = intent.items[0] as BookingItem;
@@ -552,9 +571,23 @@ const validateSingleItemPrice = (
       session,
       `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
       event.id,
-    ) as unknown as PaymentResult;
+    );
   }
   return null;
+};
+
+/** Compute the price paid for an item based on checkout context */
+const computePricePaid = (
+  item: BookingItem,
+  event: EventWithCount,
+  expectedPrice: number,
+  hasPerItemPrices: boolean,
+  isSingleItemCheckout: boolean,
+  amountTotal: number,
+): number => {
+  if (hasPerItemPrices) return item.p;
+  if (isSingleItemCheckout && event.can_pay_more) return amountTotal;
+  return expectedPrice;
 };
 
 /** Create attendees for each validated item, rolling back on failure */
@@ -570,11 +603,9 @@ const createAttendeesForItems = async (
 > => {
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   for (const { item, event, expectedPrice } of validatedItems) {
-    const pricePaid = hasPerItemPrices
-      ? item.p
-      : isSingleItemCheckout && event.can_pay_more
-        ? session.amountTotal
-        : expectedPrice;
+    const pricePaid = computePricePaid(
+      item, event, expectedPrice, hasPerItemPrices, isSingleItemCheckout, session.amountTotal,
+    );
 
     const result = await createAttendeeAtomic({
       eventId: item.e,
@@ -613,6 +644,40 @@ const saveEventAnswers = async (
   }
 };
 
+/** Handle already-reserved session: return appropriate result */
+const handleExistingReservation = (
+  reservation: { existing: { attendee_id: number | null } },
+  intent: BookingIntent,
+): PaymentResult => {
+  const { existing } = reservation;
+  if (existing.attendee_id !== null) {
+    return alreadyProcessedResult(intent.items[0]?.e, existing);
+  }
+  return {
+    success: false,
+    error: "Payment is being processed. Please wait a moment and refresh.",
+    status: 409,
+  };
+};
+
+/** Validate prices based on checkout type (per-item, single-item, or cart) */
+const validatePrices = (
+  session: ValidatedPaymentSession,
+  validatedItems: ValidatedItem[],
+  intent: BookingIntent,
+  isSingleItemCheckout: boolean,
+): Promise<PaymentResult | null> => {
+  const hasPerItemPrices = intent.items.some((item) => item.p > 0);
+  const bookingFeePercent = getBookingFee();
+  if (hasPerItemPrices) {
+    return validatePerItemPrices(session, validatedItems, bookingFeePercent);
+  }
+  if (isSingleItemCheckout) {
+    return validateSingleItemPrice(session, validatedItems, intent, bookingFeePercent);
+  }
+  return Promise.resolve(null);
+};
+
 const processPaymentSession = async (
   sessionId: string,
   data: { session: ValidatedPaymentSession; intent: BookingIntent },
@@ -621,40 +686,22 @@ const processPaymentSession = async (
   const { session, intent } = data;
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
-
   if (!reservation.reserved) {
-    const { existing } = reservation;
-    if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.items[0]?.e, existing);
-    }
-    return {
-      success: false,
-      error: "Payment is being processed. Please wait a moment and refresh.",
-      status: 409,
-    };
+    return handleExistingReservation(reservation, intent);
   }
 
   // Phase 2: Validate events and create attendees atomically
   const isSingleItemCheckout = !isCartSession(session.metadata);
   const itemsResult = await validateIntentItems(session, intent, !isSingleItemCheckout);
   if (!("ok" in itemsResult)) return itemsResult;
-  const validatedItems = itemsResult.items;
 
-  // Price validation
-  const hasPerItemPrices = intent.items.some((item) => item.p > 0);
-  const bookingFeePercent = getBookingFee();
-
-  if (hasPerItemPrices) {
-    const priceError = await validatePerItemPrices(session, validatedItems, bookingFeePercent);
-    if (priceError) return priceError;
-  } else if (isSingleItemCheckout) {
-    const priceError = await validateSingleItemPrice(session, validatedItems, intent, bookingFeePercent);
-    if (priceError) return priceError;
-  }
+  const priceError = await validatePrices(session, itemsResult.items, intent, isSingleItemCheckout);
+  if (priceError) return priceError;
 
   // Create attendees
   const createResult = await createAttendeesForItems(
-    validatedItems, intent, session, hasPerItemPrices, isSingleItemCheckout,
+    itemsResult.items, intent, session,
+    intent.items.some((item) => item.p > 0), isSingleItemCheckout,
   );
   if (!("ok" in createResult)) return createResult;
   const createdAttendees = createResult.attendees;
@@ -748,6 +795,14 @@ const processSessionAndRedirect = async (
   );
 };
 
+/** Get thank-you URL for a single-event purchase, or empty string */
+const getThankYouUrl = async (eventIds: number[]): Promise<string> => {
+  const uniqueIds = unique(eventIds);
+  if (uniqueIds.length !== 1) return "";
+  const event = await getEvent(uniqueIds[0] as number);
+  return event ? event.thank_you_url : "";
+};
+
 /**
  * Render success page from verified tokens param.
  */
@@ -773,15 +828,7 @@ const renderSuccessFromTokens = async (
   }
 
   const ticketUrl = `/t/${verifiedTokens.join("+")}`;
-
-  // Only use thank_you_url for single-event purchases
-  const uniqueEventIds = unique(eventIds);
-  let thankYouUrl = "";
-  if (uniqueEventIds.length === 1) {
-    const event = await getEvent(uniqueEventIds[0] as number);
-    if (event) thankYouUrl = event.thank_you_url;
-  }
-
+  const thankYouUrl = await getThankYouUrl(eventIds);
   const fromEmail = await getFromEmailIfConfigured();
 
   return htmlResponse(
@@ -871,6 +918,89 @@ const getWebhookSignatureHeader = (request: Request): string | null =>
   request.headers.get("x-square-hmacsha256-signature") ??
   null;
 
+/** Verify webhook signature and get the verified event, or return error response */
+type WebhookVerifyResult =
+  | { ok: true; provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object; event: { type: string } & Record<string, unknown> }
+  | { ok: false; response: Response };
+
+const verifyWebhookRequest = async (
+  payload: string,
+  payloadBytes: Uint8Array,
+  signature: string,
+): Promise<WebhookVerifyResult> => {
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Webhook received but payment provider not configured",
+    });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
+    return { ok: false, response: plainResponse("Payment provider not configured", 400) };
+  }
+
+  const webhookUrl = `https://${getEffectiveDomain()}/payment/webhook`;
+  const verification = await provider.verifyWebhookSignature(
+    payload, signature, webhookUrl, payloadBytes,
+  );
+  if (!verification.valid) {
+    logError({
+      code: ErrorCode.PAYMENT_SIGNATURE,
+      detail: `Webhook signature verification failed: ${verification.error}`,
+    });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
+    return { ok: false, response: plainResponse(verification.error, 400) };
+  }
+
+  return { ok: true, provider, event: verification.event };
+};
+
+/** Resolve and validate the payment session from a webhook event */
+type WebhookSessionResult =
+  | { ok: true; session: ValidatedPaymentSession; intent: BookingIntent }
+  | { ok: false; response: Response };
+
+const resolveWebhookSession = async (
+  provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
+  event: Record<string, unknown>,
+  payload: string,
+): Promise<WebhookSessionResult> => {
+  const sessionResult = await provider.resolveWebhookSession(event);
+  if (sessionResult === "skip") {
+    return { ok: false, response: webhookAckResponse({ status: "pending" }) };
+  }
+  if (!sessionResult) {
+    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Ignoring webhook for unrecognized payment session" });
+    logDebug("Webhook", `Ignored payload: ${payload}`);
+    return { ok: false, response: webhookAckResponse() };
+  }
+
+  if (sessionResult.metadata._origin !== getEffectiveDomain()) {
+    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Ignoring webhook for unrecognized payment session" });
+    logDebug("Webhook", `Ignored payload: ${payload}`);
+    return { ok: false, response: webhookAckResponse() };
+  }
+
+  if (sessionResult.paymentStatus !== "paid") {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Webhook session not yet paid (session=${sessionResult.id}, status=${sessionResult.paymentStatus})`,
+    });
+    logDebug("Webhook", `Pending payload: ${payload}`);
+    return { ok: false, response: webhookAckResponse({ status: "pending" }) };
+  }
+
+  const intent = isCartSession(sessionResult.metadata)
+    ? extractBookingIntent(sessionResult)
+    : extractIntent(sessionResult);
+  if (!intent) {
+    logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Invalid cart session data for ${sessionResult.id}` });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
+    return { ok: false, response: plainResponse("Invalid cart session data", 400) };
+  }
+
+  return { ok: true, session: sessionResult, intent };
+};
+
 /**
  * Handle POST /payment/webhook (payment provider webhook endpoint)
  *
@@ -880,120 +1010,28 @@ const getWebhookSignatureHeader = (request: Request): string | null =>
 const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Read raw body bytes FIRST, before any async work. The Bunny Edge runtime
   // can garbage-collect the underlying request body resource during awaits
-  // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
-  // Cannot read body as underlying resource unavailable" errors.
   const payloadBytes = new Uint8Array(await request.arrayBuffer());
   const payload = new TextDecoder().decode(payloadBytes);
 
-  // Get signature header (sync — headers are always available)
   const signature = getWebhookSignatureHeader(request);
   if (!signature) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: "Webhook missing signature header",
-    });
+    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Webhook missing signature header" });
     logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Missing signature", 400);
   }
 
-  const provider = await getActivePaymentProvider();
-  if (!provider) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: "Webhook received but payment provider not configured",
-    });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse("Payment provider not configured", 400);
-  }
+  const verified = await verifyWebhookRequest(payload, payloadBytes, signature);
+  if (!verified.ok) return verified.response;
 
-  // Use the public-facing domain for signature verification. Square signs the
-  // webhook using the exact notification URL from the subscription, which is the
-  // public https:// URL. Deriving from request.url fails behind CDNs that
-  // terminate TLS (the edge runtime sees http:// instead of https://).
-  const webhookUrl = `https://${getEffectiveDomain()}/payment/webhook`;
-
-  // Verify signature (pass raw bytes so HMAC is computed on exact received bytes)
-  const verification = await provider.verifyWebhookSignature(
-    payload,
-    signature,
-    webhookUrl,
-    payloadBytes,
-  );
-  if (!verification.valid) {
-    logError({
-      code: ErrorCode.PAYMENT_SIGNATURE,
-      detail: `Webhook signature verification failed: ${verification.error}`,
-    });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse(verification.error, 400);
-  }
-
-  const event = verification.event;
-
-  // Only handle checkout completed events
+  const { provider, event } = verified;
   if (event.type !== provider.checkoutCompletedEventType) {
-    // Acknowledge other events without processing
     return webhookAckResponse();
   }
 
-  // Delegate session extraction to the provider — each provider knows how to
-  // resolve a session from its own webhook event structure.
-  const sessionResult = await provider.resolveWebhookSession(event);
+  const sessionResult = await resolveWebhookSession(provider, event, payload);
+  if (!sessionResult.ok) return sessionResult.response;
 
-  if (sessionResult === "skip") {
-    return webhookAckResponse({ status: "pending" });
-  }
-
-  if (!sessionResult) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: "Ignoring webhook for unrecognized payment session",
-    });
-    logDebug("Webhook", `Ignored payload: ${payload}`);
-    return webhookAckResponse();
-  }
-
-  const session = sessionResult;
-
-  // Verify session originated from this instance. Sessions created by a
-  // different application sharing the same payment provider account will not
-  // carry our _origin marker.
-  const origin = session.metadata._origin;
-  if (origin !== getEffectiveDomain()) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: "Ignoring webhook for unrecognized payment session",
-    });
-    logDebug("Webhook", `Ignored payload: ${payload}`);
-    return webhookAckResponse();
-  }
-
-  // Verify payment is complete
-  if (session.paymentStatus !== "paid") {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})`,
-    });
-    logDebug("Webhook", `Pending payload: ${payload}`);
-    return webhookAckResponse({ status: "pending" });
-  }
-
-  // Extract intent — cart sessions parse items metadata, single-item
-  // sessions are wrapped into a one-item BookingIntent
-  const isCart = isCartSession(session.metadata);
-  const intent = isCart
-    ? extractBookingIntent(session)
-    : extractIntent(session);
-
-  if (!intent) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Invalid cart session data for ${session.id}`,
-    });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse("Invalid cart session data", 400);
-  }
-
+  const { session, intent } = sessionResult;
   const eventIdForLog = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {
     session,

@@ -282,20 +282,12 @@ const EventActionNav = ({
     </nav>,
   );
 
-/** Render the event details table rows */
-const EventDetailRows = ({
+/** Render the event property rows (date, location, type, flags, schedule) */
+const EventPropertyRows = ({
   event,
-  ticketUrl,
-  allowedDomain,
-  embedScriptCode,
-  embedIframeCode,
   isDaily,
 }: {
   event: EventWithCount;
-  ticketUrl: string;
-  allowedDomain: string;
-  embedScriptCode: string;
-  embedIframeCode: string;
   isDaily: boolean;
 }): string =>
   String(
@@ -373,6 +365,25 @@ const EventDetailRows = ({
           )}
         </td>
       </tr>
+    </>,
+  );
+
+/** Render the event link/embed rows (public URL, thank you, webhook, embeds) */
+const EventLinkRows = ({
+  event,
+  ticketUrl,
+  allowedDomain,
+  embedScriptCode,
+  embedIframeCode,
+}: {
+  event: EventWithCount;
+  ticketUrl: string;
+  allowedDomain: string;
+  embedScriptCode: string;
+  embedIframeCode: string;
+}): string =>
+  String(
+    <>
       <tr>
         <th>Public URL</th>
         <td>
@@ -677,14 +688,14 @@ export const adminEventPage = ({
         <div class="table-scroll">
           <table class="event-details-table">
             <tbody>
+              <Raw html={EventPropertyRows({ event, isDaily })} />
               <Raw
-                html={EventDetailRows({
+                html={EventLinkRows({
                   event,
                   ticketUrl,
                   allowedDomain,
                   embedScriptCode,
                   embedIframeCode,
-                  isDaily,
                 })}
               />
               <Raw

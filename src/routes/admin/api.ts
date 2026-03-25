@@ -317,6 +317,25 @@ const validateSlugChange = async (
     : null;
 };
 
+/** Validate and persist the event update, returning success or error response */
+const persistEventUpdate = async (
+  eventId: number,
+  input: EventInput,
+  existing: EventWithCount,
+): Promise<Response> => {
+  const slugError = await validateSlugChange(input, existing, eventId);
+  if (slugError) return slugError;
+
+  const validationError = await validateEventInput(input, eventId);
+  if (validationError) return errorResponse(validationError);
+
+  const row = await eventsTable.update(eventId, input);
+  if (!row) return errorResponse("Event not found", 404);
+  const updated = await getEventWithCount(row.id);
+  await logActivity(`Event '${row.name}' updated`, row);
+  return jsonResponse({ event: toAdminEvent(updated as EventWithCount) });
+};
+
 /** Handle PUT /api/admin/events/:eventId — update event */
 const handleUpdateEvent = (
   request: Request,
@@ -325,18 +344,7 @@ const handleUpdateEvent = (
   withEventApi(request, eventId, async (existing, _session, body) => {
     const parsed = await bodyToUpdateInput(body, existing);
     if (!parsed.ok) return errorResponse(parsed.error);
-
-    const slugError = await validateSlugChange(parsed.input, existing, eventId);
-    if (slugError) return slugError;
-
-    const validationError = await validateEventInput(parsed.input, eventId);
-    if (validationError) return errorResponse(validationError);
-
-    const row = await eventsTable.update(eventId, parsed.input);
-    if (!row) return errorResponse("Event not found", 404);
-    const updated = await getEventWithCount(row.id);
-    await logActivity(`Event '${row.name}' updated`, row);
-    return jsonResponse({ event: toAdminEvent(updated as EventWithCount) });
+    return persistEventUpdate(eventId, parsed.input, existing);
   });
 
 export const adminApiRoutes = defineRoutes({

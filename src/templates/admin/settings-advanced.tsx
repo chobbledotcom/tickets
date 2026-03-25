@@ -44,124 +44,143 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
 };
 
+/** Render Apple Wallet configuration form */
+const AppleWalletForm = ({
+  s,
+}: {
+  s: AdvancedSettingsPageState;
+}): string =>
+  String(
+    <CsrfForm
+      action="/admin/settings/apple-wallet"
+      id="settings-apple-wallet"
+    >
+      <h2>Apple Wallet</h2>
+      <p>
+        Configure Apple Wallet pass signing to show an &ldquo;Add to Apple
+        Wallet&rdquo; button on ticket pages.
+        {s.hostAppleWalletLabel && !s.appleWalletConfigured
+          ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
+          : s.hostAppleWalletLabel && s.appleWalletConfigured
+            ? ` Overriding: ${s.hostAppleWalletLabel}.`
+            : ""}
+      </p>
+      <label>
+        Pass Type ID
+        <input
+          type="text"
+          name="apple_wallet_pass_type_id"
+          placeholder="pass.com.example.tickets"
+          value={s.appleWalletPassTypeId}
+          autocomplete="off"
+        />
+      </label>
+      <label>
+        Team ID
+        <input
+          type="text"
+          name="apple_wallet_team_id"
+          placeholder="ABC1234567"
+          value={s.appleWalletTeamId}
+          autocomplete="off"
+        />
+      </label>
+      <label>
+        Signing Certificate (PEM)
+        <textarea
+          name="apple_wallet_signing_cert"
+          rows={4}
+          placeholder="-----BEGIN CERTIFICATE-----"
+        >
+          {s.appleWalletConfigured ? MASK_SENTINEL : ""}
+        </textarea>
+      </label>
+      <label>
+        Signing Private Key (PEM)
+        <textarea
+          name="apple_wallet_signing_key"
+          rows={4}
+          placeholder="-----BEGIN PRIVATE KEY-----"
+        >
+          {s.appleWalletConfigured ? MASK_SENTINEL : ""}
+        </textarea>
+      </label>
+      <label>
+        WWDR Certificate (PEM)
+        <textarea
+          name="apple_wallet_wwdr_cert"
+          rows={4}
+          placeholder="-----BEGIN CERTIFICATE-----"
+        >
+          {s.appleWalletConfigured ? MASK_SENTINEL : ""}
+        </textarea>
+      </label>
+      <button type="submit">Save Apple Wallet Settings</button>
+    </CsrfForm>,
+  );
+
+/** Render Google Wallet configuration form */
+const GoogleWalletForm = ({
+  s,
+}: {
+  s: AdvancedSettingsPageState;
+}): string =>
+  String(
+    <CsrfForm
+      action="/admin/settings/google-wallet"
+      id="settings-google-wallet"
+    >
+      <h2>Google Wallet</h2>
+      <p>
+        Configure Google Wallet to show an &ldquo;Add to Google Wallet&rdquo;
+        button on ticket pages. Requires a Google Cloud service account with
+        the Google Wallet API enabled.
+        {s.hostGoogleWalletLabel && !s.googleWalletConfigured
+          ? ` Currently using: ${s.hostGoogleWalletLabel}. Override below or leave empty to keep using host config.`
+          : s.hostGoogleWalletLabel && s.googleWalletConfigured
+            ? ` Overriding: ${s.hostGoogleWalletLabel}.`
+            : ""}
+      </p>
+      <label>
+        Issuer ID
+        <input
+          type="text"
+          name="google_wallet_issuer_id"
+          placeholder="3388000000012345678"
+          value={s.googleWalletIssuerId}
+          autocomplete="off"
+        />
+      </label>
+      <label>
+        Service Account Email
+        <input
+          type="email"
+          name="google_wallet_service_account_email"
+          placeholder="wallet@project.iam.gserviceaccount.com"
+          value={s.googleWalletServiceAccountEmail}
+          autocomplete="off"
+        />
+      </label>
+      <label>
+        Service Account Private Key (PEM)
+        <textarea
+          name="google_wallet_service_account_key"
+          rows={4}
+          placeholder="-----BEGIN PRIVATE KEY-----"
+        >
+          {s.googleWalletConfigured ? MASK_SENTINEL : ""}
+        </textarea>
+      </label>
+      <button type="submit">Save Google Wallet Settings</button>
+    </CsrfForm>,
+  );
+
 /** Render wallet configuration forms */
 const WalletForms = ({ s }: { s: AdvancedSettingsPageState }): string =>
   String(
     <>
-      <CsrfForm
-        action="/admin/settings/apple-wallet"
-        id="settings-apple-wallet"
-      >
-        <h2>Apple Wallet</h2>
-        <p>
-          Configure Apple Wallet pass signing to show an &ldquo;Add to Apple
-          Wallet&rdquo; button on ticket pages.
-          {s.hostAppleWalletLabel && !s.appleWalletConfigured
-            ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
-            : s.hostAppleWalletLabel && s.appleWalletConfigured
-              ? ` Overriding: ${s.hostAppleWalletLabel}.`
-              : ""}
-        </p>
-        <label>
-          Pass Type ID
-          <input
-            type="text"
-            name="apple_wallet_pass_type_id"
-            placeholder="pass.com.example.tickets"
-            value={s.appleWalletPassTypeId}
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          Team ID
-          <input
-            type="text"
-            name="apple_wallet_team_id"
-            placeholder="ABC1234567"
-            value={s.appleWalletTeamId}
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          Signing Certificate (PEM)
-          <textarea
-            name="apple_wallet_signing_cert"
-            rows={4}
-            placeholder="-----BEGIN CERTIFICATE-----"
-          >
-            {s.appleWalletConfigured ? MASK_SENTINEL : ""}
-          </textarea>
-        </label>
-        <label>
-          Signing Private Key (PEM)
-          <textarea
-            name="apple_wallet_signing_key"
-            rows={4}
-            placeholder="-----BEGIN PRIVATE KEY-----"
-          >
-            {s.appleWalletConfigured ? MASK_SENTINEL : ""}
-          </textarea>
-        </label>
-        <label>
-          WWDR Certificate (PEM)
-          <textarea
-            name="apple_wallet_wwdr_cert"
-            rows={4}
-            placeholder="-----BEGIN CERTIFICATE-----"
-          >
-            {s.appleWalletConfigured ? MASK_SENTINEL : ""}
-          </textarea>
-        </label>
-        <button type="submit">Save Apple Wallet Settings</button>
-      </CsrfForm>
-
-      <CsrfForm
-        action="/admin/settings/google-wallet"
-        id="settings-google-wallet"
-      >
-        <h2>Google Wallet</h2>
-        <p>
-          Configure Google Wallet to show an &ldquo;Add to Google Wallet&rdquo;
-          button on ticket pages. Requires a Google Cloud service account with
-          the Google Wallet API enabled.
-          {s.hostGoogleWalletLabel && !s.googleWalletConfigured
-            ? ` Currently using: ${s.hostGoogleWalletLabel}. Override below or leave empty to keep using host config.`
-            : s.hostGoogleWalletLabel && s.googleWalletConfigured
-              ? ` Overriding: ${s.hostGoogleWalletLabel}.`
-              : ""}
-        </p>
-        <label>
-          Issuer ID
-          <input
-            type="text"
-            name="google_wallet_issuer_id"
-            placeholder="3388000000012345678"
-            value={s.googleWalletIssuerId}
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          Service Account Email
-          <input
-            type="email"
-            name="google_wallet_service_account_email"
-            placeholder="wallet@project.iam.gserviceaccount.com"
-            value={s.googleWalletServiceAccountEmail}
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          Service Account Private Key (PEM)
-          <textarea
-            name="google_wallet_service_account_key"
-            rows={4}
-            placeholder="-----BEGIN PRIVATE KEY-----"
-          >
-            {s.googleWalletConfigured ? MASK_SENTINEL : ""}
-          </textarea>
-        </label>
-        <button type="submit">Save Google Wallet Settings</button>
-      </CsrfForm>
+      <Raw html={AppleWalletForm({ s })} />
+      <Raw html={GoogleWalletForm({ s })} />
     </>,
   );
 
@@ -379,8 +398,12 @@ const EmailTemplateForms = ({
     </>,
   );
 
-/** Render email/CDN/reset sections */
-const EmailAndCdnForms = ({ s }: { s: AdvancedSettingsPageState }): string =>
+/** Render email provider form */
+const EmailProviderForm = ({
+  s,
+}: {
+  s: AdvancedSettingsPageState;
+}): string =>
   String(
     <>
       <CsrfForm action="/admin/settings/email" id="settings-email">
@@ -431,6 +454,14 @@ const EmailAndCdnForms = ({ s }: { s: AdvancedSettingsPageState }): string =>
           </button>
         </CsrfForm>
       )}
+    </>,
+  );
+
+/** Render email/CDN/reset sections */
+const EmailAndCdnForms = ({ s }: { s: AdvancedSettingsPageState }): string =>
+  String(
+    <>
+      <Raw html={EmailProviderForm({ s })} />
 
       {s.bunnyCdnEnabled && (
         <div>
