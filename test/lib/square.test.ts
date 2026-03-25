@@ -1728,6 +1728,12 @@ describe("square", () => {
     };
     let mockFetch: { calls: FetchCall[] };
 
+    /** Build a mock Response with the body already available as text() */
+    const jsonResponse = (data: unknown) => ({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(data)),
+    });
+
     /** Create a mock fetch with the given implementation and assign to globalThis */
     const installMockFetch = (impl: (...args: unknown[]) => unknown) => {
       mockFetch = spy(impl) as unknown as typeof mockFetch;
@@ -1746,17 +1752,15 @@ describe("square", () => {
 
     test("sends correct headers and snake_case body for payment link creation", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              payment_link: {
-                order_id: "ord_rest",
-                url: "https://square.link/rest",
-                long_url: "https://checkout.square.site/rest",
-              },
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            payment_link: {
+              order_id: "ord_rest",
+              url: "https://square.link/rest",
+              long_url: "https://checkout.square.site/rest",
+            },
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -1809,16 +1813,14 @@ describe("square", () => {
 
     test("falls back to short url when long_url is absent", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              payment_link: {
-                order_id: "ord_short",
-                url: "https://square.link/short",
-              },
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            payment_link: {
+              order_id: "ord_short",
+              url: "https://square.link/short",
+            },
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -1846,13 +1848,11 @@ describe("square", () => {
 
     test("omits buyer_phone_number from request when not provided", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              payment_link: { order_id: "ord_2", url: "https://square.link/2" },
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            payment_link: { order_id: "ord_2", url: "https://square.link/2" },
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -1879,12 +1879,7 @@ describe("square", () => {
     });
 
     test("returns undefined paymentLink when API returns no payment_link", async () => {
-      installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({}),
-        }),
-      );
+      installMockFetch(() => Promise.resolve(jsonResponse({})));
 
       const client = await getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
@@ -1899,22 +1894,20 @@ describe("square", () => {
 
     test("orders.get fetches correct URL and maps response to camelCase", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              order: {
-                id: "ord_100",
-                metadata: { event_id: "5" },
-                tenders: [
-                  { id: "t_1", payment_id: "pay_1" },
-                  { id: "t_2", payment_id: null },
-                ],
-                state: "COMPLETED",
-                total_money: { amount: 5000, currency: "USD" },
-              },
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            order: {
+              id: "ord_100",
+              metadata: { event_id: "5" },
+              tenders: [
+                { id: "t_1", payment_id: "pay_1" },
+                { id: "t_2", payment_id: null },
+              ],
+              state: "COMPLETED",
+              total_money: { amount: 5000, currency: "USD" },
+            },
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -1934,13 +1927,11 @@ describe("square", () => {
 
     test("orders.get handles missing total_money", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              order: { id: "ord_no_total", metadata: {}, state: "OPEN" },
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            order: { id: "ord_no_total", metadata: {}, state: "OPEN" },
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -1950,12 +1941,7 @@ describe("square", () => {
     });
 
     test("orders.get returns null order when API returns none", async () => {
-      installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({}),
-        }),
-      );
+      installMockFetch(() => Promise.resolve(jsonResponse({})));
 
       const client = await getSquareClient();
       const result = await client!.orders.get({ orderId: "missing" });
@@ -1964,19 +1950,17 @@ describe("square", () => {
 
     test("payments.get maps response with BigInt amounts", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              payment: {
-                id: "pay_1",
-                status: "COMPLETED",
-                order_id: "ord_1",
-                amount_money: { amount: 3000, currency: "GBP" },
-                refunded_money: { amount: 1000, currency: "GBP" },
-              },
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            payment: {
+              id: "pay_1",
+              status: "COMPLETED",
+              order_id: "ord_1",
+              amount_money: { amount: 3000, currency: "GBP" },
+              refunded_money: { amount: 1000, currency: "GBP" },
+            },
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -1993,17 +1977,15 @@ describe("square", () => {
 
     test("payments.get handles missing amount_money", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              payment: {
-                id: "pay_no_amount",
-                status: "PENDING",
-                order_id: "ord_x",
-              },
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            payment: {
+              id: "pay_no_amount",
+              status: "PENDING",
+              order_id: "ord_x",
+            },
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -2014,18 +1996,16 @@ describe("square", () => {
 
     test("payments.get handles missing refunded_money", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              payment: {
-                id: "pay_2",
-                status: "COMPLETED",
-                order_id: "ord_2",
-                amount_money: { amount: 2000, currency: "USD" },
-              },
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            payment: {
+              id: "pay_2",
+              status: "COMPLETED",
+              order_id: "ord_2",
+              amount_money: { amount: 2000, currency: "USD" },
+            },
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -2035,12 +2015,7 @@ describe("square", () => {
     });
 
     test("payments.get returns null payment when API returns none", async () => {
-      installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({}),
-        }),
-      );
+      installMockFetch(() => Promise.resolve(jsonResponse({})));
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "missing" });
@@ -2049,10 +2024,7 @@ describe("square", () => {
 
     test("refunds.refundPayment sends correct snake_case body", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ refund: { id: "ref_1" } }),
-        }),
+        Promise.resolve(jsonResponse({ refund: { id: "ref_1" } })),
       );
 
       const client = await getSquareClient();
@@ -2093,16 +2065,14 @@ describe("square", () => {
 
     test("locations.list sends GET to /v2/locations", async () => {
       installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              locations: [
-                { id: "L_1", name: "Main", status: "ACTIVE" },
-                { id: "L_2", name: "Branch", status: "INACTIVE" },
-              ],
-            }),
-        }),
+        Promise.resolve(
+          jsonResponse({
+            locations: [
+              { id: "L_1", name: "Main", status: "ACTIVE" },
+              { id: "L_2", name: "Branch", status: "INACTIVE" },
+            ],
+          }),
+        ),
       );
 
       const client = await getSquareClient();
@@ -2120,12 +2090,7 @@ describe("square", () => {
     test("uses production URL when sandbox is disabled", async () => {
       resetSquareClient();
       await settings.update.square.sandbox(false);
-      installMockFetch(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({}),
-        }),
-      );
+      installMockFetch(() => Promise.resolve(jsonResponse({})));
 
       const client = await getSquareClient();
       await client!.orders.get({ orderId: "test" });

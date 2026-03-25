@@ -339,12 +339,14 @@ export const adminEditAttendeePage = (
             id="phone"
             name="phone"
             value={attendee.phone || ""}
+            pattern="[+\d][\d\s\-()]{5,}"
+            title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
           />
         </label>
 
         <label for="address">
           Address
-          <textarea id="address" name="address" rows={3}>
+          <textarea id="address" name="address" rows={3} maxlength={250}>
             {attendee.address || ""}
           </textarea>
         </label>
@@ -355,6 +357,7 @@ export const adminEditAttendeePage = (
             id="special_instructions"
             name="special_instructions"
             rows={3}
+            maxlength={250}
           >
             {attendee.special_instructions || ""}
           </textarea>

@@ -11,6 +11,7 @@ import {
   getBunnyDnsZoneId,
   getBunnyScriptId,
 } from "#lib/config.ts";
+import { type FetchResult, fetchText } from "#lib/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
@@ -46,7 +47,7 @@ const getEdgeScriptImpl = async (): Promise<
   | { ok: false; error: string; errorKey?: string }
 > => {
   const scriptId = getBunnyScriptId();
-  const response = await fetch(
+  const response = await fetchText(
     `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}`,
     { headers: { AccessKey: getBunnyApiKey() } },
   );
@@ -55,7 +56,7 @@ const getEdgeScriptImpl = async (): Promise<
     return parseBunnyError(response, "Get edge script");
   }
 
-  const data: EdgeScriptResponse = await response.json();
+  const data: EdgeScriptResponse = JSON.parse(response.text);
   return { ok: true, data };
 };
 
@@ -98,16 +99,19 @@ const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
     hostname: toCnameTarget(data.DefaultHostname),
   }));
 
+/** Return ok for a successful response or parse an error. */
+const okOrError = (response: FetchResult, label: string): BunnyApiResult =>
+  response.ok ? { ok: true } : parseBunnyError(response, label);
+
 /** Parse a Bunny API error response into a BunnyApiResult. */
-const parseBunnyError = async (
-  response: Response,
+const parseBunnyError = (
+  response: FetchResult,
   label: string,
-): Promise<BunnyApiResult & { ok: false }> => {
-  const text = await response.text();
-  let message = text;
+): BunnyApiResult & { ok: false } => {
+  let message = response.text;
   let errorKey: string | undefined;
   try {
-    const json = JSON.parse(text);
+    const json = JSON.parse(response.text);
     if (json.Message) message = json.Message;
     if (json.ErrorKey) errorKey = json.ErrorKey;
   } catch {
@@ -129,7 +133,7 @@ const pullZonePost = async (
 ): Promise<BunnyApiResult> => {
   const url = `${BUNNY_API_BASE}/pullzone/${pullZoneId}/${action}`;
 
-  const response = await fetch(url, {
+  const response = await fetchText(url, {
     method: "POST",
     headers: {
       AccessKey: getBunnyApiKey(),
@@ -138,8 +142,7 @@ const pullZonePost = async (
     body: JSON.stringify(body),
   });
 
-  if (response.status === 204 || response.ok) return { ok: true };
-  return parseBunnyError(response, label);
+  return okOrError(response, label);
 };
 
 /** Request a free Let's Encrypt certificate for a hostname on a pull zone. */
@@ -148,13 +151,12 @@ const loadFreeCertificate = async (
 ): Promise<BunnyApiResult> => {
   const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
 
-  const response = await fetch(url, {
+  const response = await fetchText(url, {
     method: "GET",
     headers: { AccessKey: getBunnyApiKey() },
   });
 
-  if (response.ok) return { ok: true };
-  return parseBunnyError(response, "Load free certificate");
+  return okOrError(response, "Load free certificate");
 };
 
 /**
@@ -233,16 +235,15 @@ const getDnsZoneImpl = async (): Promise<
   { ok: true; zone: BunnyDnsZone } | { ok: false; error: string }
 > => {
   const zoneId = getBunnyDnsZoneId();
-  const response = await fetch(`${BUNNY_API_BASE}/dnszone/${zoneId}`, {
+  const response = await fetchText(`${BUNNY_API_BASE}/dnszone/${zoneId}`, {
     headers: { AccessKey: getBunnyApiKey() },
   });
 
   if (!response.ok) {
-    const result = await parseBunnyError(response, "Get DNS zone");
-    return result;
+    return parseBunnyError(response, "Get DNS zone");
   }
 
-  const zone: BunnyDnsZone = await response.json();
+  const zone: BunnyDnsZone = JSON.parse(response.text);
   return { ok: true, zone };
 };
 
@@ -311,7 +312,7 @@ const registerBunnySubdomainImpl = async (
     "Domain",
     `Adding DNS CNAME: url=${dnsUrl} name=${recordName} value=${target} fullDomain=${fullDomain}`,
   );
-  const addResponse = await fetch(dnsUrl, {
+  const addResponse = await fetchText(dnsUrl, {
     method: "PUT",
     headers: {
       AccessKey: getBunnyApiKey(),
@@ -321,7 +322,7 @@ const registerBunnySubdomainImpl = async (
   });
 
   if (!addResponse.ok) {
-    const err = await parseBunnyError(addResponse, "Add DNS CNAME record");
+    const err = parseBunnyError(addResponse, "Add DNS CNAME record");
     logError({
       code: ErrorCode.CDN_REQUEST,
       detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(dnsRecordBody)}`,
