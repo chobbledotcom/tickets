@@ -1281,6 +1281,24 @@ export const assertJson = async <T = any>(
 };
 
 /**
+ * Submit an admin form and assert the response redirects with a flash message.
+ * Combines adminFormPost + expectRedirectWithFlash in one call.
+ *
+ * @example
+ * await assertFormRedirect("/admin/settings", { country: "US" }, "/admin/settings", "Country updated");
+ */
+export const assertFormRedirect = async (
+  path: string,
+  data: Record<string, string>,
+  redirectTo: string,
+  flashMessage: string,
+): Promise<Response> => {
+  const { response } = await adminFormPost(path, data);
+  expectRedirectWithFlash(redirectTo, flashMessage)(response);
+  return response;
+};
+
+/**
  * Fetch an admin page and assert the HTML contains all given substrings.
  * Returns the HTML for further assertions.
  *
