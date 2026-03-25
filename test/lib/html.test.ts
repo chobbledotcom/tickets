@@ -76,12 +76,12 @@ import {
 import { ticketViewPage } from "#templates/tickets.tsx";
 import {
   describeWithEnv,
-  setTestEnv,
   setupTestEncryptionKey,
   testAttendee,
   testEvent,
   testEventWithCount,
   testGroup,
+  withStorageDisabled,
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -3841,15 +3841,12 @@ describe("html", () => {
         });
 
         test("does not show image field when storage is not enabled", () => {
-          const restore = setTestEnv({
-            STORAGE_ZONE_NAME: undefined,
-            STORAGE_ZONE_KEY: undefined,
+          withStorageDisabled(() => {
+            const event = testEventWithCount({ image_url: "" });
+            const html = adminEventEditPage(event, [], TEST_SESSION);
+            expect(html).not.toContain('type="file"');
+            expect(html).not.toContain('name="image"');
           });
-          const event = testEventWithCount({ image_url: "" });
-          const html = adminEventEditPage(event, [], TEST_SESSION);
-          expect(html).not.toContain('type="file"');
-          expect(html).not.toContain('name="image"');
-          restore();
         });
 
         test("shows full-width image preview when event has image", () => {
@@ -3870,15 +3867,12 @@ describe("html", () => {
         });
 
         test("does not show image field when storage is not enabled", () => {
-          const restore = setTestEnv({
-            STORAGE_ZONE_NAME: undefined,
-            STORAGE_ZONE_KEY: undefined,
+          withStorageDisabled(() => {
+            const event = testEventWithCount({ image_url: "" });
+            const html = adminDuplicateEventPage(event, [], TEST_SESSION);
+            expect(html).not.toContain('type="file"');
+            expect(html).not.toContain('name="image"');
           });
-          const event = testEventWithCount({ image_url: "" });
-          const html = adminDuplicateEventPage(event, [], TEST_SESSION);
-          expect(html).not.toContain('type="file"');
-          expect(html).not.toContain('name="image"');
-          restore();
         });
       });
 
@@ -3891,13 +3885,10 @@ describe("html", () => {
         });
 
         test("does not show image field on create form when storage is not enabled", () => {
-          const restore = setTestEnv({
-            STORAGE_ZONE_NAME: undefined,
-            STORAGE_ZONE_KEY: undefined,
+          withStorageDisabled(() => {
+            const html = adminEventNewPage([], TEST_SESSION);
+            expect(html).not.toContain('type="file"');
           });
-          const html = adminEventNewPage([], TEST_SESSION);
-          expect(html).not.toContain('type="file"');
-          restore();
         });
       });
     },
