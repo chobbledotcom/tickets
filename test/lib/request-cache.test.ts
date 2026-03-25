@@ -1,20 +1,16 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test, beforeEach } from "@std/testing/bdd";
-import { requestCache, runWithRequestCache } from "#lib/request-cache.ts";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllCacheStats,
   registerCache,
   resetCacheRegistry,
 } from "#lib/cache-registry.ts";
 import { getAllHolidays, holidaysTable } from "#lib/db/holidays.ts";
+import { requestCache, runWithRequestCache } from "#lib/request-cache.ts";
 import { describeWithEnv } from "#test-utils";
 
 describe("cache-registry", () => {
-  /** Snapshot providers count before each test so we can restore */
-  let baselineCount: number;
-
   beforeEach(() => {
-    baselineCount = getAllCacheStats().length;
     resetCacheRegistry();
   });
 
