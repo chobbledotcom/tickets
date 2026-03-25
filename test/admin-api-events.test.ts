@@ -148,7 +148,9 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("max_attendees is required and must be >= 1");
+          expect(body.message).toBe(
+            "max_attendees is required and must be >= 1",
+          );
         },
       );
     });
@@ -366,10 +368,9 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const event = await createTestEvent({ name: "Active Event" });
 
       await assertJson(
-        apiRequest(
-          `/api/admin/events/${event.id}/deactivate`,
-          { method: "POST" },
-        ),
+        apiRequest(`/api/admin/events/${event.id}/deactivate`, {
+          method: "POST",
+        }),
         200,
         (body) => {
           expect(body.event.active).toBe(false);
@@ -390,10 +391,10 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       // Try to deactivate again
       await assertJson(
-        apiRequest(
-          `/api/admin/events/${event.id}/deactivate`,
-          { method: "POST", apiKey },
-        ),
+        apiRequest(`/api/admin/events/${event.id}/deactivate`, {
+          method: "POST",
+          apiKey,
+        }),
         400,
         (body) => {
           expect(body.message).toBe("Event is already deactivated");
@@ -423,10 +424,10 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       // Now reactivate
       await assertJson(
-        apiRequest(
-          `/api/admin/events/${event.id}/reactivate`,
-          { method: "POST", apiKey },
-        ),
+        apiRequest(`/api/admin/events/${event.id}/reactivate`, {
+          method: "POST",
+          apiKey,
+        }),
         200,
         (body) => {
           expect(body.event.active).toBe(true);
@@ -439,10 +440,9 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const event = await createTestEvent({ name: "Already Active" });
 
       await assertJson(
-        apiRequest(
-          `/api/admin/events/${event.id}/reactivate`,
-          { method: "POST" },
-        ),
+        apiRequest(`/api/admin/events/${event.id}/reactivate`, {
+          method: "POST",
+        }),
         400,
         (body) => {
           expect(body.message).toBe("Event is already active");

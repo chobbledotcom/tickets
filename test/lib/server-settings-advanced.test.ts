@@ -275,9 +275,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
   describe("POST /admin/settings/email/test", () => {
     test("shows error when email not configured", async () => {
-      const { response } = await adminFormPost(
-        "/admin/settings/email/test",
-      );
+      const { response } = await adminFormPost("/admin/settings/email/test");
 
       await expectHtmlResponse(response, 400, "Email not configured");
     });
@@ -289,9 +287,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       await settings.update.email.apiKey("re_test_key");
       await settings.update.email.fromAddress("from@test.com");
 
-      const { response } = await adminFormPost(
-        "/admin/settings/email/test",
-      );
+      const { response } = await adminFormPost("/admin/settings/email/test");
 
       await expectHtmlResponse(response, 400, "No business email set");
     });
@@ -540,7 +536,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         const html = await response.text();
         expect(html).toContain('id="settings-host-subdomain"');
         expect(html).toContain("Host Subdomain");
-        expect(html).toContain("Check Availability &amp; Preview Complete Domain");
+        expect(html).toContain(
+          "Check Availability &amp; Preview Complete Domain",
+        );
       });
 
       test("shows existing subdomain as read-only with redirect message when custom domain set", async () => {

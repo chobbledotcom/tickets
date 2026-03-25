@@ -857,7 +857,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         maxAttendees: 25,
       });
 
-      await assertAdminHtml(`/admin/group/${group.id}/edit`, "max_attendees", "25");
+      await assertAdminHtml(
+        `/admin/group/${group.id}/edit`,
+        "max_attendees",
+        "25",
+      );
     });
 
     test("updates max_attendees via edit", async () => {
