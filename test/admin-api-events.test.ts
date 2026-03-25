@@ -26,23 +26,21 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const event = await createTestEvent({ name: "Detail Event" });
       const apiKey = await createTestApiKeyToken();
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
+      await apiRequest(`/api/admin/events/${event.id}`, {
         apiKey,
-      });
-
-      await expectJsonResponse(200, (body) => {
+      }).then(expectJsonResponse(200, (body) => {
         expect(body.event.name).toBe("Detail Event");
         expect(body.event.id).toBe(event.id);
         expect(body.event.slug_index).toBeUndefined();
-      })(response);
+      }));
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await apiRequest("/api/admin/events/99999");
-
-      await expectJsonResponse(404, (body) => {
-        expect(body.message).toBe("Event not found");
-      })(response);
+      await apiRequest("/api/admin/events/99999").then(
+        expectJsonResponse(404, (body) => {
+          expect(body.message).toBe("Event not found");
+        }),
+      );
     });
 
     test("returns 401 without auth", async () => {
@@ -70,24 +68,24 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
   describe("POST /api/admin/events", () => {
     test("creates event with required fields", async () => {
-      const response = await apiRequest("/api/admin/events", {
+      await apiRequest("/api/admin/events", {
         method: "POST",
         body: {
           name: "New API Event",
           max_attendees: 50,
         },
-      });
-
-      await expectJsonResponse(201, (body) => {
-        expect(body.event.name).toBe("New API Event");
-        expect(body.event.max_attendees).toBe(50);
-        expect(body.event.id).toBeGreaterThan(0);
-        expect(body.event.slug_index).toBeUndefined();
-      })(response);
+      }).then(
+        expectJsonResponse(201, (body) => {
+          expect(body.event.name).toBe("New API Event");
+          expect(body.event.max_attendees).toBe(50);
+          expect(body.event.id).toBeGreaterThan(0);
+          expect(body.event.slug_index).toBeUndefined();
+        }),
+      );
     });
 
     test("creates event with all optional fields", async () => {
-      const response = await apiRequest("/api/admin/events", {
+      await apiRequest("/api/admin/events", {
         method: "POST",
         body: {
           name: "Full Event",
@@ -108,41 +106,41 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
           maximum_days_after: 60,
           bookable_days: ["Monday", "Tuesday"],
         },
-      });
-
-      await expectJsonResponse(201, (body) => {
-        expect(body.event.name).toBe("Full Event");
-        expect(body.event.description).toBe("A test event");
-        expect(body.event.location).toBe("Test Hall");
-        expect(body.event.unit_price).toBe(500);
-        expect(body.event.max_quantity).toBe(5);
-        expect(body.event.max_price).toBe(1000);
-        expect(body.event.non_transferable).toBe(true);
-        expect(body.event.can_pay_more).toBe(true);
-        expect(body.event.hidden).toBe(false);
-      })(response);
+      }).then(
+        expectJsonResponse(201, (body) => {
+          expect(body.event.name).toBe("Full Event");
+          expect(body.event.description).toBe("A test event");
+          expect(body.event.location).toBe("Test Hall");
+          expect(body.event.unit_price).toBe(500);
+          expect(body.event.max_quantity).toBe(5);
+          expect(body.event.max_price).toBe(1000);
+          expect(body.event.non_transferable).toBe(true);
+          expect(body.event.can_pay_more).toBe(true);
+          expect(body.event.hidden).toBe(false);
+        }),
+      );
     });
 
     test("returns 400 when name is missing", async () => {
-      const response = await apiRequest("/api/admin/events", {
+      await apiRequest("/api/admin/events", {
         method: "POST",
         body: { max_attendees: 50 },
-      });
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toBe("name is required");
-      })(response);
+      }).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toBe("name is required");
+        }),
+      );
     });
 
     test("returns 400 when max_attendees is missing", async () => {
-      const response = await apiRequest("/api/admin/events", {
+      await apiRequest("/api/admin/events", {
         method: "POST",
         body: { name: "No Max" },
-      });
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toBe("max_attendees is required and must be >= 1");
-      })(response);
+      }).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toBe("max_attendees is required and must be >= 1");
+        }),
+      );
     });
 
     test("returns 400 when max_attendees is zero", async () => {
@@ -155,7 +153,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     });
 
     test("validates can_pay_more requires sufficient max_price", async () => {
-      const response = await apiRequest("/api/admin/events", {
+      await apiRequest("/api/admin/events", {
         method: "POST",
         body: {
           name: "Pay More Event",
@@ -164,26 +162,26 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
           can_pay_more: true,
           max_price: 500,
         },
-      });
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toContain("Maximum price");
-      })(response);
+      }).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toContain("Maximum price");
+        }),
+      );
     });
 
     test("validates group exists", async () => {
-      const response = await apiRequest("/api/admin/events", {
+      await apiRequest("/api/admin/events", {
         method: "POST",
         body: {
           name: "Group Event",
           max_attendees: 10,
           group_id: 99999,
         },
-      });
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toBe("Selected group does not exist");
-      })(response);
+      }).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toBe("Selected group does not exist");
+        }),
+      );
     });
   });
 
@@ -191,15 +189,15 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("updates event name", async () => {
       const event = await createTestEvent({ name: "Original" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
+      await apiRequest(`/api/admin/events/${event.id}`, {
         method: "PUT",
         body: { name: "Updated Name" },
-      });
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.event.name).toBe("Updated Name");
-        expect(body.event.id).toBe(event.id);
-      })(response);
+      }).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.event.name).toBe("Updated Name");
+          expect(body.event.id).toBe(event.id);
+        }),
+      );
     });
 
     test("updates event with partial fields", async () => {
@@ -208,16 +206,16 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
         maxAttendees: 50,
       });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
+      await apiRequest(`/api/admin/events/${event.id}`, {
         method: "PUT",
         body: { max_attendees: 100, description: "Updated desc" },
-      });
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.event.name).toBe("Partial Update");
-        expect(body.event.max_attendees).toBe(100);
-        expect(body.event.description).toBe("Updated desc");
-      })(response);
+      }).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.event.name).toBe("Partial Update");
+          expect(body.event.max_attendees).toBe(100);
+          expect(body.event.description).toBe("Updated desc");
+        }),
+      );
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -232,14 +230,14 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("returns 400 when name is empty string", async () => {
       const event = await createTestEvent({ name: "Will Empty" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
+      await apiRequest(`/api/admin/events/${event.id}`, {
         method: "PUT",
         body: { name: "" },
-      });
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toBe("name cannot be empty");
-      })(response);
+      }).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toBe("name cannot be empty");
+        }),
+      );
     });
 
     test("rejects duplicate slug", async () => {
@@ -247,27 +245,27 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const event2 = await createTestEvent({ name: "Event Two" });
 
       // Use event1's slug for event2
-      const response = await apiRequest(`/api/admin/events/${event2.id}`, {
+      await apiRequest(`/api/admin/events/${event2.id}`, {
         method: "PUT",
         body: { slug: event1.slug },
-      });
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toBe("Slug is already in use by another event");
-      })(response);
+      }).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toBe("Slug is already in use by another event");
+        }),
+      );
     });
 
     test("allows keeping the same slug", async () => {
       const event = await createTestEvent({ name: "Keep Slug" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
+      await apiRequest(`/api/admin/events/${event.id}`, {
         method: "PUT",
         body: { slug: event.slug, name: "Renamed" },
-      });
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.event.name).toBe("Renamed");
-      })(response);
+      }).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.event.name).toBe("Renamed");
+        }),
+      );
     });
   });
 
@@ -275,14 +273,14 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("deletes event with matching confirm_name", async () => {
       const event = await createTestEvent({ name: "Delete Me" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
+      await apiRequest(`/api/admin/events/${event.id}`, {
         method: "DELETE",
         body: { confirm_name: "Delete Me" },
-      });
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.status).toBe("ok");
-      })(response);
+      }).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.status).toBe("ok");
+        }),
+      );
 
       // Verify event is gone
       invalidateEventsCache();
@@ -293,14 +291,14 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("rejects with wrong confirm_name", async () => {
       const event = await createTestEvent({ name: "Protect Me" });
 
-      const response = await apiRequest(`/api/admin/events/${event.id}`, {
+      await apiRequest(`/api/admin/events/${event.id}`, {
         method: "DELETE",
         body: { confirm_name: "Wrong Name" },
-      });
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toContain("Event name does not match");
-      })(response);
+      }).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toContain("Event name does not match");
+        }),
+      );
     });
 
     test("rejects without confirm_name", async () => {
@@ -339,15 +337,15 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("deactivates an active event", async () => {
       const event = await createTestEvent({ name: "Active Event" });
 
-      const response = await apiRequest(
+      await apiRequest(
         `/api/admin/events/${event.id}/deactivate`,
         { method: "POST" },
+      ).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.event.active).toBe(false);
+          expect(body.event.name).toBe("Active Event");
+        }),
       );
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.event.active).toBe(false);
-        expect(body.event.name).toBe("Active Event");
-      })(response);
     });
 
     test("returns 400 when event is already deactivated", async () => {
@@ -361,14 +359,14 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       });
 
       // Try to deactivate again
-      const response = await apiRequest(
+      await apiRequest(
         `/api/admin/events/${event.id}/deactivate`,
         { method: "POST", apiKey },
+      ).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toBe("Event is already deactivated");
+        }),
       );
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toBe("Event is already deactivated");
-      })(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -392,28 +390,28 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       });
 
       // Now reactivate
-      const response = await apiRequest(
+      await apiRequest(
         `/api/admin/events/${event.id}/reactivate`,
         { method: "POST", apiKey },
+      ).then(
+        expectJsonResponse(200, (body) => {
+          expect(body.event.active).toBe(true);
+          expect(body.event.name).toBe("Reactivate Event");
+        }),
       );
-
-      await expectJsonResponse(200, (body) => {
-        expect(body.event.active).toBe(true);
-        expect(body.event.name).toBe("Reactivate Event");
-      })(response);
     });
 
     test("returns 400 when event is already active", async () => {
       const event = await createTestEvent({ name: "Already Active" });
 
-      const response = await apiRequest(
+      await apiRequest(
         `/api/admin/events/${event.id}/reactivate`,
         { method: "POST" },
+      ).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toBe("Event is already active");
+        }),
       );
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toBe("Event is already active");
-      })(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -427,7 +425,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
   describe("POST /api/admin/events - date and closes_at handling", () => {
     test("creates event with date and closes_at", async () => {
-      const response = await apiRequest("/api/admin/events", {
+      await apiRequest("/api/admin/events", {
         method: "POST",
         body: {
           name: "Dated Event",
@@ -436,24 +434,24 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
           closes_at: "2026-06-14T23:59:00Z",
           active: true,
         },
-      });
-
-      await expectJsonResponse(201, (body) => {
-        expect(body.event.date).toBe("2026-06-15T10:00:00.000Z");
-        expect(body.event.closes_at).toBe("2026-06-14T23:59:00.000Z");
-        expect(body.event.active).toBe(true);
-      })(response);
+      }).then(
+        expectJsonResponse(201, (body) => {
+          expect(body.event.date).toBe("2026-06-15T10:00:00.000Z");
+          expect(body.event.closes_at).toBe("2026-06-14T23:59:00.000Z");
+          expect(body.event.active).toBe(true);
+        }),
+      );
     });
 
     test("creates event with empty name string returns error", async () => {
-      const response = await apiRequest("/api/admin/events", {
+      await apiRequest("/api/admin/events", {
         method: "POST",
         body: { name: "   ", max_attendees: 10 },
-      });
-
-      await expectJsonResponse(400, (body) => {
-        expect(body.message).toBe("name is required");
-      })(response);
+      }).then(
+        expectJsonResponse(400, (body) => {
+          expect(body.message).toBe("name is required");
+        }),
+      );
     });
   });
 
