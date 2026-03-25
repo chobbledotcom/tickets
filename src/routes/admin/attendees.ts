@@ -206,6 +206,19 @@ const attendeeFormAction =
       handler(data, session, form, eventId, attendeeId),
     );
 
+/** Create an attendee form handler that verifies the attendee name before running the action */
+const verifiedAttendeeAction = (
+  action: string,
+  confirmLabel: string | undefined,
+  handler: (data: AttendeeWithEvent, form: FormParams, eventId: number, attendeeId: number) => Response | Promise<Response>,
+) =>
+  attendeeFormAction(
+    (data, _session, form, eventId, attendeeId) =>
+      withVerifiedName(form, data, eventId, attendeeId, action, confirmLabel, () =>
+        handler(data, form, eventId, attendeeId),
+      ),
+  );
+
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeGetRoute(
   (data, session, request) => {
@@ -217,15 +230,14 @@ const handleAdminAttendeeDeleteGet = attendeeGetRoute(
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAttendeeDelete = attendeeFormAction(
-  (data, _session, form, eventId, attendeeId) =>
-    withVerifiedName(form, data, eventId, attendeeId, "delete", "deletion", async () => {
-      await deleteAttendee(attendeeId);
-      await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
-      return redirect(`/admin/event/${eventId}`, "Attendee deleted", true, {
-        form,
-      });
-    }),
+const handleAttendeeDelete = verifiedAttendeeAction("delete", "deletion",
+  async (data, form, eventId, attendeeId) => {
+    await deleteAttendee(attendeeId);
+    await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
+    return redirect(`/admin/event/${eventId}`, "Attendee deleted", true, {
+      form,
+    });
+  },
 );
 
 /**
@@ -323,34 +335,33 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
-const handleAttendeeRefund = attendeeFormAction(
-  (data, _session, form, eventId, attendeeId) =>
-    withVerifiedName(form, data, eventId, attendeeId, "refund", "refund", async () => {
-      if (!data.attendee.payment_id)
-        return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
-      if (data.attendee.refunded)
-        return refundError(eventId, attendeeId, ALREADY_REFUNDED_ERROR);
+const handleAttendeeRefund = verifiedAttendeeAction("refund", "refund",
+  async (data, form, eventId, attendeeId) => {
+    if (!data.attendee.payment_id)
+      return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
+    if (data.attendee.refunded)
+      return refundError(eventId, attendeeId, ALREADY_REFUNDED_ERROR);
 
-      const provider = await getActivePaymentProvider();
-      if (!provider) return refundError(eventId, attendeeId, NO_PROVIDER_ERROR);
+    const provider = await getActivePaymentProvider();
+    if (!provider) return refundError(eventId, attendeeId, NO_PROVIDER_ERROR);
 
-      const refunded = await provider.refundPayment(data.attendee.payment_id);
-      if (!refunded) {
-        logError({
-          code: ErrorCode.PAYMENT_REFUND,
-          eventId,
-          detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
-        });
-        return refundError(eventId, attendeeId, REFUND_FAILED_ERROR);
-      }
-
-      await markRefunded(data.attendee.id);
-      await logActivity(
-        `Refund issued for attendee '${data.attendee.name}'`,
+    const refunded = await provider.refundPayment(data.attendee.payment_id);
+    if (!refunded) {
+      logError({
+        code: ErrorCode.PAYMENT_REFUND,
         eventId,
-      );
-      return redirect(`/admin/event/${eventId}`, "Refund issued", true, { form });
-    }),
+        detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
+      });
+      return refundError(eventId, attendeeId, REFUND_FAILED_ERROR);
+    }
+
+    await markRefunded(data.attendee.id);
+    await logActivity(
+      `Refund issued for attendee '${data.attendee.name}'`,
+      eventId,
+    );
+    return redirect(`/admin/event/${eventId}`, "Refund issued", true, { form });
+  },
 );
 
 /** Filter attendees that have a payment_id and are not yet refunded */
@@ -729,22 +740,21 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
-const handleResendNotification = attendeeFormAction(
-  (data, _session, form, eventId, attendeeId) =>
-    withVerifiedName(form, data, eventId, attendeeId, "resend-notification", undefined, async () => {
-      await Promise.all([
-        logAndNotifyRegistration([
-          { event: data.event, attendee: data.attendee },
-        ]),
-        logActivity(
-          `Notification re-sent for attendee '${data.attendee.name}'`,
-          eventId,
-        ),
-      ]);
-      return redirect(`/admin/event/${eventId}`, "Notification re-sent", true, {
-        form,
-      });
-    }),
+const handleResendNotification = verifiedAttendeeAction("resend-notification", undefined,
+  async (data, form, eventId) => {
+    await Promise.all([
+      logAndNotifyRegistration([
+        { event: data.event, attendee: data.attendee },
+      ]),
+      logActivity(
+        `Notification re-sent for attendee '${data.attendee.name}'`,
+        eventId,
+      ),
+    ]);
+    return redirect(`/admin/event/${eventId}`, "Notification re-sent", true, {
+      form,
+    });
+  },
 );
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
