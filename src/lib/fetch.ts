@@ -22,5 +22,10 @@ export const fetchText = async (
 ): Promise<FetchResult> => {
   const response = await fetch(url, init);
   const text = await response.text();
-  return { status: response.status, ok: response.ok, text, headers: response.headers };
+  return {
+    status: response.status,
+    ok: response.ok,
+    text,
+    headers: response.headers,
+  };
 };
