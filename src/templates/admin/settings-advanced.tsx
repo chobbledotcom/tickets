@@ -32,6 +32,7 @@ export type AdvancedSettingsPageState = {
   bunnyDnsEnabled: boolean;
   bunnySubdomain: string;
   bunnyDnsSubdomainSuffix: string;
+  subdomainPreview: string;
   customDomain: string;
   customDomainLastValidated: string;
   cdnHostname: string;
@@ -490,22 +491,47 @@ export const adminAdvancedSettingsPage = (
                 Choose a subdomain for your booking site. This cannot be changed
                 once set.
               </p>
-              <label>
-                Subdomain
-                <div class="subdomain-input-group">
+              {s.subdomainPreview ? (
+                <div>
+                  <p>
+                    Subdomain{" "}
+                    <strong>
+                      {s.subdomainPreview}
+                      {s.bunnyDnsSubdomainSuffix}
+                    </strong>{" "}
+                    is available.
+                  </p>
                   <input
-                    type="text"
+                    type="hidden"
                     name="subdomain"
-                    placeholder="myevent"
-                    autocomplete="off"
-                    pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
+                    value={s.subdomainPreview}
                   />
-                  <span class="subdomain-suffix">
-                    {s.bunnyDnsSubdomainSuffix}
-                  </span>
+                  <label>
+                    <input type="checkbox" name="save" value="1" /> Confirm
+                    registration (cannot be undone)
+                  </label>
+                  <button type="submit">Register Subdomain</button>
                 </div>
-              </label>
-              <button type="submit">Register Subdomain</button>
+              ) : (
+                <div>
+                  <label>
+                    Subdomain
+                    <div class="subdomain-input-group">
+                      <input
+                        type="text"
+                        name="subdomain"
+                        placeholder="myevent"
+                        autocomplete="off"
+                        pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
+                      />
+                      <span class="subdomain-suffix">
+                        {s.bunnyDnsSubdomainSuffix}
+                      </span>
+                    </div>
+                  </label>
+                  <button type="submit">Check Availability</button>
+                </div>
+              )}
             </div>
           )}
         </CsrfForm>

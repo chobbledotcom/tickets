@@ -8,6 +8,7 @@ import {
   isValidPemPrivateKey,
 } from "#lib/apple-wallet.ts";
 import {
+  checkSubdomainAvailable,
   registerBunnySubdomain,
   validateCustomDomain,
 } from "#lib/bunny-cdn.ts";
@@ -193,9 +194,12 @@ const renderSettingsPage = (session: AuthSession) => {
 };
 
 /** Render the advanced settings page with current state */
-const renderAdvancedSettingsPage = (session: AuthSession) => {
+const renderAdvancedSettingsPage = (
+  session: AuthSession,
+  subdomainPreview = "",
+) => {
   const state = getAdvancedSettingsPageState();
-  return adminAdvancedSettingsPage(session, state);
+  return adminAdvancedSettingsPage(session, { ...state, subdomainPreview });
 };
 
 /** Render settings page with error on a specific form */
@@ -285,8 +289,14 @@ const handleAdminSettingsAdvancedGet: TypedRouteHandler<
   "GET /admin/settings-advanced"
 > = (request) =>
   requireOwnerOr(request, async (session) => {
-    setFormSuccess(getSearchParam(request, "form"), getFlash().success);
-    return htmlResponse(await renderAdvancedSettingsPage(session));
+    const flash = getFlash();
+    setFormSuccess(getSearchParam(request, "form"), flash.success);
+    const subdomainPreview = flash.success
+      ? getSearchParam(request, "subdomain")
+      : "";
+    return htmlResponse(
+      await renderAdvancedSettingsPage(session, subdomainPreview),
+    );
   });
 
 /**
@@ -1160,7 +1170,7 @@ const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
 
-/** Handle POST /admin/settings/host-subdomain - check + register subdomain */
+/** Handle POST /admin/settings/host-subdomain - preview or register subdomain */
 const handleHostSubdomainPost = advancedSettingsRoute(
   async (form, errorPage) => {
     if (!isBunnyDnsEnabled()) {
@@ -1179,6 +1189,33 @@ const handleHostSubdomainPost = advancedSettingsRoute(
       return errorPage("Invalid subdomain format", 400, FORM_ID_HOST_SUBDOMAIN);
     }
 
+    const save = form.getString("save");
+
+    if (!save) {
+      // Preview: check availability only
+      const check = await checkSubdomainAvailable(raw);
+      if (!check.ok) {
+        return errorPage(check.error, 502, FORM_ID_HOST_SUBDOMAIN);
+      }
+      if (!check.available) {
+        return errorPage(
+          `Subdomain "${raw}" is already taken`,
+          409,
+          FORM_ID_HOST_SUBDOMAIN,
+        );
+      }
+      return redirect(
+        "/admin/settings-advanced",
+        `${raw}${getBunnyDnsSubdomainSuffix()} is available`,
+        true,
+        {
+          formId: FORM_ID_HOST_SUBDOMAIN,
+          params: { subdomain: raw },
+        },
+      );
+    }
+
+    // Save: actually register
     const result = await registerBunnySubdomain(raw);
     if (!result.ok) {
       return errorPage(result.error, 502, FORM_ID_HOST_SUBDOMAIN);

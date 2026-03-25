@@ -620,7 +620,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         const html = await response.text();
         expect(html).toContain('id="settings-host-subdomain"');
         expect(html).toContain("Host Subdomain");
-        expect(html).toContain("Register Subdomain");
+        expect(html).toContain("Check Availability");
       });
 
       test("shows existing subdomain as read-only with redirect message when custom domain set", async () => {
@@ -700,7 +700,87 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           expect(response.status).toBe(400);
         });
 
-        test("registers subdomain, saves to DB, and logs activity", async () => {
+        test("previews subdomain availability without save", async () => {
+          setBunnyDnsEnv();
+          const original = bunnyCdnApi.checkSubdomainAvailable;
+          bunnyCdnApi.checkSubdomainAvailable = () =>
+            Promise.resolve({
+              ok: true as const,
+              available: true,
+              fullDomain: "myevent.tickets.example.com",
+            });
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/host-subdomain",
+                {
+                  subdomain: "myevent",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            expect(response.status).toBe(302);
+            const location = response.headers.get("location")!;
+            expect(location).toContain("subdomain=myevent");
+            expect(location).toContain("form=settings-host-subdomain");
+          } finally {
+            bunnyCdnApi.checkSubdomainAvailable = original;
+          }
+        });
+
+        test("preview returns error when availability check fails", async () => {
+          setBunnyDnsEnv();
+          const original = bunnyCdnApi.checkSubdomainAvailable;
+          bunnyCdnApi.checkSubdomainAvailable = () =>
+            Promise.resolve({
+              ok: false as const,
+              error: "DNS zone error",
+            });
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/host-subdomain",
+                {
+                  subdomain: "myevent",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            expect(response.status).toBe(502);
+          } finally {
+            bunnyCdnApi.checkSubdomainAvailable = original;
+          }
+        });
+
+        test("preview returns error when subdomain is taken", async () => {
+          setBunnyDnsEnv();
+          const original = bunnyCdnApi.checkSubdomainAvailable;
+          bunnyCdnApi.checkSubdomainAvailable = () =>
+            Promise.resolve({
+              ok: true as const,
+              available: false,
+              fullDomain: "myevent.tickets.example.com",
+            });
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/host-subdomain",
+                {
+                  subdomain: "myevent",
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
+            );
+            expect(response.status).toBe(409);
+          } finally {
+            bunnyCdnApi.checkSubdomainAvailable = original;
+          }
+        });
+
+        test("registers subdomain with save flag, saves to DB, and logs activity", async () => {
           setBunnyDnsEnv();
           const original = bunnyCdnApi.registerBunnySubdomain;
           bunnyCdnApi.registerBunnySubdomain = () =>
@@ -714,6 +794,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 "/admin/settings/host-subdomain",
                 {
                   subdomain: "myevent",
+                  save: "1",
                   csrf_token: await testCsrfToken(),
                 },
                 await testCookie(),
@@ -751,6 +832,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 "/admin/settings/host-subdomain",
                 {
                   subdomain: "myevent",
+                  save: "1",
                   csrf_token: await testCsrfToken(),
                 },
                 await testCookie(),
