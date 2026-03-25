@@ -120,6 +120,24 @@ const renderAttr = (key: string, value: unknown): string => {
   return ` ${key}="${escapeHtml(String(value))}"`;
 };
 
+/** Render a plain HTML element (not a component or fragment) */
+const renderHtmlElement = (
+  tag: string,
+  attrs: Record<string, unknown>,
+  children: Child,
+): SafeHtml => {
+  const attrStr = Object.entries(attrs)
+    .map(([k, v]) => renderAttr(k, v))
+    .join("");
+
+  if (VOID_ELEMENTS[tag]) {
+    return new SafeHtml(`<${tag}${attrStr}>`);
+  }
+
+  const childStr = renderChild(children);
+  return new SafeHtml(`<${tag}${attrStr}>${childStr}</${tag}>`);
+};
+
 /**
  * JSX factory function - transforms JSX elements to HTML strings
  */
@@ -139,19 +157,7 @@ export const jsx = (tag: string | Component, props: Props | null): SafeHtml => {
     return isSafeHtml(result) ? result : new SafeHtml(result);
   }
 
-  // Build attributes string
-  const attrStr = Object.entries(attrs)
-    .map(([k, v]) => renderAttr(k, v))
-    .join("");
-
-  // Void elements (self-closing)
-  if (VOID_ELEMENTS[tag]) {
-    return new SafeHtml(`<${tag}${attrStr}>`);
-  }
-
-  // Regular elements
-  const childStr = renderChild(children);
-  return new SafeHtml(`<${tag}${attrStr}>${childStr}</${tag}>`);
+  return renderHtmlElement(tag, attrs, children);
 };
 
 // JSX runtime exports (used by TypeScript's JSX transform)

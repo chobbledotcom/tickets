@@ -288,7 +288,7 @@ const handleRequestInternal = async (
     return redirectResponse("/setup");
   }
 
-  return (await routeMainApp(request, path, method, server))!;
+  return (await routeMainApp(request, path, method, server)) as Response;
 };
 
 /** Log request and return response */

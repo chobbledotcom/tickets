@@ -132,7 +132,7 @@ describeWithEnv("dates", { db: true }, () => {
       });
 
       const dates = getAvailableDates(event, []);
-      const earliest = dates[0]!;
+      const earliest = dates[0];
       expect(earliest >= addDays(today(), 3)).toBe(true);
     });
 
@@ -145,7 +145,7 @@ describeWithEnv("dates", { db: true }, () => {
       });
 
       const dates = getAvailableDates(event, []);
-      const latest = dates[dates.length - 1]!;
+      const latest = dates[dates.length - 1];
       // Should extend close to 730 days (2 years)
       expect(latest >= addDays(today(), 700)).toBe(true);
     });
@@ -159,7 +159,7 @@ describeWithEnv("dates", { db: true }, () => {
       });
 
       const dates = getAvailableDates(event, []);
-      const latest = dates[dates.length - 1]!;
+      const latest = dates[dates.length - 1];
       expect(latest <= addDays(today(), 7)).toBe(true);
     });
 

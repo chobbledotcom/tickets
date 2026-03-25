@@ -278,6 +278,77 @@ export const renderQuestions = (
     .join("");
 };
 
+/** Render event header (image, description, date, location) for non-iframe view */
+const EventHeader = ({ event }: { event: EventWithCount }): string =>
+  String(
+    <>
+      <Raw html={renderEventImage(event)} />
+      <div class="prose">
+        <h1>{event.name}</h1>
+        {event.description && (
+          <div class="description">
+            <Raw html={renderMarkdownInline(event.description)} />
+          </div>
+        )}
+        {event.date && (
+          <p>
+            <strong>Date:</strong> {formatDatetimeLabel(event.date)}
+          </p>
+        )}
+        {event.location && (
+          <p>
+            <strong>Location:</strong> {event.location}
+          </p>
+        )}
+      </div>
+    </>,
+  );
+
+/** Render the ticket booking form */
+const TicketForm = ({
+  event,
+  availableDates,
+  termsAndConditions,
+  questions,
+}: {
+  event: EventWithCount;
+  availableDates: string[] | undefined;
+  termsAndConditions: string | null | undefined;
+  questions?: QuestionWithAnswers[];
+}): string => {
+  const spotsRemaining = event.max_attendees - event.attendee_count;
+  const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
+  const showQuantity = maxPurchasable > 1;
+  const fields: Field[] = getTicketFields(event.fields, isPaidEvent(event));
+  const isDaily = event.event_type === "daily";
+  return String(
+    <CsrfForm action={`/ticket/${event.slug}`}>
+      <Raw html={renderFields(fields)} />
+      {isDaily && availableDates && (
+        <Raw html={renderDateSelector(availableDates)} />
+      )}
+      {showQuantity ? (
+        <label>
+          Number of Tickets
+          <select name="quantity">
+            <Raw html={quantityOptions(maxPurchasable)} />
+          </select>
+        </label>
+      ) : (
+        <input type="hidden" name="quantity" value="1" />
+      )}
+      {event.can_pay_more && <Raw html={renderPayMoreInput(event)} />}
+      {questions && questions.length > 0 && (
+        <Raw html={renderQuestions(questions)} />
+      )}
+      {termsAndConditions && (
+        <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
+      )}
+      <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
+    </CsrfForm>,
+  );
+};
+
 /**
  * Public ticket page
  */
@@ -291,14 +362,8 @@ export const ticketPage = (
   questions?: QuestionWithAnswers[],
 ): string => {
   const inIframe = getIframeMode();
-  const spotsRemaining = event.max_attendees - event.attendee_count;
-  const isFull = spotsRemaining <= 0;
-  const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
-  const showQuantity = maxPurchasable > 1;
-  const fields: Field[] = getTicketFields(event.fields, isPaidEvent(event));
-  const isDaily = event.event_type === "daily";
+  const isFull = event.max_attendees - event.attendee_count <= 0;
   const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
-  const showPayMore = event.can_pay_more;
 
   return String(
     <Layout
@@ -306,29 +371,7 @@ export const ticketPage = (
       bodyClass={inIframe ? "iframe" : undefined}
       headExtra={headExtra}
     >
-      {!inIframe && (
-        <>
-          <Raw html={renderEventImage(event)} />
-          <div class="prose">
-            <h1>{event.name}</h1>
-            {event.description && (
-              <div class="description">
-                <Raw html={renderMarkdownInline(event.description)} />
-              </div>
-            )}
-            {event.date && (
-              <p>
-                <strong>Date:</strong> {formatDatetimeLabel(event.date)}
-              </p>
-            )}
-            {event.location && (
-              <p>
-                <strong>Location:</strong> {event.location}
-              </p>
-            )}
-          </div>
-        </>
-      )}
+      {!inIframe && <Raw html={EventHeader({ event })} />}
       <Raw html={renderError(error)} />
 
       {isClosed ? (
@@ -336,30 +379,14 @@ export const ticketPage = (
       ) : isFull ? (
         <div class="error">Sorry, this event is full.</div>
       ) : (
-        <CsrfForm action={`/ticket/${event.slug}`}>
-          <Raw html={renderFields(fields)} />
-          {isDaily && availableDates && (
-            <Raw html={renderDateSelector(availableDates)} />
-          )}
-          {showQuantity ? (
-            <label>
-              Number of Tickets
-              <select name="quantity">
-                <Raw html={quantityOptions(maxPurchasable)} />
-              </select>
-            </label>
-          ) : (
-            <input type="hidden" name="quantity" value="1" />
-          )}
-          {showPayMore && <Raw html={renderPayMoreInput(event)} />}
-          {questions && questions.length > 0 && (
-            <Raw html={renderQuestions(questions)} />
-          )}
-          {termsAndConditions && (
-            <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
-          )}
-          <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
-        </CsrfForm>
+        <Raw
+          html={TicketForm({
+            event,
+            availableDates,
+            termsAndConditions,
+            questions,
+          })}
+        />
       )}
     </Layout>,
   );
@@ -487,6 +514,49 @@ export type MultiTicketPageOptions = {
   questionEventMap?: QuestionEventMap;
 };
 
+/** Render the multi-ticket booking form */
+const MultiTicketForm = ({
+  events,
+  slugs,
+  dates,
+  terms,
+  questions,
+  questionEventMap,
+}: Omit<MultiTicketPageOptions, "error">): string => {
+  const fieldsSetting = getMultiTicketFieldsSetting(events);
+  const anyPaid = events.some((e) => isPaidEvent(e.event));
+  const fields: Field[] = getTicketFields(fieldsSetting, anyPaid);
+  const hasDaily = events.some((e) => e.event.event_type === "daily");
+  const availableEvents = events.filter((e) => !e.isSoldOut && !e.isClosed);
+  const hideQuantity =
+    availableEvents.length === 1 && availableEvents[0]?.maxPurchasable === 1;
+  const eventRows = events
+    .map((e) => renderMultiEventRow(e, hideQuantity))
+    .join("");
+
+  return String(
+    <CsrfForm action={`/ticket/${slugs.join("+")}`}>
+      <Raw html={renderFields(fields)} />
+      {hasDaily && dates && <Raw html={renderDateSelector(dates)} />}
+
+      {hideQuantity ? (
+        <Raw html={eventRows} />
+      ) : (
+        <fieldset class="multi-ticket-events">
+          <legend>Select Tickets</legend>
+          <Raw html={eventRows} />
+        </fieldset>
+      )}
+
+      {questions && questions.length > 0 && (
+        <Raw html={renderQuestions(questions, questionEventMap)} />
+      )}
+      {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
+      <button type="submit">Reserve Tickets</button>
+    </CsrfForm>,
+  );
+};
+
 /**
  * Multi-ticket page - register for multiple events at once
  */
@@ -502,18 +572,6 @@ export const multiTicketPage = ({
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
-  const fieldsSetting = getMultiTicketFieldsSetting(events);
-  const anyPaid = events.some((e) => isPaidEvent(e.event));
-  const fields: Field[] = getTicketFields(fieldsSetting, anyPaid);
-  const hasDaily = events.some((e) => e.event.event_type === "daily");
-
-  const availableEvents = events.filter((e) => !e.isSoldOut && !e.isClosed);
-  const hideQuantity =
-    availableEvents.length === 1 && availableEvents[0]?.maxPurchasable === 1;
-
-  const eventRows = events
-    .map((e) => renderMultiEventRow(e, hideQuantity))
-    .join("");
 
   return String(
     <Layout title="Reserve Tickets" bodyClass={inIframe ? "iframe" : undefined}>
@@ -526,25 +584,16 @@ export const multiTicketPage = ({
             : "Sorry, all events are sold out."}
         </div>
       ) : (
-        <CsrfForm action={`/ticket/${slugs.join("+")}`}>
-          <Raw html={renderFields(fields)} />
-          {hasDaily && dates && <Raw html={renderDateSelector(dates)} />}
-
-          {hideQuantity ? (
-            <Raw html={eventRows} />
-          ) : (
-            <fieldset class="multi-ticket-events">
-              <legend>Select Tickets</legend>
-              <Raw html={eventRows} />
-            </fieldset>
-          )}
-
-          {questions && questions.length > 0 && (
-            <Raw html={renderQuestions(questions, questionEventMap)} />
-          )}
-          {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
-          <button type="submit">Reserve Tickets</button>
-        </CsrfForm>
+        <Raw
+          html={MultiTicketForm({
+            events,
+            slugs,
+            dates,
+            terms,
+            questions,
+            questionEventMap,
+          })}
+        />
       )}
     </Layout>,
   );

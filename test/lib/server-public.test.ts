@@ -850,7 +850,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           name: "Test User",
           email: "test@example.com",
           quantity: "1",
-          csrf_token: csrfToken!,
+          csrf_token: csrfToken,
         }),
       );
       expect(response.status).toBe(302);
@@ -1819,7 +1819,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           name: "Jane Doe",
           email: "jane@example.com",
           quantity: "1",
-          csrf_token: csrfToken!,
+          csrf_token: csrfToken,
         }),
       );
       expect(response.status).toBe(302);

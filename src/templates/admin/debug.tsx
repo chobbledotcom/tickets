@@ -3,6 +3,7 @@
  */
 
 import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -67,39 +68,10 @@ const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
     <span class="badge-missing">Not configured</span>
   );
 
-/**
- * Admin debug page
- */
-export const adminDebugPage = (
-  session: AdminSession,
-  s: DebugPageState,
-): string =>
+/** Render wallet and integration debug sections */
+const DebugIntegrations = ({ s }: { s: DebugPageState }): string =>
   String(
-    <Layout title="Debug Info" theme={s.theme}>
-      <AdminNav session={session} active="/admin/settings" />
-
-      <h1>Debug Info</h1>
-      <p>
-        Configuration status overview for troubleshooting. No secrets or keys
-        are shown.
-      </p>
-
-      <article>
-        <h2>Build</h2>
-        <table>
-          <tbody>
-            <tr>
-              <td>Timestamp</td>
-              <td>{s.build.timestamp || "—"}</td>
-            </tr>
-            <tr>
-              <td>Commit</td>
-              <td>{s.build.commit || "—"}</td>
-            </tr>
-          </tbody>
-        </table>
-      </article>
-
+    <>
       <article>
         <h2>Apple Wallet</h2>
         <table>
@@ -221,6 +193,43 @@ export const adminDebugPage = (
           </tbody>
         </table>
       </article>
+    </>,
+  );
+
+/**
+ * Admin debug page
+ */
+export const adminDebugPage = (
+  session: AdminSession,
+  s: DebugPageState,
+): string =>
+  String(
+    <Layout title="Debug Info" theme={s.theme}>
+      <AdminNav session={session} active="/admin/settings" />
+
+      <h1>Debug Info</h1>
+      <p>
+        Configuration status overview for troubleshooting. No secrets or keys
+        are shown.
+      </p>
+
+      <article>
+        <h2>Build</h2>
+        <table>
+          <tbody>
+            <tr>
+              <td>Timestamp</td>
+              <td>{s.build.timestamp || "—"}</td>
+            </tr>
+            <tr>
+              <td>Commit</td>
+              <td>{s.build.commit || "—"}</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+
+      <Raw html={DebugIntegrations({ s })} />
 
       <article>
         <h2>Notifications (ntfy)</h2>

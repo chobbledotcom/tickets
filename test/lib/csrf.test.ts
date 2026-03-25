@@ -26,7 +26,7 @@ describe("signCsrfToken", () => {
   test("includes a numeric timestamp", async () => {
     const token = await signCsrfToken();
     const parts = token.split(".");
-    const timestamp = Number.parseInt(parts[1]!, 10);
+    const timestamp = Number.parseInt(parts[1], 10);
     expect(Number.isNaN(timestamp)).toBe(false);
     const nowS = Math.floor(Date.now() / 1000);
     expect(Math.abs(timestamp - nowS)).toBeLessThan(5);

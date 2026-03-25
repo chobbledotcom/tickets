@@ -3,6 +3,7 @@
  */
 
 import { getIframeMode } from "#lib/iframe.ts";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
@@ -40,6 +41,54 @@ export const paymentPage = (
     </Layout>,
   );
 
+/** Render the success/ticket content block */
+const SuccessContent = ({
+  ticketUrl,
+  paid,
+  fromEmail,
+  thankYouUrl,
+}: {
+  ticketUrl: string | null;
+  paid: boolean;
+  fromEmail: string;
+  thankYouUrl: string;
+}): string =>
+  String(
+    <>
+      {paid ? (
+        <div class="success">
+          <p>Thank you for your payment. Your ticket has been confirmed.</p>
+        </div>
+      ) : null}
+      {fromEmail ? (
+        <p>
+          <small>
+            <i>
+              Your ticket will be sent from {fromEmail} &mdash; please check
+              your Junk/Spam folder.
+            </i>
+          </small>
+        </p>
+      ) : null}
+      {ticketUrl ? (
+        <p>
+          <a href={ticketUrl} target="_blank" rel="noopener">
+            Click here to view your{" "}
+            {ticketUrl.split("+").length > 1 ? "tickets" : "ticket"}
+          </a>
+        </p>
+      ) : null}
+      {thankYouUrl ? (
+        <>
+          <p>You will be redirected shortly...</p>
+          <p>
+            <a href={thankYouUrl}>Click here if you are not redirected</a>
+          </p>
+        </>
+      ) : null}
+    </>,
+  );
+
 /**
  * Success page - shown after payment or free reservation
  */
@@ -74,37 +123,9 @@ export const successPage = ({
         data-scroll-into-view={inIframe || undefined}
       >
         <h1>{heading}</h1>
-        {paid ? (
-          <div class="success">
-            <p>Thank you for your payment. Your ticket has been confirmed.</p>
-          </div>
-        ) : null}
-        {fromEmail ? (
-          <p>
-            <small>
-              <i>
-                Your ticket will be sent from {fromEmail} &mdash; please check
-                your Junk/Spam folder.
-              </i>
-            </small>
-          </p>
-        ) : null}
-        {ticketUrl ? (
-          <p>
-            <a href={ticketUrl} target="_blank" rel="noopener">
-              Click here to view your{" "}
-              {ticketUrl.split("+").length > 1 ? "tickets" : "ticket"}
-            </a>
-          </p>
-        ) : null}
-        {thankYouUrl ? (
-          <>
-            <p>You will be redirected shortly...</p>
-            <p>
-              <a href={thankYouUrl}>Click here if you are not redirected</a>
-            </p>
-          </>
-        ) : null}
+        <Raw
+          html={SuccessContent({ ticketUrl, paid, fromEmail, thankYouUrl })}
+        />
       </div>
     </Layout>,
   );

@@ -42,7 +42,7 @@ describe("endpoint docs", () => {
   test("all endpoint requests (when present) are valid JSON", () => {
     for (const endpoint of allEndpoints) {
       if (endpoint.request) {
-        expect(() => JSON.parse(endpoint.request!)).not.toThrow();
+        expect(() => JSON.parse(endpoint.request)).not.toThrow();
       }
     }
   });
@@ -50,7 +50,7 @@ describe("endpoint docs", () => {
   test("public event list response uses PublicEvent shape", () => {
     const listEndpoint = PUBLIC_API_ENDPOINTS.find(
       (e: EndpointDoc) => e.method === "GET" && e.path === "/api/events",
-    )!;
+    ) as EndpointDoc;
     const parsed = JSON.parse(listEndpoint.response);
     const realPublicEvent = toPublicEvent(ADMIN_API_EXAMPLE_EVENT);
     const realKeys = Object.keys(realPublicEvent).sort();
@@ -61,7 +61,7 @@ describe("endpoint docs", () => {
   test("admin event list response uses AdminEvent shape", () => {
     const listEndpoint = ADMIN_API_ENDPOINTS.find(
       (e: EndpointDoc) => e.method === "GET" && e.path === "/api/admin/events",
-    )!;
+    ) as EndpointDoc;
     const parsed = JSON.parse(listEndpoint.response);
     const realAdminEvent = toAdminEvent(ADMIN_API_EXAMPLE_EVENT);
     const realKeys = Object.keys(realAdminEvent).sort();

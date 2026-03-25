@@ -5,6 +5,7 @@
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm } from "#lib/forms.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -43,58 +44,10 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
 };
 
-/**
- * Admin advanced settings page
- */
-export const adminAdvancedSettingsPage = (
-  session: AdminSession,
-  s: AdvancedSettingsPageState,
-): string =>
+/** Render wallet configuration forms */
+const WalletForms = ({ s }: { s: AdvancedSettingsPageState }): string =>
   String(
-    <Layout title="Advanced Settings" theme={s.theme}>
-      <AdminNav session={session} active="/admin/settings" />
-
-      <article>
-        <aside>
-          <p>
-            Be careful changing settings on this page. You can break your site
-            in ways that can be hard to diagnose. Test your booking process
-            after making a change.
-          </p>
-        </aside>
-      </article>
-
-      <CsrfForm
-        action="/admin/settings/show-public-api"
-        id="settings-show-public-api"
-      >
-        <h2>Enable public API?</h2>
-        <p>
-          Exposes a JSON API for listing events, checking availability, and
-          creating bookings. See the <a href="/admin/guide#api">API guide</a>{" "}
-          for details.
-        </p>
-        <label>
-          <input
-            type="radio"
-            name="show_public_api"
-            value="true"
-            checked={s.showPublicApi === true}
-          />
-          Yes
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="show_public_api"
-            value="false"
-            checked={s.showPublicApi !== true}
-          />
-          No
-        </label>
-        <button type="submit">Save</button>
-      </CsrfForm>
-
+    <>
       <CsrfForm
         action="/admin/settings/apple-wallet"
         id="settings-apple-wallet"
@@ -209,7 +162,17 @@ export const adminAdvancedSettingsPage = (
         </label>
         <button type="submit">Save Google Wallet Settings</button>
       </CsrfForm>
+    </>,
+  );
 
+/** Render email template configuration forms */
+const EmailTemplateForms = ({
+  s,
+}: {
+  s: AdvancedSettingsPageState;
+}): string =>
+  String(
+    <>
       <CsrfForm
         action="/admin/settings/email-templates/confirmation"
         id="settings-email-tpl-confirmation"
@@ -333,7 +296,10 @@ export const adminAdvancedSettingsPage = (
             {s.confirmationTemplates.html}
           </textarea>
         </label>
-        <a href="#settings-email-tpl-confirmation" data-fill-default="confirmation_html">
+        <a
+          href="#settings-email-tpl-confirmation"
+          data-fill-default="confirmation_html"
+        >
           <small>Edit default template</small>
         </a>
         <label>
@@ -348,7 +314,10 @@ export const adminAdvancedSettingsPage = (
             {s.confirmationTemplates.text}
           </textarea>
         </label>
-        <a href="#settings-email-tpl-confirmation" data-fill-default="confirmation_text">
+        <a
+          href="#settings-email-tpl-confirmation"
+          data-fill-default="confirmation_text"
+        >
           <small>Edit default template</small>
         </a>
         <br />
@@ -407,7 +376,13 @@ export const adminAdvancedSettingsPage = (
         <br />
         <button type="submit">Save Admin Notification Template</button>
       </CsrfForm>
+    </>,
+  );
 
+/** Render email/CDN/reset sections */
+const EmailAndCdnForms = ({ s }: { s: AdvancedSettingsPageState }): string =>
+  String(
+    <>
       <CsrfForm action="/admin/settings/email" id="settings-email">
         <h2>Email Notifications</h2>
         <p>
@@ -540,5 +515,65 @@ export const adminAdvancedSettingsPage = (
         action="/admin/settings/reset-database"
         id="settings-reset-database"
       />
+    </>,
+  );
+
+/**
+ * Admin advanced settings page
+ */
+export const adminAdvancedSettingsPage = (
+  session: AdminSession,
+  s: AdvancedSettingsPageState,
+): string =>
+  String(
+    <Layout title="Advanced Settings" theme={s.theme}>
+      <AdminNav session={session} active="/admin/settings" />
+
+      <article>
+        <aside>
+          <p>
+            Be careful changing settings on this page. You can break your site
+            in ways that can be hard to diagnose. Test your booking process
+            after making a change.
+          </p>
+        </aside>
+      </article>
+
+      <CsrfForm
+        action="/admin/settings/show-public-api"
+        id="settings-show-public-api"
+      >
+        <h2>Enable public API?</h2>
+        <p>
+          Exposes a JSON API for listing events, checking availability, and
+          creating bookings. See the <a href="/admin/guide#api">API guide</a>{" "}
+          for details.
+        </p>
+        <label>
+          <input
+            type="radio"
+            name="show_public_api"
+            value="true"
+            checked={s.showPublicApi === true}
+          />
+          Yes
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="show_public_api"
+            value="false"
+            checked={s.showPublicApi !== true}
+          />
+          No
+        </label>
+        <button type="submit">Save</button>
+      </CsrfForm>
+
+      <Raw html={WalletForms({ s })} />
+
+      <Raw html={EmailTemplateForms({ s })} />
+
+      <Raw html={EmailAndCdnForms({ s })} />
     </Layout>,
   );

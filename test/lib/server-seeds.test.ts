@@ -309,7 +309,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         }),
       );
       const html1 = await get1.text();
-      const csrf1 = extractCsrfToken(html1)!;
+      const csrf1 = extractCsrfToken(html1);
 
       await handleRequest(
         mockFormRequest(
@@ -326,7 +326,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         }),
       );
       const html2 = await get2.text();
-      const csrf2 = extractCsrfToken(html2)!;
+      const csrf2 = extractCsrfToken(html2);
 
       await handleRequest(
         mockFormRequest(

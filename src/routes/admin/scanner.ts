@@ -35,7 +35,7 @@ const resolveTokenAttendee = async (
   if (!raw) return null;
 
   // decryptAttendees maps 1:1 over input, so index 0 is always present
-  return (await decryptAttendees([raw], privateKey))[0]!;
+  return (await decryptAttendees([raw], privateKey))[0] as Attendee;
 };
 
 /** Get event name by ID (for cross-event responses) */

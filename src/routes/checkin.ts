@@ -46,7 +46,7 @@ const decryptWithSession = async (
   rawAttendees: Attendee[],
   session: AuthSession,
 ) => {
-  const privateKey = (await getPrivateKey(session))!;
+  const privateKey = (await getPrivateKey(session)) as CryptoKey;
   return decryptAttendees(rawAttendees, privateKey);
 };
 

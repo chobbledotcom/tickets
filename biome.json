@@ -56,7 +56,7 @@
       }
     },
     {
-      "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
+      "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx", "src/test-utils/**/*.ts"],
       "linter": {
         "rules": {
           "suspicious": {

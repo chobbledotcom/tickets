@@ -623,7 +623,7 @@ describe("square", () => {
           const args = checkoutCreate.calls[0]
             ?.args[0] as CreatePaymentLinkInput;
           expect(args.order.lineItems).toHaveLength(2);
-          const feeItem = args.order.lineItems[1]!;
+          const feeItem = args.order.lineItems[1];
           expect(feeItem.name).toBe("Booking fee");
           // 2.5% of 2000 (2 × 1000) = 50
           expect(feeItem.basePriceMoney.amount).toBe(BigInt(50));
@@ -1058,7 +1058,7 @@ describe("square", () => {
           expect(args.order.metadata.name).toBe("Alice Wonder");
           expect(args.order.metadata.email).toBe("alice@example.com");
           expect(args.order.metadata.phone).toBe("555-1111");
-          const items = JSON.parse(args.order.metadata.items!);
+          const items = JSON.parse(args.order.metadata.items);
           expect(items).toHaveLength(2);
           expect(items[0]).toEqual({ e: 10, q: 2, p: 3000 });
           expect(items[1]).toEqual({ e: 20, q: 1, p: 3000 });
@@ -1786,7 +1786,7 @@ describe("square", () => {
       expect(result.paymentLink?.url).toBe("https://checkout.square.site/rest");
 
       // Request verification
-      const [url, opts] = mockFetch.calls[0]?.args;
+      const [url, opts] = mockFetch.calls[0].args;
       expect(url).toBe(
         "https://connect.squareupsandbox.com/v2/online-checkout/payment-links",
       );
@@ -1794,7 +1794,7 @@ describe("square", () => {
       expect(opts.headers?.Authorization).toBe("Bearer EAAAl_rest_test");
       expect(opts.headers?.["Square-Version"]).toBe("2025-01-23");
 
-      const body = JSON.parse(opts.body!);
+      const body = JSON.parse(opts.body);
       expect(body.idempotency_key).toBe("idem-rest");
       expect(body.order.location_id).toBe("L_rest");
       expect(body.order.line_items[0].base_price_money.amount).toBe(2500);
@@ -2062,10 +2062,10 @@ describe("square", () => {
         amountMoney: { amount: BigInt(3000), currency: "GBP" },
       });
 
-      const [url, opts] = mockFetch.calls[0]?.args;
+      const [url, opts] = mockFetch.calls[0].args;
       expect(url).toBe("https://connect.squareupsandbox.com/v2/refunds");
       expect(opts.method).toBe("POST");
-      const body = JSON.parse(opts.body!);
+      const body = JSON.parse(opts.body);
       expect(body.idempotency_key).toBe("idem-ref");
       expect(body.payment_id).toBe("pay_1");
       expect(body.amount_money.amount).toBe(3000);

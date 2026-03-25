@@ -32,6 +32,55 @@ const renderAppleWalletLink = (token: string): string =>
 const renderGoogleWalletLink = (token: string): string =>
   `<a href="/gwallet/${escapeHtml(token)}" class="wallet-link">Google Wallet</a>`;
 
+/** Render optional event detail lines for a ticket card */
+const renderCardDetails = (entry: TokenEntry): string => {
+  const { event, attendee } = entry;
+  const parts: string[] = [];
+  if (event.date)
+    parts.push(
+      `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(event.date))}</div>`,
+    );
+  if (event.location)
+    parts.push(
+      `<div class="ticket-card-location">${escapeHtml(event.location)}</div>`,
+    );
+  if (event.description)
+    parts.push(
+      `<div class="ticket-card-description">${escapeHtml(event.description)}</div>`,
+    );
+  if (event.non_transferable)
+    parts.push(
+      `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`,
+    );
+  if (attendee.date)
+    parts.push(
+      `<div class="ticket-card-date">Booking Date: ${escapeHtml(formatDateLabel(attendee.date))}</div>`,
+    );
+  const pricePaid = Number(attendee.price_paid);
+  if (pricePaid > 0)
+    parts.push(
+      `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`,
+    );
+  return parts.join("");
+};
+
+/** Render wallet links for a ticket card */
+const renderWalletLinks = (
+  token: string,
+  appleWalletEnabled: boolean,
+  googleWalletEnabled: boolean,
+): string => {
+  const links = [
+    appleWalletEnabled ? renderAppleWalletLink(token) : "",
+    googleWalletEnabled ? renderGoogleWalletLink(token) : "",
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  return links
+    ? `<div class="ticket-card-wallet">Add to: ${links}</div>`
+    : "";
+};
+
 /** Render a single ticket card */
 const renderTicketCard = (
   card: TicketCard,
@@ -40,62 +89,20 @@ const renderTicketCard = (
 ): string => {
   const { entry, token, attachmentUrl } = card;
   const { event, attendee } = entry;
-  const imageHtml = renderEventImage(event, "ticket-card-image");
-  const eventDateHtml = event.date
-    ? `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(event.date))}</div>`
-    : "";
-
-  const locationHtml = event.location
-    ? `<div class="ticket-card-location">${escapeHtml(event.location)}</div>`
-    : "";
-
-  const descriptionHtml = event.description
-    ? `<div class="ticket-card-description">${escapeHtml(event.description)}</div>`
-    : "";
-
-  const attendeeDateHtml = attendee.date
-    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(formatDateLabel(attendee.date))}</div>`
-    : "";
-
-  const pricePaid = Number(attendee.price_paid);
-  const priceHtml =
-    pricePaid > 0
-      ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
-      : "";
-
-  const nonTransferableHtml = event.non_transferable
-    ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
-    : "";
-
-  const walletLinks = [
-    appleWalletEnabled ? renderAppleWalletLink(token) : "",
-    googleWalletEnabled ? renderGoogleWalletLink(token) : "",
-  ]
-    .filter(Boolean)
-    .join(" / ");
-  const walletHtml = walletLinks
-    ? `<div class="ticket-card-wallet">Add to: ${walletLinks}</div>`
-    : "";
-
   const attachmentHtml = attachmentUrl
     ? `<a href="${escapeHtml(attachmentUrl)}" class="attachment-link">Download: ${escapeHtml(event.attachment_name)}</a>`
     : "";
 
   return `
     <div class="ticket-card">
-      ${imageHtml}
+      ${renderEventImage(event, "ticket-card-image")}
       <div class="ticket-card-name">${escapeHtml(event.name)}</div>
-      ${eventDateHtml}
-      ${locationHtml}
-      ${descriptionHtml}
-      ${nonTransferableHtml}
-      ${attendeeDateHtml}
+      ${renderCardDetails(entry)}
       <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
-      ${priceHtml}
       ${attachmentHtml}
       <div class="ticket-card-qr"><img src="/t/${escapeHtml(token)}/svg" alt="QR code" /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>
-      ${walletHtml}
+      ${renderWalletLinks(token, appleWalletEnabled, googleWalletEnabled)}
     </div>
   `;
 };

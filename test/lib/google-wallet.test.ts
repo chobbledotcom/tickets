@@ -208,7 +208,7 @@ describe("google-wallet", () => {
       await ensureCreds();
       const payload = buildJwtPayload(makePassData(), creds);
       const jwt = await signJwt(payload, creds.serviceAccountKey);
-      const payloadPart = jwt.split(".")[1]!;
+      const payloadPart = jwt.split(".")[1];
       // Add padding if needed
       const padded =
         payloadPart + "=".repeat((4 - (payloadPart.length % 4)) % 4);

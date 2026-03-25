@@ -48,17 +48,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       expect(user?.id).toBe(1);
       expect(user?.wrapped_data_key).not.toBeNull();
 
-      const level = await decryptAdminLevel(user!);
+      const level = await decryptAdminLevel(user);
       expect(level).toBe("owner");
 
-      const username = await decryptUsername(user!);
+      const username = await decryptUsername(user);
       expect(username).toBe(TEST_ADMIN_USERNAME);
     });
 
     test("verifyUserPassword returns hash for correct password", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const hash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
+      const hash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
       expect(hash).toBeTruthy();
       expect(hash).toContain("pbkdf2:");
     });
@@ -66,7 +66,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("verifyUserPassword returns null for wrong password", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const result = await verifyUserPassword(user!, "wrongpassword");
+      const result = await verifyUserPassword(user, "wrongpassword");
       expect(result).toBeNull();
     });
 
@@ -162,7 +162,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("returns false for user without invite code", async () => {
       const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(await isInviteExpired(owner!)).toBe(false);
+      expect(await isInviteExpired(owner)).toBe(false);
     });
   });
 
@@ -631,7 +631,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // Verify user now has a password
       const user = await getUserByUsername("joiner2");
       expect(user).not.toBeNull();
-      const hasPwd = await hasPassword(user!);
+      const hasPwd = await hasPassword(user);
       expect(hasPwd).toBe(true);
     });
 
@@ -1014,7 +1014,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("isInviteValid returns false when invite_code_hash is null", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       // The owner user has no invite_code_hash
-      const valid = await isInviteValid(user!);
+      const valid = await isInviteValid(user);
       expect(valid).toBe(false);
     });
 
@@ -1034,7 +1034,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // Reload user
       const { getUserById: getUser } = await import("#lib/db/users.ts");
       const updatedUser = await getUser(user.id);
-      const valid = await isInviteValid(updatedUser!);
+      const valid = await isInviteValid(updatedUser);
       expect(valid).toBe(false);
     });
 
@@ -1069,7 +1069,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       invalidateUsersCache();
 
       const user = await getUserByUsername("no-expiry-user");
-      const valid = await isInviteValid(user!);
+      const valid = await isInviteValid(user);
       expect(valid).toBe(false);
     });
 
@@ -1092,7 +1092,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       invalidateUsersCache();
 
       const user = await getUserByUsername("badlevel-user");
-      await expect(decryptAdminLevel(user!)).rejects.toThrow(
+      await expect(decryptAdminLevel(user)).rejects.toThrow(
         "Invalid admin level",
       );
     });
@@ -1116,7 +1116,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       invalidateUsersCache();
 
       const user = await getUserByUsername("empty-expiry-user");
-      const valid = await isInviteValid(user!);
+      const valid = await isInviteValid(user);
       expect(valid).toBe(false);
     });
   });

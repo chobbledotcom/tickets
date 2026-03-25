@@ -42,133 +42,10 @@ export type SettingsPageState = {
   storageEnabled: boolean;
 };
 
-/**
- * Admin settings page
- */
-export const adminSettingsPage = (
-  session: AdminSession,
-  s: SettingsPageState,
-): string =>
+/** Render payment provider settings sections */
+const PaymentProviderForms = ({ s }: { s: SettingsPageState }): string =>
   String(
-    <Layout title="Settings" theme={s.theme}>
-      <AdminNav session={session} active="/admin/settings" />
-
-      {s.storageEnabled && (
-        <div class="stack">
-          {s.headerImageUrl && (
-            <div>
-              <img
-                src={getImageProxyUrl(s.headerImageUrl)}
-                alt="Header image"
-                class="event-image-preview"
-              />
-              <CsrfForm
-                action="/admin/settings/header-image/delete"
-                id="settings-header-image-delete"
-              >
-                <button type="submit">Remove Image</button>
-              </CsrfForm>
-            </div>
-          )}
-          <CsrfForm
-            action="/admin/settings/header-image"
-            enctype="multipart/form-data"
-            id="settings-header-image"
-          >
-            <h2>Header Image</h2>
-            <p>
-              An optional image displayed at the top of every page. JPEG, PNG,
-              GIF, or WebP — max {formatBytes(MAX_IMAGE_SIZE)}.
-            </p>
-            <label>
-              {s.headerImageUrl ? "Replace Image" : "Upload Image"}
-              <input
-                type="file"
-                name="header_image"
-                accept="image/jpeg,image/png,image/gif,image/webp"
-              />
-            </label>
-            <button type="submit">Upload</button>
-          </CsrfForm>
-        </div>
-      )}
-
-      <CsrfForm action="/admin/settings/country" id="settings-country">
-        <h2>Your Country</h2>
-        <p>Sets your timezone, currency, and phone prefix.</p>
-        <label>
-          Country
-          <select name="country" required>
-            {Object.entries(COUNTRIES).map(
-              ([code, data]: [string, CountryData]) => (
-                <option value={code} selected={code === s.country}>
-                  {data.name} ({data.currency}, +{data.phonePrefix})
-                </option>
-              ),
-            )}
-          </select>
-        </label>
-        <button type="submit">Save Country</button>
-      </CsrfForm>
-
-      <CsrfForm
-        action="/admin/settings/business-email"
-        id="settings-business-email"
-      >
-        <h2>Business Email</h2>
-        <p>
-          This email will be included in webhook notifications and used as the
-          reply-to address for automated emails.
-        </p>
-        <label>
-          Business Email
-          <input
-            type="email"
-            name="business_email"
-            placeholder="contact@example.com"
-            value={s.businessEmail}
-            autocomplete="email"
-          />
-        </label>
-        <button type="submit">Save Business Email</button>
-      </CsrfForm>
-
-      <CsrfForm
-        action="/admin/settings/payment-provider"
-        id="settings-payment-provider"
-      >
-        <h2>Payment Provider</h2>
-        <p>Choose which payment provider to use for paid events.</p>
-        <label>
-          <input
-            type="radio"
-            name="payment_provider"
-            value="none"
-            checked={!s.paymentProvider}
-          />
-          None (payments disabled)
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="payment_provider"
-            value="stripe"
-            checked={s.paymentProvider === "stripe"}
-          />
-          Stripe
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="payment_provider"
-            value="square"
-            checked={s.paymentProvider === "square"}
-          />
-          Square
-        </label>
-        <button type="submit">Save Payment Provider</button>
-      </CsrfForm>
-
+    <>
       {s.paymentProvider === "stripe" && (
         <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
           <h2>Stripe Settings</h2>
@@ -339,6 +216,137 @@ export const adminSettingsPage = (
           <button type="submit">Save Booking Fee</button>
         </CsrfForm>
       )}
+    </>,
+  );
+
+/**
+ * Admin settings page
+ */
+export const adminSettingsPage = (
+  session: AdminSession,
+  s: SettingsPageState,
+): string =>
+  String(
+    <Layout title="Settings" theme={s.theme}>
+      <AdminNav session={session} active="/admin/settings" />
+
+      {s.storageEnabled && (
+        <div class="stack">
+          {s.headerImageUrl && (
+            <div>
+              <img
+                src={getImageProxyUrl(s.headerImageUrl)}
+                alt="Site header"
+                class="event-image-preview"
+              />
+              <CsrfForm
+                action="/admin/settings/header-image/delete"
+                id="settings-header-image-delete"
+              >
+                <button type="submit">Remove Image</button>
+              </CsrfForm>
+            </div>
+          )}
+          <CsrfForm
+            action="/admin/settings/header-image"
+            enctype="multipart/form-data"
+            id="settings-header-image"
+          >
+            <h2>Header Image</h2>
+            <p>
+              An optional image displayed at the top of every page. JPEG, PNG,
+              GIF, or WebP — max {formatBytes(MAX_IMAGE_SIZE)}.
+            </p>
+            <label>
+              {s.headerImageUrl ? "Replace Image" : "Upload Image"}
+              <input
+                type="file"
+                name="header_image"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+              />
+            </label>
+            <button type="submit">Upload</button>
+          </CsrfForm>
+        </div>
+      )}
+
+      <CsrfForm action="/admin/settings/country" id="settings-country">
+        <h2>Your Country</h2>
+        <p>Sets your timezone, currency, and phone prefix.</p>
+        <label>
+          Country
+          <select name="country" required>
+            {Object.entries(COUNTRIES).map(
+              ([code, data]: [string, CountryData]) => (
+                <option value={code} selected={code === s.country}>
+                  {data.name} ({data.currency}, +{data.phonePrefix})
+                </option>
+              ),
+            )}
+          </select>
+        </label>
+        <button type="submit">Save Country</button>
+      </CsrfForm>
+
+      <CsrfForm
+        action="/admin/settings/business-email"
+        id="settings-business-email"
+      >
+        <h2>Business Email</h2>
+        <p>
+          This email will be included in webhook notifications and used as the
+          reply-to address for automated emails.
+        </p>
+        <label>
+          Business Email
+          <input
+            type="email"
+            name="business_email"
+            placeholder="contact@example.com"
+            value={s.businessEmail}
+            autocomplete="email"
+          />
+        </label>
+        <button type="submit">Save Business Email</button>
+      </CsrfForm>
+
+      <CsrfForm
+        action="/admin/settings/payment-provider"
+        id="settings-payment-provider"
+      >
+        <h2>Payment Provider</h2>
+        <p>Choose which payment provider to use for paid events.</p>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="none"
+            checked={!s.paymentProvider}
+          />
+          None (payments disabled)
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="stripe"
+            checked={s.paymentProvider === "stripe"}
+          />
+          Stripe
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="payment_provider"
+            value="square"
+            checked={s.paymentProvider === "square"}
+          />
+          Square
+        </label>
+        <button type="submit">Save Payment Provider</button>
+      </CsrfForm>
+
+      <Raw html={PaymentProviderForms({ s })} />
 
       <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts">
         <h2>Only allow embedding on these hosts</h2>

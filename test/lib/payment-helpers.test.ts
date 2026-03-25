@@ -355,6 +355,339 @@ describe("payment-helpers", () => {
     });
   });
 
+  describe("serializeBookingItems", () => {
+    test("serializes single item with total price to compact JSON", () => {
+      const items = [
+        { eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt", name: "Evt" },
+      ];
+      const result = serializeBookingItems(items);
+      expect(result).toBe(JSON.stringify([{ e: 1, q: 2, p: 2000 }]));
+    });
+
+    test("serializes multiple items preserving order", () => {
+      const items = [
+        { eventId: 10, quantity: 1, unitPrice: 500, slug: "a", name: "A" },
+        { eventId: 20, quantity: 3, unitPrice: 700, slug: "b", name: "B" },
+      ];
+      const result = serializeBookingItems(items);
+      const parsed = JSON.parse(result);
+      expect(parsed).toEqual([
+        { e: 10, q: 1, p: 500 },
+        { e: 20, q: 3, p: 2100 },
+      ]);
+    });
+
+    test("serializes empty array", () => {
+      const result = serializeBookingItems([]);
+      expect(result).toBe("[]");
+    });
+
+    test("omits slug from serialized output but includes total price", () => {
+      const items = [
+        {
+          eventId: 5,
+          quantity: 1,
+          unitPrice: 9999,
+          slug: "secret-slug",
+          name: "Secret Event",
+        },
+      ];
+      const result = serializeBookingItems(items);
+      expect(result).not.toContain("unitPrice");
+      expect(result).not.toContain("slug");
+      expect(result).toContain("9999");
+      expect(result).not.toContain("secret-slug");
+    });
+  });
+
+  describe("buildSingleIntentMetadata", () => {
+    test("builds metadata with required fields", () => {
+      const result = buildSingleIntentMetadata(42, {
+        name: "Alice",
+        email: "alice@example.com",
+        address: "",
+        special_instructions: "",
+        quantity: 3,
+      });
+      expect(result).toEqual({
+        _origin: "localhost",
+        event_id: "42",
+        name: "Alice",
+        email: "alice@example.com",
+        quantity: "3",
+      });
+    });
+
+    test("includes phone when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        phone: "+1234567890",
+        address: "",
+        special_instructions: "",
+        quantity: 1,
+      });
+      expect(result.phone).toBe("+1234567890");
+    });
+
+    test("excludes phone when undefined", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        phone: undefined,
+        address: "",
+        special_instructions: "",
+        quantity: 1,
+      });
+      expect("phone" in result).toBe(false);
+    });
+
+    test("excludes phone when empty string", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        quantity: 1,
+      });
+      expect("phone" in result).toBe(false);
+    });
+
+    test("converts eventId and quantity to strings", () => {
+      const result = buildSingleIntentMetadata(99, {
+        name: "X",
+        email: "x@x.com",
+        address: "",
+        special_instructions: "",
+        quantity: 10,
+      });
+      expect(typeof result.event_id).toBe("string");
+      expect(typeof result.quantity).toBe("string");
+    });
+
+    test("includes date when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Alice",
+        email: "alice@example.com",
+        address: "",
+        special_instructions: "",
+        quantity: 1,
+        date: "2026-02-10",
+      });
+      expect(result.date).toBe("2026-02-10");
+    });
+
+    test("excludes date when null", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Alice",
+        email: "alice@example.com",
+        address: "",
+        special_instructions: "",
+        quantity: 1,
+        date: null,
+      });
+      expect("date" in result).toBe(false);
+    });
+
+    test("includes address when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        address: "123 Main St",
+        quantity: 1,
+      });
+      expect(result.address).toBe("123 Main St");
+    });
+
+    test("excludes address when empty string", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        address: "",
+        special_instructions: "",
+        quantity: 1,
+      });
+      expect("address" in result).toBe(false);
+    });
+
+    test("includes special_instructions when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        special_instructions: "No nuts please",
+        quantity: 1,
+      });
+      expect(result.special_instructions).toBe("No nuts please");
+    });
+
+    test("excludes special_instructions when empty string", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        special_instructions: "",
+        quantity: 1,
+      });
+      expect("special_instructions" in result).toBe(false);
+    });
+
+    test("includes answer_ids in per-event format when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        quantity: 1,
+        answerIds: [10, 20],
+      });
+      expect(JSON.parse(result.answer_ids)).toEqual({ "1": [10, 20] });
+    });
+
+    test("excludes answer_ids when empty array", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        quantity: 1,
+        answerIds: [],
+      });
+      expect("answer_ids" in result).toBe(false);
+    });
+  });
+
+  describe("buildCartMetadata", () => {
+    test("builds metadata with multi flag and serialized items", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        items: [
+          {
+            eventId: 1,
+            quantity: 2,
+            unitPrice: 1000,
+            slug: "evt-1",
+            name: "Evt 1",
+          },
+          {
+            eventId: 2,
+            quantity: 1,
+            unitPrice: 500,
+            slug: "evt-2",
+            name: "Evt 2",
+          },
+        ],
+      };
+      const result = buildCartMetadata(intent);
+      expect(result._origin).toBe("localhost");
+      expect(result.multi).toBe("1");
+      expect(result.name).toBe("Alice");
+      expect(result.email).toBe("alice@example.com");
+      const parsedItems = JSON.parse(result.items);
+      expect(parsedItems).toEqual([
+        { e: 1, q: 2, p: 2000 },
+        { e: 2, q: 1, p: 500 },
+      ]);
+    });
+
+    test("includes phone when provided", () => {
+      const intent = {
+        name: "Bob",
+        email: "bob@example.com",
+        phone: "+1234567890",
+        address: "",
+        special_instructions: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
+        ],
+      };
+      const result = buildCartMetadata(intent);
+      expect(result.phone).toBe("+1234567890");
+    });
+
+    test("excludes phone when empty string", () => {
+      const intent = {
+        name: "Bob",
+        email: "bob@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
+        ],
+      };
+      const result = buildCartMetadata(intent);
+      expect("phone" in result).toBe(false);
+    });
+
+    test("includes date when provided", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        date: "2026-02-10",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
+        ],
+      };
+      const result = buildCartMetadata(intent);
+      expect(result.date).toBe("2026-02-10");
+    });
+
+    test("excludes date when null", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        date: null,
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
+        ],
+      };
+      const result = buildCartMetadata(intent);
+      expect("date" in result).toBe(false);
+    });
+
+    test("includes per-event answer IDs when provided", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e1", name: "E1" },
+          { eventId: 2, quantity: 1, unitPrice: 200, slug: "e2", name: "E2" },
+        ],
+        eventAnswerIds: { "1": [10], "2": [20, 21] },
+      };
+      const result = buildCartMetadata(intent);
+      expect(JSON.parse(result.answer_ids)).toEqual({
+        "1": [10],
+        "2": [20, 21],
+      });
+    });
+
+    test("excludes answer_ids when eventAnswerIds is empty", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        address: "",
+        special_instructions: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
+        ],
+        eventAnswerIds: {},
+      };
+      const result = buildCartMetadata(intent);
+      expect("answer_ids" in result).toBe(false);
+    });
+  });
+
   describe("toCheckoutResult", () => {
     test("returns result when both id and url present", () => {
       expect(

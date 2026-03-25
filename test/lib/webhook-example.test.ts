@@ -119,9 +119,9 @@ describe("webhook example", () => {
       EXAMPLE_CURRENCY,
     );
 
-    const ticketKeys = Object.keys(payload.tickets[0]!).sort();
+    const ticketKeys = Object.keys(payload.tickets[0]).sort();
     const exampleTicketKeys = Object.keys(
-      WEBHOOK_EXAMPLE_PAYLOAD.tickets[0]!,
+      WEBHOOK_EXAMPLE_PAYLOAD.tickets[0],
     ).sort();
 
     expect(exampleTicketKeys).toEqual(ticketKeys);

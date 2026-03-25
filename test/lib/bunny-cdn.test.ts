@@ -362,9 +362,9 @@ describeWithEnv(
           async () => {
             await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(calls).toHaveLength(3);
-            const addCall = calls.at(0)!;
-            const certCall = calls.at(1)!;
-            const sslCall = calls.at(2)!;
+            const addCall = calls.at(0);
+            const certCall = calls.at(1);
+            const sslCall = calls.at(2);
             expect(addCall.url).toBe(
               "https://api.bunny.net/pullzone/12345/addHostname",
             );
@@ -608,6 +608,6 @@ describeWithEnv("custom domain settings", { db: true }, () => {
     const value = settings.customDomainLastValidated;
     expect(value).not.toBeNull();
     // Should be a valid ISO 8601 date
-    expect(new Date(value!).toISOString()).toBe(value);
+    expect(new Date(value).toISOString()).toBe(value);
   });
 });

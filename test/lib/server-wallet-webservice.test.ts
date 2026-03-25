@@ -157,9 +157,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       const files = unzipSync(bytes);
       expect(files["pass.json"]).toBeDefined();
 
-      const passJson = JSON.parse(
-        new TextDecoder().decode(files["pass.json"]!),
-      );
+      const passJson = JSON.parse(new TextDecoder().decode(files["pass.json"]));
       expect(passJson.serialNumber).toBe(token);
       expect(passJson.passTypeIdentifier).toBe("pass.com.test.tickets");
     });

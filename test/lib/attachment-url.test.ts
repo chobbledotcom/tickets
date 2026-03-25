@@ -42,7 +42,7 @@ describe("signAttachmentUrl", () => {
 
   test("uses base64url encoding in signature", async () => {
     const url = await signAttachmentUrl(1, 2);
-    const sig = new URL(`http://x${url}`).searchParams.get("sig")!;
+    const sig = new URL(`http://x${url}`).searchParams.get("sig");
     expect(sig).not.toMatch(/[+/=]/);
   });
 });
@@ -65,8 +65,8 @@ describe("verifyAttachmentUrl", () => {
     const result = await verifyAttachmentUrl(
       5,
       10,
-      params.get("exp")!,
-      params.get("sig")!,
+      params.get("exp"),
+      params.get("sig"),
     );
     expect(result).toBe(true);
   });
@@ -78,7 +78,7 @@ describe("verifyAttachmentUrl", () => {
     const result = await verifyAttachmentUrl(
       5,
       10,
-      params.get("exp")!,
+      params.get("exp"),
       tampered,
     );
     expect(result).toBe(false);
@@ -90,8 +90,8 @@ describe("verifyAttachmentUrl", () => {
     const result = await verifyAttachmentUrl(
       999,
       10,
-      params.get("exp")!,
-      params.get("sig")!,
+      params.get("exp"),
+      params.get("sig"),
     );
     expect(result).toBe(false);
   });
@@ -102,8 +102,8 @@ describe("verifyAttachmentUrl", () => {
     const result = await verifyAttachmentUrl(
       5,
       999,
-      params.get("exp")!,
-      params.get("sig")!,
+      params.get("exp"),
+      params.get("sig"),
     );
     expect(result).toBe(false);
   });
@@ -116,8 +116,8 @@ describe("verifyAttachmentUrl", () => {
     const result = await verifyAttachmentUrl(
       5,
       10,
-      params.get("exp")!,
-      params.get("sig")!,
+      params.get("exp"),
+      params.get("sig"),
     );
     expect(result).toBe(false);
   });
@@ -136,7 +136,7 @@ describe("verifyAttachmentUrl", () => {
   test("rejects empty string sig", async () => {
     const url = await signAttachmentUrl(5, 10);
     const params = new URL(`http://x${url}`).searchParams;
-    const result = await verifyAttachmentUrl(5, 10, params.get("exp")!, "");
+    const result = await verifyAttachmentUrl(5, 10, params.get("exp"), "");
     expect(result).toBe(false);
   });
 });

@@ -113,7 +113,7 @@ const buildCalendarAttendees = (
   )(events);
 
   return map((a: Attendee): CalendarAttendeeRow => {
-    const event = eventById.get(a.event_id)!;
+    const event = eventById.get(a.event_id) as EventWithCount;
     return {
       ...a,
       eventName: event.name,
@@ -185,7 +185,7 @@ const handleAdminCalendarGet = (request: Request) =>
     const allEvents = [...dailyEvents, ...standardCtx.standardEvents];
     let attendees: CalendarAttendeeRow[] = [];
     if (dateFilter) {
-      const privateKey = (await getPrivateKey(session))!;
+      const privateKey = (await getPrivateKey(session)) as CryptoKey;
       const [rawDailyAttendees, standardAttendees] = await Promise.all([
         getDailyEventAttendeesByDate(dateFilter),
         loadStandardEventAttendees(
@@ -245,7 +245,7 @@ const handleAdminCalendarExport = (request: Request) =>
     if (!dateFilter)
       return redirect("/admin/calendar", "Select a date to export", false);
 
-    const privateKey = (await getPrivateKey(session))!;
+    const privateKey = (await getPrivateKey(session)) as CryptoKey;
     const [dailyEvents, rawDailyAttendees, standardCtx] = await Promise.all([
       getAllDailyEvents(),
       getDailyEventAttendeesByDate(dateFilter),

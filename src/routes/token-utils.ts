@@ -71,7 +71,7 @@ export const lookupSingleTokenPassData = async (
   if (!result.ok) return { ok: false, response: result.response };
 
   const entries = await resolveEntries(result.attendees);
-  const passData = await buildWalletPassData(entries[0]!, token);
+  const passData = await buildWalletPassData(entries[0] as TokenEntry, token);
   return { ok: true, passData };
 };
 
@@ -107,7 +107,7 @@ export const parseTokens = (tokensStr: string): string[] =>
 
 /** Look up the event for an attendee and pair them */
 const resolveEntry = async (attendee: Attendee): Promise<TokenEntry> => {
-  const event = (await getEventWithCount(attendee.event_id))!;
+  const event = (await getEventWithCount(attendee.event_id)) as EventWithCount;
   return { attendee, event };
 };
 

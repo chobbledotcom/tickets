@@ -58,16 +58,8 @@ export const detectStripeKeyMode = (key: string): StripeKeyMode | null => {
   return null;
 };
 
-/**
- * Extract a privacy-safe error detail from a caught error.
- * Stripe errors expose type/code/statusCode which are safe to log.
- * Raw message is never logged as it may contain PII or secrets.
- */
-export const sanitizeErrorDetail = (err: unknown): string => {
-  if (!(err instanceof Error)) return "unknown";
-
-  // Stripe SDK errors have statusCode, code, and type properties.
-  // Use "in" narrowing instead of a blanket type assertion.
+/** Extract safe-to-log properties from a Stripe SDK error */
+const extractStripeErrorParts = (err: Error): string[] => {
   const parts: string[] = [];
   if ("statusCode" in err && typeof err.statusCode === "number")
     parts.push(`status=${err.statusCode}`);
@@ -75,7 +67,17 @@ export const sanitizeErrorDetail = (err: unknown): string => {
     parts.push(`code=${err.code}`);
   if ("type" in err && typeof err.type === "string")
     parts.push(`type=${err.type}`);
+  return parts;
+};
 
+/**
+ * Extract a privacy-safe error detail from a caught error.
+ * Stripe errors expose type/code/statusCode which are safe to log.
+ * Raw message is never logged as it may contain PII or secrets.
+ */
+export const sanitizeErrorDetail = (err: unknown): string => {
+  if (!(err instanceof Error)) return "unknown";
+  const parts = extractStripeErrorParts(err);
   return parts.length > 0 ? parts.join(" ") : err.name;
 };
 
@@ -506,6 +508,19 @@ type SignatureParseResult =
   | { ok: true; timestamp: number; signatures: string[] }
   | { ok: false; reason: string };
 
+/** Validate parsed signature components */
+const validateSignatureParts = (
+  timestamp: number,
+  signatures: string[],
+): SignatureParseResult => {
+  if (timestamp === 0 && signatures.length === 0) {
+    return { ok: false, reason: "missing timestamp and signature" };
+  }
+  if (timestamp === 0) return { ok: false, reason: "missing timestamp" };
+  if (signatures.length === 0) return { ok: false, reason: "missing signature" };
+  return { ok: true, timestamp, signatures };
+};
+
 /** Parse Stripe signature header into components */
 const parseSignatureHeader = (header: string): SignatureParseResult => {
   const parts = header.split(",");
@@ -521,17 +536,7 @@ const parseSignatureHeader = (header: string): SignatureParseResult => {
     }
   }
 
-  if (timestamp === 0 && signatures.length === 0) {
-    return { ok: false, reason: "missing timestamp and signature" };
-  }
-  if (timestamp === 0) {
-    return { ok: false, reason: "missing timestamp" };
-  }
-  if (signatures.length === 0) {
-    return { ok: false, reason: "missing signature" };
-  }
-
-  return { ok: true, timestamp, signatures };
+  return validateSignatureParts(timestamp, signatures);
 };
 
 /** Compute HMAC-SHA256 and return hex-encoded result (Stripe format) */

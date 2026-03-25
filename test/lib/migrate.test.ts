@@ -67,7 +67,7 @@ const insertLegacyAttendee = async (
     refunded?: boolean;
   },
 ) => {
-  const pubKey = settings.publicKey!;
+  const pubKey = settings.publicKey;
   const [encName, encEmail, encPhone, encPaymentId, encPricePaid] =
     await Promise.all([
       encryptAttendeePII(fields.name, pubKey),
@@ -234,7 +234,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     test("decrypts pre-versioned blobs without v field", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       // Manually create a blob without the v field (simulating pre-versioned data)
-      const pubKey = settings.publicKey!;
+      const pubKey = settings.publicKey;
       const blobWithoutVersion = JSON.stringify({
         n: "OldBlob",
         e: "old@test.com",

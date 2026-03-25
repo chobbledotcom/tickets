@@ -154,7 +154,7 @@ describeWithEnv("Public API", { db: true }, () => {
     test("does not expose internal fields", async () => {
       await createTestEvent();
       const { events } = await fetchEventsList();
-      const event = events[0]!;
+      const event = events[0];
       // Should NOT have internal fields
       expect(event.id).toBeUndefined();
       expect(event.max_attendees).toBeUndefined();

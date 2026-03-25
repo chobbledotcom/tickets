@@ -2891,7 +2891,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       });
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
-      const event = (await getEventWithCount(1))!;
+      const event = await getEventWithCount(1);
 
       const response = await handleRequest(
         mockFormRequest(

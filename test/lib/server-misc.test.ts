@@ -364,7 +364,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
         const response = redirect("/admin/settings", "Saved", true);
         const location = expectRedirect(response);
         const url = new URL(location, "http://localhost");
-        const flashId = url.searchParams.get("flash")!;
+        const flashId = url.searchParams.get("flash");
         const cookies = response.headers.getSetCookie();
         const flashCookie = cookies.find((c) =>
           c.startsWith(`flash_${flashId}=`),

@@ -62,20 +62,21 @@ function resolveImport(specifier: string, fromFile: string): string | null {
 const isTsFile = (name: string): boolean =>
   name.endsWith(".ts") || name.endsWith(".tsx");
 
+/** Walk directory recursively, collecting file paths */
+function walkDir(d: string, files: string[]): void {
+  for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+    const full = path.join(d, entry.name);
+    if (entry.isDirectory()) walkDir(full, files);
+    else if (isTsFile(entry.name)) files.push(path.relative(ROOT, full));
+  }
+}
+
 /** Collect all .ts/.tsx files in a directory recursively */
 function collectFiles(dir: string): string[] {
   const files: string[] = [];
   const fullDir = path.resolve(ROOT, dir);
   if (!fs.existsSync(fullDir)) return files;
-
-  const recurse = (d: string) => {
-    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
-      const full = path.join(d, entry.name);
-      if (entry.isDirectory()) recurse(full);
-      else if (isTsFile(entry.name)) files.push(path.relative(ROOT, full));
-    }
-  };
-  recurse(fullDir);
+  walkDir(fullDir, files);
   return files.sort();
 }
 
@@ -109,7 +110,10 @@ function extractImports(
 
   for (const match of content.matchAll(staticRegex)) {
     const namedImports = (match[1] || "") + (match[3] || "");
-    imports.push({ specifier: match[4] as string, names: parseNames(namedImports) });
+    imports.push({
+      specifier: match[4] as string,
+      names: parseNames(namedImports),
+    });
   }
 
   // Dynamic imports:
@@ -119,7 +123,10 @@ function extractImports(
     /(?:const\s+\{([^}]*)\}\s*=\s*)?await\s+import\(\s*["']([^"']+)["']\s*\)/g;
 
   for (const match of content.matchAll(dynamicRegex)) {
-    imports.push({ specifier: match[2]!, names: parseNames(match[1] || "") });
+    imports.push({
+      specifier: match[2] as string,
+      names: parseNames(match[1] || ""),
+    });
   }
 
   return imports;
@@ -134,16 +141,17 @@ const NAMED_EXPORT_PATTERNS = [
   /export\s+enum\s+(\w+)/g,
 ];
 
-/** Extract exported names from a file */
-function extractExports(filePath: string): string[] {
-  const content = fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
-  const exports: string[] = [];
-
+/** Collect named exports matching patterns */
+function collectNamedExports(content: string, exports: string[]): void {
   for (const pattern of NAMED_EXPORT_PATTERNS) {
-    for (const m of content.matchAll(pattern)) exports.push(m[1]!);
+    for (const m of content.matchAll(pattern)) exports.push(m[1] as string);
   }
+}
+
+/** Collect re-exports from `export { ... }` blocks */
+function collectReExports(content: string, exports: string[]): void {
   for (const m of content.matchAll(/export\s+\{([^}]+)\}(?!\s*from)/g)) {
-    for (const name of m[1]?.split(",")) {
+    for (const name of (m[1] as string).split(",")) {
       const trimmed = name
         .trim()
         .replace(/\s+as\s+\w+/, "")
@@ -151,8 +159,15 @@ function extractExports(filePath: string): string[] {
       if (trimmed) exports.push(trimmed);
     }
   }
-  if (/export\s+default\s/.test(content)) exports.push("default");
+}
 
+/** Extract exported names from a file */
+function extractExports(filePath: string): string[] {
+  const content = fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
+  const exports: string[] = [];
+  collectNamedExports(content, exports);
+  collectReExports(content, exports);
+  if (/export\s+default\s/.test(content)) exports.push("default");
   return [...new Set(exports)];
 }
 

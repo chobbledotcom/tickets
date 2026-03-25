@@ -89,45 +89,34 @@ const computeVisibility = (
 });
 
 /** Count visible columns for colspan on empty row */
-const countColumns = (vis: Visibility, showActions: boolean): number => {
-  let count = 4; // Name, Qty, Ticket, Registered
-  if (showActions) count += 2; // Checked In, Actions
-  if (vis.showEvent) count++;
-  if (vis.showDate) count++;
-  if (vis.showEmail) count++;
-  if (vis.showPhone) count++;
-  if (vis.showAddress) count++;
-  if (vis.showSpecialInstructions) count++;
-  if (vis.showAnswers) count++;
-  return count;
+const countColumns = (vis: Visibility, showActions: boolean): number =>
+  4 + // Name, Qty, Ticket, Registered
+  (showActions ? 2 : 0) + // Checked In, Actions
+  +vis.showEvent +
+  +vis.showDate +
+  +vis.showEmail +
+  +vis.showPhone +
+  +vis.showAddress +
+  +vis.showSpecialInstructions +
+  +vis.showAnswers;
+
+/** Compare dates: rows with dates come first, then ascending */
+const compareDates = (dateA: string, dateB: string): number => {
+  if (dateA === "" && dateB === "") return 0;
+  if (dateA === "") return 1;
+  if (dateB === "") return -1;
+  return dateA.localeCompare(dateB);
 };
 
 /** Compare attendee rows for deterministic table ordering */
 const compareAttendeeRows = (
   a: AttendeeTableRow,
   b: AttendeeTableRow,
-): number => {
-  // 1. Event date: rows with dates first, then ascending
-  const dateA = a.attendee.date ?? "";
-  const dateB = b.attendee.date ?? "";
-  if (dateA !== "" || dateB !== "") {
-    if (dateA === "") return 1;
-    if (dateB === "") return -1;
-    const dateCmp = dateA.localeCompare(dateB);
-    if (dateCmp !== 0) return dateCmp;
-  }
-
-  // 2. Event name
-  const nameCmp = a.eventName.localeCompare(b.eventName);
-  if (nameCmp !== 0) return nameCmp;
-
-  // 3. Attendee name
-  const attendeeCmp = a.attendee.name.localeCompare(b.attendee.name);
-  if (attendeeCmp !== 0) return attendeeCmp;
-
-  // 4. Attendee id
-  return a.attendee.id - b.attendee.id;
-};
+): number =>
+  compareDates(a.attendee.date ?? "", b.attendee.date ?? "") ||
+  a.eventName.localeCompare(b.eventName) ||
+  a.attendee.name.localeCompare(b.attendee.name) ||
+  a.attendee.id - b.attendee.id;
 
 /** Sort attendee rows by date, event name, attendee name, then id */
 export const sortAttendeeRows: (
@@ -276,6 +265,37 @@ const StatusCell = ({
   });
 };
 
+/** Render the optional contact/detail columns for a row */
+const ContactColumns = ({
+  a,
+  vis,
+  phonePrefix,
+}: {
+  a: Attendee;
+  vis: Visibility;
+  phonePrefix: string;
+}): string =>
+  String(
+    <>
+      {vis.showEmail && <td>{a.email || ""}</td>}
+      {vis.showPhone && (
+        <td>
+          {a.phone ? (
+            <a href={`tel:${normalizePhone(a.phone, phonePrefix)}`}>
+              {a.phone}
+            </a>
+          ) : (
+            ""
+          )}
+        </td>
+      )}
+      {vis.showAddress && <td>{formatAddressInline(a.address)}</td>}
+      {vis.showSpecialInstructions && (
+        <td>{formatInstructionsInline(a.special_instructions)}</td>
+      )}
+    </>,
+  );
+
 /** Render a single attendee row */
 const AttendeeRow = ({
   row,
@@ -306,24 +326,13 @@ const AttendeeRow = ({
       )}
       {vis.showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
       <td>{a.name}</td>
-      {vis.showEmail && <td>{a.email || ""}</td>}
-      {vis.showPhone && (
-        <td>
-          {a.phone ? (
-            <a
-              href={`tel:${normalizePhone(a.phone, opts.phonePrefix || "44")}`}
-            >
-              {a.phone}
-            </a>
-          ) : (
-            ""
-          )}
-        </td>
-      )}
-      {vis.showAddress && <td>{formatAddressInline(a.address)}</td>}
-      {vis.showSpecialInstructions && (
-        <td>{formatInstructionsInline(a.special_instructions)}</td>
-      )}
+      <Raw
+        html={ContactColumns({
+          a,
+          vis,
+          phonePrefix: opts.phonePrefix || "44",
+        })}
+      />
       {vis.showAnswers && opts.questionData && (
         <Raw
           html={renderAnswerCell(
@@ -370,6 +379,40 @@ const renderAnswerCell = (
   );
 };
 
+/** Render optional contact/detail column headers */
+const ContactHeaderColumns = ({ vis }: { vis: Visibility }): string =>
+  String(
+    <>
+      {vis.showEmail && <th>Email</th>}
+      {vis.showPhone && <th>Phone</th>}
+      {vis.showAddress && <th>Address</th>}
+      {vis.showSpecialInstructions && <th>Special Instructions</th>}
+      {vis.showAnswers && <th>Answers</th>}
+    </>,
+  );
+
+/** Render the table header row */
+const TableHeader = ({
+  vis,
+  showActions,
+}: {
+  vis: Visibility;
+  showActions: boolean;
+}): string =>
+  String(
+    <tr>
+      {showActions && <th></th>}
+      {vis.showEvent && <th>Event</th>}
+      {vis.showDate && <th>Date</th>}
+      <th>Name</th>
+      <Raw html={ContactHeaderColumns({ vis })} />
+      <th>Qty</th>
+      <th>Ticket</th>
+      <th>Registered</th>
+      {showActions && <th></th>}
+    </tr>,
+  );
+
 /** Render the unified attendee table */
 export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const orderedRows = opts.presorted ? opts.rows : sortAttendeeRows(opts.rows);
@@ -397,21 +440,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   return String(
     <table>
       <thead>
-        <tr>
-          {showActions && <th></th>}
-          {vis.showEvent && <th>Event</th>}
-          {vis.showDate && <th>Date</th>}
-          <th>Name</th>
-          {vis.showEmail && <th>Email</th>}
-          {vis.showPhone && <th>Phone</th>}
-          {vis.showAddress && <th>Address</th>}
-          {vis.showSpecialInstructions && <th>Special Instructions</th>}
-          {vis.showAnswers && <th>Answers</th>}
-          <th>Qty</th>
-          <th>Ticket</th>
-          <th>Registered</th>
-          {showActions && <th></th>}
-        </tr>
+        <Raw html={TableHeader({ vis, showActions })} />
       </thead>
       <tbody>
         <Raw html={rows} />

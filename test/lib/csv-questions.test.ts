@@ -70,7 +70,7 @@ describe("CSV with custom questions", () => {
       attendeeAnswerMap: answerMap,
     });
 
-    const header = csv.split("\n")[0]!;
+    const header = csv.split("\n")[0];
     expect(header).toContain("T-shirt Size");
     expect(header).toContain("Dietary Requirements");
   });
@@ -113,7 +113,7 @@ describe("CSV with custom questions", () => {
   test("generates normal CSV when no questionData provided", () => {
     const attendees = [makeAttendee(1, "Alice")];
     const csv = generateAttendeesCsv(attendees);
-    const header = csv.split("\n")[0]!;
+    const header = csv.split("\n")[0];
     expect(header).not.toContain("T-shirt");
   });
 });

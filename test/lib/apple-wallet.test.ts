@@ -291,30 +291,28 @@ describe("apple-wallet", () => {
       expect(files.signature).toBeDefined();
 
       // pass.json matches generatePassJson
-      const passJson = JSON.parse(
-        new TextDecoder().decode(files["pass.json"]!),
-      );
+      const passJson = JSON.parse(new TextDecoder().decode(files["pass.json"]));
       const expected = generatePassJson(data, creds);
       expect(passJson).toEqual(expected);
 
       // manifest SHA-1 hashes are correct for all content files
       const manifest = JSON.parse(
-        new TextDecoder().decode(files["manifest.json"]!),
+        new TextDecoder().decode(files["manifest.json"]),
       );
-      expect(manifest["pass.json"]).toBe(sha1Hex(files["pass.json"]!));
-      expect(manifest["icon.png"]).toBe(sha1Hex(files["icon.png"]!));
-      expect(manifest["icon@2x.png"]).toBe(sha1Hex(files["icon@2x.png"]!));
-      expect(manifest["icon@3x.png"]).toBe(sha1Hex(files["icon@3x.png"]!));
+      expect(manifest["pass.json"]).toBe(sha1Hex(files["pass.json"]));
+      expect(manifest["icon.png"]).toBe(sha1Hex(files["icon.png"]));
+      expect(manifest["icon@2x.png"]).toBe(sha1Hex(files["icon@2x.png"]));
+      expect(manifest["icon@3x.png"]).toBe(sha1Hex(files["icon@3x.png"]));
     });
 
     test("produces different pkpass for different serial numbers", () => {
       const a = buildPkpass(makePassData({ serialNumber: "AAA" }), creds);
       const b = buildPkpass(makePassData({ serialNumber: "BBB" }), creds);
       const aJson = JSON.parse(
-        new TextDecoder().decode(unzipSync(a)["pass.json"]!),
+        new TextDecoder().decode(unzipSync(a)["pass.json"]),
       );
       const bJson = JSON.parse(
-        new TextDecoder().decode(unzipSync(b)["pass.json"]!),
+        new TextDecoder().decode(unzipSync(b)["pass.json"]),
       );
       expect(aJson.serialNumber).toBe("AAA");
       expect(bJson.serialNumber).toBe("BBB");

@@ -259,7 +259,7 @@ describeWithEnv("custom questions", { db: true }, () => {
         event2.id,
       ]);
       expect(questionEventMap.get(q1.id)).toEqual([event1.id]);
-      const q2Events = questionEventMap.get(q2.id)!;
+      const q2Events = questionEventMap.get(q2.id);
       expect(q2Events.sort()).toEqual([event1.id, event2.id].sort());
     });
 
@@ -420,10 +420,10 @@ describeWithEnv("custom questions", { db: true }, () => {
       const all = await getAllQuestionsWithAnswers();
       expect(all).toHaveLength(2);
 
-      const qWithA1 = all.find((q) => q.text === "Q1")!;
+      const qWithA1 = all.find((q) => q.text === "Q1");
       expect(qWithA1.answers).toHaveLength(2);
 
-      const qWithA2 = all.find((q) => q.text === "Q2")!;
+      const qWithA2 = all.find((q) => q.text === "Q2");
       expect(qWithA2.answers).toHaveLength(1);
     });
   });

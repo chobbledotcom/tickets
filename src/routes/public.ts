@@ -393,10 +393,11 @@ const buildEventAnswerMap = (
 ): Record<string, number[]> => {
   const result: Record<string, number[]> = {};
   for (let i = 0; i < questions.length; i++) {
-    const question = questions[i]!;
-    const answerId = answerIds[i]!;
+    const question = questions[i] as QuestionWithAnswers;
+    const answerId = answerIds[i] as number;
     // questionEventMap always contains entries for all questions from getQuestionsWithEventIds
-    for (const eventId of questionEventMap.get(question.id)!) {
+    const eventIds = questionEventMap.get(question.id) ?? [];
+    for (const eventId of eventIds) {
       if (!selectedEventIds.has(eventId)) continue;
       const key = String(eventId);
       (result[key] ??= []).push(answerId);
@@ -575,7 +576,8 @@ const computeSharedDates = async (
   const dateSets = dailyEvents.map(
     (e) => new Set(getAvailableDates(e.event, holidays)),
   );
-  return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
+  const firstSet = dateSets[0] as Set<string>;
+  return [...firstSet].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
 /** Multi-ticket shared context shape */
@@ -879,7 +881,7 @@ const buildMultiRegistrationItems = (
   })(events);
   return map(({ event }: MultiTicketEvent) => ({
     eventId: event.id,
-    quantity: quantities.get(event.id)!,
+    quantity: quantities.get(event.id) as number,
     unitPrice: customPrices.get(event.id) ?? event.unit_price,
     slug: event.slug,
     name: event.name,

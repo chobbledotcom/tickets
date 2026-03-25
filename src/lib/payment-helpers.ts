@@ -182,19 +182,22 @@ export const hasRequiredSessionMetadata = (
  * name is guaranteed non-empty by that guard. Optional fields that were
  * omitted during metadata creation are normalized to "" here.
  */
+/** Normalize a metadata field to empty string if falsy */
+const s = (value: string | undefined): string => value || "";
+
 export const extractSessionMetadata = (
   metadata: SessionMetadata,
 ): ValidatedPaymentSession["metadata"] => ({
-  _origin: metadata._origin || "",
-  event_id: metadata.event_id || "",
+  _origin: s(metadata._origin),
+  event_id: s(metadata.event_id),
   name: metadata.name,
-  email: metadata.email || "",
-  phone: metadata.phone || "",
-  address: metadata.address || "",
-  special_instructions: metadata.special_instructions || "",
-  quantity: metadata.quantity || "",
-  multi: metadata.multi || "",
-  date: metadata.date || "",
-  items: metadata.items || "",
-  answer_ids: metadata.answer_ids || "",
+  email: s(metadata.email),
+  phone: s(metadata.phone),
+  address: s(metadata.address),
+  special_instructions: s(metadata.special_instructions),
+  quantity: s(metadata.quantity),
+  multi: s(metadata.multi),
+  date: s(metadata.date),
+  items: s(metadata.items),
+  answer_ids: s(metadata.answer_ids),
 });

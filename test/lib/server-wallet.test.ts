@@ -47,13 +47,13 @@ const fetchPkpassResponse = (token: string) =>
   awaitTestRequest(`/wallet/${token}.pkpass`);
 
 /** Fetch and parse pass.json from a pkpass response */
-// biome-ignore lint/suspicious/noExplicitAny: JSON.parse returns dynamic pkpass structure with deep nesting
 // deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: JSON.parse returns dynamic pkpass structure with deep nesting
 const parsePkpassJson = async (token: string): Promise<Record<string, any>> => {
   const response = await fetchPkpassResponse(token);
   const bytes = new Uint8Array(await response.arrayBuffer());
   const files = unzipSync(bytes);
-  return JSON.parse(new TextDecoder().decode(files["pass.json"]!));
+  return JSON.parse(new TextDecoder().decode(files["pass.json"]));
 };
 
 /** Fetch a ticket page and return the HTML body */

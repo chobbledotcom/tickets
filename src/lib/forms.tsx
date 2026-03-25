@@ -115,59 +115,69 @@ const splitDatetime = (value: string): { date: string; time: string } => {
   return { date, time };
 };
 
+/** Render a textarea input */
+const renderTextarea = (field: Field, value: string): JSX.Element => (
+  <textarea
+    name={field.name}
+    required={field.required}
+    placeholder={field.placeholder}
+    maxlength={field.maxlength}
+  >
+    <Raw html={escapeHtml(value)} />
+  </textarea>
+);
+
+/** Render a select dropdown */
+const renderSelect = (field: Field, value: string): JSX.Element => (
+  <Raw
+    html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options ?? [], value)}</select>`}
+  />
+);
+
+/** Render a checkbox group */
+const renderCheckbox = (field: Field, value: string): JSX.Element => (
+  <Raw
+    html={renderCheckboxGroup(
+      field.name,
+      field.options ?? [],
+      new Set(value ? value.split(",").map((v) => v.trim()) : []),
+    )}
+  />
+);
+
+/** Render a default text/number/email/etc input */
+const renderDefaultInput = (field: Field, value: string): JSX.Element => (
+  <input
+    type={field.type}
+    name={field.name}
+    value={value || undefined}
+    required={field.required}
+    placeholder={field.placeholder}
+    min={field.min}
+    inputmode={field.inputmode}
+    maxlength={field.maxlength}
+    pattern={field.pattern}
+    autofocus={field.autofocus}
+    autocomplete={field.autocomplete}
+  />
+);
+
 /** Render the input control for a field based on its type */
 const renderFieldInput = (field: Field, value: string): JSX.Element => {
-  if (field.type === "textarea") {
-    return (
-      <textarea
-        name={field.name}
-        required={field.required}
-        placeholder={field.placeholder}
-        maxlength={field.maxlength}
-      >
-        <Raw html={escapeHtml(value)} />
-      </textarea>
-    );
+  switch (field.type) {
+    case "textarea":
+      return renderTextarea(field, value);
+    case "select":
+      return renderSelect(field, value);
+    case "checkbox-group":
+      return renderCheckbox(field, value);
+    case "datetime":
+      return <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />;
+    case "file":
+      return <input type="file" name={field.name} accept={field.accept} />;
+    default:
+      return renderDefaultInput(field, value);
   }
-  if (field.type === "select" && field.options) {
-    return (
-      <Raw
-        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
-      />
-    );
-  }
-  if (field.type === "checkbox-group" && field.options) {
-    return (
-      <Raw
-        html={renderCheckboxGroup(
-          field.name,
-          field.options,
-          new Set(value ? value.split(",").map((v) => v.trim()) : []),
-        )}
-      />
-    );
-  }
-  if (field.type === "datetime") {
-    return <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />;
-  }
-  if (field.type === "file") {
-    return <input type="file" name={field.name} accept={field.accept} />;
-  }
-  return (
-    <input
-      type={field.type}
-      name={field.name}
-      value={value || undefined}
-      required={field.required}
-      placeholder={field.placeholder}
-      min={field.min}
-      inputmode={field.inputmode}
-      maxlength={field.maxlength}
-      pattern={field.pattern}
-      autofocus={field.autofocus}
-      autocomplete={field.autocomplete}
-    />
-  );
 };
 
 export const renderField = (field: Field, value: string = ""): string =>
@@ -218,21 +228,27 @@ const parseFieldValue = (
       : null
     : trimmed;
 
+/** Extract and validate a datetime field value */
+const extractDatetimeValue = (
+  form: FormParams,
+  field: Field,
+): FieldValidationResult | string => {
+  const result = getDatetimeValue(form, field.name);
+  if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
+  if (!result) {
+    if (field.required)
+      return { valid: false, error: `${field.label} is required` };
+    return { valid: true, value: null };
+  }
+  return result;
+};
+
 /** Extract raw field value from form data, handling datetime and checkbox-group specially */
 const extractFieldValue = (
   form: FormParams,
   field: Field,
 ): FieldValidationResult | string => {
-  if (field.type === "datetime") {
-    const result = getDatetimeValue(form, field.name);
-    if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
-    if (!result) {
-      if (field.required)
-        return { valid: false, error: `${field.label} is required` };
-      return { valid: true, value: null };
-    }
-    return result;
-  }
+  if (field.type === "datetime") return extractDatetimeValue(form, field);
   if (field.type === "checkbox-group") {
     return form
       .getAll(field.name)
@@ -248,32 +264,30 @@ const extractFieldValue = (
  * For checkbox-group fields, collects all checked values via getAll()
  * and joins them as a comma-separated string.
  */
-const validateSingleField = (
-  form: FormParams,
+/** Apply defaults, required check, and custom validation to a trimmed value */
+const validateTrimmedValue = (
   field: Field,
+  rawTrimmed: string,
 ): FieldValidationResult => {
-  // File fields are handled separately via FormData, not URLSearchParams
-  if (field.type === "file") return { valid: true, value: null };
-
-  const extracted = extractFieldValue(form, field);
-  if (typeof extracted !== "string") return extracted;
-
-  let trimmed = extracted;
-
-  if (!trimmed && field.defaultValue) {
-    trimmed = field.defaultValue;
-  }
-
+  const trimmed = rawTrimmed || field.defaultValue || "";
   if (field.required && !trimmed) {
     return { valid: false, error: `${field.label} is required` };
   }
-
   if (field.validate && trimmed) {
     const error = field.validate(trimmed);
     if (error) return { valid: false, error };
   }
-
   return { valid: true, value: parseFieldValue(field, trimmed) };
+};
+
+const validateSingleField = (
+  form: FormParams,
+  field: Field,
+): FieldValidationResult => {
+  if (field.type === "file") return { valid: true, value: null };
+  const extracted = extractFieldValue(form, field);
+  if (typeof extracted !== "string") return extracted;
+  return validateTrimmedValue(field, extracted);
 };
 
 /**
@@ -335,6 +349,15 @@ export const clearSavedFormData = (): void => {
   _savedFormData.form = null;
 };
 
+/** Extract saved datetime value from form data */
+const getSavedDatetime = (form: FormParams, name: string): string => {
+  const date = form.getString(`${name}_date`);
+  const time = form.getString(`${name}_time`);
+  if (date && time) return `${date}T${time}`;
+  if (date) return `${date}T00:00`;
+  return "";
+};
+
 /** Get a saved value for a field, or empty string if not available */
 const getSavedValue = (field: Field): string => {
   if (!_savedFormData.form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
@@ -346,11 +369,7 @@ const getSavedValue = (field: Field): string => {
       .join(",");
   }
   if (field.type === "datetime") {
-    const date = _savedFormData.form.getString(`${field.name}_date`);
-    const time = _savedFormData.form.getString(`${field.name}_time`);
-    if (date && time) return `${date}T${time}`;
-    if (date) return `${date}T00:00`;
-    return "";
+    return getSavedDatetime(_savedFormData.form, field.name);
   }
   return _savedFormData.form.getString(field.name);
 };

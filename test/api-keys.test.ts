@@ -43,7 +43,7 @@ const getTestDataKey = async (): Promise<CryptoKey> => {
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
   );
   const session = await getSession(token);
-  return unwrapKeyWithToken(session?.wrapped_data_key!, token);
+  return unwrapKeyWithToken(session?.wrapped_data_key, token);
 };
 
 describeWithEnv("API Keys", { db: true }, () => {
@@ -233,7 +233,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const body = new URLSearchParams({
         name: "My Test Key",
-        csrf_token: csrfToken!,
+        csrf_token: csrfToken,
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
@@ -255,7 +255,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       // Follow the redirect and verify the key is shown
       const flashCookie = response.headers
         .getSetCookie()
-        .find((c) => c.startsWith("flash_"))!;
+        .find((c) => c.startsWith("flash_")) as string;
       const redirectResponse = await handleRequest(
         mockRequest(location, {
           headers: { cookie: `${cookie}; ${flashCookie.split(";")[0]}` },

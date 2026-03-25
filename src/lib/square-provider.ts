@@ -51,6 +51,23 @@ const withUserError = async <T extends { orderId: string; url: string }>(
   }
 };
 
+/** Extract the payment object from Square webhook data */
+const extractSquarePaymentObject = (
+  obj: Record<string, unknown>,
+): Record<string, unknown> =>
+  typeof obj.payment === "object" && obj.payment !== null
+    ? (obj.payment as Record<string, unknown>)
+    : obj;
+
+/** Extract the order ID from a Square payment object */
+const extractSquareOrderId = (
+  payment: Record<string, unknown>,
+): string | null => {
+  if (typeof payment.order_id === "string") return payment.order_id;
+  if (typeof payment.id === "string") return payment.id;
+  return null;
+};
+
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
   type: "square",
@@ -138,21 +155,8 @@ export const squarePaymentProvider: PaymentProvider = {
   async resolveWebhookSession(
     event: WebhookEvent,
   ): Promise<ValidatedPaymentSession | "skip" | null> {
-    const obj = event.data.object;
-
-    // Square nests payment fields under data.object.payment
-    const payment =
-      typeof obj.payment === "object" && obj.payment !== null
-        ? (obj.payment as Record<string, unknown>)
-        : obj;
-
-    // Extract the order ID (Square's session equivalent)
-    const orderId =
-      typeof payment.order_id === "string"
-        ? payment.order_id
-        : typeof payment.id === "string"
-          ? payment.id
-          : null;
+    const payment = extractSquarePaymentObject(event.data.object);
+    const orderId = extractSquareOrderId(payment);
 
     if (!orderId) return Promise.resolve(null);
 

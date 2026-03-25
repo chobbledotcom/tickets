@@ -456,7 +456,7 @@ describe("forms", () => {
     test("rejects terms_and_conditions exceeding MAX_TEXTAREA_LENGTH", () => {
       const termsField = groupCreateFields.find(
         (f) => f.name === "terms_and_conditions",
-      )!;
+      ) as (typeof groupCreateFields)[number];
       const error = termsField.validate?.("x".repeat(MAX_TEXTAREA_LENGTH + 1));
       expect(error).toContain(`${MAX_TEXTAREA_LENGTH} characters or fewer`);
     });
@@ -464,7 +464,7 @@ describe("forms", () => {
     test("accepts terms_and_conditions within MAX_TEXTAREA_LENGTH", () => {
       const termsField = groupCreateFields.find(
         (f) => f.name === "terms_and_conditions",
-      )!;
+      ) as (typeof groupCreateFields)[number];
       const error = termsField.validate?.("x".repeat(MAX_TEXTAREA_LENGTH));
       expect(error).toBeNull();
     });
@@ -626,13 +626,13 @@ describe("forms", () => {
     });
 
     test("phone field has validation", () => {
-      const phoneField = getTicketFields("phone", false)[1]!;
+      const phoneField = getTicketFields("phone", false)[1];
       expect(phoneField.validate).toBeDefined();
       expect(phoneField.required).toBe(true);
     });
 
     test("email field has validation", () => {
-      const emailField = getTicketFields("email", false)[1]!;
+      const emailField = getTicketFields("email", false)[1];
       expect(emailField.validate).toBeDefined();
       expect(emailField.required).toBe(true);
     });
@@ -654,7 +654,7 @@ describe("forms", () => {
     });
 
     test("address field has validation", () => {
-      const addrField = getTicketFields("address", false)[1]!;
+      const addrField = getTicketFields("address", false)[1];
       expect(addrField.validate).toBeDefined();
       expect(addrField.required).toBe(true);
       expect(addrField.type).toBe("textarea");
@@ -668,7 +668,7 @@ describe("forms", () => {
     });
 
     test("special_instructions field has validation", () => {
-      const field = getTicketFields("special_instructions", false)[1]!;
+      const field = getTicketFields("special_instructions", false)[1];
       expect(field.validate).toBeDefined();
       expect(field.required).toBe(true);
       expect(field.type).toBe("textarea");

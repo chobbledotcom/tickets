@@ -390,7 +390,7 @@ const alreadyProcessedResult = async (
   const ticketTokens = decrypted ? decrypted.split("+") : [];
   return {
     success: true,
-    attendee: { id: existing.attendee_id! },
+    attendee: { id: existing.attendee_id as number },
     event,
     ticketTokens,
   };
@@ -484,118 +484,92 @@ const priceMismatchRefund = async (
  * 2. Validate events and create attendees atomically (with rollback on failure)
  * 3. Finalize session (records attendee ID)
  */
-const processPaymentSession = async (
-  sessionId: string,
-  data: { session: ValidatedPaymentSession; intent: BookingIntent },
-  options?: { storeTokens?: boolean },
-): Promise<PaymentResult> => {
-  const { session, intent } = data;
-  // Phase 1: Reserve the session (claim the lock)
-  const reservation = await reserveSession(sessionId);
+/** Validated item with event and expected price */
+type ValidatedItem = {
+  item: BookingItem;
+  event: EventWithCount;
+  expectedPrice: number;
+};
 
-  if (!reservation.reserved) {
-    const { existing } = reservation;
-
-    if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.items[0]?.e, existing);
-    }
-
-    // Session reserved but not finalized — another request is processing
-    return {
-      success: false,
-      error: "Payment is being processed. Please wait a moment and refresh.",
-      status: 409,
-    };
-  }
-
-  // Phase 2: Validate events and create attendees atomically
-  // A single-item checkout uses strict price validation (exact match / pay-more
-  // range). A cart checkout uses per-item price validation when items have
-  // non-zero prices, or lenient total validation for free-event carts.
-  const isSingleItemCheckout = !isCartSession(session.metadata);
-  const includeEventName = !isSingleItemCheckout;
-
-  const validatedItems: {
-    item: BookingItem;
-    event: EventWithCount;
-    expectedPrice: number;
-  }[] = [];
-  let _expectedTotal = 0;
-
+/** Validate all items in the intent, returning validated items or a failure result */
+const validateIntentItems = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+  includeEventName: boolean,
+): Promise<{ ok: true; items: ValidatedItem[] } | PaymentResult> => {
+  const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const vp = await validateAndPrice(
       { eventId: item.e, quantity: item.q },
       includeEventName,
     );
     if (!vp.ok) return validationFailure(session, vp, item.e);
-    validatedItems.push({
-      item,
-      event: vp.event,
-      expectedPrice: vp.expectedPrice,
-    });
-    _expectedTotal += vp.expectedPrice;
+    validatedItems.push({ item, event: vp.event, expectedPrice: vp.expectedPrice });
   }
+  return { ok: true, items: validatedItems };
+};
 
-  // Price validation
-  const hasPerItemPrices = intent.items.some((item) => item.p > 0);
-  const bookingFeePercent = getBookingFee();
-
-  if (hasPerItemPrices) {
-    // Per-item prices are ticket-only (no fee), so validate without booking fee
-    for (const { item, event, expectedPrice } of validatedItems) {
-      if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
-        return priceMismatchRefund(
-          session,
-          `Per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
-          event.id,
-        );
-      }
-    }
-
-    // Cart total must equal the sum of per-item prices + booking fee
-    const metadataTotal = validatedItems.reduce(
-      (sum, { item }) => sum + item.p,
-      0,
-    );
-    const expectedCartTotal =
-      metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
-    if (session.amountTotal !== expectedCartTotal) {
-      return priceMismatchRefund(
-        session,
-        `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
-        validatedItems[0]?.event.id,
-      );
-    }
-  } else if (isSingleItemCheckout) {
-    // Single-ticket checkout: validate with hasPriceMismatch (exact match for
-    // fixed-price, range check for pay-more events)
-    const { event, expectedPrice } = validatedItems[0]!;
-    if (
-      hasPriceMismatch(
-        session.amountTotal,
-        expectedPrice,
-        event,
-        bookingFeePercent,
-        intent.items[0]?.q,
-      )
-    ) {
-      return priceMismatchRefund(
-        session,
-        `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
-        event.id,
-      );
-    }
-  }
-  // Free-event cart (all p=0, not single-item): no price validation needed
-
-  // Create attendees
-  const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
-  let failedEvent: EventWithCount | null = null;
-  let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
-
+/** Validate per-item prices against expected event prices */
+const validatePerItemPrices = (
+  session: ValidatedPaymentSession,
+  validatedItems: ValidatedItem[],
+  bookingFeePercent: number,
+): PaymentResult | null => {
   for (const { item, event, expectedPrice } of validatedItems) {
-    // For single-ticket pay-more events, use the actual amount charged to capture
-    // the customer's chosen price. Otherwise use per-item or expected price.
+    if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
+      return priceMismatchRefund(
+        session,
+        `Per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
+        event.id,
+      ) as unknown as PaymentResult;
+    }
+  }
+  const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+  const expectedCartTotal =
+    metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
+  if (session.amountTotal !== expectedCartTotal) {
+    return priceMismatchRefund(
+      session,
+      `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
+      validatedItems[0]?.event.id,
+    ) as unknown as PaymentResult;
+  }
+  return null;
+};
+
+/** Validate single-item checkout price */
+const validateSingleItemPrice = (
+  session: ValidatedPaymentSession,
+  validatedItems: ValidatedItem[],
+  intent: BookingIntent,
+  bookingFeePercent: number,
+): PaymentResult | null => {
+  const firstValidated = validatedItems[0] as ValidatedItem;
+  const { event, expectedPrice } = firstValidated;
+  const firstItem = intent.items[0] as BookingItem;
+  if (hasPriceMismatch(session.amountTotal, expectedPrice, event, bookingFeePercent, firstItem.q)) {
+    return priceMismatchRefund(
+      session,
+      `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
+      event.id,
+    ) as unknown as PaymentResult;
+  }
+  return null;
+};
+
+/** Create attendees for each validated item, rolling back on failure */
+const createAttendeesForItems = async (
+  validatedItems: ValidatedItem[],
+  intent: BookingIntent,
+  session: ValidatedPaymentSession,
+  hasPerItemPrices: boolean,
+  isSingleItemCheckout: boolean,
+): Promise<
+  | { ok: true; attendees: { attendee: Attendee; event: EventWithCount }[] }
+  | PaymentResult
+> => {
+  const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
+  for (const { item, event, expectedPrice } of validatedItems) {
     const pricePaid = hasPerItemPrices
       ? item.p
       : isSingleItemCheckout && event.can_pay_more
@@ -616,37 +590,81 @@ const processPaymentSession = async (
     });
 
     if (!result.success) {
-      failedEvent = event;
-      failureReason = result.reason;
-      break;
+      await rollbackAttendees(createdAttendees);
+      const error = formatPostPaymentError(result.reason, event.name);
+      const refunded = await refundAndLog(session, error, event.id);
+      return { success: false, error, refunded };
     }
-
     createdAttendees.push({ attendee: result.attendee, event });
   }
+  return { ok: true, attendees: createdAttendees };
+};
 
-  // If any creation failed, rollback already-created attendees and refund
-  if (failedEvent && failureReason) {
-    await rollbackAttendees(createdAttendees);
-    const error = formatPostPaymentError(failureReason, failedEvent.name);
-    const refunded = await refundAndLog(session, error, failedEvent.id);
-    return { success: false, error, refunded };
-  }
-
-  // Save per-event question answers for each attendee
-  if (intent.eventAnswerIds) {
-    for (const { attendee, event } of createdAttendees) {
-      const answers = intent.eventAnswerIds[String(event.id)];
-      if (answers && answers.length > 0) {
-        await saveAttendeeAnswers([attendee.id], answers);
-      }
+/** Save per-event question answers for each attendee */
+const saveEventAnswers = async (
+  eventAnswerIds: Record<string, number[]>,
+  createdAttendees: { attendee: Attendee; event: EventWithCount }[],
+): Promise<void> => {
+  for (const { attendee, event } of createdAttendees) {
+    const answers = eventAnswerIds[String(event.id)];
+    if (answers && answers.length > 0) {
+      await saveAttendeeAnswers([attendee.id], answers);
     }
   }
+};
 
-  // Phase 3: Finalize with first attendee ID (for idempotency tracking)
-  // createdAttendees is guaranteed non-empty: the loop always runs (intent.items
-  // is validated non-empty) and if any creation fails we return early above.
-  const firstAttendee = createdAttendees[0]!;
+const processPaymentSession = async (
+  sessionId: string,
+  data: { session: ValidatedPaymentSession; intent: BookingIntent },
+  options?: { storeTokens?: boolean },
+): Promise<PaymentResult> => {
+  const { session, intent } = data;
+  // Phase 1: Reserve the session (claim the lock)
+  const reservation = await reserveSession(sessionId);
 
+  if (!reservation.reserved) {
+    const { existing } = reservation;
+    if (existing.attendee_id !== null) {
+      return alreadyProcessedResult(intent.items[0]?.e, existing);
+    }
+    return {
+      success: false,
+      error: "Payment is being processed. Please wait a moment and refresh.",
+      status: 409,
+    };
+  }
+
+  // Phase 2: Validate events and create attendees atomically
+  const isSingleItemCheckout = !isCartSession(session.metadata);
+  const itemsResult = await validateIntentItems(session, intent, !isSingleItemCheckout);
+  if (!("ok" in itemsResult)) return itemsResult;
+  const validatedItems = itemsResult.items;
+
+  // Price validation
+  const hasPerItemPrices = intent.items.some((item) => item.p > 0);
+  const bookingFeePercent = getBookingFee();
+
+  if (hasPerItemPrices) {
+    const priceError = await validatePerItemPrices(session, validatedItems, bookingFeePercent);
+    if (priceError) return priceError;
+  } else if (isSingleItemCheckout) {
+    const priceError = await validateSingleItemPrice(session, validatedItems, intent, bookingFeePercent);
+    if (priceError) return priceError;
+  }
+
+  // Create attendees
+  const createResult = await createAttendeesForItems(
+    validatedItems, intent, session, hasPerItemPrices, isSingleItemCheckout,
+  );
+  if (!("ok" in createResult)) return createResult;
+  const createdAttendees = createResult.attendees;
+
+  if (intent.eventAnswerIds) {
+    await saveEventAnswers(intent.eventAnswerIds, createdAttendees);
+  }
+
+  // Phase 3: Finalize
+  const firstAttendee = createdAttendees[0] as (typeof createdAttendees)[0];
   const ticketTokens: string[] = map(
     ({ attendee }: { attendee: Attendee }) => attendee.ticket_token,
   )(createdAttendees);
@@ -745,7 +763,7 @@ const renderSuccessFromTokens = async (
   for (let i = 0; i < tokens.length; i++) {
     const attendee = attendeeResults[i];
     if (attendee) {
-      verifiedTokens.push(tokens[i]!);
+      verifiedTokens.push(tokens[i] as string);
       eventIds.push(attendee.event_id);
     }
   }
@@ -760,7 +778,7 @@ const renderSuccessFromTokens = async (
   const uniqueEventIds = unique(eventIds);
   let thankYouUrl = "";
   if (uniqueEventIds.length === 1) {
-    const event = await getEvent(uniqueEventIds[0]!);
+    const event = await getEvent(uniqueEventIds[0] as number);
     if (event) thankYouUrl = event.thank_you_url;
   }
 

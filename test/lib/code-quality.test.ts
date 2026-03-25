@@ -137,7 +137,7 @@ describe("code quality", () => {
           continue;
         }
 
-        const content = srcContents.get(file)!;
+        const content = srcContents.get(file);
 
         for (const { pattern, description } of FORBIDDEN_PATTERNS) {
           if (pattern.test(content)) {
@@ -212,7 +212,7 @@ describe("code quality", () => {
 
       for (const file of srcFiles) {
         const relativePath = getRelativePath(file);
-        const content = srcContents.get(file)!;
+        const content = srcContents.get(file);
         const lines = content.split("\n");
 
         let lineNum = 0;
@@ -405,7 +405,7 @@ describe("code quality", () => {
       sourceFile: string,
     ): boolean => {
       // Check if it's used within the same file
-      const sourceContent = srcContents.get(sourceFile)!;
+      const sourceContent = srcContents.get(sourceFile);
       if (isUsedInSameFile(symbolName, sourceContent)) {
         return true;
       }
@@ -423,14 +423,14 @@ describe("code quality", () => {
         // Skip test utilities - imports there don't count as production usage
         if (TEST_UTILITY_PATHS.includes(relativePath)) continue;
 
-        if (importPattern.test(srcContents.get(file)!)) {
+        if (importPattern.test(srcContents.get(file))) {
           return true;
         }
       }
 
       // Also check .tsx files as importers
       for (const file of tsxFiles) {
-        if (importPattern.test(tsxContents.get(file)!)) {
+        if (importPattern.test(tsxContents.get(file))) {
           return true;
         }
       }
@@ -445,7 +445,7 @@ describe("code quality", () => {
       );
 
       for (const testFile of testFiles) {
-        if (importPattern.test(testContents.get(testFile)!)) {
+        if (importPattern.test(testContents.get(testFile))) {
           return true;
         }
       }
@@ -475,7 +475,7 @@ describe("code quality", () => {
       const relativePath = getRelativePath(file);
       const violations: string[] = [];
 
-      const content = srcContents.get(file)!;
+      const content = srcContents.get(file);
       if (isPrimarilyReExportModule(content)) return violations;
 
       const exports = extractExports(content);

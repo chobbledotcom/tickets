@@ -2193,7 +2193,7 @@ describe("html", () => {
       });
       const failedSection = html
         .split("Failed Payments")[1]
-        ?.split("Add Attendee")[0]!;
+        ?.split("Add Attendee")[0] as string;
       expect(failedSection).toContain("Jane Stuck");
       expect(failedSection).toContain("Delete");
       expect(failedSection).toContain("/delete-incomplete");
@@ -3072,10 +3072,10 @@ describe("html", () => {
         dates,
         "2026-03-10",
       );
-      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
-      const optionTexts = [...selectMatch[1]?.matchAll(/>([^<]+)</g)].map(
-        (m) => m[1],
-      );
+      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
+      const optionTexts = [
+        ...(selectMatch[1] as string).matchAll(/>([^<]+)</g),
+      ].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Sunday 8 March 2026",
         "Monday 9 March 2026",
@@ -3106,10 +3106,10 @@ describe("html", () => {
         dates,
         "2026-03-10",
       );
-      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
-      const optionTexts = [...selectMatch[1]?.matchAll(/>([^<]+)</g)].map(
-        (m) => m[1],
-      );
+      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
+      const optionTexts = [
+        ...(selectMatch[1] as string).matchAll(/>([^<]+)</g),
+      ].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Sunday 8 March 2026",
         "Monday 9 March 2026",
@@ -3138,10 +3138,10 @@ describe("html", () => {
         dates,
         "2026-03-10",
       );
-      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
-      const optionTexts = [...selectMatch[1]?.matchAll(/>([^<]+)</g)].map(
-        (m) => m[1],
-      );
+      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
+      const optionTexts = [
+        ...(selectMatch[1] as string).matchAll(/>([^<]+)</g),
+      ].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Select a date",
         "Sunday 15 March 2026",
@@ -3444,7 +3444,7 @@ describe("html", () => {
   });
 
   describe("datetime validation via eventFields date field", () => {
-    const dateField = eventFields.find((f) => f.name === "date")!;
+    const dateField = eventFields.find((f) => f.name === "date");
 
     test("accepts valid datetime value", () => {
       const result = dateField.validate?.("2026-06-15T14:00");
@@ -4044,7 +4044,7 @@ describe("html", () => {
         { id: 11, question_id: 1, text: "Large", sort_order: 1 },
       ],
     };
-    const answer = question.answers[0]!;
+    const answer = question.answers[0];
 
     test("renders confirmation form with answer text", () => {
       const html = adminAnswerDeletePage(question, answer, TEST_SESSION);

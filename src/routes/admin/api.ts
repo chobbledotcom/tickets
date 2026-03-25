@@ -304,6 +304,41 @@ const handleCreateEvent = (request: Request): Promise<Response> =>
     return jsonResponse({ event: toAdminEvent(event as EventWithCount) }, 201);
   });
 
+/** Validate slug uniqueness when slug has changed */
+const validateSlugChange = async (
+  input: EventInput,
+  existing: EventWithCount,
+  eventId: number,
+): Promise<Response | null> => {
+  if (input.slug === existing.slug) return null;
+  const taken = await isSlugTaken(input.slug, eventId);
+  return taken
+    ? errorResponse("Slug is already in use by another event")
+    : null;
+};
+
+/** Handle PUT /api/admin/events/:eventId — update event */
+const handleUpdateEvent = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withEventApi(request, eventId, async (existing, _session, body) => {
+    const parsed = await bodyToUpdateInput(body, existing);
+    if (!parsed.ok) return errorResponse(parsed.error);
+
+    const slugError = await validateSlugChange(parsed.input, existing, eventId);
+    if (slugError) return slugError;
+
+    const validationError = await validateEventInput(parsed.input, eventId);
+    if (validationError) return errorResponse(validationError);
+
+    const row = await eventsTable.update(eventId, parsed.input);
+    if (!row) return errorResponse("Event not found", 404);
+    const updated = await getEventWithCount(row.id);
+    await logActivity(`Event '${row.name}' updated`, row);
+    return jsonResponse({ event: toAdminEvent(updated as EventWithCount) });
+  });
+
 export const adminApiRoutes = defineRoutes({
   "GET /api/admin/events": handleListEvents,
   "GET /api/admin/events/:eventId": (request, { eventId }) =>
@@ -312,25 +347,7 @@ export const adminApiRoutes = defineRoutes({
     ),
   "POST /api/admin/events": handleCreateEvent,
   "PUT /api/admin/events/:eventId": (request, { eventId }) =>
-    withEventApi(request, eventId, async (existing, _session, body) => {
-      const parsed = await bodyToUpdateInput(body, existing);
-      if (!parsed.ok) return errorResponse(parsed.error);
-
-      if (parsed.input.slug !== existing.slug) {
-        const taken = await isSlugTaken(parsed.input.slug, eventId);
-        if (taken)
-          return errorResponse("Slug is already in use by another event");
-      }
-
-      const validationError = await validateEventInput(parsed.input, eventId);
-      if (validationError) return errorResponse(validationError);
-
-      const row = await eventsTable.update(eventId, parsed.input);
-      if (!row) return errorResponse("Event not found", 404);
-      const updated = await getEventWithCount(row.id);
-      await logActivity(`Event '${row.name}' updated`, row);
-      return jsonResponse({ event: toAdminEvent(updated as EventWithCount) });
-    }),
+    handleUpdateEvent(request, eventId),
   "DELETE /api/admin/events/:eventId": (request, { eventId }) =>
     withEventApi(request, eventId, async (event, _session, body) => {
       const confirmName =
