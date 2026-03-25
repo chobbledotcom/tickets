@@ -375,6 +375,84 @@ const getGroupAttendeeCount = async (
   return rows[0]?.count ?? 0;
 };
 
+/** Check per-event capacity for a batch of items against a prebuilt count map */
+const batchEventCapacityOk = (
+  items: BatchAvailabilityItem[],
+  counts: Map<number, { max_attendees: number; current_count: number }>,
+): boolean =>
+  items.every((item) => {
+    const row = counts.get(item.eventId);
+    return row ? row.current_count + item.quantity <= row.max_attendees : false;
+  });
+
+/** Collect unique group IDs (> 0) from a set of event rows */
+const collectGroupIds = (rows: { group_id: number }[]): Set<number> => {
+  const groupIds = new Set<number>();
+  for (const row of rows) {
+    if (row.group_id > 0) groupIds.add(row.group_id);
+  }
+  return groupIds;
+};
+
+/** Sum requested quantity for a group from batch items */
+const sumGroupQuantity = (
+  groupId: number,
+  items: BatchAvailabilityItem[],
+  counts: Map<number, { group_id: number }>,
+): number =>
+  items.reduce((sum, item) => {
+    const row = counts.get(item.eventId);
+    return row && row.group_id === groupId ? sum + item.quantity : sum;
+  }, 0);
+
+/** Check all group capacities for a batch; returns false if any group is over limit */
+const checkAllGroupCapacities = async (
+  groupIds: Set<number>,
+  items: BatchAvailabilityItem[],
+  counts: Map<number, { group_id: number }>,
+  date: string | null,
+): Promise<boolean> => {
+  for (const groupId of groupIds) {
+    const requested = sumGroupQuantity(groupId, items, counts);
+    const ok = await isGroupWithinLimit(groupId, requested, date);
+    if (!ok) return false;
+  }
+  return true;
+};
+
+/** Check group capacity: given the total requested quantity for a group, return true if within limit */
+const isGroupWithinLimit = async (
+  groupId: number,
+  requestedQuantity: number,
+  date: string | null,
+): Promise<boolean> => {
+  const groupLimit = await getGroupMaxAttendees(groupId);
+  if (groupLimit <= 0) return true;
+  const groupCount = await getGroupAttendeeCount(groupId, date);
+  return groupCount + requestedQuantity <= groupLimit;
+};
+
+/** Check event capacity for a single event, using date-aware count if provided */
+const checkEventCapacity = async (
+  event: { max_attendees: number; attendee_count: number },
+  eventId: number,
+  quantity: number,
+  date: string | null,
+): Promise<boolean> => {
+  if (date) {
+    const dateCount = await getDateAttendeeCount(eventId, date);
+    return dateCount + quantity <= event.max_attendees;
+  }
+  return event.attendee_count + quantity <= event.max_attendees;
+};
+
+/** Check group capacity for a single event's group */
+const checkSingleEventGroupCapacity = (
+  groupId: number,
+  quantity: number,
+  date: string | null,
+): Promise<boolean> => isGroupWithinLimit(groupId, quantity, date);
+
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
   /**
@@ -405,32 +483,10 @@ export const attendeesApi = {
       [date ?? null, ...eventIds],
     );
     const counts = new Map(rows.map((r) => [r.id, r]));
-    // Per-event capacity check
-    const eventOk = items.every((item) => {
-      const row = counts.get(item.eventId);
-      return row
-        ? row.current_count + item.quantity <= row.max_attendees
-        : false;
-    });
-    if (!eventOk) return false;
+    if (!batchEventCapacityOk(items, counts)) return false;
 
-    // Group capacity check: collect unique group IDs with limits
-    const groupIds = new Set<number>();
-    for (const row of rows) {
-      if (row.group_id > 0) groupIds.add(row.group_id);
-    }
-    for (const groupId of groupIds) {
-      const groupLimit = await getGroupMaxAttendees(groupId);
-      if (groupLimit <= 0) continue;
-      const groupCount = await getGroupAttendeeCount(groupId, date ?? null);
-      // Sum requested quantities for events in this group
-      const requestedInGroup = items.reduce((sum, item) => {
-        const row = counts.get(item.eventId);
-        return row && row.group_id === groupId ? sum + item.quantity : sum;
-      }, 0);
-      if (groupCount + requestedInGroup > groupLimit) return false;
-    }
-    return true;
+    const groupIds = collectGroupIds(rows);
+    return checkAllGroupCapacities(groupIds, items, counts, date ?? null);
   },
   /** Check if an event has available spots for the requested quantity */
   hasAvailableSpots: async (
@@ -440,22 +496,19 @@ export const attendeesApi = {
   ): Promise<boolean> => {
     const event = await getEventWithCount(eventId);
     if (!event) return false;
-    if (date) {
-      const dateCount = await getDateAttendeeCount(eventId, date);
-      if (dateCount + quantity > event.max_attendees) return false;
-    } else {
-      if (event.attendee_count + quantity > event.max_attendees) return false;
-    }
-    // Check group capacity if event belongs to a group with a limit
+    const eventOk = await checkEventCapacity(
+      event,
+      eventId,
+      quantity,
+      date ?? null,
+    );
+    if (!eventOk) return false;
     if (event.group_id > 0) {
-      const groupLimit = await getGroupMaxAttendees(event.group_id);
-      if (groupLimit > 0) {
-        const groupCount = await getGroupAttendeeCount(
-          event.group_id,
-          date ?? null,
-        );
-        if (groupCount + quantity > groupLimit) return false;
-      }
+      return checkSingleEventGroupCapacity(
+        event.group_id,
+        quantity,
+        date ?? null,
+      );
     }
     return true;
   },
@@ -712,6 +765,71 @@ export type MigrateBatchResult = {
   remaining: number;
 };
 
+/** Count unmigrated attendees (those without a pii_blob) */
+const countUnmigrated = async (): Promise<number> => {
+  const rows = await queryAll<{ count: number }>(
+    "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
+  );
+  return rows[0]?.count ?? 0;
+};
+
+/** Migrate a single attendee row from per-field encryption to PII blob */
+const migrateAttendeeRow = async (
+  row: Attendee,
+  privateKey: CryptoKey,
+): Promise<void> => {
+  const decryptOrEmpty = (v: string) =>
+    v ? decryptAttendeePII(v, privateKey) : Promise.resolve("");
+  const decryptBool = (v: string) =>
+    v ? decryptAttendeePII(v, privateKey) : Promise.resolve("false");
+
+  const [
+    name,
+    email,
+    phone,
+    address,
+    special_instructions,
+    payment_id,
+    ticket_token,
+  ] = await Promise.all([
+    decryptOrEmpty(row.name),
+    decryptOrEmpty(row.email),
+    decryptOrEmpty(row.phone),
+    decryptOrEmpty(row.address),
+    decryptOrEmpty(row.special_instructions),
+    decryptOrEmpty(row.payment_id),
+    decryptOrEmpty(row.ticket_token),
+  ]);
+
+  const [checkedInStr, refundedStr, pricePaidStr] = await Promise.all([
+    decryptBool(row.checked_in as unknown as string),
+    decryptBool(row.refunded as unknown as string),
+    row.price_paid ? decrypt(row.price_paid) : Promise.resolve("0"),
+  ]);
+
+  const piiJson = buildPiiBlob({
+    name,
+    email,
+    phone,
+    address,
+    special_instructions,
+    payment_id,
+    ticket_token,
+  });
+  const encryptedBlob = await encryptPiiBlob(piiJson, settings.publicKey);
+
+  await getDb().execute({
+    sql: "UPDATE attendees SET pii_blob = ?, checked_in_v2 = ?, refunded_v2 = ?, price_paid_v2 = ? WHERE id = ?",
+    args: [
+      encryptedBlob,
+      checkedInStr === "true" ? 1 : 0,
+      refundedStr === "true" ? 1 : 0,
+      Number.parseInt(pricePaidStr, 10) || 0,
+      row.id,
+    ],
+  });
+};
+
 /**
  * Migrate a batch of attendees from per-field encryption to PII blob.
  * Decrypts old fields, builds blob, encrypts blob, writes new columns.
@@ -720,82 +838,20 @@ export type MigrateBatchResult = {
 export const migrateAttendeeBatch = async (
   privateKey: CryptoKey,
 ): Promise<MigrateBatchResult> => {
-  // Get a batch of unmigrated attendees
   const rows = await queryAll<Attendee>(
     `SELECT * FROM attendees WHERE COALESCE(pii_blob, '') = '' LIMIT ?`,
     [getMigrateBatchSize()],
   );
 
   if (rows.length === 0) {
-    const remaining = await queryAll<{ count: number }>(
-      "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
-    );
-    return { migrated: 0, remaining: remaining[0]?.count };
+    return { migrated: 0, remaining: await countUnmigrated() };
   }
 
-  // Process each row: decrypt old fields, build blob, prepare update
   for (const row of rows) {
-    // Decrypt all PII fields from old columns (empty strings = unset fields)
-    const decryptOrEmpty = (v: string) =>
-      v ? decryptAttendeePII(v, privateKey) : Promise.resolve("");
-    const [
-      name,
-      email,
-      phone,
-      address,
-      special_instructions,
-      payment_id,
-      ticket_token,
-    ] = await Promise.all([
-      decryptOrEmpty(row.name),
-      decryptOrEmpty(row.email),
-      decryptOrEmpty(row.phone),
-      decryptOrEmpty(row.address),
-      decryptOrEmpty(row.special_instructions),
-      decryptOrEmpty(row.payment_id),
-      decryptOrEmpty(row.ticket_token),
-    ]);
-
-    // Decrypt status fields from old columns
-    const decryptBool = (v: string) =>
-      v ? decryptAttendeePII(v, privateKey) : Promise.resolve("false");
-    const [checkedInStr, refundedStr, pricePaidStr] = await Promise.all([
-      decryptBool(row.checked_in as unknown as string),
-      decryptBool(row.refunded as unknown as string),
-      row.price_paid ? decrypt(row.price_paid) : Promise.resolve("0"),
-    ]);
-
-    // Build and encrypt the PII blob
-    const piiJson = buildPiiBlob({
-      name,
-      email,
-      phone,
-      address,
-      special_instructions,
-      payment_id,
-      ticket_token,
-    });
-    const encryptedBlob = await encryptPiiBlob(piiJson, settings.publicKey);
-
-    // Write new columns
-    await getDb().execute({
-      sql: "UPDATE attendees SET pii_blob = ?, checked_in_v2 = ?, refunded_v2 = ?, price_paid_v2 = ? WHERE id = ?",
-      args: [
-        encryptedBlob,
-        checkedInStr === "true" ? 1 : 0,
-        refundedStr === "true" ? 1 : 0,
-        Number.parseInt(pricePaidStr, 10) || 0,
-        row.id,
-      ],
-    });
+    await migrateAttendeeRow(row, privateKey);
   }
 
-  // Count remaining
-  const remaining = await queryAll<{ count: number }>(
-    "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
-  );
-
-  return { migrated: rows.length, remaining: remaining[0]?.count };
+  return { migrated: rows.length, remaining: await countUnmigrated() };
 };
 
 /** Count total attendees and unmigrated attendees */
@@ -810,7 +866,7 @@ export const getMigrationProgress = async (): Promise<{
     ),
   ]);
   return {
-    total: totalRows[0]?.count,
-    remaining: remainingRows[0]?.count,
+    total: totalRows[0]?.count ?? 0,
+    remaining: remainingRows[0]?.count ?? 0,
   };
 };

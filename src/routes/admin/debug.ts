@@ -9,7 +9,11 @@ import {
 } from "#lib/apple-wallet.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#lib/build-info.ts";
 import { getCdnHostname } from "#lib/bunny-cdn.ts";
-import { getEffectiveDomain, isBunnyCdnEnabled } from "#lib/config.ts";
+import {
+  getEffectiveDomain,
+  isBunnyCdnEnabled,
+  isPaymentsEnabled,
+} from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { getHostEmailConfig } from "#lib/email.ts";
 import { getEnv } from "#lib/env.ts";
@@ -52,63 +56,62 @@ const validateAppleWalletCerts = (
   };
 };
 
+const resolveAppleWalletPassTypeId = (envConfigured: boolean): string => {
+  if (settings.appleWallet.hasDbConfig) return settings.appleWallet.passTypeId;
+  if (envConfigured) return settings.appleWallet.hostConfig!.passTypeId;
+  return "";
+};
+
+const resolveAppleWalletSource = (envConfigured: boolean): string => {
+  if (settings.appleWallet.hasDbConfig) return "Database";
+  if (envConfigured) return "Environment variables";
+  return "";
+};
+
+const resolveGoogleWalletIssuerId = (envConfigured: boolean): string => {
+  if (settings.googleWallet.hasDbConfig) return settings.googleWallet.issuerId;
+  if (envConfigured) return settings.googleWallet.hostConfig!.issuerId;
+  return "";
+};
+
+const resolveGoogleWalletSource = (envConfigured: boolean): string => {
+  if (settings.googleWallet.hasDbConfig) return "Database";
+  if (envConfigured) return "Environment variables";
+  return "";
+};
+
+const WEBHOOK_CHECKS: Record<string, () => boolean> = {
+  stripe: () => settings.stripe.webhookEndpointId !== "",
+  square: () => settings.square.webhookSignatureKey !== "",
+};
+
+const getWebhookConfigured = (): boolean =>
+  WEBHOOK_CHECKS[settings.paymentProvider ?? ""]?.() ?? false;
+
+const getGoogleWalletPrivateKeyValid = async (): Promise<string> => {
+  const config = settings.googleWallet.config;
+  if (!config) return "Not set";
+  return (await isValidGooglePrivateKey(config.serviceAccountKey))
+    ? "Valid"
+    : "Invalid key";
+};
+
+const getBunnyCdnState = async () => {
+  const enabled = isBunnyCdnEnabled();
+  const result = enabled ? await getCdnHostname() : null;
+  return {
+    enabled,
+    cdnHostname: result?.ok ? result.hostname : "",
+    customDomain: enabled ? settings.customDomain : "",
+  };
+};
+
 /** Gather debug state concurrently */
 const getDebugPageState = async (): Promise<DebugPageState> => {
-  const bunnyCdnEnabled = isBunnyCdnEnabled();
-  const bunnyCdnResult = bunnyCdnEnabled ? await getCdnHostname() : null;
-  const bunnyCdnCdnHostname = bunnyCdnResult?.ok ? bunnyCdnResult.hostname : "";
-
+  const bunnyCdn = await getBunnyCdnState();
   const hostEmailConfig = getHostEmailConfig();
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
   const googleWalletEnvConfigured = settings.googleWallet.hostConfig !== null;
-
-  const paymentProvider = settings.paymentProvider;
-  const keyConfigured =
-    paymentProvider === "stripe"
-      ? settings.stripe.hasKey
-      : paymentProvider === "square"
-        ? settings.square.hasToken
-        : false;
-
-  const webhookConfigured =
-    paymentProvider === "stripe"
-      ? settings.stripe.webhookEndpointId !== ""
-      : paymentProvider === "square"
-        ? settings.square.webhookSignatureKey !== ""
-        : false;
-
-  const resolveWalletPassTypeId = (): string => {
-    if (settings.appleWallet.hasDbConfig)
-      return settings.appleWallet.passTypeId;
-    if (appleWalletEnvConfigured)
-      return settings.appleWallet.hostConfig?.passTypeId;
-    return "";
-  };
-  const resolveWalletSource = (): string => {
-    if (settings.appleWallet.hasDbConfig) return "Database";
-    if (appleWalletEnvConfigured) return "Environment variables";
-    return "";
-  };
-
-  const resolveGoogleWalletIssuerId = (): string => {
-    if (settings.googleWallet.hasDbConfig)
-      return settings.googleWallet.issuerId;
-    if (googleWalletEnvConfigured)
-      return settings.googleWallet.hostConfig?.issuerId;
-    return "";
-  };
-  const resolveGoogleWalletSource = (): string => {
-    if (settings.googleWallet.hasDbConfig) return "Database";
-    if (googleWalletEnvConfigured) return "Environment variables";
-    return "";
-  };
-
-  const googleWalletConfig = settings.googleWallet.config;
-  const googleWalletPrivateKeyValid = googleWalletConfig
-    ? (await isValidGooglePrivateKey(googleWalletConfig.serviceAccountKey))
-      ? "Valid"
-      : "Invalid key"
-    : "Not set";
 
   return {
     build: {
@@ -118,21 +121,21 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     appleWallet: {
       dbConfigured: settings.appleWallet.hasDbConfig,
       envConfigured: appleWalletEnvConfigured,
-      passTypeId: resolveWalletPassTypeId(),
-      source: resolveWalletSource(),
+      passTypeId: resolveAppleWalletPassTypeId(appleWalletEnvConfigured),
+      source: resolveAppleWalletSource(appleWalletEnvConfigured),
       certValidation: validateAppleWalletCerts(settings.appleWallet.config),
     },
     googleWallet: {
       dbConfigured: settings.googleWallet.hasDbConfig,
       envConfigured: googleWalletEnvConfigured,
-      issuerId: resolveGoogleWalletIssuerId(),
-      source: resolveGoogleWalletSource(),
-      privateKeyValid: googleWalletPrivateKeyValid,
+      issuerId: resolveGoogleWalletIssuerId(googleWalletEnvConfigured),
+      source: resolveGoogleWalletSource(googleWalletEnvConfigured),
+      privateKeyValid: await getGoogleWalletPrivateKeyValid(),
     },
     payment: {
-      provider: paymentProvider ?? "",
-      keyConfigured,
-      webhookConfigured,
+      provider: settings.paymentProvider ?? "",
+      keyConfigured: isPaymentsEnabled(),
+      webhookConfigured: getWebhookConfigured(),
     },
     email: {
       provider: settings.email.provider,
@@ -146,11 +149,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     storage: {
       enabled: isStorageEnabled(),
     },
-    bunnyCdn: {
-      enabled: bunnyCdnEnabled,
-      cdnHostname: bunnyCdnCdnHostname,
-      customDomain: bunnyCdnEnabled ? settings.customDomain : "",
-    },
+    bunnyCdn,
     database: {
       hostConfigured: !!getEnv("DB_URL"),
     },

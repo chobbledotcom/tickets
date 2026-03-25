@@ -599,6 +599,52 @@ const preparePaymentLink = (
 /** Type for the Square API client returned by createSquareClient */
 export type SquareClient = ReturnType<typeof createSquareClient>;
 
+/** Test access token by listing locations; returns locations on success or updates result on failure */
+const testAccessToken = async (
+  client: SquareClient,
+  result: SquareConnectionTestResult,
+): Promise<SquareLocation[] | null> => {
+  try {
+    const response = await client.locations.list();
+    const locations = response.locations ?? [];
+    result.accessToken = {
+      valid: true,
+      mode: settings.square.sandbox ? "sandbox" : "production",
+    };
+    return locations;
+  } catch (err) {
+    result.accessToken = { valid: false, error: errorMessage(err) };
+    return null;
+  }
+};
+
+/** Verify configured location ID against available locations */
+const checkLocation = (
+  locations: SquareLocation[],
+  result: SquareConnectionTestResult,
+): void => {
+  const locationId = settings.square.locationId;
+  if (!locationId) {
+    result.location = { configured: false, error: "No location ID configured" };
+    return;
+  }
+  const match = locations.find((l) => l.id === locationId);
+  if (match) {
+    result.location = {
+      configured: true,
+      locationId,
+      name: match.name,
+      status: match.status,
+    };
+  } else {
+    result.location = {
+      configured: false,
+      locationId,
+      error: "Location ID not found in account",
+    };
+  }
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  */
@@ -639,43 +685,11 @@ export const squareApi: {
       return result;
     }
 
-    let locations: SquareLocation[] = [];
-    try {
-      const response = await client.locations.list();
-      locations = response.locations ?? [];
-      result.accessToken = {
-        valid: true,
-        mode: settings.square.sandbox ? "sandbox" : "production",
-      };
-    } catch (err) {
-      result.accessToken = { valid: false, error: errorMessage(err) };
-      return result;
-    }
+    const locations = await testAccessToken(client, result);
+    if (!locations) return result;
 
     // Step 2: Verify location ID
-    const locationId = settings.square.locationId;
-    if (!locationId) {
-      result.location = {
-        configured: false,
-        error: "No location ID configured",
-      };
-    } else {
-      const match = locations.find((l) => l.id === locationId);
-      if (match) {
-        result.location = {
-          configured: true,
-          locationId,
-          name: match.name,
-          status: match.status,
-        };
-      } else {
-        result.location = {
-          configured: false,
-          locationId,
-          error: "Location ID not found in account",
-        };
-      }
-    }
+    checkLocation(locations, result);
 
     // Step 3: Check webhook signature key
     const webhookKey = settings.square.webhookSignatureKey;

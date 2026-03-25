@@ -743,6 +743,52 @@ const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
 /** Handle POST /admin/settings/booking-fee - owner only */
 const handleBookingFeePost = settingsRoute(processBookingFeeForm);
 
+/** Extract and validate the header image file from form data. Returns an error response or the validated data. */
+const extractHeaderImageFile = async (
+  session: AuthSession,
+  formData: FormData,
+): Promise<
+  { error: Response } | { data: Uint8Array; detectedType: string }
+> => {
+  const entry = formData.get("header_image");
+  if (!(entry instanceof File) || entry.size === 0) {
+    setFormError("settings-header-image", "No image file provided");
+    return { error: htmlResponse(await renderSettingsPage(session), 400) };
+  }
+  const data = new Uint8Array(await entry.arrayBuffer());
+  const validation = validateImage(data, entry.type);
+  if (!validation.valid) {
+    setFormError(
+      "settings-header-image",
+      IMAGE_ERROR_MESSAGES[validation.error],
+    );
+    return { error: htmlResponse(await renderSettingsPage(session), 400) };
+  }
+  return { data, detectedType: validation.detectedType };
+};
+
+/** Upload a header image and return the appropriate redirect response. */
+const uploadHeaderImage = async (
+  data: Uint8Array,
+  detectedType: string,
+): Promise<Response> => {
+  const [uploadResult] = await Promise.allSettled([
+    uploadImage(data, detectedType),
+  ]);
+  if (uploadResult.status === "fulfilled") {
+    await settings.update.headerImageUrl(uploadResult.value);
+    await logActivity("Header image uploaded");
+    return redirect("/admin/settings", "Header image uploaded", true, {
+      formId: "settings-header-image",
+    });
+  }
+  const uploadDetail = `Header image upload failed: ${String(uploadResult.reason)}`;
+  logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
+  return redirect("/admin/settings", "Header image upload failed", false, {
+    formId: "settings-header-image",
+  });
+};
+
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
   withOwnerAuthMultipartForm(request, async (session, formData) => {
@@ -750,21 +796,8 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
       return htmlResponse("Image storage is not configured", 400);
     }
 
-    const entry = formData.get("header_image");
-    if (!(entry instanceof File) || entry.size === 0) {
-      setFormError("settings-header-image", "No image file provided");
-      return htmlResponse(await renderSettingsPage(session), 400);
-    }
-
-    const data = new Uint8Array(await entry.arrayBuffer());
-    const validation = validateImage(data, entry.type);
-    if (!validation.valid) {
-      setFormError(
-        "settings-header-image",
-        IMAGE_ERROR_MESSAGES[validation.error],
-      );
-      return htmlResponse(await renderSettingsPage(session), 400);
-    }
+    const fileResult = await extractHeaderImageFile(session, formData);
+    if ("error" in fileResult) return fileResult.error;
 
     // Delete old header image if one exists (best-effort, don't block new upload)
     const existingUrl = settings.headerImageUrl;
@@ -776,21 +809,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
       );
     }
 
-    const [uploadResult] = await Promise.allSettled([
-      uploadImage(data, validation.detectedType),
-    ]);
-    if (uploadResult.status === "fulfilled") {
-      await settings.update.headerImageUrl(uploadResult.value);
-      await logActivity("Header image uploaded");
-      return redirect("/admin/settings", "Header image uploaded", true, {
-        formId: "settings-header-image",
-      });
-    }
-    const uploadDetail = `Header image upload failed: ${String(uploadResult.reason)}`;
-    logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
-    return redirect("/admin/settings", "Header image upload failed", false, {
-      formId: "settings-header-image",
-    });
+    return uploadHeaderImage(fileResult.data, fileResult.detectedType);
   });
 
 /** Handle POST /admin/settings/header-image/delete - owner only */
@@ -895,6 +914,31 @@ const VALID_TEMPLATE_TYPES: ReadonlySet<EmailTemplateType> =
 const isEmailTemplateType = (v: string): v is EmailTemplateType =>
   VALID_TEMPLATE_TYPES.has(v as EmailTemplateType);
 
+/** Validate email template field lengths; returns an error message or null. */
+const validateEmailTemplateLengths = (
+  fields: ReadonlyArray<readonly [string, string]>,
+): string | null => {
+  for (const [name, value] of fields) {
+    if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
+      return `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`;
+    }
+  }
+  return null;
+};
+
+/** Validate Liquid syntax for email template fields; returns an error message or null. */
+const validateEmailTemplateSyntax = (
+  fields: ReadonlyArray<readonly [string, string]>,
+): string | null => {
+  for (const [name, value] of fields) {
+    if (value) {
+      const error = validateTemplate(value);
+      if (error) return `Invalid template syntax in ${name}: ${error}`;
+    }
+  }
+  return null;
+};
+
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
 const handleEmailTemplatePost = (type: EmailTemplateType) =>
   advancedSettingsRoute(async (form, errorPage) => {
@@ -903,38 +947,17 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
     const html = form.getString("html");
     const text = form.getString("text");
 
-    // Validate lengths
-    for (const [name, value] of [
+    const fields = [
       ["subject", subject],
       ["html", html],
       ["text", text],
-    ] as const) {
-      if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
-        return errorPage(
-          `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`,
-          400,
-          formId,
-        );
-      }
-    }
+    ] as const;
 
-    // Validate Liquid syntax
-    for (const [name, value] of [
-      ["subject", subject],
-      ["html", html],
-      ["text", text],
-    ] as const) {
-      if (value) {
-        const error = validateTemplate(value);
-        if (error) {
-          return errorPage(
-            `Invalid template syntax in ${name}: ${error}`,
-            400,
-            formId,
-          );
-        }
-      }
-    }
+    const lengthError = validateEmailTemplateLengths(fields);
+    if (lengthError) return errorPage(lengthError, 400, formId);
+
+    const syntaxError = validateEmailTemplateSyntax(fields);
+    if (syntaxError) return errorPage(syntaxError, 400, formId);
 
     await Promise.all([
       settings.update.email.template(type, "subject", subject.trim()),
@@ -1134,6 +1157,81 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
   },
 );
 
+/** Validate that all three Apple Wallet PEM fields are provided for initial setup. Returns an error message or null. */
+const validateAppleWalletInitialFields = (
+  certField: SecretFieldResult,
+  keyField: SecretFieldResult,
+  wwdrField: SecretFieldResult,
+): string | null => {
+  if (certField.action !== "provided") return "Signing certificate is required";
+  if (keyField.action !== "provided") return "Signing private key is required";
+  if (wwdrField.action !== "provided") return "WWDR certificate is required";
+  return null;
+};
+
+/** Validate PEM format for newly provided Apple Wallet fields. Returns an error message or null. */
+const validateAppleWalletPemFields = (
+  certField: SecretFieldResult,
+  keyField: SecretFieldResult,
+  wwdrField: SecretFieldResult,
+): string | null => {
+  if (
+    certField.action === "provided" &&
+    !isValidPemCertificate(certField.value)
+  )
+    return "Signing certificate is not a valid PEM certificate";
+  if (keyField.action === "provided" && !isValidPemPrivateKey(keyField.value))
+    return "Signing private key is not a valid PEM private key";
+  if (
+    wwdrField.action === "provided" &&
+    !isValidPemCertificate(wwdrField.value)
+  )
+    return "WWDR certificate is not a valid PEM certificate";
+  return null;
+};
+
+/** Return true when all Apple Wallet form fields have been cleared. */
+const isAppleWalletCleared = (
+  passTypeId: string,
+  teamId: string,
+  certField: SecretFieldResult,
+  keyField: SecretFieldResult,
+  wwdrField: SecretFieldResult,
+): boolean =>
+  !passTypeId &&
+  !teamId &&
+  certField.action === "cleared" &&
+  keyField.action === "cleared" &&
+  wwdrField.action === "cleared";
+
+/** Validate required Apple Wallet text fields. Returns an error message or null. */
+const validateAppleWalletRequiredFields = (
+  passTypeId: string,
+  teamId: string,
+): string | null => {
+  if (!passTypeId) return "Pass Type ID is required";
+  if (!teamId) return "Team ID is required";
+  return null;
+};
+
+/** Persist updated Apple Wallet credential fields to the database. */
+const saveAppleWalletFields = async (
+  passTypeId: string,
+  teamId: string,
+  certField: SecretFieldResult,
+  keyField: SecretFieldResult,
+  wwdrField: SecretFieldResult,
+): Promise<void> => {
+  await settings.update.appleWallet.passTypeId(passTypeId);
+  await settings.update.appleWallet.teamId(teamId);
+  if (certField.action === "provided")
+    await settings.update.appleWallet.signingCert(certField.value);
+  if (keyField.action === "provided")
+    await settings.update.appleWallet.signingKey(keyField.value);
+  if (wwdrField.action === "provided")
+    await settings.update.appleWallet.wwdrCert(wwdrField.value);
+};
+
 /**
  * Handle POST /admin/settings/apple-wallet - owner only
  */
@@ -1146,11 +1244,7 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
 
   // If everything is cleared, remove all settings
   if (
-    !passTypeId &&
-    !teamId &&
-    certField.action === "cleared" &&
-    keyField.action === "cleared" &&
-    wwdrField.action === "cleared"
+    isAppleWalletCleared(passTypeId, teamId, certField, keyField, wwdrField)
   ) {
     await Promise.all([
       settings.update.appleWallet.passTypeId(""),
@@ -1168,77 +1262,32 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
     );
   }
 
-  if (!passTypeId) {
-    return errorPage("Pass Type ID is required", 400, "settings-apple-wallet");
-  }
-
-  if (!teamId) {
-    return errorPage("Team ID is required", 400, "settings-apple-wallet");
-  }
+  const requiredError = validateAppleWalletRequiredFields(passTypeId, teamId);
+  if (requiredError)
+    return errorPage(requiredError, 400, "settings-apple-wallet");
 
   // For initial setup, require all three PEM fields
   if (!settings.appleWallet.hasDbConfig) {
-    if (certField.action !== "provided") {
-      return errorPage(
-        "Signing certificate is required",
-        400,
-        "settings-apple-wallet",
-      );
-    }
-    if (keyField.action !== "provided") {
-      return errorPage(
-        "Signing private key is required",
-        400,
-        "settings-apple-wallet",
-      );
-    }
-    if (wwdrField.action !== "provided") {
-      return errorPage(
-        "WWDR certificate is required",
-        400,
-        "settings-apple-wallet",
-      );
-    }
+    const initialError = validateAppleWalletInitialFields(
+      certField,
+      keyField,
+      wwdrField,
+    );
+    if (initialError)
+      return errorPage(initialError, 400, "settings-apple-wallet");
   }
 
   // Validate PEM format for any newly provided fields
-  if (
-    certField.action === "provided" &&
-    !isValidPemCertificate(certField.value)
-  ) {
-    return errorPage(
-      "Signing certificate is not a valid PEM certificate",
-      400,
-      "settings-apple-wallet",
-    );
-  }
-  if (keyField.action === "provided" && !isValidPemPrivateKey(keyField.value)) {
-    return errorPage(
-      "Signing private key is not a valid PEM private key",
-      400,
-      "settings-apple-wallet",
-    );
-  }
-  if (
-    wwdrField.action === "provided" &&
-    !isValidPemCertificate(wwdrField.value)
-  ) {
-    return errorPage(
-      "WWDR certificate is not a valid PEM certificate",
-      400,
-      "settings-apple-wallet",
-    );
-  }
+  const pemError = validateAppleWalletPemFields(certField, keyField, wwdrField);
+  if (pemError) return errorPage(pemError, 400, "settings-apple-wallet");
 
-  await settings.update.appleWallet.passTypeId(passTypeId);
-  await settings.update.appleWallet.teamId(teamId);
-  if (certField.action === "provided")
-    await settings.update.appleWallet.signingCert(certField.value);
-  if (keyField.action === "provided")
-    await settings.update.appleWallet.signingKey(keyField.value);
-  if (wwdrField.action === "provided")
-    await settings.update.appleWallet.wwdrCert(wwdrField.value);
-
+  await saveAppleWalletFields(
+    passTypeId,
+    teamId,
+    certField,
+    keyField,
+    wwdrField,
+  );
   await logActivity("Apple Wallet configuration updated");
   return redirect(
     "/admin/settings-advanced",
@@ -1247,6 +1296,38 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
     { formId: "settings-apple-wallet" },
   );
 });
+
+/** Return true when all Google Wallet form fields have been cleared. */
+const isGoogleWalletCleared = (
+  issuerId: string,
+  email: string,
+  keyField: SecretFieldResult,
+): boolean => !issuerId && !email && keyField.action === "cleared";
+
+/** Validate required Google Wallet fields. Returns an error message or null. */
+const validateGoogleWalletRequiredFields = (
+  issuerId: string,
+  email: string,
+  keyField: SecretFieldResult,
+): string | null => {
+  if (!issuerId) return "Issuer ID is required";
+  if (!email) return "Service account email is required";
+  if (!settings.googleWallet.hasDbConfig && keyField.action !== "provided")
+    return "Service account private key is required";
+  return null;
+};
+
+/** Validate PEM format for a newly provided Google Wallet private key. Returns an error message or null. */
+const validateGoogleWalletKey = async (
+  keyField: SecretFieldResult,
+): Promise<string | null> => {
+  if (
+    keyField.action === "provided" &&
+    !(await isValidGooglePrivateKey(keyField.value))
+  )
+    return "Service account private key is not a valid PEM private key";
+  return null;
+};
 
 /**
  * Handle POST /admin/settings/google-wallet - owner only
@@ -1263,7 +1344,7 @@ const handleGoogleWalletPost = advancedSettingsRoute(
     );
 
     // If everything is cleared, remove all settings
-    if (!issuerId && !email && keyField.action === "cleared") {
+    if (isGoogleWalletCleared(issuerId, email, keyField)) {
       await Promise.all([
         settings.update.googleWallet.issuerId(""),
         settings.update.googleWallet.serviceAccountEmail(""),
@@ -1278,38 +1359,16 @@ const handleGoogleWalletPost = advancedSettingsRoute(
       );
     }
 
-    if (!issuerId) {
-      return errorPage("Issuer ID is required", 400, "settings-google-wallet");
-    }
+    const requiredError = validateGoogleWalletRequiredFields(
+      issuerId,
+      email,
+      keyField,
+    );
+    if (requiredError)
+      return errorPage(requiredError, 400, "settings-google-wallet");
 
-    if (!email) {
-      return errorPage(
-        "Service account email is required",
-        400,
-        "settings-google-wallet",
-      );
-    }
-
-    // For initial setup, require the private key
-    if (!settings.googleWallet.hasDbConfig && keyField.action !== "provided") {
-      return errorPage(
-        "Service account private key is required",
-        400,
-        "settings-google-wallet",
-      );
-    }
-
-    // Validate PEM format for newly provided key
-    if (
-      keyField.action === "provided" &&
-      !(await isValidGooglePrivateKey(keyField.value))
-    ) {
-      return errorPage(
-        "Service account private key is not a valid PEM private key",
-        400,
-        "settings-google-wallet",
-      );
-    }
+    const keyError = await validateGoogleWalletKey(keyField);
+    if (keyError) return errorPage(keyError, 400, "settings-google-wallet");
 
     await settings.update.googleWallet.issuerId(issuerId);
     await settings.update.googleWallet.serviceAccountEmail(email);

@@ -344,37 +344,47 @@ const applyCountryDerived = (info: CountryInfo): void => {
   data.phonePrefix = info.phonePrefix;
 };
 
-const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
-  // Plaintext fields
-  const country = raw.get(CONFIG_KEYS.COUNTRY) || DEFAULT_COUNTRY;
-  const info = getCountry(country);
+const resolvePaymentProvider = (
+  raw: Map<string, string>,
+): PaymentProviderType | null => {
+  const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
+  return rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
+};
 
-  data.country = country;
+const rawOr = (raw: Map<string, string>, key: string, fallback = ""): string =>
+  raw.get(key) ?? fallback;
+
+const applyCorePlaintextFields = (raw: Map<string, string>): void => {
   data.theme = raw.get(CONFIG_KEYS.THEME) === "dark" ? "dark" : "light";
   data.showPublicSite = raw.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
   data.showPublicApi = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
-  const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
-  data.paymentProvider =
-    rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
-  data.terms = raw.get(CONFIG_KEYS.TERMS_AND_CONDITIONS) ?? "";
-  data.emailProvider = raw.get(CONFIG_KEYS.EMAIL_PROVIDER) ?? "";
-  data.bookingFee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
-  data.customDomain = raw.get(CONFIG_KEYS.CUSTOM_DOMAIN) ?? "";
-  data.customDomainLastValidated =
-    raw.get(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED) ?? "";
-  data.publicKey = raw.get(CONFIG_KEYS.PUBLIC_KEY) ?? "";
-  data.wrappedPrivateKey = raw.get(CONFIG_KEYS.WRAPPED_PRIVATE_KEY) ?? "";
-  data.squareLocationId = raw.get(CONFIG_KEYS.SQUARE_LOCATION_ID) ?? "";
+  data.paymentProvider = resolvePaymentProvider(raw);
+  data.terms = rawOr(raw, CONFIG_KEYS.TERMS_AND_CONDITIONS);
+  data.emailProvider = rawOr(raw, CONFIG_KEYS.EMAIL_PROVIDER);
+  data.bookingFee = rawOr(raw, CONFIG_KEYS.BOOKING_FEE, "0");
+};
+
+const applyExtendedPlaintextFields = (raw: Map<string, string>): void => {
+  data.customDomain = rawOr(raw, CONFIG_KEYS.CUSTOM_DOMAIN);
+  data.customDomainLastValidated = rawOr(
+    raw,
+    CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+  );
+  data.publicKey = rawOr(raw, CONFIG_KEYS.PUBLIC_KEY);
+  data.wrappedPrivateKey = rawOr(raw, CONFIG_KEYS.WRAPPED_PRIVATE_KEY);
+  data.squareLocationId = rawOr(raw, CONFIG_KEYS.SQUARE_LOCATION_ID);
   data.squareSandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
-  data.stripeWebhookEndpointId =
-    raw.get(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID) ?? "";
+  data.stripeWebhookEndpointId = rawOr(
+    raw,
+    CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
+  );
   const m = raw.get(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED);
   data.attendeeBlobMigrated = m !== undefined && m !== "" && m !== null;
+};
 
-  // Derived
-  applyCountryDerived(info);
-
-  // Encrypted — parallel decrypt
+const applyEncryptedFields = async (
+  raw: Map<string, string>,
+): Promise<void> => {
   const values = await Promise.all(
     ENCRYPTED_FIELDS.map(([key]) => {
       const v = raw.get(key);
@@ -384,6 +394,15 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   for (let i = 0; i < ENCRYPTED_FIELDS.length; i++) {
     setSnapshotField(ENCRYPTED_FIELDS[i]![1], values[i]!);
   }
+};
+
+const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
+  const country = raw.get(CONFIG_KEYS.COUNTRY) || DEFAULT_COUNTRY;
+  data.country = country;
+  applyCorePlaintextFields(raw);
+  applyExtendedPlaintextFields(raw);
+  applyCountryDerived(getCountry(country));
+  await applyEncryptedFields(raw);
 };
 
 // ---------------------------------------------------------------------------
