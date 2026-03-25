@@ -291,8 +291,10 @@ export const adminGuidePage = (
         <Q q="How do I duplicate an event?">
           <p>
             Open the event and click <strong>Duplicate</strong>. This creates a
-            new event with the same settings (name, capacity, price, fields,
-            etc.) so you can adjust what you need without starting from scratch.
+            new event pre-filled with the same capacity, price, fields, group,
+            and other settings so you can adjust what you need without starting
+            from scratch. The name is left blank for you to fill in, and the
+            image, attachment, and assigned questions are not copied.
           </p>
         </Q>
 
@@ -1063,8 +1065,9 @@ export const adminGuidePage = (
             . The export includes name, email, phone, address, special
             instructions, quantity, registration date, amount paid, transaction
             ID, check-in status, ticket token, and ticket URL. For daily
-            events, you can
-            filter by date before exporting.
+            events, the attendee list has a date filter &mdash; select a date
+            to see only that day's attendees, and the CSV export respects the
+            same filter.
           </p>
         </Q>
 
@@ -1390,6 +1393,10 @@ export const adminGuidePage = (
               ticket prices (requires a payment provider)
             </li>
             <li>
+              <strong>Header image</strong> &mdash; upload a logo or banner
+              shown at the top of every page
+            </li>
+            <li>
               <strong>Embed hosts</strong> &mdash; restrict which websites can
               embed your booking forms
             </li>
@@ -1424,6 +1431,10 @@ export const adminGuidePage = (
             <li>
               <strong>Apple Wallet</strong> &mdash; configure pass signing
               certificates for Add to Apple Wallet
+            </li>
+            <li>
+              <strong>Google Wallet</strong> &mdash; configure service account
+              credentials for Add to Google Wallet
             </li>
             <li>
               <strong>Email provider</strong> &mdash; choose and configure your
@@ -1514,9 +1525,12 @@ export const adminGuidePage = (
           <p>
             The system includes a JSON API that exposes the same data and
             booking functionality as the web interface. It lets you build custom
-            frontends, integrate with other services, or automate bookings. No
-            API key is needed &mdash; the API is public, just like the booking
-            forms.
+            frontends, integrate with other services, or automate bookings. The
+            public endpoints below need no authentication. There is also an
+            admin API for managing events and attendees, which requires an API
+            key &mdash; create one from the{" "}
+            <a href="/admin/api-keys">API Keys</a> page under{" "}
+            <strong>Users</strong>.
           </p>
         </Q>
 
