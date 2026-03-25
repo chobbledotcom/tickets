@@ -174,7 +174,9 @@ export const generateImageFilename = (detectedType: string): string => {
 const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
   const { zoneName, zoneKey } = getStorageConfig();
   if (!zoneName || !zoneKey) {
-    throw new Error("Required environment variable STORAGE_ZONE_NAME is not set");
+    throw new Error(
+      "Required environment variable STORAGE_ZONE_NAME is not set",
+    );
   }
   return BunnyStorageSDK.zone.connect_with_accesskey(
     BunnyStorageSDK.regions.StorageRegion.Falkenstein,

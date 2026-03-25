@@ -180,9 +180,9 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
             });
 
             expectRedirectWithFlash("/setup/", "Database reset")(response);
-            expect(
-              deletedUrls.some((u) => u.includes("reset-image.jpg")),
-            ).toBe(true);
+            expect(deletedUrls.some((u) => u.includes("reset-image.jpg"))).toBe(
+              true,
+            );
             expect(
               deletedUrls.some((u) => u.includes("reset-attachment.pdf")),
             ).toBe(true);
