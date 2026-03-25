@@ -6,6 +6,7 @@ import { resetHeaderImage, setHeaderImageForTest } from "#lib/header-image.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
+  assertAdminHtml,
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
@@ -147,8 +148,7 @@ describeWithEnv(
       test("hides header image section when storage is disabled", async () => {
         Deno.env.delete("STORAGE_ZONE_NAME");
         Deno.env.delete("STORAGE_ZONE_KEY");
-        const { response } = await adminGet("/admin/settings");
-        const html = await response.text();
+        const html = await assertAdminHtml("/admin/settings");
         expect(html).not.toContain("Header Image");
       });
 
@@ -344,8 +344,7 @@ describeWithEnv(
 
       test("does not render header image when not set", async () => {
         resetHeaderImage();
-        const { response } = await adminGet("/admin/settings");
-        const html = await response.text();
+        const html = await assertAdminHtml("/admin/settings");
         expect(html).not.toContain('class="header-image"');
       });
     });
