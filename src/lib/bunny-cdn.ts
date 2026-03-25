@@ -85,7 +85,10 @@ const findPullZoneIdImpl = (): Promise<
  * This is the stable hostname for CNAME targets, independent of request URL.
  */
 const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
-  withEdgeScript((data) => ({ ok: true as const, hostname: data.DefaultHostname }));
+  withEdgeScript((data) => ({
+    ok: true as const,
+    hostname: data.DefaultHostname,
+  }));
 
 /** Parse a Bunny API error response into a BunnyApiResult. */
 const parseBunnyError = async (
