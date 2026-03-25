@@ -272,7 +272,18 @@ describeWithEnv(
   "getCdnHostname (real implementation)",
   { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
   () => {
-    test("returns DefaultHostname from edge script", async () => {
+    test("strips https and converts bunny.run to b-cdn.net", async () => {
+      const response = edgeScriptResponse([], "https://mysite.bunny.run");
+      await withMocks(
+        () => stubFetchJson(response),
+        async () => {
+          const result = await bunnyCdnApi.getCdnHostname();
+          expect(result).toEqual({ ok: true, hostname: "mysite.b-cdn.net" });
+        },
+      );
+    });
+
+    test("passes through already-correct b-cdn.net hostname", async () => {
       const response = edgeScriptResponse([], "mysite.b-cdn.net");
       await withMocks(
         () => stubFetchJson(response),
