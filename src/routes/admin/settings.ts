@@ -130,8 +130,9 @@ const getSettingsPageState = () => {
 };
 
 /** Gather state for the advanced settings page */
-const getAdvancedSettingsPageState = () => {
+const getAdvancedSettingsPageState = (subdomainPreview = "") => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
+  const bunnyDnsEnabled = isBunnyDnsEnabled();
   const confirmationTemplates = settings.email.templateSet("confirmation");
   const adminTemplates = settings.email.templateSet("admin");
   return {
@@ -157,11 +158,12 @@ const getAdvancedSettingsPageState = () => {
       text: adminTemplates.text ?? "",
     },
     bunnyCdnEnabled: bunnyCdnConfigured,
-    bunnyDnsEnabled: isBunnyDnsEnabled(),
+    bunnyDnsEnabled,
     bunnySubdomain: settings.bunnySubdomain ?? "",
-    bunnyDnsSubdomainSuffix: isBunnyDnsEnabled()
+    bunnyDnsSubdomainSuffix: bunnyDnsEnabled
       ? getBunnyDnsSubdomainSuffix()
       : "",
+    subdomainPreview,
     customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
     customDomainLastValidated:
       (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
@@ -197,10 +199,11 @@ const renderSettingsPage = (session: AuthSession) => {
 const renderAdvancedSettingsPage = (
   session: AuthSession,
   subdomainPreview = "",
-) => {
-  const state = getAdvancedSettingsPageState();
-  return adminAdvancedSettingsPage(session, { ...state, subdomainPreview });
-};
+) =>
+  adminAdvancedSettingsPage(
+    session,
+    getAdvancedSettingsPageState(subdomainPreview),
+  );
 
 /** Render settings page with error on a specific form */
 const settingsPageWithError =

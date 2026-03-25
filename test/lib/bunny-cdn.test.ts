@@ -15,26 +15,7 @@ import {
   setAllowedDomainForTest,
 } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
-import { describeWithEnv, withMocks } from "#test-utils";
-
-/** Temporarily replace bunnyCdnApi methods and restore after test */
-const withMockApi = async (
-  overrides: Partial<typeof bunnyCdnApi>,
-  fn: () => Promise<void>,
-): Promise<void> => {
-  const originals: Partial<typeof bunnyCdnApi> = {};
-  for (const key of Object.keys(overrides) as (keyof typeof bunnyCdnApi)[]) {
-    // deno-lint-ignore no-explicit-any
-    originals[key] = bunnyCdnApi[key] as any;
-    // deno-lint-ignore no-explicit-any
-    bunnyCdnApi[key] = overrides[key] as any;
-  }
-  try {
-    await fn();
-  } finally {
-    Object.assign(bunnyCdnApi, originals);
-  }
-};
+import { describeWithEnv, withMockBunnyCdnApi, withMocks } from "#test-utils";
 
 /** Stub fetch to return a JSON response with given body */
 const stubFetchJson = (body: unknown) =>
@@ -101,7 +82,7 @@ describe("getCdnHostname", () => {
 
 describe("validateCustomDomain", () => {
   test("delegates to bunnyCdnApi.validateCustomDomain", async () => {
-    await withMockApi(
+    await withMockBunnyCdnApi(
       { validateCustomDomain: () => Promise.resolve({ ok: true as const }) },
       async () => {
         const result = await validateCustomDomain("test.example.com");
@@ -229,7 +210,7 @@ describeWithEnv(
     };
 
     test("returns ok when all API calls succeed", async () => {
-      await withMockApi(fixedPullZone, async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
         await withMocks(
           () =>
             stub(globalThis, "fetch", () =>
@@ -245,7 +226,7 @@ describeWithEnv(
     });
 
     test("sends correct requests to Bunny API", async () => {
-      await withMockApi(fixedPullZone, async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
         const calls: { url: string; init: RequestInit | undefined }[] = [];
         await withMocks(
           () => stubFetchWithRecorder(calls),
@@ -267,7 +248,7 @@ describeWithEnv(
     });
 
     test("returns error when findPullZoneId fails", async () => {
-      await withMockApi(
+      await withMockBunnyCdnApi(
         {
           findPullZoneId: () =>
             Promise.resolve({
@@ -287,7 +268,7 @@ describeWithEnv(
     });
 
     test("returns error when addHostname fails", async () => {
-      await withMockApi(fixedPullZone, async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
         await withMocks(
           () =>
             stub(globalThis, "fetch", () =>
@@ -308,7 +289,7 @@ describeWithEnv(
     });
 
     test("extracts errorKey from JSON error response", async () => {
-      await withMockApi(fixedPullZone, async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
         const jsonBody = JSON.stringify({
           ErrorKey: "pullzone.some_other_error",
           Message: "Something went wrong.",
@@ -332,7 +313,7 @@ describeWithEnv(
     });
 
     test("treats hostname_already_registered as success", async () => {
-      await withMockApi(fixedPullZone, async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
         let callCount = 0;
         const jsonBody = JSON.stringify({
           ErrorKey: "pullzone.hostname_already_registered",
@@ -358,7 +339,7 @@ describeWithEnv(
     });
 
     test("stops on addHostname failure without calling subsequent APIs", async () => {
-      await withMockApi(fixedPullZone, async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
         let callCount = 0;
         await withMocks(
           () =>
@@ -377,7 +358,7 @@ describeWithEnv(
     });
 
     test("returns error when loadFreeCertificate fails", async () => {
-      await withMockApi(fixedPullZone, async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
         let callCount = 0;
         await withMocks(
           () =>
@@ -404,7 +385,7 @@ describeWithEnv(
     });
 
     test("returns error when setForceSSL fails", async () => {
-      await withMockApi(fixedPullZone, async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
         let callCount = 0;
         await withMocks(
           () =>
@@ -518,6 +499,24 @@ describeWithEnv(
   },
 );
 
+/** Build a mock getDnsZone override with the given records */
+const mockDnsZone = (records: { Name: string }[]) => ({
+  getDnsZone: () =>
+    Promise.resolve({
+      ok: true as const,
+      zone: {
+        Id: 42,
+        Domain: "example.com",
+        Records: records.map((r, i) => ({
+          Id: i,
+          Type: 5,
+          ...r,
+          Value: "target.com",
+        })),
+      },
+    }),
+});
+
 describeWithEnv(
   "checkSubdomainAvailable",
   {
@@ -528,36 +527,22 @@ describeWithEnv(
     },
   },
   () => {
-    const mockDnsZone = (records: { Name: string }[]) => ({
-      getDnsZone: () =>
-        Promise.resolve({
-          ok: true as const,
-          zone: {
-            Id: 42,
-            Domain: "example.com",
-            Records: records.map((r, i) => ({
-              Id: i,
-              Type: 5,
-              ...r,
-              Value: "target.com",
-            })),
-          },
-        }),
-    });
-
     test("returns available when no matching record exists", async () => {
-      await withMockApi(mockDnsZone([{ Name: "other.tickets" }]), async () => {
-        const result = await checkSubdomainAvailable("myevent");
-        expect(result).toEqual({
-          ok: true,
-          available: true,
-          fullDomain: "myevent.tickets.example.com",
-        });
-      });
+      await withMockBunnyCdnApi(
+        mockDnsZone([{ Name: "other.tickets" }]),
+        async () => {
+          const result = await checkSubdomainAvailable("myevent");
+          expect(result).toEqual({
+            ok: true,
+            available: true,
+            fullDomain: "myevent.tickets.example.com",
+          });
+        },
+      );
     });
 
     test("returns not available when matching record exists", async () => {
-      await withMockApi(
+      await withMockBunnyCdnApi(
         mockDnsZone([{ Name: "myevent.tickets" }]),
         async () => {
           const result = await checkSubdomainAvailable("myevent");
@@ -571,7 +556,7 @@ describeWithEnv(
     });
 
     test("returns error when getDnsZone fails", async () => {
-      await withMockApi(
+      await withMockBunnyCdnApi(
         {
           getDnsZone: () =>
             Promise.resolve({ ok: false as const, error: "API error" }),
@@ -596,27 +581,14 @@ describeWithEnv(
   },
   () => {
     test("uses subdomain as record name when suffix is unset", async () => {
-      await withMockApi(
-        {
-          getDnsZone: () =>
-            Promise.resolve({
-              ok: true as const,
-              zone: {
-                Id: 42,
-                Domain: "example.com",
-                Records: [],
-              },
-            }),
-        },
-        async () => {
-          const result = await checkSubdomainAvailable("myevent");
-          expect(result).toEqual({
-            ok: true,
-            available: true,
-            fullDomain: "myevent.example.com",
-          });
-        },
-      );
+      await withMockBunnyCdnApi(mockDnsZone([]), async () => {
+        const result = await checkSubdomainAvailable("myevent");
+        expect(result).toEqual({
+          ok: true,
+          available: true,
+          fullDomain: "myevent.example.com",
+        });
+      });
     });
   },
 );
@@ -644,7 +616,7 @@ describeWithEnv(
     };
 
     test("returns error when availability check fails", async () => {
-      await withMockApi(
+      await withMockBunnyCdnApi(
         {
           checkSubdomainAvailable: () =>
             Promise.resolve({ ok: false as const, error: "DNS zone error" }),
@@ -657,7 +629,7 @@ describeWithEnv(
     });
 
     test("returns error when subdomain is taken", async () => {
-      await withMockApi(
+      await withMockBunnyCdnApi(
         {
           checkSubdomainAvailable: () =>
             Promise.resolve({
@@ -678,7 +650,7 @@ describeWithEnv(
 
     test("creates CNAME record and registers with CDN on success", async () => {
       const calls: { url: string; init: RequestInit | undefined }[] = [];
-      await withMockApi(
+      await withMockBunnyCdnApi(
         {
           ...availableMock,
           validateCustomDomain: () => Promise.resolve({ ok: true as const }),
@@ -709,7 +681,7 @@ describeWithEnv(
     });
 
     test("returns error when DNS record creation fails", async () => {
-      await withMockApi(availableMock, async () => {
+      await withMockBunnyCdnApi(availableMock, async () => {
         await withMocks(
           () =>
             stub(globalThis, "fetch", () =>
@@ -727,7 +699,7 @@ describeWithEnv(
     });
 
     test("returns error when CDN validation fails", async () => {
-      await withMockApi(
+      await withMockBunnyCdnApi(
         {
           ...availableMock,
           validateCustomDomain: () =>
