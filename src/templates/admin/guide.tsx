@@ -342,10 +342,11 @@ export const adminGuidePage = (
 
         <Q q="How do I create a question?">
           <p>
-            Go to <strong>Questions</strong> in the admin menu, type your
-            question text, and click <strong>Add Question</strong>. Then open
-            the question and add your answer options. You can reorder answers
-            using the move-up and move-down buttons.
+            Open any event and click <strong>Questions</strong> in the event
+            menu, then follow the <strong>Manage Questions</strong> link. Type
+            your question text and click <strong>Add Question</strong>. Then
+            open the question and add your answer options. You can reorder
+            answers using the move-up and move-down buttons.
           </p>
         </Q>
 
@@ -1002,10 +1003,10 @@ export const adminGuidePage = (
         <Q q="What's the difference between an owner and a manager?">
           <p>
             <strong>Owners</strong> have full access: events, calendar, groups,
-            users, settings, holidays, sessions, and the activity log.{" "}
-            <strong>Managers</strong> can see events, the calendar, groups, and
-            the activity log. They cannot change settings, manage users, or view
-            sessions.
+            users, site pages, settings, holidays, sessions, and the activity
+            log. <strong>Managers</strong> can see events, the calendar, groups,
+            and the activity log. They cannot change settings, manage users, or
+            view sessions.
           </p>
         </Q>
 
@@ -1365,8 +1366,9 @@ export const adminGuidePage = (
               phone prefix in one step
             </li>
             <li>
-              <strong>Business email</strong> &mdash; included in webhook
-              notifications
+              <strong>Business email</strong> &mdash; receives admin
+              notification emails, used as reply-to on attendee confirmations,
+              and included in webhook payloads
             </li>
             <li>
               <strong>Payment provider</strong> &mdash; Stripe, Square, or none
