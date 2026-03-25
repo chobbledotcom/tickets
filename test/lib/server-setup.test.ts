@@ -7,7 +7,7 @@ import {
   createTestDb,
   describeWithEnv,
   expectHtmlResponse,
-  expectJsonResponse,
+  assertJson,
   expectRedirect,
   getSetupCsrfToken,
   mockFormRequest,
@@ -61,10 +61,12 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("health check still works", async () => {
-        await handleRequest(mockRequest("/health")).then(
-          expectJsonResponse(200, (json) => {
+        await assertJson(
+          handleRequest(mockRequest("/health")),
+          200,
+          (json) => {
             expect(json).toEqual({ status: "ok" });
-          }),
+          },
         );
       });
 

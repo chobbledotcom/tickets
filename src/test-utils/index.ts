@@ -1257,6 +1257,27 @@ export const expectJsonResponse =
   };
 
 /**
+ * Assert status and JSON body on a response promise in one call.
+ * Composes any Promise<Response> with expectJsonResponse — works with
+ * apiRequest, handleRequest, or any other request helper.
+ *
+ * @example
+ * await assertJson(apiRequest("/api/events", { method: "POST", body }), 201, (b) => {
+ *   expect(b.event.name).toBe("New Event");
+ * });
+ *
+ * await assertJson(handleRequest(mockWebhookRequest()), 200, (b) => {
+ *   expect(b.received).toBe(true);
+ * });
+ */
+// deno-lint-ignore no-explicit-any
+export const assertJson = <T = any>(
+  request: Promise<Response>,
+  status: number,
+  assertions?: (body: T) => void,
+): Promise<T> => request.then(expectJsonResponse(status, assertions));
+
+/**
  * Assert status and check that the HTML body contains all given substrings.
  * Returns the HTML string for further assertions.
  */

@@ -18,6 +18,7 @@ import {
   expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
+  assertJson,
   expectJsonResponse,
   expectRedirect,
   expectRedirectWithFlash,
@@ -554,13 +555,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
           );
-          await expectJsonResponse(200, (json) => {
-            expect(json.ok).toBe(false);
-            expect(json.apiKey.valid).toBe(false);
-            expect(json.apiKey.error).toContain(
-              "No Stripe secret key configured",
-            );
-          })(response);
+          await assertJson(
+            Promise.resolve(response),
+            200,
+            (json) => {
+              expect(json.ok).toBe(false);
+              expect(json.apiKey.valid).toBe(false);
+              expect(json.apiKey.error).toContain(
+                "No Stripe secret key configured",
+              );
+            },
+          );
         },
       );
     });
@@ -584,16 +589,18 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          await handleRequest(
-            mockFormRequest(
-              "/admin/settings/stripe/test",
-              {
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
+          await assertJson(
+            handleRequest(
+              mockFormRequest(
+                "/admin/settings/stripe/test",
+                {
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
             ),
-          ).then(
-            expectJsonResponse(200, (json) => {
+            200,
+            (json) => {
               expect(json.ok).toBe(true);
               expect(json.apiKey.valid).toBe(true);
               expect(json.apiKey.mode).toBe("test");
@@ -605,7 +612,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               expect(json.webhooks[0].enabledEvents).toContain(
                 "checkout.session.completed",
               );
-            }),
+            },
           );
         },
       );
@@ -622,20 +629,22 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          await handleRequest(
-            mockFormRequest(
-              "/admin/settings/stripe/test",
-              {
-                csrf_token: await testCsrfToken(),
-              },
-              await testCookie(),
+          await assertJson(
+            handleRequest(
+              mockFormRequest(
+                "/admin/settings/stripe/test",
+                {
+                  csrf_token: await testCsrfToken(),
+                },
+                await testCookie(),
+              ),
             ),
-          ).then(
-            expectJsonResponse(200, (json) => {
+            200,
+            (json) => {
               expect(json.ok).toBe(false);
               expect(json.apiKey.valid).toBe(true);
               expect(json.webhooks).toHaveLength(0);
-            }),
+            },
           );
         },
       );
@@ -893,13 +902,17 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           expect(response.headers.get("content-type")).toBe(
             "application/json; charset=utf-8",
           );
-          await expectJsonResponse(200, (json) => {
-            expect(json.ok).toBe(false);
-            expect(json.accessToken.valid).toBe(false);
-            expect(json.accessToken.error).toContain(
-              "No Square access token configured",
-            );
-          })(response);
+          await assertJson(
+            Promise.resolve(response),
+            200,
+            (json) => {
+              expect(json.ok).toBe(false);
+              expect(json.accessToken.valid).toBe(false);
+              expect(json.accessToken.error).toContain(
+                "No Square access token configured",
+              );
+            },
+          );
         },
       );
     });
@@ -921,21 +934,23 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          await handleRequest(
-            mockFormRequest(
-              "/admin/settings/square/test",
-              { csrf_token: await testCsrfToken() },
-              await testCookie(),
+          await assertJson(
+            handleRequest(
+              mockFormRequest(
+                "/admin/settings/square/test",
+                { csrf_token: await testCsrfToken() },
+                await testCookie(),
+              ),
             ),
-          ).then(
-            expectJsonResponse(200, (json) => {
+            200,
+            (json) => {
               expect(json.ok).toBe(true);
               expect(json.accessToken.valid).toBe(true);
               expect(json.accessToken.mode).toBe("sandbox");
               expect(json.location.configured).toBe(true);
               expect(json.location.name).toBe("Test Location");
               expect(json.webhook.configured).toBe(true);
-            }),
+            },
           );
         },
       );
@@ -956,19 +971,21 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             }),
           ),
         async () => {
-          await handleRequest(
-            mockFormRequest(
-              "/admin/settings/square/test",
-              { csrf_token: await testCsrfToken() },
-              await testCookie(),
+          await assertJson(
+            handleRequest(
+              mockFormRequest(
+                "/admin/settings/square/test",
+                { csrf_token: await testCsrfToken() },
+                await testCookie(),
+              ),
             ),
-          ).then(
-            expectJsonResponse(200, (json) => {
+            200,
+            (json) => {
               expect(json.ok).toBe(false);
               expect(json.accessToken.valid).toBe(true);
               expect(json.location.configured).toBe(false);
               expect(json.location.error).toContain("No location ID configured");
-            }),
+            },
           );
         },
       );

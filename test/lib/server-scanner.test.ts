@@ -14,8 +14,8 @@ import {
   createTestAttendeeWithToken,
   createTestEvent,
   describeWithEnv,
+  assertJson,
   expectHtmlResponse,
-  expectJsonResponse,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
@@ -64,8 +64,9 @@ const scanAndGetJson = (
   cookie: string,
   csrfToken: string,
 ) =>
-  handleRequest(mockScanRequest(eventId, body, cookie, csrfToken)).then(
-    expectJsonResponse(200),
+  assertJson(
+    handleRequest(mockScanRequest(eventId, body, cookie, csrfToken)),
+    200,
   );
 
 /** Send a scan request using fresh auth cookies (for cross-event tests) */
@@ -73,9 +74,12 @@ const crossEventScanAndGetJson = async (
   eventId: number,
   body: Record<string, unknown>,
 ) =>
-  handleRequest(
-    mockScanRequest(eventId, body, await testCookie(), await testCsrfToken()),
-  ).then(expectJsonResponse(200));
+  assertJson(
+    handleRequest(
+      mockScanRequest(eventId, body, await testCookie(), await testCsrfToken()),
+    ),
+    200,
+  );
 
 /** Create an unauthenticated POST to the scan endpoint */
 const unauthScanPost = (
@@ -274,13 +278,12 @@ describeWithEnv("QR Scanner", { db: true }, () => {
 
   describe("POST /admin/event/:id/scan", () => {
     test("checks in attendee from same event", async () => {
-      await setupAndScan("Alice", "alice@test.com").then(({ response }) =>
-        expectJsonResponse(200, (result) => {
-          expect(result.status).toBe("checked_in");
-          expect(result.name).toBe("Alice");
-          expect(result.quantity).toBe(1);
-        })(response),
-      );
+      const { response } = await setupAndScan("Alice", "alice@test.com");
+      await assertJson(Promise.resolve(response), 200, (result) => {
+        expect(result.status).toBe("checked_in");
+        expect(result.name).toBe("Alice");
+        expect(result.quantity).toBe(1);
+      });
     });
 
     test("returns already_checked_in for checked-in attendee", async () => {
@@ -371,13 +374,12 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns not_found for invalid token", async () => {
-      await setupLoginAndScan({
+      const { response } = await setupLoginAndScan({
         token: "nonexistent-token",
-      }).then(({ response }) =>
-        expectJsonResponse(404, (result) => {
-          expect(result.status).toBe("not_found");
-        })(response),
-      );
+      });
+      await assertJson(Promise.resolve(response), 404, (result) => {
+        expect(result.status).toBe("not_found");
+      });
     });
 
     test("returns 401 when not authenticated", async () => {
@@ -419,14 +421,13 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns 400 for malformed JSON body", async () => {
-      await setupLoginAndRawScan(
+      const { response } = await setupLoginAndRawScan(
         (s) => ({ "x-csrf-token": s.csrfToken, cookie: s.cookie }),
         "not valid json{{{",
-      ).then(({ response }) =>
-        expectJsonResponse(400, (result) => {
-          expect(result.message).toBe("Invalid request body");
-        })(response),
       );
+      await assertJson(Promise.resolve(response), 400, (result) => {
+        expect(result.message).toBe("Invalid request body");
+      });
     });
 
     test("returns 500 when private key is unavailable", async () => {
@@ -440,49 +441,45 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
       s.invalidateCache();
 
-      await setupLoginAndScan({ token: "some-token" }).then(({ response }) =>
-        expectJsonResponse(500, (result) => {
-          expect(result.message).toBe("Decryption unavailable");
-        })(response),
-      );
+      const { response } = await setupLoginAndScan({ token: "some-token" });
+      await assertJson(Promise.resolve(response), 500, (result) => {
+        expect(result.message).toBe("Decryption unavailable");
+      });
     });
 
     test("returns verify_id for non-transferable event without id_verified", async () => {
-      await setupAndScan(
+      const { response } = await setupAndScan(
         "Alice",
         "alice@test.com",
         {},
         { nonTransferable: true },
-      ).then(({ response }) =>
-        expectJsonResponse(200, (result) => {
-          expect(result.status).toBe("verify_id");
-          expect(result.name).toBe("Alice");
-          expect(result.quantity).toBe(1);
-        })(response),
       );
+      await assertJson(Promise.resolve(response), 200, (result) => {
+        expect(result.status).toBe("verify_id");
+        expect(result.name).toBe("Alice");
+        expect(result.quantity).toBe(1);
+      });
     });
 
     test("checks in non-transferable attendee with id_verified flag", async () => {
-      await setupAndScan(
+      const { response } = await setupAndScan(
         "Bob",
         "bob@test.com",
         { id_verified: true },
         { nonTransferable: true },
-      ).then(({ response }) =>
-        expectJsonResponse(200, (result) => {
-          expect(result.status).toBe("checked_in");
-          expect(result.name).toBe("Bob");
-        })(response),
       );
+      await assertJson(Promise.resolve(response), 200, (result) => {
+        expect(result.status).toBe("checked_in");
+        expect(result.name).toBe("Bob");
+      });
     });
 
     test("checks in transferable event without id_verified", async () => {
-      await setupAndScan("Carol", "carol@test.com").then(({ response }) =>
-        expectJsonResponse(200, (result) => {
-          expect(result.status).toBe("checked_in");
-          expect(result.name).toBe("Carol");
-        })(response),
-      );
+      const { response } = await setupAndScan("Carol", "carol@test.com");
+      await assertJson(Promise.resolve(response), 200, (result) => {
+        expect(result.status).toBe("checked_in");
+        expect(result.name).toBe("Carol");
+      });
     });
 
     test("force check-in with deleted event falls back to getEventName", async () => {

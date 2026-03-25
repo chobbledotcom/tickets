@@ -23,7 +23,7 @@ import {
   describeWithEnv,
   expectCheckoutRedirect,
   expectHtmlResponse,
-  expectJsonResponse,
+  assertJson,
   expectRedirect,
   getTicketCsrfToken,
   matchGroup,
@@ -445,10 +445,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
   describe("GET /health", () => {
     test("returns health status", async () => {
-      await handleRequest(mockRequest("/health")).then(
-        expectJsonResponse(200, (json) => {
+      await assertJson(
+        handleRequest(mockRequest("/health")),
+        200,
+        (json) => {
           expect(json).toEqual({ status: "ok" });
-        }),
+        },
       );
     });
 

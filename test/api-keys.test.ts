@@ -29,7 +29,7 @@ import {
   extractCsrfToken,
   FLASH_TEST_ID,
   flashCookieHeader,
-  expectJsonResponse,
+  assertJson,
   getTestDataKey,
   mockRequest,
   testCookie,
@@ -505,14 +505,16 @@ describeWithEnv("API Keys", { db: true }, () => {
         generateSecureToken,
       );
 
-      await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: { authorization: `Bearer ${apiKey}` },
-        }),
-      ).then(
-        expectJsonResponse(200, (body) => {
+      await assertJson(
+        handleRequest(
+          mockRequest("/api/admin/events", {
+            headers: { authorization: `Bearer ${apiKey}` },
+          }),
+        ),
+        200,
+        (body) => {
           expect(body.events).toBeDefined();
-        }),
+        },
       );
     });
 
@@ -629,16 +631,18 @@ describeWithEnv("API Keys", { db: true }, () => {
         generateSecureToken,
       );
 
-      const body = await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: { authorization: `Bearer ${apiKey}` },
-        }),
-      ).then(
-        expectJsonResponse(200, (body) => {
+      const body = await assertJson(
+        handleRequest(
+          mockRequest("/api/admin/events", {
+            headers: { authorization: `Bearer ${apiKey}` },
+          }),
+        ),
+        200,
+        (body) => {
           expect(body.events).toBeDefined();
           expect(body.events.length).toBeGreaterThan(0);
           expect(body.admin_level).toBe("owner");
-        }),
+        },
       );
 
       // Verify snake_case keys and no internal fields
@@ -656,17 +660,19 @@ describeWithEnv("API Keys", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: {
-            cookie,
-            "x-csrf-token": csrfToken,
-          },
-        }),
-      ).then(
-        expectJsonResponse(200, (body) => {
+      await assertJson(
+        handleRequest(
+          mockRequest("/api/admin/events", {
+            headers: {
+              cookie,
+              "x-csrf-token": csrfToken,
+            },
+          }),
+        ),
+        200,
+        (body) => {
           expect(body.events).toBeDefined();
-        }),
+        },
       );
     });
 

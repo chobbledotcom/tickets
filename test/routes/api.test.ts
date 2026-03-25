@@ -9,7 +9,7 @@ import {
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
-  expectJsonResponse,
+  assertJson,
   setupStripe,
 } from "#test-utils";
 
@@ -346,12 +346,14 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("returns 400 for invalid JSON body", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      await handleRequest(
-        rawPostRequest(event.slug, "application/json", "not valid json{{{"),
-      ).then(
-        expectJsonResponse(400, (body) => {
+      await assertJson(
+        handleRequest(
+          rawPostRequest(event.slug, "application/json", "not valid json{{{"),
+        ),
+        400,
+        (body) => {
           expect(body.error).toBe("Invalid JSON body");
-        }),
+        },
       );
     });
 
