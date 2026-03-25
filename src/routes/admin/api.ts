@@ -144,10 +144,9 @@ const pickTypedFields = (
 const existingToDefaults = (
   existing: EventWithCount,
 ): Record<string, unknown> => {
-  const record = existing as unknown as Record<string, unknown>;
   const result: Record<string, unknown> = {};
   for (const [apiKey, outKey] of optionalFields) {
-    const val = record[apiKey];
+    const val = existing[apiKey as keyof EventWithCount];
     result[outKey] = val === null ? "" : val;
   }
   return result;

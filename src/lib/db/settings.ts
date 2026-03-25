@@ -36,6 +36,7 @@ import { getEnv } from "#lib/env.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { nowMs } from "#lib/now.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
+import { isPaymentProvider } from "#lib/types.ts";
 import type { PaymentProviderType, Settings, Theme } from "#lib/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -142,24 +143,78 @@ const TEMPLATE_CONFIG_KEYS: Record<string, string> = {
   "admin:text": CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
 };
 
+/** Typed shape of the settings snapshot — single source of truth. */
+export type SettingsData = {
+  // --- Plaintext ---
+  country: string;
+  theme: Theme;
+  showPublicSite: boolean;
+  showPublicApi: boolean;
+  paymentProvider: PaymentProviderType | null;
+  terms: string | null;
+  emailProvider: string | null;
+  bookingFee: string;
+  customDomain: string | null;
+  customDomainLastValidated: string | null;
+  publicKey: string | null;
+  wrappedPrivateKey: string | null;
+  squareLocationId: string | null;
+  squareSandbox: boolean;
+  stripeWebhookEndpointId: string | null;
+  attendeeBlobMigrated: boolean;
+
+  // --- Derived from country ---
+  currency: string;
+  timezone: string;
+  phonePrefix: string;
+
+  // --- Encrypted (pre-decrypted by loadAll) ---
+  businessEmail: string | null;
+  headerImageUrl: string | null;
+  websiteTitle: string | null;
+  homepageText: string | null;
+  contactPageText: string | null;
+  stripeSecretKey: string | null;
+  stripeWebhookSecret: string | null;
+  squareAccessToken: string | null;
+  squareWebhookSignatureKey: string | null;
+  embedHosts: string | null;
+  emailApiKey: string | null;
+  emailFromAddress: string | null;
+  emailTplConfirmationSubject: string | null;
+  emailTplConfirmationHtml: string | null;
+  emailTplConfirmationText: string | null;
+  emailTplAdminSubject: string | null;
+  emailTplAdminHtml: string | null;
+  emailTplAdminText: string | null;
+  appleWalletPassTypeId: string | null;
+  appleWalletTeamId: string | null;
+  appleWalletSigningCert: string | null;
+  appleWalletSigningKey: string | null;
+  appleWalletWwdrCert: string | null;
+  googleWalletIssuerId: string | null;
+  googleWalletServiceAccountEmail: string | null;
+  googleWalletServiceAccountKey: string | null;
+};
+
 /** Mutable snapshot of all settings. Populated by loadAll(). */
-const data = {
+const data: SettingsData = {
   // --- Plaintext ---
   country: DEFAULT_COUNTRY,
-  theme: "light" as Theme,
+  theme: "light",
   showPublicSite: false,
   showPublicApi: false,
-  paymentProvider: null as PaymentProviderType | null,
-  terms: null as string | null,
-  emailProvider: null as string | null,
+  paymentProvider: null,
+  terms: null,
+  emailProvider: null,
   bookingFee: "0",
-  customDomain: null as string | null,
-  customDomainLastValidated: null as string | null,
-  publicKey: null as string | null,
-  wrappedPrivateKey: null as string | null,
-  squareLocationId: null as string | null,
+  customDomain: null,
+  customDomainLastValidated: null,
+  publicKey: null,
+  wrappedPrivateKey: null,
+  squareLocationId: null,
   squareSandbox: false,
-  stripeWebhookEndpointId: null as string | null,
+  stripeWebhookEndpointId: null,
   attendeeBlobMigrated: false,
 
   // --- Derived from country ---
@@ -168,37 +223,43 @@ const data = {
   phonePrefix: "+44",
 
   // --- Encrypted (pre-decrypted by loadAll) ---
-  businessEmail: null as string | null,
-  headerImageUrl: null as string | null,
-  websiteTitle: null as string | null,
-  homepageText: null as string | null,
-  contactPageText: null as string | null,
-  stripeSecretKey: null as string | null,
-  stripeWebhookSecret: null as string | null,
-  squareAccessToken: null as string | null,
-  squareWebhookSignatureKey: null as string | null,
-  embedHosts: null as string | null,
-  emailApiKey: null as string | null,
-  emailFromAddress: null as string | null,
-  emailTplConfirmationSubject: null as string | null,
-  emailTplConfirmationHtml: null as string | null,
-  emailTplConfirmationText: null as string | null,
-  emailTplAdminSubject: null as string | null,
-  emailTplAdminHtml: null as string | null,
-  emailTplAdminText: null as string | null,
-  appleWalletPassTypeId: null as string | null,
-  appleWalletTeamId: null as string | null,
-  appleWalletSigningCert: null as string | null,
-  appleWalletSigningKey: null as string | null,
-  appleWalletWwdrCert: null as string | null,
-  googleWalletIssuerId: null as string | null,
-  googleWalletServiceAccountEmail: null as string | null,
-  googleWalletServiceAccountKey: null as string | null,
+  businessEmail: null,
+  headerImageUrl: null,
+  websiteTitle: null,
+  homepageText: null,
+  contactPageText: null,
+  stripeSecretKey: null,
+  stripeWebhookSecret: null,
+  squareAccessToken: null,
+  squareWebhookSignatureKey: null,
+  embedHosts: null,
+  emailApiKey: null,
+  emailFromAddress: null,
+  emailTplConfirmationSubject: null,
+  emailTplConfirmationHtml: null,
+  emailTplConfirmationText: null,
+  emailTplAdminSubject: null,
+  emailTplAdminHtml: null,
+  emailTplAdminText: null,
+  appleWalletPassTypeId: null,
+  appleWalletTeamId: null,
+  appleWalletSigningCert: null,
+  appleWalletSigningKey: null,
+  appleWalletWwdrCert: null,
+  googleWalletIssuerId: null,
+  googleWalletServiceAccountEmail: null,
+  googleWalletServiceAccountKey: null,
 };
 
-type SettingsData = typeof data;
-
 const defaults: Readonly<SettingsData> = { ...data };
+
+/** Type-safe setter for a single snapshot field (avoids TS indexed-write `never` issue). */
+const setSnapshotField = <K extends keyof SettingsData>(
+  key: K,
+  value: SettingsData[K],
+): void => {
+  data[key] = value;
+};
 
 /** Test overrides — survive invalidateCache(), cleared by clearTestOverrides(). */
 const [getTestOverrides, setTestOverrides] = lazyRef<Record<string, unknown>>(
@@ -255,8 +316,13 @@ const writeEncrypted = async (key: string, value: string): Promise<void> => {
 // Snapshot builder — called by loadAll()
 // ---------------------------------------------------------------------------
 
+/** Keys in SettingsData whose value type is string | null (the encrypted fields). */
+type NullableStringKey = {
+  [K in keyof SettingsData]: SettingsData[K] extends string | null ? K : never;
+}[keyof SettingsData];
+
 /** Mapping: CONFIG_KEY → snapshot field for encrypted values. */
-const ENCRYPTED_FIELDS: [string, keyof SettingsData][] = [
+const ENCRYPTED_FIELDS: [string, NullableStringKey][] = [
   [CONFIG_KEYS.BUSINESS_EMAIL, "businessEmail"],
   [CONFIG_KEYS.HEADER_IMAGE_URL, "headerImageUrl"],
   [CONFIG_KEYS.WEBSITE_TITLE, "websiteTitle"],
@@ -307,8 +373,9 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   data.theme = raw.get(CONFIG_KEYS.THEME) === "dark" ? "dark" : "light";
   data.showPublicSite = raw.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
   data.showPublicApi = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
+  const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
   data.paymentProvider =
-    (raw.get(CONFIG_KEYS.PAYMENT_PROVIDER) as PaymentProviderType) ?? null;
+    rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
   data.terms = raw.get(CONFIG_KEYS.TERMS_AND_CONDITIONS) ?? null;
   data.emailProvider = raw.get(CONFIG_KEYS.EMAIL_PROVIDER) ?? null;
   data.bookingFee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
@@ -335,8 +402,7 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
     }),
   );
   for (let i = 0; i < ENCRYPTED_FIELDS.length; i++) {
-    const field = ENCRYPTED_FIELDS[i]!;
-    (data as Record<string, unknown>)[field[1]] = values[i] ?? null;
+    setSnapshotField(ENCRYPTED_FIELDS[i]![1], values[i] ?? null);
   }
 };
 
@@ -360,10 +426,8 @@ const loadAll = async (): Promise<void> => {
 /** Full invalidation — clears raw cache AND resets snapshot to defaults. */
 const invalidateCache = (): void => {
   setCacheState(null);
-  for (const key of Object.keys(defaults)) {
-    (data as Record<string, unknown>)[key] = (
-      defaults as Record<string, unknown>
-    )[key];
+  for (const key of Object.keys(defaults) as (keyof SettingsData)[]) {
+    setSnapshotField(key, defaults[key]);
   }
 };
 

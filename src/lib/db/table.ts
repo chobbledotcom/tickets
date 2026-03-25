@@ -353,14 +353,14 @@ export const defineTable = <Row, Input = Row>(config: {
   };
 };
 
-/** Async transform function type for encryption */
-type AsyncTransform<T> = (v: T) => Promise<T>;
+/** Transform function type for column read/write */
+type ColumnTransform<T> = (v: T) => Promise<T> | T;
 
 /** Wrap encrypt/decrypt functions to handle null values */
 const wrapNullable =
-  <T>(fn: AsyncTransform<T>): AsyncTransform<T | null> =>
+  <T>(fn: ColumnTransform<T>): ((v: T | null) => Promise<T | null>) =>
   (v) =>
-    v === null ? Promise.resolve(null) : fn(v);
+    v === null ? Promise.resolve(null) : Promise.resolve(fn(v));
 
 /**
  * Helper to create column definitions
@@ -376,14 +376,14 @@ export const col = {
 
   /** Column with read/write transforms (e.g., for encryption) */
   encrypted: <T>(
-    encrypt: AsyncTransform<T>,
-    decrypt: AsyncTransform<T>,
+    encrypt: ColumnTransform<T>,
+    decrypt: ColumnTransform<T>,
   ): ColumnDef<T> => ({ write: encrypt, read: decrypt }),
 
   /** Wrap an existing encrypted column def to pass through null values */
   encryptedNullable: <T>(def: ColumnDef<T>): ColumnDef<T | null> => ({
-    write: wrapNullable(def.write as AsyncTransform<T>),
-    read: wrapNullable(def.read as AsyncTransform<T>),
+    write: def.write ? wrapNullable(def.write) : undefined,
+    read: def.read ? wrapNullable(def.read) : undefined,
   }),
 
   /** Simple column with no special handling */
