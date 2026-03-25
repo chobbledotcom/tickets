@@ -520,6 +520,7 @@ const processPaymentSession = async (
     event: EventWithCount;
     expectedPrice: number;
   }[] = [];
+
   for (const item of intent.items) {
     const vp = await validateAndPrice(
       { eventId: item.e, quantity: item.q },

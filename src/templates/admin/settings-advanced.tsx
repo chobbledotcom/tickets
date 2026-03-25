@@ -29,6 +29,10 @@ export type AdvancedSettingsPageState = {
     text: string;
   };
   bunnyCdnEnabled: boolean;
+  bunnyDnsEnabled: boolean;
+  bunnySubdomain: string;
+  bunnyDnsSubdomainSuffix: string;
+  subdomainPreview: string;
   customDomain: string;
   customDomainLastValidated: string;
   cdnHostname: string;
@@ -454,6 +458,82 @@ export const adminAdvancedSettingsPage = (
           <button type="submit" class="secondary">
             Send Test Email
           </button>
+        </CsrfForm>
+      )}
+
+      {s.bunnyDnsEnabled && (
+        <CsrfForm
+          action="/admin/settings/host-subdomain"
+          id="settings-host-subdomain"
+        >
+          <h2>Host Subdomain</h2>
+          {s.bunnySubdomain ? (
+            <div>
+              <p>
+                Your site is available at{" "}
+                <a href={`https://${s.bunnySubdomain}`}>
+                  <strong>{s.bunnySubdomain}</strong>
+                </a>
+                .{" "}
+                {s.customDomain && s.customDomainLastValidated
+                  ? `Visitors will be redirected to your custom domain (${s.customDomain}).`
+                  : "You can also set a custom domain below."}
+              </p>
+              <p>
+                <small>
+                  This subdomain is permanent and cannot be changed.
+                </small>
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p>
+                Choose a subdomain for your booking site. This cannot be changed
+                once set.
+              </p>
+              {s.subdomainPreview ? (
+                <div>
+                  <p>
+                    Subdomain{" "}
+                    <strong>
+                      {s.subdomainPreview}
+                      {s.bunnyDnsSubdomainSuffix}
+                    </strong>{" "}
+                    is available.
+                  </p>
+                  <input
+                    type="hidden"
+                    name="subdomain"
+                    value={s.subdomainPreview}
+                  />
+                  <label>
+                    <input type="checkbox" name="save" value="1" /> Confirm
+                    registration (cannot be undone)
+                  </label>
+                  <button type="submit">Register Subdomain</button>
+                </div>
+              ) : (
+                <div>
+                  <label>
+                    Subdomain
+                    <div class="subdomain-input-group">
+                      <input
+                        type="text"
+                        name="subdomain"
+                        placeholder="myevent"
+                        autocomplete="off"
+                        pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
+                      />
+                      <span class="subdomain-suffix">
+                        {s.bunnyDnsSubdomainSuffix}
+                      </span>
+                    </div>
+                  </label>
+                  <button type="submit">Check Availability</button>
+                </div>
+              )}
+            </div>
+          )}
         </CsrfForm>
       )}
 

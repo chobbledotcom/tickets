@@ -23,6 +23,7 @@ import {
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
+  withMockBunnyCdnApi,
   withMocks,
 } from "#test-utils";
 
@@ -587,6 +588,286 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       );
     });
   });
+
+  describeWithEnv(
+    "host subdomain",
+    {
+      env: {
+        BUNNY_API_KEY: undefined,
+        BUNNY_SCRIPT_ID: undefined,
+        BUNNY_DNS_ZONE_ID: undefined,
+        BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined,
+      },
+    },
+    () => {
+      let restoreCdnHostname: (() => void) | null = null;
+
+      const setBunnyDnsEnv = () => {
+        Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
+        Deno.env.set("BUNNY_SCRIPT_ID", "test-script-id");
+        Deno.env.set("BUNNY_DNS_ZONE_ID", "42");
+        Deno.env.set("BUNNY_DNS_SUBDOMAIN_SUFFIX", ".tickets");
+        const original = bunnyCdnApi.getCdnHostname;
+        bunnyCdnApi.getCdnHostname = () =>
+          Promise.resolve({ ok: true as const, hostname: "test.b-cdn.net" });
+        restoreCdnHostname = () => {
+          bunnyCdnApi.getCdnHostname = original;
+        };
+      };
+
+      afterEach(() => {
+        if (restoreCdnHostname) {
+          restoreCdnHostname();
+          restoreCdnHostname = null;
+        }
+      });
+
+      test("does not show host subdomain section when DNS not configured", async () => {
+        const response = await awaitTestRequest("/admin/settings-advanced", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).not.toContain('id="settings-host-subdomain"');
+      });
+
+      test("shows host subdomain section when DNS is configured", async () => {
+        setBunnyDnsEnv();
+        const response = await awaitTestRequest("/admin/settings-advanced", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).toContain('id="settings-host-subdomain"');
+        expect(html).toContain("Host Subdomain");
+        expect(html).toContain("Check Availability");
+      });
+
+      test("shows existing subdomain as read-only with redirect message when custom domain set", async () => {
+        setBunnyDnsEnv();
+        const cookie = await testCookie();
+        const token = cookie.split("=").slice(1).join("=");
+        await settings.update.bunnySubdomain("myevent.tickets.example.com");
+        await settings.update.customDomain("tickets.mysite.com");
+        await settings.update.customDomainLastValidated();
+        const response = await handleRequest(
+          mockRequestWithHost(
+            "/admin/settings-advanced",
+            "tickets.mysite.com",
+            {
+              headers: { cookie: `__Host-session=${token}` },
+            },
+          ),
+        );
+        const html = await response.text();
+        expect(html).toContain("myevent.tickets.example.com");
+        expect(html).toContain("permanent and cannot be changed");
+        expect(html).not.toContain("Register Subdomain");
+        expect(html).toContain("redirected to your custom domain");
+      });
+
+      describe("POST /admin/settings/host-subdomain", () => {
+        test("rejects when DNS is not configured", async () => {
+          Deno.env.delete("BUNNY_API_KEY");
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/host-subdomain",
+              {
+                subdomain: "myevent",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(400);
+        });
+
+        test("rejects when subdomain already set", async () => {
+          setBunnyDnsEnv();
+          const csrfToken = await testCsrfToken();
+          const cookie = await testCookie();
+          const token = cookie.split("=").slice(1).join("=");
+          await settings.update.bunnySubdomain("existing.tickets.example.com");
+          const response = await handleRequest(
+            mockRequestWithHost(
+              "/admin/settings/host-subdomain",
+              "existing.tickets.example.com",
+              {
+                method: "POST",
+                headers: {
+                  cookie: `__Host-session=${token}`,
+                  "content-type": "application/x-www-form-urlencoded",
+                },
+                body: `subdomain=myevent&csrf_token=${encodeURIComponent(csrfToken)}`,
+              },
+            ),
+          );
+          expect(response.status).toBe(400);
+        });
+
+        test("rejects invalid subdomain format", async () => {
+          setBunnyDnsEnv();
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/host-subdomain",
+              {
+                subdomain: "-invalid",
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          expect(response.status).toBe(400);
+        });
+
+        test("previews subdomain availability without save", async () => {
+          setBunnyDnsEnv();
+          await withMockBunnyCdnApi(
+            {
+              checkSubdomainAvailable: () =>
+                Promise.resolve({
+                  ok: true as const,
+                  available: true,
+                  fullDomain: "myevent.tickets.example.com",
+                }),
+            },
+            async () => {
+              const response = await handleRequest(
+                mockFormRequest(
+                  "/admin/settings/host-subdomain",
+                  {
+                    subdomain: "myevent",
+                    csrf_token: await testCsrfToken(),
+                  },
+                  await testCookie(),
+                ),
+              );
+              expect(response.status).toBe(302);
+              const location = response.headers.get("location")!;
+              expect(location).toContain("subdomain=myevent");
+              expect(location).toContain("form=settings-host-subdomain");
+            },
+          );
+        });
+
+        test("preview returns error when availability check fails", async () => {
+          setBunnyDnsEnv();
+          await withMockBunnyCdnApi(
+            {
+              checkSubdomainAvailable: () =>
+                Promise.resolve({
+                  ok: false as const,
+                  error: "DNS zone error",
+                }),
+            },
+            async () => {
+              const response = await handleRequest(
+                mockFormRequest(
+                  "/admin/settings/host-subdomain",
+                  {
+                    subdomain: "myevent",
+                    csrf_token: await testCsrfToken(),
+                  },
+                  await testCookie(),
+                ),
+              );
+              expect(response.status).toBe(502);
+            },
+          );
+        });
+
+        test("preview returns error when subdomain is taken", async () => {
+          setBunnyDnsEnv();
+          await withMockBunnyCdnApi(
+            {
+              checkSubdomainAvailable: () =>
+                Promise.resolve({
+                  ok: true as const,
+                  available: false,
+                  fullDomain: "myevent.tickets.example.com",
+                }),
+            },
+            async () => {
+              const response = await handleRequest(
+                mockFormRequest(
+                  "/admin/settings/host-subdomain",
+                  {
+                    subdomain: "myevent",
+                    csrf_token: await testCsrfToken(),
+                  },
+                  await testCookie(),
+                ),
+              );
+              expect(response.status).toBe(409);
+            },
+          );
+        });
+
+        test("registers subdomain with save flag, saves to DB, and logs activity", async () => {
+          setBunnyDnsEnv();
+          await withMockBunnyCdnApi(
+            {
+              registerBunnySubdomain: () =>
+                Promise.resolve({
+                  ok: true as const,
+                  fullDomain: "myevent.tickets.example.com",
+                }),
+            },
+            async () => {
+              const response = await handleRequest(
+                mockFormRequest(
+                  "/admin/settings/host-subdomain",
+                  {
+                    subdomain: "myevent",
+                    save: "1",
+                    csrf_token: await testCsrfToken(),
+                  },
+                  await testCookie(),
+                ),
+              );
+              expectRedirectWithFlash(
+                "/admin/settings-advanced?form=settings-host-subdomain#settings-host-subdomain",
+                "Subdomain registered: myevent.tickets.example.com",
+              )(response);
+              expect(settings.bunnySubdomain).toBe(
+                "myevent.tickets.example.com",
+              );
+              const log = await getAllActivityLog();
+              expect(
+                log.some((e) =>
+                  e.message.includes(
+                    "Host subdomain set to myevent.tickets.example.com",
+                  ),
+                ),
+              ).toBe(true);
+            },
+          );
+        });
+
+        test("returns error when registration fails", async () => {
+          setBunnyDnsEnv();
+          await withMockBunnyCdnApi(
+            {
+              registerBunnySubdomain: () =>
+                Promise.resolve({ ok: false as const, error: "DNS error" }),
+            },
+            async () => {
+              const response = await handleRequest(
+                mockFormRequest(
+                  "/admin/settings/host-subdomain",
+                  {
+                    subdomain: "myevent",
+                    save: "1",
+                    csrf_token: await testCsrfToken(),
+                  },
+                  await testCookie(),
+                ),
+              );
+              expect(response.status).toBe(502);
+            },
+          );
+        });
+      });
+    },
+  );
 
   describeWithEnv(
     "custom domain",

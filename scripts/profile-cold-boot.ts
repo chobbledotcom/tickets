@@ -31,7 +31,6 @@ const measureSync = <T>(name: string, fn: () => T): T => {
   return result;
 };
 
-// biome-ignore lint/suspicious/noConsole: CLI profiling tool output
 const log = console.log.bind(console);
 
 const printReport = () => {
@@ -210,5 +209,4 @@ Per warm request (after first):
 `);
 };
 
-// biome-ignore lint/suspicious/noConsole: CLI error output
 main().catch(console.error);

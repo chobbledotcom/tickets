@@ -35,8 +35,13 @@ const effectiveDomainState = { domain: null as string | null };
 export const loadEffectiveDomain = (requestUrl: string): string => {
   const custom = settings.customDomain;
   const validated = custom ? settings.customDomainLastValidated : null;
-  effectiveDomainState.domain =
-    custom && validated ? custom : new URL(requestUrl).hostname;
+  if (custom && validated) {
+    effectiveDomainState.domain = custom;
+  } else if (settings.bunnySubdomain) {
+    effectiveDomainState.domain = settings.bunnySubdomain;
+  } else {
+    effectiveDomainState.domain = new URL(requestUrl).hostname;
+  }
   return effectiveDomainState.domain;
 };
 
@@ -76,6 +81,20 @@ export const isBunnyCdnEnabled = (): boolean =>
  * Get the Bunny CDN API key from environment
  */
 export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
+
+/**
+ * Check if Bunny DNS subdomain feature is enabled.
+ * Requires BUNNY_API_KEY and BUNNY_DNS_ZONE_ID to be set.
+ */
+export const isBunnyDnsEnabled = (): boolean =>
+  !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_DNS_ZONE_ID");
+
+/** Get the Bunny DNS zone ID from environment */
+export const getBunnyDnsZoneId = (): string => requireEnv("BUNNY_DNS_ZONE_ID");
+
+/** Get the Bunny DNS subdomain suffix (e.g. ".tickets") from environment */
+export const getBunnyDnsSubdomainSuffix = (): string =>
+  getEnv("BUNNY_DNS_SUBDOMAIN_SUFFIX") ?? "";
 
 /**
  * Get the Bunny Edge Script ID from environment

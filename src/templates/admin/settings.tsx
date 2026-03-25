@@ -59,7 +59,7 @@ export const adminSettingsPage = (
             <div>
               <img
                 src={getImageProxyUrl(s.headerImageUrl)}
-                alt="Header image"
+                alt="Header preview"
                 class="event-image-preview"
               />
               <CsrfForm
