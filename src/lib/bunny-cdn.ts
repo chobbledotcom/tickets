@@ -11,7 +11,7 @@ import {
   getBunnyDnsZoneId,
   getBunnyScriptId,
 } from "#lib/config.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
+import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -300,26 +300,32 @@ const registerBunnySubdomainImpl = async (
 
   // 2. Add CNAME record in DNS zone
   const zoneId = getBunnyDnsZoneId();
-  const addResponse = await fetch(
-    `${BUNNY_API_BASE}/dnszone/${zoneId}/records`,
-    {
-      method: "PUT",
-      headers: {
-        AccessKey: getBunnyApiKey(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        Type: DNS_RECORD_TYPE_CNAME,
-        Name: recordName,
-        Value: target,
-        Ttl: 300,
-      }),
-    },
+  const dnsRecordBody = {
+    Type: DNS_RECORD_TYPE_CNAME,
+    Name: recordName,
+    Value: target,
+    Ttl: 300,
+  };
+  const dnsUrl = `${BUNNY_API_BASE}/dnszone/${zoneId}/records`;
+  logDebug(
+    "Domain",
+    `Adding DNS CNAME: url=${dnsUrl} name=${recordName} value=${target} fullDomain=${fullDomain}`,
   );
+  const addResponse = await fetch(dnsUrl, {
+    method: "PUT",
+    headers: {
+      AccessKey: getBunnyApiKey(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(dnsRecordBody),
+  });
 
   if (!addResponse.ok) {
     const err = await parseBunnyError(addResponse, "Add DNS CNAME record");
-    logError({ code: ErrorCode.CDN_REQUEST, detail: err.error });
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(dnsRecordBody)}`,
+    });
     return err;
   }
 
