@@ -327,10 +327,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     test("preserves hash fragment", () =>
       withRequestContext(() => {
         const response = redirect("/admin/calendar#attendees", "Done", true);
-        expectRedirectWithFlash(
-          "/admin/calendar#attendees",
-          "Done",
-        )(response);
+        expectRedirectWithFlash("/admin/calendar#attendees", "Done")(response);
       }));
 
     test("encodes special characters in flash cookie", () =>
