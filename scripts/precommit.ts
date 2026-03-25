@@ -19,34 +19,30 @@ interface Step {
   filterOutput?: (stdout: string, stderr: string) => string;
 }
 
-/** Extract only failures and errors from deno test output */
-const filterTestOutput = (stdout: string, stderr: string): string => {
-  const combined = `${stdout}\n${stderr}`;
-  const lines = combined.split("\n");
+/** True when a line starts an ERRORS or FAILURES section or is a summary line */
+const isSectionStart = (line: string): boolean =>
+  /^ (ERRORS|FAILURES)\s*$/.test(line) || /^(FAILED|ok)\s*\|/.test(line);
+
+/** True when a line contains a failure or error keyword */
+const isErrorLine = (line: string): boolean =>
+  /FAILED|error:|Error:|AssertionError|assert/i.test(line);
+
+/** Collect lines from the first section-start onward */
+const collectFromSections = (lines: string[]): string[] => {
   const output: string[] = [];
   let capturing = false;
-
   for (const line of lines) {
-    // Start capturing at ERRORS or FAILURES sections
-    if (/^ ERRORS\s*$/.test(line) || /^ FAILURES\s*$/.test(line)) {
-      capturing = true;
-    }
-    // Always capture the summary line (e.g. "FAILED | 120 passed | 2 failed")
-    if (/^(FAILED|ok)\s*\|/.test(line)) {
-      capturing = true;
-    }
+    if (isSectionStart(line)) capturing = true;
     if (capturing) output.push(line);
   }
+  return output;
+};
 
-  // If no structured sections found, fall back to lines containing FAILED or error info
-  if (output.length === 0) {
-    for (const line of lines) {
-      if (/FAILED|error:|Error:|AssertionError|assert/i.test(line)) {
-        output.push(line);
-      }
-    }
-  }
-
+/** Extract only failures and errors from deno test output */
+const filterTestOutput = (stdout: string, stderr: string): string => {
+  const lines = `${stdout}\n${stderr}`.split("\n");
+  const output = collectFromSections(lines);
+  if (output.length === 0) return lines.filter(isErrorLine).join("\n").trim();
   return output.join("\n").trim();
 };
 

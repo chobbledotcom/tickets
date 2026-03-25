@@ -5,6 +5,7 @@ import { toMajorUnits } from "#lib/currency.ts";
 import { eventsTable, getEvent, getEventWithCount } from "#lib/db/events.ts";
 import { handleRequest } from "#routes";
 import {
+  cdnOkResponse,
   createTestEvent,
   describeWithEnv,
   expectFlash,
@@ -13,60 +14,24 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   installUrlHandler,
+  JPEG_HEADER,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
+  PDF_BYTES,
   setTestEnv,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
   updateTestEvent,
+  withCdnProxy,
   withExpectedError,
   withFetchMock,
+  withStorageMock,
 } from "#test-utils";
-
-/** JPEG magic bytes for a valid test image */
-const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
-
-/** PDF magic bytes for an invalid image type test */
-const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 
 /** Reusable proxy route test path */
 const PROXY_PATH = "/image/abc123-def4-5678-9abc-def012345678";
-
-/** Standard CDN 201 success response */
-const cdnOkResponse = (): Response =>
-  new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), {
-    status: 201,
-  });
-
-/** Mock fetch to intercept Bunny CDN API calls, forwarding others to real fetch */
-const withStorageMock = (
-  fn: (fetchCalls: string[]) => Promise<void>,
-): Promise<void> =>
-  withFetchMock(async (originalFetch) => {
-    const fetchCalls: string[] = [];
-    installUrlHandler(originalFetch, (url) => {
-      fetchCalls.push(url);
-      if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
-        return Promise.resolve(cdnOkResponse());
-      }
-      return null;
-    });
-    await fn(fetchCalls);
-  });
-
-/** Mock fetch where CDN requests return a fixed response, others pass through */
-const withCdnProxy = (
-  respond: () => Response,
-  fn: () => Promise<void>,
-): Promise<void> =>
-  withFetchMock(async (originalFetch) => {
-    installUrlHandler(originalFetch, (url) =>
-      url.includes("storage.bunnycdn.com") ? Promise.resolve(respond()) : null,
-    );
-    await fn();
-  });
 
 /** Build form data for event edit with all required fields */
 const editFormData = async (
@@ -197,6 +162,51 @@ const submitCreateImage = (
       { fieldName: "image", ...file },
     ),
   );
+
+/** Submit a POST to /admin/event/:id/attachment/delete */
+const submitAttachmentDelete = (
+  eventId: number,
+  cookie: string,
+  csrfToken: string,
+): Promise<Response> =>
+  handleRequest(
+    mockFormRequest(
+      `/admin/event/${eventId}/attachment/delete`,
+      { csrf_token: csrfToken },
+      cookie,
+    ),
+  );
+
+/** Submit a POST to /admin/event/:id/delete with confirmation */
+const submitEventDelete = (
+  eventId: number,
+  eventName: string,
+  cookie: string,
+  csrfToken: string,
+): Promise<Response> =>
+  handleRequest(
+    mockFormRequest(
+      `/admin/event/${eventId}/delete`,
+      { csrf_token: csrfToken, confirm_identifier: eventName },
+      cookie,
+    ),
+  );
+
+/** Submit an edit form with an attachment file */
+const submitEditAttachment = async (
+  eventId: number,
+  cookie: string,
+  csrfToken: string,
+  file: { name: string; data: Uint8Array; contentType: string },
+): Promise<Response> => {
+  const fields = await editFormData(eventId, csrfToken);
+  return handleRequest(
+    mockMultipartRequest(`/admin/event/${eventId}/edit`, fields, cookie, {
+      fieldName: "attachment",
+      ...file,
+    }),
+  );
+};
 
 /** Request the image proxy route */
 const proxyRequest = (ext = "jpg"): Promise<Response> =>
@@ -607,19 +617,15 @@ describeWithEnv(
         Deno.env.delete("STORAGE_ZONE_KEY");
         const { event, cookie, csrfToken } = await setupEventAndLogin();
 
-        const fields = await editFormData(event.id, csrfToken);
-        const response = await handleRequest(
-          mockMultipartRequest(
-            `/admin/event/${event.id}/edit`,
-            fields,
-            cookie,
-            {
-              fieldName: "attachment",
-              name: "guide.pdf",
-              data: PDF_BYTES,
-              contentType: "application/pdf",
-            },
-          ),
+        const response = await submitEditAttachment(
+          event.id,
+          cookie,
+          csrfToken,
+          {
+            name: "guide.pdf",
+            data: PDF_BYTES,
+            contentType: "application/pdf",
+          },
         );
         expect(response.status).toBe(302);
         const updated = await getEventWithCount(event.id);
@@ -630,19 +636,15 @@ describeWithEnv(
         const { event, cookie, csrfToken } = await setupEventAndLogin();
 
         await withStorageMock(async () => {
-          const fields = await editFormData(event.id, csrfToken);
-          const response = await handleRequest(
-            mockMultipartRequest(
-              `/admin/event/${event.id}/edit`,
-              fields,
-              cookie,
-              {
-                fieldName: "attachment",
-                name: "guide.pdf",
-                data: PDF_BYTES,
-                contentType: "application/pdf",
-              },
-            ),
+          const response = await submitEditAttachment(
+            event.id,
+            cookie,
+            csrfToken,
+            {
+              name: "guide.pdf",
+              data: PDF_BYTES,
+              contentType: "application/pdf",
+            },
           );
           expectRedirectWithFlash(
             `/admin/event/${event.id}`,
@@ -660,19 +662,15 @@ describeWithEnv(
 
         const oversized = new Uint8Array(25 * 1024 * 1024 + 1);
         await withStorageMock(async () => {
-          const fields = await editFormData(event.id, csrfToken);
-          const response = await handleRequest(
-            mockMultipartRequest(
-              `/admin/event/${event.id}/edit`,
-              fields,
-              cookie,
-              {
-                fieldName: "attachment",
-                name: "huge.zip",
-                data: oversized,
-                contentType: "application/zip",
-              },
-            ),
+          const response = await submitEditAttachment(
+            event.id,
+            cookie,
+            csrfToken,
+            {
+              name: "huge.zip",
+              data: oversized,
+              contentType: "application/zip",
+            },
           );
           expectImageErrorRedirect(response, "25MB");
           const updated = await getEventWithCount(event.id);
@@ -688,19 +686,15 @@ describeWithEnv(
         });
 
         await withStorageMock(async (fetchCalls) => {
-          const fields = await editFormData(event.id, csrfToken);
-          const response = await handleRequest(
-            mockMultipartRequest(
-              `/admin/event/${event.id}/edit`,
-              fields,
-              cookie,
-              {
-                fieldName: "attachment",
-                name: "new.pdf",
-                data: PDF_BYTES,
-                contentType: "application/pdf",
-              },
-            ),
+          const response = await submitEditAttachment(
+            event.id,
+            cookie,
+            csrfToken,
+            {
+              name: "new.pdf",
+              data: PDF_BYTES,
+              contentType: "application/pdf",
+            },
           );
           expect(response.status).toBe(302);
 
@@ -723,19 +717,15 @@ describeWithEnv(
             Promise.reject(new Error("CDN unreachable")),
           );
 
-          const fields = await editFormData(event.id, csrfToken);
-          const response = await handleRequest(
-            mockMultipartRequest(
-              `/admin/event/${event.id}/edit`,
-              fields,
-              cookie,
-              {
-                fieldName: "attachment",
-                name: "guide.pdf",
-                data: PDF_BYTES,
-                contentType: "application/pdf",
-              },
-            ),
+          const response = await submitEditAttachment(
+            event.id,
+            cookie,
+            csrfToken,
+            {
+              name: "guide.pdf",
+              data: PDF_BYTES,
+              contentType: "application/pdf",
+            },
           );
           expectImageErrorRedirect(response, "upload failed");
         });
@@ -783,12 +773,10 @@ describeWithEnv(
         });
 
         await withStorageMock(async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/event/${event.id}/attachment/delete`,
-              { csrf_token: csrfToken },
-              cookie,
-            ),
+          const response = await submitAttachmentDelete(
+            event.id,
+            cookie,
+            csrfToken,
           );
           expectRedirectWithFlash(
             `/admin/event/${event.id}`,
@@ -804,12 +792,10 @@ describeWithEnv(
       test("redirects when event has no attachment", async () => {
         const { event, cookie, csrfToken } = await setupEventAndLogin();
 
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/event/${event.id}/attachment/delete`,
-            { csrf_token: csrfToken },
-            cookie,
-          ),
+        const response = await submitAttachmentDelete(
+          event.id,
+          cookie,
+          csrfToken,
         );
         expectRedirectWithFlash(
           `/admin/event/${event.id}`,
@@ -821,13 +807,7 @@ describeWithEnv(
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
-        const response = await handleRequest(
-          mockFormRequest(
-            "/admin/event/9999/attachment/delete",
-            { csrf_token: csrfToken },
-            cookie,
-          ),
-        );
+        const response = await submitAttachmentDelete(9999, cookie, csrfToken);
         expect(response.status).toBe(404);
       });
     });
@@ -838,12 +818,11 @@ describeWithEnv(
         await eventsTable.update(event.id, { imageUrl: "event-image.jpg" });
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/event/${event.id}/delete`,
-              { csrf_token: csrfToken, confirm_identifier: event.name },
-              cookie,
-            ),
+          const response = await submitEventDelete(
+            event.id,
+            event.name,
+            cookie,
+            csrfToken,
           );
           expect(response.status).toBe(302);
 
@@ -865,12 +844,11 @@ describeWithEnv(
         });
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/event/${event.id}/delete`,
-              { csrf_token: csrfToken, confirm_identifier: event.name },
-              cookie,
-            ),
+          const response = await submitEventDelete(
+            event.id,
+            event.name,
+            cookie,
+            csrfToken,
           );
           expect(response.status).toBe(302);
 
@@ -890,12 +868,11 @@ describeWithEnv(
         });
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/event/${event.id}/delete`,
-              { csrf_token: csrfToken, confirm_identifier: event.name },
-              cookie,
-            ),
+          const response = await submitEventDelete(
+            event.id,
+            event.name,
+            cookie,
+            csrfToken,
           );
           expect(response.status).toBe(302);
 
@@ -925,12 +902,11 @@ describeWithEnv(
             return null;
           });
 
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/event/${event.id}/delete`,
-              { csrf_token: csrfToken, confirm_identifier: event.name },
-              cookie,
-            ),
+          const response = await submitEventDelete(
+            event.id,
+            event.name,
+            cookie,
+            csrfToken,
           );
           expect(response.status).toBe(302);
 
@@ -943,12 +919,11 @@ describeWithEnv(
         const { event, cookie, csrfToken } = await setupEventAndLogin();
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/event/${event.id}/delete`,
-              { csrf_token: csrfToken, confirm_identifier: event.name },
-              cookie,
-            ),
+          const response = await submitEventDelete(
+            event.id,
+            event.name,
+            cookie,
+            csrfToken,
           );
           expect(response.status).toBe(302);
 

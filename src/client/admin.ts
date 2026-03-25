@@ -227,12 +227,33 @@ if (paymentResult && window.opener) {
  * @param cssClass - CSS class for result formatting
  * @param formatLines - extract display lines from JSON response
  */
+/** POST a CSRF-protected test request and return the parsed JSON */
+const postTestRequest = async (
+  button: HTMLButtonElement,
+  url: string,
+  // deno-lint-ignore no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
+): Promise<any> => {
+  const csrfInput = button
+    .closest("form")
+    ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
+  const csrfToken = csrfInput?.value ?? "";
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: `csrf_token=${encodeURIComponent(csrfToken)}`,
+  });
+  return res.json();
+};
+
 const setupTestButton = (
   btnId: string,
   resultId: string,
   url: string,
   cssClass: string,
   // deno-lint-ignore no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
   formatLines: (data: any) => string[],
 ) => {
   const button = document.getElementById(btnId);
@@ -244,17 +265,7 @@ const setupTestButton = (
     resultDiv.classList.add("hidden");
     resultDiv.classList.remove("success", "error");
     try {
-      const csrfInput = button
-        .closest("form")
-        ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
-      const csrfToken = csrfInput?.value ?? "";
-      const res = await fetch(url, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: `csrf_token=${encodeURIComponent(csrfToken)}`,
-      });
-      const data = await res.json();
+      const data = await postTestRequest(button, url);
       resultDiv.textContent = formatLines(data).join("\n");
       resultDiv.classList.remove("hidden", "success", "error");
       resultDiv.classList.add(data.ok ? "success" : "error", cssClass);
@@ -270,10 +281,45 @@ const setupTestButton = (
 
 /** Format a webhook status line from a test result's webhook field */
 // deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
 const formatWebhookLine = (webhook: any, detail?: string): string =>
   webhook.configured
     ? `Webhook: ${detail ?? "configured"}`
     : `Webhook: Not configured${webhook.error ? ` - ${webhook.error}` : ""}`;
+
+/** Format a Square location line */
+// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
+const formatLocationLine = (loc: any): string =>
+  loc.configured
+    ? `Location: ${loc.name ?? loc.locationId}${loc.status ? ` (${loc.status})` : ""}`
+    : `Location: Not configured${loc.error ? ` - ${loc.error}` : ""}`;
+
+/** Format a credential validity line (e.g. "API Key: Valid (test mode)") */
+// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
+const formatCredentialLine = (label: string, cred: any): string =>
+  cred.valid
+    ? `${label}: Valid (${cred.mode} mode)`
+    : `${label}: Invalid${cred.error ? ` - ${cred.error}` : ""}`;
+
+/** Format Stripe webhook endpoint lines */
+// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
+const formatStripeWebhooks = (data: any): string[] => {
+  if (data.webhookError) return [`Webhooks: Error - ${data.webhookError}`];
+  if (!data.webhooks?.length) return ["Webhooks: None configured"];
+  const lines = [`Webhooks: ${data.webhooks.length} endpoint(s)`];
+  for (const wh of data.webhooks) {
+    const ours =
+      data.ownEndpointId && wh.endpointId === data.ownEndpointId
+        ? " (tickets)"
+        : "";
+    lines.push(`  ${wh.status} - ${wh.url}${ours}`);
+    lines.push(`  Events: ${wh.enabledEvents.join(", ")}`);
+  }
+  return lines;
+};
 
 /* Stripe connection test button */
 setupTestButton(
@@ -281,32 +327,10 @@ setupTestButton(
   "stripe-test-result",
   "/admin/settings/stripe/test",
   "stripe-test-result",
-  (data) => {
-    const lines: string[] = [];
-    if (data.apiKey.valid) {
-      lines.push(`API Key: Valid (${data.apiKey.mode} mode)`);
-    } else {
-      lines.push(
-        `API Key: Invalid${data.apiKey.error ? ` - ${data.apiKey.error}` : ""}`,
-      );
-    }
-    if (data.webhookError) {
-      lines.push(`Webhooks: Error - ${data.webhookError}`);
-    } else if (data.webhooks && data.webhooks.length > 0) {
-      lines.push(`Webhooks: ${data.webhooks.length} endpoint(s)`);
-      for (const wh of data.webhooks) {
-        const ours =
-          data.ownEndpointId && wh.endpointId === data.ownEndpointId
-            ? " (tickets)"
-            : "";
-        lines.push(`  ${wh.status} - ${wh.url}${ours}`);
-        lines.push(`  Events: ${wh.enabledEvents.join(", ")}`);
-      }
-    } else {
-      lines.push("Webhooks: None configured");
-    }
-    return lines;
-  },
+  (data) => [
+    formatCredentialLine("API Key", data.apiKey),
+    ...formatStripeWebhooks(data),
+  ],
 );
 
 /* Square connection test button */
@@ -315,27 +339,11 @@ setupTestButton(
   "square-test-result",
   "/admin/settings/square/test",
   "square-test-result",
-  (data) => {
-    const lines: string[] = [];
-    if (data.accessToken.valid) {
-      lines.push(`Access Token: Valid (${data.accessToken.mode} mode)`);
-    } else {
-      lines.push(
-        `Access Token: Invalid${data.accessToken.error ? ` - ${data.accessToken.error}` : ""}`,
-      );
-    }
-    if (data.location.configured) {
-      lines.push(
-        `Location: ${data.location.name ?? data.location.locationId}${data.location.status ? ` (${data.location.status})` : ""}`,
-      );
-    } else {
-      lines.push(
-        `Location: Not configured${data.location.error ? ` - ${data.location.error}` : ""}`,
-      );
-    }
-    lines.push(formatWebhookLine(data.webhook, "Signature key configured"));
-    return lines;
-  },
+  (data) => [
+    formatCredentialLine("Access Token", data.accessToken),
+    formatLocationLine(data.location),
+    formatWebhookLine(data.webhook, "Signature key configured"),
+  ],
 );
 
 /* Remaining chars counter for textareas with maxlength */

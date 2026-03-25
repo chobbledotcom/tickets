@@ -2308,3 +2308,47 @@ export const makeTestEntry = (
   event: makeTestEvent(eventOverrides),
   attendee: makeTestAttendee(attendeeOverrides),
 });
+
+// ---------------------------------------------------------------------------
+// Storage mock helpers — shared across image, attachment, and CDN tests
+// ---------------------------------------------------------------------------
+
+/** JPEG magic bytes for a valid test image */
+export const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+
+/** PDF magic bytes for test attachments / invalid-image-type tests */
+export const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+
+/** Standard CDN 201 success response */
+export const cdnOkResponse = (): Response =>
+  new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), {
+    status: 201,
+  });
+
+/** Mock fetch to intercept Bunny CDN API calls, forwarding others to real fetch */
+export const withStorageMock = (
+  fn: (fetchCalls: string[]) => Promise<void>,
+): Promise<void> =>
+  withFetchMock(async (originalFetch) => {
+    const fetchCalls: string[] = [];
+    installUrlHandler(originalFetch, (url) => {
+      fetchCalls.push(url);
+      if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
+        return Promise.resolve(cdnOkResponse());
+      }
+      return null;
+    });
+    await fn(fetchCalls);
+  });
+
+/** Mock fetch where CDN requests return a fixed response, others pass through */
+export const withCdnProxy = (
+  respond: () => Response,
+  fn: () => Promise<void>,
+): Promise<void> =>
+  withFetchMock(async (originalFetch) => {
+    installUrlHandler(originalFetch, (url) =>
+      url.includes("storage.bunnycdn.com") ? Promise.resolve(respond()) : null,
+    );
+    await fn();
+  });
