@@ -197,7 +197,7 @@ describe("google-wallet", () => {
       const payload = buildJwtPayload(makePassData(), creds);
       const jwt = await signJwt(payload, creds.serviceAccountKey);
       const headerJson = atob(
-        jwt.split(".")[0]?.replace(/-/g, "+").replace(/_/g, "/"),
+        jwt.split(".")[0]!.replace(/-/g, "+").replace(/_/g, "/"),
       );
       const header = JSON.parse(headerJson);
       expect(header.alg).toBe("RS256");

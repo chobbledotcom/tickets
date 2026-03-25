@@ -45,8 +45,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("createTestDbWithSetup creates the owner user", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      expect(user?.id).toBe(1);
-      expect(user?.wrapped_data_key).not.toBeNull();
+      expect(user!.id).toBe(1);
+      expect(user!.wrapped_data_key).not.toBeNull();
 
       const level = await decryptAdminLevel(user!);
       expect(level).toBe("owner");
@@ -78,7 +78,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("getAllUsers returns all users", async () => {
       const users = await getAllUsers();
       expect(users.length).toBe(1);
-      expect(users[0]?.id).toBe(1);
+      expect(users[0]!.id).toBe(1);
     });
   });
 
@@ -179,7 +179,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           "manager-idx-unique",
           encHash,
           // Give the manager a wrapped_data_key so login works
-          (await getUserByUsername(TEST_ADMIN_USERNAME))?.wrapped_data_key,
+          (await getUserByUsername(TEST_ADMIN_USERNAME))!.wrapped_data_key,
           await encrypt("manager"),
         ],
       });

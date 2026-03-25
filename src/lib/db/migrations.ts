@@ -347,7 +347,7 @@ export const initDb = async (): Promise<void> => {
     const userCountRows = await queryAll<{ count: number }>(
       "SELECT COUNT(*) as count FROM users",
     );
-    const hasNoUsers = userCountRows[0]?.count === 0;
+    const hasNoUsers = userCountRows[0]!.count === 0;
 
     if (existingPasswordHash && hasNoUsers) {
       const username = "admin";

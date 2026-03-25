@@ -328,7 +328,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]?.id);
+      await markRefunded(attendees[0]!.id);
 
       const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
@@ -347,7 +347,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]?.id);
+      await markRefunded(attendees[0]!.id);
 
       const response = await postCheckin(token, session, "false");
       expect(response.status).toBe(302);

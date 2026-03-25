@@ -31,7 +31,7 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
       sendNtfyError(ErrorCode.DB_CONNECTION);
 
       expect(fetchStub.calls.length).toBe(1);
-      const [url, options] = fetchStub.calls[0]?.args as [string, RequestInit];
+      const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       expect(url).toBe("https://ntfy.sh/my-topic");
       expect(options.method).toBe("POST");
       expect(options.body).toBe("E_DB_CONNECTION");
@@ -42,7 +42,7 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
 
       sendNtfyError(ErrorCode.CAPACITY_EXCEEDED);
 
-      const [, options] = fetchStub.calls[0]?.args as [string, RequestInit];
+      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
       expect(headers.Title).toBe("localhost error");
     });
@@ -52,7 +52,7 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
 
       sendNtfyError(ErrorCode.STRIPE_SIGNATURE);
 
-      const [, options] = fetchStub.calls[0]?.args as [string, RequestInit];
+      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
       expect(headers.Tags).toBe("warning");
     });
@@ -72,8 +72,8 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
 
       expect(fetchStub.calls.length).toBe(1);
       expect(errorSpy.calls.length).toBe(1);
-      expect(errorSpy.calls[0]?.args[0]).toContain("[Error] E_CDN_REQUEST");
-      expect(errorSpy.calls[0]?.args[0]).toContain("ntfy send failed");
+      expect(errorSpy.calls[0]!.args[0]).toContain("[Error] E_CDN_REQUEST");
+      expect(errorSpy.calls[0]!.args[0]).toContain("ntfy send failed");
       errorSpy.restore();
     });
   });

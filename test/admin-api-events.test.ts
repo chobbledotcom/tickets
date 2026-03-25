@@ -29,7 +29,7 @@ const getTestDataKey = async (): Promise<CryptoKey> => {
   );
   const token = sessionMatch?.[1]!;
   const session = await getSession(token);
-  return unwrapKeyWithToken(session?.wrapped_data_key!, token);
+  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
 };
 
 /** Create an API key and return its token */

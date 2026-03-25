@@ -107,7 +107,7 @@ describe("CSV with custom questions", () => {
 
     const lines = csv.split("\n");
     // Last two values should be empty (no answers)
-    expect(lines[1]?.endsWith(",,")).toBe(true);
+    expect(lines[1]!.endsWith(",,")).toBe(true);
   });
 
   test("generates normal CSV when no questionData provided", () => {

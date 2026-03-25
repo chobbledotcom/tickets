@@ -182,14 +182,14 @@ describeWithEnv(
       const fileContent = new TextEncoder().encode("data");
 
       const before = await getAttendeeRaw(attendeeId);
-      expect(before?.attachment_downloads).toBe(0);
+      expect(before!.attachment_downloads).toBe(0);
 
       await withCdnMock(fileContent, async () => {
         await handleRequest(mockRequest(path));
       });
 
       const after = await getAttendeeRaw(attendeeId);
-      expect(after?.attachment_downloads).toBe(1);
+      expect(after!.attachment_downloads).toBe(1);
     });
 
     test("returns 404 when CDN download fails", async () => {

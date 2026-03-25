@@ -26,14 +26,14 @@ describe("cache-registry", () => {
     registerCache(() => ({ name: "test", entries: 5 }));
     const stats = getAllCacheStats();
     expect(stats).toHaveLength(1);
-    expect(stats[0]?.name).toBe("test");
-    expect(stats[0]?.entries).toBe(5);
+    expect(stats[0]!.name).toBe("test");
+    expect(stats[0]!.entries).toBe(5);
   });
 
   test("supports capacity field", () => {
     registerCache(() => ({ name: "lru", entries: 100, capacity: 10000 }));
     const stats = getAllCacheStats();
-    expect(stats[0]?.capacity).toBe(10000);
+    expect(stats[0]!.capacity).toBe(10000);
   });
 
   test("collects stats from multiple caches", () => {
@@ -47,8 +47,8 @@ describe("cache-registry", () => {
   test("calls providers each time to get fresh stats", () => {
     let count = 0;
     registerCache(() => ({ name: "dynamic", entries: ++count }));
-    expect(getAllCacheStats()[0]?.entries).toBe(1);
-    expect(getAllCacheStats()[0]?.entries).toBe(2);
+    expect(getAllCacheStats()[0]!.entries).toBe(1);
+    expect(getAllCacheStats()[0]!.entries).toBe(2);
   });
 
   test("resetCacheRegistry clears all providers", () => {
@@ -182,7 +182,7 @@ describeWithEnv("caching integration", { db: true }, () => {
       const second = await getAllHolidays();
       expect(first).toBe(second); // same reference = cached
       expect(first).toHaveLength(1);
-      expect(first[0]?.name).toBe("Summer Break");
+      expect(first[0]!.name).toBe("Summer Break");
     });
   });
 
@@ -198,7 +198,7 @@ describeWithEnv("caching integration", { db: true }, () => {
 
     const second = await runWithRequestCache(() => getAllHolidays());
     expect(second).toHaveLength(1);
-    expect(second[0]?.name).toBe("Winter Break");
+    expect(second[0]!.name).toBe("Winter Break");
   });
 
   test("cache-registry collects stats from request caches", async () => {
@@ -210,7 +210,7 @@ describeWithEnv("caching integration", { db: true }, () => {
       const stats = getAllCacheStats();
       const testStat = stats.find((s) => s.name === "test-integration");
       expect(testStat).toBeDefined();
-      expect(testStat?.entries).toBe(3);
+      expect(testStat!.entries).toBe(3);
     });
   });
 });

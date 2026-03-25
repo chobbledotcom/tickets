@@ -408,11 +408,11 @@ describeWithEnv(
       setWalletEnvVars();
       const config = settings.appleWallet.hostConfig;
       expect(config).not.toBeNull();
-      expect(config?.passTypeId).toBe("pass.com.env.tickets");
-      expect(config?.teamId).toBe("ENVTEAM001");
-      expect(config?.signingCert).toContain("BEGIN CERTIFICATE");
-      expect(config?.signingKey).toContain("BEGIN RSA PRIVATE KEY");
-      expect(config?.wwdrCert).toContain("BEGIN CERTIFICATE");
+      expect(config!.passTypeId).toBe("pass.com.env.tickets");
+      expect(config!.teamId).toBe("ENVTEAM001");
+      expect(config!.signingCert).toContain("BEGIN CERTIFICATE");
+      expect(config!.signingKey).toContain("BEGIN RSA PRIVATE KEY");
+      expect(config!.wwdrCert).toContain("BEGIN CERTIFICATE");
     });
   },
 );
@@ -440,8 +440,8 @@ describeWithEnv(
       setWalletEnvVars();
       const config = settings.appleWallet.config;
       expect(config).not.toBeNull();
-      expect(config?.passTypeId).toBe("pass.com.env.tickets");
-      expect(config?.teamId).toBe("ENVTEAM001");
+      expect(config!.passTypeId).toBe("pass.com.env.tickets");
+      expect(config!.teamId).toBe("ENVTEAM001");
     });
 
     test("getAppleWalletConfig prefers DB config over env vars", async () => {
@@ -449,8 +449,8 @@ describeWithEnv(
       await configureAppleWallet();
       const config = settings.appleWallet.config;
       expect(config).not.toBeNull();
-      expect(config?.passTypeId).toBe("pass.com.test.tickets");
-      expect(config?.teamId).toBe("TESTTEAM01");
+      expect(config!.passTypeId).toBe("pass.com.test.tickets");
+      expect(config!.teamId).toBe("TESTTEAM01");
     });
 
     test("wallet route works with env var config", async () => {

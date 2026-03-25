@@ -448,7 +448,7 @@ describe("forms", () => {
     test("description field has maxlength matching MAX_TEXTAREA_LENGTH", () => {
       const descField = eventFields.find((f) => f.name === "description");
       expect(descField).toBeDefined();
-      expect(descField?.maxlength).toBe(MAX_TEXTAREA_LENGTH);
+      expect(descField!.maxlength).toBe(MAX_TEXTAREA_LENGTH);
     });
   });
 
@@ -606,23 +606,23 @@ describe("forms", () => {
     test("returns name and email fields for email setting", () => {
       const fields = getTicketFields("email", false);
       expect(fields.length).toBe(2);
-      expect(fields[0]?.name).toBe("name");
-      expect(fields[1]?.name).toBe("email");
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
     });
 
     test("returns name and phone fields for phone setting", () => {
       const fields = getTicketFields("phone", false);
       expect(fields.length).toBe(2);
-      expect(fields[0]?.name).toBe("name");
-      expect(fields[1]?.name).toBe("phone");
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("phone");
     });
 
     test("returns name, email, and phone fields for email,phone setting", () => {
       const fields = getTicketFields("email,phone", false);
       expect(fields.length).toBe(3);
-      expect(fields[0]?.name).toBe("name");
-      expect(fields[1]?.name).toBe("email");
-      expect(fields[2]?.name).toBe("phone");
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
     });
 
     test("phone field has validation", () => {
@@ -640,17 +640,17 @@ describe("forms", () => {
     test("returns name and address fields for address setting", () => {
       const fields = getTicketFields("address", false);
       expect(fields.length).toBe(2);
-      expect(fields[0]?.name).toBe("name");
-      expect(fields[1]?.name).toBe("address");
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("address");
     });
 
     test("returns all four contact fields for email,phone,address setting", () => {
       const fields = getTicketFields("email,phone,address", false);
       expect(fields.length).toBe(4);
-      expect(fields[0]?.name).toBe("name");
-      expect(fields[1]?.name).toBe("email");
-      expect(fields[2]?.name).toBe("phone");
-      expect(fields[3]?.name).toBe("address");
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
+      expect(fields[3]!.name).toBe("address");
     });
 
     test("address field has validation", () => {
@@ -663,8 +663,8 @@ describe("forms", () => {
     test("returns name and special_instructions fields for special_instructions setting", () => {
       const fields = getTicketFields("special_instructions", false);
       expect(fields.length).toBe(2);
-      expect(fields[0]?.name).toBe("name");
-      expect(fields[1]?.name).toBe("special_instructions");
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("special_instructions");
     });
 
     test("special_instructions field has validation", () => {
@@ -680,45 +680,45 @@ describe("forms", () => {
         false,
       );
       expect(fields.length).toBe(5);
-      expect(fields[0]?.name).toBe("name");
-      expect(fields[1]?.name).toBe("email");
-      expect(fields[2]?.name).toBe("phone");
-      expect(fields[3]?.name).toBe("address");
-      expect(fields[4]?.name).toBe("special_instructions");
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
+      expect(fields[3]!.name).toBe("address");
+      expect(fields[4]!.name).toBe("special_instructions");
     });
 
     test("ignores unknown field names in comma-separated setting", () => {
       const fields = getTicketFields("email,bogus,phone", false);
       expect(fields.length).toBe(3);
-      expect(fields[0]?.name).toBe("name");
-      expect(fields[1]?.name).toBe("email");
-      expect(fields[2]?.name).toBe("phone");
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
     });
 
     test("returns only name for empty fields setting", () => {
       const fields = getTicketFields("", false);
       expect(fields.length).toBe(1);
-      expect(fields[0]?.name).toBe("name");
+      expect(fields[0]!.name).toBe("name");
     });
 
     test("name field has autocomplete=name", () => {
       const fields = getTicketFields("email", false);
-      expect(fields[0]?.autocomplete).toBe("name");
+      expect(fields[0]!.autocomplete).toBe("name");
     });
 
     test("email field has autocomplete=email", () => {
       const fields = getTicketFields("email", false);
-      expect(fields[1]?.autocomplete).toBe("email");
+      expect(fields[1]!.autocomplete).toBe("email");
     });
 
     test("phone field has autocomplete=tel", () => {
       const fields = getTicketFields("phone", false);
-      expect(fields[1]?.autocomplete).toBe("tel");
+      expect(fields[1]!.autocomplete).toBe("tel");
     });
 
     test("address field has autocomplete=street-address", () => {
       const fields = getTicketFields("address", false);
-      expect(fields[1]?.autocomplete).toBe("street-address");
+      expect(fields[1]!.autocomplete).toBe("street-address");
     });
 
     test("includes email when Square is active and event is paid", () => {
@@ -726,9 +726,9 @@ describe("forms", () => {
       try {
         const fields = getTicketFields("phone", true);
         expect(fields.length).toBe(3);
-        expect(fields[0]?.name).toBe("name");
-        expect(fields[1]?.name).toBe("email");
-        expect(fields[2]?.name).toBe("phone");
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
+        expect(fields[2]!.name).toBe("phone");
       } finally {
         s.restore();
       }
@@ -739,8 +739,8 @@ describe("forms", () => {
       try {
         const fields = getTicketFields("phone", false);
         expect(fields.length).toBe(2);
-        expect(fields[0]?.name).toBe("name");
-        expect(fields[1]?.name).toBe("phone");
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("phone");
       } finally {
         s.restore();
       }
@@ -751,9 +751,9 @@ describe("forms", () => {
       try {
         const fields = getTicketFields("email,phone", true);
         expect(fields.length).toBe(3);
-        expect(fields[0]?.name).toBe("name");
-        expect(fields[1]?.name).toBe("email");
-        expect(fields[2]?.name).toBe("phone");
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
+        expect(fields[2]!.name).toBe("phone");
       } finally {
         s.restore();
       }
@@ -764,8 +764,8 @@ describe("forms", () => {
       try {
         const fields = getTicketFields("", true);
         expect(fields.length).toBe(2);
-        expect(fields[0]?.name).toBe("name");
-        expect(fields[1]?.name).toBe("email");
+        expect(fields[0]!.name).toBe("name");
+        expect(fields[1]!.name).toBe("email");
       } finally {
         s.restore();
       }
@@ -1265,11 +1265,11 @@ describe("forms", () => {
 
   describe("field autocomplete attributes", () => {
     test("login username field has autocomplete=username", () => {
-      expect(loginFields[0]?.autocomplete).toBe("username");
+      expect(loginFields[0]!.autocomplete).toBe("username");
     });
 
     test("login password field has autocomplete=current-password", () => {
-      expect(loginFields[1]?.autocomplete).toBe("current-password");
+      expect(loginFields[1]!.autocomplete).toBe("current-password");
     });
 
     test("setup password fields have autocomplete=new-password", () => {
@@ -1277,22 +1277,22 @@ describe("forms", () => {
       const confirmField = setupFields.find(
         (f) => f.name === "admin_password_confirm",
       );
-      expect(pwField?.autocomplete).toBe("new-password");
-      expect(confirmField?.autocomplete).toBe("new-password");
+      expect(pwField!.autocomplete).toBe("new-password");
+      expect(confirmField!.autocomplete).toBe("new-password");
     });
 
     test("change password current field has autocomplete=current-password", () => {
-      expect(changePasswordFields[0]?.autocomplete).toBe("current-password");
+      expect(changePasswordFields[0]!.autocomplete).toBe("current-password");
     });
 
     test("change password new fields have autocomplete=new-password", () => {
-      expect(changePasswordFields[1]?.autocomplete).toBe("new-password");
-      expect(changePasswordFields[2]?.autocomplete).toBe("new-password");
+      expect(changePasswordFields[1]!.autocomplete).toBe("new-password");
+      expect(changePasswordFields[2]!.autocomplete).toBe("new-password");
     });
 
     test("join password fields have autocomplete=new-password", () => {
-      expect(joinFields[0]?.autocomplete).toBe("new-password");
-      expect(joinFields[1]?.autocomplete).toBe("new-password");
+      expect(joinFields[0]!.autocomplete).toBe("new-password");
+      expect(joinFields[1]!.autocomplete).toBe("new-password");
     });
   });
 

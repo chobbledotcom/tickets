@@ -151,7 +151,7 @@ const expectImageErrorRedirect = (
   const cookies = response.headers.getSetCookie();
   const flash = cookies.find((c) => c.startsWith("flash_"));
   expect(flash).toBeDefined();
-  const cookiePart = flash?.split(";")[0] ?? "";
+  const cookiePart = flash!.split(";")[0] ?? "";
   // Cookie is "flash_{id}={value}", extract value after first "="
   const decoded = decodeURIComponent(cookiePart.split("=").slice(1).join("="));
   expect(decoded).toContain(errorSubstring);

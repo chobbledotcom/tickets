@@ -3073,7 +3073,7 @@ describe("html", () => {
         "2026-03-10",
       );
       const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
-      const optionTexts = [...selectMatch[1]?.matchAll(/>([^<]+)</g)].map(
+      const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map(
         (m) => m[1],
       );
       expect(optionTexts).toEqual([
@@ -3107,7 +3107,7 @@ describe("html", () => {
         "2026-03-10",
       );
       const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
-      const optionTexts = [...selectMatch[1]?.matchAll(/>([^<]+)</g)].map(
+      const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map(
         (m) => m[1],
       );
       expect(optionTexts).toEqual([
@@ -3139,7 +3139,7 @@ describe("html", () => {
         "2026-03-10",
       );
       const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
-      const optionTexts = [...selectMatch[1]?.matchAll(/>([^<]+)</g)].map(
+      const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map(
         (m) => m[1],
       );
       expect(optionTexts).toEqual([

@@ -140,7 +140,7 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
       questionMap.set(row.q_id, { text: row.q_text, answers: [] });
     }
     if (row.a_id !== null) {
-      questionMap.get(row.q_id)?.answers.push({
+      questionMap.get(row.q_id)!.answers.push({
         id: row.a_id,
         question_id: row.a_question_id!,
         text: row.a_text!,
@@ -425,5 +425,5 @@ export const getNextAnswerSortOrder = async (
     "SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order FROM answers WHERE question_id = ?",
     [questionId],
   );
-  return row?.next_order;
+  return row!.next_order;
 };

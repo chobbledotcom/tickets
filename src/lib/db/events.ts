@@ -425,7 +425,7 @@ export const getEventWithAttendeeRaw = async (
 
   return withBatchEvent(
     eventResult!,
-    () => resultRows<{ count: number }>(countResult!)[0]?.count,
+    () => resultRows<{ count: number }>(countResult!)[0]!.count,
     (event) => ({
       event,
       attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,

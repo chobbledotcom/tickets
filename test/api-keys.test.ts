@@ -43,7 +43,7 @@ const getTestDataKey = async (): Promise<CryptoKey> => {
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
   );
   const session = await getSession(token);
-  return unwrapKeyWithToken(session?.wrapped_data_key!, token);
+  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
 };
 
 describeWithEnv("API Keys", { db: true }, () => {
@@ -62,8 +62,8 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const found = await getApiKeyByToken(apiKey);
       expect(found).not.toBeNull();
-      expect(found?.user_id).toBe(1);
-      expect(found?.id).toBe(id);
+      expect(found!.user_id).toBe(1);
+      expect(found!.id).toBe(id);
     });
 
     test("unwraps DATA_KEY from API key", async () => {
@@ -77,7 +77,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const found = await getApiKeyByToken(apiKey);
       const unwrapped = await unwrapKeyWithToken(
-        found?.wrapped_data_key,
+        found!.wrapped_data_key,
         apiKey,
       );
       expect(unwrapped).not.toBeNull();
@@ -99,7 +99,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const found = await getApiKeyByToken(apiKey);
       await expect(
-        unwrapKeyWithToken(found?.wrapped_data_key, "wrong-token"),
+        unwrapKeyWithToken(found!.wrapped_data_key, "wrong-token"),
       ).rejects.toThrow();
     });
 
@@ -110,8 +110,8 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const keys = await getApiKeysForUser(1);
       expect(keys).toHaveLength(2);
-      expect(keys[0]?.name).toBe("Key A");
-      expect(keys[1]?.name).toBe("Key B");
+      expect(keys[0]!.name).toBe("Key A");
+      expect(keys[1]!.name).toBe("Key B");
     });
 
     test("counts API keys for a user", async () => {
@@ -171,7 +171,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       await touchApiKeyLastUsed(id);
       const keys = await getApiKeysForUser(1);
-      expect(keys[0]?.lastUsed).toBeTruthy();
+      expect(keys[0]!.lastUsed).toBeTruthy();
     });
 
     test("gets a single API key by ID and user", async () => {
@@ -185,7 +185,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const found = await getApiKeyForUser(id, 1);
       expect(found).not.toBeNull();
-      expect(found?.name).toBe("Lookup Key");
+      expect(found!.name).toBe("Lookup Key");
     });
 
     test("getApiKeyForUser throws for wrong user", async () => {

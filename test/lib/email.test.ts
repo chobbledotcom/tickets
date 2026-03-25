@@ -426,22 +426,22 @@ describeWithEnv("email", { db: true }, () => {
       const attachments = await buildTicketAttachments(entries, "GBP");
 
       expect(attachments.length).toBe(2);
-      expect(attachments[0]?.filename).toBe("ticket-1.svg");
-      expect(attachments[1]?.filename).toBe("ticket-2.svg");
-      expect(attachments[0]?.contentType).toBe("image/svg+xml");
+      expect(attachments[0]!.filename).toBe("ticket-1.svg");
+      expect(attachments[1]!.filename).toBe("ticket-2.svg");
+      expect(attachments[0]!.contentType).toBe("image/svg+xml");
     });
 
     test("uses 'ticket.svg' filename for single entry", async () => {
       const attachments = await buildTicketAttachments([makeEntry()], "GBP");
 
       expect(attachments.length).toBe(1);
-      expect(attachments[0]?.filename).toBe("ticket.svg");
+      expect(attachments[0]!.filename).toBe("ticket.svg");
     });
 
     test("attachment content is base64-encoded UTF-8 SVG", async () => {
       const attachments = await buildTicketAttachments([makeEntry()], "GBP");
 
-      const binary = atob(attachments[0]?.content);
+      const binary = atob(attachments[0]!.content);
       const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
       const decoded = new TextDecoder().decode(bytes);
       expect(decoded).toContain("<?xml");
@@ -455,7 +455,7 @@ describeWithEnv("email", { db: true }, () => {
         "GBP",
       );
 
-      const binary = atob(attachments[0]?.content);
+      const binary = atob(attachments[0]!.content);
       const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
       const decoded = new TextDecoder().decode(bytes);
       expect(decoded).toContain("Café Müsik");

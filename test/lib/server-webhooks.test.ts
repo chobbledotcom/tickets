@@ -937,7 +937,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(3);
-        expect(attendees[0]?.price_paid_v2).toBe(1500);
+        expect(attendees[0]!.price_paid_v2).toBe(1500);
       } finally {
         mockRetrieve.restore();
       }
@@ -980,7 +980,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]?.price_paid_v2).toBe(2000);
+        expect(attendees[0]!.price_paid_v2).toBe(2000);
       } finally {
         mockRetrieve.restore();
       }
@@ -1515,8 +1515,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event1.id);
         expect(attendees.length).toBe(1);
-        const answerMap = await getAttendeeAnswersBatch([attendees[0]?.id]);
-        const attendeeAnswers = answerMap.get(attendees[0]?.id) ?? [];
+        const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        const attendeeAnswers = answerMap.get(attendees[0]!.id) ?? [];
         expect(attendeeAnswers).toEqual([a.id]);
       } finally {
         mockVerify.restore();
@@ -1992,7 +1992,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        expect(attendees[0]?.price_paid_v2).toBe(0);
+        expect(attendees[0]!.price_paid_v2).toBe(0);
       } finally {
         mockRetrieve.restore();
       }
@@ -2035,7 +2035,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        expect(attendees[0]?.price_paid_v2).toBe(0);
+        expect(attendees[0]!.price_paid_v2).toBe(0);
       } finally {
         mockRetrieve.restore();
       }
@@ -2358,7 +2358,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]?.price_paid_v2).toBe(2500);
+        expect(attendees[0]!.price_paid_v2).toBe(2500);
       } finally {
         mockVerify.restore();
       }
@@ -2424,7 +2424,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund.calls[0]?.args).toEqual(["pi_mismatch"]);
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_mismatch"]);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -2502,7 +2502,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees2.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund.calls[0]?.args).toEqual(["pi_multi_mismatch"]);
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -2554,7 +2554,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund.calls[0]?.args).toEqual(["pi_redirect_mismatch"]);
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_redirect_mismatch"]);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -3153,7 +3153,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         expect(response.status).toBe(200);
-        expect(mockRefund.calls[0]?.args).toEqual(["pi_refund_log"]);
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_refund_log"]);
 
         // Verify refund success was logged to console
         const refundLog = debugLogs.find((log) =>
@@ -3168,8 +3168,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           e.message.includes("Automatic refund"),
         );
         expect(refundEntry).toBeDefined();
-        expect(refundEntry?.event_id).toBe(event.id);
-        expect(refundEntry?.message).toContain(
+        expect(refundEntry!.event_id).toBe(event.id);
+        expect(refundEntry!.message).toContain(
           "no longer accepting registrations",
         );
       } finally {
@@ -3233,8 +3233,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           e.message.includes("Automatic refund"),
         );
         expect(refundEntry).toBeDefined();
-        expect(refundEntry?.event_id).toBe(event.id);
-        expect(refundEntry?.message).toContain("price");
+        expect(refundEntry!.event_id).toBe(event.id);
+        expect(refundEntry!.message).toContain("price");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3290,7 +3290,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]?.price_paid_v2).toBe(2500);
+        expect(attendees[0]!.price_paid_v2).toBe(2500);
       } finally {
         mockVerify.restore();
       }
@@ -3357,9 +3357,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
-        expect(attendees1[0]?.price_paid_v2).toBe(2000);
+        expect(attendees1[0]!.price_paid_v2).toBe(2000);
         expect(attendees2.length).toBe(1);
-        expect(attendees2[0]?.price_paid_v2).toBe(1000);
+        expect(attendees2[0]!.price_paid_v2).toBe(1000);
       } finally {
         mockVerify.restore();
       }
@@ -3810,7 +3810,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]?.quantity).toBe(2);
+        expect(attendees[0]!.quantity).toBe(2);
       } finally {
         mockVerify.restore();
       }
@@ -3969,9 +3969,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(att2.length).toBe(1);
 
         // Verify answers saved only for event1's attendee (question belongs to event1 only)
-        const batch = await getAttendeeAnswersBatch([att1[0]?.id, att2[0]?.id]);
-        expect(batch.get(att1[0]?.id)).toEqual([a1.id]);
-        expect(batch.get(att2[0]?.id)).toBeUndefined();
+        const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
+        expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
+        expect(batch.get(att2[0]!.id)).toBeUndefined();
       } finally {
         mockVerify.restore();
       }
@@ -4030,8 +4030,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees.length).toBe(1);
 
         // Verify custom question answers were saved
-        const batch = await getAttendeeAnswersBatch([attendees[0]?.id]);
-        expect(batch.get(attendees[0]?.id)).toEqual([a1.id]);
+        const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        expect(batch.get(attendees[0]!.id)).toEqual([a1.id]);
       } finally {
         mockVerify.restore();
       }

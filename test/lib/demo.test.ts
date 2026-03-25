@@ -200,7 +200,7 @@ describe("wrapResourceForDemo", () => {
 
     // applyDemoOverrides mutates the form in place before passing to resource
     expect(DEMO_GROUP_NAMES as readonly string[]).toContain(
-      getLastCreateForm()?.get("name"),
+      getLastCreateForm()!.get("name"),
     );
   });
 
@@ -216,7 +216,7 @@ describe("wrapResourceForDemo", () => {
     wrapped.update(42, form);
 
     expect(DEMO_HOLIDAY_NAMES as readonly string[]).toContain(
-      getLastUpdateForm()?.get("name"),
+      getLastUpdateForm()!.get("name"),
     );
   });
 
@@ -237,7 +237,7 @@ describe("wrapResourceForDemo", () => {
     const form = new FormParams({ name: "Unchanged" });
     wrapped.create(form);
 
-    expect(getLastCreateForm()?.get("name")).toBe("Unchanged");
+    expect(getLastCreateForm()!.get("name")).toBe("Unchanged");
   });
 });
 

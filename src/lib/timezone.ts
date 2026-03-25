@@ -61,7 +61,7 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
   }).formatToParts(new Date(utcIso));
 
   const get = (type: string): string =>
-    parts.find((p) => p.type === type)?.value;
+    parts.find((p) => p.type === type)!.value;
 
   return `${get("weekday")} ${day} ${get("month")} ${year} at ${pad2(hour)}:${pad2(minute)} ${get("timeZoneName")}`;
 };

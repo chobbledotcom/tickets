@@ -170,18 +170,18 @@ describeWithEnv("admin email templates", { db: true }, () => {
         CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
       );
       expect(rawSubject).not.toBeNull();
-      expect(rawSubject?.startsWith("enc:1:")).toBe(true);
+      expect(rawSubject!.startsWith("enc:1:")).toBe(true);
       expect(rawSubject).not.toContain("event_names");
 
       const rawHtml = settings.getCachedRaw(
         CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
       );
-      expect(rawHtml?.startsWith("enc:1:")).toBe(true);
+      expect(rawHtml!.startsWith("enc:1:")).toBe(true);
 
       const rawText = settings.getCachedRaw(
         CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
       );
-      expect(rawText?.startsWith("enc:1:")).toBe(true);
+      expect(rawText!.startsWith("enc:1:")).toBe(true);
 
       // But getEmailTemplateSet should return decrypted values
       await expectTemplatesMatch("confirmation", {

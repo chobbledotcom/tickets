@@ -41,14 +41,14 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const found = await getQuestion(q.id);
       expect(found).not.toBeNull();
-      expect(found?.text).toBe("Favourite colour?");
+      expect(found!.text).toBe("Favourite colour?");
     });
 
     test("updates a question", async () => {
       const q = await questionsTable.insert({ text: "Old text" });
       await questionsTable.update(q.id, { text: "New text" });
       const found = await getQuestion(q.id);
-      expect(found?.text).toBe("New text");
+      expect(found!.text).toBe("New text");
     });
 
     test("deletes a question and cascades", async () => {
@@ -90,9 +90,9 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const withAnswers = await getQuestionWithAnswers(q.id);
       expect(withAnswers).not.toBeNull();
-      expect(withAnswers?.answers).toHaveLength(2);
-      expect(withAnswers?.answers[0]?.text).toBe("Small");
-      expect(withAnswers?.answers[1]?.text).toBe("Large");
+      expect(withAnswers!.answers).toHaveLength(2);
+      expect(withAnswers!.answers[0]!.text).toBe("Small");
+      expect(withAnswers!.answers[1]!.text).toBe("Large");
     });
 
     test("deletes a single answer", async () => {
@@ -111,8 +111,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       await deleteAnswer(small.id);
 
       const withAnswers = await getQuestionWithAnswers(q.id);
-      expect(withAnswers?.answers).toHaveLength(1);
-      expect(withAnswers?.answers[0]?.text).toBe("Large");
+      expect(withAnswers!.answers).toHaveLength(1);
+      expect(withAnswers!.answers[0]!.text).toBe("Large");
     });
   });
 
@@ -137,8 +137,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const questions = await getQuestionsForEvent(event.id);
       expect(questions).toHaveLength(2);
       // Order should match the order provided
-      expect(questions[0]?.text).toBe("Q2");
-      expect(questions[1]?.text).toBe("Q1");
+      expect(questions[0]!.text).toBe("Q2");
+      expect(questions[1]!.text).toBe("Q1");
     });
 
     test("replaces event questions on re-assignment", async () => {
@@ -161,7 +161,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const questions = await getQuestionsForEvent(event.id);
       expect(questions).toHaveLength(1);
-      expect(questions[0]?.text).toBe("Q2");
+      expect(questions[0]!.text).toBe("Q2");
     });
 
     test("returns empty array for event with no questions", async () => {
@@ -184,7 +184,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const questions = await getQuestionsForEvent(event.id);
       expect(questions).toHaveLength(1);
-      expect(questions[0]?.text).toBe("Has answers");
+      expect(questions[0]!.text).toBe("Has answers");
     });
   });
 
@@ -231,8 +231,8 @@ describeWithEnv("custom questions", { db: true }, () => {
         event2.id,
       ]);
       expect(questions).toHaveLength(2);
-      expect(questions[0]?.text).toBe("Q1");
-      expect(questions[1]?.text).toBe("Q2");
+      expect(questions[0]!.text).toBe("Q1");
+      expect(questions[1]!.text).toBe("Q2");
     });
 
     test("returns event-ID mapping for each question", async () => {
@@ -285,7 +285,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const { questions } = await getQuestionsWithEventIds([event.id]);
       expect(questions).toHaveLength(1);
-      expect(questions[0]?.text).toBe("Has answers");
+      expect(questions[0]!.text).toBe("Has answers");
     });
   });
 
@@ -499,8 +499,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       await swapAnswerOrder(a1.id, 0, a2.id, 1);
       const updated = await getQuestionWithAnswers(q.id);
       // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
-      expect(updated?.answers[0]?.text).toBe("Second");
-      expect(updated?.answers[1]?.text).toBe("First");
+      expect(updated!.answers[0]!.text).toBe("Second");
+      expect(updated!.answers[1]!.text).toBe("First");
     });
   });
 });

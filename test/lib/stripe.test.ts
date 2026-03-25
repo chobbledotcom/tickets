@@ -109,7 +109,7 @@ describeWithEnv(
           async (retrieveSpy) => {
             const result = await retrieveCheckoutSession("cs_test_123");
             expect(result).toBeNull();
-            expect(retrieveSpy.calls[0]?.args).toEqual(["cs_test_123"]);
+            expect(retrieveSpy.calls[0]!.args).toEqual(["cs_test_123"]);
           },
         );
       });
@@ -373,7 +373,7 @@ describeWithEnv(
             "http://localhost:3000",
           );
 
-          const params = createSpy.calls[0]?.args[0] as unknown as {
+          const params = createSpy.calls[0]!.args[0] as unknown as {
             line_items: {
               price_data: {
                 product_data: { name: string };
@@ -388,8 +388,8 @@ describeWithEnv(
           );
           expect(feeItem).toBeDefined();
           // 5% of 1000 = 50
-          expect(feeItem?.price_data.unit_amount).toBe(50);
-          expect(feeItem?.quantity).toBe(1);
+          expect(feeItem!.price_data.unit_amount).toBe(50);
+          expect(feeItem!.quantity).toBe(1);
         } finally {
           createSpy.restore();
         }
@@ -788,14 +788,14 @@ describeWithEnv(
             expect(result.ownEndpointId).toBe("we_test_valid");
             expect(result.webhooks).toHaveLength(2);
             const [first, second] = result.webhooks;
-            expect(first?.endpointId).toBe("we_test_valid");
-            expect(first?.url).toBe("https://example.com/payment/webhook");
-            expect(first?.status).toBe("enabled");
-            expect(first?.enabledEvents).toContain(
+            expect(first!.endpointId).toBe("we_test_valid");
+            expect(first!.url).toBe("https://example.com/payment/webhook");
+            expect(first!.status).toBe("enabled");
+            expect(first!.enabledEvents).toContain(
               "checkout.session.completed",
             );
-            expect(second?.endpointId).toBe("we_test_other");
-            expect(second?.url).toBe("https://other.com/webhook");
+            expect(second!.endpointId).toBe("we_test_other");
+            expect(second!.url).toBe("https://other.com/webhook");
           },
         );
       });
@@ -1308,7 +1308,7 @@ describeWithEnv(
           if (!result.success) {
             // Stripe SDK wraps connection errors with retry info
             expect(typeof result.error).toBe("string");
-            expect(result.error?.length > 0).toBe(true);
+            expect(result.error!.length > 0).toBe(true);
           }
         });
       });
@@ -1354,7 +1354,7 @@ describeWithEnv(
           if (!result.success) {
             // Stripe SDK wraps thrown values, so error message comes from SDK wrapper
             expect(typeof result.error).toBe("string");
-            expect(result.error?.length > 0).toBe(true);
+            expect(result.error!.length > 0).toBe(true);
           }
         });
       });
@@ -1473,7 +1473,7 @@ describeWithEnv(
         const errorSpy = spy(console, "error");
         try {
           await verifyWebhookSignature('{"test": true}', "v1=abc123");
-          const callArg = errorSpy.calls[0]?.args[0] as string;
+          const callArg = errorSpy.calls[0]!.args[0] as string;
           expect(callArg).toContain(
             'detail="invalid header: missing timestamp"',
           );
@@ -1486,7 +1486,7 @@ describeWithEnv(
         const errorSpy = spy(console, "error");
         try {
           await verifyWebhookSignature('{"test": true}', "t=1234");
-          const callArg = errorSpy.calls[0]?.args[0] as string;
+          const callArg = errorSpy.calls[0]!.args[0] as string;
           expect(callArg).toContain(
             'detail="invalid header: missing signature"',
           );
@@ -1499,7 +1499,7 @@ describeWithEnv(
         const errorSpy = spy(console, "error");
         try {
           await verifyWebhookSignature('{"test": true}', "invalid-header");
-          const callArg = errorSpy.calls[0]?.args[0] as string;
+          const callArg = errorSpy.calls[0]!.args[0] as string;
           expect(callArg).toContain(
             'detail="invalid header: missing timestamp and signature"',
           );
@@ -1536,7 +1536,7 @@ describeWithEnv(
             payload,
             `t=${oldTimestamp},v1=${sigHex}`,
           );
-          const callArg = errorSpy.calls[0]?.args[0] as string;
+          const callArg = errorSpy.calls[0]!.args[0] as string;
           expect(callArg).toContain("timestamp out of tolerance delta=");
           expect(callArg).toContain("tolerance=300s");
         } finally {
@@ -1569,7 +1569,7 @@ describeWithEnv(
 
         try {
           await verifyWebhookSignature(payload, `t=${timestamp},v1=${sigHex}`);
-          const callArg = errorSpy.calls[0]?.args[0] as string;
+          const callArg = errorSpy.calls[0]!.args[0] as string;
           expect(callArg).toContain('detail="invalid JSON:');
         } finally {
           errorSpy.restore();
@@ -2258,7 +2258,7 @@ describeWithEnv(
             },
           });
           // retrieveSession called with event object id
-          expect(mockRetrieve.calls[0]?.args[0]).toBe("cs_no_meta");
+          expect(mockRetrieve.calls[0]!.args[0]).toBe("cs_no_meta");
           expect(result).toBeNull();
         } finally {
           mockRetrieve.restore();

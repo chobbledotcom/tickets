@@ -382,7 +382,7 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
     }),
   );
   for (let i = 0; i < ENCRYPTED_FIELDS.length; i++) {
-    setSnapshotField(ENCRYPTED_FIELDS[i]?.[1], values[i]!);
+    setSnapshotField(ENCRYPTED_FIELDS[i]![1], values[i]!);
   }
 };
 

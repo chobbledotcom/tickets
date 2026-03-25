@@ -210,12 +210,12 @@ describeWithEnv("page content cache", { db: true }, () => {
       await s.loadAll();
 
       const before = getAllCacheStats().find((s) => s.name === "settings");
-      expect(before?.entries).toBeGreaterThan(0);
+      expect(before!.entries).toBeGreaterThan(0);
 
       settings.invalidateCache();
 
       const after = getAllCacheStats().find((s) => s.name === "settings");
-      expect(after?.entries).toBe(0);
+      expect(after!.entries).toBe(0);
     });
   });
 

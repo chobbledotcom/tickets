@@ -115,10 +115,10 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     await createTestAttendee(event.id, event.slug, "Grace", "grace@test.com");
     const attendees = await getAttendeesRaw(event.id);
 
-    expect(attendees[0]?.ticket_token_index).not.toBe("");
-    expect(attendees[1]?.ticket_token_index).not.toBe("");
-    expect(attendees[0]?.ticket_token_index).not.toBe(
-      attendees[1]?.ticket_token_index,
+    expect(attendees[0]!.ticket_token_index).not.toBe("");
+    expect(attendees[1]!.ticket_token_index).not.toBe("");
+    expect(attendees[0]!.ticket_token_index).not.toBe(
+      attendees[1]!.ticket_token_index,
     );
   });
 
