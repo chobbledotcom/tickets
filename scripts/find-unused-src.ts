@@ -15,7 +15,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const ROOT = path.resolve(import.meta.dirname!, "..");
+const ROOT = path.resolve(import.meta.dirname as string, "..");
 
 // Read and parse deno.json import map
 const denoConfig = JSON.parse(
@@ -109,7 +109,7 @@ function extractImports(
 
   for (const match of content.matchAll(staticRegex)) {
     const namedImports = (match[1] || "") + (match[3] || "");
-    imports.push({ specifier: match[4]!, names: parseNames(namedImports) });
+    imports.push({ specifier: match[4] as string, names: parseNames(namedImports) });
   }
 
   // Dynamic imports:

@@ -348,7 +348,7 @@ export const adminAdvancedSettingsPage = (
             {s.confirmationTemplates.text}
           </textarea>
         </label>
-        <a href="#" data-fill-default="confirmation_text">
+        <a href="#settings-email-tpl-confirmation" data-fill-default="confirmation_text">
           <small>Edit default template</small>
         </a>
         <br />
@@ -386,7 +386,7 @@ export const adminAdvancedSettingsPage = (
             {s.adminTemplates.html}
           </textarea>
         </label>
-        <a href="#" data-fill-default="admin_html">
+        <a href="#settings-email-tpl-admin" data-fill-default="admin_html">
           <small>Edit default template</small>
         </a>
         <label>
@@ -401,7 +401,7 @@ export const adminAdvancedSettingsPage = (
             {s.adminTemplates.text}
           </textarea>
         </label>
-        <a href="#" data-fill-default="admin_text">
+        <a href="#settings-email-tpl-admin" data-fill-default="admin_text">
           <small>Edit default template</small>
         </a>
         <br />

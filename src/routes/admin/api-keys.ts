@@ -112,7 +112,7 @@ const handleApiKeyDelete: TypedRouteHandler<
   "POST /admin/api-keys/:apiKeyId/delete"
 > = (request, { apiKeyId }) =>
   withOwnerAuthForm(request, async (session, form) => {
-    let apiKey;
+    let apiKey: Awaited<ReturnType<typeof getApiKeyForUser>>;
     try {
       apiKey = await getApiKeyForUser(apiKeyId, session.userId);
     } catch {

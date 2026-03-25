@@ -372,7 +372,7 @@ const getGroupAttendeeCount = async (
        AND (? IS NULL OR e.event_type != 'daily' OR a.date = ?)`,
     [groupId, date, date],
   );
-  return rows[0]?.count;
+  return rows[0]?.count ?? 0;
 };
 
 /** Stubbable API for testing atomic operations */

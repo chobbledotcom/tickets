@@ -218,6 +218,31 @@ const parseFieldValue = (
       : null
     : trimmed;
 
+/** Extract raw field value from form data, handling datetime and checkbox-group specially */
+const extractFieldValue = (
+  form: FormParams,
+  field: Field,
+): FieldValidationResult | string => {
+  if (field.type === "datetime") {
+    const result = getDatetimeValue(form, field.name);
+    if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
+    if (!result) {
+      if (field.required)
+        return { valid: false, error: `${field.label} is required` };
+      return { valid: true, value: null };
+    }
+    return result;
+  }
+  if (field.type === "checkbox-group") {
+    return form
+      .getAll(field.name)
+      .map((v) => v.trim())
+      .filter((v) => v)
+      .join(",");
+  }
+  return form.getString(field.name);
+};
+
 /**
  * Validate a single field and return its parsed value.
  * For checkbox-group fields, collects all checked values via getAll()
@@ -230,26 +255,10 @@ const validateSingleField = (
   // File fields are handled separately via FormData, not URLSearchParams
   if (field.type === "file") return { valid: true, value: null };
 
-  let trimmed: string;
+  const extracted = extractFieldValue(form, field);
+  if (typeof extracted !== "string") return extracted;
 
-  if (field.type === "datetime") {
-    const result = getDatetimeValue(form, field.name);
-    if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
-    if (!result) {
-      if (field.required)
-        return { valid: false, error: `${field.label} is required` };
-      return { valid: true, value: null };
-    }
-    trimmed = result;
-  } else if (field.type === "checkbox-group") {
-    trimmed = form
-      .getAll(field.name)
-      .map((v) => v.trim())
-      .filter((v) => v)
-      .join(",");
-  } else {
-    trimmed = form.getString(field.name);
-  }
+  let trimmed = extracted;
 
   if (!trimmed && field.defaultValue) {
     trimmed = field.defaultValue;
