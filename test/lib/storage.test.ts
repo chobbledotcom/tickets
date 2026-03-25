@@ -11,10 +11,10 @@ import {
   getMimeTypeFromFilename,
   isStorageEnabled,
   MAX_ATTACHMENT_SIZE,
+  runWithStorageConfig,
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
 import {
   describeWithEnv,
   installUrlHandler,
@@ -438,9 +438,9 @@ describeWithEnv(
 
                 await deleteAllEventStorageFiles(events);
 
-                expect(
-                  deletedUrls.some((u) => u.includes("succeed.jpg")),
-                ).toBe(true);
+                expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(
+                  true,
+                );
               }),
           );
         });

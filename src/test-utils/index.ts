@@ -13,7 +13,6 @@ import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
@@ -26,7 +25,7 @@ import {
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { createApiKey } from "#lib/db/api-keys.ts";
-import { setDb } from "#lib/db/client.ts";
+import { getDb, setDb } from "#lib/db/client.ts";
 import {
   type EventInput,
   getEventWithCount,
@@ -34,7 +33,7 @@ import {
 } from "#lib/db/events.ts";
 import { type GroupInput, invalidateGroupsCache } from "#lib/db/groups.ts";
 import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations.ts";
+import { initDb } from "#lib/db/migrations.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
@@ -42,6 +41,7 @@ import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig } from "#lib/email.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
+import { runWithStorageConfig } from "#lib/storage.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
@@ -97,14 +97,8 @@ export const clearTestEncryptionKey = (): void => {
 // RSA keys + password hashes on every single test.
 // ---------------------------------------------------------------------------
 
-/** Cached in-memory SQLite client, reused across tests */
-let cachedClient: Client | null = null;
-
-/** Get the cached client, throwing if not initialized */
-const getClient = (): Client => {
-  if (!cachedClient) throw new Error("Test client not initialized");
-  return cachedClient;
-};
+/** Get the current test DB client (set via setDb in prepareTestClient). */
+const getClient = (): Client => getDb();
 
 /** Snapshot of settings rows after completeSetup (avoids re-running crypto) */
 let cachedSetupSettings: Array<{ key: string; value: string }> | null = null;
@@ -124,39 +118,8 @@ let cachedAdminSession: {
   };
 } | null = null;
 
-/** Clear all data tables and reset autoincrement counters */
-const clearDataTables = async (client: Client): Promise<void> => {
-  // Disable FK checks outside the batch (PRAGMAs don't work inside transactions)
-  await client.execute("PRAGMA foreign_keys = OFF");
-
-  // Discover all tables (including any test-created ones like test_items)
-  const result = await client.execute(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-  );
-  const tables = result.rows.map((r) => r.name as string);
-
-  // Batch all DELETEs into a single round-trip for speed
-  await client.batch([
-    ...tables.map((t) => `DELETE FROM ${t}`),
-    // Reset autoincrement counters so IDs start from 1
-    "DELETE FROM sqlite_sequence WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence')",
-  ]);
-
-  await client.execute("PRAGMA foreign_keys = ON");
-};
-
-/** Check if the cached client's schema is still intact */
-const isSchemaIntact = async (client: Client): Promise<boolean> => {
-  try {
-    await client.execute("SELECT 1 FROM settings LIMIT 1");
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/** Common setup: env, caches, and reuse-or-create the client */
-const prepareTestClient = async (): Promise<{ reused: boolean }> => {
+/** Common setup: env, caches, and create a fresh in-memory client per test. */
+const prepareTestClient = async (): Promise<void> => {
   setupTestEncryptionKey();
   settings.setup.clearCache();
   resetSessionCache();
@@ -165,56 +128,39 @@ const prepareTestClient = async (): Promise<{ reused: boolean }> => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
 
-  if (cachedClient && (await isSchemaIntact(cachedClient))) {
-    setDb(cachedClient);
-    await clearDataTables(cachedClient);
-    return { reused: true };
-  }
-
   const client = createClient({ url: ":memory:" });
-  cachedClient = client;
   setDb(client);
   await initDb();
-  return { reused: false };
 };
 
 /**
  * Create an in-memory database for testing (without setup).
- * Reuses the cached client and schema when possible, clearing all data.
+ * Creates a fresh in-memory client per test to avoid cross-test interference.
  */
 export const createTestDb = async (): Promise<void> => {
-  const { reused } = await prepareTestClient();
-  // The DB gets cleared/recreated between tests; cached session cookies become invalid.
-  // Force helpers to restore/login again on the next authenticated request.
+  await prepareTestClient();
   resetTestSession();
-  if (reused) {
-    await getClient().execute({
-      sql: "INSERT INTO settings (key, value) VALUES ('latest_db_update', ?)",
-      args: [LATEST_UPDATE],
-    });
-  }
 };
 
 /**
  * Create an in-memory database with setup already completed.
- * On the first call, runs the full setup (migrations + crypto key generation).
- * On subsequent calls, restores the cached settings snapshot instead.
+ * On the first call, runs the full setup (migrations + crypto key generation)
+ * and caches the resulting rows. Subsequent calls restore the cached snapshot
+ * into a fresh in-memory DB to skip expensive crypto operations.
  */
 export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
-  const { reused } = await prepareTestClient();
-
-  // prepareTestClient clears tables when reusing the cached client, which wipes sessions.
-  // Ensure we don't reuse a cookie/CSRF pair that no longer exists in the DB.
+  await prepareTestClient();
   resetTestSession();
 
-  if (reused && cachedSetupSettings) {
+  if (cachedSetupSettings) {
+    // Clear any rows initDb() may have inserted to avoid UNIQUE conflicts
+    await getClient().execute("DELETE FROM settings");
     for (const row of cachedSetupSettings) {
       await getClient().execute({
         sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
         args: [row.key, row.value],
       });
     }
-    // Restore users table
     if (cachedSetupUsers) {
       for (const row of cachedSetupUsers) {
         await getClient().execute({
@@ -257,7 +203,6 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     value: r.value as string,
   }));
 
-  // Also snapshot users table
   const usersResult = await getClient().execute("SELECT * FROM users");
   cachedSetupUsers = usersResult.rows.map((r) => ({ ...r }));
 
@@ -286,7 +231,6 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
 
 /**
  * Reset the database connection and clear caches.
- * Does NOT destroy the cached client — it will be reused by the next test.
  */
 export const resetDb = (): void => {
   setDb(null);
@@ -306,11 +250,10 @@ export const resetDb = (): void => {
 };
 
 /**
- * Invalidate the cached test database client.
+ * Invalidate the cached test database snapshots.
  * Call this when a test intentionally destroys the schema (e.g. resetDatabase).
  */
 export const invalidateTestDbCache = (): void => {
-  cachedClient = null;
   cachedSetupSettings = null;
   cachedSetupUsers = null;
   cachedAdminSession = null;
@@ -940,8 +883,7 @@ export const getTestSession = async (): Promise<{
   if (testSession) return testSession;
 
   // Fast path: restore cached session directly into the DB
-  if (cachedAdminSession && cachedClient) {
-    const { getDb } = await import("#lib/db/client.ts");
+  if (cachedAdminSession) {
     const { sessionRow } = cachedAdminSession;
     await getDb().execute({
       sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
@@ -2480,22 +2422,18 @@ export const cdnOkResponse = (): Response =>
 export const withStorageMock = (
   fn: (fetchCalls: string[]) => Promise<void>,
 ): Promise<void> =>
-  runWithStorageConfig(
-    { zoneName: "testzone", zoneKey: "testkey" },
-    () =>
-      withFetchMock(async (originalFetch) => {
-        const fetchCalls: string[] = [];
-        installUrlHandler(originalFetch, (url) => {
-          fetchCalls.push(url);
-          if (
-            url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")
-          ) {
-            return Promise.resolve(cdnOkResponse());
-          }
-          return null;
-        });
-        await fn(fetchCalls);
-      }),
+  runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () =>
+    withFetchMock(async (originalFetch) => {
+      const fetchCalls: string[] = [];
+      installUrlHandler(originalFetch, (url) => {
+        fetchCalls.push(url);
+        if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
+          return Promise.resolve(cdnOkResponse());
+        }
+        return null;
+      });
+      await fn(fetchCalls);
+    }),
   );
 
 /** Mock fetch where CDN requests return a fixed response, others pass through */
@@ -2503,17 +2441,15 @@ export const withCdnProxy = (
   respond: () => Response,
   fn: () => Promise<void>,
 ): Promise<void> =>
-  runWithStorageConfig(
-    { zoneName: "testzone", zoneKey: "testkey" },
-    () =>
-      withFetchMock(async (originalFetch) => {
-        installUrlHandler(originalFetch, (url) =>
-          url.includes("storage.bunnycdn.com")
-            ? Promise.resolve(respond())
-            : null,
-        );
-        await fn();
-      }),
+  runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () =>
+    withFetchMock(async (originalFetch) => {
+      installUrlHandler(originalFetch, (url) =>
+        url.includes("storage.bunnycdn.com")
+          ? Promise.resolve(respond())
+          : null,
+      );
+      await fn();
+    }),
   );
 
 /**
