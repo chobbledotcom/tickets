@@ -1462,12 +1462,10 @@ export const followRedirectWithFlash = (
   const setCookies = response.headers.getSetCookie();
   const flashCookie = setCookies
     .map((c) => c.split(";")[0])
-    .filter((c) => c.startsWith("flash_"))
+    .filter((c) => c?.startsWith("flash_"))
     .join("; ");
   const cookie = [flashCookie, extraCookie].filter(Boolean).join("; ");
-  return handler(
-    mockRequest(location, cookie ? { headers: { cookie } } : {}),
-  );
+  return handler(mockRequest(location, cookie ? { headers: { cookie } } : {}));
 };
 
 /** Assert a result object has ok:false with the expected error string. */
