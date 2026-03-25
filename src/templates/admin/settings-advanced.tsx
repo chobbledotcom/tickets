@@ -5,6 +5,7 @@
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm } from "#lib/forms.tsx";
+import type { SafeHtml } from "#jsx/jsx-runtime";
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -46,6 +47,75 @@ export type AdvancedSettingsPageState = {
   googleWalletServiceAccountEmail: string;
   hostGoogleWalletLabel: string;
   theme: Theme;
+};
+
+const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
+  if (s.bunnySubdomain) {
+    return (
+      <>
+        <p>
+          Your site is available at{" "}
+          <a href={`https://${s.bunnySubdomain}`}>
+            <strong>{s.bunnySubdomain}</strong>
+          </a>
+          .{" "}
+          {s.customDomain && s.customDomainLastValidated
+            ? `Visitors will be redirected to your custom domain (${s.customDomain}).`
+            : "You can also set a custom domain below."}
+        </p>
+        <p>
+          <small>This subdomain is permanent and cannot be changed.</small>
+        </p>
+      </>
+    );
+  }
+  if (s.subdomainPreview) {
+    return (
+      <>
+        <div class="prose">
+          <p>
+            You can choose a prettier domain name for your tickets site. Enter a
+            subdomain into the box below to preview the full URL &mdash; you can
+            change your mind before saving, but once set this cannot be changed.
+          </p>
+        </div>
+        <p>
+          <strong>{s.subdomainPreviewFullDomain}</strong> is available.
+        </p>
+        <input type="hidden" name="subdomain" value={s.subdomainPreview} />
+        <label>
+          <input type="checkbox" name="save" value="1" /> Confirm registration
+          (cannot be undone)
+        </label>
+        <button type="submit">Register Subdomain</button>
+      </>
+    );
+  }
+  return (
+    <>
+      <div class="prose">
+        <p>
+          You can choose a prettier domain name for your tickets site. Enter a
+          subdomain into the box below to preview the full URL &mdash; you can
+          change your mind before saving, but once set this cannot be changed.
+        </p>
+      </div>
+      <label>
+        Subdomain
+        <input
+          type="text"
+          name="subdomain"
+          placeholder="myevent"
+          autocomplete="off"
+          pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
+        />
+        <span class="muted">{s.bunnyDnsSubdomainSuffix}</span>
+      </label>
+      <button type="submit">
+        Check Availability &amp; Preview Complete Domain
+      </button>
+    </>
+  );
 };
 
 /**
@@ -468,71 +538,7 @@ export const adminAdvancedSettingsPage = (
           id="settings-host-subdomain"
         >
           <h2>Host Subdomain</h2>
-          {s.bunnySubdomain ? (
-            <div>
-              <p>
-                Your site is available at{" "}
-                <a href={`https://${s.bunnySubdomain}`}>
-                  <strong>{s.bunnySubdomain}</strong>
-                </a>
-                .{" "}
-                {s.customDomain && s.customDomainLastValidated
-                  ? `Visitors will be redirected to your custom domain (${s.customDomain}).`
-                  : "You can also set a custom domain below."}
-              </p>
-              <p>
-                <small>
-                  This subdomain is permanent and cannot be changed.
-                </small>
-              </p>
-            </div>
-          ) : (
-            <div>
-              <div class="prose">
-                <p>
-                  You can choose a prettier domain name for your tickets site.
-                  Enter a subdomain into the box below to preview the full URL
-                  &mdash; you can change your mind before saving, but once set
-                  this cannot be changed.
-                </p>
-              </div>
-              {s.subdomainPreview ? (
-                <div>
-                  <p>
-                    <strong>{s.subdomainPreviewFullDomain}</strong> is
-                    available.
-                  </p>
-                  <input
-                    type="hidden"
-                    name="subdomain"
-                    value={s.subdomainPreview}
-                  />
-                  <label>
-                    <input type="checkbox" name="save" value="1" /> Confirm
-                    registration (cannot be undone)
-                  </label>
-                  <button type="submit">Register Subdomain</button>
-                </div>
-              ) : (
-                <div>
-                  <label>
-                    Subdomain
-                    <input
-                      type="text"
-                      name="subdomain"
-                      placeholder="myevent"
-                      autocomplete="off"
-                      pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
-                    />
-                    <span class="muted">{s.bunnyDnsSubdomainSuffix}</span>
-                  </label>
-                  <button type="submit">
-                    Check Availability &amp; Preview Complete Domain
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          {SubdomainFormContent(s)}
         </CsrfForm>
       )}
 
