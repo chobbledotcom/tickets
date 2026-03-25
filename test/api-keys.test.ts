@@ -29,22 +29,12 @@ import {
   extractCsrfToken,
   FLASH_TEST_ID,
   flashCookieHeader,
+  getTestDataKey,
   matchGroup,
   mockRequest,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
-
-/** Helper to get the DATA_KEY from the test session */
-const getTestDataKey = async (): Promise<CryptoKey> => {
-  const cookie = await testCookie();
-  const token = matchGroup(
-    cookie,
-    new RegExp(`${getSessionCookieName()}=([^;]+)`),
-  );
-  const session = await getSession(token);
-  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
-};
 
 describeWithEnv("API Keys", { db: true }, () => {
   describe("database operations", () => {

@@ -1,79 +1,30 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { generateSecureToken, unwrapKeyWithToken } from "#lib/crypto.ts";
-import { createApiKey } from "#lib/db/api-keys.ts";
 import {
   eventsTable,
   getEventWithCount,
   invalidateEventsCache,
 } from "#lib/db/events.ts";
-import { getSession } from "#lib/db/sessions.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { handleRequest } from "#routes";
 import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
 import {
+  apiRequest,
+  createTestApiKeyToken,
   createTestEvent,
   createTestGroup,
   describeWithEnv,
   mockRequest,
   testCookie,
   testCsrfToken,
+  testEventWithCount,
 } from "#test-utils";
-
-/** Helper to get the DATA_KEY from the test session */
-const getTestDataKey = async (): Promise<CryptoKey> => {
-  const cookie = await testCookie();
-  const sessionMatch = cookie.match(
-    new RegExp(`${getSessionCookieName()}=([^;]+)`),
-  );
-  const token = sessionMatch![1]!;
-  const session = await getSession(token);
-  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
-};
-
-/** Create an API key and return its token */
-const createTestApiKey = async (): Promise<string> => {
-  const dataKey = await getTestDataKey();
-  const { apiKey } = await createApiKey(
-    1,
-    "Test API Key",
-    dataKey,
-    generateSecureToken,
-  );
-  return apiKey;
-};
-
-/** Helper to make authenticated JSON API requests */
-const apiRequest = async (
-  path: string,
-  options: {
-    method?: string;
-    body?: Record<string, unknown>;
-    apiKey?: string;
-  } = {},
-): Promise<Response> => {
-  const apiKey = options.apiKey ?? (await createTestApiKey());
-  const headers: Record<string, string> = {
-    authorization: `Bearer ${apiKey}`,
-  };
-  const method = options.method ?? "GET";
-  if (method !== "GET") {
-    headers["content-type"] = "application/json";
-  }
-  const init: RequestInit = {
-    method,
-    headers,
-    body: method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
-  };
-  return handleRequest(mockRequest(path, init));
-};
 
 describeWithEnv("Admin API - Events", { db: true }, () => {
   describe("GET /api/admin/events/:eventId", () => {
     test("returns single event by ID", async () => {
       const event = await createTestEvent({ name: "Detail Event" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       const response = await apiRequest(`/api/admin/events/${event.id}`, {
         apiKey,
@@ -401,7 +352,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("returns 400 when event is already deactivated", async () => {
       const event = await createTestEvent({ name: "Inactive Event" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       // Deactivate first
       await apiRequest(`/api/admin/events/${event.id}/deactivate`, {
@@ -432,7 +383,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
   describe("POST /api/admin/events/:eventId/reactivate", () => {
     test("reactivates a deactivated event", async () => {
       const event = await createTestEvent({ name: "Reactivate Event" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       // Deactivate first
       await apiRequest(`/api/admin/events/${event.id}/deactivate`, {
@@ -559,7 +510,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("clears date by setting it to null", async () => {
       const event = await createTestEvent({ name: "Clear Date" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       // First set a date
       await apiRequest(`/api/admin/events/${event.id}`, {
@@ -582,7 +533,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("clears closes_at by setting it to null", async () => {
       const event = await createTestEvent({ name: "Clear Closes" });
-      const apiKey = await createTestApiKey();
+      const apiKey = await createTestApiKeyToken();
 
       // First set closes_at
       await apiRequest(`/api/admin/events/${event.id}`, {
@@ -815,37 +766,22 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
   describe("bodyToUpdateInput", () => {
     test("preserves existing values when fields not provided", async () => {
-      const existing = {
-        id: 1,
+      const existing = testEventWithCount({
         name: "Existing",
         slug: "existing-slug",
-        slug_index: "idx",
         description: "Existing desc",
         date: "2026-01-01T00:00:00.000Z",
         location: "Old Place",
-        group_id: 0,
         max_attendees: 50,
         unit_price: 100,
         max_quantity: 2,
         thank_you_url: "https://old.com/thanks",
         webhook_url: "https://old.com/hook",
-        active: true,
-        fields: "email",
         closes_at: "2026-01-02T00:00:00.000Z",
-        event_type: "standard",
         bookable_days: ["Monday"],
         minimum_days_before: 1,
         maximum_days_after: 90,
-        image_url: "",
-        attachment_url: "",
-        attachment_name: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
-        created: "2026-01-01T00:00:00.000Z",
-        attendee_count: 0,
-      } as EventWithCount;
+      });
 
       const result = await bodyToUpdateInput({}, existing);
       expect(result.ok).toBe(true);
@@ -872,37 +808,12 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     });
 
     test("preserves existing closes_at null as empty string", async () => {
-      const existing = {
-        id: 1,
+      const existing = testEventWithCount({
         name: "No Closes",
         slug: "no-closes",
-        slug_index: "idx",
-        description: "",
-        date: "",
-        location: "",
-        group_id: 0,
         max_attendees: 10,
-        unit_price: 0,
-        max_quantity: 1,
-        thank_you_url: "",
-        webhook_url: "",
-        active: true,
-        fields: "email",
         closes_at: null,
-        event_type: "standard",
-        bookable_days: [],
-        minimum_days_before: 1,
-        maximum_days_after: 90,
-        image_url: "",
-        attachment_url: "",
-        attachment_name: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
-        created: "2026-01-01T00:00:00.000Z",
-        attendee_count: 0,
-      } as EventWithCount;
+      });
 
       const result = await bodyToUpdateInput({}, existing);
       expect(result.ok).toBe(true);

@@ -17,9 +17,12 @@ import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
 import {
   clearEncryptionKeyCache,
+  generateSecureToken,
   setEncryptionKeyForTest,
+  unwrapKeyWithToken,
 } from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
+import { createApiKey } from "#lib/db/api-keys.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
@@ -2352,3 +2355,56 @@ export const withCdnProxy = (
     );
     await fn();
   });
+
+// ---------------------------------------------------------------------------
+// API key helpers — shared across admin API and API key tests
+// ---------------------------------------------------------------------------
+
+/** Get the DATA_KEY from the test session */
+export const getTestDataKey = async (): Promise<CryptoKey> => {
+  const cookie = await testCookie();
+  const sessionMatch = cookie.match(
+    new RegExp(`${getSessionCookieName()}=([^;]+)`),
+  );
+  const token = sessionMatch![1]!;
+  const session = await getSession(token);
+  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
+};
+
+/** Create an API key and return its token */
+export const createTestApiKeyToken = async (): Promise<string> => {
+  const dataKey = await getTestDataKey();
+  const { apiKey } = await createApiKey(
+    1,
+    "Test API Key",
+    dataKey,
+    generateSecureToken,
+  );
+  return apiKey;
+};
+
+/** Make an authenticated JSON API request using an API key (or auto-creating one) */
+export const apiRequest = async (
+  path: string,
+  options: {
+    method?: string;
+    body?: Record<string, unknown>;
+    apiKey?: string;
+  } = {},
+): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const apiKey = options.apiKey ?? (await createTestApiKeyToken());
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${apiKey}`,
+  };
+  const method = options.method ?? "GET";
+  if (method !== "GET") {
+    headers["content-type"] = "application/json";
+  }
+  const init: RequestInit = {
+    method,
+    headers,
+    body: method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
+  };
+  return handleRequest(mockRequest(path, init));
+};
