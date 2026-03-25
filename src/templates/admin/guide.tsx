@@ -160,8 +160,10 @@ export const adminGuidePage = (
             group from the <strong>Groups</strong> page, then assign events to
             it using the group dropdown on the event form. Share{" "}
             <code>/ticket/your-group-slug</code> and attendees see all active
-            events in the group on one page. If you add terms and conditions to
-            a group, they replace the global T&amp;Cs for that page.
+            events in the group on one page. You can optionally set a maximum
+            attendee limit on the group to cap total bookings across all events
+            in it. If you add terms and conditions to a group, they replace the
+            global T&amp;Cs for that page.
           </p>
         </Q>
 
@@ -224,7 +226,8 @@ export const adminGuidePage = (
           </ul>
           <p>
             In <strong>Settings</strong>, add your website's domain to the embed
-            hosts list so the browser allows the iframe to load.
+            hosts list to restrict which sites can embed your forms. If no hosts
+            are listed, embedding is allowed from any site.
           </p>
         </Q>
 
@@ -243,7 +246,8 @@ export const adminGuidePage = (
             When creating or editing an event, enter a URL in the "thank you
             URL" field. After a successful booking or payment, attendees are
             redirected to that address instead of seeing the default
-            confirmation page. The URL must use HTTPS.
+            confirmation page. The URL must use HTTPS, or you can use a
+            relative path starting with <code>/</code>.
           </p>
         </Q>
 
@@ -432,7 +436,8 @@ export const adminGuidePage = (
             <strong>Site</strong> section from the admin navigation. The
             homepage editor lets you set a website title (shown as the heading
             on all public pages) and homepage text. The contact page editor lets
-            you set contact information. Line breaks are preserved in both.
+            you set contact information. Both fields support Markdown
+            formatting.
           </p>
         </Q>
       </Section>
@@ -1443,7 +1448,8 @@ export const adminGuidePage = (
           <p>
             The debug page at <code>/admin/debug</code> shows the configuration
             status of all integrated services (payments, email, Apple Wallet,
-            storage, CDN, notifications) without revealing any secrets or API
+            Google Wallet, storage, CDN, notifications, database) without
+            revealing any secrets or API
             keys. It's useful for troubleshooting setup issues &mdash; you can
             quickly see which services are configured and which are missing.
           </p>
