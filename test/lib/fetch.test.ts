@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { fetchDrained } from "#lib/fetch.ts";
+import { fetchText } from "#lib/fetch.ts";
 
-describe("fetchDrained", () => {
+describe("fetchText", () => {
   let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
 
   afterEach(() => {
@@ -18,7 +18,7 @@ describe("fetchDrained", () => {
       })),
     );
 
-    const result = await fetchDrained("https://example.com/api");
+    const result = await fetchText("https://example.com/api");
 
     expect(result.status).toBe(200);
     expect(result.ok).toBe(true);
@@ -31,7 +31,7 @@ describe("fetchDrained", () => {
       Promise.resolve(new Response("Not Found", { status: 404 })),
     );
 
-    const result = await fetchDrained("https://example.com/missing");
+    const result = await fetchText("https://example.com/missing");
 
     expect(result.status).toBe(404);
     expect(result.ok).toBe(false);
@@ -43,7 +43,7 @@ describe("fetchDrained", () => {
       Promise.resolve(new Response(null, { status: 204 })),
     );
 
-    const result = await fetchDrained("https://example.com/empty");
+    const result = await fetchText("https://example.com/empty");
 
     expect(result.status).toBe(204);
     expect(result.ok).toBe(true);
@@ -55,7 +55,7 @@ describe("fetchDrained", () => {
       Promise.resolve(new Response("ok")),
     );
 
-    await fetchDrained("https://example.com/post", {
+    await fetchText("https://example.com/post", {
       method: "POST",
       headers: { Authorization: "Bearer token" },
       body: "payload",
@@ -76,7 +76,7 @@ describe("fetchDrained", () => {
       Promise.reject(new TypeError("Network error")),
     );
 
-    await expect(fetchDrained("https://example.com/fail")).rejects.toThrow(
+    await expect(fetchText("https://example.com/fail")).rejects.toThrow(
       "Network error",
     );
   });

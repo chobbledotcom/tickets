@@ -19,7 +19,7 @@ import {
   hmacToBase64,
   secureCompare,
 } from "#lib/payment-crypto.ts";
-import { fetchDrained } from "#lib/fetch.ts";
+import { fetchText } from "#lib/fetch.ts";
 import {
   buildCartMetadata,
   buildSingleIntentMetadata,
@@ -192,7 +192,7 @@ const squareFetch = async (
   path: string,
   options?: { method?: string; body?: unknown },
 ): Promise<unknown> => {
-  const response = await fetchDrained(`${baseUrl}${path}`, {
+  const response = await fetchText(`${baseUrl}${path}`, {
     method: options?.method ?? "GET",
     headers: {
       Authorization: `Bearer ${token}`,

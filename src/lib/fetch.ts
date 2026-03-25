@@ -1,7 +1,7 @@
 /**
  * Fetch wrapper that eagerly consumes the response body.
  *
- * Every outbound HTTP call goes through fetchDrained, which reads
+ * Every outbound HTTP call goes through fetchText, which reads
  * the full body into a string before returning.  This makes response
  * resource leaks structurally impossible — there is no ReadableStream
  * left open for the Deno runtime to complain about.
@@ -16,7 +16,7 @@ export type FetchResult = {
 };
 
 /** Fetch a URL and eagerly read the response body, preventing resource leaks. */
-export const fetchDrained = async (
+export const fetchText = async (
   url: string,
   init?: RequestInit,
 ): Promise<FetchResult> => {

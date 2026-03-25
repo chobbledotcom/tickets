@@ -12,7 +12,7 @@ import {
   getBunnyScriptId,
 } from "#lib/config.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import { type FetchResult, fetchDrained } from "#lib/fetch.ts";
+import { type FetchResult, fetchText } from "#lib/fetch.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -47,7 +47,7 @@ const getEdgeScriptImpl = async (): Promise<
   | { ok: false; error: string; errorKey?: string }
 > => {
   const scriptId = getBunnyScriptId();
-  const response = await fetchDrained(
+  const response = await fetchText(
     `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}`,
     { headers: { AccessKey: getBunnyApiKey() } },
   );
@@ -136,7 +136,7 @@ const pullZonePost = async (
 ): Promise<BunnyApiResult> => {
   const url = `${BUNNY_API_BASE}/pullzone/${pullZoneId}/${action}`;
 
-  const response = await fetchDrained(url, {
+  const response = await fetchText(url, {
     method: "POST",
     headers: {
       AccessKey: getBunnyApiKey(),
@@ -154,7 +154,7 @@ const loadFreeCertificate = async (
 ): Promise<BunnyApiResult> => {
   const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
 
-  const response = await fetchDrained(url, {
+  const response = await fetchText(url, {
     method: "GET",
     headers: { AccessKey: getBunnyApiKey() },
   });
@@ -238,7 +238,7 @@ const getDnsZoneImpl = async (): Promise<
   { ok: true; zone: BunnyDnsZone } | { ok: false; error: string }
 > => {
   const zoneId = getBunnyDnsZoneId();
-  const response = await fetchDrained(`${BUNNY_API_BASE}/dnszone/${zoneId}`, {
+  const response = await fetchText(`${BUNNY_API_BASE}/dnszone/${zoneId}`, {
     headers: { AccessKey: getBunnyApiKey() },
   });
 
@@ -304,7 +304,7 @@ const registerBunnySubdomainImpl = async (
 
   // 2. Add CNAME record in DNS zone
   const zoneId = getBunnyDnsZoneId();
-  const addResponse = await fetchDrained(
+  const addResponse = await fetchText(
     `${BUNNY_API_BASE}/dnszone/${zoneId}/records`,
     {
       method: "PUT",

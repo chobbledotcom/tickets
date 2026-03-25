@@ -10,7 +10,7 @@ import { settings } from "#lib/db/settings.ts";
 import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import { fetchDrained } from "#lib/fetch.ts";
+import { fetchText } from "#lib/fetch.ts";
 import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
@@ -238,7 +238,7 @@ export const sendEmail = async (
   try {
     const [url, headers, body] = buildRequest(config, msg);
     const isFormData = body instanceof FormData;
-    const { ok, status } = await fetchDrained(url, {
+    const { ok, status } = await fetchText(url, {
       method: "POST",
       headers: isFormData
         ? headers
