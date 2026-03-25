@@ -1215,7 +1215,7 @@ export const createTestAttendee = async (
     const cookiePart = flashCookie.split(";")[0] ?? "";
     const value = cookiePart.split("=").slice(1).join("=");
     const parsed = parseFlashValue(value);
-    if (parsed?.error) {
+    if (parsed.error) {
       response.body?.cancel();
       throw new Error(`Failed to create attendee: ${parsed.error}`);
     }
@@ -1399,7 +1399,6 @@ export const expectFlash = (
   // Cookie is "flash_{id}={value}", extract value after first "="
   const value = cookiePart.split("=").slice(1).join("=");
   const parsed = parseFlashValue(value);
-  if (!parsed) throw new Error("Failed to parse flash value");
   const actual = succeeded ? parsed.success : parsed.error;
   if (message !== undefined) expect(actual).toEqual(message);
   return response;

@@ -186,7 +186,7 @@ describe("parseFlashValue", () => {
     });
   });
 
-  test("returns null for invalid format", () => {
-    expect(parseFlashValue("invalid")).toBeNull();
+  test("throws for invalid format", () => {
+    expect(() => parseFlashValue("invalid")).toThrow();
   });
 });

@@ -49,16 +49,12 @@ export const clearFlashCookie = (id: string): string =>
 /** Parse a flash cookie value into type, message, and optional result */
 export const parseFlashValue = (
   value: string,
-): { success?: string; error?: string; result?: string } | null => {
+): { success?: string; error?: string; result?: string } => {
   const decoded = decodeURIComponent(value);
-  try {
-    const obj = JSON.parse(decoded);
-    return {
-      success: obj.t === "s" ? obj.m : undefined,
-      error: obj.t === "e" ? obj.m : undefined,
-      result: obj.r,
-    };
-  } catch {
-    return null;
-  }
+  const obj = JSON.parse(decoded);
+  return {
+    success: obj.t === "s" ? obj.m : undefined,
+    error: obj.t === "e" ? obj.m : undefined,
+    result: obj.r,
+  };
 };
