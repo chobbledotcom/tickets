@@ -18,6 +18,7 @@ import {
   setTestEnv,
   testCookie,
   testCsrfToken,
+  withStorageDisabled,
   withStorageMock,
 } from "#test-utils";
 
@@ -151,8 +152,10 @@ describeWithEnv(
         { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
         () => {
           test("hides header image section", async () => {
-            const html = await assertAdminHtml("/admin/settings");
-            expect(html).not.toContain("Header Image");
+            await withStorageDisabled(async () => {
+              const html = await assertAdminHtml("/admin/settings");
+              expect(html).not.toContain("Header Image");
+            });
           });
         },
       );
@@ -255,12 +258,14 @@ describeWithEnv(
         { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
         () => {
           test("returns error", async () => {
-            const response = await submitHeaderJpeg("logo.jpg");
-            expectRedirectWithFlash(
-              "/admin/settings?form=settings-header-image#settings-header-image",
-              expect.stringContaining("Image storage is not configured"),
-              false,
-            )(response);
+            await withStorageDisabled(async () => {
+              const response = await submitHeaderJpeg("logo.jpg");
+              expectRedirectWithFlash(
+                "/admin/settings?form=settings-header-image#settings-header-image",
+                expect.stringContaining("Image storage is not configured"),
+                false,
+              )(response);
+            });
           });
         },
       );

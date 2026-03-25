@@ -577,29 +577,16 @@ describe("logger", () => {
       });
 
       test("different requests get different IDs", () => {
-        const debugSpy = spy(console, "debug");
-        try {
-          const ids: string[] = [];
-          for (let i = 0; i < 10; i++) {
-            const callsBefore = debugSpy.calls.length;
-            runWithRequestId(() => {
-              logRequest({
-                method: "GET",
-                path: "/",
-                status: 200,
-                durationMs: 0,
-              });
-            });
-            const call = debugSpy.calls[callsBefore];
-            ids.push((call!.args[0] as string).slice(1, 5));
-          }
-
-          // With 65536 possible values, 10 samples should not all be identical
-          const unique = new Set(ids);
-          expect(unique.size).toBeGreaterThan(1);
-        } finally {
-          debugSpy.restore();
+        const ids: string[] = [];
+        for (let i = 0; i < 10; i++) {
+          runWithRequestId(() => {
+            ids.push(getRequestId());
+          });
         }
+
+        // With 65536 possible values, 10 samples should not all be identical
+        const unique = new Set(ids);
+        expect(unique.size).toBeGreaterThan(1);
       });
 
       test("no prefix outside request context", () => {
