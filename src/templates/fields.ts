@@ -767,7 +767,9 @@ export const setupFields: Field[] = [
     validate: validateUsername,
   },
   newPasswordField("admin_password", "Admin Password *"),
-  newPasswordField("admin_password_confirm", "Confirm Admin Password *", { confirm: true }),
+  newPasswordField("admin_password_confirm", "Confirm Admin Password *", {
+    confirm: true,
+  }),
 ];
 
 /**
@@ -782,7 +784,9 @@ export const changePasswordFields: Field[] = [
     autocomplete: "current-password",
   },
   newPasswordField("new_password", "New Password"),
-  newPasswordField("new_password_confirm", "Confirm New Password", { confirm: true }),
+  newPasswordField("new_password_confirm", "Confirm New Password", {
+    confirm: true,
+  }),
 ];
 
 /**
