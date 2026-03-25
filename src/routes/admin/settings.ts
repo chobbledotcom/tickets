@@ -204,29 +204,23 @@ const renderAdvancedSettingsPage = async (
   return adminAdvancedSettingsPage(session, state);
 };
 
-/** Render settings page with error on a specific form */
+/** Redirect back to settings page with error flash (PRG pattern) */
 const settingsPageWithError =
-  (session: AuthSession) =>
-  async (error: string, status: number, formId: string): Promise<Response> => {
-    setFormError(formId, error);
-    const html = await renderSettingsPage(session);
-    return htmlResponse(html, status);
-  };
+  (_session: AuthSession) =>
+  (error: string, _status: number, formId: string): Response =>
+    redirect("/admin/settings", error, false, { formId });
 
-/** Render advanced settings page with error on a specific form */
+/** Redirect back to advanced settings page with error flash (PRG pattern) */
 const advancedSettingsPageWithError =
-  (session: AuthSession) =>
-  async (error: string, status: number, formId: string): Promise<Response> => {
-    setFormError(formId, error);
-    const html = await renderAdvancedSettingsPage(session);
-    return htmlResponse(html, status);
-  };
+  (_session: AuthSession) =>
+  (error: string, _status: number, formId: string): Response =>
+    redirect("/admin/settings-advanced", error, false, { formId });
 
 type ErrorPageFn = (
   error: string,
   status: number,
   formId: string,
-) => Promise<Response>;
+) => Response | Promise<Response>;
 type SettingsFormHandler = (
   form: FormParams,
   errorPage: ErrorPageFn,
@@ -280,7 +274,10 @@ const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (
   request,
 ) =>
   requireOwnerOr(request, async (session) => {
-    setFormSuccess(getSearchParam(request, "form"), getFlash().success);
+    const flash = getFlash();
+    const formId = getSearchParam(request, "form");
+    setFormSuccess(formId, flash.success);
+    if (flash.error) setFormError(formId, flash.error);
     return htmlResponse(await renderSettingsPage(session));
   });
 
@@ -292,7 +289,9 @@ const handleAdminSettingsAdvancedGet: TypedRouteHandler<
 > = (request) =>
   requireOwnerOr(request, async (session) => {
     const flash = getFlash();
-    setFormSuccess(getSearchParam(request, "form"), flash.success);
+    const formId = getSearchParam(request, "form");
+    setFormSuccess(formId, flash.success);
+    if (flash.error) setFormError(formId, flash.error);
     const subdomainPreview = flash.success
       ? getSearchParam(request, "subdomain")
       : "";
@@ -785,25 +784,27 @@ const handleBookingFeePost = settingsRoute(processBookingFeeForm);
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
-  withOwnerAuthMultipartForm(request, async (session, formData) => {
+  withOwnerAuthMultipartForm(request, async (_session, formData) => {
     if (!isStorageEnabled()) {
       return htmlResponse("Image storage is not configured", 400);
     }
 
     const entry = formData.get("header_image");
     if (!(entry instanceof File) || entry.size === 0) {
-      setFormError("settings-header-image", "No image file provided");
-      return htmlResponse(await renderSettingsPage(session), 400);
+      return redirect("/admin/settings", "No image file provided", false, {
+        formId: "settings-header-image",
+      });
     }
 
     const data = new Uint8Array(await entry.arrayBuffer());
     const validation = validateImage(data, entry.type);
     if (!validation.valid) {
-      setFormError(
-        "settings-header-image",
+      return redirect(
+        "/admin/settings",
         IMAGE_ERROR_MESSAGES[validation.error],
+        false,
+        { formId: "settings-header-image" },
       );
-      return htmlResponse(await renderSettingsPage(session), 400);
     }
 
     // Delete old header image if one exists (best-effort, don't block new upload)

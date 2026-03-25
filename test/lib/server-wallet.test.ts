@@ -9,7 +9,6 @@ import {
   describeWithEnv,
   expectAdminRedirect,
   expectFlash,
-  expectHtmlResponse,
   generateTestCerts,
   getHeader,
   mockFormRequest,
@@ -260,68 +259,64 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_pass_type_id: "",
     });
-    await expectHtmlResponse(response, 400, "Pass Type ID is required");
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("Pass Type ID is required"), false);
   });
 
   test("requires Team ID", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_team_id: "",
     });
-    await expectHtmlResponse(response, 400, "Team ID is required");
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("Team ID is required"), false);
   });
 
   test("requires signing certificate on initial setup", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_cert: "",
     });
-    await expectHtmlResponse(response, 400, "Signing certificate is required");
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("Signing certificate is required"), false);
   });
 
   test("requires signing key on initial setup", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_key: "",
     });
-    await expectHtmlResponse(response, 400, "Signing private key is required");
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("Signing private key is required"), false);
   });
 
   test("requires WWDR certificate on initial setup", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_wwdr_cert: "",
     });
-    await expectHtmlResponse(response, 400, "WWDR certificate is required");
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("WWDR certificate is required"), false);
   });
 
   test("rejects invalid PEM signing certificate", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_cert: "not a valid cert",
     });
-    await expectHtmlResponse(
-      response,
-      400,
-      "Signing certificate is not a valid PEM certificate",
-    );
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("Signing certificate is not a valid PEM certificate"), false);
   });
 
   test("rejects invalid PEM signing key", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_key: "not a valid key",
     });
-    await expectHtmlResponse(
-      response,
-      400,
-      "Signing private key is not a valid PEM private key",
-    );
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("Signing private key is not a valid PEM private key"), false);
   });
 
   test("rejects invalid PEM WWDR certificate", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_wwdr_cert: "not a valid cert",
     });
-    await expectHtmlResponse(
-      response,
-      400,
-      "WWDR certificate is not a valid PEM certificate",
-    );
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("WWDR certificate is not a valid PEM certificate"), false);
   });
 
   test("saves all settings successfully", async () => {

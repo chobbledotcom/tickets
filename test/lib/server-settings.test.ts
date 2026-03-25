@@ -156,7 +156,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         new_password: "",
         new_password_confirm: "",
       });
-      await expectHtmlResponse(response, 400, "required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
 
     test("rejects password shorter than 8 characters", async () => {
@@ -165,7 +166,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         new_password: "short",
         new_password_confirm: "short",
       });
-      await expectHtmlResponse(response, 400, "at least 8 characters");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("at least 8 characters"), false);
     });
 
     test("rejects mismatched passwords", async () => {
@@ -174,7 +176,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         new_password: "newpassword123",
         new_password_confirm: "differentpassword",
       });
-      await expectHtmlResponse(response, 400, "do not match");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("do not match"), false);
     });
 
     test("rejects incorrect current password", async () => {
@@ -183,7 +186,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         new_password: "newpassword123",
         new_password_confirm: "newpassword123",
       });
-      await expectHtmlResponse(response, 401, "Current password is incorrect");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Current password is incorrect"), false);
     });
 
     test("changes password and invalidates session", async () => {
@@ -233,7 +237,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         new_password: "newpassword123",
         new_password_confirm: "newpassword123",
       });
-      await expectHtmlResponse(response, 500, "Failed to update password");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Failed to update password"), false);
     });
   });
 
@@ -265,7 +270,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/settings/stripe", {
         stripe_secret_key: "",
       });
-      await expectHtmlResponse(response, 400, "required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
 
     test("rejects invalid stripe key format", async () => {
@@ -273,13 +279,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/settings/stripe", {
         stripe_secret_key: "invalid_key_123",
       });
-      await expectHtmlResponse(
-        response,
-        400,
-        "Invalid Stripe key format",
-        "sk_test_",
-        "sk_live_",
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid Stripe key format"), false);
     });
 
     test("rejects restricted key format", async () => {
@@ -287,7 +288,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/settings/stripe", {
         stripe_secret_key: "rk_test_abc123",
       });
-      await expectHtmlResponse(response, 400, "Invalid Stripe key format");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid Stripe key format"), false);
     });
 
     test("updates Stripe key successfully", async () => {
@@ -552,7 +554,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         embed_hosts: "*",
       });
 
-      await expectHtmlResponse(response, 400, "Bare wildcard");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Bare wildcard"), false);
     });
 
     test("normalizes and saves embed hosts", async () => {
@@ -600,7 +603,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         square_access_token: "",
         square_location_id: "L_test_123",
       });
-      await expectHtmlResponse(response, 400, "required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
 
     test("rejects missing location ID", async () => {
@@ -608,7 +612,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         square_access_token: "EAAAl_test_123",
         square_location_id: "",
       });
-      await expectHtmlResponse(response, 400, "required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
 
     test("updates Square credentials successfully", async () => {
@@ -668,7 +673,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         "/admin/settings/square-webhook",
         { square_webhook_signature_key: "" },
       );
-      await expectHtmlResponse(response, 400, "required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
 
     test("updates Square webhook key successfully", async () => {
@@ -850,7 +856,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         "/admin/settings/payment-provider",
         { payment_provider: "invalid-provider" },
       );
-      await expectHtmlResponse(response, 400, "Invalid payment provider");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid payment provider"), false);
     });
   });
 
@@ -869,12 +876,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         const { response } = await adminFormPost("/admin/settings/stripe", {
           stripe_secret_key: "sk_test_webhook_fail",
         });
-        await expectHtmlResponse(
-          response,
-          400,
-          "Failed to set up Stripe webhook",
-          "Connection refused",
-        );
+        expect(response.status).toBe(302);
+        expectFlash(response, expect.stringContaining("Failed to set up Stripe webhook"), false);
       } finally {
         mockSetupWebhook.restore();
       }
@@ -886,7 +889,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider",
       );
-      await expectHtmlResponse(response, 400, "Invalid payment provider");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid payment provider"), false);
     });
 
     test("reset database POST without confirm_phrase field uses empty fallback", async () => {
@@ -894,11 +898,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/settings/reset-database",
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Confirmation phrase does not match",
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Confirmation phrase does not match"), false);
     });
   });
 
@@ -943,11 +944,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
 
-      await expectHtmlResponse(
-        response,
-        400,
-        `${MAX_TEXTAREA_LENGTH} characters or fewer`,
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`), false);
     });
 
     test("accepts terms at exactly max length", async () => {
@@ -1105,7 +1103,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         { business_email: "not-an-email" },
       );
 
-      await expectHtmlResponse(response, 400, "Invalid email format");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid email format"), false);
     });
   });
 
@@ -1331,7 +1330,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      await expectHtmlResponse(response, 400, "Invalid theme selection");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid theme selection"), false);
     });
 
     test("rejects missing theme field", async () => {
@@ -1344,7 +1344,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      await expectHtmlResponse(response, 400, "Invalid theme selection");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid theme selection"), false);
     });
 
     test("updates theme to dark successfully", async () => {
@@ -1559,7 +1560,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      await expectHtmlResponse(response, 400, "valid country");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("valid country"), false);
     });
 
     test("rejects empty input", async () => {
@@ -1574,7 +1576,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      await expectHtmlResponse(response, 400, "Country is required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Country is required"), false);
     });
 
     test("setting persists and derives phone prefix", async () => {
@@ -1686,11 +1689,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Booking fee must be a number between 0 and 10",
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Booking fee must be a number between 0 and 10"), false);
     });
 
     test("rejects negative value", async () => {
@@ -1705,11 +1705,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Booking fee must be a number between 0 and 10",
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Booking fee must be a number between 0 and 10"), false);
     });
 
     test("rejects non-numeric value", async () => {
@@ -1724,11 +1721,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Booking fee must be a number between 0 and 10",
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Booking fee must be a number between 0 and 10"), false);
     });
 
     test("settings page displays booking fee form when payment provider is set", async () => {
@@ -1758,11 +1752,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Booking fee must be a number between 0 and 10",
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Booking fee must be a number between 0 and 10"), false);
     });
 
     test("logs activity when booking fee is changed", async () => {
@@ -2110,7 +2101,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      await expectHtmlResponse(response, 400, "required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
 
     test("empty Square token rejected when no token is configured", async () => {
@@ -2128,7 +2120,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      await expectHtmlResponse(response, 400, "required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
 
     test("empty Square webhook key rejected", async () => {
@@ -2143,7 +2136,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      await expectHtmlResponse(response, 400, "required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
   });
 
@@ -2170,11 +2164,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      await expectHtmlResponse(
-        response,
-        400,
-        "Cannot configure Stripe in demo mode",
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Cannot configure Stripe in demo mode"), false);
     });
 
     test("rejects Square credentials configuration", async () => {
@@ -2192,11 +2183,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
 
-      await expectHtmlResponse(
-        response,
-        400,
-        "Cannot configure Square in demo mode",
-      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Cannot configure Square in demo mode"), false);
     });
   });
 });

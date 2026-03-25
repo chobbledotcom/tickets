@@ -192,7 +192,8 @@ describeWithEnv(
             data: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
             contentType: "application/pdf",
           });
-          await expectHtmlResponse(response, 400, "JPEG, PNG, GIF, or WebP");
+          expect(response.status).toBe(302);
+          expectFlash(response, expect.stringContaining("JPEG, PNG, GIF, or WebP"), false);
         });
       });
 
@@ -208,7 +209,8 @@ describeWithEnv(
             data: oversized,
             contentType: "image/jpeg",
           });
-          await expectHtmlResponse(response, 400, "256KB");
+          expect(response.status).toBe(302);
+          expectFlash(response, expect.stringContaining("256KB"), false);
         });
       });
 
@@ -234,7 +236,8 @@ describeWithEnv(
           await testCookie(),
         );
         const response = await handleRequest(request);
-        await expectHtmlResponse(response, 400, "No image file provided");
+        expect(response.status).toBe(302);
+        expectFlash(response, expect.stringContaining("No image file provided"), false);
       });
 
       describeWithEnv(
@@ -243,11 +246,7 @@ describeWithEnv(
         () => {
           test("returns error", async () => {
             const response = await submitHeaderJpeg("logo.jpg");
-            await expectHtmlResponse(
-              response,
-              400,
-              "Image storage is not configured",
-            );
+            await expectHtmlResponse(response, 400, "Image storage is not configured");
           });
         },
       );
@@ -292,7 +291,8 @@ describeWithEnv(
             data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
             contentType: "image/jpeg",
           });
-          await expectHtmlResponse(response, 400, "valid image");
+          expect(response.status).toBe(302);
+          expectFlash(response, expect.stringContaining("valid image"), false);
         });
       });
     });

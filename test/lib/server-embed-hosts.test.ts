@@ -15,7 +15,7 @@ import {
   mockRequest,
 } from "#test-utils";
 
-/** Post invalid embed hosts and assert a 400 error with expected message */
+/** Post invalid embed hosts and assert a 302 redirect with error flash */
 async function postInvalidEmbedHosts(
   hosts: string,
   expectedError: string,
@@ -23,7 +23,8 @@ async function postInvalidEmbedHosts(
   const { response } = await adminFormPost("/admin/settings/embed-hosts", {
     embed_hosts: hosts,
   });
-  await expectHtmlResponse(response, 400, expectedError);
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining(expectedError), false);
 }
 
 /** Post embed hosts form and assert a 302 redirect with expected flash message */

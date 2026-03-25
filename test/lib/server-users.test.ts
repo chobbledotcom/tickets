@@ -1088,7 +1088,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         new_password: "newpassword123",
         new_password_confirm: "newpassword123",
       });
-      await expectHtmlResponse(response, 500, "Failed to update password");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Failed to update password"), false);
     });
   });
 
