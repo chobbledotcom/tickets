@@ -54,9 +54,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
 
   function expectTemplatesAllNull(type: "confirmation" | "admin") {
     const templates = settings.email.templateSet(type);
-    expect(templates.subject).toBeNull();
-    expect(templates.html).toBeNull();
-    expect(templates.text).toBeNull();
+    expect(templates.subject).toBe("");
+    expect(templates.html).toBe("");
+    expect(templates.text).toBe("");
   }
 
   async function postPreviewForm(fields: Record<string, string>) {

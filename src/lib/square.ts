@@ -679,7 +679,7 @@ export const squareApi: {
 
     // Step 3: Check webhook signature key
     const webhookKey = settings.square.webhookSignatureKey;
-    result.webhook = { configured: webhookKey !== null };
+    result.webhook = { configured: webhookKey !== "" };
     if (!webhookKey) {
       result.webhook.error = "No webhook signature key configured";
     }

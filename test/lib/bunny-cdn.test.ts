@@ -483,8 +483,8 @@ describeWithEnv(
 );
 
 describeWithEnv("custom domain settings", { db: true }, () => {
-  test("getCustomDomainFromDb returns null when not set", () => {
-    expect(settings.customDomain).toBeNull();
+  test("getCustomDomainFromDb returns empty string when not set", () => {
+    expect(settings.customDomain).toBe("");
   });
 
   test("updateCustomDomain stores and retrieves domain", async () => {
@@ -495,11 +495,11 @@ describeWithEnv("custom domain settings", { db: true }, () => {
   test("updateCustomDomain with empty string clears domain", async () => {
     await settings.update.customDomain("tickets.example.com");
     await settings.update.customDomain("");
-    expect(settings.customDomain).toBeNull();
+    expect(settings.customDomain).toBe("");
   });
 
-  test("getCustomDomainLastValidatedFromDb returns null when not set", () => {
-    expect(settings.customDomainLastValidated).toBeNull();
+  test("getCustomDomainLastValidatedFromDb returns empty string when not set", () => {
+    expect(settings.customDomainLastValidated).toBe("");
   });
 
   test("updateCustomDomainLastValidated stores a timestamp", async () => {

@@ -233,6 +233,22 @@ describeWithEnv("db", { db: true }, () => {
     });
   });
 
+  describe("buildSnapshot via loadAll", () => {
+    test("loads valid payment provider from raw settings", async () => {
+      await settings.setRaw("payment_provider", "stripe");
+      settings.invalidateCache();
+      await settings.loadAll();
+      expect(settings.paymentProvider).toBe("stripe");
+    });
+
+    test("ignores invalid payment provider in raw settings", async () => {
+      await settings.setRaw("payment_provider", "not-a-provider");
+      settings.invalidateCache();
+      await settings.loadAll();
+      expect(settings.paymentProvider).toBeNull();
+    });
+  });
+
   describe("setup", () => {
     test("completeSetup sets all config values and generates key hierarchy", async () => {
       // Delete existing user from createTestDbWithSetup to test fresh setup
@@ -293,8 +309,8 @@ describeWithEnv("db", { db: true }, () => {
       expect(settings.stripe.hasKey).toBe(true);
     });
 
-    test("getStripeSecretKeyFromDb returns null when not set", () => {
-      expect(settings.stripe.secretKey).toBeNull();
+    test("getStripeSecretKeyFromDb returns empty string when not set", () => {
+      expect(settings.stripe.secretKey).toBe("");
     });
 
     test("getStripeSecretKeyFromDb returns decrypted key after setting", async () => {
@@ -1671,6 +1687,13 @@ describeWithEnv("db", { db: true }, () => {
       expect(await def.read?.("enc:hello")).toBe("hello");
     });
 
+    test("col.encryptedNullable wrapping simple column has no transforms", async () => {
+      const { col } = await import("#lib/db/table.ts");
+      const def = col.encryptedNullable(col.simple());
+      expect(def.write).toBeUndefined();
+      expect(def.read).toBeUndefined();
+    });
+
     test("col.encryptedNullable handles null values", async () => {
       const { col } = await import("#lib/db/table.ts");
       const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
@@ -2356,32 +2379,32 @@ describeWithEnv("db", { db: true }, () => {
       expect(settings.bookingFee).toBe("0");
     });
 
-    test("update.stripe.secretKey with empty string sets null", async () => {
+    test("update.stripe.secretKey with empty string sets empty string", async () => {
       await settings.update.stripe.secretKey("sk_test_abc");
       expect(settings.stripe.secretKey).toBe("sk_test_abc");
       await settings.update.stripe.secretKey("");
-      expect(settings.stripe.secretKey).toBeNull();
+      expect(settings.stripe.secretKey).toBe("");
     });
 
-    test("update.square.accessToken with empty string sets null", async () => {
+    test("update.square.accessToken with empty string sets empty string", async () => {
       await settings.update.square.accessToken("token_123");
       expect(settings.square.accessToken).toBe("token_123");
       await settings.update.square.accessToken("");
-      expect(settings.square.accessToken).toBeNull();
+      expect(settings.square.accessToken).toBe("");
     });
 
-    test("update.square.webhookSignatureKey with empty string sets null", async () => {
+    test("update.square.webhookSignatureKey with empty string sets empty string", async () => {
       await settings.update.square.webhookSignatureKey("sig_key_123");
       expect(settings.square.webhookSignatureKey).toBe("sig_key_123");
       await settings.update.square.webhookSignatureKey("");
-      expect(settings.square.webhookSignatureKey).toBeNull();
+      expect(settings.square.webhookSignatureKey).toBe("");
     });
 
-    test("update.square.locationId with empty string sets null", async () => {
+    test("update.square.locationId with empty string sets empty string", async () => {
       await settings.update.square.locationId("loc_123");
       expect(settings.square.locationId).toBe("loc_123");
       await settings.update.square.locationId("");
-      expect(settings.square.locationId).toBeNull();
+      expect(settings.square.locationId).toBe("");
     });
 
     test("updateUserPassword returns false when dataKey unwrap fails", async () => {

@@ -73,14 +73,14 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
 
   const webhookConfigured =
     paymentProvider === "stripe"
-      ? settings.stripe.webhookEndpointId !== null
+      ? settings.stripe.webhookEndpointId !== ""
       : paymentProvider === "square"
-        ? settings.square.webhookSignatureKey !== null
+        ? settings.square.webhookSignatureKey !== ""
         : false;
 
   const resolveWalletPassTypeId = (): string => {
     if (settings.appleWallet.hasDbConfig)
-      return settings.appleWallet.passTypeId as string;
+      return settings.appleWallet.passTypeId;
     if (appleWalletEnvConfigured)
       return settings.appleWallet.hostConfig!.passTypeId;
     return "";
@@ -93,7 +93,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
 
   const resolveGoogleWalletIssuerId = (): string => {
     if (settings.googleWallet.hasDbConfig)
-      return settings.googleWallet.issuerId as string;
+      return settings.googleWallet.issuerId;
     if (googleWalletEnvConfigured)
       return settings.googleWallet.hostConfig!.issuerId;
     return "";
@@ -136,9 +136,9 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       webhookConfigured,
     },
     email: {
-      provider: settings.email.provider ?? "",
+      provider: settings.email.provider,
       apiKeyConfigured: settings.email.hasApiKey,
-      fromAddress: settings.email.fromAddress ?? "",
+      fromAddress: settings.email.fromAddress,
       hostProvider: hostEmailConfig?.provider ?? "",
     },
     ntfy: {
@@ -150,7 +150,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     bunnyCdn: {
       enabled: bunnyCdnEnabled,
       cdnHostname: bunnyCdnEnabled ? getCdnHostname() : "",
-      customDomain: (bunnyCdnEnabled ? settings.customDomain : null) ?? "",
+      customDomain: bunnyCdnEnabled ? settings.customDomain : "",
     },
     database: {
       hostConfigured: !!getEnv("DB_URL"),

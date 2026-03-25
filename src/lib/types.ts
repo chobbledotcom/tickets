@@ -43,6 +43,13 @@ export type Theme = "light" | "dark";
 /** Supported payment provider identifiers */
 export type PaymentProviderType = "stripe" | "square";
 
+/** Valid payment provider values */
+const PAYMENT_PROVIDERS: readonly PaymentProviderType[] = ["stripe", "square"];
+
+/** Type guard: check if a string is a valid PaymentProviderType */
+export const isPaymentProvider = (s: string): s is PaymentProviderType =>
+  (PAYMENT_PROVIDERS as readonly string[]).includes(s);
+
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
 

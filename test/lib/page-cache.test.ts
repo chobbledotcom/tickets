@@ -19,8 +19,8 @@ describeWithEnv("page content cache", { db: true }, () => {
   });
 
   describe("getWebsiteTitleFromDb", () => {
-    test("returns null when not set", () => {
-      expect(settings.websiteTitle).toBeNull();
+    test("returns empty string when not set", () => {
+      expect(settings.websiteTitle).toBe("");
     });
 
     test("returns decrypted value after update", async () => {
@@ -35,17 +35,17 @@ describeWithEnv("page content cache", { db: true }, () => {
       expect(settings.websiteTitle).toBe("New Title");
     });
 
-    test("returns null after clearing with empty string", async () => {
+    test("returns empty string after clearing with empty string", async () => {
       await settings.update.websiteTitle("Title");
       expect(settings.websiteTitle).toBe("Title");
       await settings.update.websiteTitle("");
-      expect(settings.websiteTitle).toBeNull();
+      expect(settings.websiteTitle).toBe("");
     });
   });
 
   describe("getHomepageTextFromDb", () => {
-    test("returns null when not set", () => {
-      expect(settings.homepageText).toBeNull();
+    test("returns empty string when not set", () => {
+      expect(settings.homepageText).toBe("");
     });
 
     test("returns decrypted value after update", async () => {
@@ -62,8 +62,8 @@ describeWithEnv("page content cache", { db: true }, () => {
   });
 
   describe("getContactPageTextFromDb", () => {
-    test("returns null when not set", () => {
-      expect(settings.contactPageText).toBeNull();
+    test("returns empty string when not set", () => {
+      expect(settings.contactPageText).toBe("");
     });
 
     test("returns decrypted value after update", async () => {
@@ -80,8 +80,8 @@ describeWithEnv("page content cache", { db: true }, () => {
   });
 
   describe("getTermsAndConditionsFromDb", () => {
-    test("returns null when not set", () => {
-      expect(settings.terms).toBeNull();
+    test("returns empty string when not set", () => {
+      expect(settings.terms).toBe("");
     });
 
     test("returns value after update", async () => {
@@ -96,11 +96,11 @@ describeWithEnv("page content cache", { db: true }, () => {
       expect(settings.terms).toBe("New terms");
     });
 
-    test("returns null after clearing with empty string", async () => {
+    test("returns empty string after clearing with empty string", async () => {
       await settings.update.terms("Terms");
       expect(settings.terms).toBe("Terms");
       await settings.update.terms("");
-      expect(settings.terms).toBeNull();
+      expect(settings.terms).toBe("");
     });
   });
 
@@ -221,8 +221,8 @@ describeWithEnv("page content cache", { db: true }, () => {
 
   describe("null value caching", () => {
     test("serves cached null when value is added to DB within TTL", async () => {
-      // First read populates page cache with null
-      expect(settings.terms).toBeNull();
+      // First read populates page cache with ""
+      expect(settings.terms).toBe("");
 
       // Write directly to DB, bypassing page cache invalidation
       await getDb().execute({
@@ -230,8 +230,8 @@ describeWithEnv("page content cache", { db: true }, () => {
         args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Surprise"],
       });
 
-      // Page cache still holds null
-      expect(settings.terms).toBeNull();
+      // Page cache still holds ""
+      expect(settings.terms).toBe("");
     });
   });
 });

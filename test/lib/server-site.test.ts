@@ -124,8 +124,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(settings.websiteTitle).toBe(null);
-      expect(settings.homepageText).toBe(null);
+      expect(settings.websiteTitle).toBe("");
+      expect(settings.homepageText).toBe("");
     });
 
     test("rejects title exceeding max length", async () => {
@@ -262,7 +262,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(settings.contactPageText).toBe(null);
+      expect(settings.contactPageText).toBe("");
     });
 
     test("rejects text exceeding max length", async () => {

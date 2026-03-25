@@ -126,14 +126,14 @@ export const renderEmailContent = async (
 
   const [subject, html, text] = await Promise.all([
     safeRender(
-      custom.subject ?? defaults.subject,
+      custom.subject || defaults.subject,
       data,
       defaults.subject,
       type,
       "subject",
     ),
-    safeRender(custom.html ?? defaults.html, data, defaults.html, type, "html"),
-    safeRender(custom.text ?? defaults.text, data, defaults.text, type, "text"),
+    safeRender(custom.html || defaults.html, data, defaults.html, type, "html"),
+    safeRender(custom.text || defaults.text, data, defaults.text, type, "text"),
   ]);
 
   return { subject, html, text };

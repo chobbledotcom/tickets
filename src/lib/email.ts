@@ -309,7 +309,7 @@ export const sendRegistrationEmails = async (
   const config = (await getEmailConfig()) ?? getHostEmailConfig();
   if (!config) return;
 
-  const businessEmail = settings.businessEmail ?? "";
+  const businessEmail = settings.businessEmail;
   const ticketUrl = buildTicketUrl(entries);
   const replyTo = businessEmail || undefined;
   const data = buildTemplateData(entries, currency, ticketUrl);
