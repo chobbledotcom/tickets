@@ -596,6 +596,12 @@ textarea {
   resize: vertical;
 }
 
+@media (min-width: 769px) {
+  textarea {
+    aspect-ratio: 16 / 9;
+  }
+}
+
 input[readonly],
 textarea[readonly] {
   background-color: var(--color-bg-secondary);
