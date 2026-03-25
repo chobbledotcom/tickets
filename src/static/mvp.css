@@ -393,7 +393,8 @@ pre samp {
   white-space: pre-wrap;
 }
 
-small {
+small,
+.muted {
   color: var(--color-text-secondary);
 }
 

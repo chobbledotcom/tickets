@@ -74,11 +74,11 @@ export const adminGuidePage = (
           <p>
             From the <strong>Events</strong> page, click{" "}
             <strong>Add Event</strong>. Give your event a name, set the
-            capacity, and choose which
-            contact details to collect (any combination of email, phone, postal
-            address, and special instructions &mdash; or none at all for
-            name-only registration). You can leave the price blank for free
-            events. Once created, share the booking link with your attendees.
+            capacity, and choose which contact details to collect (any
+            combination of email, phone, postal address, and special
+            instructions &mdash; or none at all for name-only registration). You
+            can leave the price blank for free events. Once created, share the
+            booking link with your attendees.
           </p>
         </Q>
 
@@ -246,8 +246,8 @@ export const adminGuidePage = (
             When creating or editing an event, enter a URL in the "thank you
             URL" field. After a successful booking or payment, attendees are
             redirected to that address instead of seeing the default
-            confirmation page. The URL must use HTTPS, or you can use a
-            relative path starting with <code>/</code>.
+            confirmation page. The URL must use HTTPS, or you can use a relative
+            path starting with <code>/</code>.
           </p>
         </Q>
 
@@ -255,8 +255,8 @@ export const adminGuidePage = (
           <p>
             When creating or editing an event, use the image upload field to
             attach a picture. The image is displayed on the booking page and in
-            the public events listing. Supported formats are JPEG, PNG, GIF,
-            and WebP.
+            the public events listing. Supported formats are JPEG, PNG, GIF, and
+            WebP.
           </p>
         </Q>
 
@@ -322,10 +322,9 @@ export const adminGuidePage = (
             Open the event's attendee list, find the attendee, and click{" "}
             <strong>Edit</strong>. You can update their name, email, phone,
             address, special instructions, quantity, and custom question
-            answers. You can also reassign
-            them to a different event using the event dropdown. Quantity changes
-            are validated against the event's capacity and maximum tickets per
-            purchase.
+            answers. You can also reassign them to a different event using the
+            event dropdown. Quantity changes are validated against the event's
+            capacity and maximum tickets per purchase.
           </p>
         </Q>
 
@@ -414,10 +413,10 @@ export const adminGuidePage = (
             When enabled in <strong>Settings</strong>, your domain shows a
             public website with navigation for Home and Events, plus T&amp;Cs
             and Contact links if you've set those up. The{" "}
-            <strong>Events</strong> page
-            lists all active events with booking links. Visitors can browse
-            event details and book directly. If the public site is disabled,
-            visitors can still book via direct ticket links.
+            <strong>Events</strong> page lists all active events with booking
+            links. Visitors can browse event details and book directly. If the
+            public site is disabled, visitors can still book via direct ticket
+            links.
           </p>
         </Q>
 
@@ -1064,10 +1063,10 @@ export const adminGuidePage = (
             Yes. On any event's attendee list, click <strong>Export CSV</strong>
             . The export includes name, email, phone, address, special
             instructions, quantity, registration date, amount paid, transaction
-            ID, check-in status, ticket token, and ticket URL. For daily
-            events, the attendee list has a date filter &mdash; select a date
-            to see only that day's attendees, and the CSV export respects the
-            same filter.
+            ID, check-in status, ticket token, and ticket URL. For daily events,
+            the attendee list has a date filter &mdash; select a date to see
+            only that day's attendees, and the CSV export respects the same
+            filter.
           </p>
         </Q>
 
@@ -1075,9 +1074,9 @@ export const adminGuidePage = (
           <p>
             It permanently deletes <strong>everything</strong>: all events,
             attendees, groups, questions, users, holidays, API keys, activity
-            logs, payment configuration, and sessions. The system
-            returns to its initial setup state. You must type a confirmation
-            phrase to proceed. This cannot be undone.
+            logs, payment configuration, and sessions. The system returns to its
+            initial setup state. You must type a confirmation phrase to proceed.
+            This cannot be undone.
           </p>
         </Q>
       </Section>
@@ -1154,10 +1153,10 @@ export const adminGuidePage = (
         <Q q="What is the activity log?">
           <p>
             The <strong>Log</strong> page shows a chronological list of admin
-            actions such as event creation, event updates, attendee changes,
-            and question changes. Both owners and managers can view the log. Each event also
-            has its own log, accessible from the event page, showing only
-            actions related to that event.
+            actions such as event creation, event updates, attendee changes, and
+            question changes. Both owners and managers can view the log. Each
+            event also has its own log, accessible from the event page, showing
+            only actions related to that event.
           </p>
         </Q>
       </Section>
@@ -1460,9 +1459,9 @@ export const adminGuidePage = (
             The debug page at <code>/admin/debug</code> shows the configuration
             status of all integrated services (payments, email, Apple Wallet,
             Google Wallet, storage, CDN, notifications, database) without
-            revealing any secrets or API
-            keys. It's useful for troubleshooting setup issues &mdash; you can
-            quickly see which services are configured and which are missing.
+            revealing any secrets or API keys. It's useful for troubleshooting
+            setup issues &mdash; you can quickly see which services are
+            configured and which are missing.
           </p>
         </Q>
       </Section>

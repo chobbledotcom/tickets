@@ -638,7 +638,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         const html = await response.text();
         expect(html).toContain('id="settings-host-subdomain"');
         expect(html).toContain("Host Subdomain");
-        expect(html).toContain("Check Availability");
+        expect(html).toContain("Check Availability &amp; Preview Complete Domain");
       });
 
       test("shows existing subdomain as read-only with redirect message when custom domain set", async () => {
