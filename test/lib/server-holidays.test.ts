@@ -49,7 +49,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const inviteUrl = inviteResponse.headers.get("location") ?? "";
       const inviteMatch = inviteUrl.match(/invite=([^&]+)/);
       expect(inviteMatch).not.toBeNull();
-      const inviteLink = decodeURIComponent(inviteMatch![1] as string);
+      const inviteLink = decodeURIComponent(inviteMatch?.[1] as string);
       // Extract token from invite link
       const inviteToken = inviteLink.split("/join/")[1];
       expect(inviteToken).toBeTruthy();

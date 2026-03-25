@@ -74,7 +74,7 @@ describe("verifyAttachmentUrl", () => {
   test("rejects tampered signature", async () => {
     const url = await signAttachmentUrl(5, 10);
     const params = new URL(`http://x${url}`).searchParams;
-    const tampered = `${params.get("sig")!.slice(0, -4)}XXXX`;
+    const tampered = `${params.get("sig")?.slice(0, -4)}XXXX`;
     const result = await verifyAttachmentUrl(
       5,
       10,

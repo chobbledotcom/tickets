@@ -551,8 +551,8 @@ describe("square", () => {
           expect(result!.url).toBe("https://square.link/abc");
 
           // Verify SDK was called with correctly constructed order
-          const args = checkoutCreate.calls[0]!
-            .args[0] as CreatePaymentLinkInput;
+          const args = checkoutCreate.calls[0]
+            ?.args[0] as CreatePaymentLinkInput;
           expect(args.order.locationId).toBe("L_loc_456");
           expect(args.order.lineItems).toHaveLength(1);
           expect(args.order.lineItems[0]!.name).toBe("Ticket: Concert");
@@ -620,8 +620,8 @@ describe("square", () => {
             "https://tickets.example.com",
           );
 
-          const args = checkoutCreate.calls[0]!
-            .args[0] as CreatePaymentLinkInput;
+          const args = checkoutCreate.calls[0]
+            ?.args[0] as CreatePaymentLinkInput;
           expect(args.order.lineItems).toHaveLength(2);
           const feeItem = args.order.lineItems[1]!;
           expect(feeItem.name).toBe("Booking fee");
@@ -697,8 +697,8 @@ describe("square", () => {
 
           await squareApi.createPaymentLink(event, intent, "http://localhost");
 
-          const args = checkoutCreate.calls[0]!
-            .args[0] as CreatePaymentLinkInput;
+          const args = checkoutCreate.calls[0]
+            ?.args[0] as CreatePaymentLinkInput;
           expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
           expect(args.order.metadata.phone).toBeUndefined();
           expect(args.order.lineItems[0]!.note).toBe("Ticket");
@@ -849,8 +849,8 @@ describe("square", () => {
           expect(result).not.toBeNull();
 
           // Verify name was truncated in metadata
-          const args = checkoutCreate.calls[0]!
-            .args[0] as CreatePaymentLinkInput;
+          const args = checkoutCreate.calls[0]
+            ?.args[0] as CreatePaymentLinkInput;
           expect(args.order.metadata.name!.length).toBe(255);
         },
       );
@@ -1034,8 +1034,8 @@ describe("square", () => {
           expect(result!.orderId).toBe("order_multi");
           expect(result!.url).toBe("https://square.link/multi");
 
-          const args = checkoutCreate.calls[0]!
-            .args[0] as CreatePaymentLinkInput;
+          const args = checkoutCreate.calls[0]
+            ?.args[0] as CreatePaymentLinkInput;
 
           // Verify multiple line items
           expect(args.order.lineItems).toHaveLength(2);
@@ -1339,8 +1339,8 @@ describe("square", () => {
           const result = await squareApi.retrieveOrder("order_tenders");
           expect(result).not.toBeNull();
           expect(result!.tenders).toHaveLength(2);
-          expect(result!.tenders![0]!.paymentId).toBe("pay_abc");
-          expect(result!.tenders![1]!.paymentId).toBeUndefined();
+          expect(result?.tenders?.[0]?.paymentId).toBe("pay_abc");
+          expect(result?.tenders?.[1]?.paymentId).toBeUndefined();
         },
       );
     });
@@ -1536,8 +1536,8 @@ describe("square", () => {
           });
 
           // Verify refund was called with correct amount and payment ID
-          const refundArgs = refundsRefundPayment.calls[0]!
-            .args[0] as RefundPaymentInput;
+          const refundArgs = refundsRefundPayment.calls[0]
+            ?.args[0] as RefundPaymentInput;
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
           expect(refundArgs.amountMoney.currency).toBe("USD");
@@ -1792,7 +1792,7 @@ describe("square", () => {
       );
       expect(opts.method).toBe("POST");
       expect(opts.headers!.Authorization).toBe("Bearer EAAAl_rest_test");
-      expect(opts.headers!["Square-Version"]).toBe("2025-01-23");
+      expect(opts.headers?.["Square-Version"]).toBe("2025-01-23");
 
       const body = JSON.parse(opts.body!);
       expect(body.idempotency_key).toBe("idem-rest");
@@ -1925,8 +1925,8 @@ describe("square", () => {
       );
       expect(result.order!.id).toBe("ord_100");
       expect(result.order!.metadata!.event_id).toBe("5");
-      expect(result.order!.tenders![0]!.paymentId).toBe("pay_1");
-      expect(result.order!.tenders![1]!.paymentId).toBeNull();
+      expect(result.order?.tenders?.[0]?.paymentId).toBe("pay_1");
+      expect(result.order?.tenders?.[1]?.paymentId).toBeNull();
       expect(result.order!.state).toBe("COMPLETED");
       expect(result.order!.totalMoney!.amount).toBe(BigInt(5000));
       expect(result.order!.totalMoney!.currency).toBe("USD");
@@ -2112,9 +2112,9 @@ describe("square", () => {
         "https://connect.squareupsandbox.com/v2/locations",
       );
       expect(result.locations).toHaveLength(2);
-      expect(result.locations![0]!.id).toBe("L_1");
-      expect(result.locations![0]!.name).toBe("Main");
-      expect(result.locations![1]!.status).toBe("INACTIVE");
+      expect(result.locations?.[0]?.id).toBe("L_1");
+      expect(result.locations?.[0]?.name).toBe("Main");
+      expect(result.locations?.[1]?.status).toBe("INACTIVE");
     });
 
     test("uses production URL when sandbox is disabled", async () => {

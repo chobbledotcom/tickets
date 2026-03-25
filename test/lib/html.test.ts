@@ -2192,8 +2192,8 @@ describe("html", () => {
         session: TEST_SESSION,
       });
       const failedSection = html
-        .split("Failed Payments")[1]!
-        .split("Add Attendee")[0]!;
+        .split("Failed Payments")[1]
+        ?.split("Add Attendee")[0]!;
       expect(failedSection).toContain("Jane Stuck");
       expect(failedSection).toContain("Delete");
       expect(failedSection).toContain("/delete-incomplete");
@@ -3465,12 +3465,12 @@ describe("html", () => {
     const dateField = eventFields.find((f) => f.name === "date")!;
 
     test("accepts valid datetime value", () => {
-      const result = dateField.validate!("2026-06-15T14:00");
+      const result = dateField.validate?.("2026-06-15T14:00");
       expect(result).toBeNull();
     });
 
     test("rejects invalid datetime value", () => {
-      const result = dateField.validate!("not-a-date");
+      const result = dateField.validate?.("not-a-date");
       expect(result).toBe("Please enter a valid date and time");
     });
   });

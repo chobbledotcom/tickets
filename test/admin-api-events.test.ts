@@ -27,7 +27,7 @@ const getTestDataKey = async (): Promise<CryptoKey> => {
   const sessionMatch = cookie.match(
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
   );
-  const token = sessionMatch![1]!;
+  const token = sessionMatch?.[1]!;
   const session = await getSession(token);
   return unwrapKeyWithToken(session!.wrapped_data_key!, token);
 };
