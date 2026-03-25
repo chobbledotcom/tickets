@@ -14,6 +14,7 @@
 
 import { type SigningCredentials, trimAuthToken } from "#lib/apple-wallet.ts";
 import { settings } from "#lib/db/settings.ts";
+import { logDebug } from "#lib/logger.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet.ts";
 
@@ -44,7 +45,10 @@ const handleGetTokens = (
   withVerifiedPass(204)((_config) => {
     const authHeader = request.headers.get("Authorization") ?? "";
     const rawToken = authHeader.replace(/^ApplePass\s+/i, "");
-    if (!rawToken) return new Response(null, { status: 401 });
+    if (!rawToken) {
+      logDebug("Wallet", "Registrations request without Authorization header");
+      return new Response(null, { status: 204 });
+    }
     const token = trimAuthToken(rawToken);
 
     // Ignore passesUpdatedSince — always return the token as updated
