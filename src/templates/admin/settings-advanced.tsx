@@ -461,7 +461,7 @@ export const adminAdvancedSettingsPage = (
         </CsrfForm>
       )}
 
-      {s.bunnyDnsEnabled && (
+      {(s.bunnyDnsEnabled || s.bunnySubdomain) && (
         <CsrfForm
           action="/admin/settings/host-subdomain"
           id="settings-host-subdomain"

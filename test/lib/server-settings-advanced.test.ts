@@ -622,12 +622,32 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         }
       });
 
-      test("does not show host subdomain section when DNS not configured", async () => {
+      test("does not show host subdomain section when DNS not configured and no subdomain set", async () => {
         const response = await awaitTestRequest("/admin/settings-advanced", {
           cookie: await testCookie(),
         });
         const html = await response.text();
         expect(html).not.toContain('id="settings-host-subdomain"');
+      });
+
+      test("shows host subdomain section when subdomain already set even without DNS env", async () => {
+        const cookie = await testCookie();
+        const token = cookie.split("=").slice(1).join("=");
+        await settings.update.bunnySubdomain("myevent.tickets.example.com");
+        const response = await handleRequest(
+          mockRequestWithHost(
+            "/admin/settings-advanced",
+            "myevent.tickets.example.com",
+            {
+              headers: { cookie: `__Host-session=${token}` },
+            },
+          ),
+        );
+        const html = await response.text();
+        expect(response.status).toBe(200);
+        expect(html).toContain('id="settings-host-subdomain"');
+        expect(html).toContain("myevent.tickets.example.com");
+        expect(html).toContain("permanent and cannot be changed");
       });
 
       test("shows host subdomain section when DNS is configured", async () => {
