@@ -812,9 +812,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 await testCookie(),
               ),
             );
-            expect(response.status).toBe(409);
-            const html = await response.text();
-            expect(html).toContain("Another task is already in progress");
+            expect(response.status).toBe(302);
+            expectFlash(
+              response,
+              expect.stringContaining("Another task is already in progress"),
+            );
           } finally {
             await settings.update.currentTask("");
           }
@@ -1199,9 +1201,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               "/admin/settings/custom-domain",
               { custom_domain: "tickets.example.com" },
             );
-            expect(response.status).toBe(409);
-            const html = await response.text();
-            expect(html).toContain("Another task is already in progress");
+            expect(response.status).toBe(302);
+            expectFlash(
+              response,
+              expect.stringContaining("Another task is already in progress"),
+            );
           } finally {
             await settings.update.currentTask("");
           }
@@ -1215,9 +1219,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             const { response } = await adminFormPost(
               "/admin/settings/custom-domain/validate",
             );
-            expect(response.status).toBe(409);
-            const html = await response.text();
-            expect(html).toContain("Another task is already in progress");
+            expect(response.status).toBe(302);
+            expectFlash(
+              response,
+              expect.stringContaining("Another task is already in progress"),
+            );
           } finally {
             await settings.update.currentTask("");
           }
