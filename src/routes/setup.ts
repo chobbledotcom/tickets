@@ -21,8 +21,7 @@ import { type SetupFormValues, setupFields } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /** Response helper - renders setup page with current stored CSRF token */
-const setupResponse = (error?: string) =>
-  htmlResponse(setupPage(error));
+const setupResponse = (error?: string) => htmlResponse(setupPage(error));
 
 /**
  * Validate setup form data (uses form framework + custom validation)
@@ -126,7 +125,10 @@ const handleSetupPost = async (
 
   if (!formCsrf || !(await verifySignedCsrfToken(formCsrf))) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "setup form" });
-    return errorRedirect("/setup/", "Invalid or expired form. Please try again.");
+    return errorRedirect(
+      "/setup/",
+      "Invalid or expired form. Please try again.",
+    );
   }
 
   logDebug("Setup", "CSRF validation passed, validating form...");

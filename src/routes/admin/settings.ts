@@ -81,8 +81,8 @@ import {
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
-  applyFlash,
   type AuthSession,
+  applyFlash,
   errorRedirect,
   htmlResponse,
   jsonResponse,

@@ -340,7 +340,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         admin_level: "manager",
       });
 
-      await expectHtmlResponse(response, 400, "already taken");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("already taken"), false);
     });
 
     test("rejects invalid role", async () => {
@@ -349,7 +350,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         admin_level: "superadmin",
       });
 
-      await expectHtmlResponse(response, 400, "Invalid role");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid role"), false);
     });
   });
 
@@ -419,7 +421,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/users/2/delete", {
         confirm_identifier: "wrongname",
       });
-      await expectHtmlResponse(response, 400, "Username does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Username does not match"),
+        false,
+      );
 
       const usersAfter = await getAllUsers();
       expect(usersAfter.length).toBe(2);
@@ -432,7 +439,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/users/2/delete");
-      await expectHtmlResponse(response, 400, "Username does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Username does not match"),
+        false,
+      );
     });
 
     test("prevents deleting self", async () => {
@@ -486,7 +498,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           password: TEST_ADMIN_PASSWORD,
         }),
       );
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid credentials"),
+        false,
+      );
     });
 
     test("login with wrong password returns 401", async () => {
@@ -496,7 +513,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           password: "wrongpassword",
         }),
       );
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid credentials"),
+        false,
+      );
     });
 
     test("login page shows username field", async () => {
@@ -556,9 +578,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "differentpassword",
       });
 
-      expect(joinPostResponse.status).toBe(400);
-      const html = await joinPostResponse.text();
-      expect(html).toContain("do not match");
+      expect(joinPostResponse.status).toBe(302);
+      expectFlash(
+        joinPostResponse,
+        expect.stringContaining("do not match"),
+        false,
+      );
     });
 
     test("POST /join/:code rejects short passwords", async () => {
@@ -569,9 +594,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "short",
       });
 
-      expect(joinPostResponse.status).toBe(400);
-      const html = await joinPostResponse.text();
-      expect(html).toContain("8 characters");
+      expect(joinPostResponse.status).toBe(302);
+      expectFlash(
+        joinPostResponse,
+        expect.stringContaining("8 characters"),
+        false,
+      );
     });
   });
 
@@ -714,7 +742,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         username: "",
         admin_level: "manager",
       });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(302);
     });
   });
 
@@ -760,7 +788,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           csrf_token: "wrong",
         }),
       );
-      await expectHtmlResponse(response, 403, "try again");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("try again"), false);
     });
 
     test("POST /join/:code rejects missing CSRF token", async () => {
@@ -774,7 +803,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           csrf_token: "token",
         }),
       );
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(302);
     });
 
     test("POST /join/:code rejects form without csrf_token field", async () => {
@@ -792,7 +821,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           body,
         }),
       );
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(302);
     });
 
     test("POST /join/:code rejects missing password fields", async () => {
@@ -802,7 +831,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password: "",
         password_confirm: "",
       });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(302);
     });
   });
 
@@ -1089,7 +1118,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         new_password_confirm: "newpassword123",
       });
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Failed to update password"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Failed to update password"),
+        false,
+      );
     });
   });
 

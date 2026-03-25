@@ -21,6 +21,7 @@ import {
   deactivateTestEvent,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
@@ -1250,7 +1251,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "Event name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event name does not match"),
+        false,
+      );
     });
   });
 
@@ -1328,7 +1334,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "Event name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event name does not match"),
+        false,
+      );
     });
   });
 
@@ -1430,7 +1441,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "does not match");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
     });
 
     test("deletes event with matching identifier (case insensitive)", async () => {
@@ -1890,7 +1902,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "Event name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event name does not match"),
+        false,
+      );
     });
 
     test("reactivate event without confirm_identifier uses empty fallback", async () => {
@@ -1909,7 +1926,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "Event name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event name does not match"),
+        false,
+      );
     });
 
     test("delete event without confirm_identifier uses empty fallback", async () => {
@@ -1927,7 +1949,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "does not match");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
     });
   });
 

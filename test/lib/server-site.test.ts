@@ -119,10 +119,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
         homepage_text: "",
       });
-      await expectHtmlResponse(
+      expect(response.status).toBe(302);
+      expectFlash(
         response,
-        400,
-        `${MAX_WEBSITE_TITLE_LENGTH} characters or fewer`,
+        expect.stringContaining(`${MAX_WEBSITE_TITLE_LENGTH} characters or fewer`),
+        false,
       );
     });
 
@@ -131,10 +132,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         website_title: "",
         homepage_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
-      await expectHtmlResponse(
+      expect(response.status).toBe(302);
+      expectFlash(
         response,
-        400,
-        `${MAX_TEXTAREA_LENGTH} characters or fewer`,
+        expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
+        false,
       );
     });
 
@@ -227,10 +229,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/site/contact", {
         contact_page_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
-      await expectHtmlResponse(
+      expect(response.status).toBe(302);
+      expectFlash(
         response,
-        400,
-        `${MAX_TEXTAREA_LENGTH} characters or fewer`,
+        expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
+        false,
       );
     });
 

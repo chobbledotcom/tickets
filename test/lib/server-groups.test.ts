@@ -225,7 +225,12 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: g1.slug,
         terms_and_conditions: "",
       });
-      await expectHtmlResponse(response, 400, "Slug is already in use");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Slug is already in use"),
+        false,
+      );
     });
 
     test("returns 404 when editing a non-existent group", async () => {
@@ -294,7 +299,12 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
           confirm_identifier: "Wrong Name",
         },
       );
-      await expectHtmlResponse(response, 400, "Group name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Group name does not match"),
+        false,
+      );
     });
 
     test("deletes group, resets events to group_id=0, and does not delete events", async () => {

@@ -12,6 +12,8 @@ import type { FormParams } from "#lib/form-data.ts";
 import { deleteAllEventStorageFiles, isStorageEnabled } from "#lib/storage.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
+  applyFlash,
+  errorRedirect,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -29,9 +31,9 @@ const withDemoResetAccess = (
 ): Response | Promise<Response> =>
   isDemoMode() ? handler() : notFoundResponse();
 
-/** Render demo reset page with an error */
-const resetPageError = (message: string, status: number): Response =>
-  htmlResponse(demoResetPage(message), status);
+/** Redirect back to demo reset page with an error */
+const resetPageError = (message: string, _status: number): Response =>
+  errorRedirect("/demo/reset", message);
 
 /**
  * Validate the confirmation phrase from a form submission.
@@ -45,8 +47,9 @@ export const validateResetPhrase = (form: FormParams): string | null => {
 };
 
 /** Handle GET /demo/reset - show reset confirmation page */
-const handleDemoResetGet = (): Response | Promise<Response> =>
+const handleDemoResetGet = (request: Request): Response | Promise<Response> =>
   withDemoResetAccess(async () => {
+    applyFlash(request);
     await signCsrfToken();
     return htmlResponse(demoResetPage());
   });

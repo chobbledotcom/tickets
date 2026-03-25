@@ -90,8 +90,11 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         </label>
         <footer>
           <button type="submit">Register Subdomain</button>
-          <a href="/admin/settings/advanced#settings-host-subdomain">
-            <strong>Cancel</strong>
+          <a
+            href="/admin/settings-advanced#settings-host-subdomain"
+            class="secondary"
+          >
+            Cancel
           </a>
         </footer>
       </>

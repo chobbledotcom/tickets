@@ -20,10 +20,12 @@ import {
   setEventQuestions,
   swapAnswerOrder,
 } from "#lib/db/questions.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  errorRedirect,
   type FormParams,
   htmlResponse,
   notFoundResponse,
@@ -41,42 +43,36 @@ import {
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
 
-/** Validate text is non-empty, returning error page if blank */
-const requireTextOrError = async (
+/** Validate text is non-empty, returning error redirect if blank */
+const requireTextOrError = (
   form: FormParams,
   questionId: number,
-  session: AdminSession,
   errorMsg: string,
-): Promise<string | Response> => {
+): string | Response => {
   const text = form.getString("text");
   if (text) return text;
-  const question = await getQuestionWithAnswers(questionId);
-  return question
-    ? htmlResponse(adminQuestionPage(question, session, errorMsg), 400)
-    : notFoundResponse();
+  return errorRedirect(`/admin/questions/${questionId}`, errorMsg);
 };
 
 /** Handle GET /admin/questions */
 const handleQuestionsGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, async (session) =>
-    htmlResponse(
-      adminQuestionsPage(await getAllQuestionsWithAnswers(), session),
-    ),
-  );
+  requireOwnerOr(request, async (session) => {
+    const flash = getFlash();
+    return htmlResponse(
+      adminQuestionsPage(
+        await getAllQuestionsWithAnswers(),
+        session,
+        flash.error,
+      ),
+    );
+  });
 
 /** Handle POST /admin/questions (create question) */
 const handleQuestionsPost = (request: Request) =>
-  withOwnerAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (_session, form) => {
     const text = form.getString("text");
     if (!text) {
-      return htmlResponse(
-        adminQuestionsPage(
-          await getAllQuestionsWithAnswers(),
-          session,
-          "Question text is required",
-        ),
-        400,
-      );
+      return errorRedirect("/admin/questions", "Question text is required");
     }
     await questionsTable.insert({ text });
     await logActivity(`Question '${text}' created`);
@@ -87,8 +83,11 @@ const handleQuestionsPost = (request: Request) =>
 const handleQuestionGet = ownerGetById(
   getQuestionWithAnswers,
   async (q, session) => {
+    const flash = getFlash();
     const answerCounts = await getAnswerCountsForQuestion(q.id);
-    return htmlResponse(adminQuestionPage(q, session, undefined, answerCounts));
+    return htmlResponse(
+      adminQuestionPage(q, session, flash.error, answerCounts),
+    );
   },
 );
 
@@ -97,8 +96,8 @@ const withValidatedText = (
   errorMsg: string,
   onValid: (id: number, text: string) => Promise<Response>,
 ) =>
-  ownerFormById(async (id, session, form) => {
-    const textOrError = await requireTextOrError(form, id, session, errorMsg);
+  ownerFormById(async (id, _session, form) => {
+    const textOrError = requireTextOrError(form, id, errorMsg);
     return textOrError instanceof Response
       ? textOrError
       : onValid(id, textOrError);
@@ -132,25 +131,18 @@ const CONFIRM_TEXT_MSG =
 /** Handle GET /admin/questions/:id/delete */
 const handleDeleteQuestionGet = ownerGetById(
   getQuestionWithAnswers,
-  (q, session) => htmlResponse(adminQuestionDeletePage(q, session)),
+  (q, session) => {
+    const flash = getFlash();
+    return htmlResponse(adminQuestionDeletePage(q, session, flash.error));
+  },
 );
 
 /** Handle POST /admin/questions/:id/delete */
-const handleDeleteQuestionPost = ownerFormById(async (id, session, form) => {
+const handleDeleteQuestionPost = ownerFormById(async (id, _session, form) => {
   const question = await getQuestion(id);
   if (!question) return notFoundResponse();
   if (!verifyIdentifier(question.text, form.getString("confirm_identifier"))) {
-    const questionWithAnswers = await getQuestionWithAnswers(id);
-    return questionWithAnswers
-      ? htmlResponse(
-          adminQuestionDeletePage(
-            questionWithAnswers,
-            session,
-            CONFIRM_TEXT_MSG,
-          ),
-          400,
-        )
-      : notFoundResponse();
+    return errorRedirect(`/admin/questions/${id}/delete`, CONFIRM_TEXT_MSG);
   }
   await deleteQuestion(id);
   await logActivity(`Question '${question.text}' deleted`);
@@ -204,17 +196,20 @@ const answerRoute = withAnswerAuth(requireOwnerOr);
 const answerFormRoute = withAnswerAuth(withOwnerAuthForm);
 
 /** Handle GET /admin/questions/:id/answers/:answerId/delete */
-const handleDeleteAnswerGet = answerRoute((question, answer, session) =>
-  htmlResponse(adminAnswerDeletePage(question, answer, session)),
-);
+const handleDeleteAnswerGet = answerRoute((question, answer, session) => {
+  const flash = getFlash();
+  return htmlResponse(
+    adminAnswerDeletePage(question, answer, session, flash.error),
+  );
+});
 
 /** Handle POST /admin/questions/:id/answers/:answerId/delete */
 const handleDeleteAnswerPost = answerFormRoute(
-  async (question, answer, session, form) => {
+  async (question, answer, _session, form) => {
     if (!verifyIdentifier(answer.text, form.getString("confirm_identifier"))) {
-      return htmlResponse(
-        adminAnswerDeletePage(question, answer, session, CONFIRM_TEXT_MSG),
-        400,
+      return errorRedirect(
+        `/admin/questions/${question.id}/answers/${answer.id}/delete`,
+        CONFIRM_TEXT_MSG,
       );
     }
     await deleteAnswer(answer.id);

@@ -1256,12 +1256,28 @@ export const createTestAttendee = async (
 
   // Free events redirect to thank you page (302)
   // Paid events redirect to Stripe (303)
+  // Error redirects are also 302 but carry an error flash cookie
   if (response.status !== 302 && response.status !== 303) {
     const body = await response.text();
     throw new Error(
       `Failed to create attendee: ${response.status} - ${body.slice(0, 200)}`,
     );
   }
+
+  // Detect error redirects (302 with error flash cookie)
+  const flashCookie = response.headers
+    .getSetCookie()
+    .find((c) => c.startsWith("flash_"));
+  if (flashCookie) {
+    const cookiePart = flashCookie.split(";")[0] ?? "";
+    const value = cookiePart.split("=").slice(1).join("=");
+    const parsed = parseFlashValue(value);
+    if (parsed?.error) {
+      response.body?.cancel();
+      throw new Error(`Failed to create attendee: ${parsed.error}`);
+    }
+  }
+
   response.body?.cancel();
 
   // Return the most recent attendee (DESC order puts newest first)
@@ -1452,19 +1468,20 @@ export const expectFlash = (
  * Compares the location without the flash param for clean assertions.
  */
 export const expectRedirectWithFlash =
-  (location: string, message?: string, succeeded = true) =>
-  (response: Response): Response => {
-    const actualLocation = expectRedirect(response);
-    const url = new URL(actualLocation, "http://localhost");
-    const flashId = url.searchParams.get("flash");
-    expect(flashId).toBeDefined();
-    // Compare location without flash param
-    url.searchParams.delete("flash");
-    const clean = url.pathname + url.search + url.hash;
-    expect(clean).toBe(location);
-    expectFlash(response, message, succeeded);
-    return response;
-  };
+  // deno-lint-ignore no-explicit-any
+    (location: string, message?: string | any, succeeded = true) =>
+    (response: Response): Response => {
+      const actualLocation = expectRedirect(response);
+      const url = new URL(actualLocation, "http://localhost");
+      const flashId = url.searchParams.get("flash");
+      expect(flashId).toBeDefined();
+      // Compare location without flash param
+      url.searchParams.delete("flash");
+      const clean = url.pathname + url.search + url.hash;
+      expect(clean).toBe(location);
+      expectFlash(response, message, succeeded);
+      return response;
+    };
 
 /**
  * Build a cookie header string containing a keyed flash message.
@@ -1476,7 +1493,8 @@ export const flashCookieHeader = (
   succeeded = true,
 ): string => {
   const type = succeeded ? "s" : "e";
-  return `flash_${FLASH_TEST_ID}=${encodeURIComponent(`${type}:${message}`)}`;
+  const payload = JSON.stringify({ t: type, m: message });
+  return `flash_${FLASH_TEST_ID}=${encodeURIComponent(payload)}`;
 };
 
 /** Assert response is a checkout redirect (302 to an external HTTPS URL) */

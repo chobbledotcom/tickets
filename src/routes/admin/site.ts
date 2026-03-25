@@ -14,8 +14,9 @@ import type { FormParams } from "#lib/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  applyFlash,
   type AuthSession,
+  applyFlash,
+  errorRedirect,
   htmlResponse,
   redirect,
   requireOwnerOr,

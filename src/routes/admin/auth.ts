@@ -77,7 +77,10 @@ const handleAdminLogin = async (
   // Validate login CSRF token (signed token pattern)
   const csrfForm = form.getString("csrf_token");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
-    return errorRedirect("/admin", "Invalid or expired form. Please try again.");
+    return errorRedirect(
+      "/admin",
+      "Invalid or expired form. Please try again.",
+    );
   }
 
   const clientIp = getClientIp(request, server);

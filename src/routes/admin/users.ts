@@ -25,8 +25,8 @@ import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
-  applyFlash,
   type AuthSession,
+  applyFlash,
   errorRedirect,
   generateSecureToken,
   getSearchParam,

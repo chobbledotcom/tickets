@@ -194,7 +194,11 @@ describeWithEnv(
             contentType: "application/pdf",
           });
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("JPEG, PNG, GIF, or WebP"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("JPEG, PNG, GIF, or WebP"),
+            false,
+          );
         });
       });
 
@@ -238,7 +242,11 @@ describeWithEnv(
         );
         const response = await handleRequest(request);
         expect(response.status).toBe(302);
-        expectFlash(response, expect.stringContaining("No image file provided"), false);
+        expectFlash(
+          response,
+          expect.stringContaining("No image file provided"),
+          false,
+        );
       });
 
       describeWithEnv(
@@ -247,7 +255,12 @@ describeWithEnv(
         () => {
           test("returns error", async () => {
             const response = await submitHeaderJpeg("logo.jpg");
-            await expectHtmlResponse(response, 400, "Image storage is not configured");
+            expect(response.status).toBe(302);
+            expectFlash(
+              response,
+              expect.stringContaining("Image storage is not configured"),
+              false,
+            );
           });
         },
       );
@@ -313,7 +326,12 @@ describeWithEnv(
 
       test("returns error when no header image exists", async () => {
         const response = await submitHeaderImageDelete();
-        await expectHtmlResponse(response, 400, "No header image to remove");
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("No header image to remove"),
+          false,
+        );
       });
 
       test("reports error when storage delete throws", async () => {

@@ -260,7 +260,11 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_pass_type_id: "",
     });
     expect(response.status).toBe(302);
-    expectFlash(response, expect.stringContaining("Pass Type ID is required"), false);
+    expectFlash(
+      response,
+      expect.stringContaining("Pass Type ID is required"),
+      false,
+    );
   });
 
   test("requires Team ID", async () => {
@@ -268,7 +272,11 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_team_id: "",
     });
     expect(response.status).toBe(302);
-    expectFlash(response, expect.stringContaining("Team ID is required"), false);
+    expectFlash(
+      response,
+      expect.stringContaining("Team ID is required"),
+      false,
+    );
   });
 
   test("requires signing certificate on initial setup", async () => {
@@ -276,7 +284,11 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_signing_cert: "",
     });
     expect(response.status).toBe(302);
-    expectFlash(response, expect.stringContaining("Signing certificate is required"), false);
+    expectFlash(
+      response,
+      expect.stringContaining("Signing certificate is required"),
+      false,
+    );
   });
 
   test("requires signing key on initial setup", async () => {
@@ -284,7 +296,11 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_signing_key: "",
     });
     expect(response.status).toBe(302);
-    expectFlash(response, expect.stringContaining("Signing private key is required"), false);
+    expectFlash(
+      response,
+      expect.stringContaining("Signing private key is required"),
+      false,
+    );
   });
 
   test("requires WWDR certificate on initial setup", async () => {
@@ -292,7 +308,11 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_wwdr_cert: "",
     });
     expect(response.status).toBe(302);
-    expectFlash(response, expect.stringContaining("WWDR certificate is required"), false);
+    expectFlash(
+      response,
+      expect.stringContaining("WWDR certificate is required"),
+      false,
+    );
   });
 
   test("rejects invalid PEM signing certificate", async () => {
@@ -300,7 +320,13 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_signing_cert: "not a valid cert",
     });
     expect(response.status).toBe(302);
-    expectFlash(response, expect.stringContaining("Signing certificate is not a valid PEM certificate"), false);
+    expectFlash(
+      response,
+      expect.stringContaining(
+        "Signing certificate is not a valid PEM certificate",
+      ),
+      false,
+    );
   });
 
   test("rejects invalid PEM signing key", async () => {
@@ -308,7 +334,13 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_signing_key: "not a valid key",
     });
     expect(response.status).toBe(302);
-    expectFlash(response, expect.stringContaining("Signing private key is not a valid PEM private key"), false);
+    expectFlash(
+      response,
+      expect.stringContaining(
+        "Signing private key is not a valid PEM private key",
+      ),
+      false,
+    );
   });
 
   test("rejects invalid PEM WWDR certificate", async () => {
@@ -316,7 +348,13 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       apple_wallet_wwdr_cert: "not a valid cert",
     });
     expect(response.status).toBe(302);
-    expectFlash(response, expect.stringContaining("WWDR certificate is not a valid PEM certificate"), false);
+    expectFlash(
+      response,
+      expect.stringContaining(
+        "WWDR certificate is not a valid PEM certificate",
+      ),
+      false,
+    );
   });
 
   test("saves all settings successfully", async () => {

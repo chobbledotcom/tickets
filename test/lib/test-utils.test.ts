@@ -447,7 +447,7 @@ describe("test-utils", () => {
         password: "password123",
         password_confirm: "different",
       });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(302);
     });
   });
 

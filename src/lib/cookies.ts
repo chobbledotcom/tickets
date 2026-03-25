@@ -35,9 +35,9 @@ export const buildFlashCookie = (
   result?: string,
 ): string => {
   const type = succeeded ? "s" : "e";
-  const payload = result
-    ? JSON.stringify({ t: type, m: message, r: result })
-    : `${type}:${message}`;
+  const payload = JSON.stringify(
+    result ? { t: type, m: message, r: result } : { t: type, m: message },
+  );
   const value = encodeURIComponent(payload);
   return `${flashCookieName(id)}=${value}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=10`;
 };
@@ -51,25 +51,14 @@ export const parseFlashValue = (
   value: string,
 ): { success?: string; error?: string; result?: string } | null => {
   const decoded = decodeURIComponent(value);
-  // JSON format (with result): {"t":"s","m":"message","r":"result"}
-  if (decoded.startsWith("{")) {
-    try {
-      const obj = JSON.parse(decoded);
-      return {
-        success: obj.t === "s" ? obj.m : undefined,
-        error: obj.t === "e" ? obj.m : undefined,
-        result: obj.r,
-      };
-    } catch {
-      return null;
-    }
+  try {
+    const obj = JSON.parse(decoded);
+    return {
+      success: obj.t === "s" ? obj.m : undefined,
+      error: obj.t === "e" ? obj.m : undefined,
+      result: obj.r,
+    };
+  } catch {
+    return null;
   }
-  // Legacy format: "s:message" or "e:message"
-  if (decoded.startsWith("s:")) {
-    return { success: decoded.slice(2) };
-  }
-  if (decoded.startsWith("e:")) {
-    return { error: decoded.slice(2) };
-  }
-  return null;
 };

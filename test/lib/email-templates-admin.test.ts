@@ -218,7 +218,11 @@ describeWithEnv("admin email templates", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Invalid template syntax"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid template syntax"),
+        false,
+      );
     });
 
     test("defaults missing form fields to empty strings", async () => {
@@ -238,7 +242,11 @@ describeWithEnv("admin email templates", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("exceeds maximum length"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("exceeds maximum length"),
+        false,
+      );
     });
   });
 

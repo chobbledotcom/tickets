@@ -113,16 +113,20 @@ describe("buildFlashCookie", () => {
     expect(cookie).toMatch(/^flash_abc123=/);
   });
 
-  test("encodes success message", () => {
+  test("encodes success message as JSON", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Saved", true);
-    expect(cookie).toContain(encodeURIComponent("s:Saved"));
+    expect(cookie).toContain(
+      encodeURIComponent(JSON.stringify({ t: "s", m: "Saved" })),
+    );
   });
 
-  test("encodes error message", () => {
+  test("encodes error message as JSON", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Failed", false);
-    expect(cookie).toContain(encodeURIComponent("e:Failed"));
+    expect(cookie).toContain(
+      encodeURIComponent(JSON.stringify({ t: "e", m: "Failed" })),
+    );
   });
 
   test("sets short Max-Age", () => {
@@ -145,20 +149,40 @@ describe("clearFlashCookie", () => {
 
 describe("parseFlashValue", () => {
   test("parses success flash value", () => {
-    expect(parseFlashValue("s:Event created")).toEqual({
+    const encoded = JSON.stringify({ t: "s", m: "Event created" });
+    expect(parseFlashValue(encoded)).toEqual({
       success: "Event created",
+      error: undefined,
+      result: undefined,
     });
   });
 
   test("parses error flash value", () => {
-    expect(parseFlashValue("e:Something went wrong")).toEqual({
+    const encoded = JSON.stringify({ t: "e", m: "Something went wrong" });
+    expect(parseFlashValue(encoded)).toEqual({
+      success: undefined,
       error: "Something went wrong",
+      result: undefined,
     });
   });
 
   test("decodes URL-encoded values", () => {
-    expect(parseFlashValue(encodeURIComponent("s:Hello world"))).toEqual({
+    const encoded = encodeURIComponent(
+      JSON.stringify({ t: "s", m: "Hello world" }),
+    );
+    expect(parseFlashValue(encoded)).toEqual({
       success: "Hello world",
+      error: undefined,
+      result: undefined,
+    });
+  });
+
+  test("parses flash with result", () => {
+    const encoded = JSON.stringify({ t: "s", m: "Created", r: "abc123" });
+    expect(parseFlashValue(encoded)).toEqual({
+      success: "Created",
+      error: undefined,
+      result: "abc123",
     });
   });
 

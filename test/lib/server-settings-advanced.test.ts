@@ -219,7 +219,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       });
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Invalid email provider"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid email provider"),
+        false,
+      );
     });
 
     test("rejects invalid from-address format", async () => {
@@ -230,7 +234,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       });
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Invalid from-address format"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid from-address format"),
+        false,
+      );
     });
 
     test("disables email when provider field is missing", async () => {
@@ -280,7 +288,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/settings/email/test");
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Email not configured"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Email not configured"),
+        false,
+      );
     });
 
     test("shows error when no business email set", async () => {
@@ -293,7 +305,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/settings/email/test");
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("No business email set"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("No business email set"),
+        false,
+      );
     });
 
     test("sends test email and redirects with success including status code", async () => {
@@ -347,7 +363,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           );
 
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("Test email failed (status 403)"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("Test email failed (status 403)"),
+            false,
+          );
         },
       );
     });
@@ -375,7 +395,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           );
 
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("Test email failed (no response)"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("Test email failed (no response)"),
+            false,
+          );
         },
       );
     });
@@ -429,7 +453,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         { confirm_phrase: "wrong phrase" },
       );
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Confirmation phrase does not match"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Confirmation phrase does not match"),
+        false,
+      );
     });
 
     test("resets database and redirects to setup on correct phrase", async () => {
@@ -479,7 +507,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         { confirm_phrase: "" },
       );
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Confirmation phrase does not match"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Confirmation phrase does not match"),
+        false,
+      );
     });
   });
 
@@ -551,7 +583,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             ),
           );
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("Not configured"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("Not configured"),
+            false,
+          );
         });
 
         test("rejects when subdomain already set", async () => {
@@ -591,7 +627,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             ),
           );
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("Invalid subdomain"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("Invalid subdomain"),
+            false,
+          );
         });
 
         test("previews subdomain availability without save", async () => {
@@ -618,8 +658,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               );
               expect(response.status).toBe(302);
               const location = response.headers.get("location")!;
-              expect(location).toContain("subdomain=myevent");
               expect(location).toContain("form=settings-host-subdomain");
+              expectFlash(
+                response,
+                expect.stringContaining("is available"),
+              );
             },
           );
         });
@@ -646,7 +689,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 ),
               );
               expect(response.status).toBe(302);
-              expectFlash(response, expect.stringContaining("DNS zone error"), false);
+              expectFlash(
+                response,
+                expect.stringContaining("DNS zone error"),
+                false,
+              );
             },
           );
         });
@@ -674,7 +721,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 ),
               );
               expect(response.status).toBe(302);
-              expectFlash(response, expect.stringContaining("already taken"), false);
+              expectFlash(
+                response,
+                expect.stringContaining("already taken"),
+                false,
+              );
             },
           );
         });
@@ -740,7 +791,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 ),
               );
               expect(response.status).toBe(302);
-              expectFlash(response, expect.stringContaining("DNS error"), false);
+              expectFlash(
+                response,
+                expect.stringContaining("DNS error"),
+                false,
+              );
             },
           );
         });
@@ -867,7 +922,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             { custom_domain: "tickets.example.com" },
           );
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("Bunny CDN is not configured"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("Bunny CDN is not configured"),
+            false,
+          );
         });
 
         test("saves and validates domain when validation succeeds", async () => {
@@ -974,7 +1033,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             { custom_domain: "not a domain!" },
           );
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("Invalid domain format"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("Invalid domain format"),
+            false,
+          );
         });
 
         test("logs activity when domain is set", async () => {
@@ -1023,7 +1086,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             "/admin/settings/custom-domain/validate",
           );
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("Bunny CDN is not configured"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("Bunny CDN is not configured"),
+            false,
+          );
         });
 
         test("rejects when no custom domain is saved", async () => {
@@ -1032,7 +1099,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             "/admin/settings/custom-domain/validate",
           );
           expect(response.status).toBe(302);
-          expectFlash(response, expect.stringContaining("No custom domain"), false);
+          expectFlash(
+            response,
+            expect.stringContaining("No custom domain"),
+            false,
+          );
         });
 
         test("calls Bunny API and saves timestamp on success", async () => {
@@ -1071,7 +1142,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               "/admin/settings/custom-domain/validate",
             );
             expect(response.status).toBe(302);
-            expectFlash(response, expect.stringContaining("Add hostname failed"), false);
+            expectFlash(
+              response,
+              expect.stringContaining("Add hostname failed"),
+              false,
+            );
           } finally {
             bunnyCdnApi.validateCustomDomain = original;
           }
