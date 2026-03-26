@@ -121,9 +121,11 @@ describe("logger", () => {
           durationMs: 42,
         });
 
-        const found = debugSpy.calls.slice(before).some(
-          (c) => c.args[0] === "[Request] GET /ticket/[redacted] 200 42ms",
-        );
+        const found = debugSpy.calls
+          .slice(before)
+          .some(
+            (c) => c.args[0] === "[Request] GET /ticket/[redacted] 200 42ms",
+          );
         expect(found).toBe(true);
       });
 
@@ -136,9 +138,11 @@ describe("logger", () => {
           durationMs: 100,
         });
 
-        const found = debugSpy.calls.slice(before).some(
-          (c) => c.args[0] === "[Request] POST /admin/events/[id] 201 100ms",
-        );
+        const found = debugSpy.calls
+          .slice(before)
+          .some(
+            (c) => c.args[0] === "[Request] POST /admin/events/[id] 201 100ms",
+          );
         expect(found).toBe(true);
       });
 
@@ -151,9 +155,9 @@ describe("logger", () => {
           durationMs: 5,
         });
 
-        const found = debugSpy.calls.slice(before).some(
-          (c) => c.args[0] === "[Request] GET /admin 403 5ms",
-        );
+        const found = debugSpy.calls
+          .slice(before)
+          .some((c) => c.args[0] === "[Request] GET /admin 403 5ms");
         expect(found).toBe(true);
       });
 
@@ -168,9 +172,11 @@ describe("logger", () => {
           durationMs: 1,
         });
 
-        const found = debugSpy.calls.slice(before).some(
-          (c) => String(c.args[0]).includes("[Request] POST /admin/login"),
-        );
+        const found = debugSpy.calls
+          .slice(before)
+          .some((c) =>
+            String(c.args[0]).includes("[Request] POST /admin/login"),
+          );
         expect(found).toBe(false);
       });
 
@@ -183,9 +189,9 @@ describe("logger", () => {
           durationMs: 1,
         });
 
-        const found = debugSpy.calls.slice(before).some(
-          (c) => c.args[0] === "[Request] POST /admin/login 302 1ms",
-        );
+        const found = debugSpy.calls
+          .slice(before)
+          .some((c) => c.args[0] === "[Request] POST /admin/login 302 1ms");
         expect(found).toBe(true);
       });
     },
@@ -223,9 +229,9 @@ describe("logger", () => {
       const before = spyRef.calls.length;
       logError({ code: ErrorCode.DB_CONNECTION });
 
-      const found = spyRef.calls.slice(before).some(
-        (c) => c.args[0] === "[Error] E_DB_CONNECTION",
-      );
+      const found = spyRef.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Error] E_DB_CONNECTION");
       expect(found).toBe(true);
     });
 
@@ -233,9 +239,9 @@ describe("logger", () => {
       const before = spyRef.calls.length;
       logError({ code: ErrorCode.CAPACITY_EXCEEDED, eventId: 42 });
 
-      const found = spyRef.calls.slice(before).some(
-        (c) => c.args[0] === "[Error] E_CAPACITY_EXCEEDED event=42",
-      );
+      const found = spyRef.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Error] E_CAPACITY_EXCEEDED event=42");
       expect(found).toBe(true);
     });
 
@@ -243,9 +249,9 @@ describe("logger", () => {
       const before = spyRef.calls.length;
       logError({ code: ErrorCode.WEBHOOK_SEND, attendeeId: 99 });
 
-      const found = spyRef.calls.slice(before).some(
-        (c) => c.args[0] === "[Error] E_WEBHOOK_SEND attendee=99",
-      );
+      const found = spyRef.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Error] E_WEBHOOK_SEND attendee=99");
       expect(found).toBe(true);
     });
 
@@ -253,9 +259,11 @@ describe("logger", () => {
       const before = spyRef.calls.length;
       logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
 
-      const found = spyRef.calls.slice(before).some(
-        (c) => c.args[0] === '[Error] E_STRIPE_SIGNATURE detail="mismatch"',
-      );
+      const found = spyRef.calls
+        .slice(before)
+        .some(
+          (c) => c.args[0] === '[Error] E_STRIPE_SIGNATURE detail="mismatch"',
+        );
       expect(found).toBe(true);
     });
 
@@ -268,11 +276,13 @@ describe("logger", () => {
         detail: "inactive",
       });
 
-      const found = spyRef.calls.slice(before).some(
-        (c) =>
-          c.args[0] ===
-          '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
-      );
+      const found = spyRef.calls
+        .slice(before)
+        .some(
+          (c) =>
+            c.args[0] ===
+            '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
+        );
       expect(found).toBe(true);
     });
 
@@ -389,9 +399,9 @@ describe("logger", () => {
       const before = localSpyRef.calls.length;
       logErrorLocal({ code: ErrorCode.DB_CONNECTION });
 
-      const found = localSpyRef.calls.slice(before).some(
-        (c) => c.args[0] === "[Error] E_DB_CONNECTION",
-      );
+      const found = localSpyRef.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Error] E_DB_CONNECTION");
       expect(found).toBe(true);
     });
 
@@ -403,11 +413,13 @@ describe("logger", () => {
         detail: "ntfy send failed",
       });
 
-      const found = localSpyRef.calls.slice(before).some(
-        (c) =>
-          c.args[0] ===
-          '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',
-      );
+      const found = localSpyRef.calls
+        .slice(before)
+        .some(
+          (c) =>
+            c.args[0] ===
+            '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',
+        );
       expect(found).toBe(true);
     });
 
@@ -493,9 +505,9 @@ describe("logger", () => {
       const before = debugSpy.calls.length;
       logDebug("Setup", "Validation passed");
 
-      const found = debugSpy.calls.slice(before).some(
-        (c) => c.args[0] === "[Setup] Validation passed",
-      );
+      const found = debugSpy.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Setup] Validation passed");
       expect(found).toBe(true);
     });
 
@@ -503,9 +515,9 @@ describe("logger", () => {
       const before = debugSpy.calls.length;
       logDebug("Webhook", "Sending notification");
 
-      const found = debugSpy.calls.slice(before).some(
-        (c) => c.args[0] === "[Webhook] Sending notification",
-      );
+      const found = debugSpy.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Webhook] Sending notification");
       expect(found).toBe(true);
     });
 
@@ -513,9 +525,9 @@ describe("logger", () => {
       const before = debugSpy.calls.length;
       logDebug("Stripe", "Creating checkout session");
 
-      const found = debugSpy.calls.slice(before).some(
-        (c) => c.args[0] === "[Stripe] Creating checkout session",
-      );
+      const found = debugSpy.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Stripe] Creating checkout session");
       expect(found).toBe(true);
     });
   });
