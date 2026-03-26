@@ -27,5 +27,4 @@ export * from "#lib/now.ts";
 export * from "#lib/pending-work.ts";
 export * from "#lib/phone.ts";
 export * from "#lib/slug.ts";
-export * from "#lib/theme.ts";
 export * from "#lib/timezone.ts";

@@ -83,13 +83,3 @@ export const validatePrice = (
   }
   return { ok: true, price: priceMinor };
 };
-
-/** For testing: set the currency code directly */
-export const setCurrencyCodeForTest = (c: string): void => {
-  settings.setForTest({ currency: c });
-};
-
-/** For testing: reset the currency code to default */
-export const resetCurrencyCode = (): void => {
-  settings.clearTestOverride("currency");
-};

@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#lib/crypto.ts";
 import { settings } from "#lib/db/settings.ts";
-import { resetHeaderImage, setHeaderImageForTest } from "#lib/header-image.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
@@ -15,12 +14,12 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
-  setTestEnv,
   testCookie,
   testCsrfToken,
   withStorageDisabled,
   withStorageMock,
 } from "#test-utils";
+import { runWithStorageConfig } from "#lib/storage.ts";
 
 /** Submit a file to the header-image upload endpoint */
 const submitHeaderImage = async (
@@ -78,31 +77,6 @@ const expectSettingsRedirect = (response: Response): void => {
   expect(response.headers.get("location")).toContain("/admin/settings");
 };
 
-describe("header image", () => {
-  afterEach(() => {
-    resetHeaderImage();
-  });
-
-  describe("settings.headerImageUrl", () => {
-    test("defaults to empty string", () => {
-      expect(settings.headerImageUrl).toBe("");
-    });
-
-    test("returns value set by setHeaderImageForTest", () => {
-      setHeaderImageForTest("test-image.jpg");
-      expect(settings.headerImageUrl).toBe("test-image.jpg");
-    });
-  });
-
-  describe("resetHeaderImage", () => {
-    test("resets to empty string after being set", () => {
-      setHeaderImageForTest("test-image.jpg");
-      resetHeaderImage();
-      expect(settings.headerImageUrl).toBe("");
-    });
-  });
-});
-
 describeWithEnv("header image settings DB", { db: true }, () => {
   test("getHeaderImageUrlFromDb returns empty string when not set", () => {
     const url = settings.headerImageUrl;
@@ -134,11 +108,11 @@ describeWithEnv(
   },
   () => {
     beforeEach(() => {
-      resetHeaderImage();
+      settings.clearTestOverride("header_image_url");
     });
 
     afterEach(() => {
-      resetHeaderImage();
+      settings.clearTestOverride("header_image_url");
     });
 
     describe("GET /admin/settings (header image section)", () => {
@@ -382,7 +356,7 @@ describeWithEnv(
       });
 
       test("does not render header image when not set", async () => {
-        resetHeaderImage();
+        settings.clearTestOverride("header_image_url");
         const html = await assertAdminHtml("/admin/settings");
         expect(html).not.toContain('class="header-image"');
       });
@@ -392,47 +366,44 @@ describeWithEnv(
       test("serves header image via proxy route", async () => {
         const encrypted = await encryptBytes(JPEG_HEADER);
 
-        // Set storage env vars in the test body so concurrent tests that
-        // clear them (e.g. "when storage is disabled") don't cause a race
-        // where isStorageEnabled() returns false.
-        const restoreEnv = setTestEnv({
-          STORAGE_ZONE_NAME: "testzone",
-          STORAGE_ZONE_KEY: "testkey",
-        });
-        const originalFetch = globalThis.fetch;
-        globalThis.fetch = (
-          input: string | URL | Request,
-        ): Promise<Response> => {
-          const url =
-            typeof input === "string"
-              ? input
-              : input instanceof URL
-                ? input.toString()
-                : input.url;
-          if (url.includes("storage.bunnycdn.com")) {
-            return Promise.resolve(
-              // deno-lint-ignore no-explicit-any
-              new Response(encrypted as any, { status: 200 }),
-            );
-          }
-          return originalFetch(input);
-        };
+        await runWithStorageConfig(
+          { zoneName: "testzone", zoneKey: "testkey" },
+          async () => {
+            const originalFetch = globalThis.fetch;
+            globalThis.fetch = (
+              input: string | URL | Request,
+            ): Promise<Response> => {
+              const url =
+                typeof input === "string"
+                  ? input
+                  : input instanceof URL
+                    ? input.toString()
+                    : input.url;
+              if (url.includes("storage.bunnycdn.com")) {
+                return Promise.resolve(
+                  // deno-lint-ignore no-explicit-any
+                  new Response(encrypted as any, { status: 200 }),
+                );
+              }
+              return originalFetch(input);
+            };
 
-        try {
-          const response = await handleRequest(
-            mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"),
-          );
-          expect(response.status).toBe(200);
-          const headers = response.headers;
-          expect(headers.get("content-type")).toBe("image/jpeg");
-          expect(headers.get("cache-control")).toContain("immutable");
-          expect(new Uint8Array(await response.arrayBuffer())).toEqual(
-            JPEG_HEADER,
-          );
-        } finally {
-          globalThis.fetch = originalFetch;
-          restoreEnv();
-        }
+            try {
+              const response = await handleRequest(
+                mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"),
+              );
+              expect(response.status).toBe(200);
+              const headers = response.headers;
+              expect(headers.get("content-type")).toBe("image/jpeg");
+              expect(headers.get("cache-control")).toContain("immutable");
+              expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+                JPEG_HEADER,
+              );
+            } finally {
+              globalThis.fetch = originalFetch;
+            }
+          },
+        );
       });
     });
   },
