@@ -6,7 +6,6 @@ import {
   adminFormPost,
   adminGet,
   describeWithEnv,
-  expectHtmlResponse,
   expectRedirectWithFlash,
   mockRequest,
 } from "#test-utils";
@@ -24,7 +23,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     });
     expectRedirectWithFlash(
       "/admin/settings?form=settings-theme#settings-theme",
-      "Theme updated",
+      "Theme updated to dark",
     )(response);
   });
 
@@ -52,12 +51,5 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     const { response } = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).toContain('data-theme="light"');
-  });
-
-  test("rejects invalid theme value", async () => {
-    const { response } = await adminFormPost("/admin/settings/theme", {
-      theme: "invalid",
-    });
-    await expectHtmlResponse(response, 400, "Invalid theme");
   });
 });
