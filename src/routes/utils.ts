@@ -521,36 +521,57 @@ export type AuthSession = {
 };
 
 /**
- * Handle request with authenticated cookie session.
+ * Core session + role gate. Returns the session on success, or a
+ * channel-appropriate failure Response.
+ */
+const requireSessionFor = async (
+  request: Request,
+  channel: AuthChannel,
+  role?: AdminLevel,
+): Promise<AuthSession | Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) return authFailure(channel, "not-authenticated");
+  if (role && session.adminLevel !== role)
+    return authFailure(channel, "forbidden");
+  return session;
+};
+
+const isResponse = (v: AuthSession | Response): v is Response =>
+  v instanceof Response;
+
+type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+
+/**
+ * Low-level session gate with custom no-session fallback (used by dashboard login page).
  * Only checks cookie-based auth. API key auth is intentionally excluded —
  * Bearer tokens should only authenticate /api/* endpoints via withAdminApi.
  */
 export const withSession = async (
   request: Request,
-  handler: (session: AuthSession) => Response | Promise<Response>,
+  handler: SessionHandler,
   onNoSession: () => Response | Promise<Response>,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   return session ? handler(session) : onNoSession();
 };
 
-/**
- * Handle request requiring session - redirect to /admin/ if not authenticated
- */
-export const requireSessionOr = (
+/** Require session — redirect to /admin/ if not authenticated */
+export const requireSessionOr = async (
   request: Request,
-  handler: (session: AuthSession) => Response | Promise<Response>,
-): Promise<Response> =>
-  withSession(request, handler, () => authFailure("html", "not-authenticated"));
+  handler: SessionHandler,
+): Promise<Response> => {
+  const result = await requireSessionFor(request, "html");
+  return isResponse(result) ? result : handler(result);
+};
 
-/** Check owner role, return 403 if not owner */
-const requireOwnerRole = (
-  session: AuthSession,
-  handler: (session: AuthSession) => Response | Promise<Response>,
-): Response | Promise<Response> =>
-  session.adminLevel === "owner"
-    ? handler(session)
-    : authFailure("html", "forbidden");
+/** Require owner session — redirect if not authenticated, 403 if not owner */
+export const requireOwnerOr = async (
+  request: Request,
+  handler: SessionHandler,
+): Promise<Response> => {
+  const result = await requireSessionFor(request, "html", "owner");
+  return isResponse(result) ? result : handler(result);
+};
 
 /** CSRF form result type */
 export type CsrfFormResult =
@@ -609,10 +630,8 @@ export type AuthFormResult =
 export const requireAuthForm = async (
   request: Request,
 ): Promise<AuthFormResult> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return { ok: false, response: authFailure("html", "not-authenticated") };
-  }
+  const result = await requireSessionFor(request, "html");
+  if (isResponse(result)) return { ok: false, response: result };
 
   const form = await parseFormData(request);
   const csrfToken = form.getString("csrf_token");
@@ -620,14 +639,13 @@ export const requireAuthForm = async (
     return { ok: false, response: authFailure("html", "invalid-csrf") };
   }
 
-  return { ok: true, session, form };
+  return { ok: true, session: result, form };
 };
 
 type FormHandler = (
   session: AuthSession,
   form: FormParams,
 ) => Response | Promise<Response>;
-type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
 
 /** Unwrap an AuthFormResult, optionally checking role */
 const handleAuthForm = async (
@@ -649,40 +667,28 @@ export const withAuthForm = (
   handler: FormHandler,
 ): Promise<Response> => handleAuthForm(request, null, handler);
 
-/** Require owner role - returns 403 if not owner, redirect if not authenticated */
-export const requireOwnerOr = (
-  request: Request,
-  handler: SessionHandler,
-): Promise<Response> =>
-  requireSessionOr(request, (session) => requireOwnerRole(session, handler));
-
 /** Handle request with owner auth form - requires owner role + CSRF validation */
 export const withOwnerAuthForm = (
   request: Request,
   handler: FormHandler,
 ): Promise<Response> => handleAuthForm(request, "owner", handler);
 
-/** Auth level for ID route helpers: "owner" requires owner role, null allows any authenticated user */
-type IdRouteAuth = AdminLevel | null;
-
-const authRequireFor = (level: IdRouteAuth) =>
-  level === "owner" ? requireOwnerOr : requireSessionOr;
-
 /**
  * Authenticated GET-by-ID route handler factory.
  * Loads entity by ID, returns 404 if missing, renders with session context.
- * @param level - "owner" requires owner role, null allows any authenticated user
+ * @param role - "owner" requires owner role, null allows any authenticated user
  */
 export const authenticatedGetById =
-  (level: IdRouteAuth) =>
+  (role: AdminLevel | null) =>
   <T>(
     load: (id: number) => Promise<T | null>,
     render: (entity: T, session: AuthSession) => Response | Promise<Response>,
   ): IdRouteHandler =>
-  (request, { id }) =>
-    authRequireFor(level)(request, (session) =>
-      orNotFound(load(id), (entity) => render(entity, session)),
-    );
+  async (request, { id }) => {
+    const result = await requireSessionFor(request, "html", role ?? undefined);
+    if (isResponse(result)) return result;
+    return orNotFound(load(id), (entity) => render(entity, result));
+  };
 
 /** Shorthand: owner GET-by-ID */
 export const ownerGetById = authenticatedGetById("owner");
@@ -705,16 +711,14 @@ type MultipartFormHandler = (
   formData: FormData,
 ) => Response | Promise<Response>;
 
-/**
- * Handle multipart form request with auth + CSRF validation.
- * Parses request body as FormData (multipart/form-data) instead of URLSearchParams.
- */
-export const withAuthMultipartForm = async (
+/** Multipart form auth + CSRF validation with optional role check. */
+const handleAuthMultipartForm = async (
   request: Request,
+  role: AdminLevel | null,
   handler: MultipartFormHandler,
 ): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) return authFailure("html", "not-authenticated");
+  const result = await requireSessionFor(request, "html", role ?? undefined);
+  if (isResponse(result)) return result;
 
   const formData = await request.formData();
   const csrfToken = String(formData.get("csrf_token") ?? "").trim();
@@ -722,18 +726,20 @@ export const withAuthMultipartForm = async (
     return authFailure("html", "invalid-csrf");
   }
 
-  return handler(session, formData);
+  return handler(result, formData);
 };
+
+/** Handle multipart form request with auth + CSRF validation. */
+export const withAuthMultipartForm = (
+  request: Request,
+  handler: MultipartFormHandler,
+): Promise<Response> => handleAuthMultipartForm(request, null, handler);
 
 /** Handle multipart form request with owner auth + CSRF validation. */
 export const withOwnerAuthMultipartForm = (
   request: Request,
   handler: MultipartFormHandler,
-): Promise<Response> =>
-  withAuthMultipartForm(request, (session, formData) => {
-    if (session.adminLevel !== "owner") return authFailure("html", "forbidden");
-    return handler(session, formData);
-  });
+): Promise<Response> => handleAuthMultipartForm(request, "owner", handler);
 
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
@@ -840,8 +846,8 @@ export async function withAuthJson(
   request: Request,
   handler: JsonHandler,
 ): Promise<Response> {
-  const session = await getAuthenticatedSession(request);
-  if (!session) return authFailure("json", "not-authenticated");
+  const result = await requireSessionFor(request, "json");
+  if (isResponse(result)) return result;
 
   const csrfHeader = request.headers.get("x-csrf-token") ?? "";
   if (!(await verifySignedCsrfToken(csrfHeader))) {
@@ -849,7 +855,7 @@ export async function withAuthJson(
     return authFailure("json", "forbidden");
   }
 
-  return runJsonHandler(request, session, handler);
+  return runJsonHandler(request, result, handler);
 }
 
 /**
