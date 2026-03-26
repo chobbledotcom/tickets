@@ -300,15 +300,6 @@ describe("code quality", () => {
       "lib/db/attendees.ts:getAttendee",
       // Event activity log fetch for tests (production uses batched getEventWithActivityLog)
       "lib/db/activityLog.ts:getEventActivityLog",
-      // Reset cached currency code between tests
-      "lib/currency.ts:setCurrencyCodeForTest",
-      "lib/currency.ts:resetCurrencyCode",
-      // Reset cached theme between tests
-      "lib/theme.ts:setThemeForTest",
-      "lib/theme.ts:resetTheme",
-      // Reset cached header image between tests
-      "lib/header-image.ts:setHeaderImageForTest",
-      "lib/header-image.ts:resetHeaderImage",
       // Token format check used by CSRF tests (production verifies via verifySignedCsrfToken)
       "lib/csrf.ts:isSignedCsrfToken",
       // Response cookie helper used by auth tests (production sets cookies directly)

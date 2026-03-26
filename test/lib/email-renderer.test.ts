@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { Liquid } from "liquidjs";
 import { map } from "#fp";
-import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
 import { settings } from "#lib/db/settings.ts";
 import type { TemplateData } from "#lib/email-renderer.ts";
 import {
@@ -17,12 +16,12 @@ import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
 
 describeWithEnv("email-renderer", { db: true }, () => {
   beforeEach(() => {
-    setCurrencyCodeForTest("GBP");
+    settings.setForTest({ currency: "GBP" });
     resetEngine();
   });
 
   afterEach(() => {
-    resetCurrencyCode();
+    settings.clearTestOverride("currency");
     resetEngine();
   });
 
