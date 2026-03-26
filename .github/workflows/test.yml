@@ -62,3 +62,14 @@ jobs:
           STRIPE_MOCK_PORT: "12111"
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
         run: deno task test:coverage
+
+      - name: Generate HTML coverage report
+        if: always()
+        run: deno coverage coverage --html
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/html/
