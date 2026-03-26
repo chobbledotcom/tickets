@@ -83,7 +83,7 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
 const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   "refund",
-  async (data, form, eventId, attendeeId) => {
+  async (data, form, { eventId, attendeeId }) => {
     if (!data.attendee.payment_id)
       return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
     if (data.attendee.refunded)

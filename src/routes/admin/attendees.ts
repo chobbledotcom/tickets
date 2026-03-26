@@ -34,7 +34,10 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import { requirePrivateKey, verifyOrRedirect } from "#routes/admin/utils.ts";
+import {
+  createConfirmedAction,
+  requirePrivateKey,
+} from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -160,28 +163,18 @@ const attendeeFormAction =
       handler(data, session, form, eventId, attendeeId),
     );
 
-/** Attendee form handler that first verifies the attendee name */
-export const verifiedAttendeeForm = (
-  action: string,
-  actionLabel: string | undefined,
-  handler: (
-    data: AttendeeWithEvent,
-    form: FormParams,
-    eventId: number,
-    attendeeId: number,
-  ) => Response | Promise<Response>,
-) =>
-  attendeeFormAction((data, _session, form, eventId, attendeeId) => {
-    const error = verifyOrRedirect(
-      form,
-      data.attendee.name,
-      `/admin/event/${eventId}/attendee/${attendeeId}/${action}`,
-      "Attendee name",
-      actionLabel,
-    );
-    if (error) return error;
-    return handler(data, form, eventId, attendeeId);
-  });
+/** Confirmed-action factory for attendee routes */
+export const verifiedAttendeeForm = createConfirmedAction<
+  AttendeeWithEvent,
+  AttendeeRouteParams
+>({
+  loadResource: (session, { eventId, attendeeId }) =>
+    loadAttendeeForEvent(session, eventId, attendeeId),
+  getIdentifier: (data) => data.attendee.name,
+  redirectPath: ({ eventId, attendeeId }, action) =>
+    `/admin/event/${eventId}/attendee/${attendeeId}/${action}`,
+  label: "Attendee name",
+});
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeGetRoute(
@@ -197,7 +190,7 @@ const handleAdminAttendeeDeleteGet = attendeeGetRoute(
 const handleAttendeeDelete = verifiedAttendeeForm(
   "delete",
   "deletion",
-  async (data, form, eventId, attendeeId) => {
+  async (data, form, { eventId, attendeeId }) => {
     await deleteAttendee(attendeeId);
     await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
     return redirect(`/admin/event/${eventId}`, "Attendee deleted", true, {
@@ -519,7 +512,7 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
 const handleResendNotification = verifiedAttendeeForm(
   "resend-notification",
   undefined,
-  async (data, form, eventId, _attendeeId) => {
+  async (data, form, { eventId }) => {
     await Promise.all([
       logAndNotifyRegistration([
         { event: data.event, attendee: data.attendee },

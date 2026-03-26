@@ -54,9 +54,9 @@ import type {
   Group,
 } from "#lib/types.ts";
 import {
+  createConfirmedAction,
   csvResponse,
   getDateFilter,
-  verifyOrRedirect,
   withEventAttendeesAuth,
 } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -578,41 +578,28 @@ const handleAdminEventReactivateGet = withEventPageFlash(
   adminReactivateEventPage,
 );
 
-/** Handle POST for event action with confirmation */
-const handleEventWithConfirmation = (
-  request: Request,
-  id: number,
-  actionPath: string,
-  action: (event: EventWithCount) => Promise<Response>,
-  actionLabel?: string,
-): Promise<Response> =>
-  withAuthForm(request, (_session, form) =>
-    orNotFound(getEventWithCount(id), (event) => {
-      const error = verifyOrRedirect(
-        form,
-        event.name,
-        `/admin/event/${id}/${actionPath}`,
-        "Event name",
-        actionLabel,
-      );
-      if (error) return error;
-      return action(event);
-    }),
-  );
+/** Confirmed-action factory for event routes */
+const confirmedEventAction = createConfirmedAction<
+  EventWithCount,
+  { id: number }
+>({
+  loadResource: (_session, { id }) => getEventWithCount(id),
+  getIdentifier: (event) => event.name,
+  redirectPath: ({ id }, action) => `/admin/event/${id}/${action}`,
+  label: "Event name",
+});
 
 /** Factory for event toggle handlers (deactivate/reactivate) */
-const eventToggleHandler =
-  (
-    actionPath: string,
-    active: boolean,
-    verb: string,
-  ): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
-  (request, { id }) =>
-    handleEventWithConfirmation(request, id, actionPath, async (event) => {
-      await eventsTable.update(id, { active });
-      await logActivity(`Event '${event.name}' ${verb}`, id);
-      return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
-    });
+const eventToggleHandler = (
+  actionPath: string,
+  active: boolean,
+  verb: string,
+): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
+  confirmedEventAction(actionPath, undefined, async (event, _form, { id }) => {
+    await eventsTable.update(id, { active });
+    await logActivity(`Event '${event.name}' ${verb}`, id);
+    return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
+  });
 
 /** Handle POST /admin/event/:id/deactivate */
 const handleAdminEventDeactivatePost = eventToggleHandler(
@@ -649,18 +636,22 @@ const performDelete = async (event: EventWithCount): Promise<Response> => {
   return redirect("/admin", "Event deleted", true);
 };
 
+/** Confirmed event deletion handler */
+const confirmedDelete = confirmedEventAction(
+  "delete",
+  "deletion",
+  async (event) => {
+    await performEventDelete(event);
+    return redirect("/admin", "Event deleted", true);
+  },
+);
+
 /** Handle DELETE /admin/event/:id (delete event with logging) */
 const handleAdminEventDelete: TypedRouteHandler<
   "POST /admin/event/:id/delete"
 > = (request, { id }) =>
   getSearchParam(request, "verify_identifier") !== "false"
-    ? handleEventWithConfirmation(
-        request,
-        id,
-        "delete",
-        performDelete,
-        "deletion",
-      )
+    ? confirmedDelete(request, { id })
     : withAuthForm(request, () =>
         orNotFound(getEventWithCount(id), performDelete),
       );

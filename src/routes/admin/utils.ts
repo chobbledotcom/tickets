@@ -17,8 +17,10 @@ import {
   errorRedirect,
   getPrivateKey,
   notFoundResponse,
+  orNotFound,
   requireSessionOr,
   SessionKeyError,
+  withAuthForm,
 } from "#routes/utils.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
@@ -78,6 +80,56 @@ export const verifyIdentifierOrJsonError = (
   }
   return null;
 };
+
+/** Configuration for a confirmed-action factory */
+type ConfirmedActionConfig<TResource, TParams> = {
+  /** Load the resource by ID/params; return null if not found */
+  loadResource: (
+    session: AuthSession,
+    params: TParams,
+  ) => Promise<TResource | null>;
+  /** Extract the identifier (e.g. name) to verify against the confirmation field */
+  getIdentifier: (resource: TResource) => string;
+  /** Build the redirect URL for verification errors */
+  redirectPath: (params: TParams, action: string) => string;
+  /** Human-readable label for the identifier (e.g. "Event name") */
+  label: string;
+};
+
+/**
+ * Generic factory for confirmed-action route handlers.
+ * Wraps auth + resource loading + name verification + action callback.
+ *
+ * Usage:
+ *   const confirmedEventAction = createConfirmedAction({ loadResource, getIdentifier, redirectPath, label });
+ *   const handleDelete = confirmedEventAction("delete", "deletion", async (event, form, params) => { ... });
+ *   // handleDelete is (request, params) => Promise<Response>
+ */
+export const createConfirmedAction =
+  <TResource, TParams>(config: ConfirmedActionConfig<TResource, TParams>) =>
+  (
+    action: string,
+    actionLabel: string | undefined,
+    handler: (
+      resource: TResource,
+      form: FormParams,
+      params: TParams,
+    ) => Response | Promise<Response>,
+  ) =>
+  (request: Request, params: TParams): Promise<Response> =>
+    withAuthForm(request, (session, form) =>
+      orNotFound(config.loadResource(session, params), (resource) => {
+        const error = verifyOrRedirect(
+          form,
+          config.getIdentifier(resource),
+          config.redirectPath(params, action),
+          config.label,
+          actionLabel,
+        );
+        if (error) return error;
+        return handler(resource, form, params);
+      }),
+    );
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
 export const getDateFilter = (request: Request): string | null => {
