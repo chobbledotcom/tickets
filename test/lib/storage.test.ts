@@ -4,6 +4,7 @@ import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
   deleteAllEventStorageFiles,
+  deleteImage,
   detectImageType,
   generateAttachmentFilename,
   generateImageFilename,
@@ -53,6 +54,16 @@ describeWithEnv(
       test("returns true when both are set", () => {
         runWithStorageConfig({ zoneName: "myzone", zoneKey: "mykey" }, () => {
           expect(isStorageEnabled()).toBe(true);
+        });
+      });
+    });
+
+    describe("deleteImage", () => {
+      test("throws when storage is not configured", async () => {
+        await withStorageDisabled(async () => {
+          await expect(deleteImage("test.jpg")).rejects.toThrow(
+            "Required environment variable STORAGE_ZONE_NAME is not set",
+          );
         });
       });
     });
