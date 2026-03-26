@@ -8,6 +8,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import { lazyRef } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { sendNtfyError } from "#lib/ntfy.ts";
 import {
@@ -18,6 +19,27 @@ import {
 
 /** Request-scoped random ID for correlating log entries */
 const requestIdStorage = new AsyncLocalStorage<string>();
+
+/**
+ * Module-level override for request log suppression.
+ * Bypasses Deno.env to avoid races between parallel test workers.
+ * When true/false, uses override; when null, reads from env.
+ */
+const [getSuppressOverride, setSuppressOverride] = lazyRef<boolean | null>(
+  () => null,
+);
+
+/** Set module-level request log suppression (avoids env race in parallel tests). */
+export const setSuppressRequestLogs = (value: boolean | null): void => {
+  setSuppressOverride(value);
+};
+
+/** Check if request logs should be suppressed */
+const shouldSuppressRequestLogs = (): boolean => {
+  const override = getSuppressOverride();
+  if (override !== null) return override;
+  return !!Deno.env.get("TEST_SUPPRESS_REQUEST_LOGS");
+};
 
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
@@ -202,7 +224,7 @@ type RequestLogEntry = {
  * Path is automatically redacted for privacy
  */
 export const logRequest = (entry: RequestLogEntry): void => {
-  if (Deno.env.get("TEST_SUPPRESS_REQUEST_LOGS")) return;
+  if (shouldSuppressRequestLogs()) return;
   const { method, path, status, durationMs } = entry;
   const redactedPath = redactPath(path);
 
