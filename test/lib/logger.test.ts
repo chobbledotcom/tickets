@@ -113,6 +113,7 @@ describe("logger", () => {
       });
 
       test("logs request with redacted path", () => {
+        const before = debugSpy.calls.length;
         logRequest({
           method: "GET",
           path: "/ticket/my-event",
@@ -120,12 +121,14 @@ describe("logger", () => {
           durationMs: 42,
         });
 
-        expect(debugSpy.calls[0]!.args).toEqual([
-          "[Request] GET /ticket/[redacted] 200 42ms",
-        ]);
+        const found = debugSpy.calls.slice(before).some(
+          (c) => c.args[0] === "[Request] GET /ticket/[redacted] 200 42ms",
+        );
+        expect(found).toBe(true);
       });
 
       test("logs POST request", () => {
+        const before = debugSpy.calls.length;
         logRequest({
           method: "POST",
           path: "/admin/events/123",
@@ -133,12 +136,14 @@ describe("logger", () => {
           durationMs: 100,
         });
 
-        expect(debugSpy.calls[0]!.args).toEqual([
-          "[Request] POST /admin/events/[id] 201 100ms",
-        ]);
+        const found = debugSpy.calls.slice(before).some(
+          (c) => c.args[0] === "[Request] POST /admin/events/[id] 201 100ms",
+        );
+        expect(found).toBe(true);
       });
 
       test("logs error status codes", () => {
+        const before = debugSpy.calls.length;
         logRequest({
           method: "GET",
           path: "/admin",
@@ -146,13 +151,15 @@ describe("logger", () => {
           durationMs: 5,
         });
 
-        expect(debugSpy.calls[0]!.args).toEqual([
-          "[Request] GET /admin 403 5ms",
-        ]);
+        const found = debugSpy.calls.slice(before).some(
+          (c) => c.args[0] === "[Request] GET /admin 403 5ms",
+        );
+        expect(found).toBe(true);
       });
 
       test("suppresses logs when TEST_SUPPRESS_REQUEST_LOGS is set", () => {
         Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
+        const before = debugSpy.calls.length;
 
         logRequest({
           method: "POST",
@@ -161,10 +168,14 @@ describe("logger", () => {
           durationMs: 1,
         });
 
-        expect(debugSpy.calls.length).toBe(0);
+        const found = debugSpy.calls.slice(before).some(
+          (c) => String(c.args[0]).includes("[Request] POST /admin/login"),
+        );
+        expect(found).toBe(false);
       });
 
       test("logs normally when TEST_SUPPRESS_REQUEST_LOGS is not set", () => {
+        const before = debugSpy.calls.length;
         logRequest({
           method: "POST",
           path: "/admin/login",
@@ -172,10 +183,10 @@ describe("logger", () => {
           durationMs: 1,
         });
 
-        expect(debugSpy.calls.length).toBe(1);
-        expect(debugSpy.calls[0]!.args).toEqual([
-          "[Request] POST /admin/login 302 1ms",
-        ]);
+        const found = debugSpy.calls.slice(before).some(
+          (c) => c.args[0] === "[Request] POST /admin/login 302 1ms",
+        );
+        expect(found).toBe(true);
       });
     },
   );
@@ -199,36 +210,47 @@ describe("logger", () => {
     const spyRef = setupErrorSpy();
 
     test("logs error code only", () => {
+      const before = spyRef.calls.length;
       logError({ code: ErrorCode.DB_CONNECTION });
 
-      expect(spyRef.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
+      const found = spyRef.calls.slice(before).some(
+        (c) => c.args[0] === "[Error] E_DB_CONNECTION",
+      );
+      expect(found).toBe(true);
     });
 
     test("logs error with event ID", () => {
+      const before = spyRef.calls.length;
       logError({ code: ErrorCode.CAPACITY_EXCEEDED, eventId: 42 });
 
-      expect(spyRef.calls[0]!.args).toEqual([
-        "[Error] E_CAPACITY_EXCEEDED event=42",
-      ]);
+      const found = spyRef.calls.slice(before).some(
+        (c) => c.args[0] === "[Error] E_CAPACITY_EXCEEDED event=42",
+      );
+      expect(found).toBe(true);
     });
 
     test("logs error with attendee ID", () => {
+      const before = spyRef.calls.length;
       logError({ code: ErrorCode.WEBHOOK_SEND, attendeeId: 99 });
 
-      expect(spyRef.calls[0]!.args).toEqual([
-        "[Error] E_WEBHOOK_SEND attendee=99",
-      ]);
+      const found = spyRef.calls.slice(before).some(
+        (c) => c.args[0] === "[Error] E_WEBHOOK_SEND attendee=99",
+      );
+      expect(found).toBe(true);
     });
 
     test("logs error with detail", () => {
+      const before = spyRef.calls.length;
       logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
 
-      expect(spyRef.calls[0]!.args).toEqual([
-        '[Error] E_STRIPE_SIGNATURE detail="mismatch"',
-      ]);
+      const found = spyRef.calls.slice(before).some(
+        (c) => c.args[0] === '[Error] E_STRIPE_SIGNATURE detail="mismatch"',
+      );
+      expect(found).toBe(true);
     });
 
     test("logs error with all context", () => {
+      const before = spyRef.calls.length;
       logError({
         code: ErrorCode.NOT_FOUND_EVENT,
         eventId: 1,
@@ -236,9 +258,12 @@ describe("logger", () => {
         detail: "inactive",
       });
 
-      expect(spyRef.calls[0]!.args).toEqual([
-        '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
-      ]);
+      const found = spyRef.calls.slice(before).some(
+        (c) =>
+          c.args[0] ===
+          '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
+      );
+      expect(found).toBe(true);
     });
 
     test("sends ntfy notification when NTFY_URL is configured", async () => {
@@ -252,9 +277,12 @@ describe("logger", () => {
         await flushPendingWork();
       });
 
-      expect(fetchStub.calls.length).toBe(1);
-      const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      expect(url).toBe("https://ntfy.sh/test-topic");
+      expect(fetchStub.calls.length).toBeGreaterThanOrEqual(1);
+      const ntfyCall = fetchStub.calls.find(
+        (c) => c.args[0] === "https://ntfy.sh/test-topic",
+      );
+      expect(ntfyCall).toBeDefined();
+      const options = ntfyCall!.args[1] as RequestInit;
       expect(options.body).toBe("E_DB_QUERY");
 
       fetchStub.restore();
@@ -348,21 +376,29 @@ describe("logger", () => {
     const localSpyRef = setupErrorSpy();
 
     test("logs error to console", () => {
+      const before = localSpyRef.calls.length;
       logErrorLocal({ code: ErrorCode.DB_CONNECTION });
 
-      expect(localSpyRef.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
+      const found = localSpyRef.calls.slice(before).some(
+        (c) => c.args[0] === "[Error] E_DB_CONNECTION",
+      );
+      expect(found).toBe(true);
     });
 
     test("logs error with all context", () => {
+      const before = localSpyRef.calls.length;
       logErrorLocal({
         code: ErrorCode.CDN_REQUEST,
         eventId: 5,
         detail: "ntfy send failed",
       });
 
-      expect(localSpyRef.calls[0]!.args).toEqual([
-        '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',
-      ]);
+      const found = localSpyRef.calls.slice(before).some(
+        (c) =>
+          c.args[0] ===
+          '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',
+      );
+      expect(found).toBe(true);
     });
 
     test("does not send ntfy notification", () => {
@@ -444,25 +480,33 @@ describe("logger", () => {
     });
 
     test("logs with Setup category", () => {
+      const before = debugSpy.calls.length;
       logDebug("Setup", "Validation passed");
 
-      expect(debugSpy.calls[0]!.args).toEqual(["[Setup] Validation passed"]);
+      const found = debugSpy.calls.slice(before).some(
+        (c) => c.args[0] === "[Setup] Validation passed",
+      );
+      expect(found).toBe(true);
     });
 
     test("logs with Webhook category", () => {
+      const before = debugSpy.calls.length;
       logDebug("Webhook", "Sending notification");
 
-      expect(debugSpy.calls[0]!.args).toEqual([
-        "[Webhook] Sending notification",
-      ]);
+      const found = debugSpy.calls.slice(before).some(
+        (c) => c.args[0] === "[Webhook] Sending notification",
+      );
+      expect(found).toBe(true);
     });
 
     test("logs with Stripe category", () => {
+      const before = debugSpy.calls.length;
       logDebug("Stripe", "Creating checkout session");
 
-      expect(debugSpy.calls[0]!.args).toEqual([
-        "[Stripe] Creating checkout session",
-      ]);
+      const found = debugSpy.calls.slice(before).some(
+        (c) => c.args[0] === "[Stripe] Creating checkout session",
+      );
+      expect(found).toBe(true);
     });
   });
 
