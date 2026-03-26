@@ -20,6 +20,7 @@ import {
   importPrivateKey,
   importPublicKey,
   setEncryptionKeyForTest,
+  setTestPbkdf2Iterations,
   unwrapKey,
   unwrapKeyWithToken,
   validateEncryptionKey,
@@ -244,6 +245,7 @@ describe("password hashing", () => {
     });
 
     it("uses production iterations when TEST_PBKDF2_ITERATIONS is unset", async () => {
+      setTestPbkdf2Iterations(null); // Clear module-level override so env var is consulted
       const restore = setTestEnv({ TEST_PBKDF2_ITERATIONS: undefined });
       try {
         const hash = await hashPassword("password");
@@ -251,6 +253,7 @@ describe("password hashing", () => {
         expect(iterations).toBe(600000);
       } finally {
         restore();
+        setTestPbkdf2Iterations(true); // Restore fast iterations
       }
     });
   });
