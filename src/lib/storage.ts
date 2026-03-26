@@ -240,8 +240,8 @@ const collectStream = async (
 };
 
 /** Check if an error is a storage SDK "file not found" error */
-const isFileNotFound = (err: unknown): boolean =>
-  err instanceof Error && err.message.startsWith("File not found:");
+const isFileNotFound = (err: Error): boolean =>
+  err.message.startsWith("File not found:");
 
 /**
  * Download and decrypt an image from Bunny storage.
@@ -258,7 +258,7 @@ export const downloadImage = async (
     const encrypted = await collectStream(stream as ReadableStream<Uint8Array>);
     return decryptBytes(encrypted);
   } catch (err) {
-    if (isFileNotFound(err)) return null;
+    if (isFileNotFound(err as Error)) return null;
     throw err;
   }
 };
