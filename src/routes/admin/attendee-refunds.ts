@@ -28,10 +28,10 @@ import {
   adminRefundAttendeePage,
 } from "#templates/admin/attendees.tsx";
 import {
-  type EventRouteParams,
-  NO_PROVIDER_ERROR,
   attendeeGetRoute,
+  type EventRouteParams,
   getReturnUrl,
+  NO_PROVIDER_ERROR,
   verifiedAttendeeForm,
 } from "./attendees.ts";
 
