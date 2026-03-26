@@ -22,7 +22,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     const { response } = await adminFormPost("/admin/settings/theme", {
       theme: "dark",
     });
-    expectRedirectWithFlash(response, "/admin/settings", "Theme updated");
+    expectRedirectWithFlash("/admin/settings", "Theme updated")(response);
   });
 
   test("dark theme is reflected in HTML after changing", async () => {
