@@ -700,7 +700,12 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
 const handleResendNotification = attendeeFormAction(
   async (data, _session, form, eventId, _attendeeId) => {
-    const error = verifyOrRedirect(form, data.attendee.name, `/admin/event/${eventId}/attendee/${data.attendee.id}/resend-notification`, "Attendee name");
+    const error = verifyOrRedirect(
+      form,
+      data.attendee.name,
+      `/admin/event/${eventId}/attendee/${data.attendee.id}/resend-notification`,
+      "Attendee name",
+    );
     if (error) return error;
     await Promise.all([
       logAndNotifyRegistration([
