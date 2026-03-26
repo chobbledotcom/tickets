@@ -383,14 +383,9 @@ export const setTestPbkdf2Iterations = (enabled: boolean | null): void => {
   setTestPbkdf2Override(enabled);
 };
 
-// Use test iterations when override is set or TEST_PBKDF2_ITERATIONS env var is set
 const getPbkdf2Iterations = (): number => {
   const override = getTestPbkdf2Override();
-  if (override !== null)
-    return override ? PBKDF2_ITERATIONS_TEST : PBKDF2_ITERATIONS_DEFAULT;
-  return getEnv("TEST_PBKDF2_ITERATIONS")
-    ? PBKDF2_ITERATIONS_TEST
-    : PBKDF2_ITERATIONS_DEFAULT;
+  return override ? PBKDF2_ITERATIONS_TEST : PBKDF2_ITERATIONS_DEFAULT;
 };
 const PBKDF2_HASH_LENGTH = 32; // Output key length in bytes
 const PASSWORD_PREFIX = "pbkdf2";

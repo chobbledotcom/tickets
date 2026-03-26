@@ -70,7 +70,6 @@ export const setupTestEncryptionKey = (): void => {
   setEncryptionKeyForTest(TEST_ENCRYPTION_KEY);
   setTestPbkdf2Iterations(true); // Enable fast password hashing via module-level override
   Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
-  Deno.env.set("TEST_PBKDF2_ITERATIONS", "1"); // Legacy env fallback
   Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
   Deno.env.set("TEST_RSA_KEY_SIZE", "1024"); // Use smaller RSA keys for faster test setup
   Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1"); // Reduce test output noise
@@ -87,7 +86,6 @@ export const clearTestEncryptionKey = (): void => {
   setEncryptionKeyForTest("");
   setTestPbkdf2Iterations(false); // Disable via module-level override (avoids env race)
   Deno.env.delete("DB_ENCRYPTION_KEY");
-  Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
   Deno.env.delete("TEST_RSA_KEY_SIZE");
   Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");

@@ -244,16 +244,14 @@ describe("password hashing", () => {
       expect(hash1).not.toBe(hash2);
     });
 
-    it("uses production iterations when TEST_PBKDF2_ITERATIONS is unset", async () => {
-      setTestPbkdf2Iterations(null); // Clear module-level override so env var is consulted
-      const restore = setTestEnv({ TEST_PBKDF2_ITERATIONS: undefined });
+    it("uses production iterations when test override is disabled", async () => {
+      setTestPbkdf2Iterations(false);
       try {
         const hash = await hashPassword("password");
         const iterations = Number(hash.split(":")[1]);
         expect(iterations).toBe(600000);
       } finally {
-        restore();
-        setTestPbkdf2Iterations(true); // Restore fast iterations
+        setTestPbkdf2Iterations(true);
       }
     });
   });
