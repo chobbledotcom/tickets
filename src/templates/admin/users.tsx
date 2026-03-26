@@ -2,7 +2,7 @@
  * Admin user management page template
  */
 
-import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
 import { AdminNav, Breadcrumb, UsersSubNav } from "#templates/admin/nav.tsx";
@@ -121,35 +121,23 @@ export const adminUserDeletePage = (
       <h1>Delete User</h1>
       <Raw html={renderError(error)} />
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will permanently delete the user{" "}
-            <strong>{user.username}</strong> ({user.adminLevel}) and all their
-            sessions.
-          </p>
-        </aside>
-      </article>
-
-      <p>
-        To delete this user, type their username &quot;{user.username}&quot;
-        into the box below:
-      </p>
-
-      <CsrfForm action={`/admin/users/${user.id}/delete`}>
-        <label for="confirm_identifier">Username</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={user.username}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Delete User
-        </button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/users/${user.id}/delete`}
+        name={user.username}
+        label="Username"
+        prompt="To delete this user, type their username"
+        buttonText="Delete User"
+      >
+        <article>
+          <aside>
+            <p>
+              <strong>Warning:</strong> This will permanently delete the user{" "}
+              <strong>{user.username}</strong> ({user.adminLevel}) and all their
+              sessions.
+            </p>
+          </aside>
+        </article>
+      </ConfirmForm>
     </Layout>,
   );
 

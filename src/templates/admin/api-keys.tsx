@@ -4,7 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import type { EndpointDoc } from "#lib/admin-api-example.ts";
-import { CsrfForm } from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
@@ -125,34 +125,22 @@ export const adminDeleteApiKeyPage = (
     <Layout title={`Delete: ${apiKey.name}`}>
       <AdminNav session={session} active="/admin/users" />
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will permanently delete this API key.
-            Any integrations using it will stop working immediately.
-          </p>
-        </aside>
-      </article>
-
-      <p>
-        To delete this API key, type its name &quot;{apiKey.name}&quot; into the
-        box below:
-      </p>
-
-      <CsrfForm action={`/admin/api-keys/${apiKey.id}/delete`}>
-        <label for="confirm_identifier">API key name</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={apiKey.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Delete API Key
-        </button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/api-keys/${apiKey.id}/delete`}
+        name={apiKey.name}
+        label="API key name"
+        prompt="To delete this API key, type its name"
+        buttonText="Delete API Key"
+      >
+        <article>
+          <aside>
+            <p>
+              <strong>Warning:</strong> This will permanently delete this API
+              key. Any integrations using it will stop working immediately.
+            </p>
+          </aside>
+        </article>
+      </ConfirmForm>
     </Layout>,
   );
 

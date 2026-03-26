@@ -5,6 +5,7 @@
 import { map, pipe, reduce } from "#fp";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import {
+  ConfirmForm,
   CsrfForm,
   renderError,
   renderFields,
@@ -146,22 +147,23 @@ export const adminGroupDeletePage = (
       <AdminNav session={session} active="/admin/groups" />
       <h1>Delete Group</h1>
       <Raw html={renderError(error)} />
-      <p>
-        Are you sure you want to delete the group <strong>{group.name}</strong>{" "}
-        ({group.slug})?
-      </p>
-      <p>
-        Events in this group will not be deleted -- they will be moved out of
-        the group.
-      </p>
-      <p>Type the group name to confirm:</p>
-      <CsrfForm action={`/admin/group/${group.id}/delete`}>
-        <label>
-          Group Name
-          <input type="text" name="confirm_identifier" required />
-        </label>
-        <button type="submit">Delete Group</button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/group/${group.id}/delete`}
+        name={group.name}
+        label="Group name"
+        prompt="To delete this group, type its name"
+        buttonText="Delete Group"
+        danger={false}
+      >
+        <p>
+          Are you sure you want to delete the group{" "}
+          <strong>{group.name}</strong> ({group.slug})?
+        </p>
+        <p>
+          Events in this group will not be deleted -- they will be moved out of
+          the group.
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 

@@ -5,7 +5,7 @@
 import { map, pipe, unique } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
-import { CsrfForm } from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -23,56 +23,40 @@ export const adminDeleteAttendeePage = (
     <Layout title={`Delete Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will permanently remove this attendee
-            from the event and delete any associated payment records.
-          </p>
-        </aside>
-      </article>
-
-      <article>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
-        </p>
-      </article>
-
-      <p>
-        To delete this attendee, you must type their name "{attendee.name}" into
-        the box below:
-      </p>
-
-      <CsrfForm
+      <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
+        name={attendee.name}
+        label="Attendee name"
+        prompt="To delete this attendee, you must type their name"
+        buttonText="Delete Attendee"
+        returnUrl={returnUrl}
       >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_identifier">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Delete Attendee
-        </button>
-      </CsrfForm>
+        <article>
+          <aside>
+            <p>
+              <strong>Warning:</strong> This will permanently remove this
+              attendee from the event and delete any associated payment records.
+            </p>
+          </aside>
+        </article>
+
+        <article>
+          <h2>Attendee Details</h2>
+          <p>
+            <strong>Name:</strong> {attendee.name}
+          </p>
+          <p>
+            <strong>Email:</strong> {attendee.email}
+          </p>
+          <p>
+            <strong>Quantity:</strong> {attendee.quantity}
+          </p>
+          <p>
+            <strong>Registered:</strong>{" "}
+            {new Date(attendee.created).toLocaleString()}
+          </p>
+        </article>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -90,61 +74,46 @@ export const adminRefundAttendeePage = (
       <AdminNav session={session} active="/admin/" />
       {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will issue a full refund for this
-            attendee's payment. The attendee will remain registered.
-          </p>
-        </aside>
-      </article>
-
-      <article>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        {Number.parseInt(attendee.price_paid, 10) > 0 && (
-          <p>
-            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
-          </p>
-        )}
-        <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
-        </p>
-      </article>
-
-      <p>
-        To refund this attendee, you must type their name "{attendee.name}" into
-        the box below:
-      </p>
-
-      <CsrfForm
+      <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
+        name={attendee.name}
+        label="Attendee name"
+        prompt="To refund this attendee, you must type their name"
+        buttonText="Refund Attendee"
+        returnUrl={returnUrl}
       >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_identifier">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Refund Attendee
-        </button>
-      </CsrfForm>
+        <article>
+          <aside>
+            <p>
+              <strong>Warning:</strong> This will issue a full refund for this
+              attendee's payment. The attendee will remain registered.
+            </p>
+          </aside>
+        </article>
+
+        <article>
+          <h2>Attendee Details</h2>
+          <p>
+            <strong>Name:</strong> {attendee.name}
+          </p>
+          <p>
+            <strong>Email:</strong> {attendee.email}
+          </p>
+          <p>
+            <strong>Quantity:</strong> {attendee.quantity}
+          </p>
+          {Number.parseInt(attendee.price_paid, 10) > 0 && (
+            <p>
+              <strong>Amount Paid:</strong>{" "}
+              {formatCurrency(attendee.price_paid)}
+            </p>
+          )}
+          <p>
+            <strong>Registered:</strong>{" "}
+            {new Date(attendee.created).toLocaleString()}
+          </p>
+        </article>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -162,35 +131,23 @@ export const adminRefundAllAttendeesPage = (
       <AdminNav session={session} active="/admin/" />
       {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will issue a full refund for all{" "}
-            {refundableCount} attendee(s) with payments. Attendees will remain
-            registered.
-          </p>
-        </aside>
-      </article>
-
-      <p>
-        To refund all attendees, you must type the event name "{event.name}"
-        into the box below:
-      </p>
-
-      <CsrfForm action={`/admin/event/${event.id}/refund-all`}>
-        <label for="confirm_identifier">Event name</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={event.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Refund All Attendees
-        </button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/event/${event.id}/refund-all`}
+        name={event.name}
+        label="Event name"
+        prompt="To refund all attendees, you must type the event name"
+        buttonText="Refund All Attendees"
+      >
+        <article>
+          <aside>
+            <p>
+              <strong>Warning:</strong> This will issue a full refund for all{" "}
+              {refundableCount} attendee(s) with payments. Attendees will remain
+              registered.
+            </p>
+          </aside>
+        </article>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -393,58 +350,46 @@ export const adminResendNotificationPage = (
     <Layout title={`Re-send Notification: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
 
-      <article>
-        <aside>
-          <p>
-            <strong>Note:</strong> This will re-send the registration
-            notification for this attendee.
-          </p>
-        </aside>
-      </article>
-
-      <article>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        {Number.parseInt(attendee.price_paid, 10) > 0 && (
-          <p>
-            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
-          </p>
-        )}
-        <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
-        </p>
-      </article>
-
-      <p>
-        To re-send the notification for this attendee, you must type their name
-        "{attendee.name}" into the box below:
-      </p>
-
-      <CsrfForm
+      <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}
+        name={attendee.name}
+        label="Attendee name"
+        prompt="To re-send the notification, you must type their name"
+        buttonText="Re-send Notification"
+        danger={false}
+        returnUrl={returnUrl}
       >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_identifier">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit">Re-send Notification</button>
-      </CsrfForm>
+        <article>
+          <aside>
+            <p>
+              <strong>Note:</strong> This will re-send the registration
+              notification for this attendee.
+            </p>
+          </aside>
+        </article>
+
+        <article>
+          <h2>Attendee Details</h2>
+          <p>
+            <strong>Name:</strong> {attendee.name}
+          </p>
+          <p>
+            <strong>Email:</strong> {attendee.email}
+          </p>
+          <p>
+            <strong>Quantity:</strong> {attendee.quantity}
+          </p>
+          {Number.parseInt(attendee.price_paid, 10) > 0 && (
+            <p>
+              <strong>Amount Paid:</strong>{" "}
+              {formatCurrency(attendee.price_paid)}
+            </p>
+          )}
+          <p>
+            <strong>Registered:</strong>{" "}
+            {new Date(attendee.created).toLocaleString()}
+          </p>
+        </article>
+      </ConfirmForm>
     </Layout>,
   );

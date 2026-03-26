@@ -386,3 +386,64 @@ export const CsrfForm = ({
     {children}
   </form>
 );
+
+/**
+ * Confirmation form with identifier verification.
+ * Wraps a CsrfForm with a confirm_identifier input and submit button.
+ * Children are rendered above the prompt as warning/detail content.
+ *
+ *   <ConfirmForm
+ *     action={`/admin/event/${id}/delete`}
+ *     name={event.name}
+ *     label="Event name"
+ *     prompt="To delete this event, type its name"
+ *     buttonText="Delete Event"
+ *   >
+ *     <article><aside><p>This will permanently delete the event.</p></aside></article>
+ *   </ConfirmForm>
+ */
+export const ConfirmForm = ({
+  action,
+  name,
+  label,
+  prompt,
+  buttonText,
+  danger = true,
+  returnUrl,
+  children,
+}: {
+  action: string;
+  name: string;
+  label: string;
+  prompt: string;
+  buttonText: string;
+  danger?: boolean;
+  returnUrl?: string;
+  children?: Child;
+}): JSX.Element => (
+  <>
+    {children}
+
+    <p>
+      {prompt} &quot;{name}&quot; into the box below:
+    </p>
+
+    <CsrfForm action={action}>
+      {returnUrl && (
+        <input type="hidden" name="return_url" value={returnUrl} />
+      )}
+      <label for="confirm_identifier">{label}</label>
+      <input
+        type="text"
+        id="confirm_identifier"
+        name="confirm_identifier"
+        placeholder={name}
+        autocomplete="off"
+        required
+      />
+      <button type="submit" class={danger ? "danger" : undefined}>
+        {buttonText}
+      </button>
+    </CsrfForm>
+  </>
+);
