@@ -164,12 +164,15 @@ export const adminQuestionDeletePage = (
         action={`/admin/questions/${question.id}/delete`}
         name={question.text}
         label="Question text"
-        prompt="To delete this question, type its text"
         buttonText="Delete Question"
       >
         <p>
           This will permanently delete the question, all its answers, and all
           attendee responses.
+        </p>
+        <p>
+          To delete this question, type its text "{question.text}" into the box
+          below:
         </p>
       </ConfirmForm>
     </Layout>,
@@ -197,12 +200,15 @@ export const adminAnswerDeletePage = (
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
         name={answer.text}
         label="Answer text"
-        prompt="To delete this answer, type its text"
         buttonText="Delete Answer"
       >
         <p>
           This will permanently delete the answer "{answer.text}" from the
           question "{question.text}" and remove all attendee responses for it.
+        </p>
+        <p>
+          To delete this answer, type its text "{answer.text}" into the box
+          below:
         </p>
       </ConfirmForm>
     </Layout>,

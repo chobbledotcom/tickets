@@ -396,17 +396,16 @@ export const CsrfForm = ({
  *     action={`/admin/event/${id}/delete`}
  *     name={event.name}
  *     label="Event name"
- *     prompt="To delete this event, type its name"
  *     buttonText="Delete Event"
  *   >
  *     <p><strong>Warning:</strong> This will permanently delete the event.</p>
+ *     <p>To delete this event, type its name "{event.name}" into the box below:</p>
  *   </ConfirmForm>
  */
 export const ConfirmForm = ({
   action,
   name,
   label,
-  prompt,
   buttonText,
   danger = true,
   returnUrl,
@@ -415,7 +414,6 @@ export const ConfirmForm = ({
   action: string;
   name: string;
   label: string;
-  prompt: string;
   buttonText: string;
   danger?: boolean;
   returnUrl?: string;
@@ -423,10 +421,6 @@ export const ConfirmForm = ({
 }): JSX.Element => (
   <>
     {children}
-
-    <p>
-      {prompt} &quot;{name}&quot; into the box below:
-    </p>
 
     <CsrfForm action={action}>
       {returnUrl && (

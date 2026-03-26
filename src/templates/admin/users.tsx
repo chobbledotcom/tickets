@@ -125,13 +125,16 @@ export const adminUserDeletePage = (
         action={`/admin/users/${user.id}/delete`}
         name={user.username}
         label="Username"
-        prompt="To delete this user, type their username"
         buttonText="Delete User"
       >
         <p>
           <strong>Warning:</strong> This will permanently delete the user{" "}
           <strong>{user.username}</strong> ({user.adminLevel}) and all their
           sessions.
+        </p>
+        <p>
+          To delete this user, type their username "{user.username}" into the
+          box below:
         </p>
       </ConfirmForm>
     </Layout>,

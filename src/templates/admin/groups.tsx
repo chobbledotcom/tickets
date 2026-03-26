@@ -151,7 +151,6 @@ export const adminGroupDeletePage = (
         action={`/admin/group/${group.id}/delete`}
         name={group.name}
         label="Group name"
-        prompt="To delete this group, type its name"
         buttonText="Delete Group"
         danger={false}
       >
@@ -163,6 +162,7 @@ export const adminGroupDeletePage = (
           Events in this group will not be deleted -- they will be moved out of
           the group.
         </p>
+        <p>Type the group name "{group.name}" to confirm:</p>
       </ConfirmForm>
     </Layout>,
   );

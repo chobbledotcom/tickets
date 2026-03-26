@@ -27,7 +27,6 @@ export const adminDeleteAttendeePage = (
         action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
         name={attendee.name}
         label="Attendee name"
-        prompt="To delete this attendee, you must type their name"
         buttonText="Delete Attendee"
         returnUrl={returnUrl}
       >
@@ -48,6 +47,10 @@ export const adminDeleteAttendeePage = (
         <p>
           <strong>Registered:</strong>{" "}
           {new Date(attendee.created).toLocaleString()}
+        </p>
+        <p>
+          To delete this attendee, type their name "{attendee.name}" into the
+          box below:
         </p>
       </ConfirmForm>
     </Layout>,
@@ -71,7 +74,6 @@ export const adminRefundAttendeePage = (
         action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
         name={attendee.name}
         label="Attendee name"
-        prompt="To refund this attendee, you must type their name"
         buttonText="Refund Attendee"
         returnUrl={returnUrl}
       >
@@ -98,6 +100,10 @@ export const adminRefundAttendeePage = (
           <strong>Registered:</strong>{" "}
           {new Date(attendee.created).toLocaleString()}
         </p>
+        <p>
+          To refund this attendee, type their name "{attendee.name}" into the
+          box below:
+        </p>
       </ConfirmForm>
     </Layout>,
   );
@@ -120,13 +126,16 @@ export const adminRefundAllAttendeesPage = (
         action={`/admin/event/${event.id}/refund-all`}
         name={event.name}
         label="Event name"
-        prompt="To refund all attendees, you must type the event name"
         buttonText="Refund All Attendees"
       >
         <p>
           <strong>Warning:</strong> This will issue a full refund for all{" "}
           {refundableCount} attendee(s) with payments. Attendees will remain
           registered.
+        </p>
+        <p>
+          To refund all attendees, type the event name "{event.name}" into the
+          box below:
         </p>
       </ConfirmForm>
     </Layout>,
@@ -335,7 +344,6 @@ export const adminResendNotificationPage = (
         action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}
         name={attendee.name}
         label="Attendee name"
-        prompt="To re-send the notification, you must type their name"
         buttonText="Re-send Notification"
         danger={false}
         returnUrl={returnUrl}
@@ -362,6 +370,10 @@ export const adminResendNotificationPage = (
         <p>
           <strong>Registered:</strong>{" "}
           {new Date(attendee.created).toLocaleString()}
+        </p>
+        <p>
+          To re-send the notification, type their name "{attendee.name}" into
+          the box below:
         </p>
       </ConfirmForm>
     </Layout>,

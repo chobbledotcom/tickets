@@ -801,13 +801,15 @@ export const adminDeleteEventPage = (
         action={`/admin/event/${event.id}/delete`}
         name={event.name}
         label="Event name"
-        prompt="To delete this event, type its name"
         buttonText="Delete Event"
       >
         <p>
           <strong>Warning:</strong> This will permanently delete the event, all{" "}
           {event.attendee_count} attendee(s), any associated payment records,
           and all activity log entries for this event.
+        </p>
+        <p>
+          To delete this event, type its name "{event.name}" into the box below:
         </p>
       </ConfirmForm>
     </Layout>,
@@ -830,7 +832,6 @@ export const adminDeactivateEventPage = (
         action={`/admin/event/${event.id}/deactivate`}
         name={event.name}
         label="Event name"
-        prompt="To deactivate this event, type its name"
         buttonText="Deactivate Event"
       >
         <p>
@@ -842,6 +843,10 @@ export const adminDeactivateEventPage = (
           <li>Reject any pending payments</li>
         </ul>
         <p>Existing attendees will not be affected.</p>
+        <p>
+          To deactivate this event, type its name "{event.name}" into the box
+          below:
+        </p>
       </ConfirmForm>
     </Layout>,
   );
@@ -863,7 +868,6 @@ export const adminReactivateEventPage = (
         action={`/admin/event/${event.id}/reactivate`}
         name={event.name}
         label="Event name"
-        prompt="To reactivate this event, type its name"
         buttonText="Reactivate Event"
         danger={false}
       >
@@ -874,6 +878,10 @@ export const adminReactivateEventPage = (
         <p>
           The public ticket page will be accessible and new attendees can
           register.
+        </p>
+        <p>
+          To reactivate this event, type its name "{event.name}" into the box
+          below:
         </p>
       </ConfirmForm>
     </Layout>,

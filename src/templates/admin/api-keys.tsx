@@ -129,12 +129,15 @@ export const adminDeleteApiKeyPage = (
         action={`/admin/api-keys/${apiKey.id}/delete`}
         name={apiKey.name}
         label="API key name"
-        prompt="To delete this API key, type its name"
         buttonText="Delete API Key"
       >
         <p>
           <strong>Warning:</strong> This will permanently delete this API key.
           Any integrations using it will stop working immediately.
+        </p>
+        <p>
+          To delete this API key, type its name "{apiKey.name}" into the box
+          below:
         </p>
       </ConfirmForm>
     </Layout>,

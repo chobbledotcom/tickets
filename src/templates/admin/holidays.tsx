@@ -131,7 +131,6 @@ export const adminHolidayDeletePage = (
         action={`/admin/holiday/${holiday.id}/delete`}
         name={holiday.name}
         label="Holiday name"
-        prompt="To delete this holiday, type its name"
         buttonText="Delete Holiday"
         danger={false}
       >
@@ -140,6 +139,7 @@ export const adminHolidayDeletePage = (
           <strong>{holiday.name}</strong> ({holiday.start_date} to{" "}
           {holiday.end_date})?
         </p>
+        <p>Type the holiday name "{holiday.name}" to confirm:</p>
       </ConfirmForm>
     </Layout>,
   );
