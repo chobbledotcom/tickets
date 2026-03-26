@@ -426,15 +426,16 @@ export const ConfirmForm = ({
       {returnUrl && (
         <input type="hidden" name="return_url" value={returnUrl} />
       )}
-      <label for="confirm_identifier">{label}</label>
-      <input
-        type="text"
-        id="confirm_identifier"
-        name="confirm_identifier"
-        placeholder={name}
-        autocomplete="off"
-        required
-      />
+      <label>
+        {label}
+        <input
+          type="text"
+          name="confirm_identifier"
+          placeholder={name}
+          autocomplete="off"
+          required
+        />
+      </label>
       <button type="submit" class={danger ? "danger" : undefined}>
         {buttonText}
       </button>
