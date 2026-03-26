@@ -3,7 +3,7 @@ import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import { createConfirmedAction } from "#routes/admin/utils.ts";
 import {
   applyFlash,
   errorRedirect,
@@ -140,24 +140,18 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const deleteGet = authRowHtml(cfg.renderDelete);
 
-  const deletePost: IdRouteHandler = (request, { id }) =>
-    withFormAuth(request, (_session, form) =>
-      orNotFound(cfg.resource.table.findById(id), async (row) => {
-        const error = verifyOrRedirect(
-          form,
-          cfg.getName(row),
-          `${cfg.listPath}/${id}/delete`,
-          `${cfg.singular} name`,
-          "deletion",
-        );
-        if (error) return error;
-
-        const result = await cfg.resource.delete(id);
-        if ("notFound" in result) return notFoundResponse();
-        await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
-        return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
-      }),
-    );
+  const deletePost: IdRouteHandler = createConfirmedAction<Row, { id: number }>({
+    loadResource: (_session, { id }) => cfg.resource.table.findById(id),
+    getIdentifier: cfg.getName,
+    redirectPath: ({ id }) => `${cfg.listPath}/${id}/delete`,
+    label: `${cfg.singular} name`,
+    authHandler: withFormAuth,
+  })("delete", "deletion", async (row, _form, { id }) => {
+    const result = await cfg.resource.delete(id);
+    if ("notFound" in result) return notFoundResponse();
+    await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
+    return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
+  });
 
   return {
     listGet,

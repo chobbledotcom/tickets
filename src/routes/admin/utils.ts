@@ -81,6 +81,14 @@ export const verifyIdentifierOrJsonError = (
   return null;
 };
 
+/** Auth handler that validates session + parses form data.
+ * Uses `never` for session to accept handlers with any session subtype (contravariance). */
+// deno-lint-ignore no-explicit-any
+type AuthFormHandler = (
+  request: Request,
+  handler: (session: any, form: FormParams) => Response | Promise<Response>,
+) => Promise<Response>;
+
 /** Configuration for a confirmed-action factory */
 type ConfirmedActionConfig<TResource, TParams> = {
   /** Load the resource by ID/params; return null if not found */
@@ -94,6 +102,8 @@ type ConfirmedActionConfig<TResource, TParams> = {
   redirectPath: (params: TParams, action: string) => string;
   /** Human-readable label for the identifier (e.g. "Event name") */
   label: string;
+  /** Auth handler (defaults to withAuthForm; use withOwnerAuthForm for owner-only routes) */
+  authHandler?: AuthFormHandler;
 };
 
 /**
@@ -117,7 +127,7 @@ export const createConfirmedAction =
     ) => Response | Promise<Response>,
   ) =>
   (request: Request, params: TParams): Promise<Response> =>
-    withAuthForm(request, (session, form) =>
+    (config.authHandler ?? withAuthForm)(request, (session, form) =>
       orNotFound(config.loadResource(session, params), (resource) => {
         const error = verifyOrRedirect(
           form,

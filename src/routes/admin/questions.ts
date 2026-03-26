@@ -6,6 +6,7 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import {
   type Answer,
+  type Question,
   answersTable,
   deleteAnswer,
   deleteQuestion,
@@ -22,7 +23,10 @@ import {
 } from "#lib/db/questions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import {
+  createConfirmedAction,
+  verifyOrRedirect,
+} from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   errorRedirect,
@@ -134,22 +138,28 @@ const handleDeleteQuestionGet = ownerGetById(
   },
 );
 
-/** Handle POST /admin/questions/:id/delete */
-const handleDeleteQuestionPost = ownerFormById(async (id, _session, form) => {
-  const question = await getQuestion(id);
-  if (!question) return notFoundResponse();
-  const error = verifyOrRedirect(
-    form,
-    question.text,
-    `/admin/questions/${id}/delete`,
-    "Question text",
-    "deletion",
-  );
-  if (error) return error;
-  await deleteQuestion(id);
-  await logActivity(`Question '${question.text}' deleted`);
-  return redirect("/admin/questions", "Question deleted", true);
+/** Confirmed-action factory for question routes */
+const confirmedQuestionAction = createConfirmedAction<
+  Question,
+  { id: number }
+>({
+  loadResource: (_session, { id }) => getQuestion(id),
+  getIdentifier: (q) => q.text,
+  redirectPath: ({ id }) => `/admin/questions/${id}/delete`,
+  label: "Question text",
+  authHandler: withOwnerAuthForm,
 });
+
+/** Handle POST /admin/questions/:id/delete */
+const handleDeleteQuestionPost = confirmedQuestionAction(
+  "delete",
+  "deletion",
+  async (question) => {
+    await deleteQuestion(question.id);
+    await logActivity(`Question '${question.text}' deleted`);
+    return redirect("/admin/questions", "Question deleted", true);
+  },
+);
 
 /** Load question + answer by IDs, returning 404 if either is missing */
 const withAnswer = async <T>(
