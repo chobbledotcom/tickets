@@ -31,31 +31,24 @@ export const adminDeleteAttendeePage = (
         buttonText="Delete Attendee"
         returnUrl={returnUrl}
       >
-        <article>
-          <aside>
-            <p>
-              <strong>Warning:</strong> This will permanently remove this
-              attendee from the event and delete any associated payment records.
-            </p>
-          </aside>
-        </article>
-
-        <article>
-          <h2>Attendee Details</h2>
-          <p>
-            <strong>Name:</strong> {attendee.name}
-          </p>
-          <p>
-            <strong>Email:</strong> {attendee.email}
-          </p>
-          <p>
-            <strong>Quantity:</strong> {attendee.quantity}
-          </p>
-          <p>
-            <strong>Registered:</strong>{" "}
-            {new Date(attendee.created).toLocaleString()}
-          </p>
-        </article>
+        <p>
+          <strong>Warning:</strong> This will permanently remove this attendee
+          from the event and delete any associated payment records.
+        </p>
+        <h2>Attendee Details</h2>
+        <p>
+          <strong>Name:</strong> {attendee.name}
+        </p>
+        <p>
+          <strong>Email:</strong> {attendee.email}
+        </p>
+        <p>
+          <strong>Quantity:</strong> {attendee.quantity}
+        </p>
+        <p>
+          <strong>Registered:</strong>{" "}
+          {new Date(attendee.created).toLocaleString()}
+        </p>
       </ConfirmForm>
     </Layout>,
   );
@@ -82,37 +75,29 @@ export const adminRefundAttendeePage = (
         buttonText="Refund Attendee"
         returnUrl={returnUrl}
       >
-        <article>
-          <aside>
-            <p>
-              <strong>Warning:</strong> This will issue a full refund for this
-              attendee's payment. The attendee will remain registered.
-            </p>
-          </aside>
-        </article>
-
-        <article>
-          <h2>Attendee Details</h2>
+        <p>
+          <strong>Warning:</strong> This will issue a full refund for this
+          attendee's payment. The attendee will remain registered.
+        </p>
+        <h2>Attendee Details</h2>
+        <p>
+          <strong>Name:</strong> {attendee.name}
+        </p>
+        <p>
+          <strong>Email:</strong> {attendee.email}
+        </p>
+        <p>
+          <strong>Quantity:</strong> {attendee.quantity}
+        </p>
+        {Number.parseInt(attendee.price_paid, 10) > 0 && (
           <p>
-            <strong>Name:</strong> {attendee.name}
+            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
           </p>
-          <p>
-            <strong>Email:</strong> {attendee.email}
-          </p>
-          <p>
-            <strong>Quantity:</strong> {attendee.quantity}
-          </p>
-          {Number.parseInt(attendee.price_paid, 10) > 0 && (
-            <p>
-              <strong>Amount Paid:</strong>{" "}
-              {formatCurrency(attendee.price_paid)}
-            </p>
-          )}
-          <p>
-            <strong>Registered:</strong>{" "}
-            {new Date(attendee.created).toLocaleString()}
-          </p>
-        </article>
+        )}
+        <p>
+          <strong>Registered:</strong>{" "}
+          {new Date(attendee.created).toLocaleString()}
+        </p>
       </ConfirmForm>
     </Layout>,
   );
@@ -138,15 +123,11 @@ export const adminRefundAllAttendeesPage = (
         prompt="To refund all attendees, you must type the event name"
         buttonText="Refund All Attendees"
       >
-        <article>
-          <aside>
-            <p>
-              <strong>Warning:</strong> This will issue a full refund for all{" "}
-              {refundableCount} attendee(s) with payments. Attendees will remain
-              registered.
-            </p>
-          </aside>
-        </article>
+        <p>
+          <strong>Warning:</strong> This will issue a full refund for all{" "}
+          {refundableCount} attendee(s) with payments. Attendees will remain
+          registered.
+        </p>
       </ConfirmForm>
     </Layout>,
   );
@@ -359,37 +340,29 @@ export const adminResendNotificationPage = (
         danger={false}
         returnUrl={returnUrl}
       >
-        <article>
-          <aside>
-            <p>
-              <strong>Note:</strong> This will re-send the registration
-              notification for this attendee.
-            </p>
-          </aside>
-        </article>
-
-        <article>
-          <h2>Attendee Details</h2>
+        <p>
+          <strong>Note:</strong> This will re-send the registration notification
+          for this attendee.
+        </p>
+        <h2>Attendee Details</h2>
+        <p>
+          <strong>Name:</strong> {attendee.name}
+        </p>
+        <p>
+          <strong>Email:</strong> {attendee.email}
+        </p>
+        <p>
+          <strong>Quantity:</strong> {attendee.quantity}
+        </p>
+        {Number.parseInt(attendee.price_paid, 10) > 0 && (
           <p>
-            <strong>Name:</strong> {attendee.name}
+            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
           </p>
-          <p>
-            <strong>Email:</strong> {attendee.email}
-          </p>
-          <p>
-            <strong>Quantity:</strong> {attendee.quantity}
-          </p>
-          {Number.parseInt(attendee.price_paid, 10) > 0 && (
-            <p>
-              <strong>Amount Paid:</strong>{" "}
-              {formatCurrency(attendee.price_paid)}
-            </p>
-          )}
-          <p>
-            <strong>Registered:</strong>{" "}
-            {new Date(attendee.created).toLocaleString()}
-          </p>
-        </article>
+        )}
+        <p>
+          <strong>Registered:</strong>{" "}
+          {new Date(attendee.created).toLocaleString()}
+        </p>
       </ConfirmForm>
     </Layout>,
   );

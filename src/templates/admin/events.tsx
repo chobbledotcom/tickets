@@ -804,15 +804,11 @@ export const adminDeleteEventPage = (
         prompt="To delete this event, type its name"
         buttonText="Delete Event"
       >
-        <article>
-          <aside>
-            <p>
-              <strong>Warning:</strong> This will permanently delete the event,
-              all {event.attendee_count} attendee(s), any associated payment
-              records, and all activity log entries for this event.
-            </p>
-          </aside>
-        </article>
+        <p>
+          <strong>Warning:</strong> This will permanently delete the event, all{" "}
+          {event.attendee_count} attendee(s), any associated payment records,
+          and all activity log entries for this event.
+        </p>
       </ConfirmForm>
     </Layout>,
   );
@@ -837,19 +833,15 @@ export const adminDeactivateEventPage = (
         prompt="To deactivate this event, type its name"
         buttonText="Deactivate Event"
       >
-        <article>
-          <aside>
-            <p>
-              <strong>Warning:</strong> Deactivating this event will:
-            </p>
-            <ul>
-              <li>Return a 404 error on the public ticket page</li>
-              <li>Prevent new registrations</li>
-              <li>Reject any pending payments</li>
-            </ul>
-            <p>Existing attendees will not be affected.</p>
-          </aside>
-        </article>
+        <p>
+          <strong>Warning:</strong> Deactivating this event will:
+        </p>
+        <ul>
+          <li>Return a 404 error on the public ticket page</li>
+          <li>Prevent new registrations</li>
+          <li>Reject any pending payments</li>
+        </ul>
+        <p>Existing attendees will not be affected.</p>
       </ConfirmForm>
     </Layout>,
   );
@@ -875,18 +867,14 @@ export const adminReactivateEventPage = (
         buttonText="Reactivate Event"
         danger={false}
       >
-        <article>
-          <aside>
-            <p>
-              Reactivating this event will make it available for registrations
-              again.
-            </p>
-            <p>
-              The public ticket page will be accessible and new attendees can
-              register.
-            </p>
-          </aside>
-        </article>
+        <p>
+          Reactivating this event will make it available for registrations
+          again.
+        </p>
+        <p>
+          The public ticket page will be accessible and new attendees can
+          register.
+        </p>
       </ConfirmForm>
     </Layout>,
   );

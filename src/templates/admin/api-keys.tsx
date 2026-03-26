@@ -132,14 +132,10 @@ export const adminDeleteApiKeyPage = (
         prompt="To delete this API key, type its name"
         buttonText="Delete API Key"
       >
-        <article>
-          <aside>
-            <p>
-              <strong>Warning:</strong> This will permanently delete this API
-              key. Any integrations using it will stop working immediately.
-            </p>
-          </aside>
-        </article>
+        <p>
+          <strong>Warning:</strong> This will permanently delete this API key.
+          Any integrations using it will stop working immediately.
+        </p>
       </ConfirmForm>
     </Layout>,
   );

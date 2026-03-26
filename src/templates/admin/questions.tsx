@@ -167,14 +167,10 @@ export const adminQuestionDeletePage = (
         prompt="To delete this question, type its text"
         buttonText="Delete Question"
       >
-        <article>
-          <aside>
-            <p>
-              This will permanently delete the question, all its answers, and
-              all attendee responses.
-            </p>
-          </aside>
-        </article>
+        <p>
+          This will permanently delete the question, all its answers, and all
+          attendee responses.
+        </p>
       </ConfirmForm>
     </Layout>,
   );
@@ -204,15 +200,10 @@ export const adminAnswerDeletePage = (
         prompt="To delete this answer, type its text"
         buttonText="Delete Answer"
       >
-        <article>
-          <aside>
-            <p>
-              This will permanently delete the answer "{answer.text}" from the
-              question "{question.text}" and remove all attendee responses for
-              it.
-            </p>
-          </aside>
-        </article>
+        <p>
+          This will permanently delete the answer "{answer.text}" from the
+          question "{question.text}" and remove all attendee responses for it.
+        </p>
       </ConfirmForm>
     </Layout>,
   );

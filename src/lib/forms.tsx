@@ -399,7 +399,7 @@ export const CsrfForm = ({
  *     prompt="To delete this event, type its name"
  *     buttonText="Delete Event"
  *   >
- *     <article><aside><p>This will permanently delete the event.</p></aside></article>
+ *     <p><strong>Warning:</strong> This will permanently delete the event.</p>
  *   </ConfirmForm>
  */
 export const ConfirmForm = ({

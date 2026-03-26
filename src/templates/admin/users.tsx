@@ -128,15 +128,11 @@ export const adminUserDeletePage = (
         prompt="To delete this user, type their username"
         buttonText="Delete User"
       >
-        <article>
-          <aside>
-            <p>
-              <strong>Warning:</strong> This will permanently delete the user{" "}
-              <strong>{user.username}</strong> ({user.adminLevel}) and all their
-              sessions.
-            </p>
-          </aside>
-        </article>
+        <p>
+          <strong>Warning:</strong> This will permanently delete the user{" "}
+          <strong>{user.username}</strong> ({user.adminLevel}) and all their
+          sessions.
+        </p>
       </ConfirmForm>
     </Layout>,
   );
