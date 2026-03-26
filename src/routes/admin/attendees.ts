@@ -2,7 +2,7 @@
  * Admin attendee management routes
  */
 
-import { chunk, compact, filter, uniqueBy } from "#fp";
+import { compact, filter, uniqueBy } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -37,8 +37,6 @@ import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
   requirePrivateKey,
   verifyOrRedirect,
-  withDecryptedAttendees,
-  withEventAttendeesAuth,
 } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
@@ -57,8 +55,6 @@ import {
 import {
   adminDeleteAttendeePage,
   adminEditAttendeePage,
-  adminRefundAllAttendeesPage,
-  adminRefundAttendeePage,
   adminResendNotificationPage,
 } from "#templates/admin/attendees.tsx";
 import {
@@ -67,18 +63,10 @@ import {
 } from "#templates/fields.ts";
 
 /** Attendee with event data */
-type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
+export type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
 
-/** Refund error messages */
-const NO_PAYMENT_ERROR = "This attendee has no payment to refund.";
-const NO_PROVIDER_ERROR = "No payment provider configured.";
-const NO_REFUNDABLE_ERROR = "No attendees have payments to refund.";
-const REFUND_FAILED_ERROR =
-  "Refund failed. The payment may have already been refunded.";
-const ALREADY_REFUNDED_ERROR = "This attendee has already been refunded.";
-
-/** Max refunds per request to stay within Bunny Edge fetch limits */
-const REFUND_BATCH_LIMIT = 30;
+/** No payment provider configured error (shared with attendee-refunds) */
+export const NO_PROVIDER_ERROR = "No payment provider configured.";
 
 /**
  * Load attendee ensuring it belongs to the specified event.
@@ -110,13 +98,13 @@ const withAttendee = (
   orNotFound(loadAttendeeForEvent(session, eventId, attendeeId), handler);
 
 /** Route params for event-scoped routes */
-type EventRouteParams = { id: number };
+export type EventRouteParams = { id: number };
 
 /** Route params for attendee-scoped routes */
 type AttendeeRouteParams = { eventId: number; attendeeId: number };
 
 /** Auth + load attendee GET handler (shared by delete, refund, and resend-notification GET routes) */
-const attendeeGetRoute =
+export const attendeeGetRoute =
   (
     handler: (
       data: AttendeeWithEvent,
@@ -152,7 +140,7 @@ const withAttendeeForm = (
   );
 
 /** Read return_url from request query params */
-const getReturnUrl = (request: Request): string =>
+export const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
 
 /** Attendee form handler that receives typed IDs */
@@ -176,7 +164,7 @@ const attendeeFormAction =
     );
 
 /** Attendee form handler that first verifies the attendee name */
-const verifiedAttendeeForm = (
+export const verifiedAttendeeForm = (
   action: string,
   actionLabel: string | undefined,
   handler: (
@@ -280,184 +268,6 @@ const handleAttendeeCheckin = attendeeFormAction(
     );
   },
 );
-
-/** Render refund error redirect for a single attendee */
-const refundError = (
-  eventId: number,
-  attendeeId: number,
-  msg: string,
-): Response =>
-  errorRedirect(`/admin/event/${eventId}/attendee/${attendeeId}/refund`, msg);
-
-/** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
-const handleAdminAttendeeRefundGet = attendeeGetRoute(
-  (data, session, request) => {
-    applyFlash(request);
-    const returnUrl = getReturnUrl(request);
-    if (!data.attendee.payment_id)
-      return htmlResponse(
-        adminRefundAttendeePage(data, session, NO_PAYMENT_ERROR, returnUrl),
-        400,
-      );
-    if (data.attendee.refunded)
-      return htmlResponse(
-        adminRefundAttendeePage(
-          data,
-          session,
-          ALREADY_REFUNDED_ERROR,
-          returnUrl,
-        ),
-        400,
-      );
-    return htmlResponse(
-      adminRefundAttendeePage(data, session, undefined, returnUrl),
-    );
-  },
-);
-
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
-const handleAttendeeRefund = verifiedAttendeeForm(
-  "refund",
-  "refund",
-  async (data, form, eventId, attendeeId) => {
-    if (!data.attendee.payment_id)
-      return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
-    if (data.attendee.refunded)
-      return refundError(eventId, attendeeId, ALREADY_REFUNDED_ERROR);
-
-    const provider = await getActivePaymentProvider();
-    if (!provider) return refundError(eventId, attendeeId, NO_PROVIDER_ERROR);
-
-    const refunded = await provider.refundPayment(data.attendee.payment_id);
-    if (!refunded) {
-      logError({
-        code: ErrorCode.PAYMENT_REFUND,
-        eventId,
-        detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
-      });
-      return refundError(eventId, attendeeId, REFUND_FAILED_ERROR);
-    }
-
-    await markRefunded(data.attendee.id);
-    await logActivity(
-      `Refund issued for attendee '${data.attendee.name}'`,
-      eventId,
-    );
-    return redirect(`/admin/event/${eventId}`, "Refund issued", true, { form });
-  },
-);
-
-/** Filter attendees that have a payment_id and are not yet refunded */
-const getRefundable = filter(
-  (a: Attendee) => a.payment_id !== "" && !a.refunded,
-);
-
-/** Handle GET /admin/event/:id/refund-all */
-const handleAdminRefundAllGet = (
-  request: Request,
-  { id }: EventRouteParams,
-): Promise<Response> =>
-  withEventAttendeesAuth(request, id, (event, attendees, session) => {
-    applyFlash(request);
-    const count = getRefundable(attendees).length;
-    return count === 0
-      ? htmlResponse(
-          adminRefundAllAttendeesPage(event, 0, session, NO_REFUNDABLE_ERROR),
-          400,
-        )
-      : htmlResponse(adminRefundAllAttendeesPage(event, count, session));
-  });
-
-/** Process bulk refund for all refundable attendees */
-const processRefundAll = async (
-  event: EventWithCount,
-  attendees: Attendee[],
-  _session: AuthSession,
-  form: FormParams,
-): Promise<Response> => {
-  const refundAllUrl = `/admin/event/${event.id}/refund-all`;
-  const refundable = getRefundable(attendees);
-  const error = verifyOrRedirect(form, event.name, refundAllUrl, "Event name");
-  if (error) return error;
-
-  if (refundable.length === 0) {
-    return errorRedirect(refundAllUrl, NO_REFUNDABLE_ERROR);
-  }
-
-  const provider = await getActivePaymentProvider();
-  if (!provider) {
-    return errorRedirect(refundAllUrl, NO_PROVIDER_ERROR);
-  }
-
-  const REFUND_CHUNK_SIZE = 5;
-  const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
-  const remaining = refundable.length - batch.length;
-
-  let refundedCount = 0;
-  let failedCount = 0;
-  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
-    const results = await Promise.all(
-      group.map(async (attendee) => {
-        const refunded = await provider.refundPayment(attendee.payment_id);
-        if (refunded) {
-          await markRefunded(attendee.id);
-          return true;
-        }
-        logError({
-          code: ErrorCode.PAYMENT_REFUND,
-          eventId: event.id,
-          detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-        });
-        return false;
-      }),
-    );
-    for (const success of results) {
-      if (success) refundedCount++;
-      else failedCount++;
-    }
-  }
-
-  if (failedCount > 0) {
-    const msg =
-      remaining > 0
-        ? `${refundedCount} refund(s) succeeded, ${failedCount} failed. ${remaining} remaining — submit again to continue.`
-        : `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`;
-    await logActivity(
-      `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
-      event.id,
-    );
-    return errorRedirect(refundAllUrl, msg);
-  }
-
-  if (remaining > 0) {
-    await logActivity(
-      `Bulk refund: ${refundedCount} of ${refundable.length} refunded for '${event.name}'`,
-      event.id,
-    );
-    return redirect(
-      refundAllUrl,
-      `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
-      true,
-    );
-  }
-
-  await logActivity(
-    `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
-    event.id,
-  );
-  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
-};
-
-/** Handle POST /admin/event/:id/refund-all */
-const handleAdminRefundAllPost = (
-  request: Request,
-  { id }: EventRouteParams,
-): Promise<Response> =>
-  withAuthForm(request, (session, form) =>
-    withDecryptedAttendees(session, id, (event, attendees) =>
-      processRefundAll(event, attendees, session, form),
-    ),
-  );
 
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
 const handleAddAttendee = (
@@ -786,12 +596,6 @@ export const attendeesRoutes = defineRoutes({
     handleDeleteIncomplete,
   "POST /admin/event/:eventId/attendee/:attendeeId/checkin":
     handleAttendeeCheckin,
-  "GET /admin/event/:eventId/attendee/:attendeeId/refund":
-    handleAdminAttendeeRefundGet,
-  "POST /admin/event/:eventId/attendee/:attendeeId/refund":
-    handleAttendeeRefund,
-  "GET /admin/event/:id/refund-all": handleAdminRefundAllGet,
-  "POST /admin/event/:id/refund-all": handleAdminRefundAllPost,
   "GET /admin/event/:eventId/attendee/:attendeeId/resend-notification":
     handleAdminResendNotificationGet,
   "POST /admin/event/:eventId/attendee/:attendeeId/resend-notification":
