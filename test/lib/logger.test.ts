@@ -556,7 +556,7 @@ describe("logger", () => {
 
   describeWithEnv(
     "runWithRequestId",
-    { env: { TEST_SUPPRESS_REQUEST_LOGS: undefined } },
+    { env: { TEST_SUPPRESS_REQUEST_LOGS: undefined, NTFY_URL: undefined } },
     () => {
       test("getRequestId returns ID inside request context", () => {
         runWithRequestId(() => {
@@ -603,7 +603,7 @@ describe("logger", () => {
               status: 200,
               durationMs: 5,
             });
-            logError({ code: ErrorCode.DB_CONNECTION });
+            logErrorLocal({ code: ErrorCode.DB_CONNECTION });
           });
 
           const expected = `[${id}] [Error] E_DB_CONNECTION`;
