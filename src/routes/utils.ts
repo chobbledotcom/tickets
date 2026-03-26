@@ -520,6 +520,28 @@ export type AuthSession = {
   adminLevel: AdminLevel;
 };
 
+/** How the request was authenticated */
+export type AuthKind = "cookie" | "apiKey";
+
+/** Body parsing mode for authenticated requests */
+type BodyMode = "form" | "multipart" | "json" | "none";
+
+/** Maps body mode to the parsed body type */
+type ParsedBody<T extends BodyMode> = T extends "form"
+  ? FormParams
+  : T extends "multipart"
+    ? FormData
+    : T extends "json"
+      ? Record<string, unknown>
+      : null;
+
+/** Policy controlling authentication, CSRF, role, and body parsing */
+export type AuthPolicy<T extends BodyMode = BodyMode> = {
+  body: T;
+  role?: AdminLevel;
+  allowApiKey?: boolean;
+};
+
 /**
  * Handle request with authenticated cookie session.
  * Only checks cookie-based auth. API key auth is intentionally excluded —
@@ -604,23 +626,19 @@ export type AuthFormResult =
   | { ok: false; response: Response };
 
 /**
- * Require authenticated session with parsed form and validated CSRF
+ * Require authenticated session with parsed form and validated CSRF.
+ * Returns a result object for callers that need to inspect auth before proceeding.
  */
 export const requireAuthForm = async (
   request: Request,
 ): Promise<AuthFormResult> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return { ok: false, response: redirectResponse("/admin") };
-  }
+  const auth = await resolveAuth(request, "form");
+  if (!auth.ok) return auth;
 
-  const form = await parseFormData(request);
-  const csrfToken = form.getString("csrf_token");
-  if (!(await verifySignedCsrfToken(csrfToken))) {
-    return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
-  }
+  const body = await parseAndValidateBody(request, "form", false);
+  if (!body.ok) return body;
 
-  return { ok: true, session, form };
+  return { ok: true, session: auth.session, form: body.value as FormParams };
 };
 
 type FormHandler = (
@@ -629,25 +647,14 @@ type FormHandler = (
 ) => Response | Promise<Response>;
 type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
 
-/** Unwrap an AuthFormResult, optionally checking role */
-const handleAuthForm = async (
-  request: Request,
-  requiredRole: AdminLevel | null,
-  handler: FormHandler,
-): Promise<Response> => {
-  const auth = await requireAuthForm(request);
-  if (!auth.ok) return auth.response;
-  if (requiredRole && auth.session.adminLevel !== requiredRole) {
-    return htmlResponse("Forbidden", 403);
-  }
-  return handler(auth.session, auth.form);
-};
-
-/** Handle request with auth form - unwrap AuthFormResult */
+/** Handle request with auth form - any authenticated user */
 export const withAuthForm = (
   request: Request,
   handler: FormHandler,
-): Promise<Response> => handleAuthForm(request, null, handler);
+): Promise<Response> =>
+  withAuth(request, { body: "form" }, (session, form) =>
+    handler(session, form),
+  );
 
 /** Require owner role - returns 403 if not owner, redirect if not authenticated */
 export const requireOwnerOr = (
@@ -660,7 +667,10 @@ export const requireOwnerOr = (
 export const withOwnerAuthForm = (
   request: Request,
   handler: FormHandler,
-): Promise<Response> => handleAuthForm(request, "owner", handler);
+): Promise<Response> =>
+  withAuth(request, { body: "form", role: "owner" }, (session, form) =>
+    handler(session, form),
+  );
 
 /** Auth level for ID route helpers: "owner" requires owner role, null allows any authenticated user */
 type IdRouteAuth = AdminLevel | null;
@@ -705,35 +715,23 @@ type MultipartFormHandler = (
   formData: FormData,
 ) => Response | Promise<Response>;
 
-/**
- * Handle multipart form request with auth + CSRF validation.
- * Parses request body as FormData (multipart/form-data) instead of URLSearchParams.
- */
-export const withAuthMultipartForm = async (
+/** Handle multipart form request with auth + CSRF validation */
+export const withAuthMultipartForm = (
   request: Request,
   handler: MultipartFormHandler,
-): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) return redirectResponse("/admin");
+): Promise<Response> =>
+  withAuth(request, { body: "multipart" }, (session, formData) =>
+    handler(session, formData),
+  );
 
-  const formData = await request.formData();
-  const csrfToken = String(formData.get("csrf_token") ?? "").trim();
-  if (!(await verifySignedCsrfToken(csrfToken))) {
-    return htmlResponse("Invalid CSRF token", 403);
-  }
-
-  return handler(session, formData);
-};
-
-/** Handle multipart form request with owner auth + CSRF validation. */
+/** Handle multipart form request with owner auth + CSRF validation */
 export const withOwnerAuthMultipartForm = (
   request: Request,
   handler: MultipartFormHandler,
 ): Promise<Response> =>
-  withAuthMultipartForm(request, (session, formData) => {
-    if (session.adminLevel !== "owner") return htmlResponse("Forbidden", 403);
-    return handler(session, formData);
-  });
+  withAuth(request, { body: "multipart", role: "owner" }, (session, formData) =>
+    handler(session, formData),
+  );
 
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
@@ -792,54 +790,164 @@ const parseJsonBody = async (
   }
 };
 
-/** Parse JSON body and invoke handler with session */
-const runJsonHandler = async (
+/** Internal: resolve authentication from cookie or API key */
+const resolveAuth = async (
   request: Request,
-  session: AuthSession,
-  handler: JsonHandler,
-): Promise<Response> => {
-  const parsed = await parseJsonBody(request);
-  return parsed.ok ? handler(session, parsed.body) : parsed.response;
+  bodyMode: BodyMode,
+  allowApiKey?: boolean,
+): Promise<
+  | { ok: true; session: AuthSession; authKind: AuthKind }
+  | { ok: false; response: Response }
+> => {
+  if (allowApiKey) {
+    const apiSession = await getAuthenticatedApiKey(request);
+    if (apiSession)
+      return { ok: true, session: apiSession, authKind: "apiKey" };
+    if (getBearerToken(request)) {
+      return {
+        ok: false,
+        response: jsonResponse(
+          { status: "error", message: "Invalid API key" },
+          401,
+        ),
+      };
+    }
+  }
+
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return {
+      ok: false,
+      response:
+        bodyMode === "json"
+          ? jsonResponse({ status: "error", message: "Not authenticated" }, 401)
+          : redirectResponse("/admin"),
+    };
+  }
+  return { ok: true, session, authKind: "cookie" };
+};
+
+/** Internal: parse request body and validate CSRF token */
+const parseAndValidateBody = async (
+  request: Request,
+  mode: BodyMode,
+  skipCsrf: boolean,
+): Promise<
+  | { ok: true; value: FormParams | FormData | Record<string, unknown> | null }
+  | { ok: false; response: Response }
+> => {
+  switch (mode) {
+    case "form": {
+      const form = await parseFormData(request);
+      if (
+        !skipCsrf &&
+        !(await verifySignedCsrfToken(form.getString("csrf_token")))
+      ) {
+        return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
+      }
+      return { ok: true, value: form };
+    }
+    case "multipart": {
+      const formData = await request.formData();
+      if (
+        !skipCsrf &&
+        !(await verifySignedCsrfToken(
+          String(formData.get("csrf_token") ?? "").trim(),
+        ))
+      ) {
+        return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
+      }
+      return { ok: true, value: formData };
+    }
+    case "json": {
+      if (
+        !skipCsrf &&
+        !(await verifySignedCsrfToken(
+          request.headers.get("x-csrf-token") ?? "",
+        ))
+      ) {
+        logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
+        return {
+          ok: false,
+          response: jsonResponse(
+            { status: "error", message: "Forbidden" },
+            403,
+          ),
+        };
+      }
+      const parsed = await parseJsonBody(request);
+      return parsed.ok
+        ? { ok: true, value: parsed.body }
+        : { ok: false, response: parsed.response };
+    }
+    case "none":
+      return { ok: true, value: null };
+  }
 };
 
 /**
- * Handle JSON API request with auth + CSRF validation (from x-csrf-token header).
- * Mirrors withAuthForm but for JSON endpoints.
- * Content-type is already validated by middleware.
+ * Unified auth pipeline: authenticate, enforce role, validate CSRF, parse body.
+ *
+ * Consolidates withAuthForm, withOwnerAuthForm, withAuthMultipartForm,
+ * withOwnerAuthMultipartForm, withAuthJson, and withAdminApi into a single
+ * policy-driven helper.
+ *
+ * @example
+ * // Form POST, any authenticated user
+ * withAuth(request, { body: "form" }, (session, form) => ...)
+ *
+ * // Multipart POST, owner only
+ * withAuth(request, { body: "multipart", role: "owner" }, (session, formData) => ...)
+ *
+ * // JSON API, cookie or API key auth
+ * withAuth(request, { body: "json", allowApiKey: true }, (session, body) => ...)
  */
-export async function withAuthJson(
+export async function withAuth<T extends BodyMode>(
   request: Request,
-  handler: JsonHandler,
+  policy: AuthPolicy<T>,
+  handler: (
+    session: AuthSession,
+    body: ParsedBody<T>,
+    authKind: AuthKind,
+  ) => Response | Promise<Response>,
 ): Promise<Response> {
-  const session = await getAuthenticatedSession(request);
-  if (!session)
-    return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
+  const auth = await resolveAuth(request, policy.body, policy.allowApiKey);
+  if (!auth.ok) return auth.response;
 
-  const csrfHeader = request.headers.get("x-csrf-token") ?? "";
-  if (!(await verifySignedCsrfToken(csrfHeader))) {
-    logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
-    return jsonResponse({ status: "error", message: "Forbidden" }, 403);
+  if (policy.role && auth.session.adminLevel !== policy.role) {
+    return policy.body === "json"
+      ? jsonResponse({ status: "error", message: "Forbidden" }, 403)
+      : htmlResponse("Forbidden", 403);
   }
 
-  return runJsonHandler(request, session, handler);
+  const body = await parseAndValidateBody(
+    request,
+    policy.body,
+    auth.authKind === "apiKey",
+  );
+  if (!body.ok) return body.response;
+
+  return handler(auth.session, body.value as ParsedBody<T>, auth.authKind);
 }
+
+/** Handle JSON API request with auth + CSRF validation (from x-csrf-token header) */
+export const withAuthJson = (
+  request: Request,
+  handler: JsonHandler,
+): Promise<Response> =>
+  withAuth(request, { body: "json" }, (session, body) =>
+    handler(session, body),
+  );
 
 /**
  * Handle admin API request with either cookie+CSRF or API key auth.
  * Cookie-based requests require x-csrf-token header.
  * API key requests (Bearer token) skip CSRF since the key is the secret.
  */
-export async function withAdminApi(
+export const withAdminApi = (
   request: Request,
   handler: JsonHandler,
-): Promise<Response> {
-  // Try API key auth first — getAuthenticatedApiKey returns null for
-  // non-Bearer requests (falling through to cookie+CSRF auth below)
-  // or when the key is invalid (returning 401).
-  const apiKeySession = await getAuthenticatedApiKey(request);
-  if (apiKeySession) return runJsonHandler(request, apiKeySession, handler);
-  if (getBearerToken(request)) {
-    return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
-  }
-  return withAuthJson(request, handler);
-}
+): Promise<Response> =>
+  withAuth(request, { body: "json", allowApiKey: true }, (session, body) =>
+    handler(session, body),
+  );
