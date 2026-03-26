@@ -555,23 +555,21 @@ export const withSession = async (
   return session ? handler(session) : onNoSession();
 };
 
-/** Require session — redirect to /admin/ if not authenticated */
+/** Require session — redirect if not authenticated, 403 if role check fails */
 export const requireSessionOr = async (
   request: Request,
   handler: SessionHandler,
+  role?: AdminLevel,
 ): Promise<Response> => {
-  const result = await requireSessionFor(request, "html");
+  const result = await requireSessionFor(request, "html", role);
   return isResponse(result) ? result : handler(result);
 };
 
-/** Require owner session — redirect if not authenticated, 403 if not owner */
-export const requireOwnerOr = async (
+/** Require owner session — shorthand for requireSessionOr with owner role */
+export const requireOwnerOr = (
   request: Request,
   handler: SessionHandler,
-): Promise<Response> => {
-  const result = await requireSessionFor(request, "html", "owner");
-  return isResponse(result) ? result : handler(result);
-};
+): Promise<Response> => requireSessionOr(request, handler, "owner");
 
 /** CSRF form result type */
 export type CsrfFormResult =
@@ -624,13 +622,12 @@ export type AuthFormResult =
   | { ok: true; session: AuthSession; form: FormParams }
   | { ok: false; response: Response };
 
-/**
- * Require authenticated session with parsed form and validated CSRF
- */
+/** Require authenticated session (with optional role) + parsed form + validated CSRF */
 export const requireAuthForm = async (
   request: Request,
+  role?: AdminLevel,
 ): Promise<AuthFormResult> => {
-  const result = await requireSessionFor(request, "html");
+  const result = await requireSessionFor(request, "html", role);
   if (isResponse(result)) return { ok: false, response: result };
 
   const form = await parseFormData(request);
@@ -647,31 +644,21 @@ type FormHandler = (
   form: FormParams,
 ) => Response | Promise<Response>;
 
-/** Unwrap an AuthFormResult, optionally checking role */
-const handleAuthForm = async (
+/** Handle request with auth form + CSRF — optional role check */
+export const withAuthForm = async (
   request: Request,
-  requiredRole: AdminLevel | null,
   handler: FormHandler,
+  role?: AdminLevel,
 ): Promise<Response> => {
-  const auth = await requireAuthForm(request);
-  if (!auth.ok) return auth.response;
-  if (requiredRole && auth.session.adminLevel !== requiredRole) {
-    return authFailure("html", "forbidden");
-  }
-  return handler(auth.session, auth.form);
+  const auth = await requireAuthForm(request, role);
+  return auth.ok ? handler(auth.session, auth.form) : auth.response;
 };
 
-/** Handle request with auth form - unwrap AuthFormResult */
-export const withAuthForm = (
-  request: Request,
-  handler: FormHandler,
-): Promise<Response> => handleAuthForm(request, null, handler);
-
-/** Handle request with owner auth form - requires owner role + CSRF validation */
+/** Handle request with owner auth form — shorthand for withAuthForm with owner role */
 export const withOwnerAuthForm = (
   request: Request,
   handler: FormHandler,
-): Promise<Response> => handleAuthForm(request, "owner", handler);
+): Promise<Response> => withAuthForm(request, handler, "owner");
 
 /**
  * Authenticated GET-by-ID route handler factory.
@@ -711,13 +698,13 @@ type MultipartFormHandler = (
   formData: FormData,
 ) => Response | Promise<Response>;
 
-/** Multipart form auth + CSRF validation with optional role check. */
-const handleAuthMultipartForm = async (
+/** Handle multipart form request with auth + CSRF — optional role check */
+export const withAuthMultipartForm = async (
   request: Request,
-  role: AdminLevel | null,
   handler: MultipartFormHandler,
+  role?: AdminLevel,
 ): Promise<Response> => {
-  const result = await requireSessionFor(request, "html", role ?? undefined);
+  const result = await requireSessionFor(request, "html", role);
   if (isResponse(result)) return result;
 
   const formData = await request.formData();
@@ -729,17 +716,11 @@ const handleAuthMultipartForm = async (
   return handler(result, formData);
 };
 
-/** Handle multipart form request with auth + CSRF validation. */
-export const withAuthMultipartForm = (
-  request: Request,
-  handler: MultipartFormHandler,
-): Promise<Response> => handleAuthMultipartForm(request, null, handler);
-
-/** Handle multipart form request with owner auth + CSRF validation. */
+/** Handle multipart form request with owner auth — shorthand for withAuthMultipartForm with owner role */
 export const withOwnerAuthMultipartForm = (
   request: Request,
   handler: MultipartFormHandler,
-): Promise<Response> => handleAuthMultipartForm(request, "owner", handler);
+): Promise<Response> => withAuthMultipartForm(request, handler, "owner");
 
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
