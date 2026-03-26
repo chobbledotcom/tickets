@@ -1,0 +1,234 @@
+/**
+ * Admin attendee refund routes (single + bulk)
+ */
+
+import { chunk, filter } from "#fp";
+import { logActivity } from "#lib/db/activityLog.ts";
+import { markRefunded } from "#lib/db/attendees.ts";
+import type { FormParams } from "#lib/form-data.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
+import { getActivePaymentProvider } from "#lib/payments.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
+import {
+  verifyOrRedirect,
+  withDecryptedAttendees,
+  withEventAttendeesAuth,
+} from "#routes/admin/utils.ts";
+import { defineRoutes } from "#routes/router.ts";
+import {
+  type AuthSession,
+  applyFlash,
+  errorRedirect,
+  htmlResponse,
+  redirect,
+  withAuthForm,
+} from "#routes/utils.ts";
+import {
+  adminRefundAllAttendeesPage,
+  adminRefundAttendeePage,
+} from "#templates/admin/attendees.tsx";
+import {
+  type EventRouteParams,
+  NO_PROVIDER_ERROR,
+  attendeeGetRoute,
+  getReturnUrl,
+  verifiedAttendeeForm,
+} from "./attendees.ts";
+
+/** Refund error messages */
+const NO_PAYMENT_ERROR = "This attendee has no payment to refund.";
+const NO_REFUNDABLE_ERROR = "No attendees have payments to refund.";
+const REFUND_FAILED_ERROR =
+  "Refund failed. The payment may have already been refunded.";
+const ALREADY_REFUNDED_ERROR = "This attendee has already been refunded.";
+
+/** Max refunds per request to stay within Bunny Edge fetch limits */
+const REFUND_BATCH_LIMIT = 30;
+
+/** Render refund error redirect for a single attendee */
+const refundError = (
+  eventId: number,
+  attendeeId: number,
+  msg: string,
+): Response =>
+  errorRedirect(`/admin/event/${eventId}/attendee/${attendeeId}/refund`, msg);
+
+/** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
+const handleAdminAttendeeRefundGet = attendeeGetRoute(
+  (data, session, request) => {
+    applyFlash(request);
+    const returnUrl = getReturnUrl(request);
+    if (!data.attendee.payment_id)
+      return htmlResponse(
+        adminRefundAttendeePage(data, session, NO_PAYMENT_ERROR, returnUrl),
+        400,
+      );
+    if (data.attendee.refunded)
+      return htmlResponse(
+        adminRefundAttendeePage(
+          data,
+          session,
+          ALREADY_REFUNDED_ERROR,
+          returnUrl,
+        ),
+        400,
+      );
+    return htmlResponse(
+      adminRefundAttendeePage(data, session, undefined, returnUrl),
+    );
+  },
+);
+
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
+const handleAttendeeRefund = verifiedAttendeeForm(
+  "refund",
+  "refund",
+  async (data, form, eventId, attendeeId) => {
+    if (!data.attendee.payment_id)
+      return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
+    if (data.attendee.refunded)
+      return refundError(eventId, attendeeId, ALREADY_REFUNDED_ERROR);
+
+    const provider = await getActivePaymentProvider();
+    if (!provider) return refundError(eventId, attendeeId, NO_PROVIDER_ERROR);
+
+    const refunded = await provider.refundPayment(data.attendee.payment_id);
+    if (!refunded) {
+      logError({
+        code: ErrorCode.PAYMENT_REFUND,
+        eventId,
+        detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
+      });
+      return refundError(eventId, attendeeId, REFUND_FAILED_ERROR);
+    }
+
+    await markRefunded(data.attendee.id);
+    await logActivity(
+      `Refund issued for attendee '${data.attendee.name}'`,
+      eventId,
+    );
+    return redirect(`/admin/event/${eventId}`, "Refund issued", true, { form });
+  },
+);
+
+/** Filter attendees that have a payment_id and are not yet refunded */
+const getRefundable = filter(
+  (a: Attendee) => a.payment_id !== "" && !a.refunded,
+);
+
+/** Handle GET /admin/event/:id/refund-all */
+const handleAdminRefundAllGet = (
+  request: Request,
+  { id }: EventRouteParams,
+): Promise<Response> =>
+  withEventAttendeesAuth(request, id, (event, attendees, session) => {
+    applyFlash(request);
+    const count = getRefundable(attendees).length;
+    return count === 0
+      ? htmlResponse(
+          adminRefundAllAttendeesPage(event, 0, session, NO_REFUNDABLE_ERROR),
+          400,
+        )
+      : htmlResponse(adminRefundAllAttendeesPage(event, count, session));
+  });
+
+/** Process bulk refund for all refundable attendees */
+const processRefundAll = async (
+  event: EventWithCount,
+  attendees: Attendee[],
+  _session: AuthSession,
+  form: FormParams,
+): Promise<Response> => {
+  const refundAllUrl = `/admin/event/${event.id}/refund-all`;
+  const refundable = getRefundable(attendees);
+  const error = verifyOrRedirect(form, event.name, refundAllUrl, "Event name");
+  if (error) return error;
+
+  if (refundable.length === 0) {
+    return errorRedirect(refundAllUrl, NO_REFUNDABLE_ERROR);
+  }
+
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    return errorRedirect(refundAllUrl, NO_PROVIDER_ERROR);
+  }
+
+  const REFUND_CHUNK_SIZE = 5;
+  const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
+  const remaining = refundable.length - batch.length;
+
+  let refundedCount = 0;
+  let failedCount = 0;
+  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
+    const results = await Promise.all(
+      group.map(async (attendee) => {
+        const refunded = await provider.refundPayment(attendee.payment_id);
+        if (refunded) {
+          await markRefunded(attendee.id);
+          return true;
+        }
+        logError({
+          code: ErrorCode.PAYMENT_REFUND,
+          eventId: event.id,
+          detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+        });
+        return false;
+      }),
+    );
+    for (const success of results) {
+      if (success) refundedCount++;
+      else failedCount++;
+    }
+  }
+
+  if (failedCount > 0) {
+    const msg =
+      remaining > 0
+        ? `${refundedCount} refund(s) succeeded, ${failedCount} failed. ${remaining} remaining — submit again to continue.`
+        : `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`;
+    await logActivity(
+      `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
+      event.id,
+    );
+    return errorRedirect(refundAllUrl, msg);
+  }
+
+  if (remaining > 0) {
+    await logActivity(
+      `Bulk refund: ${refundedCount} of ${refundable.length} refunded for '${event.name}'`,
+      event.id,
+    );
+    return redirect(
+      refundAllUrl,
+      `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
+      true,
+    );
+  }
+
+  await logActivity(
+    `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
+    event.id,
+  );
+  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
+};
+
+/** Handle POST /admin/event/:id/refund-all */
+const handleAdminRefundAllPost = (
+  request: Request,
+  { id }: EventRouteParams,
+): Promise<Response> =>
+  withAuthForm(request, (session, form) =>
+    withDecryptedAttendees(session, id, (event, attendees) =>
+      processRefundAll(event, attendees, session, form),
+    ),
+  );
+
+/** Attendee refund routes */
+export const attendeeRefundRoutes = defineRoutes({
+  "GET /admin/event/:eventId/attendee/:attendeeId/refund":
+    handleAdminAttendeeRefundGet,
+  "POST /admin/event/:eventId/attendee/:attendeeId/refund":
+    handleAttendeeRefund,
+  "GET /admin/event/:id/refund-all": handleAdminRefundAllGet,
+  "POST /admin/event/:id/refund-all": handleAdminRefundAllPost,
+});
