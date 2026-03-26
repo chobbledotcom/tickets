@@ -125,9 +125,7 @@ describe("logger", () => {
 
       const found = debugSpy.calls
         .slice(before)
-        .some(
-          (c) => c.args[0] === "[Request] GET /ticket/[redacted] 200 42ms",
-        );
+        .some((c) => c.args[0] === "[Request] GET /ticket/[redacted] 200 42ms");
       expect(found).toBe(true);
     });
 
@@ -176,9 +174,7 @@ describe("logger", () => {
 
       const found = debugSpy.calls
         .slice(before)
-        .some((c) =>
-          String(c.args[0]).includes("[Request] POST /admin/login"),
-        );
+        .some((c) => String(c.args[0]).includes("[Request] POST /admin/login"));
       expect(found).toBe(false);
     });
 
@@ -211,9 +207,7 @@ describe("logger", () => {
 
       const found = debugSpy.calls
         .slice(before)
-        .some((c) =>
-          String(c.args[0]).includes("[Request] GET /admin"),
-        );
+        .some((c) => String(c.args[0]).includes("[Request] GET /admin"));
       expect(found).toBe(false);
       Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
     });
@@ -586,121 +580,117 @@ describe("logger", () => {
     });
   });
 
-  describeWithEnv(
-    "runWithRequestId",
-    { env: { NTFY_URL: undefined } },
-    () => {
-      beforeEach(() => {
-        setSuppressRequestLogs(false);
-      });
+  describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
+    beforeEach(() => {
+      setSuppressRequestLogs(false);
+    });
 
-      afterEach(() => {
-        setSuppressRequestLogs(null);
-      });
+    afterEach(() => {
+      setSuppressRequestLogs(null);
+    });
 
-      test("getRequestId returns ID inside request context", () => {
+    test("getRequestId returns ID inside request context", () => {
+      runWithRequestId(() => {
+        const id = getRequestId();
+        expect(id).toMatch(/^[0-9a-f]{4}$/);
+      });
+    });
+
+    test("getRequestId returns empty string outside request context", () => {
+      expect(getRequestId()).toBe("");
+    });
+
+    test("prefixes logRequest with 4-char hex ID", () => {
+      const debugSpy = spy(console, "debug");
+      try {
+        let id = "";
         runWithRequestId(() => {
-          const id = getRequestId();
-          expect(id).toMatch(/^[0-9a-f]{4}$/);
-        });
-      });
-
-      test("getRequestId returns empty string outside request context", () => {
-        expect(getRequestId()).toBe("");
-      });
-
-      test("prefixes logRequest with 4-char hex ID", () => {
-        const debugSpy = spy(console, "debug");
-        try {
-          let id = "";
-          runWithRequestId(() => {
-            id = getRequestId();
-            logRequest({
-              method: "GET",
-              path: "/admin",
-              status: 200,
-              durationMs: 10,
-            });
-          });
-
-          const expected = `[${id}] [Request] GET /admin 200 10ms`;
-          const found = debugSpy.calls.some((c) => c.args[0] === expected);
-          expect(found).toBe(true);
-        } finally {
-          debugSpy.restore();
-        }
-      });
-
-      test("prefixes logError with same request ID", () => {
-        const errorSpy = spy(console, "error");
-        try {
-          let id = "";
-          runWithRequestId(() => {
-            id = getRequestId();
-            logRequest({
-              method: "GET",
-              path: "/admin",
-              status: 200,
-              durationMs: 5,
-            });
-            logErrorLocal({ code: ErrorCode.DB_CONNECTION });
-          });
-
-          const expected = `[${id}] [Error] E_DB_CONNECTION`;
-          const found = errorSpy.calls.some((c) => c.args[0] === expected);
-          expect(found).toBe(true);
-        } finally {
-          errorSpy.restore();
-        }
-      });
-
-      test("prefixes logDebug with request ID", () => {
-        const debugSpy = spy(console, "debug");
-        try {
-          let id = "";
-          runWithRequestId(() => {
-            id = getRequestId();
-            logDebug("Setup", "test message");
-          });
-
-          const expected = `[${id}] [Setup] test message`;
-          const found = debugSpy.calls.some((c) => c.args[0] === expected);
-          expect(found).toBe(true);
-        } finally {
-          debugSpy.restore();
-        }
-      });
-
-      test("different requests get different IDs", () => {
-        const ids: string[] = [];
-        for (let i = 0; i < 10; i++) {
-          runWithRequestId(() => {
-            ids.push(getRequestId());
-          });
-        }
-
-        // With 65536 possible values, 10 samples should not all be identical
-        const unique = new Set(ids);
-        expect(unique.size).toBeGreaterThan(1);
-      });
-
-      test("no prefix outside request context", () => {
-        const debugSpy = spy(console, "debug");
-        try {
+          id = getRequestId();
           logRequest({
             method: "GET",
             path: "/admin",
             status: 200,
             durationMs: 10,
           });
+        });
 
-          const expected = "[Request] GET /admin 200 10ms";
-          const found = debugSpy.calls.some((c) => c.args[0] === expected);
-          expect(found).toBe(true);
-        } finally {
-          debugSpy.restore();
-        }
-      });
-    },
-  );
+        const expected = `[${id}] [Request] GET /admin 200 10ms`;
+        const found = debugSpy.calls.some((c) => c.args[0] === expected);
+        expect(found).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+
+    test("prefixes logError with same request ID", () => {
+      const errorSpy = spy(console, "error");
+      try {
+        let id = "";
+        runWithRequestId(() => {
+          id = getRequestId();
+          logRequest({
+            method: "GET",
+            path: "/admin",
+            status: 200,
+            durationMs: 5,
+          });
+          logErrorLocal({ code: ErrorCode.DB_CONNECTION });
+        });
+
+        const expected = `[${id}] [Error] E_DB_CONNECTION`;
+        const found = errorSpy.calls.some((c) => c.args[0] === expected);
+        expect(found).toBe(true);
+      } finally {
+        errorSpy.restore();
+      }
+    });
+
+    test("prefixes logDebug with request ID", () => {
+      const debugSpy = spy(console, "debug");
+      try {
+        let id = "";
+        runWithRequestId(() => {
+          id = getRequestId();
+          logDebug("Setup", "test message");
+        });
+
+        const expected = `[${id}] [Setup] test message`;
+        const found = debugSpy.calls.some((c) => c.args[0] === expected);
+        expect(found).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+
+    test("different requests get different IDs", () => {
+      const ids: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        runWithRequestId(() => {
+          ids.push(getRequestId());
+        });
+      }
+
+      // With 65536 possible values, 10 samples should not all be identical
+      const unique = new Set(ids);
+      expect(unique.size).toBeGreaterThan(1);
+    });
+
+    test("no prefix outside request context", () => {
+      const debugSpy = spy(console, "debug");
+      try {
+        logRequest({
+          method: "GET",
+          path: "/admin",
+          status: 200,
+          durationMs: 10,
+        });
+
+        const expected = "[Request] GET /admin 200 10ms";
+        const found = debugSpy.calls.some((c) => c.args[0] === expected);
+        expect(found).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+  });
 });

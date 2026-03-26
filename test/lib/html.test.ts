@@ -2192,9 +2192,8 @@ describe("html", () => {
         allowedDomain: "localhost",
         session: TEST_SESSION,
       });
-      const failedSection = html
-        .split("Failed Payments")[1]
-        ?.split("Add Attendee")[0]!;
+      const failedSection =
+        html.split("Failed Payments")[1]?.split("Add Attendee")[0] ?? "";
       expect(failedSection).toContain("Jane Stuck");
       expect(failedSection).toContain("Delete");
       expect(failedSection).toContain("/delete-incomplete");
