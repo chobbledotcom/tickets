@@ -749,45 +749,34 @@ export const plainResponse = (text: string, status = 200): Response =>
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 
-/**
- * Auth failure channel: "html" for browser requests, "json" for API requests.
- */
-type AuthChannel = "html" | "json";
+/** Auth failure responses keyed by reason, with html and json variants side-by-side. */
+const AUTH_FAILURES = {
+  "not-authenticated": {
+    html: () => redirectResponse("/admin"),
+    json: () => jsonResponse({ status: "error", message: "Not authenticated" }, 401),
+  },
+  "forbidden": {
+    html: () => htmlResponse("Forbidden", 403),
+    json: () => jsonResponse({ status: "error", message: "Forbidden" }, 403),
+  },
+  "invalid-csrf": {
+    html: () => htmlResponse("Invalid CSRF token", 403),
+    json: () => jsonResponse({ status: "error", message: "Forbidden" }, 403),
+  },
+  "invalid-api-key": {
+    html: () => htmlResponse("Forbidden", 403),
+    json: () => jsonResponse({ status: "error", message: "Invalid API key" }, 401),
+  },
+} satisfies Record<string, Record<"html" | "json", () => Response>>;
 
-/**
- * Auth failure reason.
- * - not-authenticated: no valid session
- * - forbidden: authenticated but insufficient role
- * - invalid-csrf: CSRF token missing or invalid
- * - invalid-api-key: Bearer token present but not valid
- */
-type AuthFailureReason =
-  | "not-authenticated"
-  | "forbidden"
-  | "invalid-csrf"
-  | "invalid-api-key";
+type AuthFailureReason = keyof typeof AUTH_FAILURES;
+type AuthChannel = keyof (typeof AUTH_FAILURES)[AuthFailureReason];
 
-/**
- * Construct a standardized auth failure response.
- * Centralizes the mapping of (channel, reason) → HTTP response so that
- * auth error behavior is defined in one place and cannot drift.
- */
+/** Construct a standardized auth failure response. */
 export const authFailure = (
   channel: AuthChannel,
   reason: AuthFailureReason,
-): Response => {
-  if (channel === "html") {
-    if (reason === "not-authenticated") return redirectResponse("/admin");
-    if (reason === "invalid-csrf")
-      return htmlResponse("Invalid CSRF token", 403);
-    return htmlResponse("Forbidden", 403);
-  }
-  if (reason === "not-authenticated")
-    return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
-  if (reason === "invalid-api-key")
-    return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
-  return jsonResponse({ status: "error", message: "Forbidden" }, 403);
-};
+): Response => AUTH_FAILURES[reason][channel]();
 
 /** Create iCalendar response */
 export const icsResponse = (ics: string): Response =>
