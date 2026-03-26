@@ -54,6 +54,7 @@ const IMAGE_TYPES = [
 /** Derived lookups */
 const MIME_TO_EXT = Object.fromEntries(IMAGE_TYPES.map((t) => [t.mime, t.ext]));
 const EXT_TO_MIME = Object.fromEntries(IMAGE_TYPES.map((t) => [t.ext, t.mime]));
+const VALID_IMAGE_MIMES = new Set(IMAGE_TYPES.map((t) => t.mime));
 
 /**
  * Check if image storage is enabled (both env vars are set)
@@ -84,10 +85,15 @@ export const getMimeTypeFromFilename = (filename: string): string | null => {
  * Returns the MIME type if matched, null otherwise.
  */
 export const detectImageType = (data: Uint8Array): string | null => {
-  for (const { mime, magic } of IMAGE_TYPES) {
-    if (data.length >= magic.length && magic.every((b, i) => data[i] === b)) {
-      return mime;
+  // Explicit loop instead of `magic.every(callback)` — V8's JIT compiler
+  // can inline the `every` callback unpredictably, causing the coverage
+  // instrumentation to drop a branch on some runs.
+  outer: for (const { mime, magic } of IMAGE_TYPES) {
+    if (data.length < magic.length) continue;
+    for (let i = 0; i < magic.length; i++) {
+      if (data[i] !== magic[i]) continue outer;
     }
+    return mime;
   }
   return null;
 };
@@ -114,7 +120,7 @@ export const validateImage = (
     return { valid: false, error: "too_large" };
   }
 
-  if (!IMAGE_TYPES.some((t) => t.mime === contentType)) {
+  if (!VALID_IMAGE_MIMES.has(contentType)) {
     return { valid: false, error: "invalid_type" };
   }
 
