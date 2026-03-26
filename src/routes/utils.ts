@@ -740,9 +740,10 @@ export const plainResponse = (text: string, status = 200): Response =>
 const AUTH_FAILURES = {
   "not-authenticated": {
     html: () => redirectResponse("/admin"),
-    json: () => jsonResponse({ status: "error", message: "Not authenticated" }, 401),
+    json: () =>
+      jsonResponse({ status: "error", message: "Not authenticated" }, 401),
   },
-  "forbidden": {
+  forbidden: {
     html: () => htmlResponse("Forbidden", 403),
     json: () => jsonResponse({ status: "error", message: "Forbidden" }, 403),
   },
@@ -752,7 +753,8 @@ const AUTH_FAILURES = {
   },
   "invalid-api-key": {
     html: () => htmlResponse("Forbidden", 403),
-    json: () => jsonResponse({ status: "error", message: "Invalid API key" }, 401),
+    json: () =>
+      jsonResponse({ status: "error", message: "Invalid API key" }, 401),
   },
 } satisfies Record<string, Record<"html" | "json", () => Response>>;
 
