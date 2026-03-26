@@ -541,7 +541,7 @@ export const requireSessionOr = (
   request: Request,
   handler: (session: AuthSession) => Response | Promise<Response>,
 ): Promise<Response> =>
-  withSession(request, handler, () => redirectResponse("/admin"));
+  withSession(request, handler, () => authFailure("html", "not-authenticated"));
 
 /** Check owner role, return 403 if not owner */
 const requireOwnerRole = (
@@ -550,7 +550,7 @@ const requireOwnerRole = (
 ): Response | Promise<Response> =>
   session.adminLevel === "owner"
     ? handler(session)
-    : htmlResponse("Forbidden", 403);
+    : authFailure("html", "forbidden");
 
 /** CSRF form result type */
 export type CsrfFormResult =
@@ -611,13 +611,13 @@ export const requireAuthForm = async (
 ): Promise<AuthFormResult> => {
   const session = await getAuthenticatedSession(request);
   if (!session) {
-    return { ok: false, response: redirectResponse("/admin") };
+    return { ok: false, response: authFailure("html", "not-authenticated") };
   }
 
   const form = await parseFormData(request);
   const csrfToken = form.getString("csrf_token");
   if (!(await verifySignedCsrfToken(csrfToken))) {
-    return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
+    return { ok: false, response: authFailure("html", "invalid-csrf") };
   }
 
   return { ok: true, session, form };
@@ -638,7 +638,7 @@ const handleAuthForm = async (
   const auth = await requireAuthForm(request);
   if (!auth.ok) return auth.response;
   if (requiredRole && auth.session.adminLevel !== requiredRole) {
-    return htmlResponse("Forbidden", 403);
+    return authFailure("html", "forbidden");
   }
   return handler(auth.session, auth.form);
 };
@@ -714,12 +714,12 @@ export const withAuthMultipartForm = async (
   handler: MultipartFormHandler,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
-  if (!session) return redirectResponse("/admin");
+  if (!session) return authFailure("html", "not-authenticated");
 
   const formData = await request.formData();
   const csrfToken = String(formData.get("csrf_token") ?? "").trim();
   if (!(await verifySignedCsrfToken(csrfToken))) {
-    return htmlResponse("Invalid CSRF token", 403);
+    return authFailure("html", "invalid-csrf");
   }
 
   return handler(session, formData);
@@ -731,7 +731,7 @@ export const withOwnerAuthMultipartForm = (
   handler: MultipartFormHandler,
 ): Promise<Response> =>
   withAuthMultipartForm(request, (session, formData) => {
-    if (session.adminLevel !== "owner") return htmlResponse("Forbidden", 403);
+    if (session.adminLevel !== "owner") return authFailure("html", "forbidden");
     return handler(session, formData);
   });
 
@@ -748,6 +748,46 @@ export const plainResponse = (text: string, status = 200): Response =>
     status,
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
+
+/**
+ * Auth failure channel: "html" for browser requests, "json" for API requests.
+ */
+type AuthChannel = "html" | "json";
+
+/**
+ * Auth failure reason.
+ * - not-authenticated: no valid session
+ * - forbidden: authenticated but insufficient role
+ * - invalid-csrf: CSRF token missing or invalid
+ * - invalid-api-key: Bearer token present but not valid
+ */
+type AuthFailureReason =
+  | "not-authenticated"
+  | "forbidden"
+  | "invalid-csrf"
+  | "invalid-api-key";
+
+/**
+ * Construct a standardized auth failure response.
+ * Centralizes the mapping of (channel, reason) → HTTP response so that
+ * auth error behavior is defined in one place and cannot drift.
+ */
+export const authFailure = (
+  channel: AuthChannel,
+  reason: AuthFailureReason,
+): Response => {
+  if (channel === "html") {
+    if (reason === "not-authenticated") return redirectResponse("/admin");
+    if (reason === "invalid-csrf")
+      return htmlResponse("Invalid CSRF token", 403);
+    return htmlResponse("Forbidden", 403);
+  }
+  if (reason === "not-authenticated")
+    return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
+  if (reason === "invalid-api-key")
+    return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
+  return jsonResponse({ status: "error", message: "Forbidden" }, 403);
+};
 
 /** Create iCalendar response */
 export const icsResponse = (ics: string): Response =>
@@ -812,13 +852,12 @@ export async function withAuthJson(
   handler: JsonHandler,
 ): Promise<Response> {
   const session = await getAuthenticatedSession(request);
-  if (!session)
-    return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
+  if (!session) return authFailure("json", "not-authenticated");
 
   const csrfHeader = request.headers.get("x-csrf-token") ?? "";
   if (!(await verifySignedCsrfToken(csrfHeader))) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
-    return jsonResponse({ status: "error", message: "Forbidden" }, 403);
+    return authFailure("json", "forbidden");
   }
 
   return runJsonHandler(request, session, handler);
@@ -839,7 +878,7 @@ export async function withAdminApi(
   const apiKeySession = await getAuthenticatedApiKey(request);
   if (apiKeySession) return runJsonHandler(request, apiKeySession, handler);
   if (getBearerToken(request)) {
-    return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
+    return authFailure("json", "invalid-api-key");
   }
   return withAuthJson(request, handler);
 }
