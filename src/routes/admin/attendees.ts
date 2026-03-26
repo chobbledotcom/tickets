@@ -34,10 +34,7 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import {
-  requirePrivateKey,
-  verifyOrRedirect,
-} from "#routes/admin/utils.ts";
+import { requirePrivateKey, verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
