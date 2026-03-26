@@ -15,12 +15,12 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
-  setTestEnv,
   testCookie,
   testCsrfToken,
   withStorageDisabled,
   withStorageMock,
 } from "#test-utils";
+import { runWithStorageConfig } from "#lib/storage.ts";
 
 /** Submit a file to the header-image upload endpoint */
 const submitHeaderImage = async (
@@ -392,47 +392,44 @@ describeWithEnv(
       test("serves header image via proxy route", async () => {
         const encrypted = await encryptBytes(JPEG_HEADER);
 
-        // Set storage env vars in the test body so concurrent tests that
-        // clear them (e.g. "when storage is disabled") don't cause a race
-        // where isStorageEnabled() returns false.
-        const restoreEnv = setTestEnv({
-          STORAGE_ZONE_NAME: "testzone",
-          STORAGE_ZONE_KEY: "testkey",
-        });
-        const originalFetch = globalThis.fetch;
-        globalThis.fetch = (
-          input: string | URL | Request,
-        ): Promise<Response> => {
-          const url =
-            typeof input === "string"
-              ? input
-              : input instanceof URL
-                ? input.toString()
-                : input.url;
-          if (url.includes("storage.bunnycdn.com")) {
-            return Promise.resolve(
-              // deno-lint-ignore no-explicit-any
-              new Response(encrypted as any, { status: 200 }),
-            );
-          }
-          return originalFetch(input);
-        };
+        await runWithStorageConfig(
+          { zoneName: "testzone", zoneKey: "testkey" },
+          async () => {
+            const originalFetch = globalThis.fetch;
+            globalThis.fetch = (
+              input: string | URL | Request,
+            ): Promise<Response> => {
+              const url =
+                typeof input === "string"
+                  ? input
+                  : input instanceof URL
+                    ? input.toString()
+                    : input.url;
+              if (url.includes("storage.bunnycdn.com")) {
+                return Promise.resolve(
+                  // deno-lint-ignore no-explicit-any
+                  new Response(encrypted as any, { status: 200 }),
+                );
+              }
+              return originalFetch(input);
+            };
 
-        try {
-          const response = await handleRequest(
-            mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"),
-          );
-          expect(response.status).toBe(200);
-          const headers = response.headers;
-          expect(headers.get("content-type")).toBe("image/jpeg");
-          expect(headers.get("cache-control")).toContain("immutable");
-          expect(new Uint8Array(await response.arrayBuffer())).toEqual(
-            JPEG_HEADER,
-          );
-        } finally {
-          globalThis.fetch = originalFetch;
-          restoreEnv();
-        }
+            try {
+              const response = await handleRequest(
+                mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"),
+              );
+              expect(response.status).toBe(200);
+              const headers = response.headers;
+              expect(headers.get("content-type")).toBe("image/jpeg");
+              expect(headers.get("cache-control")).toContain("immutable");
+              expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+                JPEG_HEADER,
+              );
+            } finally {
+              globalThis.fetch = originalFetch;
+            }
+          },
+        );
       });
     });
   },
