@@ -125,7 +125,7 @@ const runTests = async (useCoverage: boolean): Promise<number> => {
       ...Deno.env.toObject(),
       STRIPE_MOCK_HOST: "localhost",
       STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
-      DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "15",
+      DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "3",
     },
   });
   const result = await testCmd.output();
