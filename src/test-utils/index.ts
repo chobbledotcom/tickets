@@ -2168,7 +2168,7 @@ export const setupAdminTest = async (
  * csrf_token is auto-injected; include it in formData to override (e.g. "invalid-token").
  *
  *   const deleteAction = adminAttendeeAction("delete");
- *   const { response } = await deleteAction({ confirm_name: "John Doe" })();
+ *   const { response } = await deleteAction({ confirm_identifier: "John Doe" })();
  */
 export const adminAttendeeAction =
   (action: string) =>

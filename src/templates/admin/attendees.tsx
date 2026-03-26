@@ -60,11 +60,11 @@ export const adminDeleteAttendeePage = (
         {returnUrl && (
           <input type="hidden" name="return_url" value={returnUrl} />
         )}
-        <label for="confirm_name">Attendee name</label>
+        <label for="confirm_identifier">Attendee name</label>
         <input
           type="text"
-          id="confirm_name"
-          name="confirm_name"
+          id="confirm_identifier"
+          name="confirm_identifier"
           placeholder={attendee.name}
           autocomplete="off"
           required
@@ -132,11 +132,11 @@ export const adminRefundAttendeePage = (
         {returnUrl && (
           <input type="hidden" name="return_url" value={returnUrl} />
         )}
-        <label for="confirm_name">Attendee name</label>
+        <label for="confirm_identifier">Attendee name</label>
         <input
           type="text"
-          id="confirm_name"
-          name="confirm_name"
+          id="confirm_identifier"
+          name="confirm_identifier"
           placeholder={attendee.name}
           autocomplete="off"
           required
@@ -178,11 +178,11 @@ export const adminRefundAllAttendeesPage = (
       </p>
 
       <CsrfForm action={`/admin/event/${event.id}/refund-all`}>
-        <label for="confirm_name">Event name</label>
+        <label for="confirm_identifier">Event name</label>
         <input
           type="text"
-          id="confirm_name"
-          name="confirm_name"
+          id="confirm_identifier"
+          name="confirm_identifier"
           placeholder={event.name}
           autocomplete="off"
           required
@@ -435,11 +435,11 @@ export const adminResendNotificationPage = (
         {returnUrl && (
           <input type="hidden" name="return_url" value={returnUrl} />
         )}
-        <label for="confirm_name">Attendee name</label>
+        <label for="confirm_identifier">Attendee name</label>
         <input
           type="text"
-          id="confirm_name"
-          name="confirm_name"
+          id="confirm_identifier"
+          name="confirm_identifier"
           placeholder={attendee.name}
           autocomplete="off"
           required

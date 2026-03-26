@@ -109,7 +109,7 @@ const verifyOrError = <R, I>(
   onFail?: DeleteHandlerOptions<R>["onVerifyFailed"],
 ): MaybeAsync<Response> | null => {
   if (!needsVerify(req) || !res.verifyName || !onFail) return null;
-  const name = auth.form.getString("confirm_name");
+  const name = auth.form.getString("confirm_identifier");
   return res.verifyName(row, name)
     ? null
     : onFail(id, row, auth.session, auth.form);

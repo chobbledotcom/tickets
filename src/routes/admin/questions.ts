@@ -22,7 +22,7 @@ import {
 } from "#lib/db/questions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { verifyIdentifier } from "#routes/admin/utils.ts";
+import { verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   errorRedirect,
@@ -125,9 +125,6 @@ const handleAddAnswer = withValidatedText(
   },
 );
 
-const CONFIRM_TEXT_MSG =
-  "Text does not match. Please type the exact text to confirm deletion.";
-
 /** Handle GET /admin/questions/:id/delete */
 const handleDeleteQuestionGet = ownerGetById(
   getQuestionWithAnswers,
@@ -141,9 +138,14 @@ const handleDeleteQuestionGet = ownerGetById(
 const handleDeleteQuestionPost = ownerFormById(async (id, _session, form) => {
   const question = await getQuestion(id);
   if (!question) return notFoundResponse();
-  if (!verifyIdentifier(question.text, form.getString("confirm_identifier"))) {
-    return errorRedirect(`/admin/questions/${id}/delete`, CONFIRM_TEXT_MSG);
-  }
+  const error = verifyOrRedirect(
+    form,
+    question.text,
+    `/admin/questions/${id}/delete`,
+    "Question text",
+    "deletion",
+  );
+  if (error) return error;
   await deleteQuestion(id);
   await logActivity(`Question '${question.text}' deleted`);
   return redirect("/admin/questions", "Question deleted", true);
@@ -206,12 +208,14 @@ const handleDeleteAnswerGet = answerRoute((question, answer, session) => {
 /** Handle POST /admin/questions/:id/answers/:answerId/delete */
 const handleDeleteAnswerPost = answerFormRoute(
   async (question, answer, _session, form) => {
-    if (!verifyIdentifier(answer.text, form.getString("confirm_identifier"))) {
-      return errorRedirect(
-        `/admin/questions/${question.id}/answers/${answer.id}/delete`,
-        CONFIRM_TEXT_MSG,
-      );
-    }
+    const error = verifyOrRedirect(
+      form,
+      answer.text,
+      `/admin/questions/${question.id}/answers/${answer.id}/delete`,
+      "Answer text",
+      "deletion",
+    );
+    if (error) return error;
     await deleteAnswer(answer.id);
     await logActivity(
       `Answer '${answer.text}' deleted from question ${question.id}`,

@@ -13,11 +13,10 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
-import { verifyIdentifier } from "#routes/admin/utils.ts";
+import { verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyFlash,
-  errorRedirect,
   htmlResponse,
   orNotFound,
   redirect,
@@ -120,13 +119,14 @@ const handleApiKeyDelete: TypedRouteHandler<
       return redirect("/admin/api-keys", "API key not found", false);
     }
 
-    const confirmIdentifier = form.getString("confirm_identifier");
-    if (!verifyIdentifier(apiKey.name, confirmIdentifier)) {
-      return errorRedirect(
-        `/admin/api-keys/${apiKeyId}/delete`,
-        "API key name does not match. Please type the exact name to confirm deletion.",
-      );
-    }
+    const error = verifyOrRedirect(
+      form,
+      apiKey.name,
+      `/admin/api-keys/${apiKeyId}/delete`,
+      "API key name",
+      "deletion",
+    );
+    if (error) return error;
 
     await deleteApiKey(apiKeyId, session.userId);
     return redirect("/admin/api-keys", "API key deleted", true);

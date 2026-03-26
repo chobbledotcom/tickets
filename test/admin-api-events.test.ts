@@ -296,13 +296,13 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
   });
 
   describe("DELETE /api/admin/events/:eventId", () => {
-    test("deletes event with matching confirm_name", async () => {
+    test("deletes event with matching confirm_identifier", async () => {
       const event = await createTestEvent({ name: "Delete Me" });
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
           method: "DELETE",
-          body: { confirm_name: "Delete Me" },
+          body: { confirm_identifier: "Delete Me" },
         }),
         200,
         (body) => {
@@ -316,13 +316,13 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       expect(deleted).toBeNull();
     });
 
-    test("rejects with wrong confirm_name", async () => {
+    test("rejects with wrong confirm_identifier", async () => {
       const event = await createTestEvent({ name: "Protect Me" });
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
           method: "DELETE",
-          body: { confirm_name: "Wrong Name" },
+          body: { confirm_identifier: "Wrong Name" },
         }),
         400,
         (body) => {
@@ -331,7 +331,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       );
     });
 
-    test("rejects without confirm_name", async () => {
+    test("rejects without confirm_identifier", async () => {
       const event = await createTestEvent({ name: "Need Confirm" });
 
       const response = await apiRequest(`/api/admin/events/${event.id}`, {
@@ -342,12 +342,12 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("confirm_name is case-insensitive", async () => {
+    test("confirm_identifier is case-insensitive", async () => {
       const event = await createTestEvent({ name: "Case Test" });
 
       const response = await apiRequest(`/api/admin/events/${event.id}`, {
         method: "DELETE",
-        body: { confirm_name: "case test" },
+        body: { confirm_identifier: "case test" },
       });
 
       expect(response.status).toBe(200);
@@ -356,7 +356,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("returns 404 for non-existent event", async () => {
       const response = await apiRequest("/api/admin/events/99999", {
         method: "DELETE",
-        body: { confirm_name: "Ghost" },
+        body: { confirm_identifier: "Ghost" },
       });
 
       expect(response.status).toBe(404);
@@ -646,7 +646,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
           method: "DELETE",
-          body: { confirm_name: "Media Event" },
+          body: { confirm_identifier: "Media Event" },
         }),
         200,
         (body) => {

@@ -3,6 +3,7 @@ import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { verifyOrRedirect } from "#routes/admin/utils.ts";
 import {
   applyFlash,
   errorRedirect,
@@ -33,7 +34,6 @@ type CrudConfig<Row, Input> = {
   renderEdit: (row: Row, session: AdminSession, error?: string) => string;
   renderDelete: (row: Row, session: AdminSession, error?: string) => string;
   getName: (row: Row) => string;
-  deleteConfirmError: string;
 };
 
 /** Create CRUD handlers that require owner role */
@@ -143,15 +143,14 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const deletePost: IdRouteHandler = (request, { id }) =>
     withFormAuth(request, (_session, form) =>
       orNotFound(cfg.resource.table.findById(id), async (row) => {
-        const confirm = String(form.get("confirm_identifier"));
-        const nameMatches = cfg.resource.verifyName(row, confirm);
-
-        if (!nameMatches) {
-          return errorRedirect(
-            `${cfg.listPath}/${id}/delete`,
-            cfg.deleteConfirmError,
-          );
-        }
+        const error = verifyOrRedirect(
+          form,
+          cfg.getName(row),
+          `${cfg.listPath}/${id}/delete`,
+          `${cfg.singular} name`,
+          "deletion",
+        );
+        if (error) return error;
 
         const result = await cfg.resource.delete(id);
         if ("notFound" in result) return notFoundResponse();

@@ -469,7 +469,9 @@ describeWithEnv("rest/handlers", { db: true }, () => {
       expect(
         (
           await handler(
-            await createAuthRequest("/items/1", { confirm_name: "Wrong Name" }),
+            await createAuthRequest("/items/1", {
+              confirm_identifier: "Wrong Name",
+            }),
             1,
           )
         ).status,
@@ -495,7 +497,7 @@ describeWithEnv("rest/handlers", { db: true }, () => {
         (
           await handler(
             await createAuthRequest("/items/1", {
-              confirm_name: importantItemData.name,
+              confirm_identifier: importantItemData.name,
             }),
             1,
           )
@@ -543,7 +545,7 @@ describeWithEnv("rest/handlers", { db: true }, () => {
       expect(response.status).toBe(204);
     });
 
-    test("uses empty string fallback when confirm_name is not provided", async () => {
+    test("uses empty string fallback when confirm_identifier is not provided", async () => {
       const resource = await insertRow(
         createTestResource(true),
         importantItemData,
@@ -555,11 +557,11 @@ describeWithEnv("rest/handlers", { db: true }, () => {
         },
       });
 
-      // Submit without confirm_name field at all (will use ?? "" fallback)
+      // Submit without confirm_identifier field at all (will use ?? "" fallback)
       const request = await createAuthRequest("/items/1", {});
       const response = await handler(request, 1);
       expect(response.status).toBe(400);
-      // The form won't have confirm_name, so verifyName gets ""
+      // The form won't have confirm_identifier, so verifyName gets ""
       await expectExists(resource, 1);
     });
   });

@@ -48,7 +48,7 @@ const ADMIN_API_UPDATE_BODY = {
 
 /** Example delete request body */
 const ADMIN_API_DELETE_BODY = {
-  confirm_name: "Summer Workshop",
+  confirm_identifier: "Summer Workshop",
 } satisfies DeleteEventBody;
 
 // =============================================================================

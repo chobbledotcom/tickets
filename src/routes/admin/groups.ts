@@ -100,8 +100,6 @@ const crudConfig = {
   renderEdit: adminGroupEditPage,
   renderDelete: adminGroupDeletePage,
   getName: (g: Group) => g.name,
-  deleteConfirmError:
-    "Group name does not match. Please type the exact name to confirm deletion.",
 } as const;
 
 /** Groups resource for REST create operations (auto-generated slug) */

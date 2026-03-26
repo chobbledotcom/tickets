@@ -23,6 +23,7 @@ import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
+import { verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -263,13 +264,14 @@ const handleUserDeletePost: TypedRouteHandler<
     }
 
     const username = await decryptUsername(user);
-    const confirmName = form.getString("confirm_identifier");
-    if (confirmName.toLowerCase() !== username.trim().toLowerCase()) {
-      return errorRedirect(
-        `/admin/users/${id}/delete`,
-        "Username does not match. Please type the exact username to confirm deletion.",
-      );
-    }
+    const error = verifyOrRedirect(
+      form,
+      username,
+      `/admin/users/${id}/delete`,
+      "Username",
+      "deletion",
+    );
+    if (error) return error;
 
     await deleteUser(user.id);
 
