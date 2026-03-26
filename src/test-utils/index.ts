@@ -2544,6 +2544,31 @@ export const createTestApiKeyFull = async (
   return { apiKey, id, dataKey };
 };
 
+/** Create a mock request authenticated with an API key Bearer token */
+export const requestAsApiKey = (
+  path: string,
+  apiKey: string,
+  opts: RequestInit = {},
+): Request => {
+  const headers = new Headers(opts.headers);
+  headers.set("authorization", `Bearer ${apiKey}`);
+  if (!headers.has("host")) headers.set("host", "localhost");
+  return new Request(`http://localhost${path}`, { ...opts, headers });
+};
+
+/** Create a mock request authenticated with a session cookie + CSRF token */
+export const requestAsSession = (
+  path: string,
+  session: { cookie: string; csrfToken: string },
+  opts: RequestInit = {},
+): Request => {
+  const headers = new Headers(opts.headers);
+  headers.set("cookie", session.cookie);
+  headers.set("x-csrf-token", session.csrfToken);
+  if (!headers.has("host")) headers.set("host", "localhost");
+  return new Request(`http://localhost${path}`, { ...opts, headers });
+};
+
 /** Make an authenticated JSON API request using an API key (or auto-creating one) */
 export const apiRequest = async (
   path: string,
@@ -2555,17 +2580,13 @@ export const apiRequest = async (
 ): Promise<Response> => {
   const { handleRequest } = await import("#routes");
   const apiKey = options.apiKey ?? (await createTestApiKeyToken());
-  const headers: Record<string, string> = {
-    authorization: `Bearer ${apiKey}`,
-  };
   const method = options.method ?? "GET";
-  if (method !== "GET") {
-    headers["content-type"] = "application/json";
-  }
+  const headers: HeadersInit =
+    method !== "GET" ? { "content-type": "application/json" } : {};
   const init: RequestInit = {
     method,
     headers,
     body: method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
   };
-  return handleRequest(mockRequest(path, init));
+  return handleRequest(requestAsApiKey(path, apiKey, init));
 };
