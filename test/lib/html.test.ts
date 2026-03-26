@@ -9,6 +9,7 @@ import {
 } from "#lib/asset-paths.ts";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
+import { runWithStorageConfig } from "#lib/storage.ts";
 import {
   adminEventActivityLogPage,
   adminGlobalActivityLogPage,
@@ -83,7 +84,6 @@ import {
   testGroup,
   withStorageDisabled,
 } from "#test-utils";
-import { runWithStorageConfig } from "#lib/storage.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
@@ -3834,13 +3834,16 @@ describe("html", () => {
         });
 
         test("shows current image and remove button when image is set", () => {
-          runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () => {
-            const event = testEventWithCount({ image_url: "current.jpg" });
-            const html = adminEventEditPage(event, [], TEST_SESSION);
-            expect(html).toContain("/image/current.jpg");
-            expect(html).toContain("Remove Image");
-            expect(html).toContain("/image/delete");
-          });
+          runWithStorageConfig(
+            { zoneName: "testzone", zoneKey: "testkey" },
+            () => {
+              const event = testEventWithCount({ image_url: "current.jpg" });
+              const html = adminEventEditPage(event, [], TEST_SESSION);
+              expect(html).toContain("/image/current.jpg");
+              expect(html).toContain("Remove Image");
+              expect(html).toContain("/image/delete");
+            },
+          );
         });
 
         test("does not show image field when storage is not enabled", () => {
@@ -3853,12 +3856,15 @@ describe("html", () => {
         });
 
         test("shows full-width image preview when event has image", () => {
-          runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () => {
-            const event = testEventWithCount({ image_url: "preview.jpg" });
-            const html = adminEventEditPage(event, [], TEST_SESSION);
-            expect(html).toContain("event-image-full");
-            expect(html).toContain("/image/preview.jpg");
-          });
+          runWithStorageConfig(
+            { zoneName: "testzone", zoneKey: "testkey" },
+            () => {
+              const event = testEventWithCount({ image_url: "preview.jpg" });
+              const html = adminEventEditPage(event, [], TEST_SESSION);
+              expect(html).toContain("event-image-full");
+              expect(html).toContain("/image/preview.jpg");
+            },
+          );
         });
       });
 
@@ -3883,12 +3889,15 @@ describe("html", () => {
 
       describe("adminEventNewPage image section", () => {
         test("shows image upload field on create form when storage enabled", () => {
-          runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () => {
-            const html = adminEventNewPage([], TEST_SESSION);
-            expect(html).toContain('type="file"');
-            expect(html).toContain('name="image"');
-            expect(html).toContain("multipart/form-data");
-          });
+          runWithStorageConfig(
+            { zoneName: "testzone", zoneKey: "testkey" },
+            () => {
+              const html = adminEventNewPage([], TEST_SESSION);
+              expect(html).toContain('type="file"');
+              expect(html).toContain('name="image"');
+              expect(html).toContain("multipart/form-data");
+            },
+          );
         });
 
         test("does not show image field on create form when storage is not enabled", () => {

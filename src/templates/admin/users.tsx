@@ -2,7 +2,12 @@
  * Admin user management page template
  */
 
-import { ConfirmForm, CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import {
+  ConfirmForm,
+  CsrfForm,
+  renderError,
+  renderFields,
+} from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
 import { AdminNav, Breadcrumb, UsersSubNav } from "#templates/admin/nav.tsx";
