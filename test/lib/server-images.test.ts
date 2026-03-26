@@ -9,7 +9,6 @@ import {
   cdnOkResponse,
   createTestEvent,
   describeWithEnv,
-  expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
@@ -616,8 +615,10 @@ describeWithEnv(
               cookie,
             ),
           );
-          expect(response.status).toBe(302);
-          expectFlash(response, "Event updated");
+          expectRedirectWithFlash(
+            `/admin/event/${event.id}`,
+            "Event updated",
+          )(response);
 
           const updated = await getEventWithCount(event.id);
           expect(updated?.attachment_url).toBe("");

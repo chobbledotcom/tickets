@@ -19,8 +19,9 @@ import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import { FormParams } from "#lib/form-data.ts";
-import { setSavedFormData } from "#lib/forms.tsx";
+import { setFormError, setFormSuccess, setSavedFormData } from "#lib/forms.tsx";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { ErrorCode, getRequestId, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
@@ -304,7 +305,7 @@ type RedirectOpts = {
   formId?: string;
   cookie?: string;
   form?: URLSearchParams;
-  params?: Record<string, string>;
+  result?: string;
 };
 
 /**
@@ -329,15 +330,37 @@ export const redirect = (
     u.searchParams.set("form", opts.formId);
     u.hash = opts.formId;
   }
-  if (opts?.params) {
-    for (const [k, v] of Object.entries(opts.params)) {
-      u.searchParams.set(k, v);
-    }
-  }
-  const flash = buildFlashCookie(flashId, message, succeeded);
+  const flash = buildFlashCookie(flashId, message, succeeded, opts?.result);
   const response = redirectResponse(u.pathname + u.search + u.hash, flash);
   if (opts?.cookie) withCookie(response, opts.cookie);
   return response;
+};
+
+/**
+ * Redirect with an error message (PRG pattern).
+ * Shorthand for `redirect(url, message, false, { formId })`.
+ */
+export const errorRedirect = (
+  url: string,
+  message: string,
+  formId?: string,
+): Response => redirect(url, message, false, formId ? { formId } : undefined);
+
+/**
+ * Apply flash message from cookie to form stores for the current request.
+ * Call before rendering any page that displays form messages.
+ * Reads the flash cookie (set by a previous redirect) and populates the
+ * per-request success/error stores so CsrfForm can display them.
+ * Returns the flash object for callers that need additional logic.
+ */
+export const applyFlash = (
+  request: Request,
+): { success?: string; error?: string; result?: string } => {
+  const flash = getFlash();
+  const formId = getSearchParam(request, "form");
+  if (flash.success) setFormSuccess(formId, flash.success);
+  if (flash.error) setFormError(formId, flash.error);
+  return flash;
 };
 
 /**

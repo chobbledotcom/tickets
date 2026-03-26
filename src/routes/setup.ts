@@ -11,6 +11,8 @@ import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
+  applyFlash,
+  errorRedirect,
   htmlResponse,
   parseFormData,
   redirectResponse,
@@ -19,8 +21,7 @@ import { type SetupFormValues, setupFields } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /** Response helper - renders setup page with current stored CSRF token */
-const setupResponse = (error?: string, status = 200) =>
-  htmlResponse(setupPage(error), status);
+const setupResponse = (error?: string) => htmlResponse(setupPage(error));
 
 /**
  * Validate setup form data (uses form framework + custom validation)
@@ -90,11 +91,13 @@ type SetupCheck = () => Promise<boolean>;
  * Handle GET /setup/
  */
 const handleSetupGet = async (
+  request: Request,
   isSetupComplete: SetupCheck,
 ): Promise<Response> => {
   if (await isSetupComplete()) return redirectResponse("/");
   await signCsrfToken();
-  return setupResponse();
+  const flash = applyFlash(request);
+  return setupResponse(flash.error);
 };
 
 /**
@@ -122,8 +125,10 @@ const handleSetupPost = async (
 
   if (!formCsrf || !(await verifySignedCsrfToken(formCsrf))) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "setup form" });
-    await signCsrfToken();
-    return setupResponse("Invalid or expired form. Please try again.", 403);
+    return errorRedirect(
+      "/setup/",
+      "Invalid or expired form. Please try again.",
+    );
   }
 
   logDebug("Setup", "CSRF validation passed, validating form...");
@@ -132,8 +137,7 @@ const handleSetupPost = async (
 
   if (!validation.valid) {
     logError({ code: ErrorCode.VALIDATION_FORM, detail: "setup" });
-    // Keep the same CSRF token for validation errors
-    return htmlResponse(setupPage(validation.error), 400);
+    return errorRedirect("/setup/", validation.error);
   }
 
   logDebug("Setup", "Form validation passed, completing setup...");
@@ -174,7 +178,7 @@ export const createSetupRouter = (
 ): ReturnType<typeof createRouter> => {
   const setupRoutes = defineRoutes({
     "GET /setup/complete": () => handleSetupComplete(isSetupComplete),
-    "GET /setup": () => handleSetupGet(isSetupComplete),
+    "GET /setup": (request) => handleSetupGet(request, isSetupComplete),
     "POST /setup": (request) => handleSetupPost(request, isSetupComplete),
   });
 

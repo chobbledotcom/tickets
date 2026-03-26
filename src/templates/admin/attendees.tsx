@@ -17,13 +17,11 @@ import { escapeHtml, Layout } from "#templates/layout.tsx";
 export const adminDeleteAttendeePage = (
   { event, attendee }: { event: EventWithCount; attendee: Attendee },
   session: AdminSession,
-  error?: string,
   returnUrl?: string,
 ): string =>
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
 
       <article>
         <aside>
@@ -291,14 +289,12 @@ export const adminEditAttendeePage = (
     selectedAnswerIds?: number[];
   },
   session: AdminSession,
-  error?: string,
   returnUrl?: string,
   success?: string,
 ): string =>
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
 
       <h2>Edit Attendee</h2>
@@ -391,13 +387,11 @@ export const adminEditAttendeePage = (
 export const adminResendNotificationPage = (
   { event, attendee }: { event: EventWithCount; attendee: Attendee },
   session: AdminSession,
-  error?: string,
   returnUrl?: string,
 ): string =>
   String(
     <Layout title={`Re-send Notification: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
 
       <article>
         <aside>

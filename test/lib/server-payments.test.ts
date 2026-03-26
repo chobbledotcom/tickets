@@ -9,6 +9,7 @@ import {
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
+  expectFlash,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
@@ -481,11 +482,12 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         email: "john@example.com",
       });
 
-      // Should return error page because Stripe session creation fails
-      await expectHtmlResponse(
+      // Should redirect with error because Stripe session creation fails
+      expect(response.status).toBe(302);
+      expectFlash(
         response,
-        500,
-        "Failed to create payment session",
+        expect.stringContaining("Failed to create payment session"),
+        false,
       );
     });
 
@@ -516,10 +518,13 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           email: "john@example.com",
         });
 
-        await expectHtmlResponse(
+        expect(response.status).toBe(302);
+        expectFlash(
           response,
-          400,
-          "payment processor rejected the phone number",
+          expect.stringContaining(
+            "payment processor rejected the phone number",
+          ),
+          false,
         );
       } finally {
         mockCreate.restore();
@@ -819,7 +824,12 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         email: "second@example.com",
       });
 
-      await expectHtmlResponse(response, 400, "not enough spots available");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("not enough spots available"),
+        false,
+      );
     });
 
     test("handles encryption error during payment confirmation", async () => {

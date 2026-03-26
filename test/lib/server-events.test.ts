@@ -22,9 +22,11 @@ import {
   deactivateTestEvent,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
+  followRedirectWithFlash,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -1250,7 +1252,35 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "Event name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event name does not match"),
+        false,
+      );
+    });
+
+    test("displays error on confirmation page after failed attempt", async () => {
+      const { cookie, csrfToken } = await setupEventAndLogin({
+        name: "Test Event",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const postResponse = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/deactivate",
+          { csrf_token: csrfToken, confirm_identifier: "wrong" },
+          cookie,
+        ),
+      );
+      const page = await followRedirectWithFlash(
+        postResponse,
+        handleRequest,
+        cookie,
+      );
+      const html = await page.text();
+      expect(html).toContain("does not match");
     });
   });
 
@@ -1328,7 +1358,36 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "Event name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event name does not match"),
+        false,
+      );
+    });
+
+    test("displays error on confirmation page after failed attempt", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        name: "Test Event",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await deactivateTestEvent(event.id);
+
+      const postResponse = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/reactivate",
+          { csrf_token: csrfToken, confirm_identifier: "wrong" },
+          cookie,
+        ),
+      );
+      const page = await followRedirectWithFlash(
+        postResponse,
+        handleRequest,
+        cookie,
+      );
+      const html = await page.text();
+      expect(html).toContain("does not match");
     });
   });
 
@@ -1430,7 +1489,31 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "does not match");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
+    });
+
+    test("displays error on confirmation page after failed attempt", async () => {
+      const { cookie, csrfToken } = await setupEventAndLogin({
+        name: "Test Event",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const postResponse = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/delete",
+          { confirm_identifier: "wrong", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      const page = await followRedirectWithFlash(
+        postResponse,
+        handleRequest,
+        cookie,
+      );
+      const html = await page.text();
+      expect(html).toContain("does not match");
     });
 
     test("deletes event with matching identifier (case insensitive)", async () => {
@@ -1890,7 +1973,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "Event name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event name does not match"),
+        false,
+      );
     });
 
     test("reactivate event without confirm_identifier uses empty fallback", async () => {
@@ -1909,7 +1997,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "Event name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event name does not match"),
+        false,
+      );
     });
 
     test("delete event without confirm_identifier uses empty fallback", async () => {
@@ -1927,7 +2020,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectHtmlResponse(response, 400, "does not match");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
     });
   });
 

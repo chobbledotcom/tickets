@@ -13,6 +13,7 @@ import {
   awaitTestRequest,
   createTestEvent,
   describeWithEnv,
+  expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
   extractCsrfToken,
@@ -106,7 +107,12 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
           confirm_phrase: RESET_DATABASE_PHRASE,
         }),
       );
-      await expectHtmlResponse(response, 403, "Invalid or expired form");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid or expired form"),
+        false,
+      );
     });
 
     test("rejects invalid CSRF token in demo mode", async () => {
@@ -117,7 +123,12 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
           csrf_token: "invalid-token",
         }),
       );
-      await expectHtmlResponse(response, 403, "Invalid or expired form");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid or expired form"),
+        false,
+      );
     });
 
     test("rejects wrong confirmation phrase", async () => {
@@ -125,13 +136,23 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       const response = await submitDemoResetForm({
         confirm_phrase: "wrong phrase",
       });
-      await expectHtmlResponse(response, 400, RESET_PHRASE_MISMATCH_ERROR);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(RESET_PHRASE_MISMATCH_ERROR),
+        false,
+      );
     });
 
     test("rejects empty confirmation phrase", async () => {
       setDemoModeForTest(true);
       const response = await submitDemoResetForm({ confirm_phrase: "" });
-      await expectHtmlResponse(response, 400, RESET_PHRASE_MISMATCH_ERROR);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(RESET_PHRASE_MISMATCH_ERROR),
+        false,
+      );
     });
 
     test("resets database and redirects to setup in demo mode", async () => {

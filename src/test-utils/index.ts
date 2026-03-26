@@ -1199,12 +1199,28 @@ export const createTestAttendee = async (
 
   // Free events redirect to thank you page (302)
   // Paid events redirect to Stripe (303)
+  // Error redirects are also 302 but carry an error flash cookie
   if (response.status !== 302 && response.status !== 303) {
     const body = await response.text();
     throw new Error(
       `Failed to create attendee: ${response.status} - ${body.slice(0, 200)}`,
     );
   }
+
+  // Detect error redirects (302 with error flash cookie)
+  const flashCookie = response.headers
+    .getSetCookie()
+    .find((c) => c.startsWith("flash_"));
+  if (flashCookie) {
+    const cookiePart = flashCookie.split(";")[0] ?? "";
+    const value = cookiePart.split("=").slice(1).join("=");
+    const parsed = parseFlashValue(value);
+    if (parsed.error) {
+      response.body?.cancel();
+      throw new Error(`Failed to create attendee: ${parsed.error}`);
+    }
+  }
+
   response.body?.cancel();
 
   // Return the most recent attendee (DESC order puts newest first)
@@ -1383,7 +1399,6 @@ export const expectFlash = (
   // Cookie is "flash_{id}={value}", extract value after first "="
   const value = cookiePart.split("=").slice(1).join("=");
   const parsed = parseFlashValue(value);
-  if (!parsed) throw new Error("Failed to parse flash value");
   const actual = succeeded ? parsed.success : parsed.error;
   if (message !== undefined) expect(actual).toEqual(message);
   return response;
@@ -1395,19 +1410,20 @@ export const expectFlash = (
  * Compares the location without the flash param for clean assertions.
  */
 export const expectRedirectWithFlash =
-  (location: string, message?: string, succeeded = true) =>
-  (response: Response): Response => {
-    const actualLocation = expectRedirect(response);
-    const url = new URL(actualLocation, "http://localhost");
-    const flashId = url.searchParams.get("flash");
-    expect(flashId).toBeDefined();
-    // Compare location without flash param
-    url.searchParams.delete("flash");
-    const clean = url.pathname + url.search + url.hash;
-    expect(clean).toBe(location);
-    expectFlash(response, message, succeeded);
-    return response;
-  };
+  // deno-lint-ignore no-explicit-any
+    (location: string, message?: string | any, succeeded = true) =>
+    (response: Response): Response => {
+      const actualLocation = expectRedirect(response);
+      const url = new URL(actualLocation, "http://localhost");
+      const flashId = url.searchParams.get("flash");
+      expect(flashId).toBeDefined();
+      // Compare location without flash param
+      url.searchParams.delete("flash");
+      const clean = url.pathname + url.search + url.hash;
+      expect(clean).toBe(location);
+      expectFlash(response, message, succeeded);
+      return response;
+    };
 
 /**
  * Build a cookie header string containing a keyed flash message.
@@ -1419,7 +1435,8 @@ export const flashCookieHeader = (
   succeeded = true,
 ): string => {
   const type = succeeded ? "s" : "e";
-  return `flash_${FLASH_TEST_ID}=${encodeURIComponent(`${type}:${message}`)}`;
+  const payload = JSON.stringify({ t: type, m: message });
+  return `flash_${FLASH_TEST_ID}=${encodeURIComponent(payload)}`;
 };
 
 /** Assert response is a checkout redirect (302 to an external HTTPS URL) */
@@ -1431,6 +1448,25 @@ export const followRedirect = (
   response: Response,
   handler: (request: Request) => Promise<Response>,
 ): Promise<Response> => handler(mockRequest(expectRedirect(response)));
+
+/**
+ * Follow a 302 redirect, carrying the Set-Cookie flash cookie into the
+ * follow-up GET request so the flash context is populated by middleware.
+ */
+export const followRedirectWithFlash = (
+  response: Response,
+  handler: (request: Request) => Promise<Response>,
+  extraCookie?: string,
+): Promise<Response> => {
+  const location = expectRedirect(response);
+  const setCookies = response.headers.getSetCookie();
+  const flashCookie = setCookies
+    .map((c) => c.split(";")[0])
+    .filter((c) => c?.startsWith("flash_"))
+    .join("; ");
+  const cookie = [flashCookie, extraCookie].filter(Boolean).join("; ");
+  return handler(mockRequest(location, cookie ? { headers: { cookie } } : {}));
+};
 
 /** Assert a result object has ok:false with the expected error string. */
 export const expectResultError =

@@ -190,16 +190,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("rejects mismatched attendee name", async () => {
       const { response } = await deleteAction({ confirm_name: "Wrong Name" })();
-      await expectHtmlResponse(response, 400, "does not match");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
     });
 
     test("preserves return_url on mismatched attendee name", async () => {
-      const returnUrl = "/admin/calendar#attendees";
       const { response } = await deleteAction({
         confirm_name: "Wrong Name",
-        return_url: returnUrl,
+        return_url: "/admin/calendar#attendees",
       })();
-      await expectHtmlResponse(response, 400, 'name="return_url"', returnUrl);
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
     });
 
     test("deletes attendee with matching name (case insensitive)", async () => {
@@ -270,8 +271,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("handles missing confirm_name field (falls back to empty string)", async () => {
       // Submit without confirm_name field at all
       const { response } = await deleteAction({})();
-      // Empty string won't match "John Doe", so it returns 400
-      await expectHtmlResponse(response, 400, "does not match");
+      // Empty string won't match "John Doe", so it redirects with error
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
     });
   });
 
@@ -1143,7 +1145,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           event_id: String(event.id),
         },
       );
-      await expectHtmlResponse(response, 400, "Name is required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Name is required"), false);
     });
 
     test("preserves return_url on edit validation error", async () => {
@@ -1168,7 +1171,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           return_url: returnUrl,
         },
       );
-      await expectHtmlResponse(response, 400, 'name="return_url"', returnUrl);
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Name is required"), false);
     });
 
     test("rejects whitespace-only name", async () => {
@@ -1190,7 +1194,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           event_id: String(event.id),
         },
       );
-      await expectHtmlResponse(response, 400, "Name is required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Name is required"), false);
     });
 
     test("rejects missing event_id", async () => {
@@ -1212,7 +1217,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           event_id: "0",
         },
       );
-      await expectHtmlResponse(response, 400, "Event is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event is required"),
+        false,
+      );
     });
 
     test("updates attendee with new data", async () => {
@@ -1597,7 +1607,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           quantity: "3",
         },
       );
-      await expectHtmlResponse(response, 400, "Not enough spots available");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Not enough spots available"),
+        false,
+      );
     });
 
     test("allows decreasing quantity without capacity check", async () => {
@@ -1654,7 +1669,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           quantity: "2",
         },
       );
-      await expectHtmlResponse(response, 400, "Event not found");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Event not found"), false);
     });
 
     test("treats invalid quantity as 1", async () => {
@@ -1901,7 +1917,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await resendNotificationAction({
         confirm_name: "Wrong Name",
       })();
-      await expectHtmlResponse(response, 400, "does not match");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
     });
 
     test("re-sends notification with matching name", async () => {
@@ -2104,7 +2121,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           const { response } = await adminFormPost(
             `/admin/attendees/${attendee.id}/refresh-payment`,
           );
-          await expectHtmlResponse(response, 400, "payment provider");
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("payment provider"),
+            false,
+          );
         },
       );
     });

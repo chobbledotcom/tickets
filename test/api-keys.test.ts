@@ -384,9 +384,8 @@ describeWithEnv("API Keys", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("does not match"), false);
       expect(await countApiKeysForUser(1)).toBe(1);
     });
 

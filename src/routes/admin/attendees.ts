@@ -27,18 +27,12 @@ import {
 } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 /* jscpd:ignore-start */
-import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 /* jscpd:ignore-end */
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
-import {
-  type AdminSession,
-  type Attendee,
-  type EventWithCount,
-  isPaidEvent,
-} from "#lib/types.ts";
+import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
   requirePrivateKey,
@@ -49,6 +43,8 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
+  applyFlash,
+  errorRedirect,
   getSearchParam,
   htmlResponse,
   notFoundResponse,
@@ -159,26 +155,35 @@ const withAttendeeForm = (
 const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
 
-/** Verify confirm_name matches attendee name, returning error page on mismatch */
+/** Verify confirm_name matches attendee name, returning error redirect on mismatch */
 const verifyAttendeeName = (
-  data: AttendeeWithEvent,
-  session: AuthSession,
   form: FormParams,
-  renderPage: (
-    data: AttendeeWithEvent,
-    session: AdminSession,
-    error: string,
-    returnUrl?: string,
-  ) => string,
+  attendeeName: string,
+  redirectUrl: string,
   errorMsg: string,
 ): Response | null => {
   const confirmName = form.getString("confirm_name");
-  if (!verifyIdentifier(data.attendee.name, confirmName)) {
-    const returnUrl = form.getString("return_url");
-    return htmlResponse(renderPage(data, session, errorMsg, returnUrl), 400);
+  if (!verifyIdentifier(attendeeName, confirmName)) {
+    return errorRedirect(redirectUrl, errorMsg);
   }
   return null;
 };
+
+/** Verify attendee name for an admin action, building URL and message from action path */
+const verifyNameForAction = (
+  form: FormParams,
+  data: AttendeeWithEvent,
+  eventId: number,
+  attendeeId: number,
+  action: string,
+  confirmLabel?: string,
+): Response | null =>
+  verifyAttendeeName(
+    form,
+    data.attendee.name,
+    `/admin/event/${eventId}/attendee/${attendeeId}/${action}`,
+    `Attendee name does not match. Please type the exact name to confirm${confirmLabel ? ` ${confirmLabel}` : ""}.`,
+  );
 
 /** Attendee form handler that receives typed IDs */
 type AttendeeFormAction = (
@@ -200,26 +205,48 @@ const attendeeFormAction =
       handler(data, session, form, eventId, attendeeId),
     );
 
+/** Attendee action handler after name verification */
+type VerifiedAction = (
+  data: AttendeeWithEvent,
+  form: FormParams,
+  eventId: number,
+  attendeeId: number,
+) => Response | Promise<Response>;
+
+/** Create an attendee form handler that first verifies the attendee name */
+const verifiedAttendeeAction = (
+  action: string,
+  confirmLabel: string | undefined,
+  handler: VerifiedAction,
+) =>
+  attendeeFormAction((data, _session, form, eventId, attendeeId) => {
+    const error = verifyNameForAction(
+      form,
+      data,
+      eventId,
+      attendeeId,
+      action,
+      confirmLabel,
+    );
+    if (error) return error;
+    return handler(data, form, eventId, attendeeId);
+  });
+
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeGetRoute(
-  (data, session, request) =>
-    htmlResponse(
-      adminDeleteAttendeePage(data, session, undefined, getReturnUrl(request)),
-    ),
+  (data, session, request) => {
+    applyFlash(request);
+    return htmlResponse(
+      adminDeleteAttendeePage(data, session, getReturnUrl(request)),
+    );
+  },
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAttendeeDelete = attendeeFormAction(
-  async (data, session, form, eventId, attendeeId) => {
-    const error = verifyAttendeeName(
-      data,
-      session,
-      form,
-      adminDeleteAttendeePage,
-      "Attendee name does not match. Please type the exact name to confirm deletion.",
-    );
-    if (error) return error;
-
+const handleAttendeeDelete = verifiedAttendeeAction(
+  "delete",
+  "deletion",
+  async (data, form, eventId, attendeeId) => {
     await deleteAttendee(attendeeId);
     await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
     return redirect(`/admin/event/${eventId}`, "Attendee deleted", true, {
@@ -288,65 +315,52 @@ const handleAttendeeCheckin = attendeeFormAction(
   },
 );
 
-/** Render refund error for a single attendee */
+/** Render refund error redirect for a single attendee */
 const refundError = (
-  data: AttendeeWithEvent,
-  session: AuthSession,
+  eventId: number,
+  attendeeId: number,
   msg: string,
-  formOrReturnUrl: FormParams | string,
-): Response => {
-  const returnUrl =
-    typeof formOrReturnUrl === "string"
-      ? formOrReturnUrl
-      : (formOrReturnUrl as FormParams).getString("return_url");
-  return htmlResponse(
-    adminRefundAttendeePage(data, session, msg, returnUrl),
-    400,
-  );
-};
+): Response =>
+  errorRedirect(`/admin/event/${eventId}/attendee/${attendeeId}/refund`, msg);
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute(
   (data, session, request) => {
+    applyFlash(request);
+    const returnUrl = getReturnUrl(request);
     if (!data.attendee.payment_id)
-      return refundError(
-        data,
-        session,
-        NO_PAYMENT_ERROR,
-        getReturnUrl(request),
+      return htmlResponse(
+        adminRefundAttendeePage(data, session, NO_PAYMENT_ERROR, returnUrl),
+        400,
       );
     if (data.attendee.refunded)
-      return refundError(
-        data,
-        session,
-        ALREADY_REFUNDED_ERROR,
-        getReturnUrl(request),
+      return htmlResponse(
+        adminRefundAttendeePage(
+          data,
+          session,
+          ALREADY_REFUNDED_ERROR,
+          returnUrl,
+        ),
+        400,
       );
     return htmlResponse(
-      adminRefundAttendeePage(data, session, undefined, getReturnUrl(request)),
+      adminRefundAttendeePage(data, session, undefined, returnUrl),
     );
   },
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
-const handleAttendeeRefund = attendeeFormAction(
-  async (data, session, form, eventId) => {
-    const nameError = verifyAttendeeName(
-      data,
-      session,
-      form,
-      adminRefundAttendeePage,
-      "Attendee name does not match. Please type the exact name to confirm refund.",
-    );
-    if (nameError) return nameError;
-
+const handleAttendeeRefund = verifiedAttendeeAction(
+  "refund",
+  "refund",
+  async (data, form, eventId, attendeeId) => {
     if (!data.attendee.payment_id)
-      return refundError(data, session, NO_PAYMENT_ERROR, form);
+      return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
     if (data.attendee.refunded)
-      return refundError(data, session, ALREADY_REFUNDED_ERROR, form);
+      return refundError(eventId, attendeeId, ALREADY_REFUNDED_ERROR);
 
     const provider = await getActivePaymentProvider();
-    if (!provider) return refundError(data, session, NO_PROVIDER_ERROR, form);
+    if (!provider) return refundError(eventId, attendeeId, NO_PROVIDER_ERROR);
 
     const refunded = await provider.refundPayment(data.attendee.payment_id);
     if (!refunded) {
@@ -355,7 +369,7 @@ const handleAttendeeRefund = attendeeFormAction(
         eventId,
         detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
       });
-      return refundError(data, session, REFUND_FAILED_ERROR, form);
+      return refundError(eventId, attendeeId, REFUND_FAILED_ERROR);
     }
 
     await markRefunded(data.attendee.id);
@@ -378,6 +392,7 @@ const handleAdminRefundAllGet = (
   { id }: EventRouteParams,
 ): Promise<Response> =>
   withEventAttendeesAuth(request, id, (event, attendees, session) => {
+    applyFlash(request);
     const count = getRefundable(attendees).length;
     return count === 0
       ? htmlResponse(
@@ -391,44 +406,29 @@ const handleAdminRefundAllGet = (
 const processRefundAll = async (
   event: EventWithCount,
   attendees: Attendee[],
-  session: AuthSession,
+  _session: AuthSession,
   form: FormParams,
 ): Promise<Response> => {
+  const refundAllUrl = `/admin/event/${event.id}/refund-all`;
   const refundable = getRefundable(attendees);
   const nameConfirmed = verifyIdentifier(
     event.name,
     form.getString("confirm_name"),
   );
   if (!nameConfirmed) {
-    return htmlResponse(
-      adminRefundAllAttendeesPage(
-        event,
-        refundable.length,
-        session,
-        "Event name does not match. Please type the exact name to confirm.",
-      ),
-      400,
+    return errorRedirect(
+      refundAllUrl,
+      "Event name does not match. Please type the exact name to confirm.",
     );
   }
 
   if (refundable.length === 0) {
-    return htmlResponse(
-      adminRefundAllAttendeesPage(event, 0, session, NO_REFUNDABLE_ERROR),
-      400,
-    );
+    return errorRedirect(refundAllUrl, NO_REFUNDABLE_ERROR);
   }
 
   const provider = await getActivePaymentProvider();
   if (!provider) {
-    return htmlResponse(
-      adminRefundAllAttendeesPage(
-        event,
-        refundable.length,
-        session,
-        NO_PROVIDER_ERROR,
-      ),
-      400,
-    );
+    return errorRedirect(refundAllUrl, NO_PROVIDER_ERROR);
   }
 
   const REFUND_CHUNK_SIZE = 5;
@@ -468,15 +468,7 @@ const processRefundAll = async (
       `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
       event.id,
     );
-    return htmlResponse(
-      adminRefundAllAttendeesPage(
-        event,
-        refundable.length - refundedCount,
-        session,
-        msg,
-      ),
-      400,
-    );
+    return errorRedirect(refundAllUrl, msg);
   }
 
   if (remaining > 0) {
@@ -484,13 +476,10 @@ const processRefundAll = async (
       `Bulk refund: ${refundedCount} of ${refundable.length} refunded for '${event.name}'`,
       event.id,
     );
-    return htmlResponse(
-      adminRefundAllAttendeesPage(
-        event,
-        remaining,
-        session,
-        `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
-      ),
+    return redirect(
+      refundAllUrl,
+      `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
+      true,
     );
   }
 
@@ -629,17 +618,17 @@ const handleEditAttendeeGet = (
   { attendeeId }: { attendeeId: number },
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
-    withEditAttendee(session, attendeeId, (data) =>
-      htmlResponse(
+    withEditAttendee(session, attendeeId, (data) => {
+      const flash = applyFlash(request);
+      return htmlResponse(
         adminEditAttendeePage(
           data,
           session,
-          undefined,
           getReturnUrl(request),
-          getFlash().success,
+          flash.success,
         ),
-      ),
-    ),
+      );
+    }),
   );
 
 /** Create a POST handler for /admin/attendees/:attendeeId/* routes */
@@ -670,17 +659,14 @@ function parseQuantity(value: string, max: number): number {
 
 /** Handle POST /admin/attendees/:attendeeId */
 async function editAttendeeHandler(
-  session: AuthSession,
+  _session: AuthSession,
   form: FormParams,
   data: EditAttendeeData,
   attendeeId: number,
 ): Promise<Response> {
   applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
   const editError = (msg: string) =>
-    htmlResponse(
-      adminEditAttendeePage(data, session, msg, form.getString("return_url")),
-      400,
-    );
+    errorRedirect(`/admin/attendees/${attendeeId}`, msg);
   const name = form.getString("name");
   const email = form.getString("email");
   const phone = form.getString("phone");
@@ -756,29 +742,19 @@ const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-notification */
 const handleAdminResendNotificationGet = attendeeGetRoute(
-  (data, session, request) =>
-    htmlResponse(
-      adminResendNotificationPage(
-        data,
-        session,
-        undefined,
-        getReturnUrl(request),
-      ),
-    ),
+  (data, session, request) => {
+    applyFlash(request);
+    return htmlResponse(
+      adminResendNotificationPage(data, session, getReturnUrl(request)),
+    );
+  },
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
-const handleResendNotification = attendeeFormAction(
-  async (data, session, form, eventId) => {
-    const error = verifyAttendeeName(
-      data,
-      session,
-      form,
-      adminResendNotificationPage,
-      "Attendee name does not match. Please type the exact name to confirm.",
-    );
-    if (error) return error;
-
+const handleResendNotification = verifiedAttendeeAction(
+  "resend-notification",
+  undefined,
+  async (data, form, eventId, _attendeeId) => {
     await Promise.all([
       logAndNotifyRegistration([
         { event: data.event, attendee: data.attendee },
@@ -796,7 +772,7 @@ const handleResendNotification = attendeeFormAction(
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 async function refreshPaymentHandler(
-  session: AuthSession,
+  _session: AuthSession,
   _form: FormParams,
   data: EditAttendeeData,
   attendeeId: number,
@@ -811,10 +787,7 @@ async function refreshPaymentHandler(
 
   const provider = await getActivePaymentProvider();
   if (!provider) {
-    return htmlResponse(
-      adminEditAttendeePage(data, session, NO_PROVIDER_ERROR),
-      400,
-    );
+    return errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR);
   }
 
   const isRefunded = await provider.isPaymentRefunded(data.attendee.payment_id);

@@ -93,14 +93,24 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/questions", {
         text: "",
       });
-      await expectHtmlResponse(response, 400, "Question text is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Question text is required"),
+        false,
+      );
     });
 
     test("rejects whitespace-only text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
         text: "   ",
       });
-      await expectHtmlResponse(response, 400, "Question text is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Question text is required"),
+        false,
+      );
     });
   });
 
@@ -163,7 +173,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
         text: "",
       });
-      await expectHtmlResponse(response, 400, "Question text is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Question text is required"),
+        false,
+      );
     });
 
     test("returns 404 for non-existent question on edit", async () => {
@@ -173,12 +188,17 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectStatus(404)(response);
     });
 
-    test("returns 404 when question disappears during empty text validation", async () => {
-      // Edit with empty text on a non-existent question triggers the requireTextOrError fallback
+    test("redirects with error when question disappears during empty text validation", async () => {
+      // Edit with empty text on a non-existent question triggers the requireTextOrError redirect
       const { response } = await adminFormPost("/admin/questions/999/edit", {
         text: "",
       });
-      expectStatus(404)(response);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Question text is required"),
+        false,
+      );
     });
   });
 
@@ -203,14 +223,24 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${id}/answers`,
         { text: "" },
       );
-      await expectHtmlResponse(response, 400, "Answer text is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Answer text is required"),
+        false,
+      );
     });
 
-    test("returns 404 when adding answer with empty text to non-existent question", async () => {
+    test("redirects with error when adding answer with empty text to non-existent question", async () => {
       const { response } = await adminFormPost("/admin/questions/999/answers", {
         text: "",
       });
-      expectStatus(404)(response);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Answer text is required"),
+        false,
+      );
     });
 
     test("assigns correct sort order to answers", async () => {
@@ -287,7 +317,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "Wrong Text" },
       );
-      await expectHtmlResponse(response, 400, "exact text to confirm deletion");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("exact text to confirm deletion"),
+        false,
+      );
 
       // Verify still exists
       const { getQuestion } = await import("#lib/db/questions.ts");
@@ -317,17 +352,22 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${id}/delete`,
         {},
       );
-      await expectHtmlResponse(response, 400, "exact text to confirm deletion");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("exact text to confirm deletion"),
+        false,
+      );
     });
 
-    test("returns 404 when question disappears between getQuestion and getQuestionWithAnswers", async () => {
+    test("redirects with error when question disappears between getQuestion and verifyIdentifier", async () => {
       const id = await createQuestion("Race Question");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
       // Stub getQuestion to return the question but delete it before returning,
       // simulating a race where the question is deleted between getQuestion
-      // and getQuestionWithAnswers
+      // and verifyIdentifier. Since verifyIdentifier fails, errorRedirect is returned.
       const { questionsTable, deleteQuestion: deleteQ } = await import(
         "#lib/db/questions.ts"
       );
@@ -350,7 +390,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
             cookie,
           ),
         );
-        expectStatus(404)(response);
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("exact text to confirm deletion"),
+          false,
+        );
       } finally {
         findByIdStub.restore();
       }
@@ -451,7 +496,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/delete`,
         { confirm_identifier: "Wrong Text" },
       );
-      await expectHtmlResponse(response, 400, "exact text to confirm deletion");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("exact text to confirm deletion"),
+        false,
+      );
 
       // Verify answer still exists
       const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
@@ -466,7 +516,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/delete`,
         {},
       );
-      await expectHtmlResponse(response, 400, "exact text to confirm deletion");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("exact text to confirm deletion"),
+        false,
+      );
     });
   });
 

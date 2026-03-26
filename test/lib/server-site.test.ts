@@ -11,6 +11,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
+  expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
   mockFormRequest,
@@ -67,6 +68,18 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Homepage updated");
     });
+
+    test("displays error message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest(
+        `/admin/site?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Title is required", false)}`,
+        },
+      );
+      const html = await response.text();
+      expect(html).toContain("Title is required");
+    });
   });
 
   describe("POST /admin/site", () => {
@@ -119,11 +132,13 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
         homepage_text: "",
       });
-      await expectHtmlResponse(
-        response,
-        400,
-        `${MAX_WEBSITE_TITLE_LENGTH} characters or fewer`,
-      );
+      expectRedirectWithFlash(
+        "/admin/site",
+        expect.stringContaining(
+          `${MAX_WEBSITE_TITLE_LENGTH} characters or fewer`,
+        ),
+        false,
+      )(response);
     });
 
     test("rejects homepage text exceeding max length", async () => {
@@ -131,11 +146,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         website_title: "",
         homepage_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
-      await expectHtmlResponse(
-        response,
-        400,
-        `${MAX_TEXTAREA_LENGTH} characters or fewer`,
-      );
+      expectRedirectWithFlash(
+        "/admin/site",
+        expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
+        false,
+      )(response);
     });
 
     test("handles missing fields gracefully", async () => {
@@ -183,6 +198,18 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Contact page updated");
     });
+
+    test("displays error message from flash cookie", async () => {
+      const cookie = await testCookie();
+      const response = await awaitTestRequest(
+        `/admin/site/contact?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader("Something went wrong", false)}`,
+        },
+      );
+      const html = await response.text();
+      expect(html).toContain("Something went wrong");
+    });
   });
 
   describe("POST /admin/site/contact", () => {
@@ -227,11 +254,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/site/contact", {
         contact_page_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
-      await expectHtmlResponse(
-        response,
-        400,
-        `${MAX_TEXTAREA_LENGTH} characters or fewer`,
-      );
+      expectRedirectWithFlash(
+        "/admin/site/contact",
+        expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
+        false,
+      )(response);
     });
 
     test("handles missing field gracefully", async () => {

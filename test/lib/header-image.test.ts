@@ -9,8 +9,8 @@ import {
   assertAdminHtml,
   createTestManagerSession,
   describeWithEnv,
-  expectFlash,
   expectHtmlResponse,
+  expectRedirectWithFlash,
   JPEG_HEADER,
   mockFormRequest,
   mockMultipartRequest,
@@ -196,7 +196,11 @@ describeWithEnv(
             data: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
             contentType: "application/pdf",
           });
-          await expectHtmlResponse(response, 400, "JPEG, PNG, GIF, or WebP");
+          expectRedirectWithFlash(
+            "/admin/settings?form=settings-header-image#settings-header-image",
+            expect.stringContaining("JPEG, PNG, GIF, or WebP"),
+            false,
+          )(response);
         });
       });
 
@@ -212,7 +216,11 @@ describeWithEnv(
             data: oversized,
             contentType: "image/jpeg",
           });
-          await expectHtmlResponse(response, 400, "256KB");
+          expectRedirectWithFlash(
+            "/admin/settings?form=settings-header-image#settings-header-image",
+            expect.stringContaining("256KB"),
+            false,
+          )(response);
         });
       });
 
@@ -238,7 +246,11 @@ describeWithEnv(
           await testCookie(),
         );
         const response = await handleRequest(request);
-        await expectHtmlResponse(response, 400, "No image file provided");
+        expectRedirectWithFlash(
+          "/admin/settings?form=settings-header-image#settings-header-image",
+          expect.stringContaining("No image file provided"),
+          false,
+        )(response);
       });
 
       describeWithEnv(
@@ -248,11 +260,11 @@ describeWithEnv(
           test("returns error", async () => {
             await withStorageDisabled(async () => {
               const response = await submitHeaderJpeg("logo.jpg");
-              await expectHtmlResponse(
-                response,
-                400,
-                "Image storage is not configured",
-              );
+              expectRedirectWithFlash(
+                "/admin/settings?form=settings-header-image#settings-header-image",
+                expect.stringContaining("Image storage is not configured"),
+                false,
+              )(response);
             });
           });
         },
@@ -284,8 +296,11 @@ describeWithEnv(
 
         try {
           const response = await submitHeaderJpeg("logo.jpg");
-          expect(response.status).toBe(302);
-          expectFlash(response, "Header image upload failed", false);
+          expectRedirectWithFlash(
+            "/admin/settings?form=settings-header-image#settings-header-image",
+            "Header image upload failed",
+            false,
+          )(response);
         } finally {
           globalThis.fetch = originalFetch;
         }
@@ -298,7 +313,11 @@ describeWithEnv(
             data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
             contentType: "image/jpeg",
           });
-          await expectHtmlResponse(response, 400, "valid image");
+          expectRedirectWithFlash(
+            "/admin/settings?form=settings-header-image#settings-header-image",
+            expect.stringContaining("valid image"),
+            false,
+          )(response);
         });
       });
     });
@@ -318,7 +337,11 @@ describeWithEnv(
 
       test("returns error when no header image exists", async () => {
         const response = await submitHeaderImageDelete();
-        await expectHtmlResponse(response, 400, "No header image to remove");
+        expectRedirectWithFlash(
+          "/admin/settings?form=settings-header-image#settings-header-image",
+          expect.stringContaining("No header image to remove"),
+          false,
+        )(response);
       });
 
       test("reports error when storage delete throws", async () => {
@@ -331,8 +354,11 @@ describeWithEnv(
 
         try {
           const response = await submitHeaderImageDelete();
-          expect(response.status).toBe(302);
-          expectFlash(response, "Header image removal failed", false);
+          expectRedirectWithFlash(
+            "/admin/settings?form=settings-header-image-delete#settings-header-image-delete",
+            "Header image removal failed",
+            false,
+          )(response);
 
           // DB record should NOT be cleared when CDN delete fails
           const url = settings.headerImageUrl;
