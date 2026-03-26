@@ -17,7 +17,7 @@ import {
   htmlResponse,
   redirectResponse,
   requireSessionOr,
-  withAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import { adminMigratePage } from "#templates/admin/migrate.tsx";
 
@@ -60,8 +60,9 @@ const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
  * Handle POST /admin/migrate — process one batch of attendees
  */
 const handleMigratePost = (request: Request): Promise<Response> =>
-  withAuthForm(
+  withAuth(
     request,
+    { body: "form" },
     whenNotMigrated(() => redirectResponse("/admin/migrate"))(
       async (session) => {
         const privateKey = await requirePrivateKey(session);

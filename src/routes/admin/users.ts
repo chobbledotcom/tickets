@@ -34,7 +34,7 @@ import {
   htmlResponse,
   redirect,
   requireOwnerOr,
-  withOwnerAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 
 import {
@@ -127,7 +127,7 @@ const handleUserNewGet = (request: Request): Promise<Response> =>
  * Handle POST /admin/users - create invited user
  */
 const handleUsersPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, handleUsersPostForm);
+  withAuth(request, { body: "form", role: "owner" }, handleUsersPostForm);
 
 const handleUsersPostForm = async (
   _session: AuthSession,
@@ -180,7 +180,7 @@ const withUserAction = (
   userId: number,
   handler: UserActionHandler,
 ): Promise<Response> =>
-  withOwnerAuthForm(request, async (session) => {
+  withAuth(request, { body: "form", role: "owner" }, async (session) => {
     const errorPage: UserErrorPageFn = (error, status) =>
       usersErrorResponse(session, error, status);
     const user = await getUserById(userId);
@@ -252,7 +252,7 @@ const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (
 const handleUserDeletePost: TypedRouteHandler<
   "POST /admin/users/:id/delete"
 > = (request, { id }) =>
-  withOwnerAuthForm(request, async (session, form) => {
+  withAuth(request, { body: "form", role: "owner" }, async (session, form) => {
     const user = await getUserById(id);
     if (!user) {
       return usersErrorResponse(session, "User not found", 404);

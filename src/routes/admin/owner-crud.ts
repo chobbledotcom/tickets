@@ -14,8 +14,7 @@ import {
   redirect,
   requireOwnerOr,
   requireSessionOr,
-  withAuthForm,
-  withOwnerAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 
 type CrudConfig<Row, Input> = {
@@ -39,11 +38,11 @@ type CrudConfig<Row, Input> = {
 /** Create CRUD handlers that require owner role */
 export const createOwnerCrudHandlers = <Row, Input>(
   cfg: CrudConfig<Row, Input>,
-) => createCrudHandlersWithAuth(cfg, requireOwnerOr, withOwnerAuthForm);
+) => createCrudHandlersWithAuth(cfg, requireOwnerOr, (r, h) => withAuth(r, { body: "form", role: "owner" }, h));
 
 /** Create CRUD handlers accessible to any authenticated admin (owner or manager) */
 export const createCrudHandlers = <Row, Input>(cfg: CrudConfig<Row, Input>) =>
-  createCrudHandlersWithAuth(cfg, requireSessionOr, withAuthForm);
+  createCrudHandlersWithAuth(cfg, requireSessionOr, (r, h) => withAuth(r, { body: "form" }, h));
 
 type AuthGuard = (
   request: Request,

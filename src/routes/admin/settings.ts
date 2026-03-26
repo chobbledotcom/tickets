@@ -1,6 +1,6 @@
 /**
  * Admin settings routes - password, payment provider, and key configuration
- * Owner-only access enforced via requireOwnerOr / withOwnerAuthForm
+ * Owner-only access enforced via requireOwnerOr / withAuth
  */
 
 import {
@@ -88,8 +88,7 @@ import {
   jsonResponse,
   redirect,
   requireOwnerOr,
-  withOwnerAuthForm,
-  withOwnerAuthMultipartForm,
+  withAuth,
 } from "#routes/utils.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
@@ -255,7 +254,7 @@ export const processSecretField = (
 const settingsRoute =
   (handler: SettingsFormHandler) =>
   (request: Request): Promise<Response> =>
-    withOwnerAuthForm(request, (session, form) =>
+    withAuth(request, { body: "form", role: "owner" }, (session, form) =>
       handler(form, settingsPageWithError(session), session),
     );
 
@@ -263,7 +262,7 @@ const settingsRoute =
 const advancedSettingsRoute =
   (handler: SettingsFormHandler) =>
   (request: Request): Promise<Response> =>
-    withOwnerAuthForm(request, (session, form) =>
+    withAuth(request, { body: "form", role: "owner" }, (session, form) =>
       handler(form, advancedSettingsPageWithError(session), session),
     );
 
@@ -570,7 +569,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/stripe/test - owner only
  */
 const handleStripeTestPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async () => {
+  withAuth(request, { body: "form", role: "owner" }, async () => {
     const result = await testStripeConnection();
     return jsonResponse(result);
   });
@@ -579,7 +578,7 @@ const handleStripeTestPost = (request: Request): Promise<Response> =>
  * Handle POST /admin/settings/square/test - owner only
  */
 const handleSquareTestPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async () => {
+  withAuth(request, { body: "form", role: "owner" }, async () => {
     const result = await testSquareConnection();
     return jsonResponse(result);
   });
@@ -774,7 +773,7 @@ const handleBookingFeePost = settingsRoute(processBookingFeeForm);
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
-  withOwnerAuthMultipartForm(request, async (_session, formData) => {
+  withAuth(request, { body: "multipart", role: "owner" }, async (_session, formData) => {
     if (!isStorageEnabled()) {
       return errorRedirect(
         "/admin/settings",
@@ -1056,7 +1055,7 @@ const PREVIEW_TICKET_URL = "https://example.com/t/SAMPLE123+SAMPLE456";
 
 /** Handle POST /admin/settings/email-templates/preview - render template with sample data */
 const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (_session, form) => {
+  withAuth(request, { body: "form", role: "owner" }, async (_session, form) => {
     const type = form.getString("type");
     const template = form.getString("template");
     const format = form.get("format") ?? "html";

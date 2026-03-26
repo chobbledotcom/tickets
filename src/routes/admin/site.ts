@@ -20,7 +20,7 @@ import {
   htmlResponse,
   redirect,
   requireOwnerOr,
-  withOwnerAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import {
   adminSiteContactPage,
@@ -52,7 +52,7 @@ type SitePostHandler = (
 const sitePostRoute =
   (handler: SitePostHandler) =>
   (request: Request): Promise<Response> =>
-    withOwnerAuthForm(request, handler);
+    withAuth(request, { body: "form", role: "owner" }, handler);
 
 /** Render homepage editor with current state */
 const renderHomePage: PageRenderer = (session, error, success) => {

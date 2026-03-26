@@ -17,7 +17,7 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   getPrivateKey,
   jsonResponse,
-  withAuthJson,
+  withAuth,
   withEventPage,
 } from "#routes/utils.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
@@ -53,7 +53,7 @@ const handleScanPost = (
   request: Request,
   { id }: { id: number },
 ): Promise<Response> =>
-  withAuthJson(request, async (session, body) => {
+  withAuth(request, { body: "json" }, async (session, body) => {
     if (typeof body.token !== "string") {
       return jsonResponse({ status: "error", message: "Missing token" }, 400);
     }

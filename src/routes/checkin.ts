@@ -21,7 +21,7 @@ import {
   getSearchParam,
   htmlResponse,
   redirectResponse,
-  withAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 
@@ -97,7 +97,7 @@ const handleCheckinPost = (
   request: Request,
   tokens: string[],
 ): Promise<Response> =>
-  withAuthForm(request, (session, form) =>
+  withAuth(request, { body: "form" }, (session, form) =>
     withLookup(tokens, async (rawAttendees) => {
       const checkedIn = form.get("check_in") === "true";
       const decrypted = await decryptWithSession(rawAttendees, session);
