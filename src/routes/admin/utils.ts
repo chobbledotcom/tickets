@@ -61,6 +61,24 @@ export const verifyOrRedirect = (
   return null;
 };
 
+/**
+ * Verify a JSON body confirmation field matches an expected value, or return an error message.
+ * API-safe counterpart to verifyOrRedirect for JSON endpoints:
+ *   const error = verifyIdentifierOrJsonError(event.name, body.confirm_identifier, "Event name");
+ *   if (error) return errorResponse(error);
+ */
+export const verifyIdentifierOrJsonError = (
+  expected: string,
+  provided: unknown,
+  label = "Name",
+): string | null => {
+  const value = typeof provided === "string" ? provided : "";
+  if (!verifyIdentifier(expected, value)) {
+    return `${label} does not match. Please provide the exact ${label.toLowerCase()} in confirm_identifier.`;
+  }
+  return null;
+};
+
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
 export const getDateFilter = (request: Request): string | null => {
   const date = new URL(request.url).searchParams.get("date");

@@ -32,6 +32,8 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   mockRequest,
+  requestAsApiKey,
+  requestAsSession,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
@@ -424,11 +426,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       const { apiKey } = await createTestApiKeyFull("Auth Test");
 
       await assertJson(
-        handleRequest(
-          mockRequest("/api/admin/events", {
-            headers: { authorization: `Bearer ${apiKey}` },
-          }),
-        ),
+        handleRequest(requestAsApiKey("/api/admin/events", apiKey)),
         200,
         (body) => {
           expect(body.events).toBeDefined();
@@ -441,32 +439,24 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       // Bearer should NOT authenticate admin UI routes
       const dashboardResponse = await handleRequest(
-        mockRequest("/admin/api-keys/docs", {
-          headers: { authorization: `Bearer ${apiKey}` },
-        }),
+        requestAsApiKey("/admin/api-keys/docs", apiKey),
       );
       expect(dashboardResponse.status).toBe(302);
 
       const settingsResponse = await handleRequest(
-        mockRequest("/admin/settings", {
-          headers: { authorization: `Bearer ${apiKey}` },
-        }),
+        requestAsApiKey("/admin/settings", apiKey),
       );
       expect(settingsResponse.status).toBe(302);
 
       const keysResponse = await handleRequest(
-        mockRequest("/admin/api-keys", {
-          headers: { authorization: `Bearer ${apiKey}` },
-        }),
+        requestAsApiKey("/admin/api-keys", apiKey),
       );
       expect(keysResponse.status).toBe(302);
     });
 
     test("rejects invalid Bearer token", async () => {
       const response = await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: { authorization: "Bearer invalid-token" },
-        }),
+        requestAsApiKey("/api/admin/events", "invalid-token"),
       );
 
       expect(response.status).toBe(401);
@@ -538,11 +528,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       const { apiKey } = await createTestApiKeyFull("Events API");
 
       const body = await assertJson(
-        handleRequest(
-          mockRequest("/api/admin/events", {
-            headers: { authorization: `Bearer ${apiKey}` },
-          }),
-        ),
+        handleRequest(requestAsApiKey("/api/admin/events", apiKey)),
         200,
         (body) => {
           expect(body.events).toBeDefined();
@@ -568,12 +554,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       await assertJson(
         handleRequest(
-          mockRequest("/api/admin/events", {
-            headers: {
-              cookie,
-              "x-csrf-token": csrfToken,
-            },
-          }),
+          requestAsSession("/api/admin/events", { cookie, csrfToken }),
         ),
         200,
         (body) => {
@@ -584,9 +565,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
     test("GET /api/admin/events returns 401 for invalid API key", async () => {
       const response = await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: { authorization: "Bearer bad-key" },
-        }),
+        requestAsApiKey("/api/admin/events", "bad-key"),
       );
 
       expect(response.status).toBe(401);
@@ -612,9 +591,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
 
       const response = await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: { authorization: `Bearer ${token}` },
-        }),
+        requestAsApiKey("/api/admin/events", token),
       );
 
       expect(response.status).toBe(401);
@@ -630,9 +607,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       });
 
       const response = await handleRequest(
-        mockRequest("/api/admin/events", {
-          headers: { authorization: `Bearer ${apiKey}` },
-        }),
+        requestAsApiKey("/api/admin/events", apiKey),
       );
 
       expect(response.status).toBe(401);

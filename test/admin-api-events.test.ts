@@ -15,6 +15,7 @@ import {
   createTestGroup,
   describeWithEnv,
   mockRequest,
+  requestAsSession,
   testCookie,
   testCsrfToken,
   testEventWithCount,
@@ -56,8 +57,9 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         handleRequest(
-          mockRequest(`/api/admin/events/${event.id}`, {
-            headers: { cookie, "x-csrf-token": csrfToken },
+          requestAsSession(`/api/admin/events/${event.id}`, {
+            cookie,
+            csrfToken,
           }),
         ),
         200,
