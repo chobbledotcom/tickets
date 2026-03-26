@@ -196,8 +196,10 @@ const answerRoute = withAnswerAuth(requireOwnerOr);
 
 /** Owner POST route for answer-scoped form actions */
 const answerFormRoute = withAnswerAuth(
-  (request: Request, handler: (s: AdminSession, f: FormParams) => Response | Promise<Response>) =>
-    withAuth(request, { body: "form", role: "owner" }, handler),
+  (
+    request: Request,
+    handler: (s: AdminSession, f: FormParams) => Response | Promise<Response>,
+  ) => withAuth(request, { body: "form", role: "owner" }, handler),
 );
 
 /** Handle GET /admin/questions/:id/answers/:answerId/delete */

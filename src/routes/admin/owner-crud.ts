@@ -38,11 +38,16 @@ type CrudConfig<Row, Input> = {
 /** Create CRUD handlers that require owner role */
 export const createOwnerCrudHandlers = <Row, Input>(
   cfg: CrudConfig<Row, Input>,
-) => createCrudHandlersWithAuth(cfg, requireOwnerOr, (r, h) => withAuth(r, { body: "form", role: "owner" }, h));
+) =>
+  createCrudHandlersWithAuth(cfg, requireOwnerOr, (r, h) =>
+    withAuth(r, { body: "form", role: "owner" }, h),
+  );
 
 /** Create CRUD handlers accessible to any authenticated admin (owner or manager) */
 export const createCrudHandlers = <Row, Input>(cfg: CrudConfig<Row, Input>) =>
-  createCrudHandlersWithAuth(cfg, requireSessionOr, (r, h) => withAuth(r, { body: "form" }, h));
+  createCrudHandlersWithAuth(cfg, requireSessionOr, (r, h) =>
+    withAuth(r, { body: "form" }, h),
+  );
 
 type AuthGuard = (
   request: Request,
