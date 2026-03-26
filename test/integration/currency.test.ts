@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#lib/db/settings.ts";
-import {
-  adminGet,
-  createTestEvent,
-  describeWithEnv,
-} from "#test-utils";
+import { adminGet, createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("integration: currency from country", { db: true }, () => {
   test("default country GB uses GBP (pound symbol)", async () => {
