@@ -38,35 +38,23 @@ describeWithEnv(
         });
       });
 
-      describeWithEnv(
-        "when only STORAGE_ZONE_NAME is set",
-        { env: { STORAGE_ZONE_NAME: "myzone" } },
-        () => {
-          test("returns false", () => {
-            expect(isStorageEnabled()).toBe(false);
-          });
-        },
-      );
+      test("returns false when only zoneName is set", () => {
+        runWithStorageConfig({ zoneName: "myzone", zoneKey: "" }, () => {
+          expect(isStorageEnabled()).toBe(false);
+        });
+      });
 
-      describeWithEnv(
-        "when only STORAGE_ZONE_KEY is set",
-        { env: { STORAGE_ZONE_KEY: "mykey" } },
-        () => {
-          test("returns false", () => {
-            expect(isStorageEnabled()).toBe(false);
-          });
-        },
-      );
+      test("returns false when only zoneKey is set", () => {
+        runWithStorageConfig({ zoneName: "", zoneKey: "mykey" }, () => {
+          expect(isStorageEnabled()).toBe(false);
+        });
+      });
 
-      describeWithEnv(
-        "when both env vars are set",
-        { env: { STORAGE_ZONE_NAME: "myzone", STORAGE_ZONE_KEY: "mykey" } },
-        () => {
-          test("returns true", () => {
-            expect(isStorageEnabled()).toBe(true);
-          });
-        },
-      );
+      test("returns true when both are set", () => {
+        runWithStorageConfig({ zoneName: "myzone", zoneKey: "mykey" }, () => {
+          expect(isStorageEnabled()).toBe(true);
+        });
+      });
     });
 
     describe("getImageProxyUrl", () => {
