@@ -2496,6 +2496,13 @@ export const withCdnProxy = (
 export const withStorageDisabled = <T>(fn: () => T): T =>
   runWithStorageConfig({ zoneName: "", zoneKey: "" }, fn);
 
+/**
+ * Run a callback with storage explicitly enabled (testzone/testkey).
+ * Uses AsyncLocalStorage so concurrent tests cannot interfere.
+ */
+export const withStorageEnabled = <T>(fn: () => T): T =>
+  runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, fn);
+
 // ---------------------------------------------------------------------------
 // API key helpers — shared across admin API and API key tests
 // ---------------------------------------------------------------------------
