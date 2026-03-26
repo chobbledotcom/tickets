@@ -30,6 +30,7 @@ import type {
   EventType,
   EventWithCount,
 } from "#lib/types.ts";
+import { verifyIdentifierOrJsonError } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { jsonResponse, withAdminApi } from "#routes/utils.ts";
 
@@ -330,15 +331,12 @@ export const adminApiRoutes = defineRoutes({
     }),
   "DELETE /api/admin/events/:eventId": (request, { eventId }) =>
     withEventApi(request, eventId, async (event, _session, body) => {
-      const confirmId =
-        typeof body.confirm_identifier === "string"
-          ? body.confirm_identifier.trim()
-          : "";
-      if (confirmId.toLowerCase() !== event.name.trim().toLowerCase()) {
-        return errorResponse(
-          "Event name does not match. Please provide the exact event name in confirm_identifier.",
-        );
-      }
+      const error = verifyIdentifierOrJsonError(
+        event.name,
+        body.confirm_identifier,
+        "Event name",
+      );
+      if (error) return errorResponse(error);
 
       await performEventDelete(event);
       return jsonResponse({ status: "ok" });
