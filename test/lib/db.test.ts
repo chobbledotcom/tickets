@@ -2871,15 +2871,12 @@ describeWithEnv("db", { db: true }, () => {
 
     test("returns empty string for invalid datetime", async () => {
       const errorSpy = spy(console, "error");
-      try {
-        const { decrypt } = await import("#lib/crypto.ts");
-        const result = await writeEventDate("not-a-dateZ");
-        const decrypted = await decrypt(result);
-        expect(decrypted).toBe("");
-        expect(errorSpy.calls.length).toBeGreaterThan(0);
-      } finally {
-        errorSpy.restore();
-      }
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeEventDate("not-a-dateZ");
+      const decrypted = await decrypt(result);
+      expect(decrypted).toBe("");
+      expect(errorSpy.calls.length).toBeGreaterThan(0);
+      errorSpy.restore();
     });
   });
 
