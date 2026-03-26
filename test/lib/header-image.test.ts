@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#lib/crypto.ts";
 import { settings } from "#lib/db/settings.ts";
-import { resetHeaderImage, setHeaderImageForTest } from "#lib/header-image.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
@@ -78,31 +77,6 @@ const expectSettingsRedirect = (response: Response): void => {
   expect(response.headers.get("location")).toContain("/admin/settings");
 };
 
-describe("header image", () => {
-  afterEach(() => {
-    resetHeaderImage();
-  });
-
-  describe("settings.headerImageUrl", () => {
-    test("defaults to empty string", () => {
-      expect(settings.headerImageUrl).toBe("");
-    });
-
-    test("returns value set by setHeaderImageForTest", () => {
-      setHeaderImageForTest("test-image.jpg");
-      expect(settings.headerImageUrl).toBe("test-image.jpg");
-    });
-  });
-
-  describe("resetHeaderImage", () => {
-    test("resets to empty string after being set", () => {
-      setHeaderImageForTest("test-image.jpg");
-      resetHeaderImage();
-      expect(settings.headerImageUrl).toBe("");
-    });
-  });
-});
-
 describeWithEnv("header image settings DB", { db: true }, () => {
   test("getHeaderImageUrlFromDb returns empty string when not set", () => {
     const url = settings.headerImageUrl;
@@ -134,11 +108,11 @@ describeWithEnv(
   },
   () => {
     beforeEach(() => {
-      resetHeaderImage();
+      settings.clearTestOverride("header_image_url");
     });
 
     afterEach(() => {
-      resetHeaderImage();
+      settings.clearTestOverride("header_image_url");
     });
 
     describe("GET /admin/settings (header image section)", () => {
@@ -382,7 +356,7 @@ describeWithEnv(
       });
 
       test("does not render header image when not set", async () => {
-        resetHeaderImage();
+        settings.clearTestOverride("header_image_url");
         const html = await assertAdminHtml("/admin/settings");
         expect(html).not.toContain('class="header-image"');
       });
