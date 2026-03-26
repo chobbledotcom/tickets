@@ -423,9 +423,7 @@ export const ConfirmForm = ({
     {children}
 
     <CsrfForm action={action}>
-      {returnUrl && (
-        <input type="hidden" name="return_url" value={returnUrl} />
-      )}
+      {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
       <label>
         {label}
         <input

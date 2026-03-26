@@ -14,7 +14,7 @@ import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
   hasFlash,
-  resetFlashContext,
+  runWithFlashContext,
   setFlashContext,
 } from "#lib/flash-context.ts";
 import { clearSavedFormData } from "#lib/forms.tsx";
@@ -342,112 +342,113 @@ export const handleRequest = async (
   return runWithRequestId(() =>
     runWithRequestCache(() =>
       runWithQueryLogContext(() =>
-        runWithSessionContext(async () => {
-          const { url, path, method } = parseRequest(effectiveRequest);
-          const getElapsed = createRequestTimer();
-          detectIframeMode(effectiveRequest.url);
-          clearSavedFormData();
-
-          try {
-            // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
-            if (method === "GET") {
-              const cleanUrl = getCleanUrl(url);
-              if (cleanUrl) {
-                return logAndReturn(
-                  new Response(null, {
-                    status: 301,
-                    headers: { location: cleanUrl },
-                  }),
-                  method,
-                  path,
-                  getElapsed,
-                );
-              }
-            }
-
-            // Ensure settings cache is populated before reading custom domain.
-            // loadAll() is a no-op when the cache is still valid (60 s TTL).
-            await settings.loadAll();
-
-            // Load effective domain (custom_domain from DB if set, else request hostname)
-            loadEffectiveDomain(effectiveRequest.url);
-
-            const embeddable = isEmbeddablePath(path);
-
-            // Content-Type validation: reject POST requests without proper Content-Type
-            // (webhook endpoints accept JSON, all others require form-urlencoded)
-            if (!isValidContentType(effectiveRequest, path)) {
-              return logAndReturn(
-                contentTypeRejectionResponse(),
-                method,
-                path,
-                getElapsed,
-              );
-            }
+        runWithFlashContext(() =>
+          runWithSessionContext(async () => {
+            const { url, path, method } = parseRequest(effectiveRequest);
+            const getElapsed = createRequestTimer();
+            detectIframeMode(effectiveRequest.url);
+            clearSavedFormData();
 
             try {
-              // Populate flash context from keyed cookie (flash ID in URL)
-              const flashId = new URL(effectiveRequest.url).searchParams.get(
-                "flash",
-              );
-              const flashRaw = flashId
-                ? parseCookies(effectiveRequest).get(`flash_${flashId}`)
-                : null;
-              const flash = flashRaw ? parseFlashValue(flashRaw) : null;
-              if (flash) setFlashContext(flash);
-
-              const response = await handleRequestInternal(
-                effectiveRequest,
-                path,
-                method,
-                server,
-              );
-
-              // Clear keyed flash cookie if one was consumed
-              if (flashId && flash && hasFlash()) {
-                withCookie(response, clearFlashCookie(flashId));
+              // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
+              if (method === "GET") {
+                const cleanUrl = getCleanUrl(url);
+                if (cleanUrl) {
+                  return logAndReturn(
+                    new Response(null, {
+                      status: 301,
+                      headers: { location: cleanUrl },
+                    }),
+                    method,
+                    path,
+                    getElapsed,
+                  );
+                }
               }
-              resetFlashContext();
 
-              return logAndReturn(
-                await applySecurityHeaders(response, embeddable),
-                method,
-                path,
-                getElapsed,
-              );
-            } catch (error) {
-              logError({
-                code: ErrorCode.CDN_REQUEST,
-                detail: formatRequestError(method, path, error),
-              });
-              // In tests, surface the real error instead of swallowing it
-              // behind a generic "Temporary Error" page
-              if (
-                Deno.env.get("TEST_RETHROW_ERRORS") &&
-                !(error instanceof SessionKeyError) &&
-                !Deno.env.get("TEST_EXPECT_ERROR")
-              ) {
-                throw error;
-              }
-              if (error instanceof SessionKeyError) {
+              // Ensure settings cache is populated before reading custom domain.
+              // loadAll() is a no-op when the cache is still valid (60 s TTL).
+              await settings.loadAll();
+
+              // Load effective domain (custom_domain from DB if set, else request hostname)
+              loadEffectiveDomain(effectiveRequest.url);
+
+              const embeddable = isEmbeddablePath(path);
+
+              // Content-Type validation: reject POST requests without proper Content-Type
+              // (webhook endpoints accept JSON, all others require form-urlencoded)
+              if (!isValidContentType(effectiveRequest, path)) {
                 return logAndReturn(
-                  redirectResponse("/admin", clearSessionCookie()),
+                  contentTypeRejectionResponse(),
                   method,
                   path,
                   getElapsed,
                 );
               }
-              return logAndReturn(
-                temporaryErrorResponse(),
-                method,
-                path,
-                getElapsed,
-              );
+
+              try {
+                // Populate flash context from keyed cookie (flash ID in URL)
+                const flashId = new URL(effectiveRequest.url).searchParams.get(
+                  "flash",
+                );
+                const flashRaw = flashId
+                  ? parseCookies(effectiveRequest).get(`flash_${flashId}`)
+                  : null;
+                const flash = flashRaw ? parseFlashValue(flashRaw) : null;
+                if (flash) setFlashContext(flash);
+
+                const response = await handleRequestInternal(
+                  effectiveRequest,
+                  path,
+                  method,
+                  server,
+                );
+
+                // Clear keyed flash cookie if one was consumed
+                if (flashId && flash && hasFlash()) {
+                  withCookie(response, clearFlashCookie(flashId));
+                }
+
+                return logAndReturn(
+                  await applySecurityHeaders(response, embeddable),
+                  method,
+                  path,
+                  getElapsed,
+                );
+              } catch (error) {
+                logError({
+                  code: ErrorCode.CDN_REQUEST,
+                  detail: formatRequestError(method, path, error),
+                });
+                // In tests, surface the real error instead of swallowing it
+                // behind a generic "Temporary Error" page
+                if (
+                  Deno.env.get("TEST_RETHROW_ERRORS") &&
+                  !(error instanceof SessionKeyError) &&
+                  !Deno.env.get("TEST_EXPECT_ERROR")
+                ) {
+                  throw error;
+                }
+                if (error instanceof SessionKeyError) {
+                  return logAndReturn(
+                    redirectResponse("/admin", clearSessionCookie()),
+                    method,
+                    path,
+                    getElapsed,
+                  );
+                }
+                return logAndReturn(
+                  temporaryErrorResponse(),
+                  method,
+                  path,
+                  getElapsed,
+                );
+              }
+            } finally {
+              await flushPendingWork();
             }
-          } finally {
-            await flushPendingWork();
-          }
-        }),
+          }),
+        ),
       ),
     ),
   );
