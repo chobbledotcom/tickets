@@ -17,9 +17,9 @@ import {
   testCookie,
   testCsrfToken,
   withStorageDisabled,
+  withStorageEnabled,
   withStorageMock,
 } from "#test-utils";
-import { runWithStorageConfig } from "#lib/storage.ts";
 
 /** Submit a file to the header-image upload endpoint */
 const submitHeaderImage = async (
@@ -100,10 +100,6 @@ describeWithEnv("header image settings DB", { db: true }, () => {
 describeWithEnv(
   "server (header image settings)",
   {
-    env: {
-      STORAGE_ZONE_NAME: "testzone",
-      STORAGE_ZONE_KEY: "testkey",
-    },
     db: true,
   },
   () => {
@@ -117,37 +113,39 @@ describeWithEnv(
 
     describe("GET /admin/settings (header image section)", () => {
       test("shows header image section when storage is enabled", async () => {
-        const { response } = await adminGet("/admin/settings");
-        await expectHtmlResponse(response, 200, "Header Image");
+        await withStorageEnabled(async () => {
+          const { response } = await adminGet("/admin/settings");
+          await expectHtmlResponse(response, 200, "Header Image");
+        });
       });
 
-      describeWithEnv(
-        "when storage is disabled",
-        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
-        () => {
-          test("hides header image section", async () => {
-            await withStorageDisabled(async () => {
-              const html = await assertAdminHtml("/admin/settings");
-              expect(html).not.toContain("Header Image");
-            });
+      describe("when storage is disabled", () => {
+        test("hides header image section", async () => {
+          await withStorageDisabled(async () => {
+            const html = await assertAdminHtml("/admin/settings");
+            expect(html).not.toContain("Header Image");
           });
-        },
-      );
+        });
+      });
 
       test("shows remove button when header image is set", async () => {
-        await settings.update.headerImageUrl("existing.jpg");
-        const { response } = await adminGet("/admin/settings");
-        await expectHtmlResponse(
-          response,
-          200,
-          "Remove Image",
-          "/image/existing.jpg",
-        );
+        await withStorageEnabled(async () => {
+          await settings.update.headerImageUrl("existing.jpg");
+          const { response } = await adminGet("/admin/settings");
+          await expectHtmlResponse(
+            response,
+            200,
+            "Remove Image",
+            "/image/existing.jpg",
+          );
+        });
       });
 
       test("shows upload button when no header image exists", async () => {
-        const { response } = await adminGet("/admin/settings");
-        await expectHtmlResponse(response, 200, "Upload Image");
+        await withStorageEnabled(async () => {
+          const { response } = await adminGet("/admin/settings");
+          await expectHtmlResponse(response, 200, "Upload Image");
+        });
       });
     });
 
@@ -199,50 +197,50 @@ describeWithEnv(
       });
 
       test("returns 403 for non-owner admin", async () => {
-        const managerCookie = await createTestManagerSession(
-          "mgr-header-session",
-          "headerimgmgr",
-        );
-        const { signCsrfToken } = await import("#lib/csrf.ts");
-        const signedCsrf = await signCsrfToken();
-        const response = await submitHeaderJpeg(
-          "logo.jpg",
-          managerCookie,
-          signedCsrf,
-        );
-        expect(response.status).toBe(403);
+        await withStorageEnabled(async () => {
+          const managerCookie = await createTestManagerSession(
+            "mgr-header-session",
+            "headerimgmgr",
+          );
+          const { signCsrfToken } = await import("#lib/csrf.ts");
+          const signedCsrf = await signCsrfToken();
+          const response = await submitHeaderJpeg(
+            "logo.jpg",
+            managerCookie,
+            signedCsrf,
+          );
+          expect(response.status).toBe(403);
+        });
       });
 
       test("rejects request with no file", async () => {
-        const request = mockMultipartRequest(
-          "/admin/settings/header-image",
-          { csrf_token: await testCsrfToken() },
-          await testCookie(),
-        );
-        const response = await handleRequest(request);
-        expectRedirectWithFlash(
-          "/admin/settings?form=settings-header-image#settings-header-image",
-          expect.stringContaining("No image file provided"),
-          false,
-        )(response);
+        await withStorageEnabled(async () => {
+          const request = mockMultipartRequest(
+            "/admin/settings/header-image",
+            { csrf_token: await testCsrfToken() },
+            await testCookie(),
+          );
+          const response = await handleRequest(request);
+          expectRedirectWithFlash(
+            "/admin/settings?form=settings-header-image#settings-header-image",
+            expect.stringContaining("No image file provided"),
+            false,
+          )(response);
+        });
       });
 
-      describeWithEnv(
-        "when storage is not configured",
-        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
-        () => {
-          test("returns error", async () => {
-            await withStorageDisabled(async () => {
-              const response = await submitHeaderJpeg("logo.jpg");
-              expectRedirectWithFlash(
-                "/admin/settings?form=settings-header-image#settings-header-image",
-                expect.stringContaining("Image storage is not configured"),
-                false,
-              )(response);
-            });
+      describe("when storage is not configured", () => {
+        test("returns error", async () => {
+          await withStorageDisabled(async () => {
+            const response = await submitHeaderJpeg("logo.jpg");
+            expectRedirectWithFlash(
+              "/admin/settings?form=settings-header-image#settings-header-image",
+              expect.stringContaining("Image storage is not configured"),
+              false,
+            )(response);
           });
-        },
-      );
+        });
+      });
 
       test("deletes old header image when uploading new one", async () => {
         await settings.update.headerImageUrl("old-header.jpg");
@@ -263,21 +261,23 @@ describeWithEnv(
       });
 
       test("reports error when upload fails", async () => {
-        const originalFetch = globalThis.fetch;
-        globalThis.fetch = (): Promise<Response> => {
-          return Promise.reject(new Error("CDN unreachable"));
-        };
+        await withStorageEnabled(async () => {
+          const originalFetch = globalThis.fetch;
+          globalThis.fetch = (): Promise<Response> => {
+            return Promise.reject(new Error("CDN unreachable"));
+          };
 
-        try {
-          const response = await submitHeaderJpeg("logo.jpg");
-          expectRedirectWithFlash(
-            "/admin/settings?form=settings-header-image#settings-header-image",
-            "Header image upload failed",
-            false,
-          )(response);
-        } finally {
-          globalThis.fetch = originalFetch;
-        }
+          try {
+            const response = await submitHeaderJpeg("logo.jpg");
+            expectRedirectWithFlash(
+              "/admin/settings?form=settings-header-image#settings-header-image",
+              "Header image upload failed",
+              false,
+            )(response);
+          } finally {
+            globalThis.fetch = originalFetch;
+          }
+        });
       });
 
       test("rejects mismatched magic bytes", async () => {
@@ -310,55 +310,63 @@ describeWithEnv(
       });
 
       test("returns error when no header image exists", async () => {
-        const response = await submitHeaderImageDelete();
-        expectRedirectWithFlash(
-          "/admin/settings?form=settings-header-image#settings-header-image",
-          expect.stringContaining("No header image to remove"),
-          false,
-        )(response);
+        await withStorageEnabled(async () => {
+          const response = await submitHeaderImageDelete();
+          expectRedirectWithFlash(
+            "/admin/settings?form=settings-header-image#settings-header-image",
+            expect.stringContaining("No header image to remove"),
+            false,
+          )(response);
+        });
       });
 
       test("reports error when storage delete throws", async () => {
-        await settings.update.headerImageUrl("failing.jpg");
+        await withStorageEnabled(async () => {
+          await settings.update.headerImageUrl("failing.jpg");
 
-        const originalFetch = globalThis.fetch;
-        globalThis.fetch = (): Promise<Response> => {
-          return Promise.reject(new Error("CDN unreachable"));
-        };
+          const originalFetch = globalThis.fetch;
+          globalThis.fetch = (): Promise<Response> => {
+            return Promise.reject(new Error("CDN unreachable"));
+          };
 
-        try {
-          const response = await submitHeaderImageDelete();
-          expectRedirectWithFlash(
-            "/admin/settings?form=settings-header-image-delete#settings-header-image-delete",
-            "Header image removal failed",
-            false,
-          )(response);
+          try {
+            const response = await submitHeaderImageDelete();
+            expectRedirectWithFlash(
+              "/admin/settings?form=settings-header-image-delete#settings-header-image-delete",
+              "Header image removal failed",
+              false,
+            )(response);
 
-          // DB record should NOT be cleared when CDN delete fails
-          const url = settings.headerImageUrl;
-          expect(url).toBe("failing.jpg");
-        } finally {
-          globalThis.fetch = originalFetch;
-        }
+            // DB record should NOT be cleared when CDN delete fails
+            const url = settings.headerImageUrl;
+            expect(url).toBe("failing.jpg");
+          } finally {
+            globalThis.fetch = originalFetch;
+          }
+        });
       });
     });
 
     describe("header image in layout", () => {
       test("renders header image in page when set", async () => {
-        await settings.update.headerImageUrl("my-header.jpg");
-        const { response } = await adminGet("/admin/settings");
-        await expectHtmlResponse(
-          response,
-          200,
-          'class="header-image"',
-          "/image/my-header.jpg",
-        );
+        await withStorageEnabled(async () => {
+          await settings.update.headerImageUrl("my-header.jpg");
+          const { response } = await adminGet("/admin/settings");
+          await expectHtmlResponse(
+            response,
+            200,
+            'class="header-image"',
+            "/image/my-header.jpg",
+          );
+        });
       });
 
       test("does not render header image when not set", async () => {
-        settings.clearTestOverride("header_image_url");
-        const html = await assertAdminHtml("/admin/settings");
-        expect(html).not.toContain('class="header-image"');
+        await withStorageEnabled(async () => {
+          settings.clearTestOverride("header_image_url");
+          const html = await assertAdminHtml("/admin/settings");
+          expect(html).not.toContain('class="header-image"');
+        });
       });
     });
 
@@ -366,44 +374,41 @@ describeWithEnv(
       test("serves header image via proxy route", async () => {
         const encrypted = await encryptBytes(JPEG_HEADER);
 
-        await runWithStorageConfig(
-          { zoneName: "testzone", zoneKey: "testkey" },
-          async () => {
-            const originalFetch = globalThis.fetch;
-            globalThis.fetch = (
-              input: string | URL | Request,
-            ): Promise<Response> => {
-              const url =
-                typeof input === "string"
-                  ? input
-                  : input instanceof URL
-                    ? input.toString()
-                    : input.url;
-              if (url.includes("storage.bunnycdn.com")) {
-                return Promise.resolve(
-                  // deno-lint-ignore no-explicit-any
-                  new Response(encrypted as any, { status: 200 }),
-                );
-              }
-              return originalFetch(input);
-            };
-
-            try {
-              const response = await handleRequest(
-                mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"),
+        await withStorageEnabled(async () => {
+          const originalFetch = globalThis.fetch;
+          globalThis.fetch = (
+            input: string | URL | Request,
+          ): Promise<Response> => {
+            const url =
+              typeof input === "string"
+                ? input
+                : input instanceof URL
+                  ? input.toString()
+                  : input.url;
+            if (url.includes("storage.bunnycdn.com")) {
+              return Promise.resolve(
+                // deno-lint-ignore no-explicit-any
+                new Response(encrypted as any, { status: 200 }),
               );
-              expect(response.status).toBe(200);
-              const headers = response.headers;
-              expect(headers.get("content-type")).toBe("image/jpeg");
-              expect(headers.get("cache-control")).toContain("immutable");
-              expect(new Uint8Array(await response.arrayBuffer())).toEqual(
-                JPEG_HEADER,
-              );
-            } finally {
-              globalThis.fetch = originalFetch;
             }
-          },
-        );
+            return originalFetch(input);
+          };
+
+          try {
+            const response = await handleRequest(
+              mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"),
+            );
+            expect(response.status).toBe(200);
+            const headers = response.headers;
+            expect(headers.get("content-type")).toBe("image/jpeg");
+            expect(headers.get("cache-control")).toContain("immutable");
+            expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+              JPEG_HEADER,
+            );
+          } finally {
+            globalThis.fetch = originalFetch;
+          }
+        });
       });
     });
   },
