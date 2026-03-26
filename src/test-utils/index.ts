@@ -39,6 +39,7 @@ import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
+import { setSuppressRequestLogs } from "#lib/logger.ts";
 import { resetHostEmailConfig } from "#lib/email.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
@@ -72,7 +73,7 @@ export const setupTestEncryptionKey = (): void => {
   Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
   Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
   Deno.env.set("TEST_RSA_KEY_SIZE", "1024"); // Use smaller RSA keys for faster test setup
-  Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1"); // Reduce test output noise
+  setSuppressRequestLogs(true); // Module-level override avoids env race in parallel tests
   Deno.env.set("TEST_RETHROW_ERRORS", "1"); // Surface real errors instead of "Temporary Error" page
   clearEncryptionKeyCache();
 };
@@ -88,7 +89,7 @@ export const clearTestEncryptionKey = (): void => {
   Deno.env.delete("DB_ENCRYPTION_KEY");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
   Deno.env.delete("TEST_RSA_KEY_SIZE");
-  Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
+  setSuppressRequestLogs(null); // Clear module-level override, fall through to Deno.env
   clearEncryptionKeyCache();
 };
 

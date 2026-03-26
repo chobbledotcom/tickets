@@ -331,6 +331,8 @@ describe("code quality", () => {
       "lib/limits.ts:readLimit",
       // Settings cache TTL constant used by tests to verify caching behavior
       "lib/db/settings.ts:SETTINGS_CACHE_TTL_MS",
+      // Set request log suppression directly to avoid env var races between parallel tests
+      "lib/logger.ts:setSuppressRequestLogs",
     ];
 
     /**
