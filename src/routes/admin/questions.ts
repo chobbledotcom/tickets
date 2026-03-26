@@ -6,7 +6,6 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import {
   type Answer,
-  type Question,
   answersTable,
   deleteAnswer,
   deleteQuestion,
@@ -16,6 +15,7 @@ import {
   getNextAnswerSortOrder,
   getQuestion,
   getQuestionWithAnswers,
+  type Question,
   type QuestionWithAnswers,
   questionsTable,
   setEventQuestions,
@@ -139,16 +139,15 @@ const handleDeleteQuestionGet = ownerGetById(
 );
 
 /** Confirmed-action factory for question routes */
-const confirmedQuestionAction = createConfirmedAction<
-  Question,
-  { id: number }
->({
-  loadResource: (_session, { id }) => getQuestion(id),
-  getIdentifier: (q) => q.text,
-  redirectPath: ({ id }) => `/admin/questions/${id}/delete`,
-  label: "Question text",
-  authHandler: withOwnerAuthForm,
-});
+const confirmedQuestionAction = createConfirmedAction<Question, { id: number }>(
+  {
+    loadResource: (_session, { id }) => getQuestion(id),
+    getIdentifier: (q) => q.text,
+    redirectPath: ({ id }) => `/admin/questions/${id}/delete`,
+    label: "Question text",
+    authHandler: withOwnerAuthForm,
+  },
+);
 
 /** Handle POST /admin/questions/:id/delete */
 const handleDeleteQuestionPost = confirmedQuestionAction(
