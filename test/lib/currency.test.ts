@@ -3,8 +3,6 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   formatCurrency,
   getDecimalPlaces,
-  resetCurrencyCode,
-  setCurrencyCodeForTest,
   toMajorUnits,
   toMinorUnits,
 } from "#lib/currency.ts";
@@ -17,7 +15,7 @@ import {
 
 describe("currency", () => {
   afterEach(() => {
-    resetCurrencyCode();
+    settings.clearTestOverride("currency");
   });
 
   describe("getDecimalPlaces", () => {
@@ -60,94 +58,94 @@ describe("currency", () => {
 
   describe("formatCurrency", () => {
     test("formats GBP with pound symbol", () => {
-      setCurrencyCodeForTest("GBP");
+      settings.setForTest({ currency: "GBP" });
       expect(formatCurrency(1050)).toBe("£10.50");
     });
 
     test("formats GBP zero amount", () => {
-      setCurrencyCodeForTest("GBP");
+      settings.setForTest({ currency: "GBP" });
       expect(formatCurrency(0)).toBe("£0");
     });
 
     test("formats USD with dollar symbol", () => {
-      setCurrencyCodeForTest("USD");
+      settings.setForTest({ currency: "USD" });
       expect(formatCurrency(1050)).toBe("$10.50");
     });
 
     test("formats EUR with euro symbol", () => {
-      setCurrencyCodeForTest("EUR");
+      settings.setForTest({ currency: "EUR" });
       const result = formatCurrency(1050);
       expect(result).toContain("10.50");
       expect(result).toContain("€");
     });
 
     test("formats JPY without decimal places", () => {
-      setCurrencyCodeForTest("JPY");
+      settings.setForTest({ currency: "JPY" });
       expect(formatCurrency(1050)).toBe("¥1,050");
     });
 
     test("formats KWD with 3 decimal places", () => {
-      setCurrencyCodeForTest("KWD");
+      settings.setForTest({ currency: "KWD" });
       const result = formatCurrency(1050);
       expect(result).toContain("1.050");
     });
 
     test("accepts string input", () => {
-      setCurrencyCodeForTest("GBP");
+      settings.setForTest({ currency: "GBP" });
       expect(formatCurrency("1050")).toBe("£10.50");
     });
 
     test("falls back to GBP when no currency loaded", () => {
-      resetCurrencyCode();
+      settings.clearTestOverride("currency");
       expect(formatCurrency(1050)).toBe("£10.50");
     });
   });
 
   describe("toMinorUnits", () => {
     test("converts GBP major to minor units", () => {
-      setCurrencyCodeForTest("GBP");
+      settings.setForTest({ currency: "GBP" });
       expect(toMinorUnits(10.5)).toBe(1050);
     });
 
     test("converts whole number", () => {
-      setCurrencyCodeForTest("GBP");
+      settings.setForTest({ currency: "GBP" });
       expect(toMinorUnits(25)).toBe(2500);
     });
 
     test("rounds to nearest integer", () => {
-      setCurrencyCodeForTest("GBP");
+      settings.setForTest({ currency: "GBP" });
       expect(toMinorUnits(10.999)).toBe(1100);
     });
 
     test("converts JPY (no decimals)", () => {
-      setCurrencyCodeForTest("JPY");
+      settings.setForTest({ currency: "JPY" });
       expect(toMinorUnits(1050)).toBe(1050);
     });
 
     test("converts KWD (3 decimals)", () => {
-      setCurrencyCodeForTest("KWD");
+      settings.setForTest({ currency: "KWD" });
       expect(toMinorUnits(1.05)).toBe(1050);
     });
   });
 
   describe("toMajorUnits", () => {
     test("converts GBP minor to major units string", () => {
-      setCurrencyCodeForTest("GBP");
+      settings.setForTest({ currency: "GBP" });
       expect(toMajorUnits(1050)).toBe("10.50");
     });
 
     test("converts zero", () => {
-      setCurrencyCodeForTest("GBP");
+      settings.setForTest({ currency: "GBP" });
       expect(toMajorUnits(0)).toBe("0.00");
     });
 
     test("converts JPY (no decimals)", () => {
-      setCurrencyCodeForTest("JPY");
+      settings.setForTest({ currency: "JPY" });
       expect(toMajorUnits(1050)).toBe("1050");
     });
 
     test("converts KWD (3 decimals)", () => {
-      setCurrencyCodeForTest("KWD");
+      settings.setForTest({ currency: "KWD" });
       expect(toMajorUnits(1050)).toBe("1.050");
     });
   });
@@ -157,7 +155,7 @@ describe("currency", () => {
       setupTestEncryptionKey();
       await createTestDbWithSetup("US");
       await settings.loadAll();
-      resetCurrencyCode();
+      settings.clearTestOverride("currency");
     });
 
     afterEach(() => {

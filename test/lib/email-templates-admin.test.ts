@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
 import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
 import { resetEngine } from "#lib/email-renderer.ts";
 import { handleRequest } from "#routes";
@@ -17,12 +16,12 @@ import {
 
 describeWithEnv("admin email templates", { db: true }, () => {
   beforeEach(() => {
-    setCurrencyCodeForTest("GBP");
+    settings.setForTest({ currency: "GBP" });
     resetEngine();
   });
 
   afterEach(() => {
-    resetCurrencyCode();
+    settings.clearTestOverride("currency");
     resetEngine();
   });
 
