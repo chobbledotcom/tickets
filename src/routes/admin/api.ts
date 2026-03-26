@@ -66,7 +66,7 @@ export type CreateEventBody = {
 export type UpdateEventBody = Partial<CreateEventBody> & { slug?: string };
 
 /** JSON body accepted by DELETE /api/admin/events/:eventId */
-export type DeleteEventBody = { confirm_name: string };
+export type DeleteEventBody = { confirm_identifier: string };
 
 // =============================================================================
 // Schema-driven field extraction
@@ -330,11 +330,13 @@ export const adminApiRoutes = defineRoutes({
     }),
   "DELETE /api/admin/events/:eventId": (request, { eventId }) =>
     withEventApi(request, eventId, async (event, _session, body) => {
-      const confirmName =
-        typeof body.confirm_name === "string" ? body.confirm_name.trim() : "";
-      if (confirmName.toLowerCase() !== event.name.trim().toLowerCase()) {
+      const confirmId =
+        typeof body.confirm_identifier === "string"
+          ? body.confirm_identifier.trim()
+          : "";
+      if (confirmId.toLowerCase() !== event.name.trim().toLowerCase()) {
         return errorResponse(
-          "Event name does not match. Please provide the exact event name in confirm_name.",
+          "Event name does not match. Please provide the exact event name in confirm_identifier.",
         );
       }
 

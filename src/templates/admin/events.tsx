@@ -9,6 +9,7 @@ import { settings } from "#lib/db/settings.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import type { Field } from "#lib/forms.tsx";
 import {
+  ConfirmForm,
   CsrfForm,
   type FieldValues,
   renderError,
@@ -796,34 +797,21 @@ export const adminDeleteEventPage = (
       <AdminNav session={session} active="/admin/" />
       {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will permanently delete the event,
-            all {event.attendee_count} attendee(s), any associated payment
-            records, and all activity log entries for this event.
-          </p>
-        </aside>
-      </article>
-
-      <p>
-        To delete this event, type its name "{event.name}" into the box below:
-      </p>
-
-      <CsrfForm action={`/admin/event/${event.id}/delete`}>
-        <label for="confirm_identifier">Event name</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={event.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Delete Event
-        </button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/event/${event.id}/delete`}
+        name={event.name}
+        label="Event name"
+        buttonText="Delete Event"
+      >
+        <p>
+          <strong>Warning:</strong> This will permanently delete the event, all{" "}
+          {event.attendee_count} attendee(s), any associated payment records,
+          and all activity log entries for this event.
+        </p>
+        <p>
+          To delete this event, type its name "{event.name}" into the box below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -840,39 +828,26 @@ export const adminDeactivateEventPage = (
       <AdminNav session={session} active="/admin/" />
       {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> Deactivating this event will:
-          </p>
-          <ul>
-            <li>Return a 404 error on the public ticket page</li>
-            <li>Prevent new registrations</li>
-            <li>Reject any pending payments</li>
-          </ul>
-          <p>Existing attendees will not be affected.</p>
-        </aside>
-      </article>
-
-      <p>
-        To deactivate this event, type its name "{event.name}" into the box
-        below:
-      </p>
-
-      <CsrfForm action={`/admin/event/${event.id}/deactivate`}>
-        <label for="confirm_identifier">Event name</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={event.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Deactivate Event
-        </button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/event/${event.id}/deactivate`}
+        name={event.name}
+        label="Event name"
+        buttonText="Deactivate Event"
+      >
+        <p>
+          <strong>Warning:</strong> Deactivating this event will:
+        </p>
+        <ul>
+          <li>Return a 404 error on the public ticket page</li>
+          <li>Prevent new registrations</li>
+          <li>Reject any pending payments</li>
+        </ul>
+        <p>Existing attendees will not be affected.</p>
+        <p>
+          To deactivate this event, type its name "{event.name}" into the box
+          below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -889,35 +864,25 @@ export const adminReactivateEventPage = (
       <AdminNav session={session} active="/admin/" />
       {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            Reactivating this event will make it available for registrations
-            again.
-          </p>
-          <p>
-            The public ticket page will be accessible and new attendees can
-            register.
-          </p>
-        </aside>
-      </article>
-
-      <p>
-        To reactivate this event, type its name "{event.name}" into the box
-        below:
-      </p>
-
-      <CsrfForm action={`/admin/event/${event.id}/reactivate`}>
-        <label for="confirm_identifier">Event name</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={event.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit">Reactivate Event</button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/event/${event.id}/reactivate`}
+        name={event.name}
+        label="Event name"
+        buttonText="Reactivate Event"
+        danger={false}
+      >
+        <p>
+          Reactivating this event will make it available for registrations
+          again.
+        </p>
+        <p>
+          The public ticket page will be accessible and new attendees can
+          register.
+        </p>
+        <p>
+          To reactivate this event, type its name "{event.name}" into the box
+          below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );

@@ -320,7 +320,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("exact text to confirm deletion"),
+        expect.stringContaining("to confirm deletion"),
         false,
       );
 
@@ -355,7 +355,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("exact text to confirm deletion"),
+        expect.stringContaining("to confirm deletion"),
         false,
       );
     });
@@ -393,7 +393,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         expect(response.status).toBe(302);
         expectFlash(
           response,
-          expect.stringContaining("exact text to confirm deletion"),
+          expect.stringContaining("to confirm deletion"),
           false,
         );
       } finally {
@@ -499,7 +499,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("exact text to confirm deletion"),
+        expect.stringContaining("to confirm deletion"),
         false,
       );
 
@@ -519,7 +519,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("exact text to confirm deletion"),
+        expect.stringContaining("to confirm deletion"),
         false,
       );
     });

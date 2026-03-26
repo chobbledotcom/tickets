@@ -36,7 +36,7 @@ import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
   requirePrivateKey,
-  verifyIdentifier,
+  verifyOrRedirect,
   withDecryptedAttendees,
   withEventAttendeesAuth,
 } from "#routes/admin/utils.ts";
@@ -155,36 +155,6 @@ const withAttendeeForm = (
 const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
 
-/** Verify confirm_name matches attendee name, returning error redirect on mismatch */
-const verifyAttendeeName = (
-  form: FormParams,
-  attendeeName: string,
-  redirectUrl: string,
-  errorMsg: string,
-): Response | null => {
-  const confirmName = form.getString("confirm_name");
-  if (!verifyIdentifier(attendeeName, confirmName)) {
-    return errorRedirect(redirectUrl, errorMsg);
-  }
-  return null;
-};
-
-/** Verify attendee name for an admin action, building URL and message from action path */
-const verifyNameForAction = (
-  form: FormParams,
-  data: AttendeeWithEvent,
-  eventId: number,
-  attendeeId: number,
-  action: string,
-  confirmLabel?: string,
-): Response | null =>
-  verifyAttendeeName(
-    form,
-    data.attendee.name,
-    `/admin/event/${eventId}/attendee/${attendeeId}/${action}`,
-    `Attendee name does not match. Please type the exact name to confirm${confirmLabel ? ` ${confirmLabel}` : ""}.`,
-  );
-
 /** Attendee form handler that receives typed IDs */
 type AttendeeFormAction = (
   data: AttendeeWithEvent,
@@ -205,28 +175,24 @@ const attendeeFormAction =
       handler(data, session, form, eventId, attendeeId),
     );
 
-/** Attendee action handler after name verification */
-type VerifiedAction = (
-  data: AttendeeWithEvent,
-  form: FormParams,
-  eventId: number,
-  attendeeId: number,
-) => Response | Promise<Response>;
-
-/** Create an attendee form handler that first verifies the attendee name */
-const verifiedAttendeeAction = (
+/** Attendee form handler that first verifies the attendee name */
+const verifiedAttendeeForm = (
   action: string,
-  confirmLabel: string | undefined,
-  handler: VerifiedAction,
+  actionLabel: string | undefined,
+  handler: (
+    data: AttendeeWithEvent,
+    form: FormParams,
+    eventId: number,
+    attendeeId: number,
+  ) => Response | Promise<Response>,
 ) =>
   attendeeFormAction((data, _session, form, eventId, attendeeId) => {
-    const error = verifyNameForAction(
+    const error = verifyOrRedirect(
       form,
-      data,
-      eventId,
-      attendeeId,
-      action,
-      confirmLabel,
+      data.attendee.name,
+      `/admin/event/${eventId}/attendee/${attendeeId}/${action}`,
+      "Attendee name",
+      actionLabel,
     );
     if (error) return error;
     return handler(data, form, eventId, attendeeId);
@@ -243,7 +209,7 @@ const handleAdminAttendeeDeleteGet = attendeeGetRoute(
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAttendeeDelete = verifiedAttendeeAction(
+const handleAttendeeDelete = verifiedAttendeeForm(
   "delete",
   "deletion",
   async (data, form, eventId, attendeeId) => {
@@ -350,7 +316,7 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
-const handleAttendeeRefund = verifiedAttendeeAction(
+const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   "refund",
   async (data, form, eventId, attendeeId) => {
@@ -411,16 +377,8 @@ const processRefundAll = async (
 ): Promise<Response> => {
   const refundAllUrl = `/admin/event/${event.id}/refund-all`;
   const refundable = getRefundable(attendees);
-  const nameConfirmed = verifyIdentifier(
-    event.name,
-    form.getString("confirm_name"),
-  );
-  if (!nameConfirmed) {
-    return errorRedirect(
-      refundAllUrl,
-      "Event name does not match. Please type the exact name to confirm.",
-    );
-  }
+  const error = verifyOrRedirect(form, event.name, refundAllUrl, "Event name");
+  if (error) return error;
 
   if (refundable.length === 0) {
     return errorRedirect(refundAllUrl, NO_REFUNDABLE_ERROR);
@@ -751,7 +709,7 @@ const handleAdminResendNotificationGet = attendeeGetRoute(
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
-const handleResendNotification = verifiedAttendeeAction(
+const handleResendNotification = verifiedAttendeeForm(
   "resend-notification",
   undefined,
   async (data, form, eventId, _attendeeId) => {

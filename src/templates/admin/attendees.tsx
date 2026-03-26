@@ -5,7 +5,7 @@
 import { map, pipe, unique } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
-import { CsrfForm } from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -23,16 +23,17 @@ export const adminDeleteAttendeePage = (
     <Layout title={`Delete Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will permanently remove this attendee
-            from the event and delete any associated payment records.
-          </p>
-        </aside>
-      </article>
-
-      <article>
+      <ConfirmForm
+        action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
+        name={attendee.name}
+        label="Attendee name"
+        buttonText="Delete Attendee"
+        returnUrl={returnUrl}
+      >
+        <p>
+          <strong>Warning:</strong> This will permanently remove this attendee
+          from the event and delete any associated payment records.
+        </p>
         <h2>Attendee Details</h2>
         <p>
           <strong>Name:</strong> {attendee.name}
@@ -47,32 +48,11 @@ export const adminDeleteAttendeePage = (
           <strong>Registered:</strong>{" "}
           {new Date(attendee.created).toLocaleString()}
         </p>
-      </article>
-
-      <p>
-        To delete this attendee, you must type their name "{attendee.name}" into
-        the box below:
-      </p>
-
-      <CsrfForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
-      >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_name">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_name"
-          name="confirm_name"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Delete Attendee
-        </button>
-      </CsrfForm>
+        <p>
+          To delete this attendee, type their name "{attendee.name}" into the
+          box below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -90,16 +70,17 @@ export const adminRefundAttendeePage = (
       <AdminNav session={session} active="/admin/" />
       {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will issue a full refund for this
-            attendee's payment. The attendee will remain registered.
-          </p>
-        </aside>
-      </article>
-
-      <article>
+      <ConfirmForm
+        action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
+        name={attendee.name}
+        label="Attendee name"
+        buttonText="Refund Attendee"
+        returnUrl={returnUrl}
+      >
+        <p>
+          <strong>Warning:</strong> This will issue a full refund for this
+          attendee's payment. The attendee will remain registered.
+        </p>
         <h2>Attendee Details</h2>
         <p>
           <strong>Name:</strong> {attendee.name}
@@ -119,32 +100,11 @@ export const adminRefundAttendeePage = (
           <strong>Registered:</strong>{" "}
           {new Date(attendee.created).toLocaleString()}
         </p>
-      </article>
-
-      <p>
-        To refund this attendee, you must type their name "{attendee.name}" into
-        the box below:
-      </p>
-
-      <CsrfForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
-      >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_name">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_name"
-          name="confirm_name"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Refund Attendee
-        </button>
-      </CsrfForm>
+        <p>
+          To refund this attendee, type their name "{attendee.name}" into the
+          box below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -162,35 +122,22 @@ export const adminRefundAllAttendeesPage = (
       <AdminNav session={session} active="/admin/" />
       {error && <div class="error">{error}</div>}
 
-      <article>
-        <aside>
-          <p>
-            <strong>Warning:</strong> This will issue a full refund for all{" "}
-            {refundableCount} attendee(s) with payments. Attendees will remain
-            registered.
-          </p>
-        </aside>
-      </article>
-
-      <p>
-        To refund all attendees, you must type the event name "{event.name}"
-        into the box below:
-      </p>
-
-      <CsrfForm action={`/admin/event/${event.id}/refund-all`}>
-        <label for="confirm_name">Event name</label>
-        <input
-          type="text"
-          id="confirm_name"
-          name="confirm_name"
-          placeholder={event.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Refund All Attendees
-        </button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/event/${event.id}/refund-all`}
+        name={event.name}
+        label="Event name"
+        buttonText="Refund All Attendees"
+      >
+        <p>
+          <strong>Warning:</strong> This will issue a full refund for all{" "}
+          {refundableCount} attendee(s) with payments. Attendees will remain
+          registered.
+        </p>
+        <p>
+          To refund all attendees, type the event name "{event.name}" into the
+          box below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -393,16 +340,18 @@ export const adminResendNotificationPage = (
     <Layout title={`Re-send Notification: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
 
-      <article>
-        <aside>
-          <p>
-            <strong>Note:</strong> This will re-send the registration
-            notification for this attendee.
-          </p>
-        </aside>
-      </article>
-
-      <article>
+      <ConfirmForm
+        action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}
+        name={attendee.name}
+        label="Attendee name"
+        buttonText="Re-send Notification"
+        danger={false}
+        returnUrl={returnUrl}
+      >
+        <p>
+          <strong>Note:</strong> This will re-send the registration notification
+          for this attendee.
+        </p>
         <h2>Attendee Details</h2>
         <p>
           <strong>Name:</strong> {attendee.name}
@@ -422,29 +371,10 @@ export const adminResendNotificationPage = (
           <strong>Registered:</strong>{" "}
           {new Date(attendee.created).toLocaleString()}
         </p>
-      </article>
-
-      <p>
-        To re-send the notification for this attendee, you must type their name
-        "{attendee.name}" into the box below:
-      </p>
-
-      <CsrfForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}
-      >
-        {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
-        )}
-        <label for="confirm_name">Attendee name</label>
-        <input
-          type="text"
-          id="confirm_name"
-          name="confirm_name"
-          placeholder={attendee.name}
-          autocomplete="off"
-          required
-        />
-        <button type="submit">Re-send Notification</button>
-      </CsrfForm>
+        <p>
+          To re-send the notification, type their name "{attendee.name}" into
+          the box below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );

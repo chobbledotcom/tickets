@@ -3,6 +3,7 @@
  */
 
 import {
+  ConfirmForm,
   CsrfForm,
   renderError,
   renderFields,
@@ -126,18 +127,19 @@ export const adminHolidayDeletePage = (
       <AdminNav session={session} active="/admin/holidays" />
       <h1>Delete Holiday</h1>
       <Raw html={renderError(error)} />
-      <p>
-        Are you sure you want to delete the holiday{" "}
-        <strong>{holiday.name}</strong> ({holiday.start_date} to{" "}
-        {holiday.end_date})?
-      </p>
-      <p>Type the holiday name to confirm:</p>
-      <CsrfForm action={`/admin/holiday/${holiday.id}/delete`}>
-        <label>
-          Holiday Name
-          <input type="text" name="confirm_identifier" required />
-        </label>
-        <button type="submit">Delete Holiday</button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/holiday/${holiday.id}/delete`}
+        name={holiday.name}
+        label="Holiday name"
+        buttonText="Delete Holiday"
+        danger={false}
+      >
+        <p>
+          Are you sure you want to delete the holiday{" "}
+          <strong>{holiday.name}</strong> ({holiday.start_date} to{" "}
+          {holiday.end_date})?
+        </p>
+        <p>Type the holiday name "{holiday.name}" to confirm:</p>
+      </ConfirmForm>
     </Layout>,
   );

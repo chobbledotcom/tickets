@@ -56,14 +56,13 @@ import type {
 import {
   csvResponse,
   getDateFilter,
-  verifyIdentifier,
+  verifyOrRedirect,
   withEventAttendeesAuth,
 } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   authenticatedGetById,
-  errorRedirect,
   formDataToParams,
   getSearchParam,
   htmlResponse,
@@ -433,12 +432,6 @@ const renderEventPage = async (
 };
 
 /** Redirect to action page with error flash */
-const eventErrorRedirect = (
-  eventId: number,
-  actionPath: string,
-  error: string,
-): Response => errorRedirect(`/admin/event/${eventId}/${actionPath}`, error);
-
 /** Handle GET /admin/event/:id/duplicate */
 const getEventAndGroups = async (
   eventId: number,
@@ -590,21 +583,22 @@ const handleEventWithConfirmation = (
   request: Request,
   id: number,
   actionPath: string,
-  errorMsg: string,
   action: (event: EventWithCount) => Promise<Response>,
+  actionLabel?: string,
 ): Promise<Response> =>
   withAuthForm(request, (_session, form) =>
     orNotFound(getEventWithCount(id), (event) => {
-      const confirmIdentifier = form.getString("confirm_identifier");
-      if (!verifyIdentifier(event.name, confirmIdentifier)) {
-        return eventErrorRedirect(id, actionPath, errorMsg);
-      }
+      const error = verifyOrRedirect(
+        form,
+        event.name,
+        `/admin/event/${id}/${actionPath}`,
+        "Event name",
+        actionLabel,
+      );
+      if (error) return error;
       return action(event);
     }),
   );
-
-const CONFIRM_NAME_MSG =
-  "Event name does not match. Please type the exact name to confirm.";
 
 /** Factory for event toggle handlers (deactivate/reactivate) */
 const eventToggleHandler =
@@ -614,17 +608,11 @@ const eventToggleHandler =
     verb: string,
   ): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
   (request, { id }) =>
-    handleEventWithConfirmation(
-      request,
-      id,
-      actionPath,
-      CONFIRM_NAME_MSG,
-      async (event) => {
-        await eventsTable.update(id, { active });
-        await logActivity(`Event '${event.name}' ${verb}`, id);
-        return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
-      },
-    );
+    handleEventWithConfirmation(request, id, actionPath, async (event) => {
+      await eventsTable.update(id, { active });
+      await logActivity(`Event '${event.name}' ${verb}`, id);
+      return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
+    });
 
 /** Handle POST /admin/event/:id/deactivate */
 const handleAdminEventDeactivatePost = eventToggleHandler(
@@ -670,8 +658,8 @@ const handleAdminEventDelete: TypedRouteHandler<
         request,
         id,
         "delete",
-        "Event name does not match. Please type the exact name to confirm deletion.",
         performDelete,
+        "deletion",
       )
     : withAuthForm(request, () =>
         orNotFound(getEventWithCount(id), performDelete),

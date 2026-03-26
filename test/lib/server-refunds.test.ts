@@ -69,7 +69,7 @@ const submitRefund = (
   handleRequest(
     mockFormRequest(
       refundUrl(event.id, attendee.id),
-      { confirm_name: "John Doe", csrf_token: csrfToken, ...overrides },
+      { confirm_identifier: "John Doe", csrf_token: csrfToken, ...overrides },
       cookie,
     ),
   );
@@ -82,7 +82,7 @@ const submitRefundAll = (
   handleRequest(
     mockFormRequest(
       refundAllUrl(event.id),
-      { confirm_name: event.name, csrf_token: csrfToken, ...overrides },
+      { confirm_identifier: event.name, csrf_token: csrfToken, ...overrides },
       cookie,
     ),
   );
@@ -232,7 +232,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(refundUrl(event.id, attendee.id), {
-          confirm_name: "John Doe",
+          confirm_identifier: "John Doe",
         }),
       );
       expectAdminRedirect(response);
@@ -246,7 +246,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("rejects mismatched attendee name", async () => {
       const ctx = await setupRefundTest("pi_test_789");
-      const response = await submitRefund(ctx, { confirm_name: "Wrong Name" });
+      const response = await submitRefund(ctx, {
+        confirm_identifier: "Wrong Name",
+      });
       expectRedirectWithFlash(
         `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/refund`,
         expect.stringContaining("does not match"),
@@ -265,7 +267,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           refundUrl(event.id, attendee.id),
-          { confirm_name: "John Doe", csrf_token: await testCsrfToken() },
+          { confirm_identifier: "John Doe", csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -312,7 +314,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
-    test("handles missing confirm_name field", async () => {
+    test("handles missing confirm_identifier field", async () => {
       const ctx = await setupRefundTest("pi_test_missing");
       const response = await handleRequest(
         mockFormRequest(
@@ -394,7 +396,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createPaidEvent();
       const response = await handleRequest(
-        mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name }),
+        mockFormRequest(refundAllUrl(event.id), {
+          confirm_identifier: event.name,
+        }),
       );
       expectAdminRedirect(response);
     });
@@ -403,7 +407,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           refundAllUrl(999),
-          { confirm_name: "Test", csrf_token: await testCsrfToken() },
+          { confirm_identifier: "Test", csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -413,7 +417,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("rejects mismatched event name", async () => {
       const ctx = await setupRefundTest("pi_refundall_1");
       const response = await submitRefundAll(ctx, {
-        confirm_name: "Wrong Event Name",
+        confirm_identifier: "Wrong Event Name",
       });
       expectRedirectWithFlash(
         `/admin/event/${ctx.event.id}/refund-all`,
@@ -422,7 +426,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       )(response);
     });
 
-    test("rejects when confirm_name is missing", async () => {
+    test("rejects when confirm_identifier is missing", async () => {
       const ctx = await setupRefundTest("pi_refundall_missing");
       const response = await handleRequest(
         mockFormRequest(
@@ -449,7 +453,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           refundAllUrl(event.id),
-          { confirm_name: event.name, csrf_token: await testCsrfToken() },
+          { confirm_identifier: event.name, csrf_token: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -488,7 +492,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         const response = await handleRequest(
           mockFormRequest(
             refundAllUrl(event.id),
-            { confirm_name: event.name, csrf_token: await testCsrfToken() },
+            {
+              confirm_identifier: event.name,
+              csrf_token: await testCsrfToken(),
+            },
             await testCookie(),
           ),
         );
@@ -514,7 +521,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         const response = await handleRequest(
           mockFormRequest(
             refundAllUrl(event.id),
-            { confirm_name: event.name, csrf_token: await testCsrfToken() },
+            {
+              confirm_identifier: event.name,
+              csrf_token: await testCsrfToken(),
+            },
             await testCookie(),
           ),
         );
@@ -541,7 +551,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         const response = await handleRequest(
           mockFormRequest(
             refundAllUrl(event.id),
-            { confirm_name: event.name, csrf_token: await testCsrfToken() },
+            {
+              confirm_identifier: event.name,
+              csrf_token: await testCsrfToken(),
+            },
             await testCookie(),
           ),
         );
@@ -575,7 +588,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           const response = await handleRequest(
             mockFormRequest(
               refundAllUrl(event.id),
-              { confirm_name: event.name, csrf_token: await testCsrfToken() },
+              {
+                confirm_identifier: event.name,
+                csrf_token: await testCsrfToken(),
+              },
               await testCookie(),
             ),
           );

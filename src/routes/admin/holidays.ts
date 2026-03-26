@@ -55,8 +55,6 @@ const crud = createOwnerCrudHandlers({
   renderEdit: adminHolidayEditPage,
   renderDelete: adminHolidayDeletePage,
   getName: (h) => h.name,
-  deleteConfirmError:
-    "Holiday name does not match. Please type the exact name to confirm deletion.",
 });
 
 /** Holiday routes */

@@ -8,11 +8,13 @@ import {
   getAttendeeAnswersBatch,
   getQuestionsWithEventIds,
 } from "#lib/db/questions.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import type { validateForm } from "#lib/forms.tsx";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
   type AuthSession,
   encodeBody,
+  errorRedirect,
   getPrivateKey,
   notFoundResponse,
   requireSessionOr,
@@ -35,6 +37,29 @@ export type AuthValidationResult =
 /** Verify identifier matches for confirmation (case-insensitive, trimmed) */
 export const verifyIdentifier = (expected: string, provided: string): boolean =>
   expected.trim().toLowerCase() === provided.trim().toLowerCase();
+
+/**
+ * Verify a form confirmation field matches an expected value, or return an error redirect.
+ * One function to handle all confirmation flows consistently:
+ *   const error = verifyOrRedirect(form, event.name, "/admin/event/1/delete", "Event name", "deletion");
+ *   if (error) return error;
+ */
+export const verifyOrRedirect = (
+  form: FormParams,
+  expected: string,
+  redirectUrl: string,
+  label = "Name",
+  action?: string,
+): Response | null => {
+  if (!verifyIdentifier(expected, form.getString("confirm_identifier"))) {
+    const suffix = action ? ` ${action}` : "";
+    return errorRedirect(
+      redirectUrl,
+      `${label} does not match. Please type the exact ${label.toLowerCase()} to confirm${suffix}.`,
+    );
+  }
+  return null;
+};
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
 export const getDateFilter = (request: Request): string | null => {

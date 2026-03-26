@@ -152,7 +152,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
-            confirm_name: "John Doe",
+            confirm_identifier: "John Doe",
           },
         ),
       );
@@ -162,7 +162,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("returns 404 for non-existent event", async () => {
       const { response } = await adminFormPost(
         "/admin/event/999/attendee/1/delete",
-        { confirm_name: "John Doe" },
+        { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
@@ -175,28 +175,30 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         "/admin/event/1/attendee/999/delete",
-        { confirm_name: "John Doe" },
+        { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
 
     test("rejects invalid CSRF token", async () => {
       const { response } = await deleteAction({
-        confirm_name: "John Doe",
+        confirm_identifier: "John Doe",
         csrf_token: "invalid-token",
       })();
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects mismatched attendee name", async () => {
-      const { response } = await deleteAction({ confirm_name: "Wrong Name" })();
+      const { response } = await deleteAction({
+        confirm_identifier: "Wrong Name",
+      })();
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("does not match"), false);
     });
 
     test("preserves return_url on mismatched attendee name", async () => {
       const { response } = await deleteAction({
-        confirm_name: "Wrong Name",
+        confirm_identifier: "Wrong Name",
         return_url: "/admin/calendar#attendees",
       })();
       expect(response.status).toBe(302);
@@ -205,7 +207,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("deletes attendee with matching name (case insensitive)", async () => {
       const { response, event, attendee } = await deleteAction({
-        confirm_name: "john doe",
+        confirm_identifier: "john doe",
       })();
       expectRedirectWithFlash(
         `/admin/event/${event.id}`,
@@ -220,7 +222,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("deletes attendee with whitespace-trimmed name", async () => {
       const { response } = await deleteAction({
-        confirm_name: "  John Doe  ",
+        confirm_identifier: "  John Doe  ",
       })();
       expectRedirectWithFlash("/admin/event/1", "Attendee deleted")(response);
     });
@@ -240,7 +242,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const formBody = new URLSearchParams({
-        confirm_name: "John Doe",
+        confirm_identifier: "John Doe",
         csrf_token: await testCsrfToken(),
       }).toString();
 
@@ -267,9 +269,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (confirm_name edge case)", () => {
-    test("handles missing confirm_name field (falls back to empty string)", async () => {
-      // Submit without confirm_name field at all
+  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (confirm_identifier edge case)", () => {
+    test("handles missing confirm_identifier field (falls back to empty string)", async () => {
+      // Submit without confirm_identifier field at all
       const { response } = await deleteAction({})();
       // Empty string won't match "John Doe", so it redirects with error
       expect(response.status).toBe(302);
@@ -313,11 +315,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       // POST route exercises attendeeDeleteHandler which calls parseAttendeeIds.
-      // The custom handler requires confirm_name to match the attendee name.
+      // The custom handler requires confirm_identifier to match the attendee name.
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          { csrf_token: csrfToken, confirm_name: "Test User" },
+          { csrf_token: csrfToken, confirm_identifier: "Test User" },
           cookie,
         ),
       );
@@ -1880,7 +1882,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`,
           {
-            confirm_name: "John Doe",
+            confirm_identifier: "John Doe",
           },
         ),
       );
@@ -1890,7 +1892,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("returns 404 for non-existent event", async () => {
       const { response } = await adminFormPost(
         "/admin/event/999/attendee/1/resend-notification",
-        { confirm_name: "John Doe" },
+        { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
@@ -1900,14 +1902,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         "/admin/event/1/attendee/999/resend-notification",
-        { confirm_name: "John Doe" },
+        { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
 
     test("rejects invalid CSRF token", async () => {
       const { response } = await resendNotificationAction({
-        confirm_name: "John Doe",
+        confirm_identifier: "John Doe",
         csrf_token: "invalid-token",
       })();
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
@@ -1915,7 +1917,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("rejects mismatched attendee name", async () => {
       const { response } = await resendNotificationAction({
-        confirm_name: "Wrong Name",
+        confirm_identifier: "Wrong Name",
       })();
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("does not match"), false);
@@ -1928,7 +1930,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       try {
         const { response, event } = await resendNotificationAction({
-          confirm_name: "John Doe",
+          confirm_identifier: "John Doe",
         })({
           webhookUrl: "https://example.com/webhook",
         });
@@ -1952,7 +1954,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       try {
         const { response, event } = await resendNotificationAction({
-          confirm_name: "John Doe",
+          confirm_identifier: "John Doe",
         })({
           webhookUrl: "https://example.com/webhook",
         });

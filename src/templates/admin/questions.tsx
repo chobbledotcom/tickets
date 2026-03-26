@@ -4,7 +4,7 @@
 
 import { map } from "#fp";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
-import { CsrfForm, renderError } from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, renderError } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
@@ -160,34 +160,21 @@ export const adminQuestionDeletePage = (
       <h1>Delete Question</h1>
       <Raw html={renderError(error)} />
 
-      <article>
-        <aside>
-          <p>
-            This will permanently delete the question, all its answers, and all
-            attendee responses.
-          </p>
-        </aside>
-      </article>
-
-      <p>
-        To delete this question, type its text "{question.text}" into the box
-        below:
-      </p>
-
-      <CsrfForm action={`/admin/questions/${question.id}/delete`}>
-        <label for="confirm_identifier">Question text</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={question.text}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Delete Question
-        </button>
-      </CsrfForm>
+      <ConfirmForm
+        action={`/admin/questions/${question.id}/delete`}
+        name={question.text}
+        label="Question text"
+        buttonText="Delete Question"
+      >
+        <p>
+          This will permanently delete the question, all its answers, and all
+          attendee responses.
+        </p>
+        <p>
+          To delete this question, type its text "{question.text}" into the box
+          below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 
@@ -209,35 +196,21 @@ export const adminAnswerDeletePage = (
       <h1>Delete Answer</h1>
       <Raw html={renderError(error)} />
 
-      <article>
-        <aside>
-          <p>
-            This will permanently delete the answer "{answer.text}" from the
-            question "{question.text}" and remove all attendee responses for it.
-          </p>
-        </aside>
-      </article>
-
-      <p>
-        To delete this answer, type its text "{answer.text}" into the box below:
-      </p>
-
-      <CsrfForm
+      <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
+        name={answer.text}
+        label="Answer text"
+        buttonText="Delete Answer"
       >
-        <label for="confirm_identifier">Answer text</label>
-        <input
-          type="text"
-          id="confirm_identifier"
-          name="confirm_identifier"
-          placeholder={answer.text}
-          autocomplete="off"
-          required
-        />
-        <button type="submit" class="danger">
-          Delete Answer
-        </button>
-      </CsrfForm>
+        <p>
+          This will permanently delete the answer "{answer.text}" from the
+          question "{question.text}" and remove all attendee responses for it.
+        </p>
+        <p>
+          To delete this answer, type its text "{answer.text}" into the box
+          below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 
