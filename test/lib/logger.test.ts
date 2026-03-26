@@ -214,6 +214,16 @@ describe("logger", () => {
 
   describe("logError", () => {
     const spyRef = setupErrorSpy();
+    let restoreEnv: (() => void) | undefined;
+
+    beforeEach(() => {
+      // Ensure NTFY_URL is unset so fire-and-forget fetches don't leak
+      restoreEnv = setTestEnv({ NTFY_URL: undefined });
+    });
+
+    afterEach(() => {
+      restoreEnv?.();
+    });
 
     test("logs error code only", () => {
       const before = spyRef.calls.length;
