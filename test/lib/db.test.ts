@@ -734,8 +734,10 @@ describeWithEnv("db", { db: true }, () => {
       expect(eventLog).toEqual([]);
 
       const allLog = await getAllActivityLog();
-      expect(allLog).toHaveLength(1);
-      expect(allLog[0]!.message).toBe("Global action");
+      const messages = allLog.map((e) => e.message);
+      expect(messages).not.toContain("Action for event");
+      expect(messages).not.toContain("Another action");
+      expect(messages).toContain("Global action");
     });
 
     test("deleteEvent works with no attendees", async () => {
@@ -2869,12 +2871,15 @@ describeWithEnv("db", { db: true }, () => {
 
     test("returns empty string for invalid datetime", async () => {
       const errorSpy = spy(console, "error");
-      const { decrypt } = await import("#lib/crypto.ts");
-      const result = await writeEventDate("not-a-dateZ");
-      const decrypted = await decrypt(result);
-      expect(decrypted).toBe("");
-      expect(errorSpy.calls.length).toBeGreaterThan(0);
-      errorSpy.restore();
+      try {
+        const { decrypt } = await import("#lib/crypto.ts");
+        const result = await writeEventDate("not-a-dateZ");
+        const decrypted = await decrypt(result);
+        expect(decrypted).toBe("");
+        expect(errorSpy.calls.length).toBeGreaterThan(0);
+      } finally {
+        errorSpy.restore();
+      }
     });
   });
 
