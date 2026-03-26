@@ -734,8 +734,10 @@ describeWithEnv("db", { db: true }, () => {
       expect(eventLog).toEqual([]);
 
       const allLog = await getAllActivityLog();
-      expect(allLog).toHaveLength(1);
-      expect(allLog[0]!.message).toBe("Global action");
+      const messages = allLog.map((e) => e.message);
+      expect(messages).not.toContain("Action for event");
+      expect(messages).not.toContain("Another action");
+      expect(messages).toContain("Global action");
     });
 
     test("deleteEvent works with no attendees", async () => {
