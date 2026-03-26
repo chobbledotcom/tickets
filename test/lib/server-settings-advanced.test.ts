@@ -17,6 +17,7 @@ import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
+  followRedirectWithFlash,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
@@ -218,7 +219,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         email_provider: "invalid-provider",
       });
 
-      await expectHtmlResponse(response, 400, "Invalid email provider");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid email provider"),
+        false,
+      );
     });
 
     test("rejects invalid from-address format", async () => {
@@ -228,7 +234,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         email_from_address: "not-an-email",
       });
 
-      await expectHtmlResponse(response, 400, "Invalid from-address format");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid from-address format"),
+        false,
+      );
     });
 
     test("disables email when provider field is missing", async () => {
@@ -277,7 +288,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     test("shows error when email not configured", async () => {
       const { response } = await adminFormPost("/admin/settings/email/test");
 
-      await expectHtmlResponse(response, 400, "Email not configured");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Email not configured"),
+        false,
+      );
     });
 
     test("shows error when no business email set", async () => {
@@ -289,7 +305,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
       const { response } = await adminFormPost("/admin/settings/email/test");
 
-      await expectHtmlResponse(response, 400, "No business email set");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("No business email set"),
+        false,
+      );
     });
 
     test("sends test email and redirects with success including status code", async () => {
@@ -342,9 +363,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             "/admin/settings/email/test",
           );
 
-          const html = await response.text();
-          expect(response.status).toBe(502);
-          expect(html).toContain("Test email failed (status 403)");
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("Test email failed (status 403)"),
+            false,
+          );
         },
       );
     });
@@ -371,9 +395,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             "/admin/settings/email/test",
           );
 
-          const html = await response.text();
-          expect(response.status).toBe(502);
-          expect(html).toContain("Test email failed (no response)");
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("Test email failed (no response)"),
+            false,
+          );
         },
       );
     });
@@ -426,10 +453,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         "/admin/settings/reset-database",
         { confirm_phrase: "wrong phrase" },
       );
-      await expectHtmlResponse(
+      expect(response.status).toBe(302);
+      expectFlash(
         response,
-        400,
-        "Confirmation phrase does not match",
+        expect.stringContaining("Confirmation phrase does not match"),
+        false,
       );
     });
 
@@ -479,10 +507,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         "/admin/settings/reset-database",
         { confirm_phrase: "" },
       );
-      await expectHtmlResponse(
+      expect(response.status).toBe(302);
+      expectFlash(
         response,
-        400,
-        "Confirmation phrase does not match",
+        expect.stringContaining("Confirmation phrase does not match"),
+        false,
       );
     });
   });
@@ -541,6 +570,29 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         );
       });
 
+      test("shows registered subdomain and custom domain text", async () => {
+        setBunnyDnsEnv();
+        const cookie = await testCookie();
+        const token = cookie.split("=").slice(1).join("=").split(";")[0];
+        await settings.update.bunnySubdomain("myevent.tickets.example.com");
+        const response = await handleRequest(
+          mockRequestWithHost(
+            "/admin/settings-advanced",
+            "myevent.tickets.example.com",
+            {
+              headers: {
+                cookie: `__Host-session=${token}`,
+              },
+            },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("myevent.tickets.example.com");
+        expect(html).toContain("permanent and cannot be changed");
+        expect(html).toContain("can be active at the same time");
+      });
+
       describe("POST /admin/settings/host-subdomain", () => {
         test("rejects when DNS is not configured", async () => {
           Deno.env.delete("BUNNY_API_KEY");
@@ -554,7 +606,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(400);
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("Not configured"),
+            false,
+          );
         });
 
         test("rejects when subdomain already set", async () => {
@@ -577,7 +634,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               },
             ),
           );
-          expect(response.status).toBe(400);
+          expect(response.status).toBe(302);
+          expectFlash(response, expect.stringContaining("already"), false);
         });
 
         test("rejects invalid subdomain format", async () => {
@@ -592,7 +650,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expect(response.status).toBe(400);
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("Invalid subdomain"),
+            false,
+          );
         });
 
         test("previews subdomain availability without save", async () => {
@@ -619,8 +682,43 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               );
               expect(response.status).toBe(302);
               const location = response.headers.get("location")!;
-              expect(location).toContain("subdomain=myevent");
               expect(location).toContain("form=settings-host-subdomain");
+              expectFlash(response, expect.stringContaining("is available"));
+            },
+          );
+        });
+
+        test("renders subdomain preview on page after availability check", async () => {
+          setBunnyDnsEnv();
+          await withMockBunnyCdnApi(
+            {
+              checkSubdomainAvailable: () =>
+                Promise.resolve({
+                  ok: true as const,
+                  available: true,
+                  fullDomain: "myevent.tickets.example.com",
+                }),
+            },
+            async () => {
+              const cookie = await testCookie();
+              const postResponse = await handleRequest(
+                mockFormRequest(
+                  "/admin/settings/host-subdomain",
+                  {
+                    subdomain: "myevent",
+                    csrf_token: await testCsrfToken(),
+                  },
+                  cookie,
+                ),
+              );
+              const page = await followRedirectWithFlash(
+                postResponse,
+                handleRequest,
+                cookie,
+              );
+              const html = await page.text();
+              expect(html).toContain("myevent.tickets.example.com");
+              expect(html).toContain("is available");
             },
           );
         });
@@ -646,7 +744,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   await testCookie(),
                 ),
               );
-              expect(response.status).toBe(502);
+              expect(response.status).toBe(302);
+              expectFlash(
+                response,
+                expect.stringContaining("DNS zone error"),
+                false,
+              );
             },
           );
         });
@@ -673,7 +776,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   await testCookie(),
                 ),
               );
-              expect(response.status).toBe(409);
+              expect(response.status).toBe(302);
+              expectFlash(
+                response,
+                expect.stringContaining("already taken"),
+                false,
+              );
             },
           );
         });
@@ -738,7 +846,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   await testCookie(),
                 ),
               );
-              expect(response.status).toBe(502);
+              expect(response.status).toBe(302);
+              expectFlash(
+                response,
+                expect.stringContaining("DNS error"),
+                false,
+              );
             },
           );
         });
@@ -758,9 +871,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 await testCookie(),
               ),
             );
-            expect(response.status).toBe(409);
-            const html = await response.text();
-            expect(html).toContain("Another task is already in progress");
+            expectRedirectWithFlash(
+              "/admin/settings-advanced?form=settings-host-subdomain#settings-host-subdomain",
+              expect.stringContaining("Another task is already in progress"),
+              false,
+            )(response);
           } finally {
             await settings.update.currentTask("");
           }
@@ -887,7 +1002,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             "/admin/settings/custom-domain",
             { custom_domain: "tickets.example.com" },
           );
-          expect(response.status).toBe(400);
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("Bunny CDN is not configured"),
+            false,
+          );
         });
 
         test("saves and validates domain when validation succeeds", async () => {
@@ -993,7 +1113,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             "/admin/settings/custom-domain",
             { custom_domain: "not a domain!" },
           );
-          await expectHtmlResponse(response, 400, "Invalid domain format");
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("Invalid domain format"),
+            false,
+          );
         });
 
         test("logs activity when domain is set", async () => {
@@ -1041,7 +1166,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           const { response } = await adminFormPost(
             "/admin/settings/custom-domain/validate",
           );
-          expect(response.status).toBe(400);
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("Bunny CDN is not configured"),
+            false,
+          );
         });
 
         test("rejects when no custom domain is saved", async () => {
@@ -1049,7 +1179,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           const { response } = await adminFormPost(
             "/admin/settings/custom-domain/validate",
           );
-          expect(response.status).toBe(400);
+          expect(response.status).toBe(302);
+          expectFlash(
+            response,
+            expect.stringContaining("No custom domain"),
+            false,
+          );
         });
 
         test("calls Bunny API and saves timestamp on success", async () => {
@@ -1087,7 +1222,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             const { response } = await adminFormPost(
               "/admin/settings/custom-domain/validate",
             );
-            await expectHtmlResponse(response, 502, "Add hostname failed");
+            expect(response.status).toBe(302);
+            expectFlash(
+              response,
+              expect.stringContaining("Add hostname failed"),
+              false,
+            );
           } finally {
             bunnyCdnApi.validateCustomDomain = original;
           }
@@ -1120,9 +1260,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               "/admin/settings/custom-domain",
               { custom_domain: "tickets.example.com" },
             );
-            expect(response.status).toBe(409);
-            const html = await response.text();
-            expect(html).toContain("Another task is already in progress");
+            expectRedirectWithFlash(
+              "/admin/settings-advanced?form=settings-custom-domain#settings-custom-domain",
+              expect.stringContaining("Another task is already in progress"),
+              false,
+            )(response);
           } finally {
             await settings.update.currentTask("");
           }
@@ -1136,9 +1278,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             const { response } = await adminFormPost(
               "/admin/settings/custom-domain/validate",
             );
-            expect(response.status).toBe(409);
-            const html = await response.text();
-            expect(html).toContain("Another task is already in progress");
+            expectRedirectWithFlash(
+              "/admin/settings-advanced?form=settings-custom-domain-validate#settings-custom-domain-validate",
+              expect.stringContaining("Another task is already in progress"),
+              false,
+            )(response);
           } finally {
             await settings.update.currentTask("");
           }

@@ -53,7 +53,9 @@ import {
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
+  applyFlash,
   checkoutResponse,
+  errorRedirect,
   formatCreationError,
   getBaseUrl,
   htmlResponse,
@@ -147,12 +149,12 @@ export const handlePublicContact = (): Response =>
 const renderTicketPage = (
   event: EventWithCount,
   ctx: TicketContext,
-  opts: { isClosed?: boolean; baseUrl?: string; error?: string },
+  opts: { isClosed: boolean; baseUrl?: string; error?: string },
 ) =>
   ticketPage(
     event,
     opts.error,
-    opts.isClosed ?? false,
+    opts.isClosed,
     ctx.dates,
     ctx.terms,
     opts.baseUrl,
@@ -164,22 +166,16 @@ const ticketResponseWithToken =
   (
     event: EventWithCount,
     ctx: TicketContext,
-    opts: { isClosed?: boolean; baseUrl?: string } = {},
+    opts: { isClosed: boolean; baseUrl?: string },
   ) =>
   (error?: string, status = 200) =>
     htmlResponse(renderTicketPage(event, ctx, { ...opts, error }), status);
 
-/** Curried error response: render(error) → (error, status) → Response */
-const errorResponse =
-  (render: (error: string) => string) =>
-  (error: string, status = 400) =>
-    htmlResponse(render(error), status);
-
-/** Ticket error response - for validation errors after CSRF passed */
+/** Ticket error redirect - for validation errors after CSRF passed */
 const ticketError =
-  (event: EventWithCount, ctx: TicketContext) =>
-  (error: string, status = 400) =>
-    htmlResponse(renderTicketPage(event, ctx, { error }), status);
+  (event: EventWithCount, _ctx: TicketContext) =>
+  (error: string, _status = 400) =>
+    errorRedirect(`/ticket/${event.slug}`, error);
 
 /** Compute available dates for a daily event, or undefined for standard */
 const computeDatesForEvent = async (
@@ -202,6 +198,7 @@ const handleSingleTicketGet = (
 ): Promise<Response> =>
   withActiveEventBySlug(slug, async (event) => {
     const closed = isRegistrationClosed(event);
+    applyFlash(request);
     await signCsrfToken();
     const [dates, terms, questions] = await Promise.all([
       computeDatesForEvent(event),
@@ -431,7 +428,7 @@ const processTicketReservation = async (
 
   return withCsrfForm(
     request,
-    (message, status) => ticketResponseWithToken(event, ctx)(message, status),
+    (message) => errorRedirect(`/ticket/${event.slug}`, message),
     async (form) => {
       if (isRegistrationClosed(event)) {
         return showError(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
@@ -543,9 +540,11 @@ type MultiTicketCtx = {
   questionEventMap: QuestionEventMap;
 };
 
-/** Multi-ticket form error response (after CSRF passed) */
-const multiTicketFormErrorResponse = (ctx: MultiTicketCtx) =>
-  errorResponse((error) => renderMultiTicketPage(ctx, error));
+/** Multi-ticket form error redirect (after CSRF passed) */
+const multiTicketFormErrorResponse = (ctx: MultiTicketCtx) => {
+  const url = `/ticket/${ctx.slugs.join("+")}`;
+  return (error: string, _status = 400) => errorRedirect(url, error);
+};
 
 /** Possibly-async response handler */
 type AsyncHandler<T extends unknown[]> = (
@@ -617,7 +616,7 @@ const submitMultiTicket = (
 ): Promise<Response> =>
   withCsrfForm(
     request,
-    (message, status) => multiTicketResponse(ctx)(message, status),
+    (message) => errorRedirect(`/ticket/${ctx.slugs.join("+")}`, message),
     async (form) => {
       const { dates, terms } = ctx;
 
@@ -802,6 +801,7 @@ const handleMultiTicket = async (
     questions,
     questionEventMap,
   };
+  if (request.method === "GET") applyFlash(request);
   const response =
     request.method === "GET"
       ? multiTicketResponse(ctx)()
@@ -903,7 +903,7 @@ const handleMultiPaymentFlow = (
     `multi-ticket items=${intent.items.length}`,
     request,
     (provider, baseUrl) => provider.createMultiCheckoutSession(intent, baseUrl),
-    (msg, status) => multiTicketResponse(ctx)(msg, status),
+    (msg) => errorRedirect(`/ticket/${ctx.slugs.join("+")}`, msg),
   );
 
 /** Determine merged fields setting for multi-ticket events */

@@ -11,6 +11,7 @@ import {
   deleteTestHoliday,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
@@ -190,7 +191,12 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         start_date: "2026-12-25",
         end_date: "2026-12-25",
       });
-      await expectHtmlResponse(response, 400, "Holiday Name is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Holiday Name is required"),
+        false,
+      );
     });
 
     test("rejects missing start_date", async () => {
@@ -199,7 +205,12 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         start_date: "",
         end_date: "2026-12-25",
       });
-      await expectHtmlResponse(response, 400, "Start Date is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Start Date is required"),
+        false,
+      );
     });
 
     test("rejects missing end_date", async () => {
@@ -208,7 +219,12 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         start_date: "2026-12-25",
         end_date: "",
       });
-      await expectHtmlResponse(response, 400, "End Date is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("End Date is required"),
+        false,
+      );
     });
 
     test("rejects invalid date format", async () => {
@@ -217,7 +233,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         start_date: "not-a-date",
         end_date: "2026-12-25",
       });
-      await expectHtmlResponse(response, 400, "valid date");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("valid date"), false);
     });
 
     test("rejects end_date before start_date", async () => {
@@ -226,10 +243,11 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         start_date: "2026-12-26",
         end_date: "2026-12-25",
       });
-      await expectHtmlResponse(
+      expect(response.status).toBe(302);
+      expectFlash(
         response,
-        400,
-        "End date must be on or after the start date",
+        expect.stringContaining("End date must be on or after the start date"),
+        false,
       );
     });
   });
@@ -298,10 +316,11 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
           end_date: "2026-12-25",
         },
       );
-      await expectHtmlResponse(
+      expect(response.status).toBe(302);
+      expectFlash(
         response,
-        400,
-        "End date must be on or after the start date",
+        expect.stringContaining("End date must be on or after the start date"),
+        false,
       );
     });
 
@@ -324,7 +343,12 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
           end_date: "2026-12-25",
         },
       );
-      await expectHtmlResponse(response, 400, "Holiday Name is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Holiday Name is required"),
+        false,
+      );
     });
   });
 
@@ -386,7 +410,12 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
           confirm_identifier: "Wrong Name",
         },
       );
-      await expectHtmlResponse(response, 400, "Holiday name does not match");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Holiday name does not match"),
+        false,
+      );
 
       // Verify holiday still exists
       const { holidaysTable } = await import("#lib/db/holidays.ts");

@@ -16,7 +16,12 @@ import { sortEvents } from "#lib/sort-events.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
+import {
+  applyFlash,
+  htmlResponse,
+  requireSessionOr,
+  withSession,
+} from "#routes/utils.ts";
 /* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
@@ -24,11 +29,12 @@ import { adminLoginPage } from "#templates/admin/login.tsx";
 
 /** Login page response helper */
 export const loginResponse = async (
-  error?: string,
+  request: Request,
   status = 200,
 ): Promise<Response> => {
+  const flash = applyFlash(request);
   await signCsrfToken();
-  return htmlResponse(adminLoginPage(error), status);
+  return htmlResponse(adminLoginPage(flash.error), status);
 };
 
 /** Maximum number of newest attendees to show on dashboard */
@@ -62,7 +68,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
         ),
       );
     },
-    () => loginResponse(),
+    () => loginResponse(request),
   );
 
 /** Maximum number of log entries to display */

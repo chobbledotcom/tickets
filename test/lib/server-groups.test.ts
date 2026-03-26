@@ -225,7 +225,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: g1.slug,
         terms_and_conditions: "",
       });
-      await expectHtmlResponse(response, 400, "Slug is already in use");
+      expectRedirectWithFlash(
+        `/admin/groups/${g2.id}/edit`,
+        expect.stringContaining("Slug is already in use"),
+        false,
+      )(response);
     });
 
     test("returns 404 when editing a non-existent group", async () => {
@@ -294,7 +298,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
           confirm_identifier: "Wrong Name",
         },
       );
-      await expectHtmlResponse(response, 400, "Group name does not match");
+      expectRedirectWithFlash(
+        `/admin/groups/${group.id}/delete`,
+        expect.stringContaining("Group name does not match"),
+        false,
+      )(response);
     });
 
     test("deletes group, resets events to group_id=0, and does not delete events", async () => {
@@ -770,12 +778,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
+      expectRedirectWithFlash(
+        `/admin/group/${group.id}`,
         "This group already contains standard events — all events in a group must be the same type",
         false,
-      );
+      )(response);
 
       // Verify event was NOT assigned
       const { getEvent } = await import("#lib/db/events.ts");

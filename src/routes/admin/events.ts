@@ -63,16 +63,17 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   authenticatedGetById,
+  errorRedirect,
   formDataToParams,
   getSearchParam,
   htmlResponse,
+  type IdRouteHandler,
   notFoundResponse,
   orNotFound,
   redirect,
   requireSessionOr,
   withAuthForm,
   withAuthMultipartForm,
-  withEventPage,
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
@@ -431,17 +432,12 @@ const renderEventPage = async (
   return response;
 };
 
-/** Render event error page */
-const eventErrorPage = (
-  event: EventWithCount,
-  renderPage: (
-    event: EventWithCount,
-    session: AdminSession,
-    error?: string,
-  ) => string,
-  session: AdminSession,
+/** Redirect to action page with error flash */
+const eventErrorRedirect = (
+  eventId: number,
+  actionPath: string,
   error: string,
-): Response => htmlResponse(renderPage(event, session, error), 400);
+): Response => errorRedirect(`/admin/event/${eventId}/${actionPath}`, error);
 
 /** Handle GET /admin/event/:id/duplicate */
 const getEventAndGroups = async (
@@ -566,29 +562,42 @@ const handleAdminEventExport: TypedRouteHandler<
     return csvResponse(csv, filename);
   });
 
-/** Handle GET /admin/event/:id/deactivate (show confirmation page) */
-const handleAdminEventDeactivateGet = withEventPage(adminDeactivateEventPage);
-
-/** Handle GET /admin/event/:id/reactivate (show confirmation page) */
-const handleAdminEventReactivateGet = withEventPage(adminReactivateEventPage);
-
-/** Handle POST for event action with confirmation */
-const handleEventWithConfirmation = (
-  request: Request,
-  id: number,
+/** Event page GET handler that reads flash error */
+const withEventPageFlash = (
   renderPage: (
     event: EventWithCount,
     session: AdminSession,
     error?: string,
   ) => string,
+): IdRouteHandler =>
+  authenticatedGetById(null)(getEventWithCount, (event, session) => {
+    const flash = getFlash();
+    return htmlResponse(renderPage(event, session, flash.error));
+  });
+
+/** Handle GET /admin/event/:id/deactivate (show confirmation page) */
+const handleAdminEventDeactivateGet = withEventPageFlash(
+  adminDeactivateEventPage,
+);
+
+/** Handle GET /admin/event/:id/reactivate (show confirmation page) */
+const handleAdminEventReactivateGet = withEventPageFlash(
+  adminReactivateEventPage,
+);
+
+/** Handle POST for event action with confirmation */
+const handleEventWithConfirmation = (
+  request: Request,
+  id: number,
+  actionPath: string,
   errorMsg: string,
   action: (event: EventWithCount) => Promise<Response>,
 ): Promise<Response> =>
-  withAuthForm(request, (session, form) =>
+  withAuthForm(request, (_session, form) =>
     orNotFound(getEventWithCount(id), (event) => {
       const confirmIdentifier = form.getString("confirm_identifier");
       if (!verifyIdentifier(event.name, confirmIdentifier)) {
-        return eventErrorPage(event, renderPage, session, errorMsg);
+        return eventErrorRedirect(id, actionPath, errorMsg);
       }
       return action(event);
     }),
@@ -600,7 +609,7 @@ const CONFIRM_NAME_MSG =
 /** Factory for event toggle handlers (deactivate/reactivate) */
 const eventToggleHandler =
   (
-    renderPage: typeof adminDeactivateEventPage,
+    actionPath: string,
     active: boolean,
     verb: string,
   ): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
@@ -608,7 +617,7 @@ const eventToggleHandler =
     handleEventWithConfirmation(
       request,
       id,
-      renderPage,
+      actionPath,
       CONFIRM_NAME_MSG,
       async (event) => {
         await eventsTable.update(id, { active });
@@ -619,20 +628,20 @@ const eventToggleHandler =
 
 /** Handle POST /admin/event/:id/deactivate */
 const handleAdminEventDeactivatePost = eventToggleHandler(
-  adminDeactivateEventPage,
+  "deactivate",
   false,
   "deactivated",
 );
 
 /** Handle POST /admin/event/:id/reactivate */
 const handleAdminEventReactivatePost = eventToggleHandler(
-  adminReactivateEventPage,
+  "reactivate",
   true,
   "reactivated",
 );
 
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
-const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
+const handleAdminEventDeleteGet = withEventPageFlash(adminDeleteEventPage);
 
 /**
  * Handle GET /admin/event/:id/log
@@ -660,7 +669,7 @@ const handleAdminEventDelete: TypedRouteHandler<
     ? handleEventWithConfirmation(
         request,
         id,
-        adminDeleteEventPage,
+        "delete",
         "Event name does not match. Please type the exact name to confirm deletion.",
         performDelete,
       )

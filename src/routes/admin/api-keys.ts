@@ -13,10 +13,11 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
-import { getFlash } from "#lib/flash-context.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
+  applyFlash,
+  errorRedirect,
   htmlResponse,
   orNotFound,
   redirect,
@@ -35,7 +36,7 @@ import {
 const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const keys = await getApiKeysForUser(session.userId);
-    const flash = getFlash();
+    const flash = applyFlash(request);
     // The API key is embedded in the flash success message after a newline
     const newLineIdx = flash.success?.indexOf("\n") ?? -1;
     const success =
@@ -97,12 +98,13 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
 const handleApiKeyDeleteGet: TypedRouteHandler<
   "GET /admin/api-keys/:apiKeyId/delete"
 > = (request, { apiKeyId }) =>
-  requireOwnerOr(request, (session) =>
-    orNotFound(
+  requireOwnerOr(request, (session) => {
+    applyFlash(request);
+    return orNotFound(
       getApiKeyForUser(apiKeyId, session.userId).catch(() => null),
       (apiKey) => htmlResponse(adminDeleteApiKeyPage(apiKey, session)),
-    ),
-  );
+    );
+  });
 
 /**
  * Handle POST /admin/api-keys/:apiKeyId/delete
@@ -120,13 +122,9 @@ const handleApiKeyDelete: TypedRouteHandler<
 
     const confirmIdentifier = form.getString("confirm_identifier");
     if (!verifyIdentifier(apiKey.name, confirmIdentifier)) {
-      return htmlResponse(
-        adminDeleteApiKeyPage(
-          apiKey,
-          session,
-          "API key name does not match. Please type the exact name to confirm deletion.",
-        ),
-        400,
+      return errorRedirect(
+        `/admin/api-keys/${apiKeyId}/delete`,
+        "API key name does not match. Please type the exact name to confirm deletion.",
       );
     }
 

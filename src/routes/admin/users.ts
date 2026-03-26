@@ -26,6 +26,8 @@ import type { User } from "#lib/types.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
+  applyFlash,
+  errorRedirect,
   generateSecureToken,
   getSearchParam,
   htmlResponse,
@@ -115,7 +117,10 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
  * Handle GET /admin/user/new - show invite user form
  */
 const handleUserNewGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, (session) => htmlResponse(adminUserNewPage(session)));
+  requireOwnerOr(request, (session) => {
+    applyFlash(request);
+    return htmlResponse(adminUserNewPage(session));
+  });
 
 /**
  * Handle POST /admin/users - create invited user
@@ -124,26 +129,23 @@ const handleUsersPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, handleUsersPostForm);
 
 const handleUsersPostForm = async (
-  session: AuthSession,
+  _session: AuthSession,
   form: FormParams,
 ): Promise<Response> => {
   const validation = validateForm<InviteUserFormValues>(form, inviteUserFields);
   if (!validation.valid) {
-    return htmlResponse(adminUserNewPage(session, validation.error), 400);
+    return errorRedirect("/admin/user/new", validation.error);
   }
 
   const { username, admin_level: adminLevel } = validation.values;
 
   if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
-    return htmlResponse(adminUserNewPage(session, "Invalid role"), 400);
+    return errorRedirect("/admin/user/new", "Invalid role");
   }
 
   // Check if username is taken
   if (await isUsernameTaken(username)) {
-    return htmlResponse(
-      adminUserNewPage(session, "Username is already taken"),
-      400,
-    );
+    return errorRedirect("/admin/user/new", "Username is already taken");
   }
 
   // Generate invite code
@@ -233,6 +235,7 @@ const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (
   { id },
 ) =>
   requireOwnerOr(request, async (session) => {
+    applyFlash(request);
     if (id === session.userId) {
       return usersErrorResponse(session, "Cannot delete your own account", 400);
     }
@@ -262,14 +265,9 @@ const handleUserDeletePost: TypedRouteHandler<
     const username = await decryptUsername(user);
     const confirmName = form.getString("confirm_identifier");
     if (confirmName.toLowerCase() !== username.trim().toLowerCase()) {
-      const displayUser = await toDisplayUser(user);
-      return htmlResponse(
-        adminUserDeletePage(
-          displayUser,
-          session,
-          "Username does not match. Please type the exact username to confirm deletion.",
-        ),
-        400,
+      return errorRedirect(
+        `/admin/users/${id}/delete`,
+        "Username does not match. Please type the exact username to confirm deletion.",
       );
     }
 

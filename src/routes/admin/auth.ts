@@ -20,6 +20,7 @@ import { loginResponse } from "#routes/admin/dashboard.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
+  errorRedirect,
   generateSecureToken,
   getAuthenticatedSession,
   getClientIp,
@@ -76,23 +77,26 @@ const handleAdminLogin = async (
   // Validate login CSRF token (signed token pattern)
   const csrfForm = form.getString("csrf_token");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
-    return loginResponse("Invalid or expired form. Please try again.", 403);
+    return errorRedirect(
+      "/admin",
+      "Invalid or expired form. Please try again.",
+    );
   }
 
   const clientIp = getClientIp(request, server);
 
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
-    return loginResponse(
+    return errorRedirect(
+      "/admin",
       "Too many login attempts. Please try again later.",
-      429,
     );
   }
 
   const validation = validateForm<LoginFormValues>(form, loginFields);
 
   if (!validation.valid) {
-    return loginResponse(validation.error, 400);
+    return errorRedirect("/admin", validation.error);
   }
 
   const { username, password } = validation.values;
@@ -101,14 +105,14 @@ const handleAdminLogin = async (
   const user = await getUserByUsername(username);
   if (!user) {
     await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
+    return errorRedirect("/admin", "Invalid credentials");
   }
 
   // Verify password (decrypt stored hash, then verify)
   const passwordHash = await verifyUserPassword(user, password);
   if (!passwordHash) {
     await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
+    return errorRedirect("/admin", "Invalid credentials");
   }
 
   // Clear failed attempts on successful login
@@ -116,9 +120,9 @@ const handleAdminLogin = async (
 
   // Check if user has a wrapped data key (fully activated)
   if (!user.wrapped_data_key) {
-    return loginResponse(
+    return errorRedirect(
+      "/admin",
       "Your account has not been activated yet. Please contact the site owner.",
-      403,
     );
   }
 
@@ -129,7 +133,7 @@ const handleAdminLogin = async (
     dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
     // KEK mismatch - this shouldn't happen if password verification passed
-    return loginResponse("Invalid credentials", 401);
+    return errorRedirect("/admin", "Invalid credentials");
   }
 
   return createLoginSession(dataKey, user.id);
@@ -150,7 +154,7 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
 const handleLoginGet = async (request: Request): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   if (session) return redirect("/admin", "Already logged in", true);
-  return loginResponse();
+  return loginResponse(request);
 };
 
 /** Authentication routes */

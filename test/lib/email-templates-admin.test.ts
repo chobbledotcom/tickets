@@ -8,6 +8,7 @@ import {
   awaitTestRequest,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   mockFormRequest,
   testCookie,
@@ -215,9 +216,12 @@ describeWithEnv("admin email templates", { db: true }, () => {
         { subject: "{% for x in items %}unclosed", html: "", text: "" },
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid template syntax");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid template syntax"),
+        false,
+      );
     });
 
     test("defaults missing form fields to empty strings", async () => {
@@ -236,9 +240,12 @@ describeWithEnv("admin email templates", { db: true }, () => {
         { subject: "", html: "x".repeat(51_201), text: "" },
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("exceeds maximum length");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("exceeds maximum length"),
+        false,
+      );
     });
   });
 

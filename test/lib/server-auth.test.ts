@@ -8,6 +8,7 @@ import {
   awaitTestRequest,
   describeWithEnv,
   expectAdminRedirect,
+  expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
@@ -64,7 +65,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({ username: "testadmin", password: "" }),
       );
-      await expectHtmlResponse(response, 400, "Password is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Password is required"),
+        false,
+      );
     });
 
     test("rejects wrong password", async () => {
@@ -74,7 +80,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
           password: "wrong",
         }),
       );
-      await expectHtmlResponse(response, 401, "Invalid credentials");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid credentials"),
+        false,
+      );
     });
 
     test("accepts correct password and sets cookie", async () => {
@@ -102,7 +113,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         }),
       );
 
-      await expectHtmlResponse(response, 403, "Invalid or expired form");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid or expired form"),
+        false,
+      );
     });
 
     test("rejects login when CSRF token is invalid", async () => {
@@ -114,7 +130,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         }),
       );
 
-      await expectHtmlResponse(response, 403, "Invalid or expired form");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid or expired form"),
+        false,
+      );
     });
 
     test("returns 429 when rate limited", async () => {
@@ -129,7 +150,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
       // 6th attempt should be rate limited
       const response = await handleRequest(await makeRequest());
-      await expectHtmlResponse(response, 429, "Too many login attempts");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Too many login attempts"),
+        false,
+      );
     });
 
     test("uses server.requestIP when available", async () => {
@@ -146,7 +172,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       // Make request with server context
       const response = await handleRequest(request, mockServer);
       // Should work (IP is extracted from server.requestIP)
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid credentials"),
+        false,
+      );
     });
 
     test("falls back to direct when server.requestIP returns null", async () => {
@@ -163,7 +194,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       // Make request with server context
       const response = await handleRequest(request, mockServer);
       // Should still work (falls back to "direct")
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid credentials"),
+        false,
+      );
     });
   });
 
@@ -393,7 +429,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   });
 
   describe("POST /admin/login (user without wrapped data key)", () => {
-    test("returns 403 when user has no wrapped data key (not activated)", async () => {
+    test("returns 302 with error when user has no wrapped data key (not activated)", async () => {
       // Null out the user's wrapped_data_key to simulate an unactivated user
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
@@ -407,8 +443,13 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
           password: TEST_ADMIN_PASSWORD,
         }),
       );
-      // Should return 403 - user exists but is not activated
-      await expectHtmlResponse(response, 403, "not been activated");
+      // Should redirect with error - user exists but is not activated
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("not been activated"),
+        false,
+      );
     });
   });
 
@@ -428,7 +469,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         }),
       );
       // Should fail - KEK can't unwrap corrupted key
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid credentials"),
+        false,
+      );
     });
   });
 
@@ -453,7 +499,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   });
 
   describe("routes/admin/auth.ts (login with null wrappedDataKey)", () => {
-    test("login returns 403 when user has null wrappedDataKey", async () => {
+    test("login returns error redirect when user has null wrappedDataKey", async () => {
       // Null out user's wrapped_data_key
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
@@ -461,14 +507,19 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         args: [],
       });
 
-      // Login should fail with 403 since user is not activated
+      // Login should redirect with error since user is not activated
       const response = await handleRequest(
         await mockAdminLoginRequest({
           username: "testadmin",
           password: TEST_ADMIN_PASSWORD,
         }),
       );
-      await expectHtmlResponse(response, 403, "not been activated");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("not been activated"),
+        false,
+      );
     });
   });
 
