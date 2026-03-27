@@ -1190,7 +1190,7 @@ export const createTestAttendee = async (
   // (e.g. event at capacity / sold out / deactivated)
   const csrfToken = extractCsrfToken(pageHtml) ?? (await signCsrfToken());
 
-  // Submit the ticket form (using quantity_{eventId} format for unified multi-ticket flow)
+  // Submit the ticket form (using quantity_{eventId} format)
   const response = await handleRequest(
     mockTicketFormRequest(
       eventSlug,
@@ -1765,9 +1765,8 @@ export const submitTicketForm = async (
 };
 
 /**
- * Submit a multi-ticket form with automatic CSRF token handling.
- * GETs the multi-ticket page first to obtain a CSRF token, then POSTs the form.
- * The slug should be in multi-ticket format: "slug1+slug2".
+ * Submit a ticket form for multi-slug URLs (e.g. "slug1+slug2").
+ * GETs the page first to obtain a CSRF token, then POSTs the form.
  */
 export const submitMultiTicketForm = async (
   slug: string,
@@ -1777,7 +1776,7 @@ export const submitMultiTicketForm = async (
   const path = `/ticket/${slug}`;
   const getResponse = await handleRequest(mockRequest(path));
   const csrfToken = extractCsrfToken(await getResponse.text()) ?? "";
-  if (!csrfToken) throw new Error("No CSRF token found on multi-ticket page");
+  if (!csrfToken) throw new Error("No CSRF token found on ticket page");
   return handleRequest(
     mockFormRequest(
       path,

@@ -364,7 +364,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       );
     });
 
-    test("shows cancel page for multi-ticket session", async () => {
+    test("shows cancel page for ticket session", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
@@ -414,7 +414,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       );
     });
 
-    test("returns 404 for multi-ticket session with invalid items", async () => {
+    test("returns 404 for ticket session with invalid items", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
@@ -894,12 +894,12 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
     });
   });
 
-  describe("GET /payment/success (multi-ticket)", () => {
+  describe("GET /payment/success (ticket)", () => {
     afterEach(() => {
       resetStripeClient();
     });
 
-    test("processes multi-ticket payment success", async () => {
+    test("processes ticket payment success", async () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
@@ -937,7 +937,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
-        // Multi-ticket should have multiple tokens joined by + (URL-encoded as %2B)
+        // Ticket should have multiple tokens joined by + (URL-encoded as %2B)
         expectRedirect(
           redirectResponse,
           /^\/payment\/success\?tokens=.+%2B.+$/,
@@ -950,7 +950,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           "Payment Successful",
           "Click here to view your tickets",
         );
-        // Multi-ticket should NOT have thank_you_url (different events)
+        // Multi-slug ticket should NOT have thank_you_url (different events)
         expect(html).not.toContain("redirected");
 
         // Verify attendees created for both events
@@ -965,7 +965,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       }
     });
 
-    test("returns error for invalid multi-ticket metadata", async () => {
+    test("returns error for invalid ticket metadata", async () => {
       await setupStripe();
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
@@ -994,7 +994,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       }
     });
 
-    test("skips refund for multi-ticket payment when event not found", async () => {
+    test("skips refund for ticket payment when event not found", async () => {
       await setupStripe();
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
@@ -1028,7 +1028,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       }
     });
 
-    test("refunds multi-ticket payment when event is inactive", async () => {
+    test("refunds ticket payment when event is inactive", async () => {
       await setupStripe();
 
       const event = await createTestEvent({
@@ -1125,7 +1125,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket payment sold out rolls back and refunds", async () => {
+    test("ticket payment sold out rolls back and refunds", async () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
@@ -1337,7 +1337,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       }
     });
 
-    test("handles multi-ticket duplicate session replay (already processed)", async () => {
+    test("handles ticket duplicate session replay (already processed)", async () => {
       await setupStripe();
 
       const event1 = await createTestEvent({

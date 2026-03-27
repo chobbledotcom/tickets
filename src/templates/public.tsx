@@ -103,7 +103,7 @@ export const publicSitePage = (
 };
 
 /** Render a single event listing for the events page */
-const renderEventListing = (info: MultiTicketEvent): string => {
+const renderEventListing = (info: TicketEvent): string => {
   const { event, isSoldOut, isClosed } = info;
   const details: string[] = [];
   if (event.location)
@@ -137,7 +137,7 @@ export const ICS_DISCOVERY_TAG =
 export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
 
 export const homepagePage = (
-  events: MultiTicketEvent[],
+  events: TicketEvent[],
   websiteTitle?: string | null,
 ): string => {
   const title = websiteTitle ? `Events - ${websiteTitle}` : "Events";
@@ -220,8 +220,8 @@ const renderDateSelector = (dates: string[]): string =>
          ${dates.map((d) => `<option value="${d}">${formatDateLabel(d)}</option>`).join("")}
        </select>`;
 
-/** Quantity values parsed from multi-ticket form */
-export type MultiTicketQuantities = Map<number, number>;
+/** Quantity values parsed from ticket form */
+export type TicketQuantities = Map<number, number>;
 
 /** Render a price input for pay-more events */
 const renderPayMoreInput = (
@@ -246,7 +246,7 @@ const renderTermsAndCheckbox = (terms: string): string =>
   `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
 
 /** Render custom multiple-choice question fields (radio buttons).
- * When questionEventMap is provided (multi-ticket), adds data-event-ids
+ * When questionEventMap is provided, adds data-event-ids
  * so JS can show/hide questions based on selected event quantities. */
 export const renderQuestions = (
   questions: QuestionWithAnswers[],
@@ -297,19 +297,19 @@ export const temporaryErrorPage = (): string =>
     </Layout>,
   );
 
-/** Event info for multi-ticket display */
-export type MultiTicketEvent = {
+/** Event info for ticket display */
+export type TicketEvent = {
   event: EventWithCount;
   isSoldOut: boolean;
   isClosed: boolean;
   maxPurchasable: number;
 };
 
-/** Build multi-ticket event info from event */
-export const buildMultiTicketEvent = (
+/** Build ticket event info from event */
+export const buildTicketEvent = (
   event: EventWithCount,
   closed = false,
-): MultiTicketEvent => {
+): TicketEvent => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable =
@@ -317,24 +317,21 @@ export const buildMultiTicketEvent = (
   return { event, isSoldOut, isClosed: closed, maxPurchasable };
 };
 
-/** Render description HTML for multi-ticket event row */
-const renderMultiEventDescription = (description: string): string =>
+/** Render description HTML for event row */
+const renderEventDescription = (description: string): string =>
   description
     ? `<div class="description-compact">${renderMarkdownInline(description)}</div>`
     : "";
 
-/** Render quantity selector for a single event in multi-ticket form */
-const renderMultiEventRow = (
-  info: MultiTicketEvent,
-  hideQuantity = false,
-): string => {
+/** Render quantity selector for an event row */
+const renderEventRow = (info: TicketEvent, hideQuantity = false): string => {
   const { event, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
   const imageHtml = renderEventImage(event);
 
   if (isClosed) {
     return `
-      <div class="multi-ticket-row sold-out">
+      <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
         <span class="sold-out-label">Registration Closed</span>
@@ -344,10 +341,10 @@ const renderMultiEventRow = (
 
   if (isSoldOut) {
     return `
-      <div class="multi-ticket-row sold-out">
+      <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
-        ${renderMultiEventDescription(event.description)}
+        ${renderEventDescription(event.description)}
         <span class="sold-out-label">Sold Out</span>
       </div>
     `;
@@ -366,10 +363,10 @@ const renderMultiEventRow = (
   const priceFieldName = `custom_price_${event.id}`;
 
   return `
-    <div class="multi-ticket-row">
+    <div class="ticket-row">
       ${imageHtml}
       <label>${escapeHtml(event.name)}${quantityHtml}</label>
-      ${renderMultiEventDescription(event.description)}
+      ${renderEventDescription(event.description)}
       ${showPayMore ? renderPayMoreInput(event, priceFieldName) : ""}
     </div>
   `;
@@ -377,7 +374,7 @@ const renderMultiEventRow = (
 
 /** Render controls for a single event: quantity input + pay-more (no event name/image/description). */
 const renderSingleEventControls = (
-  info: MultiTicketEvent,
+  info: TicketEvent,
   hideQuantity: boolean,
 ): string => {
   const { event, maxPurchasable } = info;
@@ -396,14 +393,14 @@ const renderSingleEventControls = (
 };
 
 /**
- * Determine the merged fields setting for a set of multi-ticket events
+ * Determine the merged fields setting for the selected events
  */
-const getMultiTicketFieldsSetting = (events: MultiTicketEvent[]): EventFields =>
+const getTicketFieldsSetting = (events: TicketEvent[]): EventFields =>
   mergeEventFields(events.map((e) => e.event.fields));
 
 /** Options for the ticket page */
-export type MultiTicketPageOptions = {
-  events: MultiTicketEvent[];
+export type TicketPageOptions = {
+  events: TicketEvent[];
   slugs: string[];
   error?: string;
   dates?: string[];
@@ -418,7 +415,7 @@ export type MultiTicketPageOptions = {
  * Single events show rich details (image, description, date, location).
  * Multiple events show a compact row layout with per-event quantity selectors.
  */
-export const multiTicketPage = ({
+export const ticketPage = ({
   events,
   slugs,
   error,
@@ -427,11 +424,11 @@ export const multiTicketPage = ({
   questions,
   questionEventMap,
   baseUrl,
-}: MultiTicketPageOptions): string => {
+}: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
-  const fieldsSetting = getMultiTicketFieldsSetting(events);
+  const fieldsSetting = getTicketFieldsSetting(events);
   const anyPaid = events.some((e) => isPaidEvent(e.event));
   const fields: Field[] = getTicketFields(fieldsSetting, anyPaid);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
@@ -448,7 +445,7 @@ export const multiTicketPage = ({
   // For multiple events, render full event rows with name, image, and description.
   const eventRows = isSingleEvent
     ? renderSingleEventControls(events[0]!, hideQuantity)
-    : events.map((e) => renderMultiEventRow(e, hideQuantity)).join("");
+    : events.map((e) => renderEventRow(e, hideQuantity)).join("");
 
   const title = singleEvent ? singleEvent.name : "Reserve Tickets";
   const headExtra =
@@ -511,7 +508,7 @@ export const multiTicketPage = ({
           {hideQuantity || isSingleEvent ? (
             <Raw html={eventRows} />
           ) : (
-            <fieldset class="multi-ticket-events">
+            <fieldset class="ticket-events">
               <legend>Select Tickets</legend>
               <Raw html={eventRows} />
             </fieldset>
