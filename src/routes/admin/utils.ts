@@ -184,12 +184,8 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
   ) => string | Promise<string>;
   /** Extract the identifier the user must type to confirm */
   identifier: (model: T) => string | Promise<string>;
-  /** Perform the confirmed action. Return a Response to override the default redirect. */
-  onConfirm: (
-    model: T,
-    id: number,
-    session: TSession,
-  ) => Promise<void | Response>;
+  /** Perform the confirmed action (e.g. deletion, deactivation) */
+  onConfirm: (model: T, id: number, session: TSession) => Promise<void>;
   /** Where to redirect after success (string or function of model + id) */
   successRedirect: string | ((model: T, id: number) => string);
   /** Flash message shown after success */
@@ -288,8 +284,7 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
       );
       if (error) return error;
 
-      const customResponse = await config.onConfirm(result, id, session);
-      if (customResponse) return customResponse;
+      await config.onConfirm(result, id, session);
       return redirect(
         resolveRedirect(result, id),
         config.successMessage,
