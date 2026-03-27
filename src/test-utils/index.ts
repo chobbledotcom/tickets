@@ -2590,3 +2590,5 @@ export const apiRequest = async (
   };
   return handleRequest(requestAsApiKey(path, apiKey, init));
 };
+
+export { TestBrowser } from "#test-utils/test-browser.ts";
