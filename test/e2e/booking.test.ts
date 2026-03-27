@@ -5,8 +5,10 @@
  * which navigates purely by following links (by text) and submitting forms
  * (by button text) — just like a human would.
  *
- * Flow: setup → login → create event → create group → add event to group →
- *       visit group page → book ticket → view ticket → admin verifies attendee
+ * Flow: setup → login → create event → create question with answers →
+ *       assign question to event → create group → add event to group →
+ *       visit group page → book ticket (answering question) → view ticket →
+ *       admin verifies attendee → download CSV and verify answer
  */
 
 import { expect } from "@std/expect";
@@ -95,6 +97,33 @@ describe("e2e: full booking flow", () => {
     // Should be on the dashboard with the new event listed
     expect(browser.containsText("Summer Concert")).toBe(true);
 
+    // 5b. Create a question with answers via /admin/questions
+    await browser.visit("/admin/questions");
+    expect(browser.containsText("Custom Questions")).toBe(true);
+
+    await browser.submitForm({ text: "What is your t-shirt size?" }, "Add Question");
+    expect(browser.containsText("What is your t-shirt size?")).toBe(true);
+
+    // Navigate to the question detail page and add answers
+    await browser.clickLink("What is your t-shirt size?");
+    await browser.submitForm({ text: "Small" }, "Add Answer");
+    await browser.submitForm({ text: "Medium" }, "Add Answer");
+    await browser.submitForm({ text: "Large" }, "Add Answer");
+    expect(browser.containsText("Small")).toBe(true);
+    expect(browser.containsText("Medium")).toBe(true);
+    expect(browser.containsText("Large")).toBe(true);
+
+    // 5c. Assign the question to the event
+    await browser.visit("/admin/");
+    await browser.clickLink("Summer Concert");
+    await browser.clickLink("Questions");
+
+    // Select all available questions (checkboxes)
+    const questionIds = browser.getCheckboxValues("question_ids");
+    expect(questionIds.length).toBeGreaterThan(0);
+    await browser.submitForm({ question_ids: questionIds }, "Save");
+    expect(browser.containsText("Questions updated")).toBe(true);
+
     // 6. Navigate to Groups and create a group
     await browser.clickLink("Groups");
     expect(browser.containsText("Add Group")).toBe(true);
@@ -152,6 +181,13 @@ describe("e2e: full booking flow", () => {
       formData[`quantity_${quantityFields[1]}`] = "1";
     }
 
+    // Answer the custom question — find the radio button for "Medium"
+    const mediumMatch = browser.currentHtml.match(
+      /name="(question_\d+)"\s+value="(\d+)"[^>]*>\s*Medium/,
+    );
+    expect(mediumMatch).toBeTruthy();
+    formData[mediumMatch![1]!] = mediumMatch![2]!;
+
     // Group bookings use "Reserve Tickets" (plural), single events use "Reserve Ticket"
     const reserveButton = browser.containsText("Reserve Tickets")
       ? "Reserve Tickets"
@@ -183,5 +219,22 @@ describe("e2e: full booking flow", () => {
     await browser.clickLink("Summer Concert");
     expect(browser.containsText("Jane Doe")).toBe(true);
     expect(browser.containsText("jane@example.com")).toBe(true);
+
+    // 13. Download CSV export and verify the question answer is included
+    await browser.clickLink("Export CSV");
+    const csv = browser.currentHtml;
+    // Header should include the question text
+    expect(csv).toContain("What is your t-shirt size?");
+    // Row should include the selected answer
+    const csvLines = csv.split("\n");
+    const headerLine = csvLines[0]!;
+    const dataLine = csvLines[1]!;
+    // Find the column index for our question
+    const headers = headerLine.split(",");
+    const qColIndex = headers.findIndex((h) => h.includes("What is your t-shirt size?"));
+    expect(qColIndex).toBeGreaterThan(-1);
+    // Verify the answer in the data row
+    const dataCols = dataLine.split(",");
+    expect(dataCols[qColIndex]).toBe("Medium");
   });
 });
