@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   addDays,
   DAY_NAMES,
+  daysAgo,
   eventDateToCalendarDate,
   formatDateLabel,
   formatDatetimeLabel,
@@ -344,6 +345,45 @@ describeWithEnv("dates", { db: true }, () => {
       expect(eventDateToCalendarDate("2026-01-05T12:00:00.000Z")).toBe(
         "2026-01-05",
       );
+    });
+  });
+
+  describe("daysAgo", () => {
+    test("returns null for empty string", () => {
+      expect(daysAgo("")).toBeNull();
+    });
+
+    test("returns null for invalid datetime", () => {
+      expect(daysAgo("not-a-date")).toBeNull();
+    });
+
+    test("returns null for today's date", () => {
+      const todayStr = today();
+      expect(daysAgo(`${todayStr}T12:00:00.000Z`)).toBeNull();
+    });
+
+    test("returns null for future date", () => {
+      const futureStr = addDays(today(), 5);
+      expect(daysAgo(`${futureStr}T12:00:00.000Z`)).toBeNull();
+    });
+
+    test("returns 1 for yesterday", () => {
+      const yesterdayStr = addDays(today(), -1);
+      expect(daysAgo(`${yesterdayStr}T12:00:00.000Z`)).toBe(1);
+    });
+
+    test("returns correct count for multiple days ago", () => {
+      const pastStr = addDays(today(), -10);
+      expect(daysAgo(`${pastStr}T12:00:00.000Z`)).toBe(10);
+    });
+
+    test("respects timezone when determining past date", () => {
+      // Asia/Tokyo is UTC+9, so 16:00 UTC = 01:00 next day in Tokyo
+      settings.setForTest({ timezone: "Asia/Tokyo" });
+      const todayTokyo = todayInTz("Asia/Tokyo");
+      const yesterdayTokyo = addDays(todayTokyo, -1);
+      // Event at 16:00 UTC yesterday = 01:00 today in Tokyo → should be null (today)
+      expect(daysAgo(`${yesterdayTokyo}T16:00:00.000Z`)).toBeNull();
     });
   });
 

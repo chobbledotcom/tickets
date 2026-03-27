@@ -8,7 +8,10 @@ import {
   JS_PATH,
 } from "#lib/asset-paths.ts";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
+import { addDays } from "#lib/dates.ts";
+import { settings } from "#lib/db/settings.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
+import { todayInTz } from "#lib/timezone.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import {
   adminEventActivityLogPage,
@@ -3528,6 +3531,51 @@ describe("html", () => {
       const html = renderTicket(event, { iframe: true });
       expect(html).not.toContain("<strong>Date:</strong>");
       expect(html).not.toContain("<strong>Location:</strong>");
+    });
+
+    test("shows past event badge for event with date in the past", () => {
+      const event = testEventWithCount({
+        date: "2020-01-15T14:00:00.000Z",
+        attendee_count: 0,
+      });
+      const html = renderTicket(event);
+      expect(html).toContain("badge-past-event");
+      expect(html).toContain("ago)");
+    });
+
+    test("does not show past event badge for future event", () => {
+      const event = testEventWithCount({
+        date: "2099-06-15T14:00:00.000Z",
+        attendee_count: 0,
+      });
+      const html = renderTicket(event);
+      expect(html).not.toContain("badge-past-event");
+    });
+
+    test("does not show past event badge when date is empty", () => {
+      const event = testEventWithCount({ date: "", attendee_count: 0 });
+      const html = renderTicket(event);
+      expect(html).not.toContain("badge-past-event");
+    });
+
+    test("past event badge shows singular day for 1 day ago", () => {
+      const yesterday = addDays(todayInTz(settings.timezone), -1);
+      const event = testEventWithCount({
+        date: `${yesterday}T12:00:00.000Z`,
+        attendee_count: 0,
+      });
+      const html = renderTicket(event);
+      expect(html).toContain("(1 day ago)");
+    });
+
+    test("past event badge shows plural days for multiple days ago", () => {
+      const threeDaysAgo = addDays(todayInTz(settings.timezone), -3);
+      const event = testEventWithCount({
+        date: `${threeDaysAgo}T12:00:00.000Z`,
+        attendee_count: 0,
+      });
+      const html = renderTicket(event);
+      expect(html).toContain("(3 days ago)");
     });
   });
 
