@@ -140,15 +140,17 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const deleteGet = authRowHtml(cfg.renderDelete);
 
-  const deletePost: IdRouteHandler = createConfirmedAction<Row, { id: number }>(
-    {
-      loadResource: (_session, { id }) => cfg.resource.table.findById(id),
-      getIdentifier: cfg.getName,
-      redirectPath: ({ id }) => `${cfg.listPath}/${id}/delete`,
-      label: `${cfg.singular} name`,
-      authHandler: withFormAuth,
-    },
-  )("delete", "deletion", async (row, _form, { id }) => {
+  const deletePost: IdRouteHandler = createConfirmedAction<
+    Row,
+    { id: number },
+    AdminSession
+  >({
+    loadResource: (_session, { id }) => cfg.resource.table.findById(id),
+    getIdentifier: cfg.getName,
+    redirectPath: ({ id }) => `${cfg.listPath}/${id}/delete`,
+    label: `${cfg.singular} name`,
+    authHandler: withFormAuth,
+  })("delete", "deletion", async (row, _form, { id }) => {
     const result = await cfg.resource.delete(id);
     if ("notFound" in result) return notFoundResponse();
     await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);

@@ -81,19 +81,17 @@ export const verifyIdentifierOrJsonError = (
   return null;
 };
 
-/** Auth handler that validates session + parses form data.
- * Uses `never` for session to accept handlers with any session subtype (contravariance). */
-// deno-lint-ignore no-explicit-any
-type AuthFormHandler = (
+/** Auth handler signature for form-based routes */
+type FormAuthHandler<S> = (
   request: Request,
-  handler: (session: any, form: FormParams) => Response | Promise<Response>,
+  handler: (session: S, form: FormParams) => Response | Promise<Response>,
 ) => Promise<Response>;
 
 /** Configuration for a confirmed-action factory */
-type ConfirmedActionConfig<TResource, TParams> = {
+type ConfirmedActionConfig<TResource, TParams, TSession = AuthSession> = {
   /** Load the resource by ID/params; return null if not found */
   loadResource: (
-    session: AuthSession,
+    session: TSession,
     params: TParams,
   ) => Promise<TResource | null>;
   /** Extract the identifier (e.g. name) to verify against the confirmation field */
@@ -103,7 +101,7 @@ type ConfirmedActionConfig<TResource, TParams> = {
   /** Human-readable label for the identifier (e.g. "Event name") */
   label: string;
   /** Auth handler (defaults to withAuthForm; use withOwnerAuthForm for owner-only routes) */
-  authHandler?: AuthFormHandler;
+  authHandler?: FormAuthHandler<TSession>;
 };
 
 /**
@@ -116,7 +114,9 @@ type ConfirmedActionConfig<TResource, TParams> = {
  *   // handleDelete is (request, params) => Promise<Response>
  */
 export const createConfirmedAction =
-  <TResource, TParams>(config: ConfirmedActionConfig<TResource, TParams>) =>
+  <TResource, TParams, TSession = AuthSession>(
+    config: ConfirmedActionConfig<TResource, TParams, TSession>,
+  ) =>
   (
     action: string,
     actionLabel: string | undefined,
@@ -127,18 +127,20 @@ export const createConfirmedAction =
     ) => Response | Promise<Response>,
   ) =>
   (request: Request, params: TParams): Promise<Response> =>
-    (config.authHandler ?? withAuthForm)(request, (session, form) =>
-      orNotFound(config.loadResource(session, params), (resource) => {
-        const error = verifyOrRedirect(
-          form,
-          config.getIdentifier(resource),
-          config.redirectPath(params, action),
-          config.label,
-          actionLabel,
-        );
-        if (error) return error;
-        return handler(resource, form, params);
-      }),
+    (config.authHandler ?? (withAuthForm as FormAuthHandler<TSession>))(
+      request,
+      (session, form) =>
+        orNotFound(config.loadResource(session, params), (resource) => {
+          const error = verifyOrRedirect(
+            form,
+            config.getIdentifier(resource),
+            config.redirectPath(params, action),
+            config.label,
+            actionLabel,
+          );
+          if (error) return error;
+          return handler(resource, form, params);
+        }),
     );
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
