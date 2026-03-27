@@ -555,36 +555,54 @@ export const ADMIN_API: AuthPolicy<"json"> = {
 };
 
 /**
- * Handle request with authenticated cookie session.
+ * Core session + role gate. Returns the session on success, or a
+ * channel-appropriate failure Response.
+ */
+const requireSessionFor = async (
+  request: Request,
+  channel: AuthChannel,
+  role?: AdminLevel,
+): Promise<AuthSession | Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) return authFailure(channel, "not-authenticated");
+  if (role && session.adminLevel !== role)
+    return authFailure(channel, "forbidden");
+  return session;
+};
+
+const isResponse = (v: unknown): v is Response => v instanceof Response;
+
+type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+
+/**
+ * Low-level session gate with custom no-session fallback (used by dashboard login page).
  * Only checks cookie-based auth. API key auth is intentionally excluded —
  * Bearer tokens should only authenticate /api/* endpoints via withAuth + ADMIN_API.
  */
 export const withSession = async (
   request: Request,
-  handler: (session: AuthSession) => Response | Promise<Response>,
+  handler: SessionHandler,
   onNoSession: () => Response | Promise<Response>,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   return session ? handler(session) : onNoSession();
 };
 
-/**
- * Handle request requiring session - redirect to /admin/ if not authenticated
- */
-export const requireSessionOr = (
+/** Require session — redirect if not authenticated, 403 if role check fails */
+export const requireSessionOr = async (
   request: Request,
-  handler: (session: AuthSession) => Response | Promise<Response>,
-): Promise<Response> =>
-  withSession(request, handler, () => redirectResponse("/admin"));
+  handler: SessionHandler,
+  role?: AdminLevel,
+): Promise<Response> => {
+  const result = await requireSessionFor(request, "html", role);
+  return isResponse(result) ? result : handler(result);
+};
 
-/** Check owner role, return 403 if not owner */
-const requireOwnerRole = (
-  session: AuthSession,
-  handler: (session: AuthSession) => Response | Promise<Response>,
-): Response | Promise<Response> =>
-  session.adminLevel === "owner"
-    ? handler(session)
-    : htmlResponse("Forbidden", 403);
+/** Require owner session — shorthand for requireSessionOr with owner role */
+export const requireOwnerOr = (
+  request: Request,
+  handler: SessionHandler,
+): Promise<Response> => requireSessionOr(request, handler, "owner");
 
 /** CSRF form result type */
 export type CsrfFormResult =
@@ -632,35 +650,23 @@ export const withCsrfForm = async (
   return csrf.ok ? handler(csrf.form) : csrf.response;
 };
 
-type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
-
-/** Require owner role - returns 403 if not owner, redirect if not authenticated */
-export const requireOwnerOr = (
-  request: Request,
-  handler: SessionHandler,
-): Promise<Response> =>
-  requireSessionOr(request, (session) => requireOwnerRole(session, handler));
-
-/** Auth level for ID route helpers: "owner" requires owner role, null allows any authenticated user */
-type IdRouteAuth = AdminLevel | null;
-
-const authRequireFor = (level: IdRouteAuth) =>
-  level === "owner" ? requireOwnerOr : requireSessionOr;
 
 /**
  * Authenticated GET-by-ID route handler factory.
  * Loads entity by ID, returns 404 if missing, renders with session context.
- * @param level - "owner" requires owner role, null allows any authenticated user
+ * @param role - "owner" requires owner role, null allows any authenticated user
  */
 export const authenticatedGetById =
-  (level: IdRouteAuth) =>
+  (role: AdminLevel | null) =>
   <T>(
     load: (id: number) => Promise<T | null>,
     render: (entity: T, session: AuthSession) => Response | Promise<Response>,
   ): IdRouteHandler =>
   (request, { id }) =>
-    authRequireFor(level)(request, (session) =>
-      orNotFound(load(id), (entity) => render(entity, session)),
+    requireSessionOr(
+      request,
+      (session) => orNotFound(load(id), (entity) => render(entity, session)),
+      role ?? undefined,
     );
 
 /** Shorthand: owner GET-by-ID */
@@ -694,6 +700,39 @@ export const plainResponse = (text: string, status = 200): Response =>
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 
+/** Shared auth failure response factories (avoids jscpd duplication) */
+const htmlForbidden = () => htmlResponse("Forbidden", 403);
+const jsonForbidden = () =>
+  jsonResponse({ status: "error", message: "Forbidden" }, 403);
+
+/** Auth failure responses keyed by reason, with html and json variants side-by-side. */
+const AUTH_FAILURES = {
+  "not-authenticated": {
+    html: () => redirectResponse("/admin"),
+    json: () =>
+      jsonResponse({ status: "error", message: "Not authenticated" }, 401),
+  },
+  forbidden: { html: htmlForbidden, json: jsonForbidden },
+  "invalid-csrf": {
+    html: () => htmlResponse("Invalid CSRF token", 403),
+    json: jsonForbidden,
+  },
+  "invalid-api-key": {
+    html: htmlForbidden,
+    json: () =>
+      jsonResponse({ status: "error", message: "Invalid API key" }, 401),
+  },
+} satisfies Record<string, Record<"html" | "json", () => Response>>;
+
+type AuthFailureReason = keyof typeof AUTH_FAILURES;
+type AuthChannel = keyof (typeof AUTH_FAILURES)[AuthFailureReason];
+
+/** Construct a standardized auth failure response. */
+export const authFailure = (
+  channel: AuthChannel,
+  reason: AuthFailureReason,
+): Response => AUTH_FAILURES[reason][channel]();
+
 /** Create iCalendar response */
 export const icsResponse = (ics: string): Response =>
   new Response(encodeBody(ics), {
@@ -726,63 +765,76 @@ const parseJsonBody = async (
   }
 };
 
+/** Verify a CSRF token, returning a channel-appropriate failure or null */
+const verifyCsrf = async (
+  token: string,
+  channel: AuthChannel,
+): Promise<Response | null> => {
+  if (await verifySignedCsrfToken(token)) return null;
+  if (channel === "json")
+    logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
+  return authFailure(channel, "invalid-csrf");
+};
+
 /** Validate CSRF and parse body for the given mode */
 const parseCsrfBody = async (
   request: Request,
   mode: BodyMode,
   skipCsrf: boolean,
-): Promise<
-  FormParams | FormData | Record<string, unknown> | null | Response
-> => {
+): Promise<FormParams | FormData | Record<string, unknown> | Response> => {
+  const channel = channelFor(mode);
   switch (mode) {
     case "form": {
       const form = await parseFormData(request);
-      if (
-        !skipCsrf &&
-        !(await verifySignedCsrfToken(form.getString("csrf_token")))
-      )
-        return htmlResponse("Invalid CSRF token", 403);
+      if (!skipCsrf) {
+        const err = await verifyCsrf(form.getString("csrf_token"), channel);
+        if (err) return err;
+      }
       return form;
     }
     case "multipart": {
       const fd = await request.formData();
-      if (
-        !skipCsrf &&
-        !(await verifySignedCsrfToken(
+      if (!skipCsrf) {
+        const err = await verifyCsrf(
           String(fd.get("csrf_token") ?? "").trim(),
-        ))
-      )
-        return htmlResponse("Invalid CSRF token", 403);
+          channel,
+        );
+        if (err) return err;
+      }
       return fd;
     }
     case "json": {
-      if (
-        !skipCsrf &&
-        !(await verifySignedCsrfToken(
+      if (!skipCsrf) {
+        const err = await verifyCsrf(
           request.headers.get("x-csrf-token") ?? "",
-        ))
-      ) {
-        logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
-        return jsonResponse({ status: "error", message: "Forbidden" }, 403);
+          channel,
+        );
+        if (err) return err;
       }
       return parseJsonBody(request);
     }
   }
 };
 
+/** Derive the auth channel (html vs json) from the body mode */
+const channelFor = (mode: BodyMode): AuthChannel =>
+  mode === "json" ? "json" : "html";
+
 /** Resolve session from cookie or API key */
 const resolveSession = async (
   request: Request,
+  channel: AuthChannel,
   allowApiKey?: boolean,
-): Promise<{ session: AuthSession; authKind: AuthKind } | Response | null> => {
+): Promise<{ session: AuthSession; authKind: AuthKind } | Response> => {
   if (allowApiKey) {
     const s = await getAuthenticatedApiKey(request);
     if (s) return { session: s, authKind: "apiKey" };
     if (getBearerToken(request))
-      return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
+      return authFailure(channel, "invalid-api-key");
   }
   const session = await getAuthenticatedSession(request);
-  return session ? { session, authKind: "cookie" } : null;
+  if (!session) return authFailure(channel, "not-authenticated");
+  return { session, authKind: "cookie" };
 };
 
 /** Unified auth pipeline: authenticate, enforce role, validate CSRF, parse body. */
@@ -795,18 +847,13 @@ export async function withAuth<T extends BodyMode>(
     authKind: AuthKind,
   ) => Response | Promise<Response>,
 ): Promise<Response> {
-  const auth = await resolveSession(request, policy.allowApiKey);
-  if (auth instanceof Response) return auth;
-  if (!auth)
-    return policy.body === "json"
-      ? jsonResponse({ status: "error", message: "Not authenticated" }, 401)
-      : redirectResponse("/admin");
+  const channel = channelFor(policy.body);
+  const auth = await resolveSession(request, channel, policy.allowApiKey);
+  if (isResponse(auth)) return auth;
   const { session, authKind } = auth;
   if (policy.role && session.adminLevel !== policy.role)
-    return policy.body === "json"
-      ? jsonResponse({ status: "error", message: "Forbidden" }, 403)
-      : htmlResponse("Forbidden", 403);
+    return authFailure(channel, "forbidden");
   const body = await parseCsrfBody(request, policy.body, authKind === "apiKey");
-  if (body instanceof Response) return body;
+  if (isResponse(body)) return body;
   return handler(session, body as ParsedBody<T>, authKind);
 }
