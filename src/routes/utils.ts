@@ -521,7 +521,7 @@ export type AuthSession = {
 };
 
 /** How the request was authenticated */
-export type AuthKind = "cookie" | "apiKey";
+type AuthKind = "cookie" | "apiKey";
 
 /** Body parsing mode for authenticated requests */
 type BodyMode = "form" | "multipart" | "json";
@@ -534,7 +534,7 @@ type ParsedBody<T extends BodyMode> = T extends "form"
     : Record<string, unknown>;
 
 /** Policy controlling authentication, CSRF, role, and body parsing */
-export type AuthPolicy<T extends BodyMode = BodyMode> = {
+type AuthPolicy<T extends BodyMode = BodyMode> = {
   body: T;
   role?: AdminLevel;
   allowApiKey?: boolean;
@@ -707,7 +707,7 @@ export const rssResponse = (xml: string): Response =>
   });
 
 /** Parse JSON body, returning empty object for non-JSON or GET requests */
-export const parseJsonBody = async (
+const parseJsonBody = async (
   request: Request,
 ): Promise<Record<string, unknown> | Response> => {
   const contentType = request.headers.get("content-type") ?? "";
