@@ -650,7 +650,6 @@ export const withCsrfForm = async (
   return csrf.ok ? handler(csrf.form) : csrf.response;
 };
 
-
 /**
  * Authenticated GET-by-ID route handler factory.
  * Loads entity by ID, returns 404 if missing, renders with session context.
@@ -829,8 +828,7 @@ const resolveSession = async (
   if (allowApiKey) {
     const s = await getAuthenticatedApiKey(request);
     if (s) return { session: s, authKind: "apiKey" };
-    if (getBearerToken(request))
-      return authFailure(channel, "invalid-api-key");
+    if (getBearerToken(request)) return authFailure(channel, "invalid-api-key");
   }
   const session = await getAuthenticatedSession(request);
   if (!session) return authFailure(channel, "not-authenticated");
