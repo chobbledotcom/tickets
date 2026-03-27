@@ -68,28 +68,28 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         200,
         "Group One",
         "group-one",
-        `/admin/group/${group.id}">`,
-        `/admin/group/${group.id}/edit`,
-        `/admin/group/${group.id}/delete`,
+        `/admin/groups/${group.id}">`,
+        `/admin/groups/${group.id}/edit`,
+        `/admin/groups/${group.id}/delete`,
       );
     });
   });
 
-  describe("GET /admin/group/new", () => {
+  describe("GET /admin/groups/new", () => {
     test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/group/new"));
+      const response = await handleRequest(mockRequest("/admin/groups/new"));
       expectAdminRedirect(response);
     });
 
     test("accessible to managers", async () => {
-      const response = await awaitTestRequest("/admin/group/new", {
+      const response = await awaitTestRequest("/admin/groups/new", {
         cookie: await createTestManagerSession(),
       });
       expectStatus(200)(response);
     });
 
     test("shows create group form without slug field", async () => {
-      const { response } = await adminGet("/admin/group/new");
+      const { response } = await adminGet("/admin/groups/new");
       const html = await expectHtmlResponse(
         response,
         200,
@@ -101,10 +101,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/group", () => {
+  describe("POST /admin/groups", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/group", { name: "X" }),
+        mockFormRequest("/admin/groups", { name: "X" }),
       );
       expectAdminRedirect(response);
     });
@@ -114,7 +114,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/group",
+          "/admin/groups",
           {
             name: "Manager Group",
             terms_and_conditions: "",
@@ -125,7 +125,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toMatch(
-        /\/admin\/group\/\d+(\?|$)/,
+        /\/admin\/groups\/\d+(\?|$)/,
       );
       expectFlash(response, "Group created");
     });
@@ -153,14 +153,14 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/group/:id/edit", () => {
+  describe("GET /admin/groups/:id/edit", () => {
     test("shows edit form with pre-filled values", async () => {
       const group = await createTestGroup({
         name: "Editable",
         slug: "editable",
         termsAndConditions: "Original terms",
       });
-      const { response } = await adminGet(`/admin/group/${group.id}/edit`);
+      const { response } = await adminGet(`/admin/groups/${group.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -172,12 +172,12 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent group", async () => {
-      const { response } = await adminGet("/admin/group/999/edit");
+      const { response } = await adminGet("/admin/groups/999/edit");
       expectStatus(404)(response);
     });
   });
 
-  describe("POST /admin/group/:id/edit", () => {
+  describe("POST /admin/groups/:id/edit", () => {
     test("accessible to managers", async () => {
       const group = await createTestGroup({
         name: "Edit Allow",
@@ -187,7 +187,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/group/${group.id}/edit`,
+          `/admin/groups/${group.id}/edit`,
           {
             name: "Changed",
             slug: "changed",
@@ -199,7 +199,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/group/${group.id}`,
+        `/admin/groups/${group.id}`,
         "Group updated",
       )(response);
     });
@@ -220,7 +220,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const g1 = await createTestGroup({ name: "One", slug: "one" });
       const g2 = await createTestGroup({ name: "Two", slug: "two" });
 
-      const { response } = await adminFormPost(`/admin/group/${g2.id}/edit`, {
+      const { response } = await adminFormPost(`/admin/groups/${g2.id}/edit`, {
         name: "Two",
         slug: g1.slug,
         terms_and_conditions: "",
@@ -233,7 +233,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("returns 404 when editing a non-existent group", async () => {
-      const { response } = await adminFormPost("/admin/group/999/edit", {
+      const { response } = await adminFormPost("/admin/groups/999/edit", {
         name: "Missing",
         slug: "missing",
         terms_and_conditions: "",
@@ -242,13 +242,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/group/:id/delete", () => {
+  describe("GET /admin/groups/:id/delete", () => {
     test("shows delete confirmation with event note", async () => {
       const group = await createTestGroup({
         name: "Delete Me",
         slug: "delete-me",
       });
-      const { response } = await adminGet(`/admin/group/${group.id}/delete`);
+      const { response } = await adminGet(`/admin/groups/${group.id}/delete`);
       await expectHtmlResponse(
         response,
         200,
@@ -259,12 +259,12 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent group", async () => {
-      const { response } = await adminGet("/admin/group/999/delete");
+      const { response } = await adminGet("/admin/groups/999/delete");
       expectStatus(404)(response);
     });
   });
 
-  describe("POST /admin/group/:id/delete", () => {
+  describe("POST /admin/groups/:id/delete", () => {
     test("accessible to managers", async () => {
       const group = await createTestGroup({
         name: "Delete Allow",
@@ -274,7 +274,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/group/${group.id}/delete`,
+          `/admin/groups/${group.id}/delete`,
           {
             confirm_identifier: "Delete Allow",
             csrf_token: csrfToken,
@@ -293,7 +293,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "right-name",
       });
       const { response } = await adminFormPost(
-        `/admin/group/${group.id}/delete`,
+        `/admin/groups/${group.id}/delete`,
         {
           confirm_identifier: "Wrong Name",
         },
@@ -328,13 +328,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("returns 404 when deleting a non-existent group", async () => {
-      const { response } = await adminFormPost("/admin/group/999/delete", {
+      const { response } = await adminFormPost("/admin/groups/999/delete", {
         confirm_identifier: "Anything",
       });
       expectStatus(404)(response);
     });
 
-    test("returns 404 when group is deleted before resource delete", async () => {
+    test("succeeds when group is deleted between load and delete", async () => {
       const group = await createTestGroup({
         name: "Race Group",
         slug: "race-group",
@@ -357,21 +357,21 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       try {
         const response = await handleRequest(
           mockFormRequest(
-            `/admin/group/${group.id}/delete`,
+            `/admin/groups/${group.id}/delete`,
             { csrf_token: csrfToken, confirm_identifier: group.name },
             cookie,
           ),
         );
-        expectStatus(404)(response);
+        expectRedirectWithFlash("/admin/groups", "Group deleted")(response);
       } finally {
         findByIdStub.restore();
       }
     });
   });
 
-  describe("GET /admin/group/:id", () => {
+  describe("GET /admin/groups/:id", () => {
     test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/group/1"));
+      const response = await handleRequest(mockRequest("/admin/groups/1"));
       expectAdminRedirect(response);
     });
 
@@ -380,14 +380,14 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Detail Allow",
         slug: "detail-allow",
       });
-      const response = await awaitTestRequest(`/admin/group/${group.id}`, {
+      const response = await awaitTestRequest(`/admin/groups/${group.id}`, {
         cookie: await createTestManagerSession("mgr-detail"),
       });
       expectStatus(200)(response);
     });
 
     test("returns 404 for non-existent group", async () => {
-      const { response } = await adminGet("/admin/group/999");
+      const { response } = await adminGet("/admin/groups/999");
       expectStatus(404)(response);
     });
 
@@ -401,7 +401,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         groupId: group.id,
       });
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -427,7 +427,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Empty Group",
         slug: "empty-group",
       });
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(response, 200, "No events in this group");
     });
 
@@ -438,7 +438,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       const ungrouped = await createTestEvent({ name: "Ungrouped Event" });
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -455,7 +455,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       await createTestEvent({ name: "Already Grouped", groupId: group.id });
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).not.toContain("Add Events to Group");
@@ -474,7 +474,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
       await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Attendees");
@@ -503,7 +503,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       await createTestAttendee(event.id, event.slug, "Bob", "bob@multi.com");
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Attendees Checked In");
@@ -530,7 +530,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "charlie@test.com",
       );
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Charlie");
@@ -560,7 +560,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       await setEventQuestions(event.id, [q.id]);
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("<th>Color</th>");
@@ -580,7 +580,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       await createTestAttendee(event.id, event.slug, "Donor", "donor@test.com");
 
-      const { response } = await adminGet(`/admin/group/${group.id}`);
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Total Revenue");
@@ -601,7 +601,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     };
 
     const getGroupPageHtml = async (groupId: number): Promise<string> => {
-      const { response } = await adminGet(`/admin/group/${groupId}`);
+      const { response } = await adminGet(`/admin/groups/${groupId}`);
       expectStatus(200)(response);
       return response.text();
     };
@@ -658,10 +658,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/group/:id/add-events", () => {
+  describe("POST /admin/groups/:id/add-events", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/group/1/add-events", { event_ids: "1" }),
+        mockFormRequest("/admin/groups/1/add-events", { event_ids: "1" }),
       );
       expectAdminRedirect(response);
     });
@@ -675,7 +675,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/group/${group.id}/add-events`,
+          `/admin/groups/${group.id}/add-events`,
           {
             csrf_token: csrfToken,
           },
@@ -686,7 +686,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent group", async () => {
-      const { response } = await adminFormPost("/admin/group/999/add-events", {
+      const { response } = await adminFormPost("/admin/groups/999/add-events", {
         event_ids: "1",
       });
       expectStatus(404)(response);
@@ -707,7 +707,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/group/${group.id}/add-events`,
+          `/admin/groups/${group.id}/add-events`,
           {
             event_ids: String(event1.id),
             csrf_token: csrfToken,
@@ -717,7 +717,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/group/${group.id}`,
+        `/admin/groups/${group.id}`,
         "Events added to group",
       )(response);
 
@@ -737,7 +737,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/group/${group.id}/add-events`,
+          `/admin/groups/${group.id}/add-events`,
           {
             csrf_token: csrfToken,
           },
@@ -746,7 +746,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/group/${group.id}`,
+        `/admin/groups/${group.id}`,
         "Events added to group",
       )(response);
     });
@@ -770,7 +770,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/group/${group.id}/add-events`,
+          `/admin/groups/${group.id}/add-events`,
           {
             event_ids: String(dailyEvent.id),
             csrf_token: csrfToken,
@@ -779,7 +779,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expectRedirectWithFlash(
-        `/admin/group/${group.id}`,
+        `/admin/groups/${group.id}`,
         "This group already contains standard events — all events in a group must be the same type",
         false,
       )(response);
@@ -797,7 +797,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/group",
+          "/admin/groups",
           {
             name: "Redirect Test",
             terms_and_conditions: "",
@@ -808,7 +808,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location") ?? "";
-      expect(location).toMatch(/\/admin\/group\/\d+(\?|$)/);
+      expect(location).toMatch(/\/admin\/groups\/\d+(\?|$)/);
       expectFlash(response, "Group created");
     });
 
@@ -821,7 +821,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/group/${group.id}/edit`,
+          `/admin/groups/${group.id}/edit`,
           {
             name: "Edited Redir",
             slug: "edited-redir",
@@ -833,7 +833,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/group/${group.id}`,
+        `/admin/groups/${group.id}`,
         "Group updated",
       )(response);
     });
@@ -865,7 +865,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
 
       await assertAdminHtml(
-        `/admin/group/${group.id}/edit`,
+        `/admin/groups/${group.id}/edit`,
         "max_attendees",
         "25",
       );
@@ -889,7 +889,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      await assertAdminHtml(`/admin/group/${group.id}`, "0 / 100");
+      await assertAdminHtml(`/admin/groups/${group.id}`, "0 / 100");
     });
 
     test("detail page shows plain attendee count when no group max set", async () => {
@@ -900,7 +900,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
       // Attendees row should show just "0" not "0 / X"
       await assertAdminHtml(
-        `/admin/group/${group.id}`,
+        `/admin/groups/${group.id}`,
         "<th>Attendees</th>",
         "<td>0</td>",
       );

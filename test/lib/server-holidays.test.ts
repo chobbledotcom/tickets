@@ -126,20 +126,20 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         "Christmas",
         "2026-12-25",
         "2026-12-26",
-        `/admin/holiday/${holiday.id}/edit`,
-        `/admin/holiday/${holiday.id}/delete`,
+        `/admin/holidays/${holiday.id}/edit`,
+        `/admin/holidays/${holiday.id}/delete`,
       );
     });
   });
 
-  describe("GET /admin/holiday/new", () => {
+  describe("GET /admin/holidays/new", () => {
     test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/holiday/new"));
+      const response = await handleRequest(mockRequest("/admin/holidays/new"));
       expectAdminRedirect(response);
     });
 
     test("shows create holiday form", async () => {
-      const { response } = await adminGet("/admin/holiday/new");
+      const { response } = await adminGet("/admin/holidays/new");
       await expectHtmlResponse(
         response,
         200,
@@ -151,10 +151,10 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/holiday", () => {
+  describe("POST /admin/holidays", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/holiday", {
+        mockFormRequest("/admin/holidays", {
           name: "Test",
           start_date: "2026-12-25",
           end_date: "2026-12-25",
@@ -186,7 +186,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("rejects missing name", async () => {
-      const { response } = await adminFormPost("/admin/holiday", {
+      const { response } = await adminFormPost("/admin/holidays", {
         name: "",
         start_date: "2026-12-25",
         end_date: "2026-12-25",
@@ -200,7 +200,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("rejects missing start_date", async () => {
-      const { response } = await adminFormPost("/admin/holiday", {
+      const { response } = await adminFormPost("/admin/holidays", {
         name: "Test",
         start_date: "",
         end_date: "2026-12-25",
@@ -214,7 +214,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("rejects missing end_date", async () => {
-      const { response } = await adminFormPost("/admin/holiday", {
+      const { response } = await adminFormPost("/admin/holidays", {
         name: "Test",
         start_date: "2026-12-25",
         end_date: "",
@@ -228,7 +228,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("rejects invalid date format", async () => {
-      const { response } = await adminFormPost("/admin/holiday", {
+      const { response } = await adminFormPost("/admin/holidays", {
         name: "Test",
         start_date: "not-a-date",
         end_date: "2026-12-25",
@@ -238,7 +238,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("rejects end_date before start_date", async () => {
-      const { response } = await adminFormPost("/admin/holiday", {
+      const { response } = await adminFormPost("/admin/holidays", {
         name: "Test",
         start_date: "2026-12-26",
         end_date: "2026-12-25",
@@ -252,11 +252,11 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/holiday/:id/edit", () => {
+  describe("GET /admin/holidays/:id/edit", () => {
     test("redirects to login when not authenticated", async () => {
       const holiday = await createTestHoliday();
       const response = await handleRequest(
-        mockRequest(`/admin/holiday/${holiday.id}/edit`),
+        mockRequest(`/admin/holidays/${holiday.id}/edit`),
       );
       expectAdminRedirect(response);
     });
@@ -267,7 +267,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         startDate: "2026-12-25",
         endDate: "2026-12-26",
       });
-      const { response } = await adminGet(`/admin/holiday/${holiday.id}/edit`);
+      const { response } = await adminGet(`/admin/holidays/${holiday.id}/edit`);
       await expectHtmlResponse(
         response,
         200,
@@ -279,16 +279,16 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { response } = await adminGet("/admin/holiday/999/edit");
+      const { response } = await adminGet("/admin/holidays/999/edit");
       expectStatus(404)(response);
     });
   });
 
-  describe("POST /admin/holiday/:id/edit", () => {
+  describe("POST /admin/holidays/:id/edit", () => {
     test("redirects to login when not authenticated", async () => {
       const holiday = await createTestHoliday();
       const response = await handleRequest(
-        mockFormRequest(`/admin/holiday/${holiday.id}/edit`, {
+        mockFormRequest(`/admin/holidays/${holiday.id}/edit`, {
           name: "Updated",
           start_date: "2026-12-25",
           end_date: "2026-12-25",
@@ -309,7 +309,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("rejects end_date before start_date on edit", async () => {
       const holiday = await createTestHoliday();
       const { response } = await adminFormPost(
-        `/admin/holiday/${holiday.id}/edit`,
+        `/admin/holidays/${holiday.id}/edit`,
         {
           name: "Test",
           start_date: "2026-12-26",
@@ -325,7 +325,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { response } = await adminFormPost("/admin/holiday/999/edit", {
+      const { response } = await adminFormPost("/admin/holidays/999/edit", {
         name: "Test",
         start_date: "2026-12-25",
         end_date: "2026-12-25",
@@ -336,7 +336,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("rejects invalid form data on edit", async () => {
       const holiday = await createTestHoliday();
       const { response } = await adminFormPost(
-        `/admin/holiday/${holiday.id}/edit`,
+        `/admin/holidays/${holiday.id}/edit`,
         {
           name: "",
           start_date: "2026-12-25",
@@ -352,11 +352,11 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/holiday/:id/delete", () => {
+  describe("GET /admin/holidays/:id/delete", () => {
     test("redirects to login when not authenticated", async () => {
       const holiday = await createTestHoliday();
       const response = await handleRequest(
-        mockRequest(`/admin/holiday/${holiday.id}/delete`),
+        mockRequest(`/admin/holidays/${holiday.id}/delete`),
       );
       expectAdminRedirect(response);
     });
@@ -364,7 +364,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("shows delete confirmation page", async () => {
       const holiday = await createTestHoliday({ name: "Christmas" });
       const { response } = await adminGet(
-        `/admin/holiday/${holiday.id}/delete`,
+        `/admin/holidays/${holiday.id}/delete`,
       );
       await expectHtmlResponse(
         response,
@@ -376,16 +376,16 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { response } = await adminGet("/admin/holiday/999/delete");
+      const { response } = await adminGet("/admin/holidays/999/delete");
       expectStatus(404)(response);
     });
   });
 
-  describe("POST /admin/holiday/:id/delete", () => {
+  describe("POST /admin/holidays/:id/delete", () => {
     test("redirects to login when not authenticated", async () => {
       const holiday = await createTestHoliday();
       const response = await handleRequest(
-        mockFormRequest(`/admin/holiday/${holiday.id}/delete`, {
+        mockFormRequest(`/admin/holidays/${holiday.id}/delete`, {
           confirm_identifier: "Test Holiday",
         }),
       );
@@ -405,7 +405,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("rejects deletion with wrong name", async () => {
       const holiday = await createTestHoliday({ name: "Christmas" });
       const { response } = await adminFormPost(
-        `/admin/holiday/${holiday.id}/delete`,
+        `/admin/holidays/${holiday.id}/delete`,
         {
           confirm_identifier: "Wrong Name",
         },
@@ -426,7 +426,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("name confirmation is case-insensitive", async () => {
       const holiday = await createTestHoliday({ name: "Christmas Day" });
       const { response } = await adminFormPost(
-        `/admin/holiday/${holiday.id}/delete`,
+        `/admin/holidays/${holiday.id}/delete`,
         {
           confirm_identifier: "christmas day",
         },
@@ -435,7 +435,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { response } = await adminFormPost("/admin/holiday/999/delete", {
+      const { response } = await adminFormPost("/admin/holidays/999/delete", {
         confirm_identifier: "Test",
       });
       expectStatus(404)(response);
@@ -529,7 +529,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
   describe("holidayErrorPage fallback", () => {
     test("returns 404 when holiday not found during edit error", async () => {
-      const { response } = await adminFormPost("/admin/holiday/999/edit", {
+      const { response } = await adminFormPost("/admin/holidays/999/edit", {
         name: "",
         start_date: "2026-12-25",
         end_date: "2026-12-25",
@@ -538,7 +538,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
 
     test("returns 404 when holiday not found during delete error", async () => {
-      const { response } = await adminFormPost("/admin/holiday/999/delete", {
+      const { response } = await adminFormPost("/admin/holidays/999/delete", {
         confirm_identifier: "Wrong",
       });
       expectStatus(404)(response);

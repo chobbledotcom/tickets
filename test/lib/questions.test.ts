@@ -10,7 +10,6 @@ import {
   getAttendeeAnswersBatch,
   getEventQuestionIds,
   getNextAnswerSortOrder,
-  getQuestion,
   getQuestionsForEvent,
   getQuestionsWithEventIds,
   getQuestionWithAnswers,
@@ -39,7 +38,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Favourite colour?" });
       expect(q.id).toBeGreaterThan(0);
 
-      const found = await getQuestion(q.id);
+      const found = await questionsTable.findById(q.id);
       expect(found).not.toBeNull();
       expect(found!.text).toBe("Favourite colour?");
     });
@@ -47,7 +46,7 @@ describeWithEnv("custom questions", { db: true }, () => {
     test("updates a question", async () => {
       const q = await questionsTable.insert({ text: "Old text" });
       await questionsTable.update(q.id, { text: "New text" });
-      const found = await getQuestion(q.id);
+      const found = await questionsTable.findById(q.id);
       expect(found!.text).toBe("New text");
     });
 
@@ -67,7 +66,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       await deleteQuestion(q.id);
 
-      expect(await getQuestion(q.id)).toBeNull();
+      expect(await questionsTable.findById(q.id)).toBeNull();
       expect(await getQuestionsForEvent(event.id)).toEqual([]);
       const answers = await getAttendeeAnswersBatch([attendee.id]);
       expect(answers.get(attendee.id)).toBeUndefined();
