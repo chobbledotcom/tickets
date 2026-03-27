@@ -699,22 +699,23 @@ type MultipartFormHandler = (
 ) => Response | Promise<Response>;
 
 /** Handle multipart form request with auth + CSRF — optional role check */
-export const withAuthMultipartForm = async (
+export const withAuthMultipartForm = (
   request: Request,
   handler: MultipartFormHandler,
   role?: AdminLevel,
-): Promise<Response> => {
-  const result = await requireSessionFor(request, "html", role);
-  if (isResponse(result)) return result;
-
-  const formData = await request.formData();
-  const csrfToken = String(formData.get("csrf_token") ?? "").trim();
-  if (!(await verifySignedCsrfToken(csrfToken))) {
-    return authFailure("html", "invalid-csrf");
-  }
-
-  return handler(result, formData);
-};
+): Promise<Response> =>
+  requireSessionOr(
+    request,
+    async (session) => {
+      const formData = await request.formData();
+      const csrfToken = String(formData.get("csrf_token") ?? "").trim();
+      if (!(await verifySignedCsrfToken(csrfToken))) {
+        return authFailure("html", "invalid-csrf");
+      }
+      return handler(session, formData);
+    },
+    role,
+  );
 
 /** Handle multipart form request with owner auth — shorthand for withAuthMultipartForm with owner role */
 export const withOwnerAuthMultipartForm = (
@@ -736,6 +737,11 @@ export const plainResponse = (text: string, status = 200): Response =>
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 
+/** Shared auth failure response factories (avoids jscpd duplication) */
+const htmlForbidden = () => htmlResponse("Forbidden", 403);
+const jsonForbidden = () =>
+  jsonResponse({ status: "error", message: "Forbidden" }, 403);
+
 /** Auth failure responses keyed by reason, with html and json variants side-by-side. */
 const AUTH_FAILURES = {
   "not-authenticated": {
@@ -743,16 +749,13 @@ const AUTH_FAILURES = {
     json: () =>
       jsonResponse({ status: "error", message: "Not authenticated" }, 401),
   },
-  forbidden: {
-    html: () => htmlResponse("Forbidden", 403),
-    json: () => jsonResponse({ status: "error", message: "Forbidden" }, 403),
-  },
+  forbidden: { html: htmlForbidden, json: jsonForbidden },
   "invalid-csrf": {
     html: () => htmlResponse("Invalid CSRF token", 403),
-    json: () => jsonResponse({ status: "error", message: "Forbidden" }, 403),
+    json: jsonForbidden,
   },
   "invalid-api-key": {
-    html: () => htmlResponse("Forbidden", 403),
+    html: htmlForbidden,
     json: () =>
       jsonResponse({ status: "error", message: "Invalid API key" }, 401),
   },
