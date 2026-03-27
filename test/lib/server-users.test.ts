@@ -734,7 +734,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("POST /admin/users/:id/delete (not found)", () => {
     test("returns 404 for nonexistent user", async () => {
       const { response } = await adminFormPost("/admin/users/999/delete");
-      await expectHtmlResponse(response, 404, "User not found");
+      expect(response.status).toBe(404);
     });
   });
 

@@ -217,6 +217,164 @@ describeWithEnv("createConfirmedAction", { db: true }, () => {
     });
   });
 
+  describe("preValidate", () => {
+    test("aborts with response when preValidate returns a Response", async () => {
+      let handlerCalled = false;
+      const action = createConfirmedAction<TestResource, { id: number }>({
+        loadResource: () => Promise.resolve(resource),
+        getIdentifier: (r) => r.name,
+        redirectPath: ({ id }, a) => `/test/${id}/${a}`,
+        label: "Resource name",
+        preValidate: () => new Response("blocked", { status: 403 }),
+      });
+      const route = action("delete", "deletion", () => {
+        handlerCalled = true;
+        return new Response();
+      });
+
+      const response = await route(
+        mockFormRequest(
+          "/test/1/delete",
+          {
+            confirm_identifier: "Test Item",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+        { id: 1 },
+      );
+
+      expect(response.status).toBe(403);
+      expect(handlerCalled).toBe(false);
+    });
+
+    test("proceeds when preValidate returns null", async () => {
+      const action = createConfirmedAction<TestResource, { id: number }>({
+        loadResource: () => Promise.resolve(resource),
+        getIdentifier: (r) => r.name,
+        redirectPath: ({ id }, a) => `/test/${id}/${a}`,
+        label: "Resource name",
+        preValidate: () => null,
+      });
+      const route = action(
+        "delete",
+        "deletion",
+        () => new Response(null, { status: 200 }),
+      );
+
+      const response = await route(
+        mockFormRequest(
+          "/test/1/delete",
+          {
+            confirm_identifier: "Test Item",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+        { id: 1 },
+      );
+
+      expect(response.status).toBe(200);
+    });
+
+    test("receives resource, session, and params", async () => {
+      let receivedResource: unknown;
+      let receivedSession: unknown;
+      let receivedParams: unknown;
+      const action = createConfirmedAction<TestResource, { id: number }>({
+        loadResource: () => Promise.resolve(resource),
+        getIdentifier: (r) => r.name,
+        redirectPath: ({ id }, a) => `/test/${id}/${a}`,
+        label: "Resource name",
+        preValidate: (r, s, p) => {
+          receivedResource = r;
+          receivedSession = s;
+          receivedParams = p;
+          return null;
+        },
+      });
+      const route = action(
+        "delete",
+        "deletion",
+        () => new Response(null, { status: 200 }),
+      );
+
+      await route(
+        mockFormRequest(
+          "/test/1/delete",
+          {
+            confirm_identifier: "Test Item",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+        { id: 1 },
+      );
+
+      expect(receivedResource).toEqual(resource);
+      expect(receivedSession).toBeDefined();
+      expect(receivedParams).toEqual({ id: 1 });
+    });
+  });
+
+  describe("async getIdentifier", () => {
+    test("supports async identifier resolution", async () => {
+      const action = createConfirmedAction<TestResource, { id: number }>({
+        loadResource: () => Promise.resolve(resource),
+        getIdentifier: (r) => Promise.resolve(r.name),
+        redirectPath: ({ id }, a) => `/test/${id}/${a}`,
+        label: "Resource name",
+      });
+      const route = action(
+        "delete",
+        "deletion",
+        () => new Response(null, { status: 200 }),
+      );
+
+      const response = await route(
+        mockFormRequest(
+          "/test/1/delete",
+          {
+            confirm_identifier: "Test Item",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+        { id: 1 },
+      );
+
+      expect(response.status).toBe(200);
+    });
+
+    test("rejects mismatched async identifier", async () => {
+      const action = createConfirmedAction<TestResource, { id: number }>({
+        loadResource: () => Promise.resolve(resource),
+        getIdentifier: () => Promise.resolve("Different Name"),
+        redirectPath: ({ id }, a) => `/test/${id}/${a}`,
+        label: "Resource name",
+      });
+      const route = action("delete", "deletion", () => new Response());
+
+      const response = await route(
+        mockFormRequest(
+          "/test/1/delete",
+          {
+            confirm_identifier: "Test Item",
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+        { id: 1 },
+      );
+
+      expectRedirectWithFlash(
+        "/test/1/delete",
+        "Resource name does not match. Please type the exact resource name to confirm deletion.",
+        false,
+      )(response);
+    });
+  });
+
   describe("authentication", () => {
     test("redirects to login when not authenticated", async () => {
       let handlerCalled = false;

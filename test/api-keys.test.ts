@@ -295,8 +295,7 @@ describeWithEnv("API Keys", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(302);
-      expectFlash(response, "API key not found", false);
+      expect(response.status).toBe(404);
     });
 
     test("GET /admin/api-keys shows existing keys with last used date", async () => {

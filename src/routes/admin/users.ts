@@ -23,7 +23,7 @@ import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import { createConfirmedAction } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -246,38 +246,36 @@ const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (
     return htmlResponse(adminUserDeletePage(displayUser, session));
   });
 
+/** Confirmed-action factory for user routes */
+const confirmedUserAction = createConfirmedAction<
+  User,
+  { id: number },
+  AuthSession
+>({
+  loadResource: (_session, { id }) => getUserById(id),
+  getIdentifier: (user) => decryptUsername(user),
+  redirectPath: ({ id }) => `/admin/users/${id}/delete`,
+  label: "Username",
+  authHandler: withOwnerAuthForm,
+  preValidate: (user, session) =>
+    user.id === session.userId
+      ? usersErrorResponse(session, "Cannot delete your own account", 400)
+      : null,
+});
+
 /**
  * Handle POST /admin/users/:id/delete
  */
-const handleUserDeletePost: TypedRouteHandler<
-  "POST /admin/users/:id/delete"
-> = (request, { id }) =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const user = await getUserById(id);
-    if (!user) {
-      return usersErrorResponse(session, "User not found", 404);
-    }
-
-    // Cannot delete your own account
-    if (user.id === session.userId) {
-      return usersErrorResponse(session, "Cannot delete your own account", 400);
-    }
-
+const handleUserDeletePost = confirmedUserAction(
+  "delete",
+  "deletion",
+  async (user) => {
     const username = await decryptUsername(user);
-    const error = verifyOrRedirect(
-      form,
-      username,
-      `/admin/users/${id}/delete`,
-      "Username",
-      "deletion",
-    );
-    if (error) return error;
-
     await deleteUser(user.id);
-
     await logActivity(`User '${username}' deleted`);
     return redirect("/admin/users", "User deleted successfully", true);
-  });
+  },
+);
 
 /** Create a route handler that runs a user action by ID */
 const userActionRoute =

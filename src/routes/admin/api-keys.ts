@@ -13,9 +13,10 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import { createConfirmedAction } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
+  type AuthSession,
   applyFlash,
   htmlResponse,
   orNotFound,
@@ -105,32 +106,40 @@ const handleApiKeyDeleteGet: TypedRouteHandler<
     );
   });
 
+/** API key with owning user ID for deletion */
+type ApiKeyWithUser = { id: number; name: string; userId: number };
+
+/** Confirmed-action factory for API key routes */
+const confirmedApiKeyAction = createConfirmedAction<
+  ApiKeyWithUser,
+  { apiKeyId: number },
+  AuthSession
+>({
+  loadResource: async (session, { apiKeyId }) => {
+    try {
+      const key = await getApiKeyForUser(apiKeyId, session.userId);
+      return { ...key, userId: session.userId };
+    } catch {
+      return null;
+    }
+  },
+  getIdentifier: (apiKey) => apiKey.name,
+  redirectPath: ({ apiKeyId }) => `/admin/api-keys/${apiKeyId}/delete`,
+  label: "API key name",
+  authHandler: withOwnerAuthForm,
+});
+
 /**
  * Handle POST /admin/api-keys/:apiKeyId/delete
  */
-const handleApiKeyDelete: TypedRouteHandler<
-  "POST /admin/api-keys/:apiKeyId/delete"
-> = (request, { apiKeyId }) =>
-  withOwnerAuthForm(request, async (session, form) => {
-    let apiKey;
-    try {
-      apiKey = await getApiKeyForUser(apiKeyId, session.userId);
-    } catch {
-      return redirect("/admin/api-keys", "API key not found", false);
-    }
-
-    const error = verifyOrRedirect(
-      form,
-      apiKey.name,
-      `/admin/api-keys/${apiKeyId}/delete`,
-      "API key name",
-      "deletion",
-    );
-    if (error) return error;
-
-    await deleteApiKey(apiKeyId, session.userId);
+const handleApiKeyDelete = confirmedApiKeyAction(
+  "delete",
+  "deletion",
+  async (apiKey) => {
+    await deleteApiKey(apiKey.id, apiKey.userId);
     return redirect("/admin/api-keys", "API key deleted", true);
-  });
+  },
+);
 
 /**
  * Handle GET /admin/api-keys/docs — API documentation page

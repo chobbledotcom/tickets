@@ -95,13 +95,19 @@ type ConfirmedActionConfig<TResource, TParams, TSession = AuthSession> = {
     params: TParams,
   ) => Promise<TResource | null>;
   /** Extract the identifier (e.g. name) to verify against the confirmation field */
-  getIdentifier: (resource: TResource) => string;
+  getIdentifier: (resource: TResource) => string | Promise<string>;
   /** Build the redirect URL for verification errors */
   redirectPath: (params: TParams, action: string) => string;
   /** Human-readable label for the identifier (e.g. "Event name") */
   label: string;
   /** Auth handler (defaults to withAuthForm; use withOwnerAuthForm for owner-only routes) */
   authHandler?: FormAuthHandler<TSession>;
+  /** Optional guard run after loading but before verification. Return a Response to abort. */
+  preValidate?: (
+    resource: TResource,
+    session: TSession,
+    params: TParams,
+  ) => Response | null | Promise<Response | null>;
 };
 
 /**
@@ -130,10 +136,15 @@ export const createConfirmedAction =
     (config.authHandler ?? (withAuthForm as FormAuthHandler<TSession>))(
       request,
       (session, form) =>
-        orNotFound(config.loadResource(session, params), (resource) => {
+        orNotFound(config.loadResource(session, params), async (resource) => {
+          if (config.preValidate) {
+            const abort = await config.preValidate(resource, session, params);
+            if (abort) return abort;
+          }
+          const identifier = await config.getIdentifier(resource);
           const error = verifyOrRedirect(
             form,
-            config.getIdentifier(resource),
+            identifier,
             config.redirectPath(params, action),
             config.label,
             actionLabel,
