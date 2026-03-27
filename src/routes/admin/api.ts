@@ -190,15 +190,11 @@ const withEventApi = (
     body: Record<string, unknown>,
   ) => Promise<Response>,
 ): Promise<Response> =>
-  withAuth(
-    request,
-    ADMIN_API,
-    async (session, body) => {
-      const event = await getEventWithCount(eventId);
-      if (!event) return errorResponse("Event not found", 404);
-      return handler(event, session, body);
-    },
-  );
+  withAuth(request, ADMIN_API, async (session, body) => {
+    const event = await getEventWithCount(eventId);
+    if (!event) return errorResponse("Event not found", 404);
+    return handler(event, session, body);
+  });
 
 /** Convert JSON body to EventInput for create (auto-generates slug) */
 export const bodyToCreateInput = async (
@@ -294,22 +290,18 @@ const handleToggleActive = (
 
 /** POST /api/admin/events — create event */
 const handleCreateEvent = (request: Request): Promise<Response> =>
-  withAuth(
-    request,
-    ADMIN_API,
-    async (_session, body) => {
-      const parsed = await bodyToCreateInput(body);
-      if (!parsed.ok) return errorResponse(parsed.error);
+  withAuth(request, ADMIN_API, async (_session, body) => {
+    const parsed = await bodyToCreateInput(body);
+    if (!parsed.ok) return errorResponse(parsed.error);
 
-      const validationError = await validateEventInput(parsed.input);
-      if (validationError) return errorResponse(validationError);
+    const validationError = await validateEventInput(parsed.input);
+    if (validationError) return errorResponse(validationError);
 
-      const row = await eventsTable.insert(parsed.input);
-      const event = await getEventWithCount(row.id);
-      await logActivity(`Event '${row.name}' created`, row);
-      return jsonResponse({ event: toAdminEvent(event!) }, 201);
-    },
-  );
+    const row = await eventsTable.insert(parsed.input);
+    const event = await getEventWithCount(row.id);
+    await logActivity(`Event '${row.name}' created`, row);
+    return jsonResponse({ event: toAdminEvent(event!) }, 201);
+  });
 
 export const adminApiRoutes = defineRoutes({
   "GET /api/admin/events": handleListEvents,

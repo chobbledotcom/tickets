@@ -7,8 +7,8 @@ import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  OWNER_FORM,
   htmlResponse,
+  OWNER_FORM,
   redirect,
   requireOwnerOr,
   withAuth,

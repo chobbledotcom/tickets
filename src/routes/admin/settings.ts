@@ -82,12 +82,12 @@ import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
-  OWNER_FORM,
-  OWNER_MULTIPART,
   applyFlash,
   errorRedirect,
   htmlResponse,
   jsonResponse,
+  OWNER_FORM,
+  OWNER_MULTIPART,
   redirect,
   requireOwnerOr,
   withAuth,
@@ -775,64 +775,60 @@ const handleBookingFeePost = settingsRoute(processBookingFeeForm);
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
-  withAuth(
-    request,
-    OWNER_MULTIPART,
-    async (_session, formData) => {
-      if (!isStorageEnabled()) {
-        return errorRedirect(
-          "/admin/settings",
-          "Image storage is not configured",
-          "settings-header-image",
-        );
-      }
+  withAuth(request, OWNER_MULTIPART, async (_session, formData) => {
+    if (!isStorageEnabled()) {
+      return errorRedirect(
+        "/admin/settings",
+        "Image storage is not configured",
+        "settings-header-image",
+      );
+    }
 
-      const entry = formData.get("header_image");
-      if (!(entry instanceof File) || entry.size === 0) {
-        return errorRedirect(
-          "/admin/settings",
-          "No image file provided",
-          "settings-header-image",
-        );
-      }
+    const entry = formData.get("header_image");
+    if (!(entry instanceof File) || entry.size === 0) {
+      return errorRedirect(
+        "/admin/settings",
+        "No image file provided",
+        "settings-header-image",
+      );
+    }
 
-      const data = new Uint8Array(await entry.arrayBuffer());
-      const validation = validateImage(data, entry.type);
-      if (!validation.valid) {
-        return errorRedirect(
-          "/admin/settings",
-          IMAGE_ERROR_MESSAGES[validation.error],
-          "settings-header-image",
-        );
-      }
+    const data = new Uint8Array(await entry.arrayBuffer());
+    const validation = validateImage(data, entry.type);
+    if (!validation.valid) {
+      return errorRedirect(
+        "/admin/settings",
+        IMAGE_ERROR_MESSAGES[validation.error],
+        "settings-header-image",
+      );
+    }
 
-      // Delete old header image if one exists (best-effort, don't block new upload)
-      const existingUrl = settings.headerImageUrl;
-      if (existingUrl) {
-        await tryDeleteImage(
-          existingUrl,
-          undefined,
-          `header image: ${existingUrl}`,
-        );
-      }
+    // Delete old header image if one exists (best-effort, don't block new upload)
+    const existingUrl = settings.headerImageUrl;
+    if (existingUrl) {
+      await tryDeleteImage(
+        existingUrl,
+        undefined,
+        `header image: ${existingUrl}`,
+      );
+    }
 
-      const [uploadResult] = await Promise.allSettled([
-        uploadImage(data, validation.detectedType),
-      ]);
-      if (uploadResult.status === "fulfilled") {
-        await settings.update.headerImageUrl(uploadResult.value);
-        await logActivity("Header image uploaded");
-        return redirect("/admin/settings", "Header image uploaded", true, {
-          formId: "settings-header-image",
-        });
-      }
-      const uploadDetail = `Header image upload failed: ${String(uploadResult.reason)}`;
-      logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
-      return redirect("/admin/settings", "Header image upload failed", false, {
+    const [uploadResult] = await Promise.allSettled([
+      uploadImage(data, validation.detectedType),
+    ]);
+    if (uploadResult.status === "fulfilled") {
+      await settings.update.headerImageUrl(uploadResult.value);
+      await logActivity("Header image uploaded");
+      return redirect("/admin/settings", "Header image uploaded", true, {
         formId: "settings-header-image",
       });
-    },
-  );
+    }
+    const uploadDetail = `Header image upload failed: ${String(uploadResult.reason)}`;
+    logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
+    return redirect("/admin/settings", "Header image upload failed", false, {
+      formId: "settings-header-image",
+    });
+  });
 
 /** Handle POST /admin/settings/header-image/delete - owner only */
 const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {

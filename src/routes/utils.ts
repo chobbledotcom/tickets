@@ -524,16 +524,14 @@ export type AuthSession = {
 export type AuthKind = "cookie" | "apiKey";
 
 /** Body parsing mode for authenticated requests */
-type BodyMode = "form" | "multipart" | "json" | "none";
+type BodyMode = "form" | "multipart" | "json";
 
 /** Maps body mode to the parsed body type */
 type ParsedBody<T extends BodyMode> = T extends "form"
   ? FormParams
   : T extends "multipart"
     ? FormData
-    : T extends "json"
-      ? Record<string, unknown>
-      : null;
+    : Record<string, unknown>;
 
 /** Policy controlling authentication, CSRF, role, and body parsing */
 export type AuthPolicy<T extends BodyMode = BodyMode> = {
@@ -559,7 +557,7 @@ export const ADMIN_API: AuthPolicy<"json"> = {
 /**
  * Handle request with authenticated cookie session.
  * Only checks cookie-based auth. API key auth is intentionally excluded —
- * Bearer tokens should only authenticate /api/* endpoints via withAdminApi.
+ * Bearer tokens should only authenticate /api/* endpoints via withAuth + ADMIN_API.
  */
 export const withSession = async (
   request: Request,
@@ -769,8 +767,6 @@ const parseCsrfBody = async (
       }
       return parseJsonBody(request);
     }
-    default:
-      return null;
   }
 };
 
