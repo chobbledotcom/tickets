@@ -48,7 +48,7 @@ export const adminGroupsPage = (
       <AdminNav session={session} active="/admin/groups" />
       <Raw html={renderSuccess(successMessage)} />
       <p>
-        <a href="/admin/group/new">Add Group</a>
+        <a href="/admin/groups/new">Add Group</a>
       </p>
       {groups.length === 0 ? (
         <p>No groups configured.</p>
@@ -66,12 +66,12 @@ export const adminGroupsPage = (
               {groups.map((g) => (
                 <tr>
                   <td>
-                    <a href={`/admin/group/${g.id}`}>{g.name}</a>
+                    <a href={`/admin/groups/${g.id}`}>{g.name}</a>
                   </td>
                   <td>{g.slug}</td>
                   <td>
-                    <a href={`/admin/group/${g.id}/edit`}>Edit</a>{" "}
-                    <a href={`/admin/group/${g.id}/delete`}>Delete</a>
+                    <a href={`/admin/groups/${g.id}/edit`}>Edit</a>{" "}
+                    <a href={`/admin/groups/${g.id}/delete`}>Delete</a>
                   </td>
                 </tr>
               ))}
@@ -107,7 +107,7 @@ export const adminGroupNewPage = (
       <AdminNav session={session} active="/admin/groups" />
       <h1>Add Group</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action="/admin/group">
+      <CsrfForm action="/admin/groups">
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
         <button type="submit">Create Group</button>
       </CsrfForm>
@@ -127,7 +127,7 @@ export const adminGroupEditPage = (
       <AdminNav session={session} active="/admin/groups" />
       <h1>Edit Group</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action={`/admin/group/${group.id}/edit`}>
+      <CsrfForm action={`/admin/groups/${group.id}/edit`}>
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
         <button type="submit">Save Changes</button>
       </CsrfForm>
@@ -148,7 +148,7 @@ export const adminGroupDeletePage = (
       <h1>Delete Group</h1>
       <Raw html={renderError(error)} />
       <ConfirmForm
-        action={`/admin/group/${group.id}/delete`}
+        action={`/admin/groups/${group.id}/delete`}
         name={group.name}
         label="Group name"
         buttonText="Delete Group"
@@ -242,8 +242,8 @@ export const adminGroupDetailPage = (
       <AdminNav session={session} active="/admin/groups" />
       <Raw html={renderSuccess(successMessage)} />
       <p>
-        <a href={`/admin/group/${group.id}/edit`}>Edit Group</a>{" "}
-        <a href={`/admin/group/${group.id}/delete`}>Delete Group</a>
+        <a href={`/admin/groups/${group.id}/edit`}>Edit Group</a>{" "}
+        <a href={`/admin/groups/${group.id}/delete`}>Delete Group</a>
       </p>
 
       <article>
@@ -326,7 +326,7 @@ export const adminGroupDetailPage = (
               allowedDomain,
               showEvent: true,
               showDate: events.some((e) => e.event_type === "daily"),
-              returnUrl: `/admin/group/${group.id}#attendees`,
+              returnUrl: `/admin/groups/${group.id}#attendees`,
               phonePrefix,
               questionData,
             })}
@@ -337,7 +337,7 @@ export const adminGroupDetailPage = (
       {ungroupedEvents.length > 0 && (
         <>
           <h2>Add Events to Group</h2>
-          <CsrfForm action={`/admin/group/${group.id}/add-events`}>
+          <CsrfForm action={`/admin/groups/${group.id}/add-events`}>
             {ungroupedEvents.map((e) => (
               <label>
                 <input type="checkbox" name="event_ids" value={String(e.id)} />

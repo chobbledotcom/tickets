@@ -13,7 +13,6 @@ import {
   getAnswerCountsForQuestion,
   getEventQuestionIds,
   getNextAnswerSortOrder,
-  getQuestion,
   getQuestionWithAnswers,
   type QuestionWithAnswers,
   questionsTable,
@@ -22,7 +21,10 @@ import {
 } from "#lib/db/questions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import {
+  createConfirmedHandlers,
+  verifyOrRedirect,
+} from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   errorRedirect,
@@ -126,30 +128,19 @@ const handleAddAnswer = withValidatedText(
   },
 );
 
-/** Handle GET /admin/questions/:id/delete */
-const handleDeleteQuestionGet = ownerGetById(
-  getQuestionWithAnswers,
-  (q, session) => {
-    const flash = getFlash();
-    return htmlResponse(adminQuestionDeletePage(q, session, flash.error));
+/** Confirmed-delete handlers for questions */
+const questionDelete = createConfirmedHandlers({
+  load: (id) => getQuestionWithAnswers(id),
+  render: (q, session, error) => adminQuestionDeletePage(q, session, error),
+  identifier: (q) => q.text,
+  onConfirm: async (q) => {
+    await deleteQuestion(q.id);
+    await logActivity(`Question '${q.text}' deleted`);
   },
-);
-
-/** Handle POST /admin/questions/:id/delete */
-const handleDeleteQuestionPost = ownerFormById(async (id, _session, form) => {
-  const question = await getQuestion(id);
-  if (!question) return notFoundResponse();
-  const error = verifyOrRedirect(
-    form,
-    question.text,
-    `/admin/questions/${id}/delete`,
-    "Question text",
-    "deletion",
-  );
-  if (error) return error;
-  await deleteQuestion(id);
-  await logActivity(`Question '${question.text}' deleted`);
-  return redirect("/admin/questions", "Question deleted", true);
+  path: "/admin/questions/:id/delete",
+  successRedirect: "/admin/questions",
+  successMessage: "Question deleted",
+  identifierLabel: "Question text",
 });
 
 /** Load question + answer by IDs, returning 404 if either is missing */
@@ -288,18 +279,21 @@ const handleEventQuestionsPost = ownerFormById(async (id, _session, form) => {
 });
 
 /** Questions routes */
-export const questionsRoutes = defineRoutes({
-  "GET /admin/questions": handleQuestionsGet,
-  "POST /admin/questions": handleQuestionsPost,
-  "GET /admin/questions/:id": handleQuestionGet,
-  "POST /admin/questions/:id/edit": handleQuestionEdit,
-  "POST /admin/questions/:id/answers": handleAddAnswer,
-  "GET /admin/questions/:id/delete": handleDeleteQuestionGet,
-  "POST /admin/questions/:id/delete": handleDeleteQuestionPost,
-  "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
-  "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
-  "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
-  "POST /admin/questions/:id/answers/:answerId/move-down": handleMoveAnswerDown,
-  "GET /admin/event/:id/questions": handleEventQuestionsGet,
-  "POST /admin/event/:id/questions": handleEventQuestionsPost,
-});
+export const questionsRoutes = {
+  ...questionDelete.routes,
+  ...defineRoutes({
+    "GET /admin/questions": handleQuestionsGet,
+    "POST /admin/questions": handleQuestionsPost,
+    "GET /admin/questions/:id": handleQuestionGet,
+    "POST /admin/questions/:id/edit": handleQuestionEdit,
+    "POST /admin/questions/:id/answers": handleAddAnswer,
+    "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
+    "POST /admin/questions/:id/answers/:answerId/delete":
+      handleDeleteAnswerPost,
+    "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
+    "POST /admin/questions/:id/answers/:answerId/move-down":
+      handleMoveAnswerDown,
+    "GET /admin/event/:id/questions": handleEventQuestionsGet,
+    "POST /admin/event/:id/questions": handleEventQuestionsPost,
+  }),
+};

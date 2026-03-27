@@ -8,17 +8,25 @@ import {
   getAttendeeAnswersBatch,
   getQuestionsWithEventIds,
 } from "#lib/db/questions.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { validateForm } from "#lib/forms.tsx";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   type AuthSession,
   encodeBody,
   errorRedirect,
   getPrivateKey,
+  htmlResponse,
   notFoundResponse,
+  redirect,
+  AUTH_FORM,
+  OWNER_FORM,
+  requireOwnerOr,
   requireSessionOr,
   SessionKeyError,
+  withAuth,
 } from "#routes/utils.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
@@ -135,6 +143,171 @@ export const withEventAttendeesAuth = (
   requireSessionOr(request, (session) =>
     withDecryptedAttendees(session, eventId, handler),
   );
+
+/** Session guard: require auth and call handler with session */
+export type SessionGuard<TSession> = (
+  request: Request,
+  handler: (session: TSession) => Response | Promise<Response>,
+) => Promise<Response>;
+
+/** Form guard: require auth + CSRF, call handler with session and form */
+export type FormGuard<TSession> = (
+  request: Request,
+  handler: (
+    session: TSession,
+    form: FormParams,
+  ) => Response | Promise<Response>,
+) => Promise<Response>;
+
+/** Auth option: string shorthand or explicit guard pair */
+type AuthOption<TSession> =
+  | "owner"
+  | "any"
+  | {
+      requireSession: SessionGuard<TSession>;
+      withForm: FormGuard<TSession>;
+    };
+
+/** Configuration for creating confirmed-action GET/POST handler pair */
+export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
+  /** Auth guards: "owner" | "any" shorthand, or explicit { requireSession, withForm } */
+  auth?: AuthOption<TSession>;
+  /** Route path pattern, e.g. "/admin/users/:id/delete" */
+  path: string;
+  /** Load the entity by ID (return null if not found) */
+  load: (id: number, session: TSession) => Promise<T | null>;
+  /** Render the confirmation page HTML */
+  render: (
+    model: T,
+    session: TSession,
+    error?: string,
+  ) => string | Promise<string>;
+  /** Extract the identifier the user must type to confirm */
+  identifier: (model: T) => string | Promise<string>;
+  /** Perform the confirmed action (e.g. deletion, deactivation) */
+  onConfirm: (model: T, id: number, session: TSession) => Promise<void>;
+  /** Where to redirect after success (string or function of model + id) */
+  successRedirect: string | ((model: T, id: number) => string);
+  /** Flash message shown after success */
+  successMessage: string;
+  /** Human-readable label for the identifier field (e.g. "Username") */
+  identifierLabel: string;
+  /** Action label for the verification prompt (default "deletion") */
+  actionLabel?: string;
+  /** Optional pre-validation before loading (e.g. self-delete check) */
+  preValidate?: (
+    id: number,
+    session: TSession,
+  ) => Response | null | Promise<Response | null>;
+  /** Optional custom not-found handler (defaults to 404 page) */
+  onNotFound?: (
+    id: number,
+    session: TSession,
+  ) => Response | Promise<Response>;
+};
+
+/** Return type of createConfirmedHandlers */
+export type ConfirmedHandlers = {
+  get: (request: Request, id: number) => Promise<Response>;
+  post: (request: Request, id: number) => Promise<Response>;
+  /** Pre-built route entries ready to spread into a route definition */
+  routes: Record<string, RouteHandlerFn>;
+};
+
+/** Resolve auth option to concrete guard functions */
+const resolveAuth = <TSession>(
+  auth: AuthOption<TSession> | undefined,
+): {
+  requireSession: SessionGuard<TSession>;
+  withForm: FormGuard<TSession>;
+} => {
+  if (typeof auth === "object") return auth;
+  const isOwner = auth !== "any";
+  return {
+    requireSession: (isOwner ? requireOwnerOr : requireSessionOr) as SessionGuard<TSession>,
+    withForm: ((r: Request, h: (...args: never[]) => Response | Promise<Response>) =>
+      withAuth(r, isOwner ? OWNER_FORM : AUTH_FORM, h as Parameters<typeof withAuth>[2])) as FormGuard<TSession>,
+  };
+};
+
+/**
+ * Create a pair of GET (confirmation page) and POST (execute action) handlers
+ * for resources that need typed-identifier confirmation.
+ */
+export const createConfirmedHandlers = <T, TSession = AuthSession>(
+  config: ConfirmedHandlerConfig<T, TSession>,
+): ConfirmedHandlers => {
+  const notFound = (id: number, session: TSession) =>
+    config.onNotFound ? config.onNotFound(id, session) : notFoundResponse();
+  const { requireSession, withForm } = resolveAuth(config.auth);
+  const actionLabel = config.actionLabel ?? "deletion";
+  const resolveRedirect = (model: T, id: number) =>
+    typeof config.successRedirect === "function"
+      ? config.successRedirect(model, id)
+      : config.successRedirect;
+  const confirmPath = (id: number) =>
+    config.path.replace(/:(\w+)/, String(id));
+
+  const validate = (id: number, session: TSession) =>
+    config.preValidate ? config.preValidate(id, session) : null;
+
+  const loadOrNotFound = async (id: number, session: TSession) => {
+    const model = await config.load(id, session);
+    return model ?? notFound(id, session);
+  };
+
+  const get = (request: Request, id: number): Promise<Response> =>
+    requireSession(request, async (session) => {
+      const rejection = await validate(id, session);
+      if (rejection) return rejection;
+      const result = await loadOrNotFound(id, session);
+      if (result instanceof Response) return result;
+      const flash = getFlash();
+      return htmlResponse(await config.render(result, session, flash.error));
+    });
+
+  const post = (request: Request, id: number): Promise<Response> =>
+    withForm(request, async (session, form) => {
+      const result = await loadOrNotFound(id, session);
+      if (result instanceof Response) return result;
+
+      const rejection = await validate(id, session);
+      if (rejection) return rejection;
+
+      const expected = await config.identifier(result);
+      const error = verifyOrRedirect(
+        form,
+        expected,
+        confirmPath(id),
+        config.identifierLabel,
+        actionLabel,
+      );
+      if (error) return error;
+
+      await config.onConfirm(result, id, session);
+      return redirect(
+        resolveRedirect(result, id),
+        config.successMessage,
+        true,
+      );
+    });
+
+  // Extract param name from path pattern for route handlers
+  const paramName = config.path.match(/:(\w+)/)!.at(1)!;
+  const toRoute =
+    (fn: (req: Request, id: number) => Promise<Response>): RouteHandlerFn =>
+    (req, params) =>
+      fn(req, params[paramName] as number);
+
+  return {
+    get,
+    post,
+    routes: {
+      [`GET ${config.path}`]: toRoute(get),
+      [`POST ${config.path}`]: toRoute(post),
+    },
+  };
+};
 
 /** Load question data for attendees across multiple events */
 export const loadQuestionData = async (

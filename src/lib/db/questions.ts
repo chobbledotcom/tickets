@@ -360,10 +360,6 @@ export const deleteAnswer = async (answerId: number): Promise<void> => {
   ]);
 };
 
-/** Get a question by ID (decrypted) */
-export const getQuestion = (id: number): Promise<Question | null> =>
-  questionsTable.findById(id);
-
 /** Get question with answers by ID */
 export const getQuestionWithAnswers = async (
   id: number,
