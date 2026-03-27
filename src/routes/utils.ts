@@ -673,11 +673,14 @@ const withAuthBody = <B>(
   );
 
 /** Handle request with auth form + CSRF — optional role check */
-export const withAuthForm = (
+export const withAuthForm = async (
   request: Request,
   handler: FormHandler,
   role?: AdminLevel,
-): Promise<Response> => withAuthBody(request, requireFormCsrf, handler, role);
+): Promise<Response> => {
+  const auth = await requireAuthForm(request, role);
+  return auth.ok ? handler(auth.session, auth.form) : auth.response;
+};
 
 /** Handle request with owner auth form — shorthand for withAuthForm with owner role */
 export const withOwnerAuthForm = (
