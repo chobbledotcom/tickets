@@ -184,7 +184,7 @@ const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
       <p>
         <strong>Refund Status:</strong>{" "}
         {isRefunded ? (
-          <span class="badge-refunded">Refunded</span>
+          <span class="badge-alert">Refunded</span>
         ) : (
           "Not refunded"
         )}

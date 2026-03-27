@@ -321,7 +321,7 @@ export const ticketPage = (
               <p>
                 <strong>Date:</strong> {formatDatetimeLabel(event.date)}
                 {pastDays !== null && (
-                  <span class="badge-past-event">
+                  <span class="badge-alert">
                     {" "}
                     ({pastDays} {pastDays === 1 ? "day" : "days"} ago)
                   </span>

@@ -3539,7 +3539,7 @@ describe("html", () => {
         attendee_count: 0,
       });
       const html = renderTicket(event);
-      expect(html).toContain("badge-past-event");
+      expect(html).toContain("badge-alert");
       expect(html).toContain("ago)");
     });
 
@@ -3549,13 +3549,13 @@ describe("html", () => {
         attendee_count: 0,
       });
       const html = renderTicket(event);
-      expect(html).not.toContain("badge-past-event");
+      expect(html).not.toContain("badge-alert");
     });
 
     test("does not show past event badge when date is empty", () => {
       const event = testEventWithCount({ date: "", attendee_count: 0 });
       const html = renderTicket(event);
-      expect(html).not.toContain("badge-past-event");
+      expect(html).not.toContain("badge-alert");
     });
 
     test("past event badge shows singular day for 1 day ago", () => {

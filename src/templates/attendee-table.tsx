@@ -266,7 +266,7 @@ const StatusCell = ({
   opts: AttendeeTableOptions;
 }): string => {
   if (row.attendee.refunded) {
-    return String(<span class="badge-refunded">Refunded</span>);
+    return String(<span class="badge-alert">Refunded</span>);
   }
   return CheckinButton({
     a: row.attendee,

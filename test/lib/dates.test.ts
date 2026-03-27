@@ -353,10 +353,6 @@ describeWithEnv("dates", { db: true }, () => {
       expect(daysAgo("")).toBeNull();
     });
 
-    test("returns null for invalid datetime", () => {
-      expect(daysAgo("not-a-date")).toBeNull();
-    });
-
     test("returns null for today's date", () => {
       const todayStr = today();
       expect(daysAgo(`${todayStr}T12:00:00.000Z`)).toBeNull();

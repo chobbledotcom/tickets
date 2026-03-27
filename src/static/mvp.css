@@ -908,15 +908,7 @@ input[type="submit"].danger:hover {
   font-weight: bold;
 }
 
-.badge-refunded {
-  font-size: 0.75em;
-  color: #fff;
-  background-color: #cc0000;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
-}
-
-.badge-past-event {
+.badge-alert {
   font-size: 0.75em;
   color: #fff;
   background-color: #cc0000;
@@ -930,10 +922,7 @@ input[type="submit"].danger:hover {
 [data-theme="dark"] .danger-text {
   color: #ff4444;
 }
-[data-theme="dark"] .badge-refunded {
-  background-color: #ff4444;
-}
-[data-theme="dark"] .badge-past-event {
+[data-theme="dark"] .badge-alert {
   background-color: #ff4444;
 }
 

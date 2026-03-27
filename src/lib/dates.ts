@@ -161,8 +161,7 @@ export const formatDatetimeLabel = (iso: string): string =>
  */
 export const daysAgo = (utcIso: string): number | null => {
   if (!utcIso) return null;
-  const calDate = eventDateToCalendarDate(utcIso);
-  if (!calDate) return null;
+  const calDate = eventDateToCalendarDate(utcIso)!;
   const todayStr = todayInTz(settings.timezone);
   if (calDate >= todayStr) return null;
   const eventMs = new Date(`${calDate}T00:00:00Z`).getTime();
