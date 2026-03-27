@@ -137,6 +137,12 @@ const formatCookies = (response: Response): string => {
 const isRedirect = (status: number): boolean =>
   status === 301 || status === 302 || status === 303;
 
+/** Extract pathname+search from a URL string (absolute or relative) */
+const toPath = (url: string): string =>
+  url.startsWith("http")
+    ? new URL(url).pathname + new URL(url).search
+    : url;
+
 /**
  * A simulated browser that navigates by following links and submitting forms.
  * It calls handleRequest directly (no network), maintains cookies, and follows redirects.
@@ -163,13 +169,17 @@ export class TestBrowser {
   /** Enable debug logging */
   debug = false;
 
-  /** Build a GET request with cookies and send it through handleRequest */
-  private buildRequest(path: string): Request {
-    const headers = new Headers();
+  /** Build a request with cookies */
+  private buildRequest(
+    path: string,
+    options: RequestInit = {},
+  ): Request {
+    const headers = new Headers(options.headers);
     headers.set("host", "localhost");
     const cookieStr = buildCookieHeader(this.cookies);
     if (cookieStr) headers.set("cookie", cookieStr);
     return new Request(`http://localhost${path}`, {
+      ...options,
       headers,
       redirect: "manual",
     });
@@ -194,13 +204,7 @@ export class TestBrowser {
     path: string,
     options: RequestInit = {},
   ): Promise<Response> {
-    const headers = new Headers(options.headers);
-    headers.set("host", "localhost");
-    const cookieStr = buildCookieHeader(this.cookies);
-    if (cookieStr) headers.set("cookie", cookieStr);
-
-    const url = path.startsWith("http") ? path : `http://localhost${path}`;
-    const req = new Request(url, { ...options, headers, redirect: "manual" });
+    const req = this.buildRequest(toPath(path), options);
     let response = await this.send(req, `${options.method ?? "GET"} ${path}`);
 
     // Follow redirects (max 10 hops)
@@ -209,9 +213,7 @@ export class TestBrowser {
       hops++;
       const location = response.headers.get("location");
       if (!location) break;
-      const nextPath = location.startsWith("http")
-        ? new URL(location).pathname + new URL(location).search
-        : location;
+      const nextPath = toPath(location);
       response = await this.send(
         this.buildRequest(nextPath),
         `  -> redirect ${nextPath}`,
@@ -221,9 +223,7 @@ export class TestBrowser {
     this.currentUrl = new URL(response.url || `http://localhost${path}`).pathname;
     const finalLocation = response.headers.get("location");
     if (finalLocation && isRedirect(response.status)) {
-      this.currentUrl = finalLocation.startsWith("http")
-        ? new URL(finalLocation).pathname
-        : finalLocation;
+      this.currentUrl = toPath(finalLocation).split("?")[0]!;
     }
     this.currentHtml = await response.text();
     return response;
