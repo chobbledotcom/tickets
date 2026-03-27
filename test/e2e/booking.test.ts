@@ -101,7 +101,10 @@ describe("e2e: full booking flow", () => {
     await browser.visit("/admin/questions");
     expect(browser.containsText("Custom Questions")).toBe(true);
 
-    await browser.submitForm({ text: "What is your t-shirt size?" }, "Add Question");
+    await browser.submitForm(
+      { text: "What is your t-shirt size?" },
+      "Add Question",
+    );
     expect(browser.containsText("What is your t-shirt size?")).toBe(true);
 
     // Navigate to the question detail page and add answers
@@ -229,7 +232,9 @@ describe("e2e: full booking flow", () => {
     const dataLine = csvLines[1]!;
     // Find the column index for our question
     const headers = headerLine.split(",");
-    const qColIndex = headers.findIndex((h) => h.includes("What is your t-shirt size?"));
+    const qColIndex = headers.findIndex((h) =>
+      h.includes("What is your t-shirt size?"),
+    );
     expect(qColIndex).toBeGreaterThan(-1);
     // Verify the answer in the data row
     const dataCols = dataLine.split(",");
