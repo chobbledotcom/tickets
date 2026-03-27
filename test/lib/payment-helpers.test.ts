@@ -52,6 +52,7 @@ describe("payment-helpers", () => {
         phone: "+9876543210",
         address: "",
         special_instructions: "",
+        date: null,
         items: [
           {
             eventId: 1,
@@ -117,6 +118,7 @@ describe("payment-helpers", () => {
         email: "min@example.com",
         address: "",
         special_instructions: "",
+        date: null,
         quantity: 1,
       });
 
@@ -137,6 +139,7 @@ describe("payment-helpers", () => {
         phone: "",
         address: "",
         special_instructions: "",
+        date: null,
         items: [
           { eventId: 5, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
         ],
@@ -178,6 +181,7 @@ describe("payment-helpers", () => {
       const metadata = buildSingleIntentMetadata(1, {
         name: "X",
         email: "x@x.com",
+        date: null,
         quantity: 1,
         answerIds: [],
       });
