@@ -521,36 +521,54 @@ export type AuthSession = {
 };
 
 /**
- * Handle request with authenticated cookie session.
+ * Core session + role gate. Returns the session on success, or a
+ * channel-appropriate failure Response.
+ */
+const requireSessionFor = async (
+  request: Request,
+  channel: AuthChannel,
+  role?: AdminLevel,
+): Promise<AuthSession | Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) return authFailure(channel, "not-authenticated");
+  if (role && session.adminLevel !== role)
+    return authFailure(channel, "forbidden");
+  return session;
+};
+
+const isResponse = (v: unknown): v is Response => v instanceof Response;
+
+type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+
+/**
+ * Low-level session gate with custom no-session fallback (used by dashboard login page).
  * Only checks cookie-based auth. API key auth is intentionally excluded —
  * Bearer tokens should only authenticate /api/* endpoints via withAdminApi.
  */
 export const withSession = async (
   request: Request,
-  handler: (session: AuthSession) => Response | Promise<Response>,
+  handler: SessionHandler,
   onNoSession: () => Response | Promise<Response>,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   return session ? handler(session) : onNoSession();
 };
 
-/**
- * Handle request requiring session - redirect to /admin/ if not authenticated
- */
-export const requireSessionOr = (
+/** Require session — redirect if not authenticated, 403 if role check fails */
+export const requireSessionOr = async (
   request: Request,
-  handler: (session: AuthSession) => Response | Promise<Response>,
-): Promise<Response> =>
-  withSession(request, handler, () => redirectResponse("/admin"));
+  handler: SessionHandler,
+  role?: AdminLevel,
+): Promise<Response> => {
+  const result = await requireSessionFor(request, "html", role);
+  return isResponse(result) ? result : handler(result);
+};
 
-/** Check owner role, return 403 if not owner */
-const requireOwnerRole = (
-  session: AuthSession,
-  handler: (session: AuthSession) => Response | Promise<Response>,
-): Response | Promise<Response> =>
-  session.adminLevel === "owner"
-    ? handler(session)
-    : htmlResponse("Forbidden", 403);
+/** Require owner session — shorthand for requireSessionOr with owner role */
+export const requireOwnerOr = (
+  request: Request,
+  handler: SessionHandler,
+): Promise<Response> => requireSessionOr(request, handler, "owner");
 
 /** CSRF form result type */
 export type CsrfFormResult =
@@ -603,85 +621,89 @@ export type AuthFormResult =
   | { ok: true; session: AuthSession; form: FormParams }
   | { ok: false; response: Response };
 
-/**
- * Require authenticated session with parsed form and validated CSRF
- */
+/** Verify form CSRF token, returning failure or the parsed form */
+/** Verify a CSRF token string, returning a failure Response or null */
+const verifyCsrf = async (token: string): Promise<Response | null> =>
+  (await verifySignedCsrfToken(token)) ? null : authFailure("html", "invalid-csrf");
+
+/** Parse URL-encoded form and verify its CSRF token */
+const requireFormCsrf = async (
+  request: Request,
+): Promise<FormParams | Response> => {
+  const form = await parseFormData(request);
+  return (await verifyCsrf(form.getString("csrf_token"))) ?? form;
+};
+
+/** Require authenticated session (with optional role) + parsed form + validated CSRF */
 export const requireAuthForm = async (
   request: Request,
+  role?: AdminLevel,
 ): Promise<AuthFormResult> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return { ok: false, response: redirectResponse("/admin") };
-  }
+  const result = await requireSessionFor(request, "html", role);
+  if (isResponse(result)) return { ok: false, response: result };
 
-  const form = await parseFormData(request);
-  const csrfToken = form.getString("csrf_token");
-  if (!(await verifySignedCsrfToken(csrfToken))) {
-    return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
-  }
+  const form = await requireFormCsrf(request);
+  if (isResponse(form)) return { ok: false, response: form };
 
-  return { ok: true, session, form };
+  return { ok: true, session: result, form };
 };
 
 type FormHandler = (
   session: AuthSession,
   form: FormParams,
 ) => Response | Promise<Response>;
-type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
 
-/** Unwrap an AuthFormResult, optionally checking role */
-const handleAuthForm = async (
+/**
+ * Session + body-with-CSRF gate. Parses and CSRF-verifies the body via
+ * parseAndVerify, then hands the session + typed body to the handler.
+ */
+const withAuthBody = <B>(
   request: Request,
-  requiredRole: AdminLevel | null,
+  parseAndVerify: (req: Request) => Promise<B | Response>,
+  handler: (session: AuthSession, body: B) => Response | Promise<Response>,
+  role?: AdminLevel,
+): Promise<Response> =>
+  requireSessionOr(
+    request,
+    async (session) => {
+      const body = await parseAndVerify(request);
+      return isResponse(body) ? body : handler(session, body);
+    },
+    role,
+  );
+
+/** Handle request with auth form + CSRF — optional role check */
+export const withAuthForm = async (
+  request: Request,
   handler: FormHandler,
+  role?: AdminLevel,
 ): Promise<Response> => {
-  const auth = await requireAuthForm(request);
-  if (!auth.ok) return auth.response;
-  if (requiredRole && auth.session.adminLevel !== requiredRole) {
-    return htmlResponse("Forbidden", 403);
-  }
-  return handler(auth.session, auth.form);
+  const auth = await requireAuthForm(request, role);
+  return auth.ok ? handler(auth.session, auth.form) : auth.response;
 };
 
-/** Handle request with auth form - unwrap AuthFormResult */
-export const withAuthForm = (
-  request: Request,
-  handler: FormHandler,
-): Promise<Response> => handleAuthForm(request, null, handler);
-
-/** Require owner role - returns 403 if not owner, redirect if not authenticated */
-export const requireOwnerOr = (
-  request: Request,
-  handler: SessionHandler,
-): Promise<Response> =>
-  requireSessionOr(request, (session) => requireOwnerRole(session, handler));
-
-/** Handle request with owner auth form - requires owner role + CSRF validation */
+/** Handle request with owner auth form — shorthand for withAuthForm with owner role */
 export const withOwnerAuthForm = (
   request: Request,
   handler: FormHandler,
-): Promise<Response> => handleAuthForm(request, "owner", handler);
-
-/** Auth level for ID route helpers: "owner" requires owner role, null allows any authenticated user */
-type IdRouteAuth = AdminLevel | null;
-
-const authRequireFor = (level: IdRouteAuth) =>
-  level === "owner" ? requireOwnerOr : requireSessionOr;
+): Promise<Response> => withAuthForm(request, handler, "owner");
 
 /**
  * Authenticated GET-by-ID route handler factory.
  * Loads entity by ID, returns 404 if missing, renders with session context.
- * @param level - "owner" requires owner role, null allows any authenticated user
+ * @param role - "owner" requires owner role, null allows any authenticated user
  */
 export const authenticatedGetById =
-  (level: IdRouteAuth) =>
+  (role: AdminLevel | null) =>
   <T>(
     load: (id: number) => Promise<T | null>,
     render: (entity: T, session: AuthSession) => Response | Promise<Response>,
   ): IdRouteHandler =>
   (request, { id }) =>
-    authRequireFor(level)(request, (session) =>
-      orNotFound(load(id), (entity) => render(entity, session)),
+    requireSessionOr(
+      request,
+      (session) => orNotFound(load(id), (entity) => render(entity, session)),
+      role ?? undefined,
     );
 
 /** Shorthand: owner GET-by-ID */
@@ -705,35 +727,31 @@ type MultipartFormHandler = (
   formData: FormData,
 ) => Response | Promise<Response>;
 
-/**
- * Handle multipart form request with auth + CSRF validation.
- * Parses request body as FormData (multipart/form-data) instead of URLSearchParams.
- */
-export const withAuthMultipartForm = async (
+/** Parse multipart form and verify CSRF token */
+/** Parse multipart form and verify its CSRF token */
+const requireMultipartCsrf = async (
   request: Request,
-  handler: MultipartFormHandler,
-): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) return redirectResponse("/admin");
-
+): Promise<FormData | Response> => {
   const formData = await request.formData();
-  const csrfToken = String(formData.get("csrf_token") ?? "").trim();
-  if (!(await verifySignedCsrfToken(csrfToken))) {
-    return htmlResponse("Invalid CSRF token", 403);
-  }
-
-  return handler(session, formData);
+  return (
+    (await verifyCsrf(String(formData.get("csrf_token") ?? "").trim())) ??
+    formData
+  );
 };
 
-/** Handle multipart form request with owner auth + CSRF validation. */
+/** Handle multipart form request with auth + CSRF — optional role check */
+export const withAuthMultipartForm = (
+  request: Request,
+  handler: MultipartFormHandler,
+  role?: AdminLevel,
+): Promise<Response> =>
+  withAuthBody(request, requireMultipartCsrf, handler, role);
+
+/** Handle multipart form request with owner auth — shorthand for withAuthMultipartForm with owner role */
 export const withOwnerAuthMultipartForm = (
   request: Request,
   handler: MultipartFormHandler,
-): Promise<Response> =>
-  withAuthMultipartForm(request, (session, formData) => {
-    if (session.adminLevel !== "owner") return htmlResponse("Forbidden", 403);
-    return handler(session, formData);
-  });
+): Promise<Response> => withAuthMultipartForm(request, handler, "owner");
 
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
@@ -748,6 +766,39 @@ export const plainResponse = (text: string, status = 200): Response =>
     status,
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
+
+/** Shared auth failure response factories (avoids jscpd duplication) */
+const htmlForbidden = () => htmlResponse("Forbidden", 403);
+const jsonForbidden = () =>
+  jsonResponse({ status: "error", message: "Forbidden" }, 403);
+
+/** Auth failure responses keyed by reason, with html and json variants side-by-side. */
+const AUTH_FAILURES = {
+  "not-authenticated": {
+    html: () => redirectResponse("/admin"),
+    json: () =>
+      jsonResponse({ status: "error", message: "Not authenticated" }, 401),
+  },
+  forbidden: { html: htmlForbidden, json: jsonForbidden },
+  "invalid-csrf": {
+    html: () => htmlResponse("Invalid CSRF token", 403),
+    json: jsonForbidden,
+  },
+  "invalid-api-key": {
+    html: htmlForbidden,
+    json: () =>
+      jsonResponse({ status: "error", message: "Invalid API key" }, 401),
+  },
+} satisfies Record<string, Record<"html" | "json", () => Response>>;
+
+type AuthFailureReason = keyof typeof AUTH_FAILURES;
+type AuthChannel = keyof (typeof AUTH_FAILURES)[AuthFailureReason];
+
+/** Construct a standardized auth failure response. */
+export const authFailure = (
+  channel: AuthChannel,
+  reason: AuthFailureReason,
+): Response => AUTH_FAILURES[reason][channel]();
 
 /** Create iCalendar response */
 export const icsResponse = (ics: string): Response =>
@@ -811,17 +862,16 @@ export async function withAuthJson(
   request: Request,
   handler: JsonHandler,
 ): Promise<Response> {
-  const session = await getAuthenticatedSession(request);
-  if (!session)
-    return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
+  const result = await requireSessionFor(request, "json");
+  if (isResponse(result)) return result;
 
   const csrfHeader = request.headers.get("x-csrf-token") ?? "";
   if (!(await verifySignedCsrfToken(csrfHeader))) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
-    return jsonResponse({ status: "error", message: "Forbidden" }, 403);
+    return authFailure("json", "forbidden");
   }
 
-  return runJsonHandler(request, session, handler);
+  return runJsonHandler(request, result, handler);
 }
 
 /**
@@ -839,7 +889,7 @@ export async function withAdminApi(
   const apiKeySession = await getAuthenticatedApiKey(request);
   if (apiKeySession) return runJsonHandler(request, apiKeySession, handler);
   if (getBearerToken(request)) {
-    return jsonResponse({ status: "error", message: "Invalid API key" }, 401);
+    return authFailure("json", "invalid-api-key");
   }
   return withAuthJson(request, handler);
 }
