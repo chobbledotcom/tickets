@@ -2,6 +2,12 @@
  * Types for the ticket reservation system
  */
 
+/** Create a type guard from a readonly array of string literal values */
+export const createTypeGuard =
+  <T extends string>(values: readonly T[]) =>
+  (s: string): s is T =>
+    (values as readonly string[]).includes(s);
+
 /** Individual contact field name */
 export type ContactField =
   | "email"
@@ -18,10 +24,12 @@ export const CONTACT_FIELDS: readonly ContactField[] = [
 ];
 
 /** Type guard: check if an arbitrary string is a valid ContactField */
-export const isContactField = (s: string): s is ContactField =>
-  (CONTACT_FIELDS as readonly string[]).includes(s);
+export const isContactField = createTypeGuard(CONTACT_FIELDS);
 
-/** Contact fields setting for an event (comma-separated ContactField names, or empty for name-only) */
+/**
+ * Contact fields setting for an event (comma-separated ContactField names, or empty for name-only).
+ * Alias kept for documentation; runtime enforcement happens in parseEventFields.
+ */
 export type EventFields = string;
 
 /** Attendee contact details — the core PII fields collected at registration */
@@ -47,8 +55,7 @@ export type PaymentProviderType = "stripe" | "square";
 const PAYMENT_PROVIDERS: readonly PaymentProviderType[] = ["stripe", "square"];
 
 /** Type guard: check if a string is a valid PaymentProviderType */
-export const isPaymentProvider = (s: string): s is PaymentProviderType =>
-  (PAYMENT_PROVIDERS as readonly string[]).includes(s);
+export const isPaymentProvider = createTypeGuard(PAYMENT_PROVIDERS);
 
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
@@ -57,8 +64,7 @@ export type EventType = "standard" | "daily";
 const EVENT_TYPES: readonly EventType[] = ["standard", "daily"];
 
 /** Type guard: check if an arbitrary string is a valid EventType */
-export const isEventType = (s: string): s is EventType =>
-  (EVENT_TYPES as readonly string[]).includes(s);
+export const isEventType = createTypeGuard(EVENT_TYPES);
 
 /** Whether an event can accept payments (has a price or allows pay-what-you-want) */
 export const isPaidEvent = (
@@ -143,9 +149,11 @@ export interface Session {
 /** Admin role levels */
 export type AdminLevel = "owner" | "manager";
 
+/** Valid admin level values */
+const ADMIN_LEVELS: readonly AdminLevel[] = ["owner", "manager"];
+
 /** Type guard: check if a string is a valid AdminLevel */
-export const isAdminLevel = (s: string): s is AdminLevel =>
-  s === "owner" || s === "manager";
+export const isAdminLevel = createTypeGuard(ADMIN_LEVELS);
 
 /** Session data needed by admin page templates */
 export type AdminSession = {

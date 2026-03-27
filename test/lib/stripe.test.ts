@@ -191,6 +191,7 @@ describeWithEnv(
           address: "",
           special_instructions: "",
           quantity: 1,
+          date: null,
         };
 
         const createdSession = await createCheckoutSessionWithIntent(
@@ -258,6 +259,7 @@ describeWithEnv(
           address: "",
           special_instructions: "",
           quantity: 2,
+          date: null,
         };
 
         const session = await createCheckoutSessionWithIntent(
@@ -331,6 +333,7 @@ describeWithEnv(
           address: "",
           special_instructions: "",
           quantity: 1,
+          date: null,
         };
         const result = await createCheckoutSessionWithIntent(
           event,
@@ -365,6 +368,7 @@ describeWithEnv(
             address: "",
             special_instructions: "",
             quantity: 1,
+            date: null,
           };
 
           await createCheckoutSessionWithIntent(
@@ -937,6 +941,7 @@ describeWithEnv(
           address: "",
           special_instructions: "",
           quantity: 1,
+          date: null,
         };
 
         const session = await createCheckoutSessionWithIntent(
@@ -964,6 +969,7 @@ describeWithEnv(
           address: "",
           special_instructions: "",
           quantity: 1,
+          date: null,
         };
 
         const session = await createCheckoutSessionWithIntent(
@@ -988,6 +994,7 @@ describeWithEnv(
           phone: "+44 7700 900001",
           address: "",
           special_instructions: "",
+          date: null,
           items: [
             {
               eventId: 1,
@@ -1022,6 +1029,7 @@ describeWithEnv(
           phone: "",
           address: "",
           special_instructions: "",
+          date: null,
           items: [
             {
               eventId: 1,
@@ -1049,6 +1057,7 @@ describeWithEnv(
           phone: "+44 7700 900002",
           address: "",
           special_instructions: "",
+          date: null,
           items: [
             {
               eventId: 1,
@@ -1624,6 +1633,7 @@ describeWithEnv(
             address: "",
             special_instructions: "",
             quantity: 1,
+            date: null,
           };
 
           // Use stripePaymentProvider which wraps via toCheckoutResult
@@ -1658,6 +1668,7 @@ describeWithEnv(
             address: "",
             special_instructions: "",
             quantity: 1,
+            date: null,
           };
 
           const result = await stripePaymentProvider.createCheckoutSession(
@@ -2190,6 +2201,7 @@ describeWithEnv(
             phone: "",
             address: "",
             special_instructions: "",
+            date: null,
             items: [
               {
                 eventId: 1,

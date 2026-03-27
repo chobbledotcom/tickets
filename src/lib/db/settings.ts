@@ -127,8 +127,9 @@ export type EmailTemplateType = "confirmation" | "admin";
 /** Valid email template formats */
 export type EmailTemplateFormat = "subject" | "html" | "text";
 
-/** Template type:format → config key (no separate mapping needed). */
-const TEMPLATE_KEYS: Record<string, StringSettingKey> = {
+/** Template type:format → config key */
+type TemplateKeyMap = `${EmailTemplateType}:${EmailTemplateFormat}`;
+const TEMPLATE_KEYS: Record<TemplateKeyMap, StringSettingKey> = {
   "confirmation:subject": "email_tpl_confirmation_subject",
   "confirmation:html": "email_tpl_confirmation_html",
   "confirmation:text": "email_tpl_confirmation_text",
@@ -471,11 +472,11 @@ const updateUserPassword = async (
 // ---------------------------------------------------------------------------
 
 const toCredentials = (
-  passTypeId: string | null | undefined,
-  teamId: string | null | undefined,
-  signingCert: string | null | undefined,
-  signingKey: string | null | undefined,
-  wwdrCert: string | null | undefined,
+  passTypeId: string | undefined,
+  teamId: string | undefined,
+  signingCert: string | undefined,
+  signingKey: string | undefined,
+  wwdrCert: string | undefined,
 ): SigningCredentials | null =>
   passTypeId && teamId && signingCert && signingKey && wwdrCert
     ? { passTypeId, teamId, signingCert, signingKey, wwdrCert }
@@ -504,9 +505,9 @@ const getHostAppleWalletConfig = (): SigningCredentials | null => {
 // ---------------------------------------------------------------------------
 
 const toGoogleCredentials = (
-  issuerId: string | null | undefined,
-  serviceAccountEmail: string | null | undefined,
-  serviceAccountKey: string | null | undefined,
+  issuerId: string | undefined,
+  serviceAccountEmail: string | undefined,
+  serviceAccountKey: string | undefined,
 ): GoogleWalletCredentials | null =>
   issuerId && serviceAccountEmail && serviceAccountKey
     ? { issuerId, serviceAccountEmail, serviceAccountKey }
@@ -740,7 +741,7 @@ export const settings = {
       return snap("email_from_address");
     },
     template(type: EmailTemplateType, format: EmailTemplateFormat): string {
-      return snap(TEMPLATE_KEYS[`${type}:${format}`]!);
+      return snap(TEMPLATE_KEYS[`${type}:${format}`]);
     },
     templateSet(type: EmailTemplateType): {
       subject: string;
@@ -947,7 +948,7 @@ export const settings = {
         format: EmailTemplateFormat,
         content: string,
       ): Promise<void> => {
-        const key = TEMPLATE_KEYS[`${type}:${format}`]!;
+        const key = TEMPLATE_KEYS[`${type}:${format}`];
         await writeEncrypted(key, content);
         setSnapshotField(key, content);
       },

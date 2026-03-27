@@ -8,7 +8,12 @@
 
 import { settings } from "#lib/db/settings.ts";
 import { logDebug } from "#lib/logger.ts";
-import type { ContactInfo, Event, PaymentProviderType } from "#lib/types.ts";
+import {
+  type ContactInfo,
+  createTypeGuard,
+  type Event,
+  type PaymentProviderType,
+} from "#lib/types.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {
@@ -24,7 +29,7 @@ export type RegistrationIntent = ContactInfo & {
   eventId: number;
   quantity: number;
   /** Selected date for daily events; null means no date selected */
-  date?: string | null;
+  date: string | null;
   /** Custom unit price (minor units) when can_pay_more is enabled; overrides event.unit_price */
   customUnitPrice?: number;
   /** Custom question answer IDs selected during checkout */
@@ -45,7 +50,7 @@ export type BookingItem = { e: number; q: number; p: number };
 
 /** Registration intent for multi-event checkout */
 export type MultiRegistrationIntent = ContactInfo & {
-  date?: string | null;
+  date: string | null;
   items: MultiRegistrationItem[];
   /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
@@ -93,9 +98,16 @@ export type SessionMetadata = {
 /** Valid payment status values */
 export type PaymentStatus = "paid" | "unpaid" | "no_payment_required";
 
+/** Runtime array of valid payment status values */
+const PAYMENT_STATUSES: readonly PaymentStatus[] = [
+  "paid",
+  "unpaid",
+  "no_payment_required",
+];
+
 /** Type guard: check if a string is a valid PaymentStatus */
-export const isPaymentStatus = (s: string): s is PaymentStatus =>
-  s === "paid" || s === "unpaid" || s === "no_payment_required";
+export const isPaymentStatus: (s: string) => s is PaymentStatus =
+  createTypeGuard(PAYMENT_STATUSES);
 
 /** A validated payment session returned after checkout completion */
 export type ValidatedPaymentSession = {

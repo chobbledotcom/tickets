@@ -83,7 +83,7 @@ export const serializeBookingItems = (
 const optionalFields = (
   intent: Partial<
     Pick<ContactInfo, "phone" | "address" | "special_instructions">
-  > & { date?: string | null },
+  > & { date: string | null },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -96,7 +96,7 @@ const optionalFields = (
 /** Single-event checkout intent for metadata building */
 type SingleIntentMetadata = ContactFields & {
   quantity: number;
-  date?: string | null;
+  date: string | null;
   answerIds?: number[];
 };
 

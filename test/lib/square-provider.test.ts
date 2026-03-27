@@ -243,6 +243,7 @@ describe("square-provider", () => {
         address: "",
         special_instructions: "",
         quantity: 1,
+        date: null,
       };
       await withMocks(
         () =>
@@ -274,6 +275,7 @@ describe("square-provider", () => {
         address: "",
         special_instructions: "",
         quantity: 1,
+        date: null,
       };
       await withMocks(
         () =>
@@ -300,6 +302,7 @@ describe("square-provider", () => {
         phone: "",
         address: "",
         special_instructions: "",
+        date: null,
         items: [
           {
             eventId: 1,

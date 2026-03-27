@@ -409,6 +409,7 @@ describe("square", () => {
         address: "",
         special_instructions: "",
         quantity: 1,
+        date: null,
       };
       const result = await squareApi.createPaymentLink(
         event,
@@ -467,6 +468,7 @@ describe("square", () => {
         address: "",
         special_instructions: "",
         quantity: 1,
+        date: null,
       };
       const result = await squareApi.createPaymentLink(
         event,
@@ -538,6 +540,7 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             quantity: 3,
+            date: null,
           };
 
           const result = await squareApi.createPaymentLink(
@@ -612,6 +615,7 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             quantity: 2,
+            date: null,
           };
 
           await squareApi.createPaymentLink(
@@ -693,6 +697,7 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             quantity: 1,
+            date: null,
           };
 
           await squareApi.createPaymentLink(event, intent, "http://localhost");
@@ -765,6 +770,7 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             quantity: 1,
+            date: null,
           };
 
           const result = await squareApi.createPaymentLink(
@@ -839,6 +845,7 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             quantity: 1,
+            date: null,
           };
 
           const result = await squareApi.createPaymentLink(
@@ -876,6 +883,7 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             quantity: 1,
+            date: null,
           };
 
           const result = await squareApi.createPaymentLink(
@@ -897,6 +905,7 @@ describe("square", () => {
         phone: "",
         address: "",
         special_instructions: "",
+        date: null,
         items: [
           {
             eventId: 1,
@@ -929,6 +938,7 @@ describe("square", () => {
         phone: "",
         address: "",
         special_instructions: "",
+        date: null,
         items: [
           {
             eventId: 1,
@@ -965,6 +975,7 @@ describe("square", () => {
             phone: "",
             address: "",
             special_instructions: "",
+            date: null,
             items: [
               {
                 eventId: 1,
@@ -1007,6 +1018,7 @@ describe("square", () => {
             phone: "555-1111",
             address: "",
             special_instructions: "",
+            date: null,
             items: [
               {
                 eventId: 10,
@@ -1097,6 +1109,7 @@ describe("square", () => {
             phone: "",
             address: "",
             special_instructions: "",
+            date: null,
             items,
           };
 
@@ -1123,6 +1136,7 @@ describe("square", () => {
       address: "",
       special_instructions: "",
       quantity: 1,
+      date: null,
     };
 
     /** Set up Square credentials and a mock client with a failing checkout */
@@ -2367,6 +2381,7 @@ describe("square", () => {
             address: "",
             special_instructions: "",
             quantity: 1,
+            date: null,
           };
 
           const result = await squarePaymentProvider.createCheckoutSession(
@@ -2405,6 +2420,7 @@ describe("square", () => {
             phone: "",
             address: "",
             special_instructions: "",
+            date: null,
             items: [
               {
                 eventId: 1,
