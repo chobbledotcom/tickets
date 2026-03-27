@@ -20,13 +20,14 @@ import { loginResponse } from "#routes/admin/dashboard.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
+  AUTH_FORM,
   errorRedirect,
   generateSecureToken,
   getAuthenticatedSession,
   getClientIp,
   parseFormData,
   redirect,
-  withAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import { type LoginFormValues, loginFields } from "#templates/fields.ts";
 
@@ -143,7 +144,7 @@ const handleAdminLogin = async (
  * Handle POST /admin/logout with CSRF validation
  */
 const handleAdminLogout = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session) => {
+  withAuth(request, AUTH_FORM, async (session) => {
     await deleteSession(session.token);
     return redirect("/admin", "Logged out", true, {
       cookie: clearSessionCookie(),

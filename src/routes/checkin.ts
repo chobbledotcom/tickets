@@ -15,13 +15,14 @@ import {
   resolveEntries,
 } from "#routes/token-utils.ts";
 import {
+  AUTH_FORM,
   type AuthSession,
   getAuthenticatedSession,
   getPrivateKey,
   getSearchParam,
   htmlResponse,
   redirectResponse,
-  withAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 
@@ -97,7 +98,7 @@ const handleCheckinPost = (
   request: Request,
   tokens: string[],
 ): Promise<Response> =>
-  withAuthForm(request, (session, form) =>
+  withAuth(request, AUTH_FORM, (session, form) =>
     withLookup(tokens, async (rawAttendees) => {
       const checkedIn = form.get("check_in") === "true";
       const decrypted = await decryptWithSession(rawAttendees, session);

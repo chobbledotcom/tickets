@@ -1060,6 +1060,44 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       expect(response.status).toBe(403);
     });
+
+    test("withAuth JSON + owner role returns 403 JSON for manager", async () => {
+      // Use the manager session from createTestManagerSession
+      const cookie = await createTestManagerSession(
+        "mgr-json-session",
+        "jsonmanager",
+      );
+      const { signCsrfToken } = await import("#lib/csrf.ts");
+      // Sign CSRF inside handleRequest context via a GET that sets up the session
+      const setupResponse = await handleRequest(
+        mockRequest("/admin/", {
+          headers: { cookie },
+        }),
+      );
+      expect(setupResponse.status).toBe(200);
+
+      const { withAuth, jsonResponse } = await import("#routes/utils.ts");
+      const { runWithSessionContext } = await import("#lib/session-context.ts");
+
+      const response = await runWithSessionContext(async () => {
+        const signedCsrf = await signCsrfToken();
+        return withAuth(
+          mockRequest("/test", {
+            method: "POST",
+            headers: {
+              cookie,
+              "content-type": "application/json",
+              "x-csrf-token": signedCsrf,
+            },
+          }),
+          { body: "json", role: "owner" },
+          () => jsonResponse({ status: "ok" }),
+        );
+      });
+      expect(response.status).toBe(403);
+      const body = await response.json();
+      expect(body.message).toBe("Forbidden");
+    });
   });
 
   describe("fields.ts (username validation)", () => {

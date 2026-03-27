@@ -8,9 +8,10 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
+  OWNER_FORM,
   redirect,
   requireOwnerOr,
-  withOwnerAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 
@@ -26,7 +27,7 @@ const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = (request) =>
 
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
-  withOwnerAuthForm(request, async (_session, form) => {
+  withAuth(request, OWNER_FORM, async (_session, form) => {
     const eventCount = Math.min(
       Math.max(1, Number(form.get("event_count")) || 0),
       MAX_SEED_EVENTS,

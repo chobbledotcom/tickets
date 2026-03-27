@@ -31,11 +31,12 @@ import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { loadQuestionData, requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
+  AUTH_FORM,
   htmlResponse,
   orNotFound,
   redirect,
   requireSessionOr,
-  withAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
@@ -196,7 +197,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
 const handleAddEventsToGroup: TypedRouteHandler<
   "POST /admin/group/:id/add-events"
 > = (request, { id }) =>
-  withAuthForm(request, (_session, form) =>
+  withAuth(request, AUTH_FORM, (_session, form) =>
     withGroup(id, async (group) => {
       const eventIds = form
         .getAll("event_ids")

@@ -120,8 +120,8 @@ const findActiveEvent = async (
   return event?.active ? event : apiResponse(EVENT_NOT_FOUND, 404);
 };
 
-/** Parse a JSON request body, returning a 400 response on failure */
-const parseJsonBody = async (
+/** Parse a JSON request body, returning a 400 API response on failure */
+const parseApiJsonBody = async (
   request: Request,
 ): Promise<Record<string, unknown> | Response> => {
   try {
@@ -226,7 +226,7 @@ const handleBook = withActiveEvent(async (request, event) => {
     return apiResponse({ error: "Registration is closed" }, 400);
   }
 
-  const bodyOrError = await parseJsonBody(request);
+  const bodyOrError = await parseApiJsonBody(request);
   if (bodyOrError instanceof Response) return bodyOrError;
   const body = bodyOrError;
 

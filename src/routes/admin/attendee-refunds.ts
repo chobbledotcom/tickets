@@ -16,12 +16,13 @@ import {
 } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  AUTH_FORM,
   type AuthSession,
   applyFlash,
   errorRedirect,
   htmlResponse,
   redirect,
-  withAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import {
   adminRefundAllAttendeesPage,
@@ -217,7 +218,7 @@ const handleAdminRefundAllPost = (
   request: Request,
   { id }: EventRouteParams,
 ): Promise<Response> =>
-  withAuthForm(request, (session, form) =>
+  withAuth(request, AUTH_FORM, (session, form) =>
     withDecryptedAttendees(session, id, (event, attendees) =>
       processRefundAll(event, attendees, session, form),
     ),

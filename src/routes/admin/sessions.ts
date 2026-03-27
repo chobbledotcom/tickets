@@ -8,9 +8,10 @@ import { getFlash } from "#lib/flash-context.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   htmlResponse,
+  OWNER_FORM,
   redirect,
   requireOwnerOr,
-  withOwnerAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
@@ -33,7 +34,7 @@ const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> = (
  * Handle POST /admin/sessions (log out of all other sessions)
  */
 const handleAdminSessionsPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session) => {
+  withAuth(request, OWNER_FORM, async (session) => {
     await deleteOtherSessions(session.token);
     return redirect(
       "/admin/sessions",
