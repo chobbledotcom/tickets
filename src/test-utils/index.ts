@@ -39,10 +39,10 @@ import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
-import { setSuppressRequestLogs } from "#lib/logger.ts";
 import { resetHostEmailConfig } from "#lib/email.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
+import { setSuppressRequestLogs } from "#lib/logger.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
@@ -1266,7 +1266,6 @@ export const expectStatus =
  * const body = await expectJsonResponse(200)(response);
  */
 export const expectJsonResponse =
-  // biome-ignore lint/suspicious/noExplicitAny: response.json() returns any; callers access nested fields freely
   // deno-lint-ignore no-explicit-any
     <T = any>(status: number, assertions?: (body: T) => void) =>
     async (response: Response): Promise<T> => {
