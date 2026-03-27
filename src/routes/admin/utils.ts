@@ -229,7 +229,7 @@ const resolveAuth = <TSession>(
   const isOwner = auth !== "any";
   return {
     requireSession: (isOwner ? requireOwnerOr : requireSessionOr) as SessionGuard<TSession>,
-    withForm: ((r: Request, h: Function) =>
+    withForm: ((r: Request, h: (...args: never[]) => Response | Promise<Response>) =>
       withAuth(r, isOwner ? OWNER_FORM : AUTH_FORM, h as Parameters<typeof withAuth>[2])) as FormGuard<TSession>,
   };
 };
