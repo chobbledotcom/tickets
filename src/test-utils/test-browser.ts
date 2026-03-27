@@ -48,22 +48,30 @@ const decodeEntities = (text: string): string =>
     .replace(/&mdash;/g, "\u2014")
     .replace(/&nbsp;/g, " ");
 
+/** Collect all capture-group matches for a regex against a string */
+const regexCollect = <T>(
+  re: RegExp,
+  html: string,
+  transform: (m: RegExpExecArray) => T,
+): T[] => {
+  const results: T[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    results.push(transform(m));
+  }
+  return results;
+};
+
 /** Match info for a found link */
 type LinkMatch = { href: string; text: string };
 
 /** Find all links in HTML */
-const findAllLinks = (html: string): LinkMatch[] => {
-  const results: LinkMatch[] = [];
-  const re = /<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    results.push({
-      href: decodeEntities(m[1]!),
-      text: stripTags(m[2]!),
-    });
-  }
-  return results;
-};
+const findAllLinks = (html: string): LinkMatch[] =>
+  regexCollect(
+    /<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
+    html,
+    (m) => ({ href: decodeEntities(m[1]!), text: stripTags(m[2]!) }),
+  );
 
 /** Find a link whose visible text contains the search string (case-insensitive) */
 const findLinkByText = (html: string, text: string): LinkMatch | null => {
@@ -74,10 +82,7 @@ const findLinkByText = (html: string, text: string): LinkMatch | null => {
 /** Extract all hidden input fields from a form */
 const extractHiddenInputs = (formHtml: string): Record<string, string> => {
   const result: Record<string, string> = {};
-  const re = /<input[^>]*type="hidden"[^>]*>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(formHtml)) !== null) {
-    const tag = m[0];
+  for (const tag of regexCollect(/<input[^>]*type="hidden"[^>]*>/gi, formHtml, (m) => m[0])) {
     const nameMatch = tag.match(/name="([^"]+)"/);
     const valueMatch = tag.match(/value="([^"]*)"/);
     if (nameMatch) {
@@ -87,33 +92,50 @@ const extractHiddenInputs = (formHtml: string): Record<string, string> => {
   return result;
 };
 
+type FormInfo = { action: string; body: string };
+
 /** Find all forms in HTML, returning their action and body */
-const findForms = (html: string): Array<{ action: string; body: string }> => {
-  const results: Array<{ action: string; body: string }> = [];
-  const re = /<form\s[^>]*action="([^"]*)"[^>]*>([\s\S]*?)<\/form>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    results.push({ action: decodeEntities(m[1]!), body: m[2]! });
-  }
-  return results;
-};
+const findForms = (html: string): FormInfo[] =>
+  regexCollect(
+    /<form\s[^>]*action="([^"]*)"[^>]*>([\s\S]*?)<\/form>/gi,
+    html,
+    (m) => ({ action: decodeEntities(m[1]!), body: m[2]! }),
+  );
 
 /** Extract all checkbox values for a given field name from form HTML */
-const extractCheckboxValues = (
-  formHtml: string,
-  fieldName: string,
-): string[] => {
-  const results: string[] = [];
-  const re = new RegExp(
-    `<input[^>]*name="${fieldName}"[^>]*value="([^"]*)"[^>]*>`,
-    "gi",
+const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
+  regexCollect(
+    new RegExp(`<input[^>]*name="${fieldName}"[^>]*value="([^"]*)"[^>]*>`, "gi"),
+    formHtml,
+    (m) => decodeEntities(m[1]!),
   );
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(formHtml)) !== null) {
-    results.push(decodeEntities(m[1]!));
-  }
-  return results;
+
+/** Find a form whose body contains the given button text, or throw */
+const findFormByButton = (forms: FormInfo[], buttonText: string): FormInfo => {
+  const lower = buttonText.toLowerCase();
+  const form = forms.find((f) => stripTags(f.body).toLowerCase().includes(lower));
+  if (form) return form;
+  const available = forms.map((f) => `  action="${f.action}"`);
+  throw new Error(
+    `No form found with button text "${buttonText}". Available forms:\n${available.join("\n")}`,
+  );
 };
+
+/** Always throws — used as a fallback in ?? chains to satisfy the type checker */
+const throwNoForm = (): never => {
+  throw new Error("No forms found on the current page");
+};
+
+/** Format Set-Cookie headers for debug logging */
+const formatCookies = (response: Response): string => {
+  const setCookies = response.headers.getSetCookie();
+  return setCookies.length
+    ? ` cookies: ${setCookies.map((c) => c.split(";")[0]).join(", ")}`
+    : "";
+};
+
+const isRedirect = (status: number): boolean =>
+  status === 301 || status === 302 || status === 303;
 
 /**
  * A simulated browser that navigates by following links and submitting forms.
@@ -141,12 +163,37 @@ export class TestBrowser {
   /** Enable debug logging */
   debug = false;
 
+  /** Build a GET request with cookies and send it through handleRequest */
+  private buildRequest(path: string): Request {
+    const headers = new Headers();
+    headers.set("host", "localhost");
+    const cookieStr = buildCookieHeader(this.cookies);
+    if (cookieStr) headers.set("cookie", cookieStr);
+    return new Request(`http://localhost${path}`, {
+      headers,
+      redirect: "manual",
+    });
+  }
+
+  /** Send a request, log if debugging, and collect cookies */
+  private async send(
+    req: Request,
+    debugLabel: string,
+  ): Promise<Response> {
+    const handler = await this.getHandler();
+    const response = await handler(req);
+    if (this.debug) {
+      console.log(`[browser] ${debugLabel} -> ${response.status}${formatCookies(response)}`);
+    }
+    parseCookies(response, this.cookies);
+    return response;
+  }
+
   /** Make a request and follow redirects, updating state */
   private async request(
     path: string,
     options: RequestInit = {},
   ): Promise<Response> {
-    const handler = await this.getHandler();
     const headers = new Headers(options.headers);
     headers.set("host", "localhost");
     const cookieStr = buildCookieHeader(this.cookies);
@@ -154,50 +201,26 @@ export class TestBrowser {
 
     const url = path.startsWith("http") ? path : `http://localhost${path}`;
     const req = new Request(url, { ...options, headers, redirect: "manual" });
-    let response = await handler(req);
-
-    if (this.debug) {
-      const setCookies = response.headers.getSetCookie();
-      console.log(`[browser] ${options.method ?? "GET"} ${path} -> ${response.status}${setCookies.length ? ` cookies: ${setCookies.map(c => c.split(";")[0]).join(", ")}` : ""}`);
-    }
-
-    // Collect cookies from every response
-    parseCookies(response, this.cookies);
+    let response = await this.send(req, `${options.method ?? "GET"} ${path}`);
 
     // Follow redirects (max 10 hops)
     let hops = 0;
-    while (
-      (response.status === 301 ||
-        response.status === 302 ||
-        response.status === 303) &&
-      hops < 10
-    ) {
+    while (isRedirect(response.status) && hops < 10) {
       hops++;
       const location = response.headers.get("location");
       if (!location) break;
       const nextPath = location.startsWith("http")
         ? new URL(location).pathname + new URL(location).search
         : location;
-      const nextHeaders = new Headers();
-      nextHeaders.set("host", "localhost");
-      const nextCookie = buildCookieHeader(this.cookies);
-      if (nextCookie) nextHeaders.set("cookie", nextCookie);
-      const nextReq = new Request(`http://localhost${nextPath}`, {
-        headers: nextHeaders,
-        redirect: "manual",
-      });
-      response = await handler(nextReq);
-      if (this.debug) {
-        const setCookies = response.headers.getSetCookie();
-        console.log(`[browser]   -> redirect ${nextPath} -> ${response.status}${setCookies.length ? ` cookies: ${setCookies.map(c => c.split(";")[0]).join(", ")}` : ""}`);
-      }
-      parseCookies(response, this.cookies);
+      response = await this.send(
+        this.buildRequest(nextPath),
+        `  -> redirect ${nextPath}`,
+      );
     }
 
     this.currentUrl = new URL(response.url || `http://localhost${path}`).pathname;
-    // Try to read the response body - capture the final URL from redirect chain
     const finalLocation = response.headers.get("location");
-    if (finalLocation && (response.status === 301 || response.status === 302 || response.status === 303)) {
+    if (finalLocation && isRedirect(response.status)) {
       this.currentUrl = finalLocation.startsWith("http")
         ? new URL(finalLocation).pathname
         : finalLocation;
@@ -243,31 +266,11 @@ export class TestBrowser {
     buttonText?: string,
   ): Promise<void> {
     const forms = findForms(this.currentHtml);
-    if (forms.length === 0) {
-      throw new Error("No forms found on the current page");
-    }
 
     // Find the form containing the button text
-    let form: { action: string; body: string } | undefined;
-    if (buttonText) {
-      const lower = buttonText.toLowerCase();
-      form = forms.find((f) => {
-        const text = stripTags(f.body).toLowerCase();
-        return text.includes(lower);
-      });
-      if (!form) {
-        const available = forms.map((f) => `  action="${f.action}"`);
-        throw new Error(
-          `No form found with button text "${buttonText}". Available forms:\n${available.join("\n")}`,
-        );
-      }
-    } else {
-      form = forms[0];
-    }
-
-    if (!form) {
-      throw new Error("No form found on the current page");
-    }
+    const form = buttonText
+      ? findFormByButton(forms, buttonText)
+      : forms[0] ?? throwNoForm();
 
     // Collect hidden fields (includes csrf_token)
     const hiddenFields = extractHiddenInputs(form.body);
