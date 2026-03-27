@@ -373,11 +373,17 @@ const hasPriceMismatch = (
 };
 
 /** Format error for post-payment attendee creation failure */
-const formatPostPaymentError = formatCreationError(
-  "Sorry, this event sold out while you were completing payment.",
-  (name) => `Sorry, ${name} sold out while you were completing payment.`,
-  "Registration failed.",
-);
+const formatPostPaymentError = (
+  reason: "capacity_exceeded" | "encryption_error",
+  eventName = "",
+): string =>
+  formatCreationError(
+    "Sorry, this event sold out while you were completing payment.",
+    (name) => `Sorry, ${name} sold out while you were completing payment.`,
+    "Registration failed.",
+    reason,
+    eventName,
+  );
 
 /** Return success result for an already-processed session */
 const alreadyProcessedResult = async (

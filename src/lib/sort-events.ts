@@ -7,6 +7,8 @@
  */
 
 import { getNextBookableDate } from "#lib/dates.ts";
+import { getAllEvents } from "#lib/db/events.ts";
+import { getActiveHolidays } from "#lib/db/holidays.ts";
 import type { Event, EventWithCount, Holiday } from "#lib/types.ts";
 
 export type { EventWithCount };
@@ -61,4 +63,16 @@ export const sortEvents = <T extends Event>(
     }
   }
   return [...events].sort(compareEvents(nextDates));
+};
+
+/** Load all events with holidays and return them sorted, filtered by predicate. */
+export const loadSortedEvents = async (
+  predicate: (e: EventWithCount) => boolean,
+): Promise<{ events: EventWithCount[]; holidays: Holiday[] }> => {
+  const [allEvents, holidays] = await Promise.all([
+    getAllEvents(),
+    getActiveHolidays(),
+  ]);
+  const events = sortEvents(allEvents.filter(predicate), holidays);
+  return { events, holidays };
 };

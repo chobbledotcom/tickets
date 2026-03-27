@@ -13,6 +13,7 @@ import { settings } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
+import { formatCreationError } from "#routes/utils.ts";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   assertJson,
@@ -850,7 +851,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(`/ticket/${event.slug}?iframe=true`, {
           name: "Test User",
           email: "test@example.com",
-          quantity: "1",
+          [`quantity_${event.id}`]: "1",
           csrf_token: csrfToken!,
         }),
       );
@@ -900,7 +901,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(`/ticket/${event.slug}`, {
           name: "Test User",
           email: "test@example.com",
-          quantity: "1",
+          [`quantity_${event.id}`]: "1",
           csrf_token: signedToken,
         }),
       );
@@ -1852,7 +1853,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(`/ticket/${event.slug}?iframe=true`, {
           name: "Jane Doe",
           email: "jane@example.com",
-          quantity: "1",
+          [`quantity_${event.id}`]: "1",
           csrf_token: csrfToken!,
         }),
       );
@@ -2096,21 +2097,25 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectRedirect(response, "https://example.com/thanks");
     });
 
-    test("ticket form with invalid quantity falls back to minimum", async () => {
+    test("ticket form with invalid quantity rejects submission", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         maxQuantity: 5,
       });
 
-      // Submit with non-numeric quantity
+      // Submit with non-numeric quantity — parsed as 0, rejected
       const response = await submitTicketForm(event.slug, {
         name: "John Doe",
         email: "john@example.com",
-        quantity: "abc",
+        [`quantity_${event.id}`]: "abc",
       });
-      // Should still succeed with quantity falling back to 1
-      expectRedirect(response, "https://example.com/thanks");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("select at least one ticket"),
+        false,
+      );
     });
 
     test("multi-ticket skips sold-out events in quantity parsing", async () => {
@@ -2610,6 +2615,30 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
   });
 
+  describe("formatCreationError", () => {
+    test("returns event-specific message for capacity_exceeded with event name", () => {
+      const result = formatCreationError(
+        "generic",
+        (name) => `${name} is full`,
+        "fallback",
+        "capacity_exceeded",
+        "My Event",
+      );
+      expect(result).toBe("My Event is full");
+    });
+
+    test("returns generic capacity message when event name is empty", () => {
+      const result = formatCreationError(
+        "generic",
+        (name) => `${name} is full`,
+        "fallback",
+        "capacity_exceeded",
+        "",
+      );
+      expect(result).toBe("generic");
+    });
+  });
+
   describe("routes/public.ts (multi-ticket quantity field missing from form)", () => {
     test("defaults to 0 when quantity field is absent from multi-ticket form", async () => {
       const event1 = await createTestEvent({
@@ -2736,6 +2765,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           {
             name: "John Doe",
             email: "john@example.com",
+            [`quantity_${event.id}`]: "1",
             csrf_token: csrfToken,
           },
           `csrf_token=${csrfToken}`,
@@ -2943,7 +2973,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           {
             name: "Test User",
             email: "test@example.com",
-            quantity: "1",
+            [`quantity_${event.id}`]: "1",
             csrf_token: csrfToken,
           },
           `csrf_token=${csrfToken}`,
@@ -3759,7 +3789,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       const html = await response.text();
-      expect(html).toContain('name="custom_price"');
+      expect(html).toMatch(/name="custom_price(_\d+)?"/);
+
       expect(html).toContain("Your Price (£10 minimum)");
       expect(html).toContain('value="10.00"');
       expect(html).toContain("required");
@@ -3774,7 +3805,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       const html = await response.text();
-      expect(html).not.toContain('name="custom_price"');
+      expect(html).not.toMatch(/name="custom_price(_\d+)?"/);
     });
 
     test("GET shows price input for can_pay_more events with zero unit_price", async () => {
@@ -3783,7 +3814,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       const html = await response.text();
-      expect(html).toContain('name="custom_price"');
+      expect(html).toMatch(/name="custom_price(_\d+)?"/);
+
       expect(html).toContain("Your Price (optional, up to £100)");
       expect(html).toContain('min="0.00"');
     });
@@ -3794,7 +3826,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       const html = await response.text();
-      expect(html).toContain('name="custom_price"');
+      expect(html).toMatch(/name="custom_price(_\d+)?"/);
+
       expect(html).toContain("Your Price (optional, up to £100)");
       expect(html).toContain('value="0.00" min="0.00" max="100.00"');
     });

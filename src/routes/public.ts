@@ -3,7 +3,6 @@
  */
 
 import { compact, filter, map, pipe, reduce } from "#fp";
-import { type BookingResult, processBooking } from "#lib/booking.ts";
 import { getEffectiveDomain, isPaymentsEnabled } from "#lib/config.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { validatePrice } from "#lib/currency.ts";
@@ -13,7 +12,6 @@ import {
   createAttendeeAtomic,
 } from "#lib/db/attendees.ts";
 import {
-  getAllEvents,
   getEventsBySlugsBatch,
   getEventWithCountBySlug,
 } from "#lib/db/events.ts";
@@ -24,7 +22,6 @@ import {
 } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import {
-  getQuestionsForEvent,
   getQuestionsWithEventIds,
   type QuestionEventMap,
   type QuestionWithAnswers,
@@ -42,7 +39,7 @@ import {
   type MultiRegistrationItem,
 } from "#lib/payments.ts";
 import { generateQrSvg } from "#lib/qr.ts";
-import { sortEvents } from "#lib/sort-events.ts";
+import { loadSortedEvents, sortEvents } from "#lib/sort-events.ts";
 import {
   type ContactInfo,
   type EventFields,
@@ -62,7 +59,6 @@ import {
   isRegistrationClosed,
   notFoundResponse,
   redirectResponse,
-  withActiveEventBySlug,
   withCsrfForm,
 } from "#routes/utils.ts";
 import {
@@ -78,20 +74,15 @@ import {
   multiTicketPage,
   type PublicPageType,
   publicSitePage,
-  ticketPage,
 } from "#templates/public.tsx";
+
+/** Active+visible filter for public event listings */
+const isPublicEvent = (e: EventWithCount): boolean => e.active && !e.hidden;
 
 /** Load active events for the homepage, sorted and with registration status */
 const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
-  const [allEvents, holidays] = await Promise.all([
-    getAllEvents(),
-    getActiveHolidays(),
-  ]);
-  const sorted = sortEvents(
-    allEvents.filter((e) => e.active && !e.hidden),
-    holidays,
-  );
-  return sorted.map((e) => buildMultiTicketEvent(e, isRegistrationClosed(e)));
+  const { events } = await loadSortedEvents(isPublicEvent);
+  return events.map((e) => buildMultiTicketEvent(e, isRegistrationClosed(e)));
 };
 
 /** Guard: redirect to admin login if public site is disabled */
@@ -145,105 +136,10 @@ export const handlePublicContact = (): Response =>
       : notFoundResponse(),
   );
 
-/** Render a ticket page with the given context */
-const renderTicketPage = (
-  event: EventWithCount,
-  ctx: TicketContext,
-  opts: { isClosed: boolean; baseUrl?: string; error?: string },
-) =>
-  ticketPage(
-    event,
-    opts.error,
-    opts.isClosed,
-    ctx.dates,
-    ctx.terms,
-    opts.baseUrl,
-    ctx.questions,
-  );
-
-/** Ticket response builder (CSRF token auto-embedded by CsrfForm) */
-const ticketResponseWithToken =
-  (
-    event: EventWithCount,
-    ctx: TicketContext,
-    opts: { isClosed: boolean; baseUrl?: string },
-  ) =>
-  (error?: string, status = 200) =>
-    htmlResponse(renderTicketPage(event, ctx, { ...opts, error }), status);
-
-/** Ticket error redirect - for validation errors after CSRF passed */
-const ticketError =
-  (event: EventWithCount, _ctx: TicketContext) =>
-  (error: string, _status = 400) =>
-    errorRedirect(`/ticket/${event.slug}`, error);
-
-/** Compute available dates for a daily event, or undefined for standard */
-const computeDatesForEvent = async (
-  event: EventWithCount,
-): Promise<string[] | undefined> => {
-  if (event.event_type !== "daily") return undefined;
-  return getAvailableDates(event, await getActiveHolidays());
-};
-
 /** Set noindex signal header on response for hidden events */
 const applyHiddenNoindex = (response: Response, hidden: boolean): Response => {
   if (hidden) response.headers.set("x-robots-noindex", "true");
   return response;
-};
-
-/** Handle GET for a single-ticket page */
-const handleSingleTicketGet = (
-  slug: string,
-  request: Request,
-): Promise<Response> =>
-  withActiveEventBySlug(slug, async (event) => {
-    const closed = isRegistrationClosed(event);
-    applyFlash(request);
-    await signCsrfToken();
-    const [dates, terms, questions] = await Promise.all([
-      computeDatesForEvent(event),
-      Promise.resolve(settings.terms),
-      getQuestionsForEvent(event.id),
-    ]);
-    const ctx: TicketContext = { dates, terms, questions };
-    return applyHiddenNoindex(
-      ticketResponseWithToken(event, ctx, {
-        isClosed: closed,
-        baseUrl: getBaseUrl(request),
-      })(),
-      event.hidden,
-    );
-  });
-
-/** Map a BookingResult to a web response for single-ticket pages */
-const bookingResultToWebResponse = async (
-  result: BookingResult,
-  event: EventWithCount,
-  ctx: TicketContext,
-  answerIds: number[] = [],
-): Promise<Response> => {
-  const showError = ticketError(event, ctx);
-  switch (result.type) {
-    case "success": {
-      if (answerIds.length > 0) {
-        await saveAttendeeAnswers([result.attendee.id], answerIds);
-      }
-      if (event.thank_you_url) return redirectResponse(event.thank_you_url);
-      return redirectResponse(
-        `/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}`,
-      );
-    }
-    case "checkout":
-      return checkoutResponse(result.checkoutUrl);
-    case "sold_out":
-      return showError("Sorry, not enough spots available");
-    case "checkout_failed":
-      return result.error
-        ? showError(result.error)
-        : showError("Failed to create payment session. Please try again.", 500);
-    case "creation_failed":
-      return showError(formatAtomicError(result.reason));
-  }
 };
 
 /** Try to redirect to checkout, or return error using provided handler.
@@ -320,13 +216,6 @@ const runCheckoutFlow = (
   );
 };
 
-/** Shared context for ticket page rendering */
-type TicketContext = {
-  dates: string[] | undefined;
-  terms: string | null | undefined;
-  questions: QuestionWithAnswers[];
-};
-
 /** Parse and validate a quantity value from a raw string, capping at max */
 const parseQuantityValue = (
   raw: string,
@@ -338,10 +227,6 @@ const parseQuantityValue = (
   return Math.min(quantity, max);
 };
 
-/** Parse quantity from single-ticket form */
-const parseQuantity = (form: FormParams, event: EventWithCount): number =>
-  parseQuantityValue(form.get("quantity") || "1", event.max_quantity);
-
 /** Parse and validate a custom unit price from a form field.
  * Returns the price in minor units, or an error string if invalid. */
 const parseCustomPrice = (
@@ -352,11 +237,17 @@ const parseCustomPrice = (
 ) => validatePrice(form.getString(fieldName), minPrice, maxPrice);
 
 /** Format error message for failed attendee creation */
-const formatAtomicError = formatCreationError(
-  "Sorry, not enough spots available",
-  (name) => `Sorry, ${name} no longer has enough spots available`,
-  "Registration failed. Please try again.",
-);
+const formatAtomicError = (
+  reason: "capacity_exceeded" | "encryption_error",
+  eventName = "",
+): string =>
+  formatCreationError(
+    "Sorry, not enough spots available",
+    (name) => `Sorry, ${name} no longer has enough spots available`,
+    "Registration failed. Please try again.",
+    reason,
+    eventName,
+  );
 
 /** Parse and validate answers for custom questions from form data.
  * Returns answer IDs if valid, or an error message if any required question is unanswered. */
@@ -415,98 +306,8 @@ const validateSubmittedDate = (
   return submitted && dates.includes(submitted) ? submitted : null;
 };
 
-const processTicketReservation = async (
-  request: Request,
-  event: EventWithCount,
-): Promise<Response> => {
-  const [terms, questions] = await Promise.all([
-    Promise.resolve(settings.terms),
-    getQuestionsForEvent(event.id),
-  ]);
-  const ctx: TicketContext = { dates: undefined, terms, questions };
-  const showError = ticketError(event, ctx);
-
-  return withCsrfForm(
-    request,
-    (message) => errorRedirect(`/ticket/${event.slug}`, message),
-    async (form) => {
-      if (isRegistrationClosed(event)) {
-        return showError(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
-      }
-
-      applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-      const valResult = tryValidateTicketFields(
-        form,
-        event.fields,
-        (msg) => showError(msg),
-        isPaidEvent(event),
-      );
-      if (valResult instanceof Response) return valResult;
-      const values = valResult;
-
-      if (terms && form.get("agree_terms") !== "1") {
-        return showError("You must agree to the terms and conditions");
-      }
-
-      const answersResult = parseQuestionAnswers(form, questions);
-      if (!answersResult.ok) return showError(answersResult.error);
-
-      // For daily events, validate the submitted date against available dates
-      let date: string | null = null;
-      if (event.event_type === "daily") {
-        ctx.dates = getAvailableDates(event, await getActiveHolidays());
-        date = validateSubmittedDate(form, ctx.dates);
-        if (!date) return showError("Please select a valid date");
-      }
-      const quantity = parseQuantity(form, event);
-
-      // Parse custom price for pay-more events
-      let customUnitPrice: number | undefined;
-      if (event.can_pay_more) {
-        const priceResult = parseCustomPrice(
-          form,
-          "custom_price",
-          event.unit_price,
-          event.max_price,
-        );
-        if (!priceResult.ok) return showError(priceResult.error);
-        customUnitPrice = priceResult.price;
-      }
-
-      const contact = extractContact(values);
-      const bookingResult = await processBooking(
-        event,
-        contact,
-        quantity,
-        date,
-        getBaseUrl(request),
-        customUnitPrice,
-        answersResult.answerIds,
-      );
-      return bookingResultToWebResponse(
-        bookingResult,
-        event,
-        ctx,
-        answersResult.answerIds,
-      );
-    },
-  );
-};
-
-/** Handle POST for a single-ticket reservation */
-const handleSingleTicketPost = (
-  request: Request,
-  slug: string,
-): Promise<Response> =>
-  withActiveEventBySlug(slug, (event) =>
-    processTicketReservation(request, event),
-  );
-
-/** Check if slug contains multiple events (has + separator) */
-const isMultiSlug = (slug: string): boolean => slug.includes("+");
-
-/** Parse multi-ticket slugs from a combined slug string */
-const parseMultiSlugs = (slug: string): string[] =>
+/** Parse slugs from a slug string (may contain + separator for multiple events) */
+const parseSlugs = (slug: string): string[] =>
   slug.split("+").filter((s) => s.length > 0);
 
 /** Filter and transform events to active multi-ticket events */
@@ -520,7 +321,7 @@ const getActiveMultiEvents = (
     ),
   )(compact(events));
 
-/** Render multi-ticket HTML (CSRF token auto-embedded by CsrfForm) */
+/** Render ticket HTML (CSRF token auto-embedded by CsrfForm) */
 const renderMultiTicketPage = (ctx: MultiTicketCtx, error?: string) =>
   multiTicketPage({ ...ctx, error });
 
@@ -530,7 +331,7 @@ const multiTicketResponse =
   (error?: string, status = 200) =>
     htmlResponse(renderMultiTicketPage(ctx, error), status);
 
-/** Shared rendering context for multi-ticket error responses */
+/** Shared rendering context for ticket pages */
 type MultiTicketCtx = {
   slugs: string[];
   events: MultiTicketEvent[];
@@ -538,6 +339,7 @@ type MultiTicketCtx = {
   terms: string;
   questions: QuestionWithAnswers[];
   questionEventMap: QuestionEventMap;
+  baseUrl?: string;
 };
 
 /** Multi-ticket form error redirect (after CSRF passed) */
@@ -603,12 +405,6 @@ type MultiTicketContextProvider = (
   events: MultiTicketEvent[],
 ) => Promise<MultiTicketSharedContext>;
 
-/** Load shared meta for multi-ticket pages */
-const loadMultiTicketMeta = (
-  activeEvents: MultiTicketEvent[],
-  getContext: MultiTicketContextProvider,
-): Promise<MultiTicketSharedContext> => getContext(activeEvents);
-
 /** Handle POST for multi-ticket registration */
 const submitMultiTicket = (
   request: Request,
@@ -637,6 +433,18 @@ const submitMultiTicket = (
       // Validate terms and conditions acceptance if configured
       if (terms && form.get("agree_terms") !== "1") {
         return errorResponse("You must agree to the terms and conditions");
+      }
+
+      // Re-check registration status: events may have closed or sold out
+      // since the form was rendered
+      const allUnavailable = ctx.events.every((e) => e.isSoldOut || e.isClosed);
+      if (allUnavailable) {
+        const allClosed = ctx.events.every((e) => e.isClosed);
+        return multiTicketFormErrorResponse(ctx)(
+          allClosed
+            ? REGISTRATION_CLOSED_SUBMIT_MESSAGE
+            : "Sorry, not enough spots available",
+        );
       }
 
       // Check if any event the user selected is now closed
@@ -778,6 +586,12 @@ const submitMultiTicket = (
         }
       }
 
+      // For single-event bookings, respect the event's custom thank-you URL
+      if (ctx.events.length === 1) {
+        const thankYouUrl = ctx.events[0]!.event.thank_you_url;
+        if (thankYouUrl) return redirectResponse(thankYouUrl);
+      }
+
       const tokens = encodeURIComponent(result.tokens.join("+"));
       return redirectResponse(`/ticket/reserved?tokens=${tokens}`);
     },
@@ -790,7 +604,7 @@ const handleMultiTicket = async (
   getContext: MultiTicketContextProvider,
 ): Promise<Response> => {
   const [{ dates, terms, questions, questionEventMap }] = await Promise.all([
-    loadMultiTicketMeta(activeEvents, getContext),
+    getContext(activeEvents),
     signCsrfToken(),
   ]);
   const ctx: MultiTicketCtx = {
@@ -800,6 +614,7 @@ const handleMultiTicket = async (
     terms,
     questions,
     questionEventMap,
+    baseUrl: getBaseUrl(request),
   };
   if (request.method === "GET") applyFlash(request);
   const response =
@@ -1009,38 +824,19 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   return htmlResponse(successPage({ ticketUrl, fromEmail }));
 };
 
-/** Create a slug route that dispatches single vs multi-ticket requests */
-const slugRoute =
-  (
-    onSingle: (request: Request, slug: string) => Promise<Response>,
-    onMulti: (request: Request, slugs: string[]) => Promise<Response>,
-  ) =>
-  (request: Request, { slug }: { slug: string }): Promise<Response> =>
-    isMultiSlug(slug)
-      ? onMulti(request, parseMultiSlugs(slug))
-      : onSingle(request, slug);
-
-/** Wrap a single-slug handler with group fallback on 404 */
-const withGroupFallback =
-  (fn: (request: Request, slug: string) => Promise<Response>) =>
-  async (request: Request, slug: string): Promise<Response> => {
-    const response = await fn(request, slug);
-    return response.status === 404
-      ? handleGroupTicketBySlug(request, slug)
-      : response;
-  };
-
-/** Handle GET /ticket/:slug (event first, then group fallback) */
-const handleTicketGet = slugRoute(
-  withGroupFallback((request, slug) => handleSingleTicketGet(slug, request)),
-  handleMultiTicketBySlugs,
-);
-
-/** Handle POST /ticket/:slug (event first, then group fallback) */
-const handleTicketPost = slugRoute(
-  withGroupFallback(handleSingleTicketPost),
-  handleMultiTicketBySlugs,
-);
+/** Handle ticket request: try events by slugs, fall back to group for single slugs */
+const handleTicketBySlug = async (
+  request: Request,
+  { slug }: { slug: string },
+): Promise<Response> => {
+  const slugs = parseSlugs(slug);
+  const response = await handleMultiTicketBySlugs(request, slugs);
+  // For single slugs, fall back to group lookup on 404
+  if (response.status === 404 && slugs.length === 1) {
+    return handleGroupTicketBySlug(request, slugs[0]!);
+  }
+  return response;
+};
 
 /** Generate a QR code SVG response for a given slug */
 const qrResponse = async (slug: string): Promise<Response> => {
@@ -1070,8 +866,8 @@ export const handleTicketQrGet = async (
 const publicRoutes = defineRoutes({
   "GET /ticket/reserved": handleReservedGet,
   "GET /ticket/:slug/qr": handleTicketQrGet,
-  "GET /ticket/:slug": handleTicketGet,
-  "POST /ticket/:slug": handleTicketPost,
+  "GET /ticket/:slug": handleTicketBySlug,
+  "POST /ticket/:slug": handleTicketBySlug,
 });
 
 /** Route ticket requests */
