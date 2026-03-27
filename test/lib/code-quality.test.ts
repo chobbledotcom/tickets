@@ -36,6 +36,7 @@ const FORBIDDEN_PATTERNS = [
 const TEST_UTILITY_FILES = [
   "test-utils/index.ts",
   "test-utils/stripe-mock.ts",
+  "test-utils/test-browser.ts",
   "test-utils/test-compat.ts",
 ];
 
