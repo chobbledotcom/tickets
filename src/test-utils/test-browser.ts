@@ -195,6 +195,7 @@ export class TestBrowser {
     const handler = await this.getHandler();
     const response = await handler(req);
     if (this.debug) {
+      // biome-ignore lint/suspicious/noConsole: debug logging for test browser
       console.log(
         `[browser] ${debugLabel} -> ${response.status}${formatCookies(response)}`,
       );

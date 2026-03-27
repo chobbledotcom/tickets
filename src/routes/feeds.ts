@@ -5,10 +5,8 @@
 
 import { map, pipe } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
-import { getAllEvents } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { settings } from "#lib/db/settings.ts";
-import { type EventWithCount, sortEvents } from "#lib/sort-events.ts";
+import { type EventWithCount, loadSortedEvents } from "#lib/sort-events.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   icsResponse,
@@ -46,13 +44,8 @@ type FeedData = { events: EventWithCount[]; domain: string; title: string };
 
 /** Load feed data: active open events with domain and title */
 const loadFeedData = async (): Promise<FeedData> => {
-  const [allEvents, holidays] = await Promise.all([
-    getAllEvents(),
-    getActiveHolidays(),
-  ]);
-  const events = sortEvents(
-    allEvents.filter((e) => e.active && !e.hidden && !isRegistrationClosed(e)),
-    holidays,
+  const { events } = await loadSortedEvents(
+    (e) => e.active && !e.hidden && !isRegistrationClosed(e),
   );
   return {
     events,

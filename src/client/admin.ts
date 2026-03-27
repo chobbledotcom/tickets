@@ -375,7 +375,7 @@ for (const form of document.querySelectorAll<HTMLFormElement>(
   });
 }
 
-/* Multi-ticket question visibility: show questions only when at least one
+/* Question visibility: show questions only when at least one
  * associated event has quantity > 0. Questions without data-event-ids are
  * always visible (single-event pages). */
 {

@@ -1190,11 +1190,11 @@ export const createTestAttendee = async (
   // (e.g. event at capacity / sold out / deactivated)
   const csrfToken = extractCsrfToken(pageHtml) ?? (await signCsrfToken());
 
-  // Submit the ticket form
+  // Submit the ticket form (using quantity_{eventId} format)
   const response = await handleRequest(
     mockTicketFormRequest(
       eventSlug,
-      { name, email, phone, quantity: String(quantity) },
+      { name, email, phone, [`quantity_${eventId}`]: String(quantity) },
       csrfToken,
     ),
   );
@@ -1712,9 +1712,43 @@ export const createTestInvite = async (
   return { inviteCode: codeMatch[1], cookie, csrfToken };
 };
 
+/** Extract event ID from a ticket page's quantity field name (quantity_123 → "123") */
+const extractQuantityEventId = (html: string): string | null => {
+  const match = html.match(/name="quantity_(\d+)"/);
+  return match?.[1] ?? null;
+};
+
+/** Normalize single-event form fields to per-event format (quantity → quantity_{id},
+ * custom_price → custom_price_{id}). When no event ID can be extracted from the HTML
+ * (e.g. sold-out page with no form), returns data unchanged. */
+const normalizeSingleEventFields = (
+  data: Record<string, string>,
+  html: string,
+): Record<string, string> => {
+  const eventId = extractQuantityEventId(html);
+  if (!eventId) return data;
+  const result = { ...data };
+  // Normalize quantity
+  if (!(`quantity_${eventId}` in result)) {
+    if ("quantity" in result) {
+      result[`quantity_${eventId}`] = result.quantity;
+      delete result.quantity;
+    } else {
+      result[`quantity_${eventId}`] = "1";
+    }
+  }
+  // Normalize custom_price
+  if ("custom_price" in result && !(`custom_price_${eventId}` in result)) {
+    result[`custom_price_${eventId}`] = result.custom_price;
+    delete result.custom_price;
+  }
+  return result;
+};
+
 /**
  * Submit a ticket form with automatic CSRF token handling.
  * GETs the ticket page first to obtain a CSRF token, then POSTs the form.
+ * Automatically converts `quantity` to `quantity_{eventId}` for single-event forms.
  */
 export const submitTicketForm = async (
   slug: string,
@@ -1726,13 +1760,13 @@ export const submitTicketForm = async (
   // Extract from form HTML, or fall back to a signed token when the page
   // doesn't show a form (e.g. event at capacity / sold out)
   const csrfToken = extractCsrfToken(html) ?? (await signCsrfToken());
-  return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
+  const normalizedData = normalizeSingleEventFields(data, html);
+  return handleRequest(mockTicketFormRequest(slug, normalizedData, csrfToken));
 };
 
 /**
- * Submit a multi-ticket form with automatic CSRF token handling.
- * GETs the multi-ticket page first to obtain a CSRF token, then POSTs the form.
- * The slug should be in multi-ticket format: "slug1+slug2".
+ * Submit a ticket form for multi-slug URLs (e.g. "slug1+slug2").
+ * GETs the page first to obtain a CSRF token, then POSTs the form.
  */
 export const submitMultiTicketForm = async (
   slug: string,
@@ -1742,7 +1776,7 @@ export const submitMultiTicketForm = async (
   const path = `/ticket/${slug}`;
   const getResponse = await handleRequest(mockRequest(path));
   const csrfToken = extractCsrfToken(await getResponse.text()) ?? "";
-  if (!csrfToken) throw new Error("No CSRF token found on multi-ticket page");
+  if (!csrfToken) throw new Error("No CSRF token found on ticket page");
   return handleRequest(
     mockFormRequest(
       path,

@@ -13,6 +13,7 @@ import { settings } from "#lib/db/settings.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import { todayInTz } from "#lib/timezone.ts";
+import type { EventWithCount } from "#lib/types.ts";
 import {
   adminEventActivityLogPage,
   adminGlobalActivityLogPage,
@@ -69,9 +70,8 @@ import {
   successPage,
 } from "#templates/payment.tsx";
 import {
-  buildMultiTicketEvent,
   buildOgTags,
-  multiTicketPage,
+  buildTicketEvent,
   notFoundPage,
   renderEventImage,
   temporaryErrorPage,
@@ -659,27 +659,40 @@ describe("html", () => {
     });
   });
 
-  describe("ticketPage", () => {
+  describe("ticketPage (single event)", () => {
     const event = testEventWithCount({ attendee_count: 50 });
     const renderTicket = (
-      ev: Parameters<typeof ticketPage>[0],
+      ev: EventWithCount,
       opts?: {
         error?: string;
         isClosed?: boolean;
         iframe?: boolean;
         dates?: string[];
         terms?: string | null;
+        baseUrl?: string;
+        questions?: {
+          id: number;
+          text: string;
+          answers: {
+            id: number;
+            question_id: number;
+            text: string;
+            sort_order: number;
+          }[];
+        }[];
       },
     ) => {
       if (opts?.iframe) detectIframeMode("https://example.com/?iframe=true");
       else detectIframeMode("https://example.com/");
-      return ticketPage(
-        ev,
-        opts?.error,
-        opts?.isClosed ?? false,
-        opts?.dates,
-        opts?.terms,
-      );
+      return ticketPage({
+        events: [buildTicketEvent(ev, opts?.isClosed)],
+        slugs: [ev.slug],
+        error: opts?.error,
+        dates: opts?.dates ?? [],
+        terms: opts?.terms,
+        baseUrl: opts?.baseUrl,
+        questions: opts?.questions,
+      });
     };
 
     test("renders page title", () => {
@@ -722,13 +735,13 @@ describe("html", () => {
     });
 
     test("shows quantity selector when max_quantity > 1 and spots available", () => {
-      const multiTicketEvent = testEventWithCount({
+      const multiQtyEvent = testEventWithCount({
         max_quantity: 5,
         attendee_count: 0,
       });
-      const html = renderTicket(multiTicketEvent);
+      const html = renderTicket(multiQtyEvent);
       expect(html).toContain("Number of Tickets");
-      expect(html).toContain('name="quantity"');
+      expect(html).toContain(`name="quantity_${multiQtyEvent.id}"`);
       expect(html).toContain('<option value="1">1</option>');
       expect(html).toContain('<option value="5">5</option>');
       expect(html).toContain("Reserve Tickets"); // Plural
@@ -748,7 +761,9 @@ describe("html", () => {
     test("hides quantity selector when max_quantity is 1", () => {
       const html = renderTicket(event); // max_quantity is 1
       expect(html).not.toContain("Number of Tickets");
-      expect(html).toContain('type="hidden" name="quantity" value="1"');
+      expect(html).toContain(
+        `type="hidden" name="quantity_${event.id}" value="1"`,
+      );
       expect(html).toContain("Reserve Ticket"); // Singular
       expect(html).not.toContain("Reserve Tickets"); // Not plural
     });
@@ -814,33 +829,23 @@ describe("html", () => {
     });
 
     test("renders terms and conditions with checkbox", () => {
-      const html = ticketPage(
-        event,
-        undefined,
-        false,
-        undefined,
-        "No refunds allowed",
-      );
+      const html = renderTicket(event, { terms: "No refunds allowed" });
       expect(html).toContain("No refunds allowed");
       expect(html).toContain('class="prose"');
       expect(html).toContain('name="agree_terms"');
     });
 
     test("renders markdown paragraphs in terms and conditions", () => {
-      const html = ticketPage(
-        event,
-        undefined,
-        false,
-        undefined,
-        "Line one\n\nLine two\n\nLine three",
-      );
+      const html = renderTicket(event, {
+        terms: "Line one\n\nLine two\n\nLine three",
+      });
       expect(html).toContain("<p>Line one</p>");
       expect(html).toContain("<p>Line two</p>");
       expect(html).toContain("<p>Line three</p>");
     });
 
     test("does not render terms when not provided", () => {
-      const html = ticketPage(event, undefined, false, undefined, undefined);
+      const html = renderTicket(event);
       expect(html).not.toContain('class="terms"');
       expect(html).not.toContain('name="agree_terms"');
     });
@@ -856,15 +861,7 @@ describe("html", () => {
           ],
         },
       ];
-      const html = ticketPage(
-        event,
-        undefined,
-        false,
-        undefined,
-        undefined,
-        undefined,
-        questions,
-      );
+      const html = renderTicket(event, { questions });
       expect(html).toContain("Size?");
       expect(html).toContain('name="question_1"');
     });
@@ -875,14 +872,9 @@ describe("html", () => {
         slug: "birthday-party",
         description: "A fun party",
       });
-      const html = ticketPage(
-        ev,
-        undefined,
-        false,
-        undefined,
-        undefined,
-        "https://tix.example.com",
-      );
+      const html = renderTicket(ev, {
+        baseUrl: "https://tix.example.com",
+      });
       expect(html).toContain(
         '<meta property="og:title" content="Birthday Party">',
       );
@@ -896,7 +888,7 @@ describe("html", () => {
     });
 
     test("does not include OpenGraph tags when baseUrl is not provided", () => {
-      const html = ticketPage(event, undefined, false, undefined, undefined);
+      const html = renderTicket(event);
       expect(html).not.toContain("og:title");
     });
   });
@@ -2424,10 +2416,10 @@ describe("html", () => {
     });
   });
 
-  describe("multiTicketPage", () => {
+  describe("ticketPage", () => {
     test("shows all sold out message when every event is sold out", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2436,7 +2428,7 @@ describe("html", () => {
             max_attendees: 100,
           }),
         ),
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 2,
             slug: "cd34e",
@@ -2446,14 +2438,14 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
+      const html = ticketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain("Sorry, all events are sold out.");
       expect(html).not.toContain("Reserve Tickets</button>");
     });
 
     test("renders markdown paragraphs in terms and conditions", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2462,7 +2454,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({
+      const html = ticketPage({
         events,
         slugs: ["ab12c"],
         terms: "Rule one\n\nRule two",
@@ -2474,7 +2466,7 @@ describe("html", () => {
 
     test("renders custom questions with event IDs", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2491,7 +2483,7 @@ describe("html", () => {
         },
       ];
       const questionEventMap = new Map([[5, [1]]]);
-      const html = multiTicketPage({
+      const html = ticketPage({
         events,
         slugs: ["ab12c"],
         questions,
@@ -2505,7 +2497,7 @@ describe("html", () => {
     test("appends ?iframe=true to form action in iframe mode", () => {
       detectIframeMode("https://example.com/?iframe=true");
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2514,7 +2506,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c"] });
+      const html = ticketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('action="/ticket/ab12c?iframe=true"');
       expect(html).toContain('class="iframe"');
       detectIframeMode("https://example.com/");
@@ -2523,7 +2515,7 @@ describe("html", () => {
     test("includes iframe-resizer child script in iframe mode", () => {
       detectIframeMode("https://example.com/?iframe=true");
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2532,14 +2524,14 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c"] });
+      const html = ticketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain("iframe-resizer-child.js");
       detectIframeMode("https://example.com/");
     });
 
     test("excludes iframe-resizer child script without iframe mode", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2548,13 +2540,13 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c"] });
+      const html = ticketPage({ events, slugs: ["ab12c"] });
       expect(html).not.toContain("iframe-resizer-child.js");
     });
 
     test("does not append ?iframe=true without iframe mode", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2563,7 +2555,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c"] });
+      const html = ticketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('action="/ticket/ab12c"');
       expect(html).not.toContain("?iframe=true");
       expect(html).not.toContain('class="iframe"');
@@ -2571,7 +2563,7 @@ describe("html", () => {
 
     test("hides quantity selector for single event with max quantity 1", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2581,7 +2573,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c"] });
+      const html = ticketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain('name="quantity_1" value="1"');
       expect(html).not.toContain("<select");
       expect(html).not.toContain("Select Tickets");
@@ -2589,7 +2581,7 @@ describe("html", () => {
 
     test("shows quantity selector for single event with max quantity above 1", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2599,16 +2591,16 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c"] });
+      const html = ticketPage({ events, slugs: ["ab12c"] });
       expect(html).toContain("<select");
       expect(html).toContain('name="quantity_1"');
-      expect(html).toContain("Select Tickets");
+      expect(html).toContain("Number of Tickets");
       expect(html).not.toContain('name="quantity_1" value="1"');
     });
 
     test("shows quantity selector for multiple events even with max quantity 1", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2617,7 +2609,7 @@ describe("html", () => {
             max_quantity: 1,
           }),
         ),
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 2,
             slug: "cd34e",
@@ -2627,14 +2619,14 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
+      const html = ticketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain("<select");
       expect(html).toContain("Select Tickets");
     });
 
     test("hides quantity selector when one event available and one sold out", () => {
       const events = [
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 1,
             slug: "ab12c",
@@ -2643,7 +2635,7 @@ describe("html", () => {
             max_quantity: 1,
           }),
         ),
-        buildMultiTicketEvent(
+        buildTicketEvent(
           testEventWithCount({
             id: 2,
             slug: "cd34e",
@@ -2653,7 +2645,7 @@ describe("html", () => {
           }),
         ),
       ];
-      const html = multiTicketPage({ events, slugs: ["ab12c", "cd34e"] });
+      const html = ticketPage({ events, slugs: ["ab12c", "cd34e"] });
       expect(html).toContain('name="quantity_1" value="1"');
       expect(html).not.toContain("Select Tickets");
     });
@@ -3481,13 +3473,14 @@ describe("html", () => {
   });
 
   describe("ticketPage event date and location", () => {
-    const renderTicket = (
-      ev: Parameters<typeof ticketPage>[0],
-      opts?: { iframe?: boolean },
-    ) => {
+    const renderTicket = (ev: EventWithCount, opts?: { iframe?: boolean }) => {
       if (opts?.iframe) detectIframeMode("https://example.com/?iframe=true");
       else detectIframeMode("https://example.com/");
-      return ticketPage(ev, undefined, false, undefined, undefined);
+      return ticketPage({
+        events: [buildTicketEvent(ev)],
+        slugs: [ev.slug],
+        dates: [],
+      });
     };
 
     test("shows date on public ticket page when event has date", () => {
@@ -3716,39 +3709,47 @@ describe("html", () => {
       });
 
       describe("ticketPage with image", () => {
+        const renderSingleEvent = (ev: EventWithCount) =>
+          ticketPage({
+            events: [buildTicketEvent(ev)],
+            slugs: [ev.slug],
+            dates: [],
+            terms: null,
+          });
+
         test("shows event image when image_url is set", () => {
           const event = testEventWithCount({ image_url: "event-img.jpg" });
-          const html = ticketPage(event, undefined, false, undefined, null);
+          const html = renderSingleEvent(event);
           expect(html).toContain("/image/event-img.jpg");
           expect(html).toContain('class="event-image"');
         });
 
         test("does not show image when image_url is null", () => {
           const event = testEventWithCount({ image_url: "" });
-          const html = ticketPage(event, undefined, false, undefined, null);
+          const html = renderSingleEvent(event);
           expect(html).not.toContain("/image/");
         });
 
         test("does not show image in iframe mode", () => {
           detectIframeMode("https://example.com/?iframe=true");
           const event = testEventWithCount({ image_url: "event-img.jpg" });
-          const html = ticketPage(event, undefined, false, undefined, null);
+          const html = renderSingleEvent(event);
           expect(html).not.toContain("event-img.jpg");
           detectIframeMode("https://example.com/");
         });
       });
 
-      describe("multiTicketPage with images", () => {
+      describe("ticketPage with images", () => {
         test("shows image before each event with image_url", () => {
           const events = [
-            buildMultiTicketEvent(
+            buildTicketEvent(
               testEventWithCount({
                 id: 1,
                 name: "Event A",
                 image_url: "img-a.jpg",
               }),
             ),
-            buildMultiTicketEvent(
+            buildTicketEvent(
               testEventWithCount({
                 id: 2,
                 name: "Event B",
@@ -3756,18 +3757,18 @@ describe("html", () => {
               }),
             ),
           ];
-          const html = multiTicketPage({ events, slugs: ["slug-a", "slug-b"] });
+          const html = ticketPage({ events, slugs: ["slug-a", "slug-b"] });
           expect(html).toContain("/image/img-a.jpg");
           expect(html).toContain("/image/img-b.jpg");
         });
 
         test("does not show images when image_url is null", () => {
           const events = [
-            buildMultiTicketEvent(
+            buildTicketEvent(
               testEventWithCount({ id: 1, name: "Event A", image_url: "" }),
             ),
           ];
-          const html = multiTicketPage({ events, slugs: ["slug-a"] });
+          const html = ticketPage({ events, slugs: ["slug-a"] });
           expect(html).not.toContain("/image/");
         });
       });

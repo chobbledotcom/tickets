@@ -103,7 +103,7 @@ export const publicSitePage = (
 };
 
 /** Render a single event listing for the events page */
-const renderEventListing = (info: MultiTicketEvent): string => {
+const renderEventListing = (info: TicketEvent): string => {
   const { event, isSoldOut, isClosed } = info;
   const details: string[] = [];
   if (event.location)
@@ -137,7 +137,7 @@ export const ICS_DISCOVERY_TAG =
 export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
 
 export const homepagePage = (
-  events: MultiTicketEvent[],
+  events: TicketEvent[],
   websiteTitle?: string | null,
 ): string => {
   const title = websiteTitle ? `Events - ${websiteTitle}` : "Events";
@@ -220,16 +220,8 @@ const renderDateSelector = (dates: string[]): string =>
          ${dates.map((d) => `<option value="${d}">${formatDateLabel(d)}</option>`).join("")}
        </select>`;
 
-/** Quantity values parsed from multi-ticket form */
-export type MultiTicketQuantities = Map<number, number>;
-
-/**
- * Build quantity select options
- */
-const quantityOptions = (max: number): string =>
-  Array.from({ length: max }, (_, i) => i + 1)
-    .map((n) => `<option value="${n}">${n}</option>`)
-    .join("");
+/** Quantity values parsed from ticket form */
+export type TicketQuantities = Map<number, number>;
 
 /** Render a price input for pay-more events */
 const renderPayMoreInput = (
@@ -254,7 +246,7 @@ const renderTermsAndCheckbox = (terms: string): string =>
   `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
 
 /** Render custom multiple-choice question fields (radio buttons).
- * When questionEventMap is provided (multi-ticket), adds data-event-ids
+ * When questionEventMap is provided, adds data-event-ids
  * so JS can show/hide questions based on selected event quantities. */
 export const renderQuestions = (
   questions: QuestionWithAnswers[],
@@ -276,100 +268,6 @@ export const renderQuestions = (
       return `<fieldset class="custom-question"${eventAttr}><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
     })
     .join("");
-};
-
-/**
- * Public ticket page
- */
-export const ticketPage = (
-  event: EventWithCount,
-  error: string | undefined,
-  isClosed: boolean,
-  availableDates: string[] | undefined,
-  termsAndConditions: string | null | undefined,
-  baseUrl?: string,
-  questions?: QuestionWithAnswers[],
-): string => {
-  const inIframe = getIframeMode();
-  const spotsRemaining = event.max_attendees - event.attendee_count;
-  const isFull = spotsRemaining <= 0;
-  const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
-  const showQuantity = maxPurchasable > 1;
-  const fields: Field[] = getTicketFields(event.fields, isPaidEvent(event));
-  const isDaily = event.event_type === "daily";
-  const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
-  const showPayMore = event.can_pay_more;
-  const pastDays = event.date ? daysAgo(event.date) : null;
-
-  return String(
-    <Layout
-      title={event.name}
-      bodyClass={inIframe ? "iframe" : undefined}
-      headExtra={headExtra}
-    >
-      {!inIframe && (
-        <>
-          <Raw html={renderEventImage(event)} />
-          <div class="prose">
-            <h1>{event.name}</h1>
-            {event.description && (
-              <div class="description">
-                <Raw html={renderMarkdownInline(event.description)} />
-              </div>
-            )}
-            {event.date && (
-              <p>
-                <strong>Date:</strong> {formatDatetimeLabel(event.date)}
-                {pastDays !== null && (
-                  <span class="badge-alert">
-                    {" "}
-                    {pastDays} {pastDays === 1 ? "day" : "days"} ago
-                  </span>
-                )}
-              </p>
-            )}
-            {event.location && (
-              <p>
-                <strong>Location:</strong> {event.location}
-              </p>
-            )}
-          </div>
-        </>
-      )}
-      <Raw html={renderError(error)} />
-
-      {isClosed ? (
-        <div class="error">Registration closed.</div>
-      ) : isFull ? (
-        <div class="error">Sorry, this event is full.</div>
-      ) : (
-        <CsrfForm action={`/ticket/${event.slug}`}>
-          <Raw html={renderFields(fields)} />
-          {isDaily && availableDates && (
-            <Raw html={renderDateSelector(availableDates)} />
-          )}
-          {showQuantity ? (
-            <label>
-              Number of Tickets
-              <select name="quantity">
-                <Raw html={quantityOptions(maxPurchasable)} />
-              </select>
-            </label>
-          ) : (
-            <input type="hidden" name="quantity" value="1" />
-          )}
-          {showPayMore && <Raw html={renderPayMoreInput(event)} />}
-          {questions && questions.length > 0 && (
-            <Raw html={renderQuestions(questions)} />
-          )}
-          {termsAndConditions && (
-            <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
-          )}
-          <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
-        </CsrfForm>
-      )}
-    </Layout>,
-  );
 };
 
 /**
@@ -399,19 +297,19 @@ export const temporaryErrorPage = (): string =>
     </Layout>,
   );
 
-/** Event info for multi-ticket display */
-export type MultiTicketEvent = {
+/** Event info for ticket display */
+export type TicketEvent = {
   event: EventWithCount;
   isSoldOut: boolean;
   isClosed: boolean;
   maxPurchasable: number;
 };
 
-/** Build multi-ticket event info from event */
-export const buildMultiTicketEvent = (
+/** Build ticket event info from event */
+export const buildTicketEvent = (
   event: EventWithCount,
   closed = false,
-): MultiTicketEvent => {
+): TicketEvent => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable =
@@ -419,24 +317,21 @@ export const buildMultiTicketEvent = (
   return { event, isSoldOut, isClosed: closed, maxPurchasable };
 };
 
-/** Render description HTML for multi-ticket event row */
-const renderMultiEventDescription = (description: string): string =>
+/** Render description HTML for event row */
+const renderEventDescription = (description: string): string =>
   description
     ? `<div class="description-compact">${renderMarkdownInline(description)}</div>`
     : "";
 
-/** Render quantity selector for a single event in multi-ticket form */
-const renderMultiEventRow = (
-  info: MultiTicketEvent,
-  hideQuantity = false,
-): string => {
+/** Render quantity selector for an event row */
+const renderEventRow = (info: TicketEvent, hideQuantity = false): string => {
   const { event, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
   const imageHtml = renderEventImage(event);
 
   if (isClosed) {
     return `
-      <div class="multi-ticket-row sold-out">
+      <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
         <span class="sold-out-label">Registration Closed</span>
@@ -446,10 +341,10 @@ const renderMultiEventRow = (
 
   if (isSoldOut) {
     return `
-      <div class="multi-ticket-row sold-out">
+      <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
-        ${renderMultiEventDescription(event.description)}
+        ${renderEventDescription(event.description)}
         <span class="sold-out-label">Sold Out</span>
       </div>
     `;
@@ -468,36 +363,59 @@ const renderMultiEventRow = (
   const priceFieldName = `custom_price_${event.id}`;
 
   return `
-    <div class="multi-ticket-row">
+    <div class="ticket-row">
       ${imageHtml}
       <label>${escapeHtml(event.name)}${quantityHtml}</label>
-      ${renderMultiEventDescription(event.description)}
+      ${renderEventDescription(event.description)}
       ${showPayMore ? renderPayMoreInput(event, priceFieldName) : ""}
     </div>
   `;
 };
 
+/** Render controls for a single event: quantity input + pay-more (no event name/image/description). */
+const renderSingleEventControls = (
+  info: TicketEvent,
+  hideQuantity: boolean,
+): string => {
+  const { event, maxPurchasable } = info;
+  const fieldName = `quantity_${event.id}`;
+  const quantityHtml = hideQuantity
+    ? `<input type="hidden" name="${fieldName}" value="1" />`
+    : (() => {
+        const options = Array.from({ length: maxPurchasable + 1 }, (_, i) => i)
+          .map((n) => `<option value="${n}">${n}</option>`)
+          .join("");
+        return `<label>Number of Tickets<select name="${fieldName}">${options}</select></label>`;
+      })();
+  const showPayMore = event.can_pay_more;
+  const priceFieldName = `custom_price_${event.id}`;
+  return `${quantityHtml}${showPayMore ? renderPayMoreInput(event, priceFieldName) : ""}`;
+};
+
 /**
- * Determine the merged fields setting for a set of multi-ticket events
+ * Determine the merged fields setting for the selected events
  */
-const getMultiTicketFieldsSetting = (events: MultiTicketEvent[]): EventFields =>
+const getTicketFieldsSetting = (events: TicketEvent[]): EventFields =>
   mergeEventFields(events.map((e) => e.event.fields));
 
-/** Options for the multi-ticket page */
-export type MultiTicketPageOptions = {
-  events: MultiTicketEvent[];
+/** Options for the ticket page */
+export type TicketPageOptions = {
+  events: TicketEvent[];
   slugs: string[];
   error?: string;
   dates?: string[];
   terms?: string | null;
   questions?: QuestionWithAnswers[];
   questionEventMap?: QuestionEventMap;
+  baseUrl?: string;
 };
 
 /**
- * Multi-ticket page - register for multiple events at once
+ * Ticket page - register for one or more events
+ * Single events show rich details (image, description, date, location).
+ * Multiple events show a compact row layout with per-event quantity selectors.
  */
-export const multiTicketPage = ({
+export const ticketPage = ({
   events,
   slugs,
   error,
@@ -505,42 +423,92 @@ export const multiTicketPage = ({
   terms,
   questions,
   questionEventMap,
-}: MultiTicketPageOptions): string => {
+  baseUrl,
+}: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
-  const fieldsSetting = getMultiTicketFieldsSetting(events);
+  const fieldsSetting = getTicketFieldsSetting(events);
   const anyPaid = events.some((e) => isPaidEvent(e.event));
   const fields: Field[] = getTicketFields(fieldsSetting, anyPaid);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
+
+  const isSingleEvent = events.length === 1;
+  const singleEvent = isSingleEvent ? events[0]!.event : null;
+  const pastDays = singleEvent?.date ? daysAgo(singleEvent.date) : null;
 
   const availableEvents = events.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =
     availableEvents.length === 1 && availableEvents[0]?.maxPurchasable === 1;
 
-  const eventRows = events
-    .map((e) => renderMultiEventRow(e, hideQuantity))
-    .join("");
+  // For single events, render just the quantity/pay-more controls (event details are in the header).
+  // For multiple events, render full event rows with name, image, and description.
+  const eventRows = isSingleEvent
+    ? renderSingleEventControls(events[0]!, hideQuantity)
+    : events.map((e) => renderEventRow(e, hideQuantity)).join("");
+
+  const title = singleEvent ? singleEvent.name : "Reserve Tickets";
+  const headExtra =
+    singleEvent && baseUrl ? buildOgTags(singleEvent, baseUrl) : undefined;
+  const buttonText =
+    isSingleEvent && hideQuantity ? "Reserve Ticket" : "Reserve Tickets";
 
   return String(
-    <Layout title="Reserve Tickets" bodyClass={inIframe ? "iframe" : undefined}>
+    <Layout
+      title={title}
+      bodyClass={inIframe ? "iframe" : undefined}
+      headExtra={headExtra}
+    >
+      {singleEvent && !inIframe && (
+        <>
+          <Raw html={renderEventImage(singleEvent)} />
+          <div class="prose">
+            <h1>{singleEvent.name}</h1>
+            {singleEvent.description && (
+              <div class="description">
+                <Raw html={renderMarkdownInline(singleEvent.description)} />
+              </div>
+            )}
+            {singleEvent.date && (
+              <p>
+                <strong>Date:</strong> {formatDatetimeLabel(singleEvent.date)}
+                {pastDays !== null && (
+                  <span class="badge-alert">
+                    {" "}
+                    {pastDays} {pastDays === 1 ? "day" : "days"} ago
+                  </span>
+                )}
+              </p>
+            )}
+            {singleEvent.location && (
+              <p>
+                <strong>Location:</strong> {singleEvent.location}
+              </p>
+            )}
+          </div>
+        </>
+      )}
       <Raw html={renderError(error)} />
 
       {allUnavailable ? (
         <div class="error">
-          {allClosed
-            ? "Registration closed."
-            : "Sorry, all events are sold out."}
+          {isSingleEvent
+            ? allClosed
+              ? "Registration closed."
+              : "Sorry, this event is full."
+            : allClosed
+              ? "Registration closed."
+              : "Sorry, all events are sold out."}
         </div>
       ) : (
         <CsrfForm action={`/ticket/${slugs.join("+")}`}>
           <Raw html={renderFields(fields)} />
           {hasDaily && dates && <Raw html={renderDateSelector(dates)} />}
 
-          {hideQuantity ? (
+          {hideQuantity || isSingleEvent ? (
             <Raw html={eventRows} />
           ) : (
-            <fieldset class="multi-ticket-events">
+            <fieldset class="ticket-events">
               <legend>Select Tickets</legend>
               <Raw html={eventRows} />
             </fieldset>
@@ -550,7 +518,7 @@ export const multiTicketPage = ({
             <Raw html={renderQuestions(questions, questionEventMap)} />
           )}
           {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
-          <button type="submit">Reserve Tickets</button>
+          <button type="submit">{buttonText}</button>
         </CsrfForm>
       )}
     </Layout>,

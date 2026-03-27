@@ -103,7 +103,7 @@ type SingleIntentMetadata = ContactFields & {
 /**
  * Build intent metadata for a single-event checkout.
  * Common fields: event_id, name, email, quantity, optional phone/address/date.
- * Answer IDs are stored in per-event format (same as multi-ticket) for consistency.
+ * Answer IDs are stored in per-event format for consistency.
  */
 export const buildSingleIntentMetadata = (
   eventId: number,

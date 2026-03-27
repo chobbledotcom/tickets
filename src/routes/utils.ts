@@ -15,7 +15,7 @@ import {
   verifySignedCsrfToken,
 } from "#lib/csrf.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#lib/db/api-keys.ts";
-import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
+import { getEventWithCount } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
@@ -453,49 +453,25 @@ export const withEventPage = (
     htmlResponse(renderPage(event, session)),
   );
 
-/** Handler function that takes an event and returns a Response */
-type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
-
-/** Load event by slug or return 404 */
-export const withEventBySlug = (
-  slug: string,
-  handler: EventHandler,
-): Promise<Response> => orNotFound(getEventWithCountBySlug(slug), handler);
-
-/** Check if event is active, return 404 if not */
-const requireActiveEvent =
-  (handler: (event: EventWithCount) => Response | Promise<Response>) =>
-  (event: EventWithCount): Response | Promise<Response> =>
-    event.active ? handler(event) : notFoundResponse();
-
-/** Handle event by slug with active check - return 404 if not found or inactive */
-export const withActiveEventBySlug = (
-  slug: string,
-  fn: (event: EventWithCount) => Response | Promise<Response>,
-): Promise<Response> => withEventBySlug(slug, requireActiveEvent(fn));
-
 /** Check if an event's registration period has closed */
 export const isRegistrationClosed = (event: {
   closes_at: string | null;
 }): boolean =>
   event.closes_at !== null && new Date(event.closes_at).getTime() < nowMs();
 
-/** Create a formatter for attendee creation failures (capacity_exceeded / encryption_error) */
-export const formatCreationError =
-  (
-    capacityMsg: string,
-    capacityMsgWithName: (name: string) => string,
-    fallbackMsg: string,
-  ) =>
-  (
-    reason: "capacity_exceeded" | "encryption_error",
-    eventName?: string,
-  ): string =>
-    reason === "capacity_exceeded"
-      ? eventName
-        ? capacityMsgWithName(eventName)
-        : capacityMsg
-      : fallbackMsg;
+/** Format an attendee creation failure (capacity_exceeded / encryption_error).
+ * Dispatches on reason and optional eventName. */
+export const formatCreationError = (
+  capacityMsg: string,
+  capacityMsgWithName: (name: string) => string,
+  fallbackMsg: string,
+  reason: "capacity_exceeded" | "encryption_error",
+  eventName: string,
+): string => {
+  if (reason !== "capacity_exceeded") return fallbackMsg;
+  if (eventName) return capacityMsgWithName(eventName);
+  return capacityMsg;
+};
 
 /** Format a countdown from now to a future closes_at date, e.g. "3 days and 5 hours from now" */
 export const formatCountdown = (closesAt: string): string => {
