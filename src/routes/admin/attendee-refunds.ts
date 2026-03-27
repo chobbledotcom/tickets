@@ -16,6 +16,7 @@ import {
 } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  AUTH_FORM,
   type AuthSession,
   applyFlash,
   errorRedirect,
@@ -217,7 +218,7 @@ const handleAdminRefundAllPost = (
   request: Request,
   { id }: EventRouteParams,
 ): Promise<Response> =>
-  withAuth(request, { body: "form" }, (session, form) =>
+  withAuth(request, AUTH_FORM, (session, form) =>
     withDecryptedAttendees(session, id, (event, attendees) =>
       processRefundAll(event, attendees, session, form),
     ),

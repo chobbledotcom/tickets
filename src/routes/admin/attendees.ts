@@ -37,6 +37,7 @@ import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { requirePrivateKey, verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  AUTH_FORM,
   type AuthSession,
   applyFlash,
   errorRedirect,
@@ -130,7 +131,7 @@ const withAttendeeForm = (
     form: FormParams,
   ) => Response | Promise<Response>,
 ): Promise<Response> =>
-  withAuth(request, { body: "form" }, (session, form) =>
+  withAuth(request, AUTH_FORM, (session, form) =>
     withAttendee(session, eventId, attendeeId, (data) =>
       handler(data, session, form),
     ),
@@ -271,7 +272,7 @@ const handleAddAttendee = (
   request: Request,
   { eventId }: { eventId: number },
 ): Promise<Response> =>
-  withAuth(request, { body: "form" }, async (_session, form) => {
+  withAuth(request, AUTH_FORM, async (_session, form) => {
     const event = await getEventWithCount(eventId);
     if (!event) return notFoundResponse();
 
@@ -410,7 +411,7 @@ const editAttendeePost =
     request: Request,
     { attendeeId }: { attendeeId: number },
   ): Promise<Response> =>
-    withAuth(request, { body: "form" }, (session, form) =>
+    withAuth(request, AUTH_FORM, (session, form) =>
       withEditAttendee(session, attendeeId, (data) =>
         handler(session, form, data, attendeeId),
       ),

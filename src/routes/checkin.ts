@@ -15,6 +15,7 @@ import {
   resolveEntries,
 } from "#routes/token-utils.ts";
 import {
+  AUTH_FORM,
   type AuthSession,
   getAuthenticatedSession,
   getPrivateKey,
@@ -97,7 +98,7 @@ const handleCheckinPost = (
   request: Request,
   tokens: string[],
 ): Promise<Response> =>
-  withAuth(request, { body: "form" }, (session, form) =>
+  withAuth(request, AUTH_FORM, (session, form) =>
     withLookup(tokens, async (rawAttendees) => {
       const checkedIn = form.get("check_in") === "true";
       const decrypted = await decryptWithSession(rawAttendees, session);

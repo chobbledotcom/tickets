@@ -12,8 +12,9 @@ import {
 import { settings } from "#lib/db/settings.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import type { AuthSession } from "#routes/utils.ts";
 import {
+  AUTH_FORM,
+  type AuthSession,
   htmlResponse,
   redirectResponse,
   requireSessionOr,
@@ -62,7 +63,7 @@ const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
 const handleMigratePost = (request: Request): Promise<Response> =>
   withAuth(
     request,
-    { body: "form" },
+    AUTH_FORM,
     whenNotMigrated(() => redirectResponse("/admin/migrate"))(
       async (session) => {
         const privateKey = await requirePrivateKey(session);

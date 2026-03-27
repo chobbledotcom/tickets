@@ -27,6 +27,7 @@ import { verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
+  OWNER_FORM,
   applyFlash,
   errorRedirect,
   generateSecureToken,
@@ -127,7 +128,7 @@ const handleUserNewGet = (request: Request): Promise<Response> =>
  * Handle POST /admin/users - create invited user
  */
 const handleUsersPost = (request: Request): Promise<Response> =>
-  withAuth(request, { body: "form", role: "owner" }, handleUsersPostForm);
+  withAuth(request, OWNER_FORM, handleUsersPostForm);
 
 const handleUsersPostForm = async (
   _session: AuthSession,
@@ -180,7 +181,7 @@ const withUserAction = (
   userId: number,
   handler: UserActionHandler,
 ): Promise<Response> =>
-  withAuth(request, { body: "form", role: "owner" }, async (session) => {
+  withAuth(request, OWNER_FORM, async (session) => {
     const errorPage: UserErrorPageFn = (error, status) =>
       usersErrorResponse(session, error, status);
     const user = await getUserById(userId);
@@ -252,7 +253,7 @@ const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (
 const handleUserDeletePost: TypedRouteHandler<
   "POST /admin/users/:id/delete"
 > = (request, { id }) =>
-  withAuth(request, { body: "form", role: "owner" }, async (session, form) => {
+  withAuth(request, OWNER_FORM, async (session, form) => {
     const user = await getUserById(id);
     if (!user) {
       return usersErrorResponse(session, "User not found", 404);

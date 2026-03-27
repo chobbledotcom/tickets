@@ -16,6 +16,7 @@ import {
 import { verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
+  OWNER_FORM,
   applyFlash,
   htmlResponse,
   orNotFound,
@@ -57,7 +58,7 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
 const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
   request,
 ) =>
-  withAuth(request, { body: "form", role: "owner" }, async (session, form) => {
+  withAuth(request, OWNER_FORM, async (session, form) => {
     const name = form.getString("name");
     if (!name) {
       return redirect("/admin/api-keys", "Name is required", false);
@@ -111,7 +112,7 @@ const handleApiKeyDeleteGet: TypedRouteHandler<
 const handleApiKeyDelete: TypedRouteHandler<
   "POST /admin/api-keys/:apiKeyId/delete"
 > = (request, { apiKeyId }) =>
-  withAuth(request, { body: "form", role: "owner" }, async (session, form) => {
+  withAuth(request, OWNER_FORM, async (session, form) => {
     let apiKey;
     try {
       apiKey = await getApiKeyForUser(apiKeyId, session.userId);

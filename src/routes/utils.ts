@@ -542,6 +542,20 @@ export type AuthPolicy<T extends BodyMode = BodyMode> = {
   allowApiKey?: boolean;
 };
 
+/** Auth policy presets — use with withAuth to avoid repeating policy objects */
+export const OWNER_FORM: AuthPolicy<"form"> = { body: "form", role: "owner" };
+export const AUTH_FORM: AuthPolicy<"form"> = { body: "form" };
+export const AUTH_MULTIPART: AuthPolicy<"multipart"> = { body: "multipart" };
+export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {
+  body: "multipart",
+  role: "owner",
+};
+export const AUTH_JSON: AuthPolicy<"json"> = { body: "json" };
+export const ADMIN_API: AuthPolicy<"json"> = {
+  body: "json",
+  allowApiKey: true,
+};
+
 /**
  * Handle request with authenticated cookie session.
  * Only checks cookie-based auth. API key auth is intentionally excluded —
@@ -664,7 +678,7 @@ export const ownerFormById =
     ) => Response | Promise<Response>,
   ): IdRouteHandler =>
   (request, { id }) =>
-    withAuth(request, { body: "form", role: "owner" }, (session, form) =>
+    withAuth(request, OWNER_FORM, (session, form) =>
       handler(id, session, form),
     );
 
@@ -695,7 +709,7 @@ export const rssResponse = (xml: string): Response =>
   });
 
 /** Parse JSON body, returning empty object for non-JSON or GET requests */
-const parseJsonBody = async (
+export const parseJsonBody = async (
   request: Request,
 ): Promise<Record<string, unknown> | Response> => {
   const contentType = request.headers.get("content-type") ?? "";

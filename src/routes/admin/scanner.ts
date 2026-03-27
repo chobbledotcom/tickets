@@ -15,6 +15,7 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 import type { Attendee } from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  AUTH_JSON,
   getPrivateKey,
   jsonResponse,
   withAuth,
@@ -53,7 +54,7 @@ const handleScanPost = (
   request: Request,
   { id }: { id: number },
 ): Promise<Response> =>
-  withAuth(request, { body: "json" }, async (session, body) => {
+  withAuth(request, AUTH_JSON, async (session, body) => {
     if (typeof body.token !== "string") {
       return jsonResponse({ status: "error", message: "Missing token" }, 400);
     }

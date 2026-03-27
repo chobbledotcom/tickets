@@ -15,6 +15,7 @@ import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
+  OWNER_FORM,
   applyFlash,
   errorRedirect,
   htmlResponse,
@@ -52,7 +53,7 @@ type SitePostHandler = (
 const sitePostRoute =
   (handler: SitePostHandler) =>
   (request: Request): Promise<Response> =>
-    withAuth(request, { body: "form", role: "owner" }, handler);
+    withAuth(request, OWNER_FORM, handler);
 
 /** Render homepage editor with current state */
 const renderHomePage: PageRenderer = (session, error, success) => {

@@ -82,6 +82,8 @@ import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
+  OWNER_FORM,
+  OWNER_MULTIPART,
   applyFlash,
   errorRedirect,
   htmlResponse,
@@ -254,7 +256,7 @@ export const processSecretField = (
 const settingsRoute =
   (handler: SettingsFormHandler) =>
   (request: Request): Promise<Response> =>
-    withAuth(request, { body: "form", role: "owner" }, (session, form) =>
+    withAuth(request, OWNER_FORM, (session, form) =>
       handler(form, settingsPageWithError(session), session),
     );
 
@@ -262,7 +264,7 @@ const settingsRoute =
 const advancedSettingsRoute =
   (handler: SettingsFormHandler) =>
   (request: Request): Promise<Response> =>
-    withAuth(request, { body: "form", role: "owner" }, (session, form) =>
+    withAuth(request, OWNER_FORM, (session, form) =>
       handler(form, advancedSettingsPageWithError(session), session),
     );
 
@@ -569,7 +571,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/stripe/test - owner only
  */
 const handleStripeTestPost = (request: Request): Promise<Response> =>
-  withAuth(request, { body: "form", role: "owner" }, async () => {
+  withAuth(request, OWNER_FORM, async () => {
     const result = await testStripeConnection();
     return jsonResponse(result);
   });
@@ -578,7 +580,7 @@ const handleStripeTestPost = (request: Request): Promise<Response> =>
  * Handle POST /admin/settings/square/test - owner only
  */
 const handleSquareTestPost = (request: Request): Promise<Response> =>
-  withAuth(request, { body: "form", role: "owner" }, async () => {
+  withAuth(request, OWNER_FORM, async () => {
     const result = await testSquareConnection();
     return jsonResponse(result);
   });
@@ -775,7 +777,7 @@ const handleBookingFeePost = settingsRoute(processBookingFeeForm);
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
   withAuth(
     request,
-    { body: "multipart", role: "owner" },
+    OWNER_MULTIPART,
     async (_session, formData) => {
       if (!isStorageEnabled()) {
         return errorRedirect(
@@ -1059,7 +1061,7 @@ const PREVIEW_TICKET_URL = "https://example.com/t/SAMPLE123+SAMPLE456";
 
 /** Handle POST /admin/settings/email-templates/preview - render template with sample data */
 const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
-  withAuth(request, { body: "form", role: "owner" }, async (_session, form) => {
+  withAuth(request, OWNER_FORM, async (_session, form) => {
     const type = form.getString("type");
     const template = form.getString("template");
     const format = form.get("format") ?? "html";

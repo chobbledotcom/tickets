@@ -62,6 +62,8 @@ import {
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  AUTH_FORM,
+  AUTH_MULTIPART,
   authenticatedGetById,
   formDataToParams,
   getSearchParam,
@@ -314,7 +316,7 @@ const handleNewEventGet: TypedRouteHandler<"GET /admin/event/new"> = (
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
-  withAuth(request, { body: "multipart" }, async (session, formData) => {
+  withAuth(request, AUTH_MULTIPART, async (session, formData) => {
     const form = formDataToParams(formData);
     applyDemoOverrides(form, EVENT_DEMO_FIELDS);
     const result = await eventsResource.create(form);
@@ -468,7 +470,7 @@ const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> =
 const handleAdminEventEditPost: TypedRouteHandler<
   "POST /admin/event/:id/edit"
 > = (request, { id }) =>
-  withAuth(request, { body: "multipart" }, async (session, formData) => {
+  withAuth(request, AUTH_MULTIPART, async (session, formData) => {
     const existing = await getEventWithCount(id);
     if (!existing) return notFoundResponse();
 
@@ -585,7 +587,7 @@ const handleEventWithConfirmation = (
   action: (event: EventWithCount) => Promise<Response>,
   actionLabel?: string,
 ): Promise<Response> =>
-  withAuth(request, { body: "form" }, (_session, form) =>
+  withAuth(request, AUTH_FORM, (_session, form) =>
     orNotFound(getEventWithCount(id), (event) => {
       const error = verifyOrRedirect(
         form,
@@ -660,7 +662,7 @@ const handleAdminEventDelete: TypedRouteHandler<
         performDelete,
         "deletion",
       )
-    : withAuth(request, { body: "form" }, () =>
+    : withAuth(request, AUTH_FORM, () =>
         orNotFound(getEventWithCount(id), performDelete),
       );
 
@@ -672,7 +674,7 @@ const handleFileDelete =
     clearFields: Partial<EventInput>,
   ): TypedRouteHandler<`POST /admin/event/:id/${string}/delete`> =>
   (request, { id }) =>
-    withAuth(request, { body: "form" }, () =>
+    withAuth(request, AUTH_FORM, () =>
       orNotFound(getEventWithCount(id), async (event) => {
         const url = getUrl(event);
         if (url) {

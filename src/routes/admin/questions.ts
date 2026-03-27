@@ -25,6 +25,7 @@ import type { AdminSession } from "#lib/types.ts";
 import { verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  OWNER_FORM,
   errorRedirect,
   type FormParams,
   htmlResponse,
@@ -69,7 +70,7 @@ const handleQuestionsGet = (request: Request): Promise<Response> =>
 
 /** Handle POST /admin/questions (create question) */
 const handleQuestionsPost = (request: Request) =>
-  withAuth(request, { body: "form", role: "owner" }, async (_session, form) => {
+  withAuth(request, OWNER_FORM, async (_session, form) => {
     const text = form.getString("text");
     if (!text) {
       return errorRedirect("/admin/questions", "Question text is required");
@@ -199,7 +200,7 @@ const answerFormRoute = withAnswerAuth(
   (
     request: Request,
     handler: (s: AdminSession, f: FormParams) => Response | Promise<Response>,
-  ) => withAuth(request, { body: "form", role: "owner" }, handler),
+  ) => withAuth(request, OWNER_FORM, handler),
 );
 
 /** Handle GET /admin/questions/:id/answers/:answerId/delete */

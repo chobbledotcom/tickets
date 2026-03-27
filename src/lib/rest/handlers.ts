@@ -14,7 +14,7 @@ import type {
   DeleteResult,
   Resource,
 } from "#lib/rest/resource.ts";
-import { type AuthSession, withAuth } from "#routes/utils.ts";
+import { AUTH_FORM, type AuthSession, withAuth } from "#routes/utils.ts";
 
 /** Async or sync response */
 type MaybeAsync<T> = T | Promise<T>;
@@ -60,7 +60,7 @@ const authHandler =
     handler: (req: Request, id: InValue, auth: AuthOk) => MaybeAsync<Response>,
   ): IdHandler =>
   (req, id) =>
-    withAuth(req, { body: "form" }, (session, form) =>
+    withAuth(req, AUTH_FORM, (session, form) =>
       handler(req, id, { ok: true, session, form }),
     );
 
@@ -85,7 +85,7 @@ const dispatchDelete = <R>(
 export const createHandler =
   <R, I>(resource: Resource<R, I>, opts: CreateHandlerOptions<R>) =>
   (request: Request): Promise<Response> =>
-    withAuth(request, { body: "form" }, async (session, form) => {
+    withAuth(request, AUTH_FORM, async (session, form) => {
       const a: AuthOk = { ok: true, session, form };
       return dispatchCreate(await resource.create(form), a, opts);
     });

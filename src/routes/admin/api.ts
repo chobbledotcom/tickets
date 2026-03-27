@@ -32,7 +32,7 @@ import type {
 } from "#lib/types.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { jsonResponse, withAuth } from "#routes/utils.ts";
+import { ADMIN_API, jsonResponse, withAuth } from "#routes/utils.ts";
 
 // =============================================================================
 // Published API types — the contract for callers
@@ -192,7 +192,7 @@ const withEventApi = (
 ): Promise<Response> =>
   withAuth(
     request,
-    { body: "json", allowApiKey: true },
+    ADMIN_API,
     async (session, body) => {
       const event = await getEventWithCount(eventId);
       if (!event) return errorResponse("Event not found", 404);
@@ -269,7 +269,7 @@ export const bodyToUpdateInput = async (
 
 /** GET /api/admin/events — list all events with counts */
 const handleListEvents = (request: Request): Promise<Response> =>
-  withAuth(request, { body: "json", allowApiKey: true }, async (session) => {
+  withAuth(request, ADMIN_API, async (session) => {
     const events = await getAllEvents();
     return jsonResponse({
       events: map(toAdminEvent)(events),
@@ -296,7 +296,7 @@ const handleToggleActive = (
 const handleCreateEvent = (request: Request): Promise<Response> =>
   withAuth(
     request,
-    { body: "json", allowApiKey: true },
+    ADMIN_API,
     async (_session, body) => {
       const parsed = await bodyToCreateInput(body);
       if (!parsed.ok) return errorResponse(parsed.error);

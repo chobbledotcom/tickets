@@ -7,6 +7,7 @@ import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  OWNER_FORM,
   htmlResponse,
   redirect,
   requireOwnerOr,
@@ -26,7 +27,7 @@ const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = (request) =>
 
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
-  withAuth(request, { body: "form", role: "owner" }, async (_session, form) => {
+  withAuth(request, OWNER_FORM, async (_session, form) => {
     const eventCount = Math.min(
       Math.max(1, Number(form.get("event_count")) || 0),
       MAX_SEED_EVENTS,
