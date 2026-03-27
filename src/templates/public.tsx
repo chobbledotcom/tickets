@@ -323,7 +323,7 @@ export const ticketPage = (
                 {pastDays !== null && (
                   <span class="badge-alert">
                     {" "}
-                    ({pastDays} {pastDays === 1 ? "day" : "days"} ago)
+                    {pastDays} {pastDays === 1 ? "day" : "days"} ago
                   </span>
                 )}
               </p>
