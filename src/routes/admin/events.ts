@@ -54,9 +54,9 @@ import type {
   Group,
 } from "#lib/types.ts";
 import {
+  createConfirmedDeleteHandlers,
   csvResponse,
   getDateFilter,
-  verifyOrRedirect,
   withEventAttendeesAuth,
 } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -68,7 +68,6 @@ import {
   formDataToParams,
   getSearchParam,
   htmlResponse,
-  type IdRouteHandler,
   notFoundResponse,
   orNotFound,
   redirect,
@@ -556,81 +555,61 @@ const handleAdminEventExport: TypedRouteHandler<
     return csvResponse(csv, filename);
   });
 
-/** Event page GET handler that reads flash error */
-const withEventPageFlash = (
-  renderPage: (
-    event: EventWithCount,
-    session: AdminSession,
-    error?: string,
-  ) => string,
-): IdRouteHandler =>
-  authenticatedGetById(null)(getEventWithCount, (event, session) => {
-    const flash = getFlash();
-    return htmlResponse(renderPage(event, session, flash.error));
-  });
-
-/** Handle GET /admin/event/:id/deactivate (show confirmation page) */
-const handleAdminEventDeactivateGet = withEventPageFlash(
-  adminDeactivateEventPage,
-);
-
-/** Handle GET /admin/event/:id/reactivate (show confirmation page) */
-const handleAdminEventReactivateGet = withEventPageFlash(
-  adminReactivateEventPage,
-);
-
-/** Handle POST for event action with confirmation */
-const handleEventWithConfirmation = (
-  request: Request,
-  id: number,
-  actionPath: string,
-  action: (event: EventWithCount) => Promise<Response>,
-  actionLabel?: string,
-): Promise<Response> =>
-  withAuth(request, AUTH_FORM, (_session, form) =>
-    orNotFound(getEventWithCount(id), (event) => {
-      const error = verifyOrRedirect(
-        form,
-        event.name,
-        `/admin/event/${id}/${actionPath}`,
-        "Event name",
-        actionLabel,
-      );
-      if (error) return error;
-      return action(event);
-    }),
-  );
+/** Shared config for event confirmation handlers */
+const eventConfirmBase = {
+  auth: "any" as const,
+  load: (_id: number) => getEventWithCount(_id),
+  identifier: (event: EventWithCount) => event.name,
+  identifierLabel: "Event name",
+};
 
 /** Factory for event toggle handlers (deactivate/reactivate) */
-const eventToggleHandler =
-  (
-    actionPath: string,
-    active: boolean,
-    verb: string,
-  ): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
-  (request, { id }) =>
-    handleEventWithConfirmation(request, id, actionPath, async (event) => {
-      await eventsTable.update(id, { active });
-      await logActivity(`Event '${event.name}' ${verb}`, id);
-      return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
-    });
+const eventToggleHandlers = (opts: {
+  active: boolean;
+  action: string;
+  renderPage: (
+    event: EventWithCount,
+    session: { readonly adminLevel: "owner" | "manager" },
+    error?: string,
+  ) => string;
+}) =>
+  createConfirmedDeleteHandlers<EventWithCount>({
+    ...eventConfirmBase,
+    render: opts.renderPage,
+    onConfirm: async (event, id) => {
+      await eventsTable.update(id, { active: opts.active });
+      await logActivity(`Event '${event.name}' ${opts.action}d`, id);
+    },
+    path: `/admin/event/:id/${opts.action}`,
+    successRedirect: (_, id) => `/admin/event/${id}`,
+    successMessage: `Event ${opts.action}d`,
+    actionLabel: `${opts.action}ion`,
+  });
 
-/** Handle POST /admin/event/:id/deactivate */
-const handleAdminEventDeactivatePost = eventToggleHandler(
-  "deactivate",
-  false,
-  "deactivated",
-);
+const eventDeactivate = eventToggleHandlers({
+  active: false,
+  action: "deactivate",
+  renderPage: adminDeactivateEventPage,
+});
 
-/** Handle POST /admin/event/:id/reactivate */
-const handleAdminEventReactivatePost = eventToggleHandler(
-  "reactivate",
-  true,
-  "reactivated",
-);
+const eventReactivate = eventToggleHandlers({
+  active: true,
+  action: "reactivate",
+  renderPage: adminReactivateEventPage,
+});
 
-/** Handle GET /admin/event/:id/delete (show confirmation page) */
-const handleAdminEventDeleteGet = withEventPageFlash(adminDeleteEventPage);
+/** Confirmed-delete handlers for events */
+const eventDelete = createConfirmedDeleteHandlers<EventWithCount>({
+  ...eventConfirmBase,
+  render: (event, session, error) =>
+    adminDeleteEventPage(event, session, error),
+  onConfirm: async (event) => {
+    await performEventDelete(event);
+  },
+  path: "/admin/event/:id/delete",
+  successRedirect: "/admin",
+  successMessage: "Event deleted",
+});
 
 /**
  * Handle GET /admin/event/:id/log
@@ -644,26 +623,17 @@ const handleAdminEventLog = authenticatedGetById(null)(
     ),
 );
 
-/** Perform event deletion */
-const performDelete = async (event: EventWithCount): Promise<Response> => {
-  await performEventDelete(event);
-  return redirect("/admin", "Event deleted", true);
-};
-
 /** Handle DELETE /admin/event/:id (delete event with logging) */
 const handleAdminEventDelete: TypedRouteHandler<
   "POST /admin/event/:id/delete"
 > = (request, { id }) =>
   getSearchParam(request, "verify_identifier") !== "false"
-    ? handleEventWithConfirmation(
-        request,
-        id,
-        "delete",
-        performDelete,
-        "deletion",
-      )
+    ? eventDelete.post(request, id)
     : withAuth(request, AUTH_FORM, () =>
-        orNotFound(getEventWithCount(id), performDelete),
+        orNotFound(getEventWithCount(id), async (event) => {
+          await performEventDelete(event);
+          return redirect("/admin", "Event deleted", true);
+        }),
       );
 
 /** Generic handler for deleting an event's uploaded file (image or attachment) */
@@ -728,24 +698,24 @@ const handleAdminEventGetIn = eventPageHandler("in");
 const handleAdminEventGetOut = eventPageHandler("out");
 
 /** Event routes */
-export const eventsRoutes = defineRoutes({
-  "GET /admin/event/new": handleNewEventGet,
-  "POST /admin/event": handleCreateEvent,
-  "GET /admin/event/:id/in": handleAdminEventGetIn,
-  "GET /admin/event/:id/out": handleAdminEventGetOut,
-  "GET /admin/event/:id": handleAdminEventGet,
-  "GET /admin/event/:id/duplicate": handleAdminEventDuplicateGet,
-  "GET /admin/event/:id/edit": handleAdminEventEditGet,
-  "POST /admin/event/:id/edit": handleAdminEventEditPost,
-  "GET /admin/event/:id/export": handleAdminEventExport,
-  "GET /admin/event/:id/log": handleAdminEventLog,
-  "POST /admin/event/:id/image/delete": handleImageDelete,
-  "POST /admin/event/:id/attachment/delete": handleAttachmentDelete,
-  "GET /admin/event/:id/deactivate": handleAdminEventDeactivateGet,
-  "POST /admin/event/:id/deactivate": handleAdminEventDeactivatePost,
-  "GET /admin/event/:id/reactivate": handleAdminEventReactivateGet,
-  "POST /admin/event/:id/reactivate": handleAdminEventReactivatePost,
-  "GET /admin/event/:id/delete": handleAdminEventDeleteGet,
-  "POST /admin/event/:id/delete": handleAdminEventDelete,
-  "DELETE /admin/event/:id/delete": handleAdminEventDelete,
-});
+export const eventsRoutes = {
+  ...eventDeactivate.routes,
+  ...eventReactivate.routes,
+  ...eventDelete.routes,
+  ...defineRoutes({
+    "GET /admin/event/new": handleNewEventGet,
+    "POST /admin/event": handleCreateEvent,
+    "GET /admin/event/:id/in": handleAdminEventGetIn,
+    "GET /admin/event/:id/out": handleAdminEventGetOut,
+    "GET /admin/event/:id": handleAdminEventGet,
+    "GET /admin/event/:id/duplicate": handleAdminEventDuplicateGet,
+    "GET /admin/event/:id/edit": handleAdminEventEditGet,
+    "POST /admin/event/:id/edit": handleAdminEventEditPost,
+    "GET /admin/event/:id/export": handleAdminEventExport,
+    "GET /admin/event/:id/log": handleAdminEventLog,
+    "POST /admin/event/:id/image/delete": handleImageDelete,
+    "POST /admin/event/:id/attachment/delete": handleAttachmentDelete,
+    "POST /admin/event/:id/delete": handleAdminEventDelete,
+    "DELETE /admin/event/:id/delete": handleAdminEventDelete,
+  }),
+};

@@ -1835,7 +1835,7 @@ export const createTestGroup = async (
   };
 
   const group = await authenticatedFormRequest(
-    "/admin/group",
+    "/admin/groups",
     {
       name: input.name,
       terms_and_conditions: input.termsAndConditions,
@@ -1872,7 +1872,7 @@ export const updateTestGroup = async (
   const existing = (await groupsTable.findById(groupId)) as Group;
 
   return authenticatedFormRequest(
-    `/admin/group/${groupId}/edit`,
+    `/admin/groups/${groupId}/edit`,
     {
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
@@ -1896,7 +1896,7 @@ export const deleteTestGroup = async (groupId: number): Promise<void> => {
   const existing = (await groupsTable.findById(groupId)) as Group;
 
   return authenticatedFormRequest(
-    `/admin/group/${groupId}/delete`,
+    `/admin/groups/${groupId}/delete`,
     { confirm_identifier: existing.name },
     async () => {},
     "delete group",
@@ -1928,7 +1928,7 @@ export const createTestHoliday = (
   };
 
   return authenticatedFormRequest(
-    "/admin/holiday",
+    "/admin/holidays",
     {
       name: input.name,
       start_date: input.startDate,
@@ -1954,7 +1954,7 @@ export const updateTestHoliday = async (
   const existing = (await holidaysTable.findById(holidayId)) as Holiday;
 
   return authenticatedFormRequest(
-    `/admin/holiday/${holidayId}/edit`,
+    `/admin/holidays/${holidayId}/edit`,
     {
       name: updates.name ?? existing.name,
       start_date: updates.startDate ?? existing.start_date,
@@ -1976,7 +1976,7 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
   const existing = (await holidaysTable.findById(holidayId)) as Holiday;
 
   return authenticatedFormRequest(
-    `/admin/holiday/${holidayId}/delete`,
+    `/admin/holidays/${holidayId}/delete`,
     { confirm_identifier: existing.name },
     async () => {},
     "delete holiday",

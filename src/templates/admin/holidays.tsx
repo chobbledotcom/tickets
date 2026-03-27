@@ -28,7 +28,7 @@ export const adminHolidaysPage = (
       <AdminNav session={session} active="/admin/holidays" />
       <Raw html={renderSuccess(successMessage)} />
       <p>
-        <a href="/admin/holiday/new">Add Holiday</a>
+        <a href="/admin/holidays/new">Add Holiday</a>
       </p>
       {holidays.length === 0 ? (
         <p>No holidays configured.</p>
@@ -50,8 +50,8 @@ export const adminHolidaysPage = (
                   <td>{holiday.start_date}</td>
                   <td>{holiday.end_date}</td>
                   <td>
-                    <a href={`/admin/holiday/${holiday.id}/edit`}>Edit</a>{" "}
-                    <a href={`/admin/holiday/${holiday.id}/delete`}>Delete</a>
+                    <a href={`/admin/holidays/${holiday.id}/edit`}>Edit</a>{" "}
+                    <a href={`/admin/holidays/${holiday.id}/delete`}>Delete</a>
                   </td>
                 </tr>
               ))}
@@ -85,7 +85,7 @@ export const adminHolidayNewPage = (
       <AdminNav session={session} active="/admin/holidays" />
       <h1>Add Holiday</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action="/admin/holiday">
+      <CsrfForm action="/admin/holidays">
         <Raw html={renderFields(holidayFields)} />
         <button type="submit">Create Holiday</button>
       </CsrfForm>
@@ -105,7 +105,7 @@ export const adminHolidayEditPage = (
       <AdminNav session={session} active="/admin/holidays" />
       <h1>Edit Holiday</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action={`/admin/holiday/${holiday.id}/edit`}>
+      <CsrfForm action={`/admin/holidays/${holiday.id}/edit`}>
         <Raw
           html={renderFields(holidayFields, holidayToFieldValues(holiday))}
         />
@@ -128,7 +128,7 @@ export const adminHolidayDeletePage = (
       <h1>Delete Holiday</h1>
       <Raw html={renderError(error)} />
       <ConfirmForm
-        action={`/admin/holiday/${holiday.id}/delete`}
+        action={`/admin/holidays/${holiday.id}/delete`}
         name={holiday.name}
         label="Holiday name"
         buttonText="Delete Holiday"

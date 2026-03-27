@@ -3,7 +3,7 @@ import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import { createConfirmedDeleteHandlers } from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
   applyFlash,
@@ -41,14 +41,14 @@ type CrudConfig<Row, Input> = {
 export const createOwnerCrudHandlers = <Row, Input>(
   cfg: CrudConfig<Row, Input>,
 ) =>
-  createCrudHandlersWithAuth(cfg, requireOwnerOr, (r, h) =>
-    withAuth(r, OWNER_FORM, h),
+  createCrudHandlersWithAuth(
+    cfg, requireOwnerOr, (r, h) => withAuth(r, OWNER_FORM, h), "owner",
   );
 
 /** Create CRUD handlers accessible to any authenticated admin (owner or manager) */
 export const createCrudHandlers = <Row, Input>(cfg: CrudConfig<Row, Input>) =>
-  createCrudHandlersWithAuth(cfg, requireSessionOr, (r, h) =>
-    withAuth(r, AUTH_FORM, h),
+  createCrudHandlersWithAuth(
+    cfg, requireSessionOr, (r, h) => withAuth(r, AUTH_FORM, h), "any",
   );
 
 type AuthGuard = (
@@ -68,6 +68,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
   cfg: CrudConfig<Row, Input>,
   requireAuth: AuthGuard,
   withFormAuth: FormGuard,
+  authMode: "owner" | "any",
 ) => {
   type FormHandler = (
     session: AdminSession,
@@ -144,26 +145,20 @@ const createCrudHandlersWithAuth = <Row, Input>(
       return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
     });
 
-  const deleteGet = authRowHtml(cfg.renderDelete);
-
-  const deletePost: IdRouteHandler = (request, { id }) =>
-    withFormAuth(request, (_session, form) =>
-      orNotFound(cfg.resource.table.findById(id), async (row) => {
-        const error = verifyOrRedirect(
-          form,
-          cfg.getName(row),
-          `${cfg.listPath}/${id}/delete`,
-          `${cfg.singular} name`,
-          "deletion",
-        );
-        if (error) return error;
-
-        const result = await cfg.resource.delete(id);
-        if ("notFound" in result) return notFoundResponse();
-        await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
-        return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
-      }),
-    );
+  const confirmedDelete = createConfirmedDeleteHandlers<Row>({
+    auth: authMode,
+    path: `${cfg.listPath}/:id/delete`,
+    load: (id) => cfg.resource.table.findById(id),
+    render: cfg.renderDelete,
+    identifier: cfg.getName,
+    onConfirm: async (row, id) => {
+      await cfg.resource.delete(id);
+      await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
+    },
+    successRedirect: cfg.listPath,
+    successMessage: `${cfg.singular} deleted`,
+    identifierLabel: `${cfg.singular} name`,
+  });
 
   return {
     listGet,
@@ -171,7 +166,6 @@ const createCrudHandlersWithAuth = <Row, Input>(
     createPost,
     editGet,
     editPost,
-    deleteGet,
-    deletePost,
+    deleteRoutes: confirmedDelete.routes,
   };
 };

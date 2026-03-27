@@ -13,13 +13,12 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import { createConfirmedDeleteHandlers } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyFlash,
   htmlResponse,
   OWNER_FORM,
-  orNotFound,
   redirect,
   requireOwnerOr,
   withAuth,
@@ -92,46 +91,19 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
     return redirect("/admin/api-keys", `API key created\n${apiKey}`, true);
   });
 
-/**
- * Handle GET /admin/api-keys/:apiKeyId/delete — confirmation page
- */
-const handleApiKeyDeleteGet: TypedRouteHandler<
-  "GET /admin/api-keys/:apiKeyId/delete"
-> = (request, { apiKeyId }) =>
-  requireOwnerOr(request, (session) => {
-    applyFlash(request);
-    return orNotFound(
-      getApiKeyForUser(apiKeyId, session.userId).catch(() => null),
-      (apiKey) => htmlResponse(adminDeleteApiKeyPage(apiKey, session)),
-    );
-  });
-
-/**
- * Handle POST /admin/api-keys/:apiKeyId/delete
- */
-const handleApiKeyDelete: TypedRouteHandler<
-  "POST /admin/api-keys/:apiKeyId/delete"
-> = (request, { apiKeyId }) =>
-  withAuth(request, OWNER_FORM, async (session, form) => {
-    let apiKey;
-    try {
-      apiKey = await getApiKeyForUser(apiKeyId, session.userId);
-    } catch {
-      return redirect("/admin/api-keys", "API key not found", false);
-    }
-
-    const error = verifyOrRedirect(
-      form,
-      apiKey.name,
-      `/admin/api-keys/${apiKeyId}/delete`,
-      "API key name",
-      "deletion",
-    );
-    if (error) return error;
-
-    await deleteApiKey(apiKeyId, session.userId);
-    return redirect("/admin/api-keys", "API key deleted", true);
-  });
+/** Confirmed-delete handlers for API keys */
+const apiKeyDelete = createConfirmedDeleteHandlers({
+  path: "/admin/api-keys/:apiKeyId/delete",
+  load: (id, session) => getApiKeyForUser(id, session.userId).catch(() => null),
+  render: (apiKey, session) => adminDeleteApiKeyPage(apiKey, session),
+  identifier: (apiKey) => apiKey.name,
+  onConfirm: async (_apiKey, id, session) => {
+    await deleteApiKey(id, session.userId);
+  },
+  successRedirect: "/admin/api-keys",
+  successMessage: "API key deleted",
+  identifierLabel: "API key name",
+});
 
 /**
  * Handle GET /admin/api-keys/docs — API documentation page
@@ -145,10 +117,11 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
     ),
   );
 
-export const apiKeysRoutes = defineRoutes({
-  "GET /admin/api-keys": handleApiKeysGet,
-  "POST /admin/api-keys": handleApiKeysPost,
-  "GET /admin/api-keys/:apiKeyId/delete": handleApiKeyDeleteGet,
-  "POST /admin/api-keys/:apiKeyId/delete": handleApiKeyDelete,
-  "GET /admin/api-keys/docs": handleApiDocsGet,
-});
+export const apiKeysRoutes = {
+  ...apiKeyDelete.routes,
+  ...defineRoutes({
+    "GET /admin/api-keys": handleApiKeysGet,
+    "POST /admin/api-keys": handleApiKeysPost,
+    "GET /admin/api-keys/docs": handleApiDocsGet,
+  }),
+};

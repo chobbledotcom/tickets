@@ -23,7 +23,7 @@ import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import { createConfirmedDeleteHandlers } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -229,56 +229,30 @@ const handleUserActivate: UserActionHandler = async (
   return redirect("/admin/users", "User activated successfully", true);
 };
 
-/**
- * Handle GET /admin/users/:id/delete - show delete confirmation page
- */
-const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (
-  request,
-  { id },
-) =>
-  requireOwnerOr(request, async (session) => {
-    applyFlash(request);
-    if (id === session.userId) {
-      return usersErrorResponse(session, "Cannot delete your own account", 400);
-    }
+/** Confirmed-delete handlers for users */
+const userDelete = createConfirmedDeleteHandlers<DisplayUser>({
+  load: async (id) => {
     const user = await getUserById(id);
-    if (!user) return htmlResponse("Not Found", 404);
-    const displayUser = await toDisplayUser(user);
-    return htmlResponse(adminUserDeletePage(displayUser, session));
-  });
-
-/**
- * Handle POST /admin/users/:id/delete
- */
-const handleUserDeletePost: TypedRouteHandler<
-  "POST /admin/users/:id/delete"
-> = (request, { id }) =>
-  withAuth(request, OWNER_FORM, async (session, form) => {
-    const user = await getUserById(id);
-    if (!user) {
-      return usersErrorResponse(session, "User not found", 404);
-    }
-
-    // Cannot delete your own account
-    if (user.id === session.userId) {
-      return usersErrorResponse(session, "Cannot delete your own account", 400);
-    }
-
-    const username = await decryptUsername(user);
-    const error = verifyOrRedirect(
-      form,
-      username,
-      `/admin/users/${id}/delete`,
-      "Username",
-      "deletion",
-    );
-    if (error) return error;
-
-    await deleteUser(user.id);
-
-    await logActivity(`User '${username}' deleted`);
-    return redirect("/admin/users", "User deleted successfully", true);
-  });
+    if (!user) return null;
+    return toDisplayUser(user);
+  },
+  render: (displayUser, session) => adminUserDeletePage(displayUser, session),
+  identifier: (displayUser) => displayUser.username,
+  onConfirm: async (displayUser) => {
+    await deleteUser(displayUser.id);
+    await logActivity(`User '${displayUser.username}' deleted`);
+  },
+  path: "/admin/users/:id/delete",
+  successRedirect: "/admin/users",
+  successMessage: "User deleted successfully",
+  identifierLabel: "Username",
+  preValidate: (id, session) =>
+    id === session.userId
+      ? usersErrorResponse(session, "Cannot delete your own account", 400)
+      : null,
+  onNotFound: (_id, session) =>
+    usersErrorResponse(session, "User not found", 404),
+});
 
 /** Create a route handler that runs a user action by ID */
 const userActionRoute =
@@ -292,11 +266,12 @@ const userActionRoute =
 const handleUserActivatePost = userActionRoute(handleUserActivate);
 
 /** User management routes */
-export const usersRoutes = defineRoutes({
-  "GET /admin/users": handleUsersGet,
-  "GET /admin/user/new": handleUserNewGet,
-  "POST /admin/users": handleUsersPost,
-  "POST /admin/users/:id/activate": handleUserActivatePost,
-  "GET /admin/users/:id/delete": handleUserDeleteGet,
-  "POST /admin/users/:id/delete": handleUserDeletePost,
-});
+export const usersRoutes = {
+  ...userDelete.routes,
+  ...defineRoutes({
+    "GET /admin/users": handleUsersGet,
+    "GET /admin/user/new": handleUserNewGet,
+    "POST /admin/users": handleUsersPost,
+    "POST /admin/users/:id/activate": handleUserActivatePost,
+  }),
+};
