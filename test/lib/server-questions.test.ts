@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-
 import { handleRequest } from "#routes";
 import {
   adminFormPost,
@@ -163,8 +161,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify the question was updated
-      const { getQuestion } = await import("#lib/db/questions.ts");
-      const updated = await getQuestion(id);
+      const { questionsTable } = await import("#lib/db/questions.ts");
+      const updated = await questionsTable.findById(id);
       expect(updated!.text).toBe("After edit");
     });
 
@@ -306,8 +304,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectRedirectWithFlash("/admin/questions", "Question deleted")(response);
 
       // Verify it's gone
-      const { getQuestion } = await import("#lib/db/questions.ts");
-      const found = await getQuestion(id);
+      const { questionsTable } = await import("#lib/db/questions.ts");
+      const found = await questionsTable.findById(id);
       expect(found).toBeNull();
     });
 
@@ -325,8 +323,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
 
       // Verify still exists
-      const { getQuestion } = await import("#lib/db/questions.ts");
-      const found = await getQuestion(id);
+      const { questionsTable } = await import("#lib/db/questions.ts");
+      const found = await questionsTable.findById(id);
       expect(found).not.toBeNull();
     });
 
@@ -358,47 +356,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         expect.stringContaining("to confirm deletion"),
         false,
       );
-    });
-
-    test("redirects with error when question disappears between getQuestion and verifyIdentifier", async () => {
-      const id = await createQuestion("Race Question");
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      // Stub getQuestion to return the question but delete it before returning,
-      // simulating a race where the question is deleted between getQuestion
-      // and verifyIdentifier. Since verifyIdentifier fails, errorRedirect is returned.
-      const { questionsTable, deleteQuestion: deleteQ } = await import(
-        "#lib/db/questions.ts"
-      );
-      const original = questionsTable.findById.bind(questionsTable);
-      const findByIdStub = stub(
-        questionsTable,
-        "findById",
-        async (...args: Parameters<typeof original>) => {
-          const result = await original(...args);
-          if (result) await deleteQ(id);
-          return result;
-        },
-      );
-
-      try {
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/questions/${id}/delete`,
-            { csrf_token: csrfToken, confirm_identifier: "Wrong" },
-            cookie,
-          ),
-        );
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
-          expect.stringContaining("to confirm deletion"),
-          false,
-        );
-      } finally {
-        findByIdStub.restore();
-      }
     });
   });
 

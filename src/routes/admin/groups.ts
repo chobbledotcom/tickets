@@ -94,7 +94,7 @@ const deleteGroup = async (id: Parameters<typeof groupsTable.findById>[0]) => {
 const crudConfig = {
   singular: "Group",
   listPath: "/admin/groups",
-  getRowPath: (g: Group) => `/admin/group/${g.id}`,
+  getRowPath: (g: Group) => `/admin/groups/${g.id}`,
   getAll: getAllGroups,
   renderList: adminGroupsPage,
   renderNew: adminGroupNewPage,
@@ -140,8 +140,8 @@ const withGroup = (
   handler: (group: Group) => Response | Promise<Response>,
 ): Promise<Response> => orNotFound(groupsTable.findById(id), handler);
 
-/** Handle GET /admin/group/:id - group detail page */
-const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
+/** Handle GET /admin/groups/:id - group detail page */
+const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
   request,
   { id },
 ) =>
@@ -193,9 +193,9 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
     }),
   );
 
-/** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
+/** Handle POST /admin/groups/:id/add-events - assign ungrouped events to group */
 const handleAddEventsToGroup: TypedRouteHandler<
-  "POST /admin/group/:id/add-events"
+  "POST /admin/groups/:id/add-events"
 > = (request, { id }) =>
   withAuth(request, AUTH_FORM, (_session, form) =>
     withGroup(id, async (group) => {
@@ -213,7 +213,7 @@ const handleAddEventsToGroup: TypedRouteHandler<
               event.event_type,
             );
             if (typeError) {
-              return redirect(`/admin/group/${id}`, typeError, false);
+              return redirect(`/admin/groups/${id}`, typeError, false);
             }
           }
         }
@@ -222,19 +222,20 @@ const handleAddEventsToGroup: TypedRouteHandler<
           `${eventIds.length} event(s) added to group '${group.name}'`,
         );
       }
-      return redirect(`/admin/group/${id}`, "Events added to group", true);
+      return redirect(`/admin/groups/${id}`, "Events added to group", true);
     }),
   );
 
 /** Group routes */
-export const groupsRoutes = defineRoutes({
-  "GET /admin/groups": crud.listGet,
-  "GET /admin/group/new": crudCreate.newGet,
-  "POST /admin/group": crudCreate.createPost,
-  "GET /admin/group/:id": handleGroupDetail,
-  "GET /admin/group/:id/edit": crud.editGet,
-  "POST /admin/group/:id/edit": crud.editPost,
-  "GET /admin/group/:id/delete": crud.deleteGet,
-  "POST /admin/group/:id/delete": crud.deletePost,
-  "POST /admin/group/:id/add-events": handleAddEventsToGroup,
-});
+export const groupsRoutes = {
+  ...crud.deleteRoutes,
+  ...defineRoutes({
+    "GET /admin/groups": crud.listGet,
+    "GET /admin/groups/new": crudCreate.newGet,
+    "POST /admin/groups": crudCreate.createPost,
+    "GET /admin/groups/:id": handleGroupDetail,
+    "GET /admin/groups/:id/edit": crud.editGet,
+    "POST /admin/groups/:id/edit": crud.editPost,
+    "POST /admin/groups/:id/add-events": handleAddEventsToGroup,
+  }),
+};

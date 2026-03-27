@@ -58,12 +58,13 @@ const crud = createOwnerCrudHandlers({
 });
 
 /** Holiday routes */
-export const holidaysRoutes = defineRoutes({
-  "GET /admin/holidays": crud.listGet,
-  "GET /admin/holiday/new": crud.newGet,
-  "POST /admin/holiday": crud.createPost,
-  "GET /admin/holiday/:id/edit": crud.editGet,
-  "POST /admin/holiday/:id/edit": crud.editPost,
-  "GET /admin/holiday/:id/delete": crud.deleteGet,
-  "POST /admin/holiday/:id/delete": crud.deletePost,
-});
+export const holidaysRoutes = {
+  ...crud.deleteRoutes,
+  ...defineRoutes({
+    "GET /admin/holidays": crud.listGet,
+    "GET /admin/holidays/new": crud.newGet,
+    "POST /admin/holidays": crud.createPost,
+    "GET /admin/holidays/:id/edit": crud.editGet,
+    "POST /admin/holidays/:id/edit": crud.editPost,
+  }),
+};

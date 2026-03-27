@@ -276,7 +276,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       expectFlash(response, "Name must be under 100 characters", false);
     });
 
-    test("POST /admin/api-keys/:id/delete returns error for nonexistent key", async () => {
+    test("POST /admin/api-keys/:id/delete returns 404 for nonexistent key", async () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -295,8 +295,7 @@ describeWithEnv("API Keys", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(302);
-      expectFlash(response, "API key not found", false);
+      expect(response.status).toBe(404);
     });
 
     test("GET /admin/api-keys shows existing keys with last used date", async () => {
