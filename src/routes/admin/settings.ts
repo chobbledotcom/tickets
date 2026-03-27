@@ -30,7 +30,6 @@ import { getAllEvents } from "#lib/db/events.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   type EmailTemplateType,
-  isMaskSentinel,
   MAX_EMAIL_TEMPLATE_LENGTH,
   settings,
 } from "#lib/db/settings.ts";
@@ -79,6 +78,14 @@ import {
   testStripeConnection,
 } from "#lib/stripe.ts";
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
+import {
+  clearableFieldHandler,
+  createSettingsHandler,
+  processSecretField,
+  type SettingsFormHandler,
+  secretFieldHandler,
+  toggleHandler,
+} from "#routes/admin/settings-helpers.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -217,40 +224,8 @@ const advancedSettingsPageWithError =
   (error: string, _status: number, formId: string): Response =>
     errorRedirect("/admin/settings-advanced", error, formId);
 
-type ErrorPageFn = (
-  error: string,
-  status: number,
-  formId: string,
-) => Response | Promise<Response>;
-type SettingsFormHandler = (
-  form: FormParams,
-  errorPage: ErrorPageFn,
-  session: AuthSession,
-) => Response | Promise<Response>;
-
-/**
- * Result of processing a secret form field.
- * - "unchanged": sentinel detected → keep existing value
- * - "cleared": empty value submitted → caller decides (error if required, skip if optional)
- * - "provided": new non-empty value submitted → update
- */
-export type SecretFieldResult =
-  | { action: "unchanged" }
-  | { action: "cleared" }
-  | { action: "provided"; value: string };
-
-/** Extract and classify a secret field from a form submission.
- * Consistently handles: trim → sentinel detection → empty vs provided.
- */
-export const processSecretField = (
-  form: FormParams,
-  fieldName: string,
-): SecretFieldResult => {
-  const raw = form.getString(fieldName);
-  if (isMaskSentinel(raw)) return { action: "unchanged" };
-  if (!raw) return { action: "cleared" };
-  return { action: "provided", value: raw };
-};
+export type { SecretFieldResult } from "#routes/admin/settings-helpers.ts";
+export { processSecretField } from "#routes/admin/settings-helpers.ts";
 
 /** Owner auth form route that provides the errorPage helper and session */
 const settingsRoute =
@@ -385,35 +360,26 @@ const isPaymentProvider = (s: string): s is PaymentProviderType =>
 /**
  * Handle POST /admin/settings/payment-provider - owner only
  */
-const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
-  const provider = form.getString("payment_provider");
-
-  if (provider === "none") {
-    await settings.update.clearPaymentProvider();
-    await logActivity("Payment provider disabled");
-    return redirect("/admin/settings", "Payment provider disabled", true, {
-      formId: "settings-payment-provider",
-    });
-  }
-
-  if (!isPaymentProvider(provider)) {
-    return errorPage(
-      "Invalid payment provider",
-      400,
-      "settings-payment-provider",
-    );
-  }
-
-  await settings.update.paymentProvider(provider);
-  await logActivity(`Payment provider set to ${provider}`);
-
-  return redirect(
-    "/admin/settings",
-    `Payment provider set to ${provider}`,
-    true,
-    { formId: "settings-payment-provider" },
-  );
-});
+const handlePaymentProviderPost = settingsRoute(
+  createSettingsHandler({
+    formId: "settings-payment-provider",
+    extract: (form) => form.getString("payment_provider"),
+    validate: (v) =>
+      v !== "none" && !isPaymentProvider(v) ? "Invalid payment provider" : null,
+    save: (v) =>
+      v === "none"
+        ? settings.update.clearPaymentProvider()
+        : settings.update.paymentProvider(v),
+    log: (v) =>
+      v === "none"
+        ? "Payment provider disabled"
+        : `Payment provider set to ${v}`,
+    message: (v) =>
+      v === "none"
+        ? "Payment provider disabled"
+        : `Payment provider set to ${v}`,
+  }),
+);
 
 /**
  * Handle POST /admin/settings/stripe - owner only
@@ -536,36 +502,15 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
 /**
  * Handle POST /admin/settings/square-webhook - owner only
  */
-const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
-  const field = processSecretField(form, "square_webhook_signature_key");
-
-  if (field.action === "unchanged") {
-    return redirect(
-      "/admin/settings",
-      "Square webhook settings unchanged",
-      true,
-      { formId: "settings-square-webhook" },
-    );
-  }
-
-  if (field.action === "cleared") {
-    return errorPage(
-      "Webhook Signature Key is required",
-      400,
-      "settings-square-webhook",
-    );
-  }
-
-  await settings.update.square.webhookSignatureKey(field.value);
-
-  await logActivity("Square webhook signature key configured");
-  return redirect(
-    "/admin/settings",
-    "Square webhook signature key updated successfully",
-    true,
-    { formId: "settings-square-webhook" },
-  );
-});
+const handleAdminSquareWebhookPost = settingsRoute(
+  secretFieldHandler({
+    formId: "settings-square-webhook",
+    field: "square_webhook_signature_key",
+    label: "Square webhook signature key",
+    required: true,
+    save: (v) => settings.update.square.webhookSignatureKey(v),
+  }),
+);
 
 /**
  * Handle POST /admin/settings/stripe/test - owner only
@@ -588,190 +533,128 @@ const handleSquareTestPost = (request: Request): Promise<Response> =>
 /**
  * Handle POST /admin/settings/embed-hosts - owner only
  */
-const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
-  const trimmed = form.getString("embed_hosts");
-
-  // Empty = clear restriction
-  if (trimmed === "") {
-    await settings.update.embedHosts("");
-    return redirect(
-      "/admin/settings",
-      "Embed host restrictions removed",
-      true,
-      { formId: "settings-embed-hosts" },
-    );
-  }
-
-  const error = validateEmbedHosts(trimmed);
-  if (error) {
-    return errorPage(error, 400, "settings-embed-hosts");
-  }
-
-  // Normalize: trim, lowercase, rejoin
-  const normalized = parseEmbedHosts(trimmed).join(", ");
-  await settings.update.embedHosts(normalized);
-  return redirect("/admin/settings", "Allowed embed hosts updated", true, {
+const handleEmbedHostsPost = settingsRoute(
+  createSettingsHandler({
     formId: "settings-embed-hosts",
-  });
-});
+    extract: (form) => form.getString("embed_hosts"),
+    validate: (v) => {
+      if (v === "") return null;
+      return validateEmbedHosts(v);
+    },
+    save: (v) =>
+      settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
+    log: (v) =>
+      v === "" ? "Embed host restrictions removed" : "Allowed embed hosts updated",
+    message: (v) =>
+      v === "" ? "Embed host restrictions removed" : "Allowed embed hosts updated",
+  }),
+);
 
 /**
  * Handle POST /admin/settings/terms - owner only
  */
-const handleTermsPost = settingsRoute(async (form, errorPage) => {
-  applyDemoOverrides(form, TERMS_DEMO_FIELDS);
-  const trimmed = form.getString("terms_and_conditions");
-
-  if (trimmed.length > MAX_TEXTAREA_LENGTH) {
-    return errorPage(
-      `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${trimmed.length})`,
-      400,
-      "settings-terms",
-    );
-  }
-
-  await settings.update.terms(trimmed);
-
-  if (trimmed === "") {
-    await logActivity("Terms and conditions removed");
-    return redirect("/admin/settings", "Terms and conditions removed", true, {
-      formId: "settings-terms",
-    });
-  }
-  await logActivity("Terms and conditions updated");
-  return redirect("/admin/settings", "Terms and conditions updated", true, {
+const handleTermsPost = settingsRoute(
+  createSettingsHandler({
     formId: "settings-terms",
-  });
-});
-
-/** Validate and save country from form submission */
-const processCountryForm: SettingsFormHandler = async (form, errorPage) => {
-  const trimmed = form.getString("country").toUpperCase();
-
-  if (trimmed === "") {
-    return errorPage("Country is required", 400, "settings-country");
-  }
-
-  if (!isValidCountry(trimmed)) {
-    return errorPage("Please select a valid country", 400, "settings-country");
-  }
-
-  await settings.update.country(trimmed);
-  await logActivity(`Country set to ${trimmed}`);
-  return redirect("/admin/settings", "Country updated", true, {
-    formId: "settings-country",
-  });
-};
+    extract: (form) => {
+      applyDemoOverrides(form, TERMS_DEMO_FIELDS);
+      return form.getString("terms_and_conditions");
+    },
+    validate: (v) =>
+      v.length > MAX_TEXTAREA_LENGTH
+        ? `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
+        : null,
+    save: (v) => settings.update.terms(v),
+    log: (v) =>
+      v === ""
+        ? "Terms and conditions removed"
+        : "Terms and conditions updated",
+    message: (v) =>
+      v === ""
+        ? "Terms and conditions removed"
+        : "Terms and conditions updated",
+  }),
+);
 
 /** Handle POST /admin/settings/country - owner only */
-const handleCountryPost = settingsRoute(processCountryForm);
-
-/** Validate and save business email from form submission */
-const processBusinessEmailForm: SettingsFormHandler = async (
-  form,
-  errorPage,
-) => {
-  const trimmed = form.getString("business_email");
-
-  // Allow empty (clearing the business email)
-  if (trimmed === "") {
-    await updateBusinessEmail("");
-    await logActivity("Business email cleared");
-    return redirect("/admin/settings", "Business email cleared", true, {
-      formId: "settings-business-email",
-    });
-  }
-
-  if (!isValidBusinessEmail(trimmed)) {
-    return errorPage(
-      "Invalid email format. Please use format: name@domain.com",
-      400,
-      "settings-business-email",
-    );
-  }
-
-  await updateBusinessEmail(trimmed);
-  await logActivity("Business email updated");
-  return redirect("/admin/settings", "Business email updated", true, {
-    formId: "settings-business-email",
-  });
-};
+const handleCountryPost = settingsRoute(
+  createSettingsHandler({
+    formId: "settings-country",
+    extract: (form) => form.getString("country").toUpperCase(),
+    validate: (v) =>
+      v === ""
+        ? "Country is required"
+        : !isValidCountry(v)
+          ? "Please select a valid country"
+          : null,
+    save: (v) => settings.update.country(v),
+    log: (v) => `Country set to ${v}`,
+    message: () => "Country updated",
+  }),
+);
 
 /** Handle POST /admin/settings/business-email - owner only */
-const handleBusinessEmailPost = settingsRoute(processBusinessEmailForm);
-
-/** Validate and save theme from form submission */
-const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
-  const theme = form.getString("theme");
-
-  if (theme !== "light" && theme !== "dark") {
-    return errorPage("Invalid theme selection", 400, "settings-theme");
-  }
-
-  await settings.update.theme(theme);
-  await logActivity(`Theme set to ${theme}`);
-  return redirect("/admin/settings", `Theme updated to ${theme}`, true, {
-    formId: "settings-theme",
-  });
-};
+const handleBusinessEmailPost = settingsRoute(
+  clearableFieldHandler({
+    formId: "settings-business-email",
+    field: "business_email",
+    label: "Business email",
+    validate: (v) =>
+      !isValidBusinessEmail(v)
+        ? "Invalid email format. Please use format: name@domain.com"
+        : null,
+    save: (v) => updateBusinessEmail(v),
+  }),
+);
 
 /** Handle POST /admin/settings/theme - owner only */
-const handleThemePost = settingsRoute(processThemeForm);
-
-/** Validate and save show-public-site from form submission */
-const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
-  const value = form.get("show_public_site") === "true";
-  await settings.update.showPublicSite(value);
-  await logActivity(`Public site ${value ? "enabled" : "disabled"}`);
-  return redirect(
-    "/admin/settings",
-    value ? "Public site enabled" : "Public site disabled",
-    true,
-    { formId: "settings-show-public-site" },
-  );
-};
+const handleThemePost = settingsRoute(
+  createSettingsHandler({
+    formId: "settings-theme",
+    extract: (form) => form.getString("theme"),
+    validate: (v) =>
+      v !== "light" && v !== "dark" ? "Invalid theme selection" : null,
+    save: (v) => settings.update.theme(v),
+    log: (v) => `Theme set to ${v}`,
+    message: (v) => `Theme updated to ${v}`,
+  }),
+);
 
 /** Handle POST /admin/settings/show-public-site - owner only */
-const handleShowPublicSitePost = settingsRoute(processShowPublicSiteForm);
-
-/** Validate and save show-public-api from form submission */
-const processShowPublicApiForm: SettingsFormHandler = async (form) => {
-  const value = form.get("show_public_api") === "true";
-  await settings.update.showPublicApi(value);
-  await logActivity(`Public API ${value ? "enabled" : "disabled"}`);
-  return redirect(
-    "/admin/settings-advanced",
-    value ? "Public API enabled" : "Public API disabled",
-    true,
-    { formId: "settings-show-public-api" },
-  );
-};
+const handleShowPublicSitePost = settingsRoute(
+  toggleHandler({
+    formId: "settings-show-public-site",
+    field: "show_public_site",
+    label: "Public site",
+    save: (v) => settings.update.showPublicSite(v),
+  }),
+);
 
 /** Handle POST /admin/settings/show-public-api - owner only */
-const handleShowPublicApiPost = advancedSettingsRoute(processShowPublicApiForm);
-
-/** Validate and save booking fee from form submission */
-const processBookingFeeForm: SettingsFormHandler = async (form, errorPage) => {
-  const raw = form.getString("booking_fee");
-  const value = Number.parseFloat(raw);
-
-  if (!Number.isFinite(value) || value < 0 || value > 10) {
-    return errorPage(
-      "Booking fee must be a number between 0 and 10",
-      400,
-      "settings-booking-fee",
-    );
-  }
-
-  await settings.update.bookingFee(String(value));
-  await logActivity(`Booking fee set to ${value}%`);
-  return redirect("/admin/settings", `Booking fee updated to ${value}%`, true, {
-    formId: "settings-booking-fee",
-  });
-};
+const handleShowPublicApiPost = advancedSettingsRoute(
+  toggleHandler({
+    formId: "settings-show-public-api",
+    field: "show_public_api",
+    label: "Public API",
+    save: (v) => settings.update.showPublicApi(v),
+    redirectTo: "/admin/settings-advanced",
+  }),
+);
 
 /** Handle POST /admin/settings/booking-fee - owner only */
-const handleBookingFeePost = settingsRoute(processBookingFeeForm);
+const handleBookingFeePost = settingsRoute(
+  createSettingsHandler({
+    formId: "settings-booking-fee",
+    extract: (form) => Number.parseFloat(form.getString("booking_fee")),
+    validate: (v) =>
+      !Number.isFinite(v) || v < 0 || v > 10
+        ? "Booking fee must be a number between 0 and 10"
+        : null,
+    save: (v) => settings.update.bookingFee(String(v)),
+    log: (v) => `Booking fee set to ${v}%`,
+    message: (v) => `Booking fee updated to ${v}%`,
+  }),
+);
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
