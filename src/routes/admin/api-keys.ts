@@ -13,7 +13,7 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
-import { createConfirmedDeleteHandlers } from "#routes/admin/utils.ts";
+import { createConfirmedHandlers } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyFlash,
@@ -92,7 +92,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
   });
 
 /** Confirmed-delete handlers for API keys */
-const apiKeyDelete = createConfirmedDeleteHandlers({
+const apiKeyDelete = createConfirmedHandlers({
   path: "/admin/api-keys/:apiKeyId/delete",
   load: (id, session) => getApiKeyForUser(id, session.userId).catch(() => null),
   render: (apiKey, session) => adminDeleteApiKeyPage(apiKey, session),

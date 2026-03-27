@@ -3,7 +3,11 @@ import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { createConfirmedDeleteHandlers } from "#routes/admin/utils.ts";
+import {
+  createConfirmedHandlers,
+  type FormGuard,
+  type SessionGuard,
+} from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
   applyFlash,
@@ -41,34 +45,26 @@ type CrudConfig<Row, Input> = {
 export const createOwnerCrudHandlers = <Row, Input>(
   cfg: CrudConfig<Row, Input>,
 ) =>
-  createCrudHandlersWithAuth(
-    cfg, requireOwnerOr, (r, h) => withAuth(r, OWNER_FORM, h), "owner",
-  );
+  createCrudHandlersWithAuth(cfg, {
+    requireSession: requireOwnerOr,
+    withForm: (r, h) => withAuth(r, OWNER_FORM, h),
+  });
 
 /** Create CRUD handlers accessible to any authenticated admin (owner or manager) */
 export const createCrudHandlers = <Row, Input>(cfg: CrudConfig<Row, Input>) =>
-  createCrudHandlersWithAuth(
-    cfg, requireSessionOr, (r, h) => withAuth(r, AUTH_FORM, h), "any",
-  );
+  createCrudHandlersWithAuth(cfg, {
+    requireSession: requireSessionOr,
+    withForm: (r, h) => withAuth(r, AUTH_FORM, h),
+  });
 
-type AuthGuard = (
-  request: Request,
-  handler: (session: AdminSession) => Response | Promise<Response>,
-) => Promise<Response>;
-
-type FormGuard = (
-  request: Request,
-  handler: (
-    session: AdminSession,
-    form: FormParams,
-  ) => Response | Promise<Response>,
-) => Promise<Response>;
+type AuthGuards = {
+  requireSession: SessionGuard<AdminSession>;
+  withForm: FormGuard<AdminSession>;
+};
 
 const createCrudHandlersWithAuth = <Row, Input>(
   cfg: CrudConfig<Row, Input>,
-  requireAuth: AuthGuard,
-  withFormAuth: FormGuard,
-  authMode: "owner" | "any",
+  auth: AuthGuards,
 ) => {
   type FormHandler = (
     session: AdminSession,
@@ -78,12 +74,12 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const authForm =
     (handler: FormHandler) =>
     (request: Request): Promise<Response> =>
-      withFormAuth(request, handler);
+      auth.withForm(request, handler);
 
   const authHtml =
     (render: (session: AdminSession) => string | Promise<string>) =>
     (request: Request): Promise<Response> =>
-      requireAuth(request, async (session) => {
+      auth.requireSession(request, async (session) => {
         applyFlash(request);
         return htmlResponse(await render(session));
       });
@@ -91,7 +87,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const authRowHtml =
     (render: (row: Row, session: AdminSession) => string): IdRouteHandler =>
     (request, { id }) =>
-      requireAuth(request, (session) => {
+      auth.requireSession(request, (session) => {
         applyFlash(request);
         return orNotFound(cfg.resource.table.findById(id), (row) =>
           htmlResponse(render(row, session)),
@@ -107,12 +103,11 @@ const createCrudHandlersWithAuth = <Row, Input>(
     return redirect(path ?? cfg.listPath, `${cfg.singular} ${verb}`, true);
   };
 
-  const listGet = (request: Request): Promise<Response> =>
-    requireAuth(request, async (session) => {
-      const rows = await cfg.getAll();
-      const success = getFlash().success;
-      return htmlResponse(cfg.renderList(rows, session, success));
-    });
+  const listGet = authHtml(async (session) => {
+    const rows = await cfg.getAll();
+    const success = getFlash().success;
+    return cfg.renderList(rows, session, success);
+  });
 
   const newGet = authHtml(cfg.renderNew);
 
@@ -132,7 +127,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const editGet = authRowHtml(cfg.renderEdit);
 
   const editPost: IdRouteHandler = (request, { id }) =>
-    withFormAuth(request, async (_session, form) => {
+    auth.withForm(request, async (_session, form) => {
       const result = await cfg.resource.update(id, form);
       if (result.ok) {
         return logAndRedirect(
@@ -145,8 +140,8 @@ const createCrudHandlersWithAuth = <Row, Input>(
       return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
     });
 
-  const confirmedDelete = createConfirmedDeleteHandlers<Row>({
-    auth: authMode,
+  const confirmedDelete = createConfirmedHandlers<Row, AdminSession>({
+    auth: { requireSession: auth.requireSession, withForm: auth.withForm },
     path: `${cfg.listPath}/:id/delete`,
     load: (id) => cfg.resource.table.findById(id),
     render: cfg.renderDelete,

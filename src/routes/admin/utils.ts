@@ -144,24 +144,52 @@ export const withEventAttendeesAuth = (
     withDecryptedAttendees(session, eventId, handler),
   );
 
+/** Session guard: require auth and call handler with session */
+export type SessionGuard<TSession> = (
+  request: Request,
+  handler: (session: TSession) => Response | Promise<Response>,
+) => Promise<Response>;
+
+/** Form guard: require auth + CSRF, call handler with session and form */
+export type FormGuard<TSession> = (
+  request: Request,
+  handler: (
+    session: TSession,
+    form: FormParams,
+  ) => Response | Promise<Response>,
+) => Promise<Response>;
+
+/** Auth option: string shorthand or explicit guard pair */
+type AuthOption<TSession> =
+  | "owner"
+  | "any"
+  | {
+      requireSession: SessionGuard<TSession>;
+      withForm: FormGuard<TSession>;
+    };
+
 /** Configuration for creating confirmed-action GET/POST handler pair */
-export type ConfirmedDeleteConfig<T> = {
-  /** Auth level: "owner" (default) requires owner role, "any" allows any admin */
-  auth?: "owner" | "any";
+export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
+  /** Auth guards: "owner" | "any" shorthand, or explicit { requireSession, withForm } */
+  auth?: AuthOption<TSession>;
   /** Route path pattern, e.g. "/admin/users/:id/delete" */
   path: string;
   /** Load the entity by ID (return null if not found) */
-  load: (id: number, session: AuthSession) => Promise<T | null>;
+  load: (id: number, session: TSession) => Promise<T | null>;
   /** Render the confirmation page HTML */
   render: (
     model: T,
-    session: AuthSession,
+    session: TSession,
     error?: string,
   ) => string | Promise<string>;
   /** Extract the identifier the user must type to confirm */
   identifier: (model: T) => string | Promise<string>;
-  /** Perform the confirmed action (e.g. deletion, deactivation) */
-  onConfirm: (model: T, id: number, session: AuthSession) => Promise<void>;
+  /** Perform the confirmed action. Return a Response to override the default redirect. */
+  onConfirm: (
+    model: T,
+    id: number,
+    session: TSession,
+  ) => Promise<void | Response>;
   /** Where to redirect after success (string or function of model + id) */
   successRedirect: string | ((model: T, id: number) => string);
   /** Flash message shown after success */
@@ -173,34 +201,49 @@ export type ConfirmedDeleteConfig<T> = {
   /** Optional pre-validation before loading (e.g. self-delete check) */
   preValidate?: (
     id: number,
-    session: AuthSession,
+    session: TSession,
   ) => Response | null | Promise<Response | null>;
   /** Optional custom not-found handler (defaults to 404 page) */
   onNotFound?: (
     id: number,
-    session: AuthSession,
+    session: TSession,
   ) => Response | Promise<Response>;
 };
 
-/** Return type of createConfirmedDeleteHandlers */
-export type ConfirmedDeleteHandlers = {
+/** Return type of createConfirmedHandlers */
+export type ConfirmedHandlers = {
   get: (request: Request, id: number) => Promise<Response>;
   post: (request: Request, id: number) => Promise<Response>;
   /** Pre-built route entries ready to spread into a route definition */
   routes: Record<string, RouteHandlerFn>;
 };
 
+/** Resolve auth option to concrete guard functions */
+const resolveAuth = <TSession>(
+  auth: AuthOption<TSession> | undefined,
+): {
+  requireSession: SessionGuard<TSession>;
+  withForm: FormGuard<TSession>;
+} => {
+  if (typeof auth === "object") return auth;
+  const isOwner = auth !== "any";
+  return {
+    requireSession: (isOwner ? requireOwnerOr : requireSessionOr) as SessionGuard<TSession>,
+    withForm: ((r: Request, h: Function) =>
+      withAuth(r, isOwner ? OWNER_FORM : AUTH_FORM, h as Parameters<typeof withAuth>[2])) as FormGuard<TSession>,
+  };
+};
+
 /**
  * Create a pair of GET (confirmation page) and POST (execute action) handlers
  * for resources that need typed-identifier confirmation.
  */
-export const createConfirmedDeleteHandlers = <T>(
-  config: ConfirmedDeleteConfig<T>,
-): ConfirmedDeleteHandlers => {
-  const notFound = (id: number, session: AuthSession) =>
+export const createConfirmedHandlers = <T, TSession = AuthSession>(
+  config: ConfirmedHandlerConfig<T, TSession>,
+): ConfirmedHandlers => {
+  const notFound = (id: number, session: TSession) =>
     config.onNotFound ? config.onNotFound(id, session) : notFoundResponse();
-  const requireAuth = config.auth === "any" ? requireSessionOr : requireOwnerOr;
-  const formPolicy = config.auth === "any" ? AUTH_FORM : OWNER_FORM;
+  const { requireSession, withForm } = resolveAuth(config.auth);
   const actionLabel = config.actionLabel ?? "deletion";
   const resolveRedirect = (model: T, id: number) =>
     typeof config.successRedirect === "function"
@@ -209,16 +252,16 @@ export const createConfirmedDeleteHandlers = <T>(
   const confirmPath = (id: number) =>
     config.path.replace(/:(\w+)/, String(id));
 
-  const validate = (id: number, session: AuthSession) =>
+  const validate = (id: number, session: TSession) =>
     config.preValidate ? config.preValidate(id, session) : null;
 
-  const loadOrNotFound = async (id: number, session: AuthSession) => {
+  const loadOrNotFound = async (id: number, session: TSession) => {
     const model = await config.load(id, session);
     return model ?? notFound(id, session);
   };
 
   const get = (request: Request, id: number): Promise<Response> =>
-    requireAuth(request, async (session) => {
+    requireSession(request, async (session) => {
       const rejection = await validate(id, session);
       if (rejection) return rejection;
       const result = await loadOrNotFound(id, session);
@@ -228,7 +271,7 @@ export const createConfirmedDeleteHandlers = <T>(
     });
 
   const post = (request: Request, id: number): Promise<Response> =>
-    withAuth(request, formPolicy, async (session, form) => {
+    withForm(request, async (session, form) => {
       const result = await loadOrNotFound(id, session);
       if (result instanceof Response) return result;
 
@@ -245,7 +288,8 @@ export const createConfirmedDeleteHandlers = <T>(
       );
       if (error) return error;
 
-      await config.onConfirm(result, id, session);
+      const customResponse = await config.onConfirm(result, id, session);
+      if (customResponse) return customResponse;
       return redirect(
         resolveRedirect(result, id),
         config.successMessage,

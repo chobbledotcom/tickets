@@ -23,7 +23,7 @@ import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
-import { createConfirmedDeleteHandlers } from "#routes/admin/utils.ts";
+import { createConfirmedHandlers } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -230,7 +230,7 @@ const handleUserActivate: UserActionHandler = async (
 };
 
 /** Confirmed-delete handlers for users */
-const userDelete = createConfirmedDeleteHandlers<DisplayUser>({
+const userDelete = createConfirmedHandlers<DisplayUser>({
   load: async (id) => {
     const user = await getUserById(id);
     if (!user) return null;

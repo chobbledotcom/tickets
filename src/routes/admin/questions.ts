@@ -22,7 +22,7 @@ import {
 import { getFlash } from "#lib/flash-context.ts";
 import type { AdminSession } from "#lib/types.ts";
 import {
-  createConfirmedDeleteHandlers,
+  createConfirmedHandlers,
   verifyOrRedirect,
 } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -129,7 +129,7 @@ const handleAddAnswer = withValidatedText(
 );
 
 /** Confirmed-delete handlers for questions */
-const questionDelete = createConfirmedDeleteHandlers({
+const questionDelete = createConfirmedHandlers({
   load: (id) => getQuestionWithAnswers(id),
   render: (q, session, error) => adminQuestionDeletePage(q, session, error),
   identifier: (q) => q.text,

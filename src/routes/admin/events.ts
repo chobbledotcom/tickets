@@ -54,7 +54,7 @@ import type {
   Group,
 } from "#lib/types.ts";
 import {
-  createConfirmedDeleteHandlers,
+  createConfirmedHandlers,
   csvResponse,
   getDateFilter,
   withEventAttendeesAuth,
@@ -573,7 +573,7 @@ const eventToggleHandlers = (opts: {
     error?: string,
   ) => string;
 }) =>
-  createConfirmedDeleteHandlers<EventWithCount>({
+  createConfirmedHandlers<EventWithCount>({
     ...eventConfirmBase,
     render: opts.renderPage,
     onConfirm: async (event, id) => {
@@ -599,7 +599,7 @@ const eventReactivate = eventToggleHandlers({
 });
 
 /** Confirmed-delete handlers for events */
-const eventDelete = createConfirmedDeleteHandlers<EventWithCount>({
+const eventDelete = createConfirmedHandlers<EventWithCount>({
   ...eventConfirmBase,
   render: (event, session, error) =>
     adminDeleteEventPage(event, session, error),
