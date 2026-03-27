@@ -919,12 +919,6 @@ input[type="submit"].danger:hover {
   border-radius: 999px;
 }
 
-@media (max-width: 768px) {
-  .badge-alert {
-    background-color: #991919;
-  }
-}
-
 [data-theme="dark"] .password-warning {
   color: #ff4444;
 }
@@ -932,7 +926,7 @@ input[type="submit"].danger:hover {
   color: #ff4444;
 }
 [data-theme="dark"] .badge-alert {
-  background-color: #ff4444;
+  background-color: #991919;
 }
 
 /* Bulk check-in / check-out button */
