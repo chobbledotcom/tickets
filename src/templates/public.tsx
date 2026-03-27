@@ -4,7 +4,7 @@
 
 import { map, pipe } from "#fp";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
-import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
+import { daysAgo, formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type {
   QuestionEventMap,
   QuestionWithAnswers,
@@ -299,6 +299,7 @@ export const ticketPage = (
   const isDaily = event.event_type === "daily";
   const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
   const showPayMore = event.can_pay_more;
+  const pastDays = event.date ? daysAgo(event.date) : null;
 
   return String(
     <Layout
@@ -319,6 +320,12 @@ export const ticketPage = (
             {event.date && (
               <p>
                 <strong>Date:</strong> {formatDatetimeLabel(event.date)}
+                {pastDays !== null && (
+                  <span class="badge-alert">
+                    {" "}
+                    ({pastDays} {pastDays === 1 ? "day" : "days"} ago)
+                  </span>
+                )}
               </p>
             )}
             {event.location && (

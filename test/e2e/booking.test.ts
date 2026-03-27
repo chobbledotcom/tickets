@@ -11,14 +11,14 @@
 
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { settings } from "#lib/db/settings.ts";
 import {
+  clearTestEncryptionKey,
   createTestDb,
   resetDb,
   setupTestEncryptionKey,
-  clearTestEncryptionKey,
   TestBrowser,
 } from "#test-utils";
-import { settings } from "#lib/db/settings.ts";
 
 describe("e2e: full booking flow", () => {
   let browser: TestBrowser;
@@ -128,7 +128,7 @@ describe("e2e: full booking flow", () => {
     //    The group detail page shows a "Public URL" with a link containing /ticket/
     //    The link text shows "localhost/ticket/{slug}"
     const ticketLink = browser.links.find((l) =>
-      l.text.includes("localhost/ticket/")
+      l.text.includes("localhost/ticket/"),
     );
     expect(ticketLink).toBeTruthy();
     // The link is an absolute URL (https://...), extract the path
@@ -140,9 +140,7 @@ describe("e2e: full booking flow", () => {
     // 9. Book a ticket via the group booking form
     //    For group/multi-ticket pages, quantity fields are per-event
     //    Find the quantity field for our event
-    const quantityFields = browser.currentHtml.match(
-      /name="quantity_(\d+)"/,
-    );
+    const quantityFields = browser.currentHtml.match(/name="quantity_(\d+)"/);
     const formData: Record<string, string> = {
       name: "Jane Doe",
       email: "jane@example.com",

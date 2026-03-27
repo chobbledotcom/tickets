@@ -155,6 +155,21 @@ export const formatDatetimeLabel = (iso: string): string =>
   formatDatetimeInTz(iso, settings.timezone);
 
 /**
+ * Compute how many days ago an event started, relative to today in the configured timezone.
+ * Returns null if the event date is today or in the future, or if the date is empty/invalid.
+ * For past events, returns a positive integer (1 = yesterday).
+ */
+export const daysAgo = (utcIso: string): number | null => {
+  if (!utcIso) return null;
+  const calDate = eventDateToCalendarDate(utcIso)!;
+  const todayStr = todayInTz(settings.timezone);
+  if (calDate >= todayStr) return null;
+  const eventMs = new Date(`${calDate}T00:00:00Z`).getTime();
+  const todayMs = new Date(`${todayStr}T00:00:00Z`).getTime();
+  return Math.round((todayMs - eventMs) / (1000 * 60 * 60 * 24));
+};
+
+/**
  * Convert a UTC ISO datetime to a YYYY-MM-DD calendar date in the given timezone.
  * Returns null if the input is empty or invalid.
  * Used by the calendar view to map standard event dates to calendar days.

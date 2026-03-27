@@ -5,13 +5,10 @@
  * Maintains cookies across requests and follows redirects automatically.
  */
 
-import { pipe, map } from "#fp";
+import { map, pipe } from "#fp";
 
 /** Extract all cookies from a Set-Cookie header and merge into a cookie jar */
-const parseCookies = (
-  response: Response,
-  jar: Map<string, string>,
-): void => {
+const parseCookies = (response: Response, jar: Map<string, string>): void => {
   for (const header of response.headers.getSetCookie()) {
     const eqIdx = header.indexOf("=");
     if (eqIdx === -1) continue;
@@ -34,7 +31,10 @@ const buildCookieHeader = (jar: Map<string, string>): string =>
 
 /** Strip HTML tags to get plain text content */
 const stripTags = (html: string): string =>
-  html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** Decode common HTML entities */
 const decodeEntities = (text: string): string =>
@@ -67,22 +67,27 @@ type LinkMatch = { href: string; text: string };
 
 /** Find all links in HTML */
 const findAllLinks = (html: string): LinkMatch[] =>
-  regexCollect(
-    /<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
-    html,
-    (m) => ({ href: decodeEntities(m[1]!), text: stripTags(m[2]!) }),
-  );
+  regexCollect(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, html, (m) => ({
+    href: decodeEntities(m[1]!),
+    text: stripTags(m[2]!),
+  }));
 
 /** Find a link whose visible text contains the search string (case-insensitive) */
 const findLinkByText = (html: string, text: string): LinkMatch | null => {
   const lower = text.toLowerCase();
-  return findAllLinks(html).find((l) => l.text.toLowerCase().includes(lower)) ?? null;
+  return (
+    findAllLinks(html).find((l) => l.text.toLowerCase().includes(lower)) ?? null
+  );
 };
 
 /** Extract all hidden input fields from a form */
 const extractHiddenInputs = (formHtml: string): Record<string, string> => {
   const result: Record<string, string> = {};
-  for (const tag of regexCollect(/<input[^>]*type="hidden"[^>]*>/gi, formHtml, (m) => m[0])) {
+  for (const tag of regexCollect(
+    /<input[^>]*type="hidden"[^>]*>/gi,
+    formHtml,
+    (m) => m[0],
+  )) {
     const nameMatch = tag.match(/name="([^"]+)"/);
     const valueMatch = tag.match(/value="([^"]*)"/);
     if (nameMatch) {
@@ -105,7 +110,10 @@ const findForms = (html: string): FormInfo[] =>
 /** Extract all checkbox values for a given field name from form HTML */
 const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
   regexCollect(
-    new RegExp(`<input[^>]*name="${fieldName}"[^>]*value="([^"]*)"[^>]*>`, "gi"),
+    new RegExp(
+      `<input[^>]*name="${fieldName}"[^>]*value="([^"]*)"[^>]*>`,
+      "gi",
+    ),
     formHtml,
     (m) => decodeEntities(m[1]!),
   );
@@ -113,7 +121,9 @@ const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
 /** Find a form whose body contains the given button text, or throw */
 const findFormByButton = (forms: FormInfo[], buttonText: string): FormInfo => {
   const lower = buttonText.toLowerCase();
-  const form = forms.find((f) => stripTags(f.body).toLowerCase().includes(lower));
+  const form = forms.find((f) =>
+    stripTags(f.body).toLowerCase().includes(lower),
+  );
   if (form) return form;
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(
@@ -139,9 +149,7 @@ const isRedirect = (status: number): boolean =>
 
 /** Extract pathname+search from a URL string (absolute or relative) */
 const toPath = (url: string): string =>
-  url.startsWith("http")
-    ? new URL(url).pathname + new URL(url).search
-    : url;
+  url.startsWith("http") ? new URL(url).pathname + new URL(url).search : url;
 
 /**
  * A simulated browser that navigates by following links and submitting forms.
@@ -170,10 +178,7 @@ export class TestBrowser {
   debug = false;
 
   /** Build a request with cookies */
-  private buildRequest(
-    path: string,
-    options: RequestInit = {},
-  ): Request {
+  private buildRequest(path: string, options: RequestInit = {}): Request {
     const headers = new Headers(options.headers);
     headers.set("host", "localhost");
     const cookieStr = buildCookieHeader(this.cookies);
@@ -186,14 +191,13 @@ export class TestBrowser {
   }
 
   /** Send a request, log if debugging, and collect cookies */
-  private async send(
-    req: Request,
-    debugLabel: string,
-  ): Promise<Response> {
+  private async send(req: Request, debugLabel: string): Promise<Response> {
     const handler = await this.getHandler();
     const response = await handler(req);
     if (this.debug) {
-      console.log(`[browser] ${debugLabel} -> ${response.status}${formatCookies(response)}`);
+      console.log(
+        `[browser] ${debugLabel} -> ${response.status}${formatCookies(response)}`,
+      );
     }
     parseCookies(response, this.cookies);
     return response;
@@ -220,7 +224,9 @@ export class TestBrowser {
       );
     }
 
-    this.currentUrl = new URL(response.url || `http://localhost${path}`).pathname;
+    this.currentUrl = new URL(
+      response.url || `http://localhost${path}`,
+    ).pathname;
     const finalLocation = response.headers.get("location");
     if (finalLocation && isRedirect(response.status)) {
       this.currentUrl = toPath(finalLocation).split("?")[0]!;
@@ -270,7 +276,7 @@ export class TestBrowser {
     // Find the form containing the button text
     const form = buttonText
       ? findFormByButton(forms, buttonText)
-      : forms[0] ?? throwNoForm();
+      : (forms[0] ?? throwNoForm());
 
     // Collect hidden fields (includes csrf_token)
     const hiddenFields = extractHiddenInputs(form.body);

@@ -14,15 +14,15 @@ import type { validateForm } from "#lib/forms.tsx";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import {
+  AUTH_FORM,
   type AuthSession,
   encodeBody,
   errorRedirect,
   getPrivateKey,
   htmlResponse,
   notFoundResponse,
-  redirect,
-  AUTH_FORM,
   OWNER_FORM,
+  redirect,
   requireOwnerOr,
   requireSessionOr,
   SessionKeyError,
@@ -200,10 +200,7 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
     session: TSession,
   ) => Response | null | Promise<Response | null>;
   /** Optional custom not-found handler (defaults to 404 page) */
-  onNotFound?: (
-    id: number,
-    session: TSession,
-  ) => Response | Promise<Response>;
+  onNotFound?: (id: number, session: TSession) => Response | Promise<Response>;
 };
 
 /** Return type of createConfirmedHandlers */
@@ -224,9 +221,18 @@ const resolveAuth = <TSession>(
   if (typeof auth === "object") return auth;
   const isOwner = auth !== "any";
   return {
-    requireSession: (isOwner ? requireOwnerOr : requireSessionOr) as SessionGuard<TSession>,
-    withForm: ((r: Request, h: (...args: never[]) => Response | Promise<Response>) =>
-      withAuth(r, isOwner ? OWNER_FORM : AUTH_FORM, h as Parameters<typeof withAuth>[2])) as FormGuard<TSession>,
+    requireSession: (isOwner
+      ? requireOwnerOr
+      : requireSessionOr) as SessionGuard<TSession>,
+    withForm: ((
+      r: Request,
+      h: (...args: never[]) => Response | Promise<Response>,
+    ) =>
+      withAuth(
+        r,
+        isOwner ? OWNER_FORM : AUTH_FORM,
+        h as Parameters<typeof withAuth>[2],
+      )) as FormGuard<TSession>,
   };
 };
 
@@ -245,8 +251,7 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
     typeof config.successRedirect === "function"
       ? config.successRedirect(model, id)
       : config.successRedirect;
-  const confirmPath = (id: number) =>
-    config.path.replace(/:(\w+)/, String(id));
+  const confirmPath = (id: number) => config.path.replace(/:(\w+)/, String(id));
 
   const validate = (id: number, session: TSession) =>
     config.preValidate ? config.preValidate(id, session) : null;
@@ -285,11 +290,7 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
       if (error) return error;
 
       await config.onConfirm(result, id, session);
-      return redirect(
-        resolveRedirect(result, id),
-        config.successMessage,
-        true,
-      );
+      return redirect(resolveRedirect(result, id), config.successMessage, true);
     });
 
   // Extract param name from path pattern for route handlers
