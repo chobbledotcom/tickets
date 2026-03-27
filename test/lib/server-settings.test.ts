@@ -833,7 +833,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Payment provider set to square"),
+        expect.stringContaining("Payment provider updated"),
       );
     });
   });
@@ -855,7 +855,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Payment provider set to stripe"),
+        expect.stringContaining("Payment provider updated"),
       );
     });
 
@@ -867,7 +867,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Payment provider disabled"),
+        expect.stringContaining("Payment provider updated"),
       );
     });
 
@@ -1173,7 +1173,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const logs = await getAllActivityLog();
       expect(
-        logs.some((l) => l.message.includes("Payment provider set to stripe")),
+        logs.some((l) => l.message.includes("Payment provider updated")),
       ).toBe(true);
     });
 
@@ -1184,7 +1184,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const logs = await getAllActivityLog();
       expect(
-        logs.some((l) => l.message.includes("Payment provider disabled")),
+        logs.some((l) => l.message.includes("Payment provider updated")),
       ).toBe(true);
     });
 
@@ -1413,7 +1413,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Theme updated to dark"));
+      expectFlash(response, expect.stringContaining("Theme updated"));
     });
 
     test("updates theme to light successfully", async () => {
@@ -1429,7 +1429,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Theme updated to light"));
+      expectFlash(response, expect.stringContaining("Theme updated"));
     });
 
     test("theme setting persists in database", async () => {
@@ -1679,7 +1679,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Country set to FR"))).toBe(
+      expect(logs.some((l) => l.message.includes("Country updated"))).toBe(
         true,
       );
     });
@@ -1708,7 +1708,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Booking fee updated to 1.5%"),
+        expect.stringContaining("Booking fee updated"),
       );
 
       const { settings } = await import("#lib/db/settings.ts");
@@ -1729,7 +1729,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Booking fee updated to 0%"),
+        expect.stringContaining("Booking fee updated"),
       );
     });
 
@@ -1850,7 +1850,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const logs = await getAllActivityLog();
       expect(
-        logs.some((l) => l.message.includes("Booking fee set to 2.5%")),
+        logs.some((l) => l.message.includes("Booking fee updated")),
       ).toBe(true);
     });
   });

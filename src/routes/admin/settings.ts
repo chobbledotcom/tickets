@@ -79,12 +79,13 @@ import {
 } from "#lib/stripe.ts";
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import {
-  clearableFieldHandler,
-  createSettingsHandler,
+  advancedSettingsRoute,
   processSecretField,
-  type SettingsFormHandler,
-  secretFieldHandler,
-  toggleHandler,
+  settingsClearable,
+  settingsHandler,
+  settingsRoute,
+  settingsSecret,
+  settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -212,36 +213,8 @@ const renderAdvancedSettingsPage = async (
   return adminAdvancedSettingsPage(session, state);
 };
 
-/** Redirect back to settings page with error flash (PRG pattern) */
-const settingsPageWithError =
-  (_session: AuthSession) =>
-  (error: string, _status: number, formId: string): Response =>
-    errorRedirect("/admin/settings", error, formId);
-
-/** Redirect back to advanced settings page with error flash (PRG pattern) */
-const advancedSettingsPageWithError =
-  (_session: AuthSession) =>
-  (error: string, _status: number, formId: string): Response =>
-    errorRedirect("/admin/settings-advanced", error, formId);
-
 export type { SecretFieldResult } from "#routes/admin/settings-helpers.ts";
 export { processSecretField } from "#routes/admin/settings-helpers.ts";
-
-/** Owner auth form route that provides the errorPage helper and session */
-const settingsRoute =
-  (handler: SettingsFormHandler) =>
-  (request: Request): Promise<Response> =>
-    withAuth(request, OWNER_FORM, (session, form) =>
-      handler(form, settingsPageWithError(session), session),
-    );
-
-/** Owner auth form route for advanced settings - errors render the advanced page */
-const advancedSettingsRoute =
-  (handler: SettingsFormHandler) =>
-  (request: Request): Promise<Response> =>
-    withAuth(request, OWNER_FORM, (session, form) =>
-      handler(form, advancedSettingsPageWithError(session), session),
-    );
 
 /**
  * Handle GET /admin/settings - owner only
@@ -360,26 +333,17 @@ const isPaymentProvider = (s: string): s is PaymentProviderType =>
 /**
  * Handle POST /admin/settings/payment-provider - owner only
  */
-const handlePaymentProviderPost = settingsRoute(
-  createSettingsHandler({
-    formId: "settings-payment-provider",
-    extract: (form) => form.getString("payment_provider"),
-    validate: (v) =>
-      v !== "none" && !isPaymentProvider(v) ? "Invalid payment provider" : null,
-    save: (v) =>
-      v === "none"
-        ? settings.update.clearPaymentProvider()
-        : settings.update.paymentProvider(v),
-    log: (v) =>
-      v === "none"
-        ? "Payment provider disabled"
-        : `Payment provider set to ${v}`,
-    message: (v) =>
-      v === "none"
-        ? "Payment provider disabled"
-        : `Payment provider set to ${v}`,
-  }),
-);
+const handlePaymentProviderPost = settingsHandler({
+  formId: "settings-payment-provider",
+  label: "Payment provider",
+  extract: (form) => form.getString("payment_provider"),
+  validate: (v) =>
+    v !== "none" && !isPaymentProvider(v) ? "Invalid payment provider" : null,
+  save: (v) =>
+    v === "none"
+      ? settings.update.clearPaymentProvider()
+      : settings.update.paymentProvider(v),
+});
 
 /**
  * Handle POST /admin/settings/stripe - owner only
@@ -502,15 +466,13 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
 /**
  * Handle POST /admin/settings/square-webhook - owner only
  */
-const handleAdminSquareWebhookPost = settingsRoute(
-  secretFieldHandler({
-    formId: "settings-square-webhook",
-    field: "square_webhook_signature_key",
-    label: "Square webhook signature key",
-    required: true,
-    save: (v) => settings.update.square.webhookSignatureKey(v),
-  }),
-);
+const handleAdminSquareWebhookPost = settingsSecret({
+  formId: "settings-square-webhook",
+  field: "square_webhook_signature_key",
+  label: "Square webhook signature key",
+  required: true,
+  save: (v) => settings.update.square.webhookSignatureKey(v),
+});
 
 /**
  * Handle POST /admin/settings/stripe/test - owner only
@@ -533,128 +495,103 @@ const handleSquareTestPost = (request: Request): Promise<Response> =>
 /**
  * Handle POST /admin/settings/embed-hosts - owner only
  */
-const handleEmbedHostsPost = settingsRoute(
-  createSettingsHandler({
-    formId: "settings-embed-hosts",
-    extract: (form) => form.getString("embed_hosts"),
-    validate: (v) => {
-      if (v === "") return null;
-      return validateEmbedHosts(v);
-    },
-    save: (v) =>
-      settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
-    log: (v) =>
-      v === "" ? "Embed host restrictions removed" : "Allowed embed hosts updated",
-    message: (v) =>
-      v === "" ? "Embed host restrictions removed" : "Allowed embed hosts updated",
-  }),
-);
+const handleEmbedHostsPost = settingsHandler({
+  formId: "settings-embed-hosts",
+  label: "Embed host restrictions",
+  extract: (form) => form.getString("embed_hosts"),
+  validate: (v) => {
+    if (v === "") return null;
+    return validateEmbedHosts(v);
+  },
+  save: (v) =>
+    settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
+  log: (v) =>
+    v === "" ? "Embed host restrictions removed" : "Allowed embed hosts updated",
+});
 
 /**
  * Handle POST /admin/settings/terms - owner only
  */
-const handleTermsPost = settingsRoute(
-  createSettingsHandler({
-    formId: "settings-terms",
-    extract: (form) => {
-      applyDemoOverrides(form, TERMS_DEMO_FIELDS);
-      return form.getString("terms_and_conditions");
-    },
-    validate: (v) =>
-      v.length > MAX_TEXTAREA_LENGTH
-        ? `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
-        : null,
-    save: (v) => settings.update.terms(v),
-    log: (v) =>
-      v === ""
-        ? "Terms and conditions removed"
-        : "Terms and conditions updated",
-    message: (v) =>
-      v === ""
-        ? "Terms and conditions removed"
-        : "Terms and conditions updated",
-  }),
-);
+const handleTermsPost = settingsHandler({
+  formId: "settings-terms",
+  label: "Terms and conditions",
+  extract: (form) => {
+    applyDemoOverrides(form, TERMS_DEMO_FIELDS);
+    return form.getString("terms_and_conditions");
+  },
+  validate: (v) =>
+    v.length > MAX_TEXTAREA_LENGTH
+      ? `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
+      : null,
+  save: (v) => settings.update.terms(v),
+  log: (v) =>
+    v === "" ? "Terms and conditions removed" : "Terms and conditions updated",
+});
 
 /** Handle POST /admin/settings/country - owner only */
-const handleCountryPost = settingsRoute(
-  createSettingsHandler({
-    formId: "settings-country",
-    extract: (form) => form.getString("country").toUpperCase(),
-    validate: (v) =>
-      v === ""
-        ? "Country is required"
-        : !isValidCountry(v)
-          ? "Please select a valid country"
-          : null,
-    save: (v) => settings.update.country(v),
-    log: (v) => `Country set to ${v}`,
-    message: () => "Country updated",
-  }),
-);
+const handleCountryPost = settingsHandler({
+  formId: "settings-country",
+  label: "Country",
+  extract: (form) => form.getString("country").toUpperCase(),
+  validate: (v) =>
+    v === ""
+      ? "Country is required"
+      : !isValidCountry(v)
+        ? "Please select a valid country"
+        : null,
+  save: (v) => settings.update.country(v),
+});
 
 /** Handle POST /admin/settings/business-email - owner only */
-const handleBusinessEmailPost = settingsRoute(
-  clearableFieldHandler({
-    formId: "settings-business-email",
-    field: "business_email",
-    label: "Business email",
-    validate: (v) =>
-      !isValidBusinessEmail(v)
-        ? "Invalid email format. Please use format: name@domain.com"
-        : null,
-    save: (v) => updateBusinessEmail(v),
-  }),
-);
+const handleBusinessEmailPost = settingsClearable({
+  formId: "settings-business-email",
+  field: "business_email",
+  label: "Business email",
+  validate: (v) =>
+    !isValidBusinessEmail(v)
+      ? "Invalid email format. Please use format: name@domain.com"
+      : null,
+  save: (v) => updateBusinessEmail(v),
+});
 
 /** Handle POST /admin/settings/theme - owner only */
-const handleThemePost = settingsRoute(
-  createSettingsHandler({
-    formId: "settings-theme",
-    extract: (form) => form.getString("theme"),
-    validate: (v) =>
-      v !== "light" && v !== "dark" ? "Invalid theme selection" : null,
-    save: (v) => settings.update.theme(v),
-    log: (v) => `Theme set to ${v}`,
-    message: (v) => `Theme updated to ${v}`,
-  }),
-);
+const handleThemePost = settingsHandler({
+  formId: "settings-theme",
+  label: "Theme",
+  extract: (form) => form.getString("theme"),
+  validate: (v) =>
+    v !== "light" && v !== "dark" ? "Invalid theme selection" : null,
+  save: (v) => settings.update.theme(v),
+});
 
 /** Handle POST /admin/settings/show-public-site - owner only */
-const handleShowPublicSitePost = settingsRoute(
-  toggleHandler({
-    formId: "settings-show-public-site",
-    field: "show_public_site",
-    label: "Public site",
-    save: (v) => settings.update.showPublicSite(v),
-  }),
-);
+const handleShowPublicSitePost = settingsToggle({
+  formId: "settings-show-public-site",
+  field: "show_public_site",
+  label: "Public site",
+  save: (v) => settings.update.showPublicSite(v),
+});
 
 /** Handle POST /admin/settings/show-public-api - owner only */
-const handleShowPublicApiPost = advancedSettingsRoute(
-  toggleHandler({
-    formId: "settings-show-public-api",
-    field: "show_public_api",
-    label: "Public API",
-    save: (v) => settings.update.showPublicApi(v),
-    redirectTo: "/admin/settings-advanced",
-  }),
-);
+const handleShowPublicApiPost = settingsToggle({
+  formId: "settings-show-public-api",
+  field: "show_public_api",
+  label: "Public API",
+  advanced: true,
+  save: (v) => settings.update.showPublicApi(v),
+});
 
 /** Handle POST /admin/settings/booking-fee - owner only */
-const handleBookingFeePost = settingsRoute(
-  createSettingsHandler({
-    formId: "settings-booking-fee",
-    extract: (form) => Number.parseFloat(form.getString("booking_fee")),
-    validate: (v) =>
-      !Number.isFinite(v) || v < 0 || v > 10
-        ? "Booking fee must be a number between 0 and 10"
-        : null,
-    save: (v) => settings.update.bookingFee(String(v)),
-    log: (v) => `Booking fee set to ${v}%`,
-    message: (v) => `Booking fee updated to ${v}%`,
-  }),
-);
+const handleBookingFeePost = settingsHandler({
+  formId: "settings-booking-fee",
+  label: "Booking fee",
+  extract: (form) => Number.parseFloat(form.getString("booking_fee")),
+  validate: (v) =>
+    !Number.isFinite(v) || v < 0 || v > 10
+      ? "Booking fee must be a number between 0 and 10"
+      : null,
+  save: (v) => settings.update.bookingFee(String(v)),
+});
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 const handleHeaderImagePost = (request: Request): Promise<Response> =>

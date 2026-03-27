@@ -48,11 +48,10 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       const saveFn = fn(() => Promise.resolve());
       const handler = createSettingsHandler({
         formId: "settings-test",
+        label: "Test setting",
         extract: (form) => form.getString("value"),
         validate: (v) => (v === "" ? "Value is required" : null),
         save: saveFn as (v: string) => Promise<void>,
-        log: (v) => `Set to ${v}`,
-        message: (v) => `Updated to ${v}`,
       });
 
       const form = formFrom({ value: "hello" });
@@ -62,19 +61,51 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       expect(redirectLocation(res)).toContain("/admin/settings");
       expect(redirectLocation(res)).toContain("form=settings-test");
       expect(saveFn).toHaveBeenCalledWith("hello");
-      expect(await lastLogMessage()).toBe("Set to hello");
-      expect(getFlashMessage(res)).toContain("Updated to hello");
+      expect(await lastLogMessage()).toBe("Test setting updated");
+      expect(getFlashMessage(res)).toContain("Test setting updated");
+    });
+
+    test("uses custom log and message when provided", async () => {
+      const handler = createSettingsHandler({
+        formId: "settings-test",
+        label: "Test",
+        extract: (form) => form.getString("value"),
+        save: () => Promise.resolve(),
+        log: (v) => `Custom log: ${v}`,
+        message: (v) => `Custom msg: ${v}`,
+      });
+
+      const form = formFrom({ value: "x" });
+      const res = await handler(form, mockErrorPage, null);
+
+      expect(await lastLogMessage()).toBe("Custom log: x");
+      expect(getFlashMessage(res)).toContain("Custom msg: x");
+    });
+
+    test("message defaults to log output when only log is provided", async () => {
+      const handler = createSettingsHandler({
+        formId: "settings-test",
+        label: "Test",
+        extract: (form) => form.getString("value"),
+        save: () => Promise.resolve(),
+        log: (v) => `Set to ${v}`,
+      });
+
+      const form = formFrom({ value: "y" });
+      const res = await handler(form, mockErrorPage, null);
+
+      expect(await lastLogMessage()).toBe("Set to y");
+      expect(getFlashMessage(res)).toContain("Set to y");
     });
 
     test("returns error when validation fails", async () => {
       const saveFn = fn(() => Promise.resolve());
       const handler = createSettingsHandler({
         formId: "settings-test",
+        label: "Test",
         extract: (form) => form.getString("value"),
         validate: (v) => (v === "" ? "Value is required" : null),
         save: saveFn as (v: string) => Promise<void>,
-        log: () => "logged",
-        message: () => "done",
       });
 
       const form = formFrom({ value: "" });
@@ -93,10 +124,9 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       const saveFn = fn(() => Promise.resolve());
       const handler = createSettingsHandler({
         formId: "settings-test",
+        label: "Test",
         extract: (form) => form.getString("value"),
         save: saveFn as (v: string) => Promise<void>,
-        log: () => "logged",
-        message: () => "done",
       });
 
       const form = formFrom({ value: "" });
@@ -106,14 +136,13 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       expect(saveFn).toHaveBeenCalledWith("");
     });
 
-    test("uses custom redirectTo when provided", async () => {
+    test("redirects to advanced page when advanced is true", async () => {
       const handler = createSettingsHandler({
         formId: "settings-test",
-        redirectTo: "/admin/settings-advanced",
+        label: "Test",
+        advanced: true,
         extract: (form) => form.getString("value"),
         save: () => Promise.resolve(),
-        log: () => "logged",
-        message: () => "done",
       });
 
       const form = formFrom({ value: "x" });
@@ -160,13 +189,13 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       expect(getFlashMessage(res)).toContain("My feature disabled");
     });
 
-    test("uses custom redirectTo", async () => {
+    test("redirects to advanced page when advanced is true", async () => {
       const handler = toggleHandler({
         formId: "settings-toggle",
         field: "my_toggle",
         label: "My feature",
+        advanced: true,
         save: () => Promise.resolve(),
-        redirectTo: "/admin/settings-advanced",
       });
 
       const form = formFrom({ my_toggle: "true" });
@@ -414,13 +443,13 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       expect(afterSaveFn).toHaveBeenCalledWith("new_value");
     });
 
-    test("uses custom redirectTo", async () => {
+    test("redirects to advanced page when advanced is true", async () => {
       const handler = secretFieldHandler({
         formId: "settings-secret",
         field: "api_key",
         label: "API key",
+        advanced: true,
         save: () => Promise.resolve(),
-        redirectTo: "/admin/settings-advanced",
       });
 
       const form = formFrom({ api_key: "new_value" });
@@ -429,13 +458,13 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
     });
 
-    test("uses custom redirectTo for unchanged action", async () => {
+    test("advanced flag applies to unchanged action", async () => {
       const handler = secretFieldHandler({
         formId: "settings-secret",
         field: "api_key",
         label: "API key",
+        advanced: true,
         save: () => Promise.resolve(),
-        redirectTo: "/admin/settings-advanced",
       });
 
       const form = formFrom({ api_key: MASK_SENTINEL });
@@ -444,13 +473,13 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
     });
 
-    test("uses custom redirectTo for cleared optional field", async () => {
+    test("advanced flag applies to cleared optional field", async () => {
       const handler = secretFieldHandler({
         formId: "settings-secret",
         field: "api_key",
         label: "API key",
+        advanced: true,
         save: () => Promise.resolve(),
-        redirectTo: "/admin/settings-advanced",
       });
 
       const form = formFrom({ api_key: "" });

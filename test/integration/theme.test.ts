@@ -23,7 +23,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     });
     expectRedirectWithFlash(
       "/admin/settings?form=settings-theme#settings-theme",
-      "Theme updated to dark",
+      "Theme updated",
     )(response);
   });
 
