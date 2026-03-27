@@ -919,7 +919,7 @@ input[type="submit"].danger:hover {
   border-radius: 999px;
 }
 
-@media (max-width: 768px) {
+@media (prefers-color-scheme: dark) {
   .badge-alert {
     background-color: #991919;
   }
