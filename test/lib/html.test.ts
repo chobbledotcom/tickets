@@ -11,8 +11,8 @@ import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import { addDays } from "#lib/dates.ts";
 import { settings } from "#lib/db/settings.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
-import { todayInTz } from "#lib/timezone.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
+import { todayInTz } from "#lib/timezone.ts";
 import {
   adminEventActivityLogPage,
   adminGlobalActivityLogPage,
@@ -3540,7 +3540,7 @@ describe("html", () => {
       });
       const html = renderTicket(event);
       expect(html).toContain("badge-alert");
-      expect(html).toContain("ago)");
+      expect(html).toContain("ago");
     });
 
     test("does not show past event badge for future event", () => {
@@ -3565,7 +3565,8 @@ describe("html", () => {
         attendee_count: 0,
       });
       const html = renderTicket(event);
-      expect(html).toContain("(1 day ago)");
+      expect(html).toContain("1 day ago");
+      expect(html).not.toContain("(1 day ago)");
     });
 
     test("past event badge shows plural days for multiple days ago", () => {
@@ -3575,7 +3576,8 @@ describe("html", () => {
         attendee_count: 0,
       });
       const html = renderTicket(event);
-      expect(html).toContain("(3 days ago)");
+      expect(html).toContain("3 days ago");
+      expect(html).not.toContain("(3 days ago)");
     });
   });
 

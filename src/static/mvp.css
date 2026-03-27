@@ -909,11 +909,20 @@ input[type="submit"].danger:hover {
 }
 
 .badge-alert {
-  font-size: 0.75em;
+  font-size: 0.6rem;
+  font-weight: bold;
   color: #fff;
   background-color: #cc0000;
+  margin-left: 1rem;
+  margin-right: 1rem;
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
+}
+
+@media (max-width: 768px) {
+  .badge-alert {
+    background-color: #991919;
+  }
 }
 
 [data-theme="dark"] .password-warning {
