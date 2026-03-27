@@ -1,0 +1,46 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: "Release name (will be suffixed to date, e.g. '2026-01-30 - your name')"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubicloud-standard-16
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: deno install --allow-scripts
+
+      - name: Build edge script
+        run: deno task build:edge
+        env:
+          BUILD_COMMIT: ${{ github.sha }}
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$(date -u +%Y-%m-%d-%H%M%S)"
+          TITLE="$(date -u +%Y-%m-%d) - ${{ inputs.release_name }}"
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "$TITLE" \
+            --generate-notes \
+            bunny-script.ts
