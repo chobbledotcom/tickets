@@ -2,7 +2,7 @@
  * Admin JSON API routes — accessible via API key or cookie+CSRF.
  *
  * These endpoints expose admin operations as JSON for programmatic access.
- * Authentication is handled by withAdminApi which accepts either:
+ * Authentication is handled by withAuth which accepts either:
  *   - Bearer token (API key) — no CSRF needed
  *   - Session cookie + x-csrf-token header
  */
@@ -32,7 +32,7 @@ import type {
 } from "#lib/types.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { jsonResponse, withAdminApi } from "#routes/utils.ts";
+import { ADMIN_API, jsonResponse, withAuth } from "#routes/utils.ts";
 
 // =============================================================================
 // Published API types — the contract for callers
@@ -178,7 +178,7 @@ type BodyParseResult =
 
 /**
  * Auth + event lookup helper.
- * Calls withAdminApi, fetches the event, and passes it to the callback.
+ * Calls withAuth, fetches the event, and passes it to the callback.
  * Returns 404 automatically if the event doesn't exist.
  */
 const withEventApi = (
@@ -190,7 +190,7 @@ const withEventApi = (
     body: Record<string, unknown>,
   ) => Promise<Response>,
 ): Promise<Response> =>
-  withAdminApi(request, async (session, body) => {
+  withAuth(request, ADMIN_API, async (session, body) => {
     const event = await getEventWithCount(eventId);
     if (!event) return errorResponse("Event not found", 404);
     return handler(event, session, body);
@@ -265,7 +265,7 @@ export const bodyToUpdateInput = async (
 
 /** GET /api/admin/events — list all events with counts */
 const handleListEvents = (request: Request): Promise<Response> =>
-  withAdminApi(request, async (session) => {
+  withAuth(request, ADMIN_API, async (session) => {
     const events = await getAllEvents();
     return jsonResponse({
       events: map(toAdminEvent)(events),
@@ -290,7 +290,7 @@ const handleToggleActive = (
 
 /** POST /api/admin/events — create event */
 const handleCreateEvent = (request: Request): Promise<Response> =>
-  withAdminApi(request, async (_session, body) => {
+  withAuth(request, ADMIN_API, async (_session, body) => {
     const parsed = await bodyToCreateInput(body);
     if (!parsed.ok) return errorResponse(parsed.error);
 

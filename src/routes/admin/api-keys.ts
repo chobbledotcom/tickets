@@ -18,10 +18,11 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyFlash,
   htmlResponse,
+  OWNER_FORM,
   orNotFound,
   redirect,
   requireOwnerOr,
-  withOwnerAuthForm,
+  withAuth,
 } from "#routes/utils.ts";
 import {
   adminApiDocsPage,
@@ -57,7 +58,7 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
 const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
   request,
 ) =>
-  withOwnerAuthForm(request, async (session, form) => {
+  withAuth(request, OWNER_FORM, async (session, form) => {
     const name = form.getString("name");
     if (!name) {
       return redirect("/admin/api-keys", "Name is required", false);
@@ -111,7 +112,7 @@ const handleApiKeyDeleteGet: TypedRouteHandler<
 const handleApiKeyDelete: TypedRouteHandler<
   "POST /admin/api-keys/:apiKeyId/delete"
 > = (request, { apiKeyId }) =>
-  withOwnerAuthForm(request, async (session, form) => {
+  withAuth(request, OWNER_FORM, async (session, form) => {
     let apiKey;
     try {
       apiKey = await getApiKeyForUser(apiKeyId, session.userId);

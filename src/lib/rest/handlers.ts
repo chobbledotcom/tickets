@@ -14,17 +14,13 @@ import type {
   DeleteResult,
   Resource,
 } from "#lib/rest/resource.ts";
-import {
-  type AuthFormResult,
-  type AuthSession,
-  requireAuthForm,
-} from "#routes/utils.ts";
+import { AUTH_FORM, type AuthSession, withAuth } from "#routes/utils.ts";
 
 /** Async or sync response */
 type MaybeAsync<T> = T | Promise<T>;
 
 /** Auth context from successful check */
-type AuthOk = AuthFormResult & { ok: true };
+type AuthOk = { ok: true; session: AuthSession; form: FormParams };
 
 /** Callback for validation errors (create) */
 type OnError = (
@@ -63,10 +59,10 @@ const authHandler =
   (
     handler: (req: Request, id: InValue, auth: AuthOk) => MaybeAsync<Response>,
   ): IdHandler =>
-  async (req, id) => {
-    const a = await requireAuthForm(req);
-    return a.ok ? handler(req, id, a) : a.response;
-  };
+  (req, id) =>
+    withAuth(req, AUTH_FORM, (session, form) =>
+      handler(req, id, { ok: true, session, form }),
+    );
 
 /** Dispatch create result */
 const dispatchCreate = <R>(
@@ -88,12 +84,11 @@ const dispatchDelete = <R>(
 /** Create POST handler */
 export const createHandler =
   <R, I>(resource: Resource<R, I>, opts: CreateHandlerOptions<R>) =>
-  async (request: Request): Promise<Response> => {
-    const a = await requireAuthForm(request);
-    return a.ok
-      ? dispatchCreate(await resource.create(a.form), a, opts)
-      : a.response;
-  };
+  (request: Request): Promise<Response> =>
+    withAuth(request, AUTH_FORM, async (session, form) => {
+      const a: AuthOk = { ok: true, session, form };
+      return dispatchCreate(await resource.create(form), a, opts);
+    });
 
 /** Check name verification param */
 const needsVerify = (req: Request): boolean =>
