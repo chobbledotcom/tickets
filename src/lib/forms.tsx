@@ -420,7 +420,7 @@ export const ConfirmForm = ({
   children?: Child;
 }): JSX.Element => (
   <>
-    {children}
+    <div class="prose">{children}</div>
 
     <CsrfForm action={action}>
       {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
