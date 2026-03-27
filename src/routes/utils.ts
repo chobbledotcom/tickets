@@ -536,8 +536,7 @@ const requireSessionFor = async (
   return session;
 };
 
-const isResponse = (v: AuthSession | Response): v is Response =>
-  v instanceof Response;
+const isResponse = (v: unknown): v is Response => v instanceof Response;
 
 type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
 
@@ -622,6 +621,19 @@ export type AuthFormResult =
   | { ok: true; session: AuthSession; form: FormParams }
   | { ok: false; response: Response };
 
+/** Verify form CSRF token, returning failure or the parsed form */
+/** Verify a CSRF token string, returning a failure Response or null */
+const verifyCsrf = async (token: string): Promise<Response | null> =>
+  (await verifySignedCsrfToken(token)) ? null : authFailure("html", "invalid-csrf");
+
+/** Parse URL-encoded form and verify its CSRF token */
+const requireFormCsrf = async (
+  request: Request,
+): Promise<FormParams | Response> => {
+  const form = await parseFormData(request);
+  return (await verifyCsrf(form.getString("csrf_token"))) ?? form;
+};
+
 /** Require authenticated session (with optional role) + parsed form + validated CSRF */
 export const requireAuthForm = async (
   request: Request,
@@ -630,11 +642,8 @@ export const requireAuthForm = async (
   const result = await requireSessionFor(request, "html", role);
   if (isResponse(result)) return { ok: false, response: result };
 
-  const form = await parseFormData(request);
-  const csrfToken = form.getString("csrf_token");
-  if (!(await verifySignedCsrfToken(csrfToken))) {
-    return { ok: false, response: authFailure("html", "invalid-csrf") };
-  }
+  const form = await requireFormCsrf(request);
+  if (isResponse(form)) return { ok: false, response: form };
 
   return { ok: true, session: result, form };
 };
@@ -644,15 +653,31 @@ type FormHandler = (
   form: FormParams,
 ) => Response | Promise<Response>;
 
+/**
+ * Session + body-with-CSRF gate. Parses and CSRF-verifies the body via
+ * parseAndVerify, then hands the session + typed body to the handler.
+ */
+const withAuthBody = <B>(
+  request: Request,
+  parseAndVerify: (req: Request) => Promise<B | Response>,
+  handler: (session: AuthSession, body: B) => Response | Promise<Response>,
+  role?: AdminLevel,
+): Promise<Response> =>
+  requireSessionOr(
+    request,
+    async (session) => {
+      const body = await parseAndVerify(request);
+      return isResponse(body) ? body : handler(session, body);
+    },
+    role,
+  );
+
 /** Handle request with auth form + CSRF — optional role check */
-export const withAuthForm = async (
+export const withAuthForm = (
   request: Request,
   handler: FormHandler,
   role?: AdminLevel,
-): Promise<Response> => {
-  const auth = await requireAuthForm(request, role);
-  return auth.ok ? handler(auth.session, auth.form) : auth.response;
-};
+): Promise<Response> => withAuthBody(request, requireFormCsrf, handler, role);
 
 /** Handle request with owner auth form — shorthand for withAuthForm with owner role */
 export const withOwnerAuthForm = (
@@ -671,11 +696,12 @@ export const authenticatedGetById =
     load: (id: number) => Promise<T | null>,
     render: (entity: T, session: AuthSession) => Response | Promise<Response>,
   ): IdRouteHandler =>
-  async (request, { id }) => {
-    const result = await requireSessionFor(request, "html", role ?? undefined);
-    if (isResponse(result)) return result;
-    return orNotFound(load(id), (entity) => render(entity, result));
-  };
+  (request, { id }) =>
+    requireSessionOr(
+      request,
+      (session) => orNotFound(load(id), (entity) => render(entity, session)),
+      role ?? undefined,
+    );
 
 /** Shorthand: owner GET-by-ID */
 export const ownerGetById = authenticatedGetById("owner");
@@ -698,24 +724,25 @@ type MultipartFormHandler = (
   formData: FormData,
 ) => Response | Promise<Response>;
 
+/** Parse multipart form and verify CSRF token */
+/** Parse multipart form and verify its CSRF token */
+const requireMultipartCsrf = async (
+  request: Request,
+): Promise<FormData | Response> => {
+  const formData = await request.formData();
+  return (
+    (await verifyCsrf(String(formData.get("csrf_token") ?? "").trim())) ??
+    formData
+  );
+};
+
 /** Handle multipart form request with auth + CSRF — optional role check */
 export const withAuthMultipartForm = (
   request: Request,
   handler: MultipartFormHandler,
   role?: AdminLevel,
 ): Promise<Response> =>
-  requireSessionOr(
-    request,
-    async (session) => {
-      const formData = await request.formData();
-      const csrfToken = String(formData.get("csrf_token") ?? "").trim();
-      if (!(await verifySignedCsrfToken(csrfToken))) {
-        return authFailure("html", "invalid-csrf");
-      }
-      return handler(session, formData);
-    },
-    role,
-  );
+  withAuthBody(request, requireMultipartCsrf, handler, role);
 
 /** Handle multipart form request with owner auth — shorthand for withAuthMultipartForm with owner role */
 export const withOwnerAuthMultipartForm = (
