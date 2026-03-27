@@ -265,6 +265,10 @@ export class TestBrowser {
       form = forms[0];
     }
 
+    if (!form) {
+      throw new Error("No form found on the current page");
+    }
+
     // Collect hidden fields (includes csrf_token)
     const hiddenFields = extractHiddenInputs(form.body);
 

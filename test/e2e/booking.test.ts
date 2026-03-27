@@ -43,8 +43,8 @@ describe("e2e: full booking flow", () => {
     await browser.submitForm(
       {
         admin_username: "admin",
-        admin_password: "Str0ngP@ss123!",
-        admin_password_confirm: "Str0ngP@ss123!",
+        admin_password: "password",
+        admin_password_confirm: "password",
         country: "GB",
         accept_agreement: "yes",
       },
@@ -66,7 +66,7 @@ describe("e2e: full booking flow", () => {
     await browser.submitForm(
       {
         username: "admin",
-        password: "Str0ngP@ss123!",
+        password: "password",
       },
       "Login",
     );
@@ -173,7 +173,7 @@ describe("e2e: full booking flow", () => {
       await browser.submitForm(
         {
           username: "admin",
-          password: "Str0ngP@ss123!",
+          password: "password",
         },
         "Login",
       );
