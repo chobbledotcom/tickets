@@ -16,6 +16,7 @@ import {
   createTestEvent,
   describeWithEnv,
   expectHtmlResponse,
+  requestAsSession,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
@@ -28,16 +29,15 @@ const mockScanRequest = (
   cookie: string,
   csrfToken: string,
 ): Request =>
-  new Request(`http://localhost/admin/event/${eventId}/scan`, {
-    method: "POST",
-    headers: {
-      host: "localhost",
-      "content-type": "application/json",
-      "x-csrf-token": csrfToken,
-      cookie,
+  requestAsSession(
+    `/admin/event/${eventId}/scan`,
+    { cookie, csrfToken },
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+  );
 
 /** Create event + attendee and return session + scan-ready token */
 const setupScanTest = async (

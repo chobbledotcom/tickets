@@ -17,6 +17,7 @@ import {
   logRequest,
   redactPath,
   runWithRequestId,
+  setSuppressRequestLogs,
 } from "#lib/logger.ts";
 import { flushPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
 import {
@@ -98,104 +99,119 @@ describe("logger", () => {
     });
   });
 
-  describeWithEnv(
-    "logRequest",
-    { env: { TEST_SUPPRESS_REQUEST_LOGS: undefined } },
-    () => {
-      let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
+  describe("logRequest", () => {
+    let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
 
-      beforeEach(() => {
-        debugSpy = spy(console, "debug");
+    beforeEach(() => {
+      // Use module-level override to avoid races with parallel test workers
+      // setting TEST_SUPPRESS_REQUEST_LOGS via Deno.env
+      setSuppressRequestLogs(false);
+      debugSpy = spy(console, "debug");
+    });
+
+    afterEach(() => {
+      debugSpy.restore();
+      setSuppressRequestLogs(null);
+    });
+
+    test("logs request with redacted path", () => {
+      const before = debugSpy.calls.length;
+      logRequest({
+        method: "GET",
+        path: "/ticket/my-event",
+        status: 200,
+        durationMs: 42,
       });
 
-      afterEach(() => {
-        debugSpy.restore();
+      const found = debugSpy.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Request] GET /ticket/[redacted] 200 42ms");
+      expect(found).toBe(true);
+    });
+
+    test("logs POST request", () => {
+      const before = debugSpy.calls.length;
+      logRequest({
+        method: "POST",
+        path: "/admin/events/123",
+        status: 201,
+        durationMs: 100,
       });
 
-      test("logs request with redacted path", () => {
-        const before = debugSpy.calls.length;
-        logRequest({
-          method: "GET",
-          path: "/ticket/my-event",
-          status: 200,
-          durationMs: 42,
-        });
+      const found = debugSpy.calls
+        .slice(before)
+        .some(
+          (c) => c.args[0] === "[Request] POST /admin/events/[id] 201 100ms",
+        );
+      expect(found).toBe(true);
+    });
 
-        const found = debugSpy.calls
-          .slice(before)
-          .some(
-            (c) => c.args[0] === "[Request] GET /ticket/[redacted] 200 42ms",
-          );
-        expect(found).toBe(true);
+    test("logs error status codes", () => {
+      const before = debugSpy.calls.length;
+      logRequest({
+        method: "GET",
+        path: "/admin",
+        status: 403,
+        durationMs: 5,
       });
 
-      test("logs POST request", () => {
-        const before = debugSpy.calls.length;
-        logRequest({
-          method: "POST",
-          path: "/admin/events/123",
-          status: 201,
-          durationMs: 100,
-        });
+      const found = debugSpy.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Request] GET /admin 403 5ms");
+      expect(found).toBe(true);
+    });
 
-        const found = debugSpy.calls
-          .slice(before)
-          .some(
-            (c) => c.args[0] === "[Request] POST /admin/events/[id] 201 100ms",
-          );
-        expect(found).toBe(true);
+    test("suppresses logs when override is true", () => {
+      setSuppressRequestLogs(true);
+      const before = debugSpy.calls.length;
+
+      logRequest({
+        method: "POST",
+        path: "/admin/login",
+        status: 302,
+        durationMs: 1,
       });
 
-      test("logs error status codes", () => {
-        const before = debugSpy.calls.length;
-        logRequest({
-          method: "GET",
-          path: "/admin",
-          status: 403,
-          durationMs: 5,
-        });
+      const found = debugSpy.calls
+        .slice(before)
+        .some((c) => String(c.args[0]).includes("[Request] POST /admin/login"));
+      expect(found).toBe(false);
+    });
 
-        const found = debugSpy.calls
-          .slice(before)
-          .some((c) => c.args[0] === "[Request] GET /admin 403 5ms");
-        expect(found).toBe(true);
+    test("logs normally when override is false", () => {
+      const before = debugSpy.calls.length;
+      logRequest({
+        method: "POST",
+        path: "/admin/login",
+        status: 302,
+        durationMs: 1,
       });
 
-      test("suppresses logs when TEST_SUPPRESS_REQUEST_LOGS is set", () => {
-        Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
-        const before = debugSpy.calls.length;
+      const found = debugSpy.calls
+        .slice(before)
+        .some((c) => c.args[0] === "[Request] POST /admin/login 302 1ms");
+      expect(found).toBe(true);
+    });
 
-        logRequest({
-          method: "POST",
-          path: "/admin/login",
-          status: 302,
-          durationMs: 1,
-        });
+    test("falls back to env var when override is null", () => {
+      setSuppressRequestLogs(null);
+      Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
+      const before = debugSpy.calls.length;
 
-        const found = debugSpy.calls
-          .slice(before)
-          .some((c) =>
-            String(c.args[0]).includes("[Request] POST /admin/login"),
-          );
-        expect(found).toBe(false);
+      logRequest({
+        method: "GET",
+        path: "/admin",
+        status: 200,
+        durationMs: 1,
       });
 
-      test("logs normally when TEST_SUPPRESS_REQUEST_LOGS is not set", () => {
-        const before = debugSpy.calls.length;
-        logRequest({
-          method: "POST",
-          path: "/admin/login",
-          status: 302,
-          durationMs: 1,
-        });
-
-        const found = debugSpy.calls
-          .slice(before)
-          .some((c) => c.args[0] === "[Request] POST /admin/login 302 1ms");
-        expect(found).toBe(true);
-      });
-    },
-  );
+      const found = debugSpy.calls
+        .slice(before)
+        .some((c) => String(c.args[0]).includes("[Request] GET /admin"));
+      expect(found).toBe(false);
+      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
+    });
+  });
 
   const setupErrorSpy = () => {
     let errorSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
@@ -564,113 +580,117 @@ describe("logger", () => {
     });
   });
 
-  describeWithEnv(
-    "runWithRequestId",
-    { env: { TEST_SUPPRESS_REQUEST_LOGS: undefined, NTFY_URL: undefined } },
-    () => {
-      test("getRequestId returns ID inside request context", () => {
+  describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
+    beforeEach(() => {
+      setSuppressRequestLogs(false);
+    });
+
+    afterEach(() => {
+      setSuppressRequestLogs(null);
+    });
+
+    test("getRequestId returns ID inside request context", () => {
+      runWithRequestId(() => {
+        const id = getRequestId();
+        expect(id).toMatch(/^[0-9a-f]{4}$/);
+      });
+    });
+
+    test("getRequestId returns empty string outside request context", () => {
+      expect(getRequestId()).toBe("");
+    });
+
+    test("prefixes logRequest with 4-char hex ID", () => {
+      const debugSpy = spy(console, "debug");
+      try {
+        let id = "";
         runWithRequestId(() => {
-          const id = getRequestId();
-          expect(id).toMatch(/^[0-9a-f]{4}$/);
-        });
-      });
-
-      test("getRequestId returns empty string outside request context", () => {
-        expect(getRequestId()).toBe("");
-      });
-
-      test("prefixes logRequest with 4-char hex ID", () => {
-        const debugSpy = spy(console, "debug");
-        try {
-          let id = "";
-          runWithRequestId(() => {
-            id = getRequestId();
-            logRequest({
-              method: "GET",
-              path: "/admin",
-              status: 200,
-              durationMs: 10,
-            });
-          });
-
-          const expected = `[${id}] [Request] GET /admin 200 10ms`;
-          const found = debugSpy.calls.some((c) => c.args[0] === expected);
-          expect(found).toBe(true);
-        } finally {
-          debugSpy.restore();
-        }
-      });
-
-      test("prefixes logError with same request ID", () => {
-        const errorSpy = spy(console, "error");
-        try {
-          let id = "";
-          runWithRequestId(() => {
-            id = getRequestId();
-            logRequest({
-              method: "GET",
-              path: "/admin",
-              status: 200,
-              durationMs: 5,
-            });
-            logErrorLocal({ code: ErrorCode.DB_CONNECTION });
-          });
-
-          const expected = `[${id}] [Error] E_DB_CONNECTION`;
-          const found = errorSpy.calls.some((c) => c.args[0] === expected);
-          expect(found).toBe(true);
-        } finally {
-          errorSpy.restore();
-        }
-      });
-
-      test("prefixes logDebug with request ID", () => {
-        const debugSpy = spy(console, "debug");
-        try {
-          let id = "";
-          runWithRequestId(() => {
-            id = getRequestId();
-            logDebug("Setup", "test message");
-          });
-
-          const expected = `[${id}] [Setup] test message`;
-          const found = debugSpy.calls.some((c) => c.args[0] === expected);
-          expect(found).toBe(true);
-        } finally {
-          debugSpy.restore();
-        }
-      });
-
-      test("different requests get different IDs", () => {
-        const ids: string[] = [];
-        for (let i = 0; i < 10; i++) {
-          runWithRequestId(() => {
-            ids.push(getRequestId());
-          });
-        }
-
-        // With 65536 possible values, 10 samples should not all be identical
-        const unique = new Set(ids);
-        expect(unique.size).toBeGreaterThan(1);
-      });
-
-      test("no prefix outside request context", () => {
-        const debugSpy = spy(console, "debug");
-        try {
+          id = getRequestId();
           logRequest({
             method: "GET",
             path: "/admin",
             status: 200,
             durationMs: 10,
           });
+        });
 
-          const expected = "[Request] GET /admin 200 10ms";
-          const found = debugSpy.calls.some((c) => c.args[0] === expected);
-          expect(found).toBe(true);
-        } finally {
-          debugSpy.restore();
-        }
-      });
-    },
-  );
+        const expected = `[${id}] [Request] GET /admin 200 10ms`;
+        const found = debugSpy.calls.some((c) => c.args[0] === expected);
+        expect(found).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+
+    test("prefixes logError with same request ID", () => {
+      const errorSpy = spy(console, "error");
+      try {
+        let id = "";
+        runWithRequestId(() => {
+          id = getRequestId();
+          logRequest({
+            method: "GET",
+            path: "/admin",
+            status: 200,
+            durationMs: 5,
+          });
+          logErrorLocal({ code: ErrorCode.DB_CONNECTION });
+        });
+
+        const expected = `[${id}] [Error] E_DB_CONNECTION`;
+        const found = errorSpy.calls.some((c) => c.args[0] === expected);
+        expect(found).toBe(true);
+      } finally {
+        errorSpy.restore();
+      }
+    });
+
+    test("prefixes logDebug with request ID", () => {
+      const debugSpy = spy(console, "debug");
+      try {
+        let id = "";
+        runWithRequestId(() => {
+          id = getRequestId();
+          logDebug("Setup", "test message");
+        });
+
+        const expected = `[${id}] [Setup] test message`;
+        const found = debugSpy.calls.some((c) => c.args[0] === expected);
+        expect(found).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+
+    test("different requests get different IDs", () => {
+      const ids: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        runWithRequestId(() => {
+          ids.push(getRequestId());
+        });
+      }
+
+      // With 65536 possible values, 10 samples should not all be identical
+      const unique = new Set(ids);
+      expect(unique.size).toBeGreaterThan(1);
+    });
+
+    test("no prefix outside request context", () => {
+      const debugSpy = spy(console, "debug");
+      try {
+        logRequest({
+          method: "GET",
+          path: "/admin",
+          status: 200,
+          durationMs: 10,
+        });
+
+        const expected = "[Request] GET /admin 200 10ms";
+        const found = debugSpy.calls.some((c) => c.args[0] === expected);
+        expect(found).toBe(true);
+      } finally {
+        debugSpy.restore();
+      }
+    });
+  });
 });
