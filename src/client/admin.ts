@@ -251,7 +251,6 @@ const setupTestButton = (
   url: string,
   cssClass: string,
   // deno-lint-ignore no-explicit-any
-  // biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
   formatLines: (data: any) => string[],
 ) => {
   const button = document.getElementById(btnId);
@@ -282,7 +281,6 @@ const setupTestButton = (
 
 /** Format a webhook status line from a test result's webhook field */
 // deno-lint-ignore no-explicit-any
-// biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
 const formatWebhookLine = (webhook: any, detail?: string): string =>
   webhook.configured
     ? `Webhook: ${detail ?? "configured"}`
@@ -290,7 +288,6 @@ const formatWebhookLine = (webhook: any, detail?: string): string =>
 
 /** Format a Square location line */
 // deno-lint-ignore no-explicit-any
-// biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
 const formatLocationLine = (loc: any): string =>
   loc.configured
     ? `Location: ${loc.name ?? loc.locationId}${loc.status ? ` (${loc.status})` : ""}`
@@ -298,7 +295,6 @@ const formatLocationLine = (loc: any): string =>
 
 /** Format a credential validity line (e.g. "API Key: Valid (test mode)") */
 // deno-lint-ignore no-explicit-any
-// biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
 const formatCredentialLine = (label: string, cred: any): string =>
   cred.valid
     ? `${label}: Valid (${cred.mode} mode)`
@@ -306,7 +302,6 @@ const formatCredentialLine = (label: string, cred: any): string =>
 
 /** Format Stripe webhook endpoint lines */
 // deno-lint-ignore no-explicit-any
-// biome-ignore lint/suspicious/noExplicitAny: untyped JSON from test endpoint
 const formatStripeWebhooks = (data: any): string[] => {
   if (data.webhookError) return [`Webhooks: Error - ${data.webhookError}`];
   if (!data.webhooks?.length) return ["Webhooks: None configured"];
