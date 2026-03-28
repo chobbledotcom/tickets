@@ -224,12 +224,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows host Google Wallet config when env vars set", async () => {
-      Deno.env.set("GOOGLE_WALLET_ISSUER_ID", "3388000000012345678");
-      Deno.env.set(
-        "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
-        "wallet@project.iam.gserviceaccount.com",
-      );
-      Deno.env.set("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY", "pem-key-data");
+      settings.googleWallet.setHostConfigForTest({
+        issuerId: "3388000000012345678",
+        serviceAccountEmail: "wallet@project.iam.gserviceaccount.com",
+        serviceAccountKey: "pem-key-data",
+      });
       try {
         const { response } = await adminGet("/admin/guide");
         const html = await response.text();
@@ -239,9 +238,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         expect(html).toContain("3388000000012345678");
         expect(html).toContain("You need three values from");
       } finally {
-        Deno.env.delete("GOOGLE_WALLET_ISSUER_ID");
-        Deno.env.delete("GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL");
-        Deno.env.delete("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY");
+        settings.googleWallet.resetHostConfig();
       }
     });
 

@@ -517,12 +517,20 @@ const toGoogleCredentials = (
     ? { issuerId, serviceAccountEmail, serviceAccountKey }
     : null;
 
-const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null =>
-  toGoogleCredentials(
-    getEnv("GOOGLE_WALLET_ISSUER_ID"),
-    getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL"),
-    getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY"),
-  );
+const [getHostGoogleWalletOverride, setHostGoogleWalletOverride] = lazyRef<
+  GoogleWalletCredentials | null | undefined
+>(() => undefined);
+
+const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null => {
+  const override = getHostGoogleWalletOverride();
+  return override !== undefined
+    ? override
+    : toGoogleCredentials(
+        getEnv("GOOGLE_WALLET_ISSUER_ID"),
+        getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL"),
+        getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY"),
+      );
+};
 
 // ---------------------------------------------------------------------------
 // Current-task guard — prevents duplicate heavy operations
@@ -846,6 +854,9 @@ export const settings = {
     get hasConfig(): boolean {
       return this.config !== null;
     },
+    setHostConfigForTest: (c: GoogleWalletCredentials | null): void =>
+      setHostGoogleWalletOverride(c),
+    resetHostConfig: (): void => setHostGoogleWalletOverride(undefined),
   },
 
   // --- Setup & auth ---
