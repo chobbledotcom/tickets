@@ -228,14 +228,12 @@ const handleAddEventsToGroup: TypedRouteHandler<
 
 /** Group routes */
 export const groupsRoutes = {
-  ...crud.deleteRoutes,
+  ...crud.routes,
+  // Override: create uses auto-generated slug, detail has custom page
+  "GET /admin/groups/new": crudCreate.newGet,
+  "POST /admin/groups": crudCreate.createPost,
   ...defineRoutes({
-    "GET /admin/groups": crud.listGet,
-    "GET /admin/groups/new": crudCreate.newGet,
-    "POST /admin/groups": crudCreate.createPost,
     "GET /admin/groups/:id": handleGroupDetail,
-    "GET /admin/groups/:id/edit": crud.editGet,
-    "POST /admin/groups/:id/edit": crud.editPost,
     "POST /admin/groups/:id/add-events": handleAddEventsToGroup,
   }),
 };
