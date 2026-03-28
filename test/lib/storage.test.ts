@@ -62,9 +62,9 @@ describeWithEnv(
       });
 
       test("returns true when LOCAL_STORAGE_PATH is set", async () => {
-        await withLocalStorageEnabled(async (dir) => {
+        await withLocalStorageEnabled(async () => {
+          await Promise.resolve();
           expect(isStorageEnabled()).toBe(true);
-          return dir;
         });
       });
     });
