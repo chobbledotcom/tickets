@@ -57,7 +57,12 @@ import {
   isLoginRateLimited,
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
-import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations.ts";
+import {
+  initDb,
+  LATEST_UPDATE,
+  resetDatabase,
+  SCHEMA_HASH,
+} from "#lib/db/migrations.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
@@ -130,6 +135,29 @@ describeWithEnv("db", { db: true }, () => {
         "SELECT value FROM settings WHERE key = 'latest_db_update'",
       );
       expect(result.rows[0]?.value).toBe(LATEST_UPDATE);
+    });
+
+    test("initDb stores db_schema_hash in settings", async () => {
+      const result = await getDb().execute(
+        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+      );
+      expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+    });
+
+    test("initDb re-runs when schema hash changes", async () => {
+      // Simulate a stale hash (schema changed but LATEST_UPDATE wasn't bumped)
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+
+      // initDb should detect the mismatch and re-run
+      await initDb();
+
+      // Verify hash was updated back to current
+      const result = await getDb().execute(
+        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+      );
+      expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
     });
 
     test("initDb can be called multiple times safely", async () => {
@@ -2687,114 +2715,6 @@ describeWithEnv("db", { db: true }, () => {
     });
   });
 
-  describe("initDb checked_in backfill", () => {
-    test("backfills empty checked_in with encrypted false during migration", async () => {
-      // Create an attendee, then simulate pre-migration state
-      const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(
-        event.id,
-        event.slug,
-        "Backfill User",
-        "backfill@example.com",
-      );
-
-      // Set checked_in to empty string to simulate pre-migration data
-      await getDb().execute({
-        sql: "UPDATE attendees SET checked_in = '' WHERE event_id = ?",
-        args: [event.id],
-      });
-
-      // Clear the version marker so initDb re-runs migrations
-      await getDb().execute(
-        "DELETE FROM settings WHERE key = 'latest_db_update'",
-      );
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      // Re-run migrations - should backfill checked_in
-      await initDb();
-
-      // Verify the backfill encrypted the value (no longer empty)
-      const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]?.checked_in as unknown).not.toBe("");
-
-      // Verify it decrypts to "false"
-      const privateKey = await getTestPrivateKey();
-      const decrypted = await decryptAttendees(rows, privateKey);
-      expect(decrypted[0]?.checked_in).toBe(false);
-    });
-  });
-
-  describe("initDb ticket_token backfill", () => {
-    test("backfills empty ticket_token with random tokens during migration", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(
-        event.id,
-        event.slug,
-        "Token User",
-        "token@example.com",
-      );
-
-      // Set ticket_token to empty string to simulate pre-migration data
-      await getDb().execute({
-        sql: "UPDATE attendees SET ticket_token = '' WHERE event_id = ?",
-        args: [event.id],
-      });
-
-      // Clear the version marker so initDb re-runs migrations
-      await getDb().execute(
-        "DELETE FROM settings WHERE key = 'latest_db_update'",
-      );
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      // Re-run migrations - should backfill ticket_token
-      await initDb();
-
-      // Verify the backfill populated a non-empty token
-      const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]?.ticket_token).not.toBe("");
-      expect(rows[0]?.ticket_token.length).toBeGreaterThan(0);
-    });
-
-    test("encrypts plaintext ticket_token and generates HMAC index during migration", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(
-        event.id,
-        event.slug,
-        "Migration User",
-        "migration@example.com",
-      );
-
-      // Simulate pre-encryption state: set ticket_token to plaintext and NULL index
-      const plaintextToken = "plaintext-token-abc123";
-      await getDb().execute({
-        sql: "UPDATE attendees SET ticket_token = ?, ticket_token_index = NULL WHERE event_id = ?",
-        args: [plaintextToken, event.id],
-      });
-
-      // Verify plaintext state
-      const before = await getAttendeesRaw(event.id);
-      expect(before[0]?.ticket_token).toBe(plaintextToken);
-      expect(before[0]?.ticket_token_index).toBeNull();
-
-      // Clear version marker and re-run migrations
-      await getDb().execute(
-        "DELETE FROM settings WHERE key = 'latest_db_update'",
-      );
-      settings.invalidateCache();
-      await settings.loadAll();
-      await initDb();
-
-      // Verify token is now encrypted and index is generated
-      const after = await getAttendeesRaw(event.id);
-      expect(after[0]?.ticket_token).not.toBe(plaintextToken);
-      expect(after[0]?.ticket_token).toContain("hyb:1:");
-      expect(after[0]?.ticket_token_index).not.toBeNull();
-      expect(after[0]?.ticket_token_index).not.toBe("");
-    });
-  });
-
   describe("writeClosesAt", () => {
     test("encrypts empty string for no deadline", async () => {
       const { decrypt } = await import("#lib/crypto.ts");
@@ -2952,69 +2872,6 @@ describeWithEnv("db", { db: true }, () => {
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.bookable_days).toEqual([]);
-    });
-  });
-
-  describe("closes_at migration backfill", () => {
-    test("backfills NULL closes_at to encrypted empty string", async () => {
-      const slugIdx = await computeSlugIndex("test-mig-1");
-      await getDb().execute({
-        sql: "INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, NULL)",
-        args: ["raw-name", "raw-slug", slugIdx, 100, new Date().toISOString()],
-      });
-
-      // Update the version marker to force re-migration
-      await getDb().execute(
-        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
-      );
-      settings.invalidateCache();
-      await settings.loadAll();
-      await initDb();
-
-      // Verify the event now has encrypted closes_at (not NULL)
-      const rows = await getDb().execute(
-        "SELECT closes_at FROM events WHERE slug_index = ?",
-        [slugIdx],
-      );
-      const raw = rows.rows[0]?.closes_at as string | null;
-      expect(raw).not.toBeNull();
-      // Verify it decrypts to empty string (no deadline)
-      const { decrypt } = await import("#lib/crypto.ts");
-      const decrypted = await decrypt(raw as string);
-      expect(decrypted).toBe("");
-    });
-
-    test("leaves already-encrypted closes_at values unchanged", async () => {
-      const { encrypt, decrypt } = await import("#lib/crypto.ts");
-      const encrypted = await encrypt("2099-06-15T14:30:00.000Z");
-      const slugIdx = await computeSlugIndex("test-mig-2");
-      await getDb().execute({
-        sql: "INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, ?)",
-        args: [
-          "enc-name",
-          "enc-slug",
-          slugIdx,
-          100,
-          new Date().toISOString(),
-          encrypted,
-        ],
-      });
-
-      await getDb().execute(
-        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
-      );
-      settings.invalidateCache();
-      await settings.loadAll();
-      await initDb();
-
-      // Verify it still decrypts correctly (not double-encrypted)
-      const rows = await getDb().execute(
-        "SELECT closes_at FROM events WHERE slug_index = ?",
-        [slugIdx],
-      );
-      const raw = rows.rows[0]?.closes_at as string | null;
-      const decrypted = await decrypt(raw as string);
-      expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
     });
   });
 
@@ -3445,88 +3302,6 @@ describeWithEnv("db", { db: true }, () => {
           { eventId: openGroupEvent.id, quantity: 1 },
         ]),
       ).toBe(true);
-    });
-  });
-
-  describe("multi-user admin migration", () => {
-    test("migrates existing admin_password from settings to users table", async () => {
-      const { hashPassword, decrypt } = await import("#lib/crypto.ts");
-
-      // Simulate pre-migration state: admin credentials in settings, no users
-      const passwordHash = await hashPassword("existingpassword");
-      await settings.setRaw("admin_password", passwordHash);
-      await settings.setRaw("wrapped_data_key", "test-wrapped-key");
-      await getDb().execute("DELETE FROM users");
-
-      // Force re-migration
-      await getDb().execute(
-        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
-      );
-      settings.invalidateCache();
-      await settings.loadAll();
-      await initDb();
-
-      // Verify an owner user was created
-      const rows = await getDb().execute("SELECT * FROM users");
-      expect(rows.rows.length).toBe(1);
-
-      const user = rows.rows[0] as unknown as {
-        password_hash: string;
-        wrapped_data_key: string;
-        admin_level: string;
-      };
-      const decryptedLevel = await decrypt(user.admin_level);
-      expect(decryptedLevel).toBe("owner");
-      expect(user.wrapped_data_key).toBe("test-wrapped-key");
-
-      // Verify the password hash was encrypted (not stored raw)
-      const decryptedHash = await decrypt(user.password_hash);
-      expect(decryptedHash).toBe(passwordHash);
-    });
-
-    test("skips migration when users already exist", async () => {
-      // createTestDbWithSetup already created a user
-      await settings.setRaw("admin_password", "old-hash");
-      await settings.setRaw("wrapped_data_key", "old-key");
-
-      const beforeCount = await getDb().execute(
-        "SELECT COUNT(*) as count FROM users",
-      );
-      const countBefore = (beforeCount.rows[0] as unknown as { count: number })
-        .count;
-
-      // Force re-migration
-      await getDb().execute(
-        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
-      );
-      settings.invalidateCache();
-      await settings.loadAll();
-      await initDb();
-
-      // Verify no additional user was created
-      const afterCount = await getDb().execute(
-        "SELECT COUNT(*) as count FROM users",
-      );
-      expect((afterCount.rows[0] as unknown as { count: number }).count).toBe(
-        countBefore,
-      );
-    });
-
-    test("skips migration when no admin_password in settings", async () => {
-      // Remove all users and ensure no admin_password setting exists
-      await getDb().execute("DELETE FROM users");
-
-      // Force re-migration
-      await getDb().execute(
-        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
-      );
-      settings.invalidateCache();
-      await settings.loadAll();
-      await initDb();
-
-      // Verify no user was created
-      const rows = await getDb().execute("SELECT COUNT(*) as count FROM users");
-      expect((rows.rows[0] as unknown as { count: number }).count).toBe(0);
     });
   });
 });

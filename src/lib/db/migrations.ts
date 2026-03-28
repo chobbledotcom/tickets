@@ -1,729 +1,453 @@
 /**
- * Database migrations
+ * Database migrations — declarative schema with algorithmic application
+ *
+ * To modify the schema:
+ * - Add a column: add it to the table's `columns` array
+ * - Add a table: add it to SCHEMA (after its FK dependencies)
+ * - Add an index: add it to the table's `indexes` array
+ *
+ * Then update LATEST_UPDATE to describe the change.
+ * The schema hash is computed automatically — if you forget to update
+ * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
-import {
-  computeTicketTokenIndex,
-  encrypt,
-  encryptAttendeePII,
-  generateTicketToken,
-  hmacHash,
-} from "#lib/crypto.ts";
-import { getDb, queryAll } from "#lib/db/client.ts";
-import { settings } from "#lib/db/settings.ts";
+import { getDb } from "#lib/db/client.ts";
 
-/**
- * The latest database update identifier - update this when changing schema
- */
-export const LATEST_UPDATE =
-  "add attendee pii_blob and plaintext status columns";
+// ─── Types ──────────────────────────────────────────────────────
 
-/**
- * Run a migration that may fail if already applied (e.g., adding a column that exists)
- */
+type Column = [name: string, type: string];
+
+type Index = {
+  name: string;
+  columns: string[];
+  unique?: boolean;
+};
+
+type Table = {
+  columns: Column[];
+  foreignKeys?: string[];
+  indexes?: Index[];
+};
+
+// ─── Version — update LATEST_UPDATE to describe each change ─────
+
+export const LATEST_UPDATE = "declarative schema migrations";
+
+// ─── Schema (ordered: tables with no FK deps first) ─────────────
+
+const SCHEMA: [name: string, table: Table][] = [
+  [
+    "settings",
+    {
+      columns: [
+        ["key", "TEXT PRIMARY KEY"],
+        ["value", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    "events",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["created", "TEXT NOT NULL"],
+        ["max_attendees", "INTEGER NOT NULL"],
+        ["thank_you_url", "TEXT"],
+        ["unit_price", "INTEGER"],
+        ["max_quantity", "INTEGER NOT NULL DEFAULT 1"],
+        ["webhook_url", "TEXT"],
+        ["slug", "TEXT"],
+        ["slug_index", "TEXT"],
+        ["group_id", "INTEGER NOT NULL DEFAULT 0"],
+        ["active", "INTEGER NOT NULL DEFAULT 1"],
+        ["fields", "TEXT NOT NULL DEFAULT 'email'"],
+        ["closes_at", "TEXT"],
+        ["name", "TEXT NOT NULL DEFAULT ''"],
+        ["description", "TEXT NOT NULL DEFAULT ''"],
+        ["event_type", "TEXT NOT NULL DEFAULT 'standard'"],
+        [
+          "bookable_days",
+          `TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]'`,
+        ],
+        ["minimum_days_before", "INTEGER NOT NULL DEFAULT 1"],
+        ["maximum_days_after", "INTEGER NOT NULL DEFAULT 90"],
+        ["date", "TEXT NOT NULL DEFAULT ''"],
+        ["location", "TEXT NOT NULL DEFAULT ''"],
+        ["image_url", "TEXT NOT NULL DEFAULT ''"],
+        ["attachment_url", "TEXT NOT NULL DEFAULT ''"],
+        ["attachment_name", "TEXT NOT NULL DEFAULT ''"],
+        ["non_transferable", "INTEGER NOT NULL DEFAULT 0"],
+        ["can_pay_more", "INTEGER NOT NULL DEFAULT 0"],
+        ["hidden", "INTEGER NOT NULL DEFAULT 0"],
+        ["max_price", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          name: "idx_events_slug_index",
+          columns: ["slug_index"],
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    "users",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["username_hash", "TEXT NOT NULL"],
+        ["username_index", "TEXT NOT NULL"],
+        ["password_hash", "TEXT NOT NULL DEFAULT ''"],
+        ["wrapped_data_key", "TEXT"],
+        ["admin_level", "TEXT NOT NULL"],
+        ["invite_code_hash", "TEXT"],
+        ["invite_expiry", "TEXT"],
+      ],
+      indexes: [
+        {
+          name: "idx_users_username_index",
+          columns: ["username_index"],
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    "sessions",
+    {
+      columns: [
+        ["token", "TEXT PRIMARY KEY"],
+        ["csrf_token", "TEXT NOT NULL"],
+        ["expires", "INTEGER NOT NULL"],
+        ["wrapped_data_key", "TEXT"],
+        ["user_id", "INTEGER"],
+      ],
+    },
+  ],
+
+  [
+    "login_attempts",
+    {
+      columns: [
+        ["ip", "TEXT PRIMARY KEY"],
+        ["attempts", "INTEGER NOT NULL DEFAULT 0"],
+        ["locked_until", "INTEGER"],
+      ],
+    },
+  ],
+
+  [
+    "attendees",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["event_id", "INTEGER NOT NULL"],
+        ["name", "TEXT NOT NULL"],
+        ["email", "TEXT NOT NULL"],
+        ["created", "TEXT NOT NULL"],
+        ["payment_id", "TEXT"],
+        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+        ["phone", "TEXT NOT NULL DEFAULT ''"],
+        ["ticket_token", "TEXT NOT NULL DEFAULT ''"],
+        ["price_paid", "TEXT"],
+        ["checked_in", "TEXT NOT NULL DEFAULT ''"],
+        ["date", "TEXT DEFAULT NULL"],
+        ["address", "TEXT NOT NULL DEFAULT ''"],
+        ["special_instructions", "TEXT NOT NULL DEFAULT ''"],
+        ["ticket_token_index", "TEXT"],
+        ["refunded", "TEXT NOT NULL DEFAULT ''"],
+        ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
+        ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
+        ["checked_in_v2", "INTEGER NOT NULL DEFAULT 0"],
+        ["refunded_v2", "INTEGER NOT NULL DEFAULT 0"],
+        ["price_paid_v2", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      foreignKeys: ["FOREIGN KEY (event_id) REFERENCES events(id)"],
+      indexes: [
+        {
+          name: "idx_attendees_ticket_token_index",
+          columns: ["ticket_token_index"],
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    "processed_payments",
+    {
+      columns: [
+        ["payment_session_id", "TEXT PRIMARY KEY"],
+        ["attendee_id", "INTEGER"],
+        ["processed_at", "TEXT NOT NULL"],
+        ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
+      ],
+      foreignKeys: ["FOREIGN KEY (attendee_id) REFERENCES attendees(id)"],
+    },
+  ],
+
+  [
+    "activity_log",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["created", "TEXT NOT NULL"],
+        ["event_id", "INTEGER"],
+        ["message", "TEXT NOT NULL"],
+      ],
+      foreignKeys: [
+        "FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL",
+      ],
+    },
+  ],
+
+  [
+    "groups",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["slug", "TEXT NOT NULL"],
+        ["slug_index", "TEXT NOT NULL"],
+        ["name", "TEXT NOT NULL"],
+        ["terms_and_conditions", "TEXT NOT NULL DEFAULT ''"],
+        ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          name: "idx_groups_slug_index",
+          columns: ["slug_index"],
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    "holidays",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["name", "TEXT NOT NULL"],
+        ["start_date", "TEXT NOT NULL"],
+        ["end_date", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    "api_keys",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["user_id", "INTEGER NOT NULL"],
+        ["key_index", "TEXT NOT NULL"],
+        ["wrapped_data_key", "TEXT NOT NULL"],
+        ["name", "TEXT NOT NULL"],
+        ["created", "TEXT NOT NULL"],
+        ["last_used", "TEXT NOT NULL DEFAULT ''"],
+      ],
+      foreignKeys: [
+        "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+      ],
+      indexes: [
+        {
+          name: "idx_api_keys_key_index",
+          columns: ["key_index"],
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    "questions",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["text", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    "answers",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["question_id", "INTEGER NOT NULL"],
+        ["text", "TEXT NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      foreignKeys: ["FOREIGN KEY (question_id) REFERENCES questions(id)"],
+      indexes: [{ name: "idx_answers_question_id", columns: ["question_id"] }],
+    },
+  ],
+
+  [
+    "event_questions",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["event_id", "INTEGER NOT NULL"],
+        ["question_id", "INTEGER NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      foreignKeys: [
+        "FOREIGN KEY (event_id) REFERENCES events(id)",
+        "FOREIGN KEY (question_id) REFERENCES questions(id)",
+      ],
+      indexes: [
+        { name: "idx_event_questions_event_id", columns: ["event_id"] },
+        {
+          name: "idx_event_questions_unique",
+          columns: ["event_id", "question_id"],
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    "attendee_answers",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["answer_id", "INTEGER NOT NULL"],
+      ],
+      foreignKeys: [
+        "FOREIGN KEY (attendee_id) REFERENCES attendees(id)",
+        "FOREIGN KEY (answer_id) REFERENCES answers(id)",
+      ],
+      indexes: [
+        {
+          name: "idx_attendee_answers_attendee_id",
+          columns: ["attendee_id"],
+        },
+        { name: "idx_attendee_answers_answer_id", columns: ["answer_id"] },
+        {
+          name: "idx_attendee_answers_unique",
+          columns: ["attendee_id", "answer_id"],
+          unique: true,
+        },
+      ],
+    },
+  ],
+];
+
+// ─── Schema hash (auto-detects changes even if LATEST_UPDATE isn't bumped) ──
+
+/** DJB2 hash — deterministic, fast, good enough for change detection */
+const djb2 = (str: string): string => {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+};
+
+export const SCHEMA_HASH = djb2(JSON.stringify(SCHEMA));
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+/** Run a migration that may fail if already applied */
 const runMigration = async (sql: string): Promise<void> => {
   try {
     await getDb().execute(sql);
   } catch {
-    // Migration already applied, ignore error
+    // Already applied
   }
 };
 
-/** Backfill a column with an encrypted value for matching rows */
-const backfillColumn = async (
-  table: string,
-  column: string,
-  whereClause: string,
-  encryptedValue: string,
-): Promise<void> => {
-  const rows = await queryAll<{ id: number }>(
-    `SELECT id FROM ${table} WHERE ${whereClause}`,
-  );
-  for (const row of rows) {
-    await getDb().execute({
-      sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`,
-      args: [encryptedValue, row.id],
-    });
-  }
+/** Get the set of existing column names for a table */
+const getExistingColumns = async (table: string): Promise<Set<string>> => {
+  const result = await getDb().execute(`PRAGMA table_info(${table})`);
+  return new Set(result.rows.map((row) => String(row.name)));
 };
 
-/** Backfill a column with a symmetrically encrypted empty string */
-const backfillEncryptedColumn = async (
-  table: string,
-  column: string,
-  whereClause: string,
-): Promise<void> =>
-  backfillColumn(table, column, whereClause, await encrypt(""));
-
-/** Add encrypted TEXT columns to a table with backfill */
-const addEncryptedTextColumns = async (
-  table: string,
-  columns: string[],
-): Promise<void> => {
-  for (const col of columns) {
-    await runMigration(
-      `ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`,
-    );
-    await backfillEncryptedColumn(table, col, `${col} = ''`);
-  }
-};
-
-/** Backfill a column with a hybrid-encrypted empty string */
-const backfillHybridEncryptedColumn = async (
-  table: string,
-  column: string,
-  whereClause: string,
-): Promise<void> => {
-  const publicKey = settings.publicKey;
-  if (!publicKey) return;
-  await backfillColumn(
-    table,
-    column,
-    whereClause,
-    await encryptAttendeePII("", publicKey),
-  );
-};
-
-/** Check if a table has a specific column */
-const tableHasColumn = async (
-  table: string,
-  column: string,
-): Promise<boolean> => {
-  try {
-    const result = await getDb().execute(`PRAGMA table_info(${table})`);
-    return result.rows.some((row) => row.name === column);
-  } catch {
-    return false;
-  }
-};
-
-/**
- * Check if database is already up to date by reading from settings table
- */
+/** Check if database is already up to date (version + schema hash) */
 const isDbUpToDate = async (): Promise<boolean> => {
   try {
     const result = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'latest_db_update'",
+      "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
     );
-    return result.rows[0]?.value === LATEST_UPDATE;
+    const values = new Map(
+      result.rows.map((r) => [r.key as string, r.value as string]),
+    );
+    return (
+      values.get("latest_db_update") === LATEST_UPDATE &&
+      values.get("db_schema_hash") === SCHEMA_HASH
+    );
   } catch {
-    // Table doesn't exist or other error, need to run migrations
     return false;
   }
 };
 
+// ─── Main migration ─────────────────────────────────────────────
+
 /**
- * Initialize database tables
+ * Initialize database tables — idempotent, safe to call on every startup.
+ *
+ * 1. Create tables that don't exist
+ * 2. Add any missing columns to existing tables
+ * 3. Create any missing indexes
  */
 export const initDb = async (): Promise<void> => {
-  // Check if database is already up to date - bail early if so
-  if (await isDbUpToDate()) {
-    return;
-  }
+  if (await isDbUpToDate()) return;
 
-  // Create settings table
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )
-  `);
-
-  // Create events table (includes all columns for fresh installs;
-  // ALTER TABLE migrations below are no-ops for new databases)
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      created TEXT NOT NULL,
-      max_attendees INTEGER NOT NULL,
-      thank_you_url TEXT,
-      unit_price INTEGER,
-      max_quantity INTEGER NOT NULL DEFAULT 1,
-      webhook_url TEXT,
-      slug TEXT,
-      slug_index TEXT,
-      group_id INTEGER NOT NULL DEFAULT 0,
-      active INTEGER NOT NULL DEFAULT 1,
-      fields TEXT NOT NULL DEFAULT 'email',
-      closes_at TEXT,
-      name TEXT NOT NULL DEFAULT '',
-      description TEXT NOT NULL DEFAULT '',
-      event_type TEXT NOT NULL DEFAULT 'standard',
-      bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
-      minimum_days_before INTEGER NOT NULL DEFAULT 1,
-      maximum_days_after INTEGER NOT NULL DEFAULT 90,
-      date TEXT NOT NULL DEFAULT '',
-      location TEXT NOT NULL DEFAULT '',
-      image_url TEXT NOT NULL DEFAULT '',
-      attachment_url TEXT NOT NULL DEFAULT '',
-      attachment_name TEXT NOT NULL DEFAULT '',
-      non_transferable INTEGER NOT NULL DEFAULT 0,
-      can_pay_more INTEGER NOT NULL DEFAULT 0,
-      hidden INTEGER NOT NULL DEFAULT 0,
-      max_price INTEGER NOT NULL DEFAULT 0
-    )
-  `);
-
-  // Create index on slug_index for fast lookups
-  await runMigration(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug_index ON events(slug_index)
-  `);
-
-  // Create attendees table (includes all columns for fresh installs;
-  // ALTER TABLE migrations below are no-ops for new databases)
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS attendees (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      created TEXT NOT NULL,
-      payment_id TEXT,
-      quantity INTEGER NOT NULL DEFAULT 1,
-      phone TEXT NOT NULL DEFAULT '',
-      ticket_token TEXT NOT NULL DEFAULT '',
-      price_paid TEXT,
-      checked_in TEXT NOT NULL DEFAULT '',
-      date TEXT DEFAULT NULL,
-      address TEXT NOT NULL DEFAULT '',
-      special_instructions TEXT NOT NULL DEFAULT '',
-      ticket_token_index TEXT,
-      refunded TEXT NOT NULL DEFAULT '',
-      attachment_downloads INTEGER NOT NULL DEFAULT 0,
-      pii_blob TEXT NOT NULL DEFAULT '',
-      checked_in_v2 INTEGER NOT NULL DEFAULT 0,
-      refunded_v2 INTEGER NOT NULL DEFAULT 0,
-      price_paid_v2 INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (event_id) REFERENCES events(id)
-    )
-  `);
-
-  // Migration: rename stripe_payment_id -> payment_id for existing databases
-  await runMigration(
-    "ALTER TABLE attendees RENAME COLUMN stripe_payment_id TO payment_id",
-  );
-
-  // Create sessions table (includes all columns for fresh installs)
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      token TEXT PRIMARY KEY,
-      csrf_token TEXT NOT NULL,
-      expires INTEGER NOT NULL,
-      wrapped_data_key TEXT,
-      user_id INTEGER
-    )
-  `);
-
-  // Create login_attempts table
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS login_attempts (
-      ip TEXT PRIMARY KEY,
-      attempts INTEGER NOT NULL DEFAULT 0,
-      locked_until INTEGER
-    )
-  `);
-
-  // Create processed_payments table for webhook idempotency
-  // Tracks payment session IDs to prevent duplicate attendee creation
-  // attendee_id is nullable: NULL means session is reserved but attendee not yet created
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS processed_payments (
-      payment_session_id TEXT PRIMARY KEY,
-      attendee_id INTEGER,
-      processed_at TEXT NOT NULL,
-      FOREIGN KEY (attendee_id) REFERENCES attendees(id)
-    )
-  `);
-
-  // Migration: rename stripe_session_id -> payment_session_id for existing databases
-  // SQLite doesn't support ALTER COLUMN RENAME before 3.25, so recreate the table
-  // Guard: only run destructive DROP+RENAME if the old column still exists
-  if (await tableHasColumn("processed_payments", "stripe_session_id")) {
-    await getDb().execute(`
-      CREATE TABLE IF NOT EXISTS processed_payments_new (
-        payment_session_id TEXT PRIMARY KEY,
-        attendee_id INTEGER,
-        processed_at TEXT NOT NULL,
-        FOREIGN KEY (attendee_id) REFERENCES attendees(id)
-      )
-    `);
-    await getDb().execute(`
-      INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
-      SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments
-      WHERE typeof(stripe_session_id) = 'text'
-    `);
-    await getDb().execute(`
-      INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
-      SELECT payment_session_id, attendee_id, processed_at FROM processed_payments
-      WHERE typeof(payment_session_id) = 'text'
-    `);
-    await getDb().execute("DROP TABLE processed_payments");
-    await getDb().execute(
-      "ALTER TABLE processed_payments_new RENAME TO processed_payments",
+  // 1. Create tables
+  for (const [name, table] of SCHEMA) {
+    const parts = [
+      ...table.columns.map(([col, type]) => `${col} ${type}`),
+      ...(table.foreignKeys ?? []),
+    ];
+    await runMigration(
+      `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`,
     );
   }
 
-  // Migration: add price_paid column to attendees (encrypted with DB_ENCRYPTION_KEY)
-  await runMigration("ALTER TABLE attendees ADD COLUMN price_paid TEXT");
-
-  // Create activity_log table (unencrypted, admin-only view)
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS activity_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      created TEXT NOT NULL,
-      event_id INTEGER,
-      message TEXT NOT NULL,
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Migration: add fields column to events (defaults to "email" for backwards compatibility)
-  await runMigration(
-    `ALTER TABLE events ADD COLUMN fields TEXT NOT NULL DEFAULT 'email'`,
-  );
-
-  // Migration: add phone column to attendees (nullable, hybrid encrypted like email)
-  await runMigration("ALTER TABLE attendees ADD COLUMN phone TEXT");
-
-  // Migration: add name column to events (encrypted, defaults to existing slug for backfill)
-  await runMigration(
-    `ALTER TABLE events ADD COLUMN name TEXT NOT NULL DEFAULT ''`,
-  );
-  await runMigration(`UPDATE events SET name = slug WHERE name = ''`);
-
-  // Migration: add description column to events (encrypted empty string for existing rows)
-  await runMigration(
-    `ALTER TABLE events ADD COLUMN description TEXT NOT NULL DEFAULT ''`,
-  );
-  const encryptedEmpty = await encrypt("");
-  await getDb().execute({
-    sql: `UPDATE events SET description = ? WHERE description = ''`,
-    args: [encryptedEmpty],
-  });
-
-  // Migration: add checked_in column to attendees (hybrid encrypted, defaults to encrypted "false")
-  await runMigration(
-    `ALTER TABLE attendees ADD COLUMN checked_in TEXT NOT NULL DEFAULT ''`,
-  );
-  // Backfill existing attendees with encrypted "false" if public key is available
-  const publicKey = settings.publicKey;
-  if (publicKey) {
-    const encryptedFalse = await encryptAttendeePII("false", publicKey);
-    await getDb().execute({
-      sql: `UPDATE attendees SET checked_in = ? WHERE checked_in = ''`,
-      args: [encryptedFalse],
-    });
-  }
-
-  // Migration: add closes_at column to events (encrypted, empty string = no deadline)
-  await runMigration("ALTER TABLE events ADD COLUMN closes_at TEXT");
-
-  // Backfill: encrypt NULL closes_at to encrypted empty string for existing events
-  await backfillEncryptedColumn("events", "closes_at", "closes_at IS NULL");
-
-  // Create users table for multi-user admin access
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username_hash TEXT NOT NULL,
-      username_index TEXT NOT NULL,
-      password_hash TEXT NOT NULL DEFAULT '',
-      wrapped_data_key TEXT,
-      admin_level TEXT NOT NULL,
-      invite_code_hash TEXT,
-      invite_expiry TEXT
-    )
-  `);
-
-  // Create unique index on username_index for fast lookups
-  await runMigration(
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_index ON users(username_index)",
-  );
-
-  // Migration: migrate existing single-admin credentials to users table
-  // For pre-multi-user installations, admin_password and wrapped_data_key are in settings
-  {
-    const existingPasswordHash = settings.getCachedRaw("admin_password");
-    const userCountRows = await queryAll<{ count: number }>(
-      "SELECT COUNT(*) as count FROM users",
-    );
-    const hasNoUsers = userCountRows[0]!.count === 0;
-
-    if (existingPasswordHash && hasNoUsers) {
-      const username = "admin";
-      const usernameIndex = await hmacHash(username);
-      const encryptedUsername = await encrypt(username);
-      const encryptedPasswordHash = await encrypt(existingPasswordHash);
-      const encryptedAdminLevel = await encrypt("owner");
-
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-              VALUES (?, ?, ?, ?, ?)`,
-        args: [
-          encryptedUsername,
-          usernameIndex,
-          encryptedPasswordHash,
-          settings.getCachedRaw("wrapped_data_key"),
-          encryptedAdminLevel,
-        ],
-      });
-    }
-  }
-
-  // Migration: add user_id column to sessions (nullable for migration compatibility)
-  await runMigration("ALTER TABLE sessions ADD COLUMN user_id INTEGER");
-
-  // Clear sessions without user_id (pre-migration sessions)
-  await runMigration("DELETE FROM sessions WHERE user_id IS NULL");
-
-  // Migration: add ticket_token column to attendees (unique, for public ticket URLs)
-  await runMigration(
-    `ALTER TABLE attendees ADD COLUMN ticket_token TEXT NOT NULL DEFAULT ''`,
-  );
-
-  // Backfill existing attendees with random tokens
-  {
-    const rows = await queryAll<{ id: number }>(
-      `SELECT id FROM attendees WHERE ticket_token = ''`,
-    );
-    for (const row of rows) {
-      await getDb().execute({
-        sql: "UPDATE attendees SET ticket_token = ? WHERE id = ?",
-        args: [generateTicketToken(), row.id],
-      });
-    }
-  }
-
-  // Create unique index on ticket_token for fast lookups
-  await runMigration(
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token ON attendees(ticket_token)",
-  );
-
-  // Migration: add event_type and daily booking config columns to events
-  await runMigration(
-    `ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'standard'`,
-  );
-  await runMigration(
-    `ALTER TABLE events ADD COLUMN bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]'`,
-  );
-  await runMigration(
-    "ALTER TABLE events ADD COLUMN minimum_days_before INTEGER NOT NULL DEFAULT 1",
-  );
-  await runMigration(
-    "ALTER TABLE events ADD COLUMN maximum_days_after INTEGER NOT NULL DEFAULT 90",
-  );
-
-  // Migration: create holidays table
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS holidays (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      start_date TEXT NOT NULL,
-      end_date TEXT NOT NULL
-    )
-  `);
-
-  // Migration: create groups table
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS groups (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug TEXT NOT NULL,
-      slug_index TEXT NOT NULL,
-      name TEXT NOT NULL,
-      terms_and_conditions TEXT NOT NULL DEFAULT '',
-      max_attendees INTEGER NOT NULL DEFAULT 0
-    )
-  `);
-
-  // Create unique index on group slug_index for fast lookups
-  await runMigration(
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_slug_index ON groups(slug_index)",
-  );
-
-  // Migration: add group_id column to events (default 0 = no group)
-  await runMigration(
-    "ALTER TABLE events ADD COLUMN group_id INTEGER NOT NULL DEFAULT 0",
-  );
-  // Safety net: ensure existing rows never have NULL
-  await runMigration("UPDATE events SET group_id = 0 WHERE group_id IS NULL");
-
-  // Migration: add date column to attendees for daily events
-  await runMigration("ALTER TABLE attendees ADD COLUMN date TEXT DEFAULT NULL");
-
-  // Migration: add address column to attendees (hybrid encrypted like phone)
-  await runMigration(
-    `ALTER TABLE attendees ADD COLUMN address TEXT NOT NULL DEFAULT ''`,
-  );
-
-  // Migration: convert event fields from "both" to "email,phone" (comma-separated format)
-  await runMigration(
-    `UPDATE events SET fields = 'email,phone' WHERE fields = 'both'`,
-  );
-
-  // Migration: add date and location columns to events (encrypted, empty string = not set)
-  await addEncryptedTextColumns("events", ["date", "location"]);
-
-  // Migration: add special_instructions column to attendees (hybrid encrypted like address)
-  await runMigration(
-    `ALTER TABLE attendees ADD COLUMN special_instructions TEXT NOT NULL DEFAULT ''`,
-  );
-
-  // Migration: add image_url column to events (encrypted, empty string = no image)
-  await runMigration(
-    `ALTER TABLE events ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`,
-  );
-  await backfillEncryptedColumn("events", "image_url", `image_url = ''`);
-
-  // Migration: add ticket_token_index column for HMAC-based lookups
-  await runMigration(
-    "ALTER TABLE attendees ADD COLUMN ticket_token_index TEXT",
-  );
-
-  // Backfill: encrypt empty PII fields with encrypted empty strings
-  await backfillHybridEncryptedColumn("attendees", "email", `email = ''`);
-  await backfillHybridEncryptedColumn("attendees", "phone", `phone = ''`);
-  await backfillHybridEncryptedColumn("attendees", "address", `address = ''`);
-  await backfillHybridEncryptedColumn(
-    "attendees",
-    "special_instructions",
-    `special_instructions = ''`,
-  );
-
-  // Backfill: encrypt existing plaintext ticket_token values and generate HMAC indexes
-  {
-    const pubKey = settings.publicKey;
-    if (pubKey) {
-      // Get all attendees that need migration (those with plaintext tokens or missing index)
-      const attendees = await queryAll<{ id: number; ticket_token: string }>(
-        "SELECT id, ticket_token FROM attendees WHERE ticket_token_index IS NULL",
-      );
-
-      for (const attendee of attendees) {
-        // Token is plaintext - encrypt it and generate index
-        const plaintextToken = attendee.ticket_token;
-        const encryptedToken = await encryptAttendeePII(plaintextToken, pubKey);
-        const tokenIndex = await computeTicketTokenIndex(plaintextToken);
-
-        await getDb().execute({
-          sql: "UPDATE attendees SET ticket_token = ?, ticket_token_index = ? WHERE id = ?",
-          args: [encryptedToken, tokenIndex, attendee.id],
-        });
+  // 2. Add missing columns
+  for (const [name, table] of SCHEMA) {
+    const existing = await getExistingColumns(name);
+    for (const [col, type] of table.columns) {
+      if (!existing.has(col)) {
+        await runMigration(`ALTER TABLE ${name} ADD COLUMN ${col} ${type}`);
       }
     }
   }
 
-  // Drop old unique index on ticket_token (tokens are now encrypted, so index is not useful)
-  await runMigration("DROP INDEX IF EXISTS idx_attendees_ticket_token");
+  // 3. Create indexes
+  for (const [name, table] of SCHEMA) {
+    for (const idx of table.indexes ?? []) {
+      const unique = idx.unique ? "UNIQUE " : "";
+      await runMigration(
+        `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${name}(${idx.columns.join(", ")})`,
+      );
+    }
+  }
 
-  // Create unique index on ticket_token_index for fast HMAC-based lookups
-  await runMigration(
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token_index ON attendees(ticket_token_index)",
-  );
-
-  // Migration: backfill NULL price_paid with encrypted "0" and NULL payment_id with encrypted ""
-  await backfillEncryptedColumn(
-    "attendees",
-    "price_paid",
-    "price_paid IS NULL",
-  );
-  await backfillHybridEncryptedColumn(
-    "attendees",
-    "payment_id",
-    "payment_id IS NULL",
-  );
-
-  // Migration: add refunded column to attendees (hybrid encrypted, "true"/"false" like checked_in)
-  await runMigration(
-    `ALTER TABLE attendees ADD COLUMN refunded TEXT NOT NULL DEFAULT ''`,
-  );
-  await backfillHybridEncryptedColumn("attendees", "refunded", `refunded = ''`);
-
-  // Migration: backfill NULL thank_you_url and webhook_url with encrypted empty strings
-  await backfillEncryptedColumn(
-    "events",
-    "thank_you_url",
-    "thank_you_url IS NULL",
-  );
-  await backfillEncryptedColumn("events", "webhook_url", "webhook_url IS NULL");
-
-  // Migration: add non_transferable column to events (boolean, default false)
-  await runMigration(
-    "ALTER TABLE events ADD COLUMN non_transferable INTEGER NOT NULL DEFAULT 0",
-  );
-
-  // Migration: add can_pay_more column to events (boolean, defaults to false/0)
-  await runMigration(
-    "ALTER TABLE events ADD COLUMN can_pay_more INTEGER NOT NULL DEFAULT 0",
-  );
-
-  // Migration: backfill existing NULL unit_price values to 0
-  // (SQLite cannot ALTER COLUMN to add NOT NULL; application code enforces non-null going forward)
-  await runMigration(
-    "UPDATE events SET unit_price = 0 WHERE unit_price IS NULL",
-  );
-
-  // Migration: add hidden column to events (boolean, defaults to false/0)
-  await runMigration(
-    "ALTER TABLE events ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0",
-  );
-
-  // Migration: add max_price column to events (integer in minor units, 0 = use default)
-  await runMigration(
-    "ALTER TABLE events ADD COLUMN max_price INTEGER NOT NULL DEFAULT 0",
-  );
-
-  // Migration: add attachment columns to events (encrypted, empty string = no attachment)
-  await addEncryptedTextColumns("events", [
-    "attachment_url",
-    "attachment_name",
-  ]);
-
-  // Migration: add attachment_downloads column to attendees (plaintext integer counter)
-  await runMigration(
-    "ALTER TABLE attendees ADD COLUMN attachment_downloads INTEGER NOT NULL DEFAULT 0",
-  );
-
-  // Migration: add ticket_tokens column to processed_payments
-  // Stores plaintext tokens so already-processed sessions can still show ticket links
-  await runMigration(
-    "ALTER TABLE processed_payments ADD COLUMN ticket_tokens TEXT NOT NULL DEFAULT ''",
-  );
-
-  // Migration: add max_attendees column to groups (0 = no group-wide limit)
-  await runMigration(
-    "ALTER TABLE groups ADD COLUMN max_attendees INTEGER NOT NULL DEFAULT 0",
-  );
-
-  // Create api_keys table for programmatic admin access
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS api_keys (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      key_index TEXT NOT NULL,
-      wrapped_data_key TEXT NOT NULL,
-      name TEXT NOT NULL,
-      created TEXT NOT NULL,
-      last_used TEXT NOT NULL DEFAULT '',
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Create unique index on key_index for fast lookups
-  await runMigration(
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_key_index ON api_keys(key_index)",
-  );
-
-  // Migration: create custom questions tables
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS questions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      text TEXT NOT NULL
-    )
-  `);
-
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS answers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      question_id INTEGER NOT NULL,
-      text TEXT NOT NULL,
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (question_id) REFERENCES questions(id)
-    )
-  `);
-
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS event_questions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
-      question_id INTEGER NOT NULL,
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (event_id) REFERENCES events(id),
-      FOREIGN KEY (question_id) REFERENCES questions(id)
-    )
-  `);
-
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS attendee_answers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      attendee_id INTEGER NOT NULL,
-      answer_id INTEGER NOT NULL,
-      FOREIGN KEY (attendee_id) REFERENCES attendees(id),
-      FOREIGN KEY (answer_id) REFERENCES answers(id)
-    )
-  `);
-
-  // Migration: add indexes on question-related foreign key columns
-  await runMigration(
-    "CREATE INDEX idx_answers_question_id ON answers(question_id)",
-  );
-  await runMigration(
-    "CREATE INDEX idx_event_questions_event_id ON event_questions(event_id)",
-  );
-  await runMigration(
-    "CREATE INDEX idx_attendee_answers_attendee_id ON attendee_answers(attendee_id)",
-  );
-  await runMigration(
-    "CREATE INDEX idx_attendee_answers_answer_id ON attendee_answers(answer_id)",
-  );
-
-  // Migration: add unique constraints to prevent duplicate mappings
-  await runMigration(
-    "CREATE UNIQUE INDEX idx_event_questions_unique ON event_questions(event_id, question_id)",
-  );
-  await runMigration(
-    "CREATE UNIQUE INDEX idx_attendee_answers_unique ON attendee_answers(attendee_id, answer_id)",
-  );
-
-  // Migration: add pii_blob column for consolidated encrypted PII
-  await runMigration(
-    "ALTER TABLE attendees ADD COLUMN pii_blob TEXT NOT NULL DEFAULT ''",
-  );
-
-  // Migration: add plaintext status columns (replacing encrypted checked_in/refunded/price_paid)
-  await runMigration(
-    "ALTER TABLE attendees ADD COLUMN checked_in_v2 INTEGER NOT NULL DEFAULT 0",
-  );
-  await runMigration(
-    "ALTER TABLE attendees ADD COLUMN refunded_v2 INTEGER NOT NULL DEFAULT 0",
-  );
-  await runMigration(
-    "ALTER TABLE attendees ADD COLUMN price_paid_v2 INTEGER NOT NULL DEFAULT 0",
-  );
-
-  // Update the version marker
+  // 4. Update version marker and schema hash
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
   });
+  await getDb().execute({
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+    args: [SCHEMA_HASH],
+  });
 };
 
-/**
- * All database tables in order for safe dropping (respects foreign key constraints)
- */
-const ALL_TABLES = [
-  "attendee_answers",
-  "event_questions",
-  "answers",
-  "questions",
-  "api_keys",
-  "groups",
-  "holidays",
-  "activity_log",
-  "processed_payments",
-  "attendees",
-  "events",
-  "sessions",
-  "users",
-  "login_attempts",
-  "settings",
-] as const;
+// ─── Reset ──────────────────────────────────────────────────────
 
 /**
- * Reset the database by dropping all tables
+ * Reset the database by dropping all tables (reverse order for FK safety)
  */
 export const resetDatabase = async (): Promise<void> => {
   const client = getDb();
-  for (const table of ALL_TABLES) {
-    await client.execute(`DROP TABLE IF EXISTS ${table}`);
+  for (const [name] of [...SCHEMA].reverse()) {
+    await client.execute(`DROP TABLE IF EXISTS ${name}`);
   }
 };
