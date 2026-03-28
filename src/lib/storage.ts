@@ -23,6 +23,8 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 interface StorageConfig {
   zoneName: string;
   zoneKey: string;
+  /** Override local storage path for tests. "" = disabled, undefined = use env var. */
+  localPath?: string;
 }
 
 const storageConfigStore = new AsyncLocalStorage<StorageConfig>();
@@ -43,6 +45,18 @@ const getStorageConfig = (): StorageConfig => {
   };
 };
 
+/**
+ * Get the effective local storage path.
+ * Returns null if local storage is not configured or explicitly disabled.
+ */
+const getLocalStoragePath = (): string | null => {
+  const ctx = storageConfigStore.getStore();
+  if (ctx && "localPath" in ctx) {
+    return ctx.localPath || null;
+  }
+  return getEnv("LOCAL_STORAGE_PATH") ?? null;
+};
+
 /** Supported image types — single source of truth for mime, extension, and magic bytes */
 const IMAGE_TYPES = [
   { mime: "image/jpeg", ext: ".jpg", magic: [0xff, 0xd8, 0xff] },
@@ -56,12 +70,19 @@ const MIME_TO_EXT = Object.fromEntries(IMAGE_TYPES.map((t) => [t.mime, t.ext]));
 const EXT_TO_MIME = Object.fromEntries(IMAGE_TYPES.map((t) => [t.ext, t.mime]));
 
 /**
- * Check if image storage is enabled (both env vars are set)
+ * Returns which storage backend is active: "bunny", "local", or "none".
  */
-export const isStorageEnabled = (): boolean => {
+export const getStorageBackend = (): "bunny" | "local" | "none" => {
   const { zoneName, zoneKey } = getStorageConfig();
-  return !!zoneName && !!zoneKey;
+  if (zoneName && zoneKey) return "bunny";
+  if (getLocalStoragePath()) return "local";
+  return "none";
 };
+
+/**
+ * Check if image storage is enabled (Bunny CDN or local filesystem).
+ */
+export const isStorageEnabled = (): boolean => getStorageBackend() !== "none";
 
 /**
  * Get the proxy URL path for serving a decrypted image.
@@ -170,12 +191,47 @@ export const generateImageFilename = (detectedType: string): string => {
   return `${crypto.randomUUID()}${ext}`;
 };
 
+// ---------------------------------------------------------------------------
+// Local filesystem backend
+// ---------------------------------------------------------------------------
+
+/** Write encrypted bytes to the local storage directory */
+const localWrite = async (
+  data: Uint8Array,
+  filename: string,
+): Promise<void> => {
+  const dir = getLocalStoragePath() as string;
+  await Deno.mkdir(dir, { recursive: true });
+  await Deno.writeFile(`${dir}/${filename}`, data);
+};
+
+/** Read encrypted bytes from the local storage directory. Returns null if missing. */
+const localRead = async (filename: string): Promise<Uint8Array | null> => {
+  const dir = getLocalStoragePath() as string;
+  try {
+    return await Deno.readFile(`${dir}/${filename}`);
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) return null;
+    throw err;
+  }
+};
+
+/** Remove a file from the local storage directory */
+const localRemove = async (filename: string): Promise<void> => {
+  const dir = getLocalStoragePath() as string;
+  await Deno.remove(`${dir}/${filename}`);
+};
+
+// ---------------------------------------------------------------------------
+// Bunny CDN backend
+// ---------------------------------------------------------------------------
+
 /** Connect to the Bunny storage zone */
 const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
   const { zoneName, zoneKey } = getStorageConfig();
   if (!zoneName || !zoneKey) {
     throw new Error(
-      "Required environment variable STORAGE_ZONE_NAME is not set",
+      "Storage is not configured. Set STORAGE_ZONE_NAME and STORAGE_ZONE_KEY for Bunny CDN, or LOCAL_STORAGE_PATH for local storage.",
     );
   }
   return BunnyStorageSDK.zone.connect_with_accesskey(
@@ -185,12 +241,16 @@ const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
   );
 };
 
-/** Encrypt and upload bytes to Bunny storage, returning the filename */
+/** Encrypt and upload bytes, routing to local or Bunny based on config */
 const encryptAndUpload = async (
   data: Uint8Array,
   filename: string,
 ): Promise<string> => {
   const encrypted = await encryptBytes(data);
+  if (getLocalStoragePath() !== null) {
+    await localWrite(encrypted, filename);
+    return filename;
+  }
   const sz = connectZone();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -244,14 +304,17 @@ const isFileNotFound = (err: Error): boolean =>
   err.message.startsWith("File not found:");
 
 /**
- * Download and decrypt an image from Bunny storage.
- * Uses the storage SDK directly (same as upload/delete) instead of a CDN
- * pull zone URL, which requires a separate pull zone linked to the storage zone.
- * Returns the decrypted image bytes, or null if the file does not exist.
+ * Download and decrypt a file, routing to local or Bunny based on config.
+ * Returns the decrypted bytes, or null if the file does not exist.
  */
 export const downloadImage = async (
   filename: string,
 ): Promise<Uint8Array | null> => {
+  if (getLocalStoragePath() !== null) {
+    const encrypted = await localRead(filename);
+    if (encrypted === null) return null;
+    return decryptBytes(encrypted);
+  }
   try {
     const sz = connectZone();
     const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
@@ -264,9 +327,13 @@ export const downloadImage = async (
 };
 
 /**
- * Delete an image from Bunny storage.
+ * Delete a file, routing to local or Bunny based on config.
  */
 export const deleteImage = async (filename: string): Promise<void> => {
+  if (getLocalStoragePath() !== null) {
+    await localRemove(filename);
+    return;
+  }
   const sz = connectZone();
   await BunnyStorageSDK.file.remove(sz, `/${filename}`);
 };

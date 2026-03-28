@@ -2524,18 +2524,36 @@ export const withCdnProxy = (
   );
 
 /**
- * Run a callback with storage explicitly disabled.
+ * Run a callback with storage explicitly disabled (neither Bunny nor local).
  * Uses AsyncLocalStorage so concurrent tests cannot interfere.
  */
 export const withStorageDisabled = <T>(fn: () => T): T =>
-  runWithStorageConfig({ zoneName: "", zoneKey: "" }, fn);
+  runWithStorageConfig({ zoneName: "", zoneKey: "", localPath: "" }, fn);
 
 /**
- * Run a callback with storage explicitly enabled (testzone/testkey).
+ * Run a callback with storage explicitly enabled (testzone/testkey via Bunny).
  * Uses AsyncLocalStorage so concurrent tests cannot interfere.
  */
 export const withStorageEnabled = <T>(fn: () => T): T =>
   runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, fn);
+
+/**
+ * Run a callback with local filesystem storage enabled at a temporary directory.
+ * Uses AsyncLocalStorage so concurrent tests cannot interfere.
+ */
+export const withLocalStorageEnabled = async <T>(
+  fn: (dir: string) => Promise<T>,
+): Promise<T> => {
+  const dir = await Deno.makeTempDir();
+  try {
+    return await runWithStorageConfig(
+      { zoneName: "", zoneKey: "", localPath: dir },
+      () => fn(dir),
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+};
 
 // ---------------------------------------------------------------------------
 // API key helpers — shared across admin API and API key tests

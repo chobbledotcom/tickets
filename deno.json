@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "exports": "./src/index.ts",
   "tasks": {
-    "start": "deno task build:static && deno run --allow-net --allow-env --allow-read --allow-sys --allow-ffi src/index.ts",
+    "start": "deno task build:static && deno run --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
     "build:edge": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-edge.ts",
     "test": "deno run -A scripts/run-tests.ts",
