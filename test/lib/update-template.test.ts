@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { AdminSession } from "#lib/types.ts";
+import { GITHUB_RELEASES_URL } from "#lib/update.ts";
 import {
   adminUpdatePage,
   type UpdatePageState,
@@ -59,5 +60,11 @@ describe("adminUpdatePage", () => {
     const html = adminUpdatePage(SESSION, baseState());
     expect(html).not.toContain("No Update Available");
     expect(html).not.toContain("Update Available");
+  });
+
+  test("includes release notes link", () => {
+    const html = adminUpdatePage(SESSION, baseState());
+    expect(html).toContain(GITHUB_RELEASES_URL);
+    expect(html).toContain("release notes");
   });
 });

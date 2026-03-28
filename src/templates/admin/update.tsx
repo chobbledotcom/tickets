@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
+import { GITHUB_RELEASES_URL } from "#lib/update.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -107,5 +108,9 @@ export const adminUpdatePage = (
       ) : null}
 
       <CheckForUpdates />
+
+      <p>
+        <a href={GITHUB_RELEASES_URL}>Click here to read the release notes</a>
+      </p>
     </Layout>,
   );

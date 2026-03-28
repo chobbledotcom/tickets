@@ -11,7 +11,10 @@ import { BUILD_TIMESTAMP } from "#lib/build-info.ts";
 import { deployScriptCode } from "#lib/bunny-cdn.ts";
 
 /** GitHub repo URL — update here if the repo moves */
-const GITHUB_REPO = "chobbledotcom/tickets";
+export const GITHUB_REPO = "chobbledotcom/tickets";
+
+/** GitHub releases page URL */
+export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 /** GitHub API URL for the latest release */
 const GITHUB_LATEST_RELEASE_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
