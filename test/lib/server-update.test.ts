@@ -15,6 +15,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   mockRequest,
+  setTestEnv,
   testCookie,
   withMocks,
 } from "#test-utils";
@@ -46,11 +47,17 @@ const simulateProductionBuild = () => {
   setBuildTimestampForTest("2026-01-01T00:00:00Z");
 };
 
+/** Set up state for a deploy test: production build + newer version stored */
+const setupForDeploy = async () => {
+  simulateProductionBuild();
+  await settings.update.latestScriptVersion("v2099-01-01-120000");
+  settings.invalidateCache();
+  await settings.loadAll();
+};
+
 /** Stub fetch for a full successful deploy (GitHub release + asset + Bunny upload + publish) */
-const stubSuccessfulDeploy = () => {
-  let callCount = 0;
-  return stub(globalThis, "fetch", (input: string | URL | Request) => {
-    callCount++;
+const stubSuccessfulDeploy = () =>
+  stub(globalThis, "fetch", (input: string | URL | Request) => {
     const url = String(input);
     if (url.includes("github.com") && url.includes("releases/latest")) {
       return Promise.resolve(
@@ -62,17 +69,11 @@ const stubSuccessfulDeploy = () => {
         new Response("console.log('updated')", { status: 200 }),
       );
     }
-    if (url.includes("bunny.net") && url.includes("/code")) {
+    if (url.includes("bunny.net")) {
       return Promise.resolve(new Response("{}", { status: 200 }));
     }
-    if (url.includes("bunny.net") && url.includes("/publish")) {
-      return Promise.resolve(new Response("{}", { status: 200 }));
-    }
-    return Promise.resolve(
-      new Response(`Unexpected fetch ${callCount}: ${url}`, { status: 500 }),
-    );
+    return Promise.resolve(new Response("Unexpected", { status: 500 }));
   });
-};
 
 describeWithEnv("server (admin update)", { db: true }, () => {
   afterEach(() => {
@@ -134,6 +135,56 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       });
       const html = await response.text();
       expect(html).toContain("No Update Available");
+    });
+
+    test("shows cannot update when Bunny not configured", async () => {
+      const restore = setTestEnv({
+        BUNNY_API_KEY: undefined,
+        BUNNY_SCRIPT_ID: undefined,
+      });
+      try {
+        simulateProductionBuild();
+        await settings.update.latestScriptVersion("v2099-01-01-120000");
+        await settings.update.latestScriptVersionName(
+          "2099-01-01 - Big Update",
+        );
+        settings.invalidateCache();
+        await settings.loadAll();
+
+        const response = await awaitTestRequest("/admin/update", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).toContain("Cannot update automatically");
+        expect(html).not.toContain("Update Now");
+      } finally {
+        restore();
+      }
+    });
+
+    test("shows Update Now button when Bunny is configured", async () => {
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "12345",
+      });
+      try {
+        simulateProductionBuild();
+        await settings.update.latestScriptVersion("v2099-01-01-120000");
+        await settings.update.latestScriptVersionName(
+          "2099-01-01 - Big Update",
+        );
+        settings.invalidateCache();
+        await settings.loadAll();
+
+        const response = await awaitTestRequest("/admin/update", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).toContain("Update Now");
+        expect(html).not.toContain("Cannot update automatically");
+      } finally {
+        restore();
+      }
     });
 
     test("displays success flash message", async () => {
@@ -274,10 +325,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     });
 
     test("redirects with error when release has no asset", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      settings.invalidateCache();
-      await settings.loadAll();
+      await setupForDeploy();
 
       await withMocks(
         () =>
@@ -301,10 +349,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     });
 
     test("redirects with error when Bunny env vars are missing", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      settings.invalidateCache();
-      await settings.loadAll();
+      await setupForDeploy();
 
       let callCount = 0;
       await withMocks(
@@ -331,238 +376,207 @@ describeWithEnv("server (admin update)", { db: true }, () => {
         },
       );
     });
-  });
-});
-
-describeWithEnv(
-  "server (admin update without Bunny)",
-  {
-    db: true,
-    env: { BUNNY_API_KEY: undefined, BUNNY_SCRIPT_ID: undefined },
-  },
-  () => {
-    afterEach(() => {
-      settings.clearTestOverrides();
-      setBuildTimestampForTest(null);
-    });
-
-    test("shows cannot update message when Bunny not configured", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      await settings.update.latestScriptVersionName("2099-01-01 - Big Update");
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      const response = await awaitTestRequest("/admin/update", {
-        cookie: await testCookie(),
-      });
-      const html = await response.text();
-      expect(html).toContain("Cannot update automatically");
-      expect(html).not.toContain("Update Now");
-    });
-  },
-);
-
-describeWithEnv(
-  "server (admin update with Bunny)",
-  {
-    db: true,
-    env: { BUNNY_API_KEY: "test-key", BUNNY_SCRIPT_ID: "12345" },
-  },
-  () => {
-    afterEach(() => {
-      settings.clearTestOverrides();
-      setBuildTimestampForTest(null);
-    });
-
-    test("shows Update Now button when Bunny is configured", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      await settings.update.latestScriptVersionName("2099-01-01 - Big Update");
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      const response = await awaitTestRequest("/admin/update", {
-        cookie: await testCookie(),
-      });
-      const html = await response.text();
-      expect(html).toContain("Update Now");
-      expect(html).not.toContain("Cannot update automatically");
-    });
 
     test("deploys successfully and redirects with success flash", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      await withMocks(stubSuccessfulDeploy, async () => {
-        const { response } = await adminFormPost("/admin/update");
-        expectRedirect(response, "/admin/update");
-        expectFlash(response, expect.stringContaining("Updated to"));
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "12345",
       });
+      try {
+        await setupForDeploy();
+        await withMocks(stubSuccessfulDeploy, async () => {
+          const { response } = await adminFormPost("/admin/update");
+          expectRedirect(response, "/admin/update");
+          expectFlash(response, expect.stringContaining("Updated to"));
+        });
+      } finally {
+        restore();
+      }
     });
 
     test("redirects with error when asset download fails", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.includes("releases/latest")) {
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "12345",
+      });
+      try {
+        await setupForDeploy();
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", (input: string | URL | Request) => {
+              const url = String(input);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+                );
+              }
               return Promise.resolve(
-                new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+                new Response("Not Found", { status: 404 }),
               );
-            }
-            return Promise.resolve(new Response("Not Found", { status: 404 }));
-          }),
-        async () => {
-          const { response } = await adminFormPost("/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("Update failed"),
-            false,
-          );
-        },
-      );
+            }),
+          async () => {
+            const { response } = await adminFormPost("/admin/update");
+            expectFlash(
+              response,
+              expect.stringContaining("Update failed"),
+              false,
+            );
+          },
+        );
+      } finally {
+        restore();
+      }
     });
 
     test("redirects with error when Bunny upload fails", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.includes("releases/latest")) {
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "12345",
+      });
+      try {
+        await setupForDeploy();
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", (input: string | URL | Request) => {
+              const url = String(input);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+                );
+              }
+              if (url.includes("download")) {
+                return Promise.resolve(new Response("code", { status: 200 }));
+              }
               return Promise.resolve(
-                new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+                new Response("Server Error", { status: 500 }),
               );
-            }
-            if (url.includes("download")) {
-              return Promise.resolve(new Response("code", { status: 200 }));
-            }
-            return Promise.resolve(
-              new Response("Server Error", { status: 500 }),
+            }),
+          async () => {
+            const { response } = await adminFormPost("/admin/update");
+            expectFlash(
+              response,
+              expect.stringContaining("Update failed"),
+              false,
             );
-          }),
-        async () => {
-          const { response } = await adminFormPost("/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("Update failed"),
-            false,
-          );
-        },
-      );
+          },
+        );
+      } finally {
+        restore();
+      }
     });
 
     test("redirects with error when Bunny publish fails", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.includes("releases/latest")) {
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "12345",
+      });
+      try {
+        await setupForDeploy();
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", (input: string | URL | Request) => {
+              const url = String(input);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+                );
+              }
+              if (url.includes("download")) {
+                return Promise.resolve(new Response("code", { status: 200 }));
+              }
+              if (url.includes("/code")) {
+                return Promise.resolve(new Response("{}", { status: 200 }));
+              }
               return Promise.resolve(
-                new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+                new Response("Publish Error", { status: 500 }),
               );
-            }
-            if (url.includes("download")) {
-              return Promise.resolve(new Response("code", { status: 200 }));
-            }
-            if (url.includes("/code")) {
-              return Promise.resolve(new Response("{}", { status: 200 }));
-            }
-            return Promise.resolve(
-              new Response("Publish Error", { status: 500 }),
+            }),
+          async () => {
+            const { response } = await adminFormPost("/admin/update");
+            expectFlash(
+              response,
+              expect.stringContaining("Update failed"),
+              false,
             );
-          }),
-        async () => {
-          const { response } = await adminFormPost("/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("Update failed"),
-            false,
-          );
-        },
-      );
+          },
+        );
+      } finally {
+        restore();
+      }
     });
 
     test("redirects with error when another task is in progress", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      // Set current_task to simulate a lock
-      await settings.update.currentTask("other-task");
-      settings.invalidateCache();
-      await settings.loadAll();
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "12345",
+      });
+      try {
+        await setupForDeploy();
+        await settings.update.currentTask("other-task");
+        settings.invalidateCache();
+        await settings.loadAll();
 
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(
-              new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", () =>
+              Promise.resolve(
+                new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+              ),
             ),
-          ),
-        async () => {
-          const { response } = await adminFormPost("/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("already in progress"),
-            false,
-          );
-        },
-      );
+          async () => {
+            const { response } = await adminFormPost("/admin/update");
+            expectFlash(
+              response,
+              expect.stringContaining("already in progress"),
+              false,
+            );
+          },
+        );
 
-      // Clean up the task lock
-      await settings.update.currentTask("");
+        await settings.update.currentTask("");
+      } finally {
+        restore();
+      }
     });
 
     test("sends correct API calls to Bunny during deploy", async () => {
-      simulateProductionBuild();
-      await settings.update.latestScriptVersion("v2099-01-01-120000");
-      settings.invalidateCache();
-      await settings.loadAll();
-
-      const calls: string[] = [];
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            calls.push(url);
-            if (url.includes("releases/latest")) {
-              return Promise.resolve(
-                new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
-              );
-            }
-            if (url.includes("download")) {
-              return Promise.resolve(
-                new Response("console.log('v2')", { status: 200 }),
-              );
-            }
-            return Promise.resolve(new Response("{}", { status: 200 }));
-          }),
-        async () => {
-          await adminFormPost("/admin/update");
-          expect(
-            calls.some((u) => u.includes("/compute/script/12345/code")),
-          ).toBe(true);
-          expect(
-            calls.some((u) => u.includes("/compute/script/12345/publish")),
-          ).toBe(true);
-        },
-      );
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_SCRIPT_ID: "12345",
+      });
+      try {
+        await setupForDeploy();
+        const calls: string[] = [];
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", (input: string | URL | Request) => {
+              const url = String(input);
+              calls.push(url);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
+                );
+              }
+              if (url.includes("download")) {
+                return Promise.resolve(
+                  new Response("console.log('v2')", { status: 200 }),
+                );
+              }
+              return Promise.resolve(new Response("{}", { status: 200 }));
+            }),
+          async () => {
+            await adminFormPost("/admin/update");
+            expect(
+              calls.some((u) => u.includes("/compute/script/12345/code")),
+            ).toBe(true);
+            expect(
+              calls.some((u) => u.includes("/compute/script/12345/publish")),
+            ).toBe(true);
+          },
+        );
+      } finally {
+        restore();
+      }
     });
-  },
-);
+  });
+});
