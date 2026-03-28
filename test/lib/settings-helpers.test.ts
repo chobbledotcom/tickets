@@ -4,6 +4,8 @@ import { fn } from "@std/expect/fn";
 import { FormParams } from "#lib/form-data.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
+import type { AuthSession } from "#routes/utils.ts";
+import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
 import {
   clearableFieldHandler,
   createSettingsHandler,
@@ -18,10 +20,13 @@ const formFrom = (data: Record<string, string>): FormParams =>
   new FormParams(new URLSearchParams(data));
 
 /** Stub errorPage that captures its call */
-const mockErrorPage = fn(
+const mockErrorPage: ErrorPageFn = fn(
   (error: string, status: number, _formId: string) =>
     new Response(`error: ${error}`, { status }),
 );
+
+// deno-lint-ignore no-explicit-any
+const nullSession = null as any as AuthSession;
 
 /** Extract redirect location from a 302 response */
 const redirectLocation = (res: Response): string =>
@@ -55,7 +60,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ value: "hello" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(redirectLocation(res)).toContain("/admin/settings");
@@ -75,7 +80,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ value: "y" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(await lastLogMessage()).toBe("Set to y");
       expect(getFlashMessage(res)).toContain("Set to y");
@@ -92,7 +97,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ value: "" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(400);
       expect(saveFn).not.toHaveBeenCalled();
@@ -113,7 +118,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ value: "" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).toHaveBeenCalledWith("");
@@ -129,7 +134,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ value: "x" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
     });
@@ -143,7 +148,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ value: "x" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(redirectLocation(res)).toContain("/admin/site");
     });
@@ -157,7 +162,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ value: "x" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(redirectLocation(res)).not.toContain("form=");
     });
@@ -172,7 +177,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ value: "x" });
-      await handler(form, mockErrorPage, null);
+      await handler(form, mockErrorPage, nullSession);
 
       expect(mockErrorPage).toHaveBeenCalledWith("error", 400, "");
     });
@@ -189,7 +194,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ my_toggle: "true" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).toHaveBeenCalledWith(true);
@@ -207,7 +212,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ my_toggle: "false" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).toHaveBeenCalledWith(false);
@@ -225,7 +230,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ my_toggle: "true" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
     });
@@ -243,7 +248,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ email: "user@test.com" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).toHaveBeenCalledWith("user@test.com");
@@ -262,7 +267,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ email: "" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).toHaveBeenCalledWith("");
@@ -281,7 +286,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ email: "not-an-email" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(400);
       expect(saveFn).not.toHaveBeenCalled();
@@ -303,7 +308,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ email: "" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(validateFn).not.toHaveBeenCalled();
@@ -319,7 +324,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ my_field: "some value" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).toHaveBeenCalledWith("some value");
@@ -363,7 +368,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: MASK_SENTINEL });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).not.toHaveBeenCalled();
@@ -381,7 +386,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: "" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(400);
       expect(saveFn).not.toHaveBeenCalled();
@@ -403,7 +408,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: "" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).not.toHaveBeenCalled();
@@ -420,7 +425,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: "new_secret_value" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(302);
       expect(saveFn).toHaveBeenCalledWith("new_secret_value");
@@ -440,7 +445,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: "bad_key" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(res.status).toBe(400);
       expect(saveFn).not.toHaveBeenCalled();
@@ -463,7 +468,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: "new_value" });
-      await handler(form, mockErrorPage, null);
+      await handler(form, mockErrorPage, nullSession);
 
       expect(saveFn).toHaveBeenCalledWith("new_value");
       expect(afterSaveFn).toHaveBeenCalledWith("new_value");
@@ -479,7 +484,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: "new_value" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
     });
@@ -494,7 +499,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: MASK_SENTINEL });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
     });
@@ -509,7 +514,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       });
 
       const form = formFrom({ api_key: "" });
-      const res = await handler(form, mockErrorPage, null);
+      const res = await handler(form, mockErrorPage, nullSession);
 
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
     });
