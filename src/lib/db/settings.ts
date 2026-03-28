@@ -89,6 +89,8 @@ export const CONFIG_KEYS = {
   BUNNY_SUBDOMAIN: "bunny_subdomain",
   CURRENT_TASK: "current_task",
   ATTENDEE_BLOB_MIGRATED: "attendee_blob_migrated",
+  LATEST_SCRIPT_VERSION: "latest_script_version",
+  LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
 } as const;
 
 export const MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
@@ -154,6 +156,8 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
   CONFIG_KEYS.SQUARE_LOCATION_ID,
   CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
+  CONFIG_KEYS.LATEST_SCRIPT_VERSION,
+  CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadAll, default ""). */
@@ -672,6 +676,12 @@ export const settings = {
   get attendeeBlobMigrated(): boolean {
     return snap("attendee_blob_migrated");
   },
+  get latestScriptVersion(): string {
+    return snap("latest_script_version");
+  },
+  get latestScriptVersionName(): string {
+    return snap("latest_script_version_name");
+  },
 
   // Derived from country
   get currency(): string {
@@ -894,6 +904,10 @@ export const settings = {
     contactPageText: encryptedUpdate(CONFIG_KEYS.CONTACT_PAGE_TEXT),
     businessEmail: encryptedUpdate(CONFIG_KEYS.BUSINESS_EMAIL),
     embedHosts: encryptedUpdate(CONFIG_KEYS.EMBED_HOSTS),
+    latestScriptVersion: plaintextUpdate(CONFIG_KEYS.LATEST_SCRIPT_VERSION),
+    latestScriptVersionName: plaintextUpdate(
+      CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
+    ),
     attendeeBlobMigrated: async (): Promise<void> => {
       await writeRaw(
         CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED,

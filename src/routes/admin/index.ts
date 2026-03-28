@@ -27,6 +27,7 @@ import { seedsRoutes } from "#routes/admin/seeds.ts";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
+import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { createRouter } from "#routes/router.ts";
 import { getAuthenticatedSession, redirectResponse } from "#routes/utils.ts";
@@ -52,6 +53,7 @@ const adminRoutes = {
   ...scannerRoutes,
   ...seedsRoutes,
   ...migrateRoutes,
+  ...updateRoutes,
 };
 
 const innerRouter = createRouter(adminRoutes);
