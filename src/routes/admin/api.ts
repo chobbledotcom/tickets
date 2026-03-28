@@ -23,6 +23,12 @@ import {
   toggleEventActive,
   validateEventInput,
 } from "#lib/events-actions.ts";
+import {
+  apiErrorResponse,
+  parseUpdateName,
+  parseUpdateSlug,
+  withApiEntity,
+} from "#lib/rest/crud-api.ts";
 import { normalizeSlug } from "#lib/slug.ts";
 import type {
   AdminEvent,
@@ -30,6 +36,8 @@ import type {
   EventType,
   EventWithCount,
 } from "#lib/types.ts";
+import { groupApiRoutes } from "#routes/admin/api-groups.ts";
+import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { ADMIN_API, jsonResponse, withAuth } from "#routes/utils.ts";
@@ -167,10 +175,6 @@ export const toAdminEvent = ({
   ...event
 }: EventWithCount): AdminEvent => event;
 
-/** Error response helper */
-const errorResponse = (message: string, status = 400): Response =>
-  jsonResponse({ status: "error", message }, status);
-
 /** Result type for body parsing */
 type BodyParseResult =
   | { ok: true; input: EventInput }
@@ -190,11 +194,7 @@ const withEventApi = (
     body: Record<string, unknown>,
   ) => Promise<Response>,
 ): Promise<Response> =>
-  withAuth(request, ADMIN_API, async (session, body) => {
-    const event = await getEventWithCount(eventId);
-    if (!event) return errorResponse("Event not found", 404);
-    return handler(event, session, body);
-  });
+  withApiEntity(request, getEventWithCount, eventId, "Event", handler);
 
 /** Convert JSON body to EventInput for create (auto-generates slug) */
 export const bodyToCreateInput = async (
@@ -227,8 +227,8 @@ export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
   existing: EventWithCount,
 ): Promise<BodyParseResult> => {
-  const name = body.name != null ? String(body.name).trim() : existing.name;
-  if (name === "") return { ok: false, error: "name cannot be empty" };
+  const parsedName = parseUpdateName(body, existing.name);
+  if (!parsedName.ok) return parsedName;
 
   const maxAttendees =
     typeof body.max_attendees === "number"
@@ -238,17 +238,20 @@ export const bodyToUpdateInput = async (
     return { ok: false, error: "max_attendees must be >= 1" };
   }
 
-  const rawSlug =
-    body.slug != null ? normalizeSlug(String(body.slug)) : existing.slug;
-  const slugIndex = await computeSlugIndex(rawSlug);
+  const { slug, slugIndex } = await parseUpdateSlug(
+    body,
+    existing.slug,
+    normalizeSlug,
+    computeSlugIndex,
+  );
 
   return {
     ok: true,
     input: {
       ...existingToDefaults(existing),
       ...pickTypedFields(body, optionalFields),
-      name,
-      slug: rawSlug,
+      name: parsedName.name,
+      slug,
       slugIndex,
       maxAttendees,
       maxPrice:
@@ -282,7 +285,7 @@ const handleToggleActive = (
   withEventApi(request, eventId, async (event) => {
     const updated = await toggleEventActive(eventId, event, active);
     if (!updated)
-      return errorResponse(
+      return apiErrorResponse(
         `Event is already ${active ? "active" : "deactivated"}`,
       );
     return jsonResponse({ event: toAdminEvent(updated) });
@@ -292,10 +295,10 @@ const handleToggleActive = (
 const handleCreateEvent = (request: Request): Promise<Response> =>
   withAuth(request, ADMIN_API, async (_session, body) => {
     const parsed = await bodyToCreateInput(body);
-    if (!parsed.ok) return errorResponse(parsed.error);
+    if (!parsed.ok) return apiErrorResponse(parsed.error);
 
     const validationError = await validateEventInput(parsed.input);
-    if (validationError) return errorResponse(validationError);
+    if (validationError) return apiErrorResponse(validationError);
 
     const row = await eventsTable.insert(parsed.input);
     const event = await getEventWithCount(row.id);
@@ -303,46 +306,50 @@ const handleCreateEvent = (request: Request): Promise<Response> =>
     return jsonResponse({ event: toAdminEvent(event!) }, 201);
   });
 
-export const adminApiRoutes = defineRoutes({
-  "GET /api/admin/events": handleListEvents,
-  "GET /api/admin/events/:eventId": (request, { eventId }) =>
-    withEventApi(request, eventId, (event) =>
-      Promise.resolve(jsonResponse({ event: toAdminEvent(event) })),
-    ),
-  "POST /api/admin/events": handleCreateEvent,
-  "PUT /api/admin/events/:eventId": (request, { eventId }) =>
-    withEventApi(request, eventId, async (existing, _session, body) => {
-      const parsed = await bodyToUpdateInput(body, existing);
-      if (!parsed.ok) return errorResponse(parsed.error);
+export const adminApiRoutes = {
+  ...holidayApiRoutes,
+  ...groupApiRoutes,
+  ...defineRoutes({
+    "GET /api/admin/events": handleListEvents,
+    "GET /api/admin/events/:eventId": (request, { eventId }) =>
+      withEventApi(request, eventId, (event) =>
+        Promise.resolve(jsonResponse({ event: toAdminEvent(event) })),
+      ),
+    "POST /api/admin/events": handleCreateEvent,
+    "PUT /api/admin/events/:eventId": (request, { eventId }) =>
+      withEventApi(request, eventId, async (existing, _session, body) => {
+        const parsed = await bodyToUpdateInput(body, existing);
+        if (!parsed.ok) return apiErrorResponse(parsed.error);
 
-      if (parsed.input.slug !== existing.slug) {
-        const taken = await isSlugTaken(parsed.input.slug, eventId);
-        if (taken)
-          return errorResponse("Slug is already in use by another event");
-      }
+        if (parsed.input.slug !== existing.slug) {
+          const taken = await isSlugTaken(parsed.input.slug, eventId);
+          if (taken)
+            return apiErrorResponse("Slug is already in use by another event");
+        }
 
-      const validationError = await validateEventInput(parsed.input, eventId);
-      if (validationError) return errorResponse(validationError);
+        const validationError = await validateEventInput(parsed.input, eventId);
+        if (validationError) return apiErrorResponse(validationError);
 
-      const row = (await eventsTable.update(eventId, parsed.input))!;
-      const updated = await getEventWithCount(row.id);
-      await logActivity(`Event '${row.name}' updated`, row);
-      return jsonResponse({ event: toAdminEvent(updated!) });
-    }),
-  "DELETE /api/admin/events/:eventId": (request, { eventId }) =>
-    withEventApi(request, eventId, async (event, _session, body) => {
-      const error = verifyIdentifierOrJsonError(
-        event.name,
-        body.confirm_identifier,
-        "Event name",
-      );
-      if (error) return errorResponse(error);
+        const row = (await eventsTable.update(eventId, parsed.input))!;
+        const updated = await getEventWithCount(row.id);
+        await logActivity(`Event '${row.name}' updated`, row);
+        return jsonResponse({ event: toAdminEvent(updated!) });
+      }),
+    "DELETE /api/admin/events/:eventId": (request, { eventId }) =>
+      withEventApi(request, eventId, async (event, _session, body) => {
+        const error = verifyIdentifierOrJsonError(
+          event.name,
+          body.confirm_identifier,
+          "Event name",
+        );
+        if (error) return apiErrorResponse(error);
 
-      await performEventDelete(event);
-      return jsonResponse({ status: "ok" });
-    }),
-  "POST /api/admin/events/:eventId/deactivate": (request, { eventId }) =>
-    handleToggleActive(request, eventId, false),
-  "POST /api/admin/events/:eventId/reactivate": (request, { eventId }) =>
-    handleToggleActive(request, eventId, true),
-});
+        await performEventDelete(event);
+        return jsonResponse({ status: "ok" });
+      }),
+    "POST /api/admin/events/:eventId/deactivate": (request, { eventId }) =>
+      handleToggleActive(request, eventId, false),
+    "POST /api/admin/events/:eventId/reactivate": (request, { eventId }) =>
+      handleToggleActive(request, eventId, true),
+  }),
+};
