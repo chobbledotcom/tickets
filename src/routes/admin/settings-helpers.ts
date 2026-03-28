@@ -231,7 +231,12 @@ const secretFieldHandler =
       return redirect(to, `${cfg.label} cleared`, true, formOpts);
     }
 
-    const invalid = await runValidate(cfg.validate, field.value, errorPage, fid);
+    const invalid = await runValidate(
+      cfg.validate,
+      field.value,
+      errorPage,
+      fid,
+    );
     if (invalid) return invalid;
 
     await cfg.save(field.value);
