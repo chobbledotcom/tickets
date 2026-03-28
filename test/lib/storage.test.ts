@@ -6,6 +6,7 @@ import {
   deleteAllEventStorageFiles,
   deleteImage,
   detectImageType,
+  downloadImage,
   generateAttachmentFilename,
   generateImageFilename,
   getImageProxyUrl,
@@ -13,6 +14,8 @@ import {
   isStorageEnabled,
   MAX_ATTACHMENT_SIZE,
   runWithStorageConfig,
+  uploadAttachment,
+  uploadImage,
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
@@ -20,6 +23,7 @@ import {
   describeWithEnv,
   installUrlHandler,
   withFetchMock,
+  withLocalStorageEnabled,
   withStorageDisabled,
 } from "#test-utils";
 
@@ -40,20 +44,27 @@ describeWithEnv(
       });
 
       test("returns false when only zoneName is set", () => {
-        runWithStorageConfig({ zoneName: "myzone", zoneKey: "" }, () => {
+        runWithStorageConfig({ zoneName: "myzone", zoneKey: "", localPath: "" }, () => {
           expect(isStorageEnabled()).toBe(false);
         });
       });
 
       test("returns false when only zoneKey is set", () => {
-        runWithStorageConfig({ zoneName: "", zoneKey: "mykey" }, () => {
+        runWithStorageConfig({ zoneName: "", zoneKey: "mykey", localPath: "" }, () => {
           expect(isStorageEnabled()).toBe(false);
         });
       });
 
-      test("returns true when both are set", () => {
+      test("returns true when Bunny credentials are set", () => {
         runWithStorageConfig({ zoneName: "myzone", zoneKey: "mykey" }, () => {
           expect(isStorageEnabled()).toBe(true);
+        });
+      });
+
+      test("returns true when LOCAL_STORAGE_PATH is set", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          expect(isStorageEnabled()).toBe(true);
+          return dir;
         });
       });
     });
@@ -62,8 +73,67 @@ describeWithEnv(
       test("throws when storage is not configured", async () => {
         await withStorageDisabled(async () => {
           await expect(deleteImage("test.jpg")).rejects.toThrow(
-            "Required environment variable STORAGE_ZONE_NAME is not set",
+            "Storage is not configured",
           );
+        });
+      });
+    });
+
+    describe("local filesystem storage", () => {
+      const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x01, 0x02]);
+
+      test("uploadImage writes encrypted file to local dir", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          const filename = await uploadImage(jpegBytes, "image/jpeg");
+          expect(filename).toMatch(/^[0-9a-f-]+\.jpg$/);
+          const stat = await Deno.stat(`${dir}/${filename}`);
+          expect(stat.isFile).toBe(true);
+          // Encrypted bytes should be larger than original
+          expect(stat.size).toBeGreaterThan(jpegBytes.byteLength);
+        });
+      });
+
+      test("downloadImage reads and decrypts file from local dir", async () => {
+        await withLocalStorageEnabled(async () => {
+          const filename = await uploadImage(jpegBytes, "image/jpeg");
+          const result = await downloadImage(filename);
+          expect(result).toEqual(jpegBytes);
+        });
+      });
+
+      test("downloadImage returns null for missing file", async () => {
+        await withLocalStorageEnabled(async () => {
+          const result = await downloadImage("nonexistent.jpg");
+          expect(result).toBeNull();
+        });
+      });
+
+      test("deleteImage removes file from local dir", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          const filename = await uploadImage(jpegBytes, "image/jpeg");
+          await deleteImage(filename);
+          await expect(Deno.stat(`${dir}/${filename}`)).rejects.toBeInstanceOf(
+            Deno.errors.NotFound,
+          );
+        });
+      });
+
+      test("uploadAttachment stores any file type", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x01]);
+          const filename = generateAttachmentFilename("report.pdf");
+          await uploadAttachment(pdfBytes, filename);
+          const stat = await Deno.stat(`${dir}/${filename}`);
+          expect(stat.isFile).toBe(true);
+        });
+      });
+
+      test("downloadImage rethrows unexpected filesystem errors", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          // A directory at the expected file path causes a non-NotFound read error
+          const filename = "collision.jpg";
+          await Deno.mkdir(`${dir}/${filename}`);
+          await expect(downloadImage(filename)).rejects.toBeInstanceOf(Error);
         });
       });
     });

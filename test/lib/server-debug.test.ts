@@ -93,7 +93,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await assertAdminHtml(
         "/admin/debug",
         "Bunny",
-        "Storage zone (images)",
+        "File storage (images)",
         "CDN management",
         "CDN hostname",
         "Custom domain",
@@ -367,7 +367,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         },
         ntfy: { configured: false },
         bunny: {
-          storageEnabled: false,
+          storageBackend: "none",
           cdnEnabled: false,
           cdnHostname: "",
           customDomain: "",
@@ -430,7 +430,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         },
         ntfy: { configured: false },
         bunny: {
-          storageEnabled: false,
+          storageBackend: "none",
           cdnEnabled: false,
           cdnHostname: "",
           customDomain: "",

@@ -41,7 +41,7 @@ export type DebugPageState = {
     configured: boolean;
   };
   bunny: {
-    storageEnabled: boolean;
+    storageBackend: "bunny" | "local" | "none";
     cdnEnabled: boolean;
     cdnHostname: string;
     customDomain: string;
@@ -242,9 +242,13 @@ export const adminDebugPage = (
         <table>
           <tbody>
             <tr>
-              <td>Storage zone (images)</td>
+              <td>File storage (images)</td>
               <td>
-                <StatusBadge ok={s.bunny.storageEnabled} />
+                {s.bunny.storageBackend === "bunny"
+                  ? <span class="badge-ok">Bunny CDN</span>
+                  : s.bunny.storageBackend === "local"
+                    ? <span class="badge-ok">Local filesystem</span>
+                    : <span class="badge-missing">Not configured</span>}
               </td>
             </tr>
             <tr>
