@@ -344,6 +344,8 @@ const handlePaymentProviderPost = settingsHandler({
     v === "none"
       ? settings.update.clearPaymentProvider()
       : settings.update.paymentProvider(v),
+  log: (v) =>
+    v === "none" ? "Payment provider disabled" : `Payment provider set to ${v}`,
 });
 
 /**
@@ -523,6 +525,7 @@ const handleCountryPost = settingsHandler({
         ? "Please select a valid country"
         : null,
   save: (v) => settings.update.country(v),
+  log: (v) => `Country set to ${v}`,
 });
 
 /** Handle POST /admin/settings/business-email - owner only */
@@ -545,6 +548,7 @@ const handleThemePost = settingsHandler({
   validate: (v) =>
     v !== "light" && v !== "dark" ? "Invalid theme selection" : null,
   save: (v) => settings.update.theme(v),
+  log: (v) => `Theme set to ${v}`,
 });
 
 /** Handle POST /admin/settings/show-public-site - owner only */
@@ -574,6 +578,7 @@ const handleBookingFeePost = settingsHandler({
       ? "Booking fee must be a number between 0 and 10"
       : null,
   save: (v) => settings.update.bookingFee(String(v)),
+  log: (v) => `Booking fee set to ${v}%`,
 });
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
