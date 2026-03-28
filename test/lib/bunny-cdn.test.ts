@@ -978,6 +978,71 @@ describeWithEnv(
   },
 );
 
+describeWithEnv(
+  "deployScriptCode",
+  { env: { BUNNY_API_KEY: "test-key", BUNNY_SCRIPT_ID: "99" } },
+  () => {
+    test("uploads code and publishes script", async () => {
+      const calls: { url: string; init: RequestInit | undefined }[] = [];
+      await withMocks(
+        () => stubFetchWithRecorder(calls),
+        async () => {
+          const result = await bunnyCdnApi.deployScriptCode("console.log(1)");
+          expect(result).toEqual({ ok: true });
+          expect(calls).toHaveLength(2);
+          expect(calls.at(0)!.url).toBe(
+            "https://api.bunny.net/compute/script/99/code",
+          );
+          expect(calls.at(0)!.init!.method).toBe("POST");
+          expect(calls.at(1)!.url).toBe(
+            "https://api.bunny.net/compute/script/99/publish",
+          );
+          expect(calls.at(1)!.init!.method).toBe("POST");
+        },
+      );
+    });
+
+    test("returns error when code upload fails", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Server Error", { status: 500 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.deployScriptCode("code");
+          expect(result).toEqual({
+            ok: false,
+            error: "Upload script code failed (500): Server Error",
+          });
+        },
+      );
+    });
+
+    test("returns error when publish fails", async () => {
+      let callCount = 0;
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () => {
+            callCount++;
+            if (callCount === 1) {
+              return Promise.resolve(new Response("{}", { status: 200 }));
+            }
+            return Promise.resolve(
+              new Response("Publish Error", { status: 500 }),
+            );
+          }),
+        async () => {
+          const result = await bunnyCdnApi.deployScriptCode("code");
+          expect(result).toEqual({
+            ok: false,
+            error: "Publish script failed (500): Publish Error",
+          });
+        },
+      );
+    });
+  },
+);
+
 describeWithEnv("domain settings", { db: true }, () => {
   test("updateCustomDomain stores and clears domain", async () => {
     await settings.update.customDomain("tickets.example.com");

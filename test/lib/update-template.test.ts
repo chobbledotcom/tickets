@@ -46,6 +46,19 @@ describe("adminUpdatePage", () => {
     expect(html).not.toContain("Cannot update automatically");
   });
 
+  test("renders cannot update when Bunny not configured", () => {
+    const state = {
+      ...baseState(),
+      latestVersion: "v2099-01-01-120000",
+      latestVersionName: "2099-01-01 - Update",
+      updateAvailable: true,
+      bunnyConfigured: false,
+    };
+    const html = adminUpdatePage(SESSION, state);
+    expect(html).toContain("Cannot update automatically");
+    expect(html).not.toContain("Update Now");
+  });
+
   test("renders up to date with checked version", () => {
     const state = {
       ...baseState(),
