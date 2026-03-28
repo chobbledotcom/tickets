@@ -1076,10 +1076,11 @@ export const adminGuidePage = (
         <Q q="What's the difference between an owner and a manager?">
           <p>
             <strong>Owners</strong> have full access: events, calendar, groups,
-            users, site pages, settings, holidays, sessions, and the activity
-            log. <strong>Managers</strong> can see events, the calendar, groups,
-            and the activity log. They cannot change settings, manage users, or
-            view sessions.
+            questions, holidays, users, site pages, settings, API keys,
+            sessions, and the activity log. <strong>Managers</strong> can manage
+            events, view the calendar, manage groups, and view the activity log.
+            They cannot change settings, manage users, manage questions or
+            holidays, create API keys, edit site pages, or view sessions.
           </p>
         </Q>
 
@@ -1409,6 +1410,53 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
+      <Section title="Host Subdomain">
+        <Q q="What is a host subdomain?">
+          <p>
+            If your server administrator has enabled subdomain registration, you
+            can claim a pretty subdomain for your tickets site (e.g.{" "}
+            <code>my-business.example.com</code>) instead of using the default
+            CDN hostname. The option appears in{" "}
+            <strong>Advanced Settings</strong> under{" "}
+            <strong>Host Subdomain</strong>.
+          </p>
+        </Q>
+
+        <Q q="How do I register a subdomain?">
+          <ol>
+            <li>
+              Go to <a href="/admin/settings-advanced">Advanced Settings</a> and
+              find the <strong>Host Subdomain</strong> section
+            </li>
+            <li>
+              Enter your preferred subdomain name (lowercase letters, numbers,
+              and hyphens only)
+            </li>
+            <li>
+              Click{" "}
+              <strong>Check Availability &amp; Preview Complete Domain</strong>{" "}
+              to see the full URL and verify it's available
+            </li>
+            <li>
+              If it looks right, tick the confirmation checkbox and click{" "}
+              <strong>Register Subdomain</strong>
+            </li>
+          </ol>
+          <p>
+            <strong>Important:</strong> Once registered, a subdomain{" "}
+            <strong>cannot be changed</strong>. DNS, SSL, and CDN configuration
+            are handled automatically.
+          </p>
+        </Q>
+
+        <Q q="Can I use both a subdomain and a custom domain?">
+          <p>
+            Yes. Your host subdomain and custom domain can be active at the same
+            time. Attendees can reach your site through either address.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Custom Domain">
         <Q q="How do I set up a custom domain?">
           <p>
@@ -1504,6 +1552,10 @@ export const adminGuidePage = (
             <li>
               <strong>Email templates</strong> &mdash; customise confirmation
               and admin notification emails using Liquid syntax
+            </li>
+            <li>
+              <strong>Host subdomain</strong> &mdash; register a pretty
+              subdomain for your site (when enabled by server administrator)
             </li>
             <li>
               <strong>Custom domain</strong> &mdash; set up a custom domain for
