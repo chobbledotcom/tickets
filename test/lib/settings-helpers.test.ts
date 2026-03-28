@@ -20,10 +20,10 @@ const formFrom = (data: Record<string, string>): FormParams =>
   new FormParams(new URLSearchParams(data));
 
 /** Stub errorPage that captures its call */
-const mockErrorPage: ErrorPageFn = fn(
+const mockErrorPage = fn(
   (error: string, status: number, _formId: string) =>
     new Response(`error: ${error}`, { status }),
-);
+) as unknown as ErrorPageFn & ReturnType<typeof fn>;
 
 // deno-lint-ignore no-explicit-any
 const nullSession = null as any as AuthSession;
@@ -298,7 +298,8 @@ describeWithEnv("settings-helpers", { db: true }, () => {
     });
 
     test("skips validation for empty value even with validator", async () => {
-      const validateFn = fn((_v: string) => "Should not be called");
+      const validateFn = fn((_v: string) => "Should not be called") as
+        unknown as ((value: string) => string | null) & ReturnType<typeof fn>;
       const handler = clearableFieldHandler({
         formId: "settings-email",
         field: "email",

@@ -62,6 +62,7 @@ import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
+import type { Theme } from "#lib/types.ts";
 import { testSquareConnection } from "#lib/square.ts";
 import {
   deleteAllEventStorageFiles,
@@ -343,7 +344,7 @@ const handlePaymentProviderPost = settingsHandler({
   save: (v) =>
     v === "none"
       ? settings.update.clearPaymentProvider()
-      : settings.update.paymentProvider(v),
+      : settings.update.paymentProvider(v as PaymentProviderType),
   log: (v) =>
     v === "none" ? "Payment provider disabled" : `Payment provider set to ${v}`,
 });
@@ -547,7 +548,7 @@ const handleThemePost = settingsHandler({
   extract: (form) => form.getString("theme"),
   validate: (v) =>
     v !== "light" && v !== "dark" ? "Invalid theme selection" : null,
-  save: (v) => settings.update.theme(v),
+  save: (v) => settings.update.theme(v as Theme),
   log: (v) => `Theme set to ${v}`,
 });
 
