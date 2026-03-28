@@ -268,9 +268,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       });
 
       const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) => l.message === "Email settings updated"),
-      ).toBe(true);
+      expect(logs.some((l) => l.message === "Email settings updated")).toBe(
+        true,
+      );
     });
 
     test("advanced settings page displays email configuration section", async () => {

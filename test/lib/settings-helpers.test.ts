@@ -1,10 +1,9 @@
-import { describe, test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
-import { FormParams } from "#lib/form-data.ts";
+import { describe, test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { MASK_SENTINEL } from "#lib/db/settings.ts";
-import type { AuthSession } from "#routes/utils.ts";
+import { FormParams } from "#lib/form-data.ts";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
 import {
   clearableFieldHandler,
@@ -13,6 +12,7 @@ import {
   secretFieldHandler,
   toggleHandler,
 } from "#routes/admin/settings-helpers.ts";
+import type { AuthSession } from "#routes/utils.ts";
 import { describeWithEnv } from "#test-utils";
 
 /** Build a FormParams from a plain object */
@@ -298,8 +298,10 @@ describeWithEnv("settings-helpers", { db: true }, () => {
     });
 
     test("skips validation for empty value even with validator", async () => {
-      const validateFn = fn((_v: string) => "Should not be called") as
-        unknown as ((value: string) => string | null) & ReturnType<typeof fn>;
+      const validateFn = fn(
+        (_v: string) => "Should not be called",
+      ) as unknown as ((value: string) => string | null) &
+        ReturnType<typeof fn>;
       const handler = clearableFieldHandler({
         formId: "settings-email",
         field: "email",

@@ -62,7 +62,6 @@ import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
-import type { Theme } from "#lib/types.ts";
 import { testSquareConnection } from "#lib/square.ts";
 import {
   deleteAllEventStorageFiles,
@@ -78,6 +77,7 @@ import {
   setupWebhookEndpoint,
   testStripeConnection,
 } from "#lib/stripe.ts";
+import type { Theme } from "#lib/types.ts";
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import {
   advancedSettingsRoute,
@@ -346,7 +346,9 @@ const handlePaymentProviderPost = settingsHandler({
       ? settings.update.clearPaymentProvider()
       : settings.update.paymentProvider(v as PaymentProviderType),
   log: (v) =>
-    v === "none" ? "Payment provider disabled" : `Payment provider set to ${v}`,
+    v === "none"
+      ? "Payment provider disabled"
+      : `Payment provider set to ${v}`,
 });
 
 /**
@@ -492,7 +494,9 @@ const handleEmbedHostsPost = settingsHandler({
   save: (v) =>
     settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
   log: (v) =>
-    v === "" ? "Embed host restrictions removed" : "Allowed embed hosts updated",
+    v === ""
+      ? "Embed host restrictions removed"
+      : "Allowed embed hosts updated",
 });
 
 /**
@@ -747,9 +751,11 @@ const isEmailTemplateType = (v: string): v is EmailTemplateType =>
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
 type TemplateFormData = { subject: string; html: string; text: string };
 
-const validateTemplateFields = (
-  { subject, html, text }: TemplateFormData,
-): string | null => {
+const validateTemplateFields = ({
+  subject,
+  html,
+  text,
+}: TemplateFormData): string | null => {
   for (const [name, value] of [
     ["subject", subject],
     ["html", html],
@@ -773,8 +779,7 @@ const validateTemplateFields = (
 };
 
 const handleEmailTemplatePost = (type: EmailTemplateType) => {
-  const label =
-    type === "confirmation" ? "Confirmation" : "Admin notification";
+  const label = type === "confirmation" ? "Confirmation" : "Admin notification";
   return settingsHandler<TemplateFormData>({
     formId: `settings-email-tpl-${type}`,
     label: `${label} email template`,
@@ -1115,7 +1120,8 @@ const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     if (!d.passTypeId) return "Pass Type ID is required";
     if (!d.teamId) return "Team ID is required";
     if (!settings.appleWallet.hasDbConfig) {
-      if (d.cert.action !== "provided") return "Signing certificate is required";
+      if (d.cert.action !== "provided")
+        return "Signing certificate is required";
       if (d.key.action !== "provided") return "Signing private key is required";
       if (d.wwdr.action !== "provided") return "WWDR certificate is required";
     }

@@ -113,7 +113,10 @@ const createSettingsHandler =
     await cfg.save(value);
     const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
     await logActivity(msg);
-    return redirect(pathFor(cfg), msg, true,
+    return redirect(
+      pathFor(cfg),
+      msg,
+      true,
       cfg.formId ? { formId: cfg.formId } : undefined,
     );
   };

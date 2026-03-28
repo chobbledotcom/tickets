@@ -66,7 +66,10 @@ const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
   redirectTo: "/admin/site",
   extract: (form) => {
     applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
-    return { title: form.getString("website_title"), text: form.getString("homepage_text") };
+    return {
+      title: form.getString("website_title"),
+      text: form.getString("homepage_text"),
+    };
   },
   validate: ({ title, text }) => {
     if (title.length > MAX_WEBSITE_TITLE_LENGTH) {
