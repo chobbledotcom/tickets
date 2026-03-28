@@ -150,6 +150,49 @@ describeWithEnv("settings-helpers", { db: true }, () => {
 
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
     });
+
+    test("redirects to custom path when redirectTo is provided", async () => {
+      const handler = createSettingsHandler({
+        label: "Test",
+        redirectTo: "/admin/site",
+        extract: (form) => form.getString("value"),
+        save: () => Promise.resolve(),
+      });
+
+      const form = formFrom({ value: "x" });
+      const res = await handler(form, mockErrorPage, null);
+
+      expect(redirectLocation(res)).toContain("/admin/site");
+    });
+
+    test("omits formId from redirect when not provided", async () => {
+      const handler = createSettingsHandler({
+        label: "Test",
+        redirectTo: "/admin/site",
+        extract: (form) => form.getString("value"),
+        save: () => Promise.resolve(),
+      });
+
+      const form = formFrom({ value: "x" });
+      const res = await handler(form, mockErrorPage, null);
+
+      expect(redirectLocation(res)).not.toContain("form=");
+    });
+
+    test("passes formId to errorPage even when formId is empty", async () => {
+      const handler = createSettingsHandler({
+        label: "Test",
+        redirectTo: "/admin/site",
+        extract: (form) => form.getString("value"),
+        validate: () => "error",
+        save: () => Promise.resolve(),
+      });
+
+      const form = formFrom({ value: "x" });
+      await handler(form, mockErrorPage, null);
+
+      expect(mockErrorPage).toHaveBeenCalledWith("error", 400, "");
+    });
   });
 
   describe("toggleHandler", () => {

@@ -1,9 +1,7 @@
 /**
- * Settings form helpers — composable utilities to reduce boilerplate
- * in admin settings route handlers.
- *
- * Most settings POST handlers follow the same pattern:
- *   extract value → validate → save → logActivity → redirect
+ * Admin form helpers — composable utilities to reduce boilerplate
+ * in admin route handlers that follow the extract → validate → save →
+ * logActivity → redirect pattern.
  *
  * The convenience functions (settingsHandler, settingsToggle, etc.)
  * return complete route handlers with auth wrapping baked in.
@@ -66,23 +64,34 @@ const advancedSettingsRoute =
       handler(form, advancedSettingsPageWithError(session), session),
     );
 
-/** Pick route wrapper based on `advanced` flag */
-const routeFor = (advanced?: boolean) =>
-  advanced ? advancedSettingsRoute : settingsRoute;
+/** Resolve redirect path from config options */
+type RedirectOpts = { advanced?: boolean; redirectTo?: string };
 
-/** Pick redirect path based on `advanced` flag */
-const pathFor = (advanced?: boolean) =>
-  advanced ? ADVANCED_PATH : SETTINGS_PATH;
+const pathFor = (opts: RedirectOpts) =>
+  opts.redirectTo ?? (opts.advanced ? ADVANCED_PATH : SETTINGS_PATH);
+
+/** Build a route wrapper for the given redirect path */
+const routeFor = (opts: RedirectOpts) => {
+  const path = pathFor(opts);
+  const errPage = errorPageFor(path);
+  return (handler: SettingsFormHandler) =>
+    (request: Request): Promise<Response> =>
+      withAuth(request, OWNER_FORM, (session, form) =>
+        handler(form, errPage(session), session),
+      );
+};
 
 // ── Core: createSettingsHandler ─────────────────────────────────────
 
 type SettingsHandlerConfig<T> = {
-  /** Form ID for flash message targeting */
-  formId: string;
+  /** Form ID for flash message targeting (omit for non-settings pages) */
+  formId?: string;
   /** Human-readable label — used for default log/message */
   label: string;
   /** If true, redirect to /admin/settings-advanced instead of /admin/settings */
   advanced?: boolean;
+  /** Custom redirect path (overrides advanced flag) */
+  redirectTo?: string;
   /** Extract the value from form data */
   extract: (form: FormParams) => T;
   /** Validate the value. Return error string or null if valid. */
@@ -101,27 +110,27 @@ const createSettingsHandler =
     const value = cfg.extract(form);
     if (cfg.validate) {
       const error = cfg.validate(value);
-      if (error) return errorPage(error, 400, cfg.formId);
+      if (error) return errorPage(error, 400, cfg.formId ?? "");
     }
     await cfg.save(value);
     const logMsg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
     await logActivity(logMsg);
     const flashMsg = cfg.message ? cfg.message(value) : logMsg;
-    return redirect(pathFor(cfg.advanced), flashMsg, true, {
-      formId: cfg.formId,
-    });
+    return redirect(pathFor(cfg), flashMsg, true,
+      cfg.formId ? { formId: cfg.formId } : undefined,
+    );
   };
 
 /** Convenience: createSettingsHandler + route wrapping */
 const settingsHandler = <T>(
   cfg: SettingsHandlerConfig<T>,
 ): ((request: Request) => Promise<Response>) =>
-  routeFor(cfg.advanced)(createSettingsHandler(cfg));
+  routeFor(cfg)(createSettingsHandler(cfg));
 
 // ── Specialization: toggleHandler ───────────────────────────────────
 
 type ToggleConfig = {
-  formId: string;
+  formId?: string;
   /** Form field name */
   field: string;
   /** Human-readable label (e.g. "Public site") */
@@ -130,6 +139,8 @@ type ToggleConfig = {
   save: (value: boolean) => Promise<void> | void;
   /** If true, redirect to /admin/settings-advanced */
   advanced?: boolean;
+  /** Custom redirect path (overrides advanced flag) */
+  redirectTo?: string;
 };
 
 const toggleHandler = (cfg: ToggleConfig): SettingsFormHandler =>
@@ -137,6 +148,7 @@ const toggleHandler = (cfg: ToggleConfig): SettingsFormHandler =>
     formId: cfg.formId,
     label: cfg.label,
     advanced: cfg.advanced,
+    redirectTo: cfg.redirectTo,
     extract: (form) => form.get(cfg.field) === "true",
     save: cfg.save,
     log: (v) => `${cfg.label} ${v ? "enabled" : "disabled"}`,
@@ -147,12 +159,12 @@ const toggleHandler = (cfg: ToggleConfig): SettingsFormHandler =>
 const settingsToggle = (
   cfg: ToggleConfig,
 ): ((request: Request) => Promise<Response>) =>
-  routeFor(cfg.advanced)(toggleHandler(cfg));
+  routeFor(cfg)(toggleHandler(cfg));
 
 // ── Specialization: clearableFieldHandler ───────────────────────────
 
 type ClearableFieldConfig = {
-  formId: string;
+  formId?: string;
   /** Form field name */
   field: string;
   /** Human-readable label (e.g. "Business email") */
@@ -163,6 +175,8 @@ type ClearableFieldConfig = {
   save: (value: string) => Promise<void> | void;
   /** If true, redirect to /admin/settings-advanced */
   advanced?: boolean;
+  /** Custom redirect path (overrides advanced flag) */
+  redirectTo?: string;
 };
 
 const clearableFieldHandler = (
@@ -172,6 +186,7 @@ const clearableFieldHandler = (
     formId: cfg.formId,
     label: cfg.label,
     advanced: cfg.advanced,
+    redirectTo: cfg.redirectTo,
     extract: (form) => form.getString(cfg.field),
     validate: (value) => {
       if (value === "") return null;
@@ -187,7 +202,7 @@ const clearableFieldHandler = (
 const settingsClearable = (
   cfg: ClearableFieldConfig,
 ): ((request: Request) => Promise<Response>) =>
-  routeFor(cfg.advanced)(clearableFieldHandler(cfg));
+  routeFor(cfg)(clearableFieldHandler(cfg));
 
 // ── Secret field helpers ────────────────────────────────────────────
 
@@ -214,7 +229,7 @@ const processSecretField = (
 };
 
 type SecretFieldConfig = {
-  formId: string;
+  formId?: string;
   /** Form field name */
   field: string;
   /** Human-readable label */
@@ -229,47 +244,44 @@ type SecretFieldConfig = {
   afterSave?: (value: string) => Promise<void> | void;
   /** If true, redirect to /admin/settings-advanced */
   advanced?: boolean;
+  /** Custom redirect path (overrides advanced flag) */
+  redirectTo?: string;
 };
 
 const secretFieldHandler =
   (cfg: SecretFieldConfig): SettingsFormHandler =>
   async (form, errorPage) => {
     const field = processSecretField(form, cfg.field);
-    const to = pathFor(cfg.advanced);
+    const to = pathFor(cfg);
+    const formOpts = cfg.formId ? { formId: cfg.formId } : undefined;
 
     if (field.action === "unchanged") {
-      return redirect(to, `${cfg.label} unchanged`, true, {
-        formId: cfg.formId,
-      });
+      return redirect(to, `${cfg.label} unchanged`, true, formOpts);
     }
 
     if (field.action === "cleared") {
       if (cfg.required) {
-        return errorPage(`${cfg.label} is required`, 400, cfg.formId);
+        return errorPage(`${cfg.label} is required`, 400, cfg.formId ?? "");
       }
-      return redirect(to, `${cfg.label} cleared`, true, {
-        formId: cfg.formId,
-      });
+      return redirect(to, `${cfg.label} cleared`, true, formOpts);
     }
 
     if (cfg.validate) {
       const error = cfg.validate(field.value);
-      if (error) return errorPage(error, 400, cfg.formId);
+      if (error) return errorPage(error, 400, cfg.formId ?? "");
     }
 
     await cfg.save(field.value);
     if (cfg.afterSave) await cfg.afterSave(field.value);
     await logActivity(`${cfg.label} configured`);
-    return redirect(to, `${cfg.label} updated successfully`, true, {
-      formId: cfg.formId,
-    });
+    return redirect(to, `${cfg.label} updated successfully`, true, formOpts);
   };
 
 /** Convenience: secretFieldHandler + route wrapping */
 const settingsSecret = (
   cfg: SecretFieldConfig,
 ): ((request: Request) => Promise<Response>) =>
-  routeFor(cfg.advanced)(secretFieldHandler(cfg));
+  routeFor(cfg)(secretFieldHandler(cfg));
 
 // ── Exports ─────────────────────────────────────────────────────────
 
