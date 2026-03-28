@@ -460,23 +460,14 @@ const handleAdminSquareWebhookPost = settingsSecret({
   save: (v) => settings.update.square.webhookSignatureKey(v),
 });
 
-/**
- * Handle POST /admin/settings/stripe/test - owner only
- */
-const handleStripeTestPost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async () => {
-    const result = await testStripeConnection();
-    return jsonResponse(result);
-  });
+/** Owner auth POST that runs a test function and returns JSON */
+const testRoute =
+  (testFn: () => Promise<unknown>) =>
+  (request: Request): Promise<Response> =>
+    withAuth(request, OWNER_FORM, async () => jsonResponse(await testFn()));
 
-/**
- * Handle POST /admin/settings/square/test - owner only
- */
-const handleSquareTestPost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async () => {
-    const result = await testSquareConnection();
-    return jsonResponse(result);
-  });
+const handleStripeTestPost = testRoute(testStripeConnection);
+const handleSquareTestPost = testRoute(testSquareConnection);
 
 /**
  * Handle POST /admin/settings/embed-hosts - owner only
@@ -762,12 +753,6 @@ const validateTemplateFields = ({
     if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
       return `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`;
     }
-  }
-  for (const [name, value] of [
-    ["subject", subject],
-    ["html", html],
-    ["text", text],
-  ] as const) {
     if (value) {
       const error = validateTemplate(value);
       if (error) return `Invalid template syntax in ${name}: ${error}`;
