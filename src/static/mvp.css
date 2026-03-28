@@ -190,6 +190,7 @@ hr {
 
 section {
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
   justify-content: var(--justify-important);
   gap: var(--space-m);
@@ -523,6 +524,13 @@ form.one-button {
   box-shadow: none;
   padding-left: 0;
   padding-right: 0;
+}
+
+form.no-bg {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 form > * {

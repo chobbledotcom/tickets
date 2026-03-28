@@ -56,7 +56,7 @@ const UpdateAvailable = ({
       </p>
     </div>
     {state.bunnyConfigured ? (
-      <CsrfForm action="/admin/update" id="update-deploy">
+      <CsrfForm action="/admin/update" id="update-deploy" class="no-bg">
         <button type="submit">Update Now</button>
       </CsrfForm>
     ) : (
