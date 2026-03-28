@@ -57,7 +57,12 @@ import {
   isLoginRateLimited,
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
-import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations.ts";
+import {
+  initDb,
+  LATEST_UPDATE,
+  resetDatabase,
+  SCHEMA_HASH,
+} from "#lib/db/migrations.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
@@ -130,6 +135,29 @@ describeWithEnv("db", { db: true }, () => {
         "SELECT value FROM settings WHERE key = 'latest_db_update'",
       );
       expect(result.rows[0]?.value).toBe(LATEST_UPDATE);
+    });
+
+    test("initDb stores db_schema_hash in settings", async () => {
+      const result = await getDb().execute(
+        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+      );
+      expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+    });
+
+    test("initDb re-runs when schema hash changes", async () => {
+      // Simulate a stale hash (schema changed but LATEST_UPDATE wasn't bumped)
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+
+      // initDb should detect the mismatch and re-run
+      await initDb();
+
+      // Verify hash was updated back to current
+      const result = await getDb().execute(
+        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+      );
+      expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
     });
 
     test("initDb can be called multiple times safely", async () => {

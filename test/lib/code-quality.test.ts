@@ -287,8 +287,9 @@ describe("code quality", () => {
       // (settings.ts functions now accessed via settings namespace, not individual exports)
       // Reset cached sessions between tests
       "lib/db/sessions.ts:resetSessionCache",
-      // DB version constant used in production but test pattern doesn't detect constant comparison
+      // DB version/hash constants used in production but test pattern doesn't detect constant comparison
       "lib/db/migrations.ts:LATEST_UPDATE",
+      "lib/db/migrations.ts:SCHEMA_HASH",
       // Test helper for creating signed webhook payloads
       "lib/stripe.ts:constructTestWebhookEvent",
       // Reset cached Square client between tests

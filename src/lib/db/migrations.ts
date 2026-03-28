@@ -4,10 +4,11 @@
  * To modify the schema:
  * - Add a column: add it to the table's `columns` array
  * - Add a table: add it to SCHEMA (after its FK dependencies)
- * - Rename a column: add an entry to COLUMN_RENAMES
  * - Add an index: add it to the table's `indexes` array
  *
- * Then update LATEST_UPDATE to trigger re-evaluation on next startup.
+ * Then update LATEST_UPDATE to describe the change.
+ * The schema hash is computed automatically — if you forget to update
+ * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
 import { getDb } from "#lib/db/client.ts";
@@ -28,15 +29,9 @@ type Table = {
   indexes?: Index[];
 };
 
-// ─── Version — update when schema changes ───────────────────────
+// ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE = "declarative schema migrations";
-
-// ─── Column renames (old → new, safe to re-run) ─────────────────
-
-const COLUMN_RENAMES: { table: string; from: string; to: string }[] = [
-  { table: "attendees", from: "stripe_payment_id", to: "payment_id" },
-];
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -343,6 +338,19 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 ];
 
+// ─── Schema hash (auto-detects changes even if LATEST_UPDATE isn't bumped) ──
+
+/** DJB2 hash — deterministic, fast, good enough for change detection */
+const djb2 = (str: string): string => {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+};
+
+export const SCHEMA_HASH = djb2(JSON.stringify(SCHEMA));
+
 // ─── Helpers ────────────────────────────────────────────────────
 
 /** Run a migration that may fail if already applied */
@@ -360,13 +368,19 @@ const getExistingColumns = async (table: string): Promise<Set<string>> => {
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
-/** Check if database is already up to date */
+/** Check if database is already up to date (version + schema hash) */
 const isDbUpToDate = async (): Promise<boolean> => {
   try {
     const result = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'latest_db_update'",
+      "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
     );
-    return result.rows[0]?.value === LATEST_UPDATE;
+    const values = new Map(
+      result.rows.map((r) => [r.key as string, r.value as string]),
+    );
+    return (
+      values.get("latest_db_update") === LATEST_UPDATE &&
+      values.get("db_schema_hash") === SCHEMA_HASH
+    );
   } catch {
     return false;
   }
@@ -378,9 +392,8 @@ const isDbUpToDate = async (): Promise<boolean> => {
  * Initialize database tables — idempotent, safe to call on every startup.
  *
  * 1. Create tables that don't exist
- * 2. Apply pending column renames
- * 3. Add any missing columns to existing tables
- * 4. Create any missing indexes
+ * 2. Add any missing columns to existing tables
+ * 3. Create any missing indexes
  */
 export const initDb = async (): Promise<void> => {
   if (await isDbUpToDate()) return;
@@ -396,12 +409,7 @@ export const initDb = async (): Promise<void> => {
     );
   }
 
-  // 2. Rename columns (errors silently if already renamed)
-  for (const { table, from, to } of COLUMN_RENAMES) {
-    await runMigration(`ALTER TABLE ${table} RENAME COLUMN ${from} TO ${to}`);
-  }
-
-  // 3. Add missing columns
+  // 2. Add missing columns
   for (const [name, table] of SCHEMA) {
     const existing = await getExistingColumns(name);
     for (const [col, type] of table.columns) {
@@ -411,7 +419,7 @@ export const initDb = async (): Promise<void> => {
     }
   }
 
-  // 4. Create indexes
+  // 3. Create indexes
   for (const [name, table] of SCHEMA) {
     for (const idx of table.indexes ?? []) {
       const unique = idx.unique ? "UNIQUE " : "";
@@ -421,10 +429,14 @@ export const initDb = async (): Promise<void> => {
     }
   }
 
-  // 5. Update version marker
+  // 4. Update version marker and schema hash
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
+  });
+  await getDb().execute({
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+    args: [SCHEMA_HASH],
   });
 };
 
