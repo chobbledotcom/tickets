@@ -831,10 +831,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Payment provider set to square"),
-      );
+      expectFlash(response, "Payment provider set to square");
     });
   });
   describe("POST /admin/settings/payment-provider", () => {
@@ -853,10 +850,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         { payment_provider: "stripe" },
       );
       expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Payment provider set to stripe"),
-      );
+      expectFlash(response, "Payment provider set to stripe");
     });
 
     test("disables payment provider with none", async () => {
@@ -865,10 +859,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         { payment_provider: "none" },
       );
       expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Payment provider disabled"),
-      );
+      expectFlash(response, "Payment provider disabled");
     });
 
     test("rejects invalid payment provider", async () => {
@@ -1173,7 +1164,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const logs = await getAllActivityLog();
       expect(
-        logs.some((l) => l.message.includes("Payment provider set to stripe")),
+        logs.some((l) => l.message === "Payment provider set to stripe"),
       ).toBe(true);
     });
 
@@ -1183,9 +1174,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
 
       const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) => l.message.includes("Payment provider disabled")),
-      ).toBe(true);
+      expect(logs.some((l) => l.message === "Payment provider disabled")).toBe(
+        true,
+      );
     });
 
     test("logs activity when Stripe key is configured", async () => {
@@ -1219,7 +1210,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const logs = await getAllActivityLog();
       expect(
-        logs.some((l) => l.message.includes("Square credentials configured")),
+        logs.some((l) => l.message.includes("Square credentials updated")),
       ).toBe(true);
     });
 
@@ -1413,7 +1404,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Theme updated to dark"));
+      expectFlash(response, "Theme set to dark");
     });
 
     test("updates theme to light successfully", async () => {
@@ -1429,7 +1420,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Theme updated to light"));
+      expectFlash(response, "Theme set to light");
     });
 
     test("theme setting persists in database", async () => {
@@ -1597,7 +1588,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Country updated"));
+      expectFlash(response, "Country set to US");
     });
 
     test("rejects invalid country code", async () => {
@@ -1679,9 +1670,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Country set to FR"))).toBe(
-        true,
-      );
+      expect(logs.some((l) => l.message === "Country set to FR")).toBe(true);
     });
   });
   describe("POST /admin/settings/booking-fee", () => {
@@ -1706,10 +1695,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Booking fee updated to 1.5%"),
-      );
+      expectFlash(response, "Booking fee set to 1.5%");
 
       const { settings } = await import("#lib/db/settings.ts");
       expect(settings.bookingFee).toBe("1.5");
@@ -1727,10 +1713,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Booking fee updated to 0%"),
-      );
+      expectFlash(response, "Booking fee set to 0%");
     });
 
     test("rejects value exceeding 10", async () => {
@@ -1849,9 +1832,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) => l.message.includes("Booking fee set to 2.5%")),
-      ).toBe(true);
+      expect(logs.some((l) => l.message === "Booking fee set to 2.5%")).toBe(
+        true,
+      );
     });
   });
 

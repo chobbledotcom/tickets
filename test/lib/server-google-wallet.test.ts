@@ -272,7 +272,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
 
     expectRedirectWithFlash(
       "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
-      "Google Wallet settings updated",
+      "Google Wallet configuration updated",
     )(response);
 
     expect(settings.googleWallet.hasConfig).toBe(true);
