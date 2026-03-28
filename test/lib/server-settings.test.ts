@@ -1708,7 +1708,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Booking fee set to"),
+        expect.stringContaining("Booking fee set to 1.5%"),
       );
 
       const { settings } = await import("#lib/db/settings.ts");
@@ -1729,7 +1729,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Booking fee set to"),
+        expect.stringContaining("Booking fee set to 0%"),
       );
     });
 
