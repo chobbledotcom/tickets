@@ -244,11 +244,13 @@ export const adminDebugPage = (
             <tr>
               <td>File storage (images)</td>
               <td>
-                {s.bunny.storageBackend === "bunny"
-                  ? <span class="badge-ok">Bunny CDN</span>
-                  : s.bunny.storageBackend === "local"
-                    ? <span class="badge-ok">Local filesystem</span>
-                    : <span class="badge-missing">Not configured</span>}
+                {s.bunny.storageBackend === "bunny" ? (
+                  <span class="badge-ok">Bunny CDN</span>
+                ) : s.bunny.storageBackend === "local" ? (
+                  <span class="badge-ok">Local filesystem</span>
+                ) : (
+                  <span class="badge-missing">Not configured</span>
+                )}
               </td>
             </tr>
             <tr>

@@ -319,6 +319,27 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
   });
 
+  describe("GET /admin/debug with Bunny storage backend", () => {
+    let restoreEnv: () => void;
+
+    afterEach(() => restoreEnv());
+
+    test("shows Bunny CDN badge when storage zone is configured", async () => {
+      restoreEnv = setTestEnv({
+        STORAGE_ZONE_NAME: "my-zone",
+        STORAGE_ZONE_KEY: "zone-key",
+      });
+      await assertAdminHtml("/admin/debug", "Bunny CDN");
+    });
+
+    test("shows Local filesystem badge when local storage is configured", async () => {
+      restoreEnv = setTestEnv({
+        LOCAL_STORAGE_PATH: "/tmp/test-storage",
+      });
+      await assertAdminHtml("/admin/debug", "Local filesystem");
+    });
+  });
+
   describe("GET /admin/debug with Bunny DNS enabled", () => {
     let restoreEnv: () => void;
 
