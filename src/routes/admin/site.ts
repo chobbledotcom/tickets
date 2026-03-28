@@ -81,7 +81,7 @@ const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
     await settings.update.websiteTitle(title);
     await settings.update.homepageText(text);
   },
-  message: () => "Homepage updated",
+  log: () => "Homepage updated",
 });
 
 /** Handle POST /admin/site/contact - save contact page */
@@ -97,7 +97,7 @@ const handleSiteContactPost = settingsHandler({
       ? `Contact page text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
       : null,
   save: (v) => settings.update.contactPageText(v),
-  message: () => "Contact page updated",
+  log: () => "Contact page updated",
 });
 
 /** Site editor routes */

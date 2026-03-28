@@ -86,7 +86,7 @@ const routeFor = (opts: RedirectOpts) => {
 type SettingsHandlerConfig<T> = {
   /** Form ID for flash message targeting (omit for non-settings pages) */
   formId?: string;
-  /** Human-readable label — used for default log/message */
+  /** Human-readable label — used for default log (default: "${label} updated") */
   label: string;
   /** If true, redirect to /admin/settings-advanced instead of /admin/settings */
   advanced?: boolean;
@@ -98,10 +98,8 @@ type SettingsHandlerConfig<T> = {
   validate?: (value: T) => string | null;
   /** Persist the value */
   save: (value: T) => Promise<void> | void;
-  /** Activity log message (default: "${label} updated") */
+  /** Activity log + flash message (default: "${label} updated") */
   log?: (value: T) => string;
-  /** Flash success message (default: same as log) */
-  message?: (value: T) => string;
 };
 
 const createSettingsHandler =
@@ -113,10 +111,9 @@ const createSettingsHandler =
       if (error) return errorPage(error, 400, cfg.formId ?? "");
     }
     await cfg.save(value);
-    const logMsg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
-    await logActivity(logMsg);
-    const flashMsg = cfg.message ? cfg.message(value) : logMsg;
-    return redirect(pathFor(cfg), flashMsg, true,
+    const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
+    await logActivity(msg);
+    return redirect(pathFor(cfg), msg, true,
       cfg.formId ? { formId: cfg.formId } : undefined,
     );
   };
@@ -152,7 +149,6 @@ const toggleHandler = (cfg: ToggleConfig): SettingsFormHandler =>
     extract: (form) => form.get(cfg.field) === "true",
     save: cfg.save,
     log: (v) => `${cfg.label} ${v ? "enabled" : "disabled"}`,
-    message: (v) => `${cfg.label} ${v ? "enabled" : "disabled"}`,
   });
 
 /** Convenience: toggleHandler + route wrapping */
@@ -194,8 +190,6 @@ const clearableFieldHandler = (
     },
     save: cfg.save,
     log: (v) => (v === "" ? `${cfg.label} cleared` : `${cfg.label} updated`),
-    message: (v) =>
-      v === "" ? `${cfg.label} cleared` : `${cfg.label} updated`,
   });
 
 /** Convenience: clearableFieldHandler + route wrapping */

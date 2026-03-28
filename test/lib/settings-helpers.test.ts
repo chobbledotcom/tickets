@@ -65,24 +65,7 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       expect(getFlashMessage(res)).toContain("Test setting updated");
     });
 
-    test("uses custom log and message when provided", async () => {
-      const handler = createSettingsHandler({
-        formId: "settings-test",
-        label: "Test",
-        extract: (form) => form.getString("value"),
-        save: () => Promise.resolve(),
-        log: (v) => `Custom log: ${v}`,
-        message: (v) => `Custom msg: ${v}`,
-      });
-
-      const form = formFrom({ value: "x" });
-      const res = await handler(form, mockErrorPage, null);
-
-      expect(await lastLogMessage()).toBe("Custom log: x");
-      expect(getFlashMessage(res)).toContain("Custom msg: x");
-    });
-
-    test("message defaults to log output when only log is provided", async () => {
+    test("uses custom log for both activity log and flash message", async () => {
       const handler = createSettingsHandler({
         formId: "settings-test",
         label: "Test",

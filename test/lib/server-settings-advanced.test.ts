@@ -269,7 +269,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
       const logs = await getAllActivityLog();
       expect(
-        logs.some((l) => l.message.includes("Email provider set to sendgrid")),
+        logs.some((l) => l.message.includes("Email settings updated")),
       ).toBe(true);
     });
 

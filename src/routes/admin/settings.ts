@@ -81,6 +81,7 @@ import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import {
   advancedSettingsRoute,
   processSecretField,
+  type SecretFieldResult,
   settingsClearable,
   settingsHandler,
   settingsRoute,
@@ -678,44 +679,43 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
 });
 
 /** Handle POST /admin/settings/email - owner only */
-const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
-  const provider = form.getString("email_provider");
-  const apiKeyField = processSecretField(form, "email_api_key");
-  const fromAddress = form.getString("email_from_address");
+type EmailFormData = {
+  provider: string;
+  apiKey: SecretFieldResult;
+  fromAddress: string;
+};
 
-  if (provider === "") {
-    await settings.update.email.provider("");
-    await settings.update.email.apiKey("");
-    await settings.update.email.fromAddress("");
-    await logActivity("Email provider disabled");
-    return redirect(
-      "/admin/settings-advanced",
-      "Email provider disabled",
-      true,
-      { formId: "settings-email" },
-    );
-  }
-
-  if (!isEmailProvider(provider)) {
-    return errorPage("Invalid email provider", 400, "settings-email");
-  }
-
-  if (fromAddress && !isValidBusinessEmail(fromAddress)) {
-    return errorPage(
-      "Invalid from-address format. Please use format: name@domain.com",
-      400,
-      "settings-email",
-    );
-  }
-
-  await settings.update.email.provider(provider);
-  if (apiKeyField.action === "provided")
-    await settings.update.email.apiKey(apiKeyField.value);
-  if (fromAddress) await settings.update.email.fromAddress(fromAddress);
-  await logActivity(`Email provider set to ${provider}`);
-  return redirect("/admin/settings-advanced", "Email settings updated", true, {
-    formId: "settings-email",
-  });
+const handleEmailPost = settingsHandler<EmailFormData>({
+  formId: "settings-email",
+  label: "Email settings",
+  advanced: true,
+  extract: (form) => ({
+    provider: form.getString("email_provider"),
+    apiKey: processSecretField(form, "email_api_key"),
+    fromAddress: form.getString("email_from_address"),
+  }),
+  validate: ({ provider, fromAddress }) => {
+    if (provider === "") return null;
+    if (!isEmailProvider(provider)) return "Invalid email provider";
+    if (fromAddress && !isValidBusinessEmail(fromAddress)) {
+      return "Invalid from-address format. Please use format: name@domain.com";
+    }
+    return null;
+  },
+  save: async ({ provider, apiKey, fromAddress }) => {
+    if (provider === "") {
+      await settings.update.email.provider("");
+      await settings.update.email.apiKey("");
+      await settings.update.email.fromAddress("");
+      return;
+    }
+    await settings.update.email.provider(provider);
+    if (apiKey.action === "provided")
+      await settings.update.email.apiKey(apiKey.value);
+    if (fromAddress) await settings.update.email.fromAddress(fromAddress);
+  },
+  log: ({ provider }) =>
+    provider === "" ? "Email provider disabled" : "Email settings updated",
 });
 
 /** Handle POST /admin/settings/email/test - send test email to business email */
