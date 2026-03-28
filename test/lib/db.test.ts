@@ -180,6 +180,31 @@ describeWithEnv("db", { db: true }, () => {
       // We just check it completes without error
       expect(duration).toBeLessThan(100);
     });
+
+    test("initDb drops legacy indexes not in declarative schema", async () => {
+      // Create a legacy index that the declarative schema doesn't declare
+      await getDb().execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token ON attendees(ticket_token)",
+      );
+
+      // Verify the legacy index exists
+      const before = await getDb().execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_attendees_ticket_token'",
+      );
+      expect(before.rows.length).toBe(1);
+
+      // Force re-run by invalidating schema hash
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+      await initDb();
+
+      // Legacy index should be dropped
+      const after = await getDb().execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_attendees_ticket_token'",
+      );
+      expect(after.rows.length).toBe(0);
+    });
   });
 
   describe("resetDatabase", () => {

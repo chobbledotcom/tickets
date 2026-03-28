@@ -420,12 +420,25 @@ export const initDb = async (): Promise<void> => {
   }
 
   // 3. Create indexes
+  const declaredIndexNames = new Set<string>();
   for (const [name, table] of SCHEMA) {
     for (const idx of table.indexes ?? []) {
+      declaredIndexNames.add(idx.name);
       const unique = idx.unique ? "UNIQUE " : "";
       await runMigration(
         `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${name}(${idx.columns.join(", ")})`,
       );
+    }
+  }
+
+  // 3b. Drop legacy indexes not in current schema (prefix-matched to our naming convention)
+  const allIndexes = await getDb().execute(
+    "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'",
+  );
+  for (const row of allIndexes.rows) {
+    const indexName = String(row.name);
+    if (!declaredIndexNames.has(indexName)) {
+      await runMigration(`DROP INDEX IF EXISTS ${indexName}`);
     }
   }
 
