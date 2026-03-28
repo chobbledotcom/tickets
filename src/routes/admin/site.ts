@@ -3,25 +3,20 @@
  * Owner-only access
  */
 
-import { logActivity } from "#lib/db/activityLog.ts";
 import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#lib/db/settings.ts";
 import {
   applyDemoOverrides,
   SITE_CONTACT_DEMO_FIELDS,
   SITE_HOME_DEMO_FIELDS,
 } from "#lib/demo.ts";
-import type { FormParams } from "#lib/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
+import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
   applyFlash,
-  errorRedirect,
   htmlResponse,
-  OWNER_FORM,
-  redirect,
   requireOwnerOr,
-  withAuth,
 } from "#routes/utils.ts";
 import {
   adminSiteContactPage,
@@ -43,17 +38,6 @@ const siteGetRoute =
       const html = render(session, flash.error, flash.success);
       return htmlResponse(html);
     });
-
-type SitePostHandler = (
-  session: AuthSession,
-  form: FormParams,
-) => Promise<Response>;
-
-/** Owner-only POST route for site editor forms */
-const sitePostRoute =
-  (handler: SitePostHandler) =>
-  (request: Request): Promise<Response> =>
-    withAuth(request, OWNER_FORM, handler);
 
 /** Render homepage editor with current state */
 const renderHomePage: PageRenderer = (session, error, success) => {
@@ -77,45 +61,46 @@ const renderContactPage: PageRenderer = (session, error, success) => {
 };
 
 /** Handle POST /admin/site - save homepage */
-const handleSiteHomePost = sitePostRoute(async (_session, form) => {
-  applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
-
-  const titleRaw = form.getString("website_title");
-  if (titleRaw.length > MAX_WEBSITE_TITLE_LENGTH) {
-    return errorRedirect(
-      "/admin/site",
-      `Website title must be ${MAX_WEBSITE_TITLE_LENGTH} characters or fewer (currently ${titleRaw.length})`,
-    );
-  }
-
-  const textRaw = form.getString("homepage_text");
-  if (textRaw.length > MAX_TEXTAREA_LENGTH) {
-    return errorRedirect(
-      "/admin/site",
-      `Homepage text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${textRaw.length})`,
-    );
-  }
-
-  await settings.update.websiteTitle(titleRaw);
-  await settings.update.homepageText(textRaw);
-  await logActivity("Site homepage updated");
-  return redirect("/admin/site", "Homepage updated", true);
+const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
+  label: "Site homepage",
+  redirectTo: "/admin/site",
+  extract: (form) => {
+    applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
+    return {
+      title: form.getString("website_title"),
+      text: form.getString("homepage_text"),
+    };
+  },
+  validate: ({ title, text }) => {
+    if (title.length > MAX_WEBSITE_TITLE_LENGTH) {
+      return `Website title must be ${MAX_WEBSITE_TITLE_LENGTH} characters or fewer (currently ${title.length})`;
+    }
+    if (text.length > MAX_TEXTAREA_LENGTH) {
+      return `Homepage text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${text.length})`;
+    }
+    return null;
+  },
+  save: async ({ title, text }) => {
+    await settings.update.websiteTitle(title);
+    await settings.update.homepageText(text);
+  },
+  log: () => "Homepage updated",
 });
 
 /** Handle POST /admin/site/contact - save contact page */
-const handleSiteContactPost = sitePostRoute(async (_session, form) => {
-  applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
-  const textRaw = form.getString("contact_page_text");
-  if (textRaw.length > MAX_TEXTAREA_LENGTH) {
-    return errorRedirect(
-      "/admin/site/contact",
-      `Contact page text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${textRaw.length})`,
-    );
-  }
-
-  await settings.update.contactPageText(textRaw);
-  await logActivity("Site contact page updated");
-  return redirect("/admin/site/contact", "Contact page updated", true);
+const handleSiteContactPost = settingsHandler({
+  label: "Site contact page",
+  redirectTo: "/admin/site/contact",
+  extract: (form) => {
+    applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
+    return form.getString("contact_page_text");
+  },
+  validate: (v) =>
+    v.length > MAX_TEXTAREA_LENGTH
+      ? `Contact page text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
+      : null,
+  save: (v) => settings.update.contactPageText(v),
+  log: () => "Contact page updated",
 });
 
 /** Site editor routes */

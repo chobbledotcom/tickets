@@ -8,6 +8,7 @@ import {
   type FormGuard,
   type SessionGuard,
 } from "#routes/admin/utils.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   AUTH_FORM,
   applyFlash,
@@ -155,6 +156,15 @@ const createCrudHandlersWithAuth = <Row, Input>(
     identifierLabel: `${cfg.singular} name`,
   });
 
+  const routes = {
+    ...confirmedDelete.routes,
+    [`GET ${cfg.listPath}`]: listGet,
+    [`GET ${cfg.listPath}/new`]: newGet,
+    [`POST ${cfg.listPath}`]: createPost,
+    [`GET ${cfg.listPath}/:id/edit`]: editGet,
+    [`POST ${cfg.listPath}/:id/edit`]: editPost,
+  } as Record<string, RouteHandlerFn>;
+
   return {
     listGet,
     newGet,
@@ -162,5 +172,6 @@ const createCrudHandlersWithAuth = <Row, Input>(
     editGet,
     editPost,
     deleteRoutes: confirmedDelete.routes,
+    routes,
   };
 };

@@ -10,7 +10,6 @@ import {
 import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { defineRoutes } from "#routes/router.ts";
 import {
   adminHolidayDeletePage,
   adminHolidayEditPage,
@@ -29,7 +28,9 @@ const extractHolidayInput = (
 });
 
 /** Validate end_date >= start_date */
-const validateDateRange = (input: HolidayInput): Promise<string | null> =>
+export const validateDateRange = (
+  input: HolidayInput,
+): Promise<string | null> =>
   Promise.resolve(
     input.endDate < input.startDate
       ? "End date must be on or after the start date"
@@ -58,13 +59,4 @@ const crud = createOwnerCrudHandlers({
 });
 
 /** Holiday routes */
-export const holidaysRoutes = {
-  ...crud.deleteRoutes,
-  ...defineRoutes({
-    "GET /admin/holidays": crud.listGet,
-    "GET /admin/holidays/new": crud.newGet,
-    "POST /admin/holidays": crud.createPost,
-    "GET /admin/holidays/:id/edit": crud.editGet,
-    "POST /admin/holidays/:id/edit": crud.editPost,
-  }),
-};
+export const holidaysRoutes = crud.routes;
