@@ -394,6 +394,41 @@ const deleteDnsRecordImpl = async (
   return okOrError(response, "Delete DNS record");
 };
 
+// ---------------------------------------------------------------------------
+// Compute script deployment (self-update)
+// ---------------------------------------------------------------------------
+
+/**
+ * Upload new code to a Bunny edge script and publish it.
+ * Used by the admin self-update feature.
+ */
+const deployScriptCodeImpl = async (code: string): Promise<BunnyApiResult> => {
+  const scriptId = getBunnyScriptId();
+  const apiKey = getBunnyApiKey();
+
+  const upload = await fetchText(
+    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}/code`,
+    {
+      method: "POST",
+      headers: { AccessKey: apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ Code: code }),
+    },
+  );
+  if (!upload.ok) {
+    return okOrError(upload, "Upload script code");
+  }
+
+  const publish = await fetchText(
+    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}/publish`,
+    {
+      method: "POST",
+      headers: { AccessKey: apiKey, "Content-Type": "application/json" },
+      body: "{}",
+    },
+  );
+  return okOrError(publish, "Publish script");
+};
+
 /** Stubbable API for testing */
 export const bunnyCdnApi = {
   validateCustomDomain: validateCustomDomainImpl,
@@ -404,6 +439,7 @@ export const bunnyCdnApi = {
   getEdgeScript: getEdgeScriptImpl,
   getCdnHostname: getCdnHostnameImpl,
   deleteDnsRecord: deleteDnsRecordImpl,
+  deployScriptCode: deployScriptCodeImpl,
   delay,
 };
 
@@ -423,3 +459,7 @@ export const registerBunnySubdomain = (subdomain: string) =>
 /** Get CDN hostname (delegates to bunnyCdnApi for testability). */
 export const getCdnHostname = (): Promise<CdnHostnameResult> =>
   bunnyCdnApi.getCdnHostname();
+
+/** Upload and publish new script code to Bunny CDN. */
+export const deployScriptCode = (code: string): Promise<BunnyApiResult> =>
+  bunnyCdnApi.deployScriptCode(code);

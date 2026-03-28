@@ -334,6 +334,8 @@ describe("code quality", () => {
       "lib/db/settings.ts:SETTINGS_CACHE_TTL_MS",
       // Set request log suppression directly to avoid env var races between parallel tests
       "lib/logger.ts:setSuppressRequestLogs",
+      // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
+      "lib/update.ts:setBuildTimestampForTest",
     ];
 
     /**
