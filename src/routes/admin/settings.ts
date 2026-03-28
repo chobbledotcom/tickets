@@ -346,9 +346,7 @@ const handlePaymentProviderPost = settingsHandler({
       ? settings.update.clearPaymentProvider()
       : settings.update.paymentProvider(v as PaymentProviderType),
   log: (v) =>
-    v === "none"
-      ? "Payment provider disabled"
-      : `Payment provider set to ${v}`,
+    v === "none" ? "Payment provider disabled" : `Payment provider set to ${v}`,
 });
 
 /**

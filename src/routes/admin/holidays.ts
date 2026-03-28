@@ -29,7 +29,9 @@ const extractHolidayInput = (
 });
 
 /** Validate end_date >= start_date */
-const validateDateRange = (input: HolidayInput): Promise<string | null> =>
+export const validateDateRange = (
+  input: HolidayInput,
+): Promise<string | null> =>
   Promise.resolve(
     input.endDate < input.startDate
       ? "End date must be on or after the start date"
