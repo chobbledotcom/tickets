@@ -332,6 +332,20 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       expect(res.status).toBe(302);
       expect(saveFn).toHaveBeenCalledWith("some value");
     });
+
+    test("redirects to advanced page when advanced is true", async () => {
+      const handler = clearableFieldHandler({
+        field: "my_field",
+        label: "My field",
+        advanced: true,
+        save: () => Promise.resolve(),
+      });
+
+      const form = formFrom({ my_field: "val" });
+      const res = await handler(form, mockErrorPage, nullSession);
+
+      expect(redirectLocation(res)).toContain("/admin/settings-advanced");
+    });
   });
 
   describe("processSecretField", () => {
@@ -520,6 +534,20 @@ describeWithEnv("settings-helpers", { db: true }, () => {
       const res = await handler(form, mockErrorPage, nullSession);
 
       expect(redirectLocation(res)).toContain("/admin/settings-advanced");
+    });
+
+    test("omits formId from redirect when not provided", async () => {
+      const handler = secretFieldHandler({
+        field: "api_key",
+        label: "API key",
+        save: () => Promise.resolve(),
+      });
+
+      const form = formFrom({ api_key: "new_value" });
+      const res = await handler(form, mockErrorPage, nullSession);
+
+      expect(res.status).toBe(302);
+      expect(redirectLocation(res)).not.toContain("form=");
     });
   });
 });
