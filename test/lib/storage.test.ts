@@ -44,15 +44,21 @@ describeWithEnv(
       });
 
       test("returns false when only zoneName is set", () => {
-        runWithStorageConfig({ zoneName: "myzone", zoneKey: "", localPath: "" }, () => {
-          expect(isStorageEnabled()).toBe(false);
-        });
+        runWithStorageConfig(
+          { zoneName: "myzone", zoneKey: "", localPath: "" },
+          () => {
+            expect(isStorageEnabled()).toBe(false);
+          },
+        );
       });
 
       test("returns false when only zoneKey is set", () => {
-        runWithStorageConfig({ zoneName: "", zoneKey: "mykey", localPath: "" }, () => {
-          expect(isStorageEnabled()).toBe(false);
-        });
+        runWithStorageConfig(
+          { zoneName: "", zoneKey: "mykey", localPath: "" },
+          () => {
+            expect(isStorageEnabled()).toBe(false);
+          },
+        );
       });
 
       test("returns true when Bunny credentials are set", () => {
