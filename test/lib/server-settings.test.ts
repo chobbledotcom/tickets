@@ -1219,7 +1219,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const logs = await getAllActivityLog();
       expect(
-        logs.some((l) => l.message.includes("Square credentials configured")),
+        logs.some((l) => l.message.includes("Square credentials updated")),
       ).toBe(true);
     });
 

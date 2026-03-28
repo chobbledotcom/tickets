@@ -367,17 +367,14 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   }
 
   if (field.action === "cleared") {
-    // Require a key when none is configured
     if (!settings.stripe.hasKey) {
       return errorPage("Stripe Secret Key is required", 400, "settings-stripe");
     }
-    // Empty with existing key = no change
     return redirect("/admin/settings", "Stripe settings unchanged", true, {
       formId: "settings-stripe",
     });
   }
 
-  // Validate key format — must start with sk_test_ or sk_live_
   if (!detectStripeKeyMode(field.value)) {
     return errorPage(
       "Invalid Stripe key format. Keys must start with sk_test_ (test mode) or sk_live_ (live mode).",
@@ -386,7 +383,6 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  // Set up webhook endpoint automatically
   const webhookUrl = getWebhookUrl();
   const webhookResult = await setupWebhookEndpoint(
     field.value,
@@ -402,11 +398,8 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  // Store the Stripe key and webhook config
   await settings.update.stripe.secretKey(field.value);
   await settings.update.stripe.webhookConfig(webhookResult);
-
-  // Auto-set payment provider to stripe when key is configured
   await settings.update.paymentProvider("stripe");
 
   await logActivity("Stripe key configured");
@@ -421,47 +414,36 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
 /**
  * Handle POST /admin/settings/square - owner only
  */
-const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
-  if (isDemoMode()) {
-    return errorPage(
-      "Cannot configure Square in demo mode",
-      400,
-      "settings-square",
-    );
-  }
+type SquareFormData = {
+  token: SecretFieldResult;
+  locationId: string;
+  sandbox: boolean;
+};
 
-  const tokenField = processSecretField(form, "square_access_token");
-  const locationId = form.getString("square_location_id");
-  const sandbox = form.get("square_sandbox") === "on";
-
-  if (!locationId) {
-    return errorPage("Location ID is required", 400, "settings-square");
-  }
-
-  // Require a token when none is configured
-  if (tokenField.action === "cleared" && !settings.square.hasToken) {
-    return errorPage("Square Access Token is required", 400, "settings-square");
-  }
-
-  // Only update the token when a new value is provided
-  if (tokenField.action === "provided") {
-    await settings.update.square.accessToken(tokenField.value);
-  }
-
-  // Always allow updating non-secret fields
-  await settings.update.square.locationId(locationId);
-  await settings.update.square.sandbox(sandbox);
-
-  // Auto-set payment provider to square when credentials are configured
-  await settings.update.paymentProvider("square");
-
-  await logActivity("Square credentials configured");
-  return redirect(
-    "/admin/settings",
-    "Square credentials updated successfully",
-    true,
-    { formId: "settings-square" },
-  );
+const handleAdminSquarePost = settingsHandler<SquareFormData>({
+  formId: "settings-square",
+  label: "Square credentials",
+  extract: (form) => ({
+    token: processSecretField(form, "square_access_token"),
+    locationId: form.getString("square_location_id"),
+    sandbox: form.get("square_sandbox") === "on",
+  }),
+  validate: ({ token, locationId }) => {
+    if (isDemoMode()) return "Cannot configure Square in demo mode";
+    if (!locationId) return "Location ID is required";
+    if (token.action === "cleared" && !settings.square.hasToken) {
+      return "Square Access Token is required";
+    }
+    return null;
+  },
+  save: async ({ token, locationId, sandbox }) => {
+    if (token.action === "provided") {
+      await settings.update.square.accessToken(token.value);
+    }
+    await settings.update.square.locationId(locationId);
+    await settings.update.square.sandbox(sandbox);
+    await settings.update.paymentProvider("square");
+  },
 });
 
 /**
@@ -757,62 +739,55 @@ const isEmailTemplateType = (v: string): v is EmailTemplateType =>
   VALID_TEMPLATE_TYPES.has(v as EmailTemplateType);
 
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
-const handleEmailTemplatePost = (type: EmailTemplateType) =>
-  advancedSettingsRoute(async (form, errorPage) => {
-    const formId = `settings-email-tpl-${type}`;
-    const subject = form.getString("subject");
-    const html = form.getString("html");
-    const text = form.getString("text");
+type TemplateFormData = { subject: string; html: string; text: string };
 
-    // Validate lengths
-    for (const [name, value] of [
-      ["subject", subject],
-      ["html", html],
-      ["text", text],
-    ] as const) {
-      if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
-        return errorPage(
-          `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`,
-          400,
-          formId,
-        );
-      }
+const validateTemplateFields = (
+  { subject, html, text }: TemplateFormData,
+): string | null => {
+  for (const [name, value] of [
+    ["subject", subject],
+    ["html", html],
+    ["text", text],
+  ] as const) {
+    if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
+      return `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`;
     }
-
-    // Validate Liquid syntax
-    for (const [name, value] of [
-      ["subject", subject],
-      ["html", html],
-      ["text", text],
-    ] as const) {
-      if (value) {
-        const error = validateTemplate(value);
-        if (error) {
-          return errorPage(
-            `Invalid template syntax in ${name}: ${error}`,
-            400,
-            formId,
-          );
-        }
-      }
+  }
+  for (const [name, value] of [
+    ["subject", subject],
+    ["html", html],
+    ["text", text],
+  ] as const) {
+    if (value) {
+      const error = validateTemplate(value);
+      if (error) return `Invalid template syntax in ${name}: ${error}`;
     }
+  }
+  return null;
+};
 
-    await Promise.all([
-      settings.update.email.template(type, "subject", subject.trim()),
-      settings.update.email.template(type, "html", html.trim()),
-      settings.update.email.template(type, "text", text.trim()),
-    ]);
-
-    const label =
-      type === "confirmation" ? "Confirmation" : "Admin notification";
-    await logActivity(`${label} email template updated`);
-    return redirect(
-      "/admin/settings-advanced",
-      `${label} email template updated`,
-      true,
-      { formId },
-    );
+const handleEmailTemplatePost = (type: EmailTemplateType) => {
+  const label =
+    type === "confirmation" ? "Confirmation" : "Admin notification";
+  return settingsHandler<TemplateFormData>({
+    formId: `settings-email-tpl-${type}`,
+    label: `${label} email template`,
+    advanced: true,
+    extract: (form) => ({
+      subject: form.getString("subject"),
+      html: form.getString("html"),
+      text: form.getString("text"),
+    }),
+    validate: validateTemplateFields,
+    save: async ({ subject, html, text }) => {
+      await Promise.all([
+        settings.update.email.template(type, "subject", subject.trim()),
+        settings.update.email.template(type, "html", html.trim()),
+        settings.update.email.template(type, "text", text.trim()),
+      ]);
+    },
   });
+};
 
 /** Sample booking data used for email template previews */
 const PREVIEW_BOOKINGS = [
@@ -1103,194 +1078,133 @@ const handleHostSubdomainPost = advancedSettingsRoute(
 /**
  * Handle POST /admin/settings/apple-wallet - owner only
  */
-const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
-  const passTypeId = (form.get("apple_wallet_pass_type_id") as string).trim();
-  const teamId = (form.get("apple_wallet_team_id") as string).trim();
-  const certField = processSecretField(form, "apple_wallet_signing_cert");
-  const keyField = processSecretField(form, "apple_wallet_signing_key");
-  const wwdrField = processSecretField(form, "apple_wallet_wwdr_cert");
+type AppleWalletFormData = {
+  passTypeId: string;
+  teamId: string;
+  cert: SecretFieldResult;
+  key: SecretFieldResult;
+  wwdr: SecretFieldResult;
+};
 
-  // If everything is cleared, remove all settings
-  if (
-    !passTypeId &&
-    !teamId &&
-    certField.action === "cleared" &&
-    keyField.action === "cleared" &&
-    wwdrField.action === "cleared"
-  ) {
-    await Promise.all([
-      settings.update.appleWallet.passTypeId(""),
-      settings.update.appleWallet.teamId(""),
-      settings.update.appleWallet.signingCert(""),
-      settings.update.appleWallet.signingKey(""),
-      settings.update.appleWallet.wwdrCert(""),
-    ]);
-    await logActivity("Apple Wallet configuration cleared");
-    return redirect(
-      "/admin/settings-advanced",
-      "Apple Wallet configuration cleared",
-      true,
-      { formId: "settings-apple-wallet" },
-    );
-  }
+const isAllCleared = (d: AppleWalletFormData): boolean =>
+  !d.passTypeId &&
+  !d.teamId &&
+  d.cert.action === "cleared" &&
+  d.key.action === "cleared" &&
+  d.wwdr.action === "cleared";
 
-  if (!passTypeId) {
-    return errorPage("Pass Type ID is required", 400, "settings-apple-wallet");
-  }
-
-  if (!teamId) {
-    return errorPage("Team ID is required", 400, "settings-apple-wallet");
-  }
-
-  // For initial setup, require all three PEM fields
-  if (!settings.appleWallet.hasDbConfig) {
-    if (certField.action !== "provided") {
-      return errorPage(
-        "Signing certificate is required",
-        400,
-        "settings-apple-wallet",
-      );
+const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
+  formId: "settings-apple-wallet",
+  label: "Apple Wallet configuration",
+  advanced: true,
+  extract: (form) => ({
+    passTypeId: form.getString("apple_wallet_pass_type_id"),
+    teamId: form.getString("apple_wallet_team_id"),
+    cert: processSecretField(form, "apple_wallet_signing_cert"),
+    key: processSecretField(form, "apple_wallet_signing_key"),
+    wwdr: processSecretField(form, "apple_wallet_wwdr_cert"),
+  }),
+  validate: (d) => {
+    if (isAllCleared(d)) return null;
+    if (!d.passTypeId) return "Pass Type ID is required";
+    if (!d.teamId) return "Team ID is required";
+    if (!settings.appleWallet.hasDbConfig) {
+      if (d.cert.action !== "provided") return "Signing certificate is required";
+      if (d.key.action !== "provided") return "Signing private key is required";
+      if (d.wwdr.action !== "provided") return "WWDR certificate is required";
     }
-    if (keyField.action !== "provided") {
-      return errorPage(
-        "Signing private key is required",
-        400,
-        "settings-apple-wallet",
-      );
+    if (d.cert.action === "provided" && !isValidPemCertificate(d.cert.value)) {
+      return "Signing certificate is not a valid PEM certificate";
     }
-    if (wwdrField.action !== "provided") {
-      return errorPage(
-        "WWDR certificate is required",
-        400,
-        "settings-apple-wallet",
-      );
+    if (d.key.action === "provided" && !isValidPemPrivateKey(d.key.value)) {
+      return "Signing private key is not a valid PEM private key";
     }
-  }
-
-  // Validate PEM format for any newly provided fields
-  if (
-    certField.action === "provided" &&
-    !isValidPemCertificate(certField.value)
-  ) {
-    return errorPage(
-      "Signing certificate is not a valid PEM certificate",
-      400,
-      "settings-apple-wallet",
-    );
-  }
-  if (keyField.action === "provided" && !isValidPemPrivateKey(keyField.value)) {
-    return errorPage(
-      "Signing private key is not a valid PEM private key",
-      400,
-      "settings-apple-wallet",
-    );
-  }
-  if (
-    wwdrField.action === "provided" &&
-    !isValidPemCertificate(wwdrField.value)
-  ) {
-    return errorPage(
-      "WWDR certificate is not a valid PEM certificate",
-      400,
-      "settings-apple-wallet",
-    );
-  }
-
-  await settings.update.appleWallet.passTypeId(passTypeId);
-  await settings.update.appleWallet.teamId(teamId);
-  if (certField.action === "provided")
-    await settings.update.appleWallet.signingCert(certField.value);
-  if (keyField.action === "provided")
-    await settings.update.appleWallet.signingKey(keyField.value);
-  if (wwdrField.action === "provided")
-    await settings.update.appleWallet.wwdrCert(wwdrField.value);
-
-  await logActivity("Apple Wallet configuration updated");
-  return redirect(
-    "/admin/settings-advanced",
-    "Apple Wallet settings updated",
-    true,
-    { formId: "settings-apple-wallet" },
-  );
+    if (d.wwdr.action === "provided" && !isValidPemCertificate(d.wwdr.value)) {
+      return "WWDR certificate is not a valid PEM certificate";
+    }
+    return null;
+  },
+  save: async (d) => {
+    if (isAllCleared(d)) {
+      await Promise.all([
+        settings.update.appleWallet.passTypeId(""),
+        settings.update.appleWallet.teamId(""),
+        settings.update.appleWallet.signingCert(""),
+        settings.update.appleWallet.signingKey(""),
+        settings.update.appleWallet.wwdrCert(""),
+      ]);
+      return;
+    }
+    await settings.update.appleWallet.passTypeId(d.passTypeId);
+    await settings.update.appleWallet.teamId(d.teamId);
+    if (d.cert.action === "provided")
+      await settings.update.appleWallet.signingCert(d.cert.value);
+    if (d.key.action === "provided")
+      await settings.update.appleWallet.signingKey(d.key.value);
+    if (d.wwdr.action === "provided")
+      await settings.update.appleWallet.wwdrCert(d.wwdr.value);
+  },
+  log: (d) =>
+    isAllCleared(d)
+      ? "Apple Wallet configuration cleared"
+      : "Apple Wallet configuration updated",
 });
 
 /**
  * Handle POST /admin/settings/google-wallet - owner only
  */
-const handleGoogleWalletPost = advancedSettingsRoute(
-  async (form, errorPage) => {
-    const issuerId = (form.get("google_wallet_issuer_id") as string).trim();
-    const email = (
-      form.get("google_wallet_service_account_email") as string
-    ).trim();
-    const keyField = processSecretField(
-      form,
-      "google_wallet_service_account_key",
-    );
+type GoogleWalletFormData = {
+  issuerId: string;
+  email: string;
+  key: SecretFieldResult;
+};
 
-    // If everything is cleared, remove all settings
-    if (!issuerId && !email && keyField.action === "cleared") {
+const isGoogleWalletCleared = (d: GoogleWalletFormData): boolean =>
+  !d.issuerId && !d.email && d.key.action === "cleared";
+
+const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
+  formId: "settings-google-wallet",
+  label: "Google Wallet configuration",
+  advanced: true,
+  extract: (form) => ({
+    issuerId: form.getString("google_wallet_issuer_id"),
+    email: form.getString("google_wallet_service_account_email"),
+    key: processSecretField(form, "google_wallet_service_account_key"),
+  }),
+  validate: async (d) => {
+    if (isGoogleWalletCleared(d)) return null;
+    if (!d.issuerId) return "Issuer ID is required";
+    if (!d.email) return "Service account email is required";
+    if (!settings.googleWallet.hasDbConfig && d.key.action !== "provided") {
+      return "Service account private key is required";
+    }
+    if (
+      d.key.action === "provided" &&
+      !(await isValidGooglePrivateKey(d.key.value))
+    ) {
+      return "Service account private key is not a valid PEM private key";
+    }
+    return null;
+  },
+  save: async (d) => {
+    if (isGoogleWalletCleared(d)) {
       await Promise.all([
         settings.update.googleWallet.issuerId(""),
         settings.update.googleWallet.serviceAccountEmail(""),
         settings.update.googleWallet.serviceAccountKey(""),
       ]);
-      await logActivity("Google Wallet configuration cleared");
-      return redirect(
-        "/admin/settings-advanced",
-        "Google Wallet configuration cleared",
-        true,
-        { formId: "settings-google-wallet" },
-      );
+      return;
     }
-
-    if (!issuerId) {
-      return errorPage("Issuer ID is required", 400, "settings-google-wallet");
-    }
-
-    if (!email) {
-      return errorPage(
-        "Service account email is required",
-        400,
-        "settings-google-wallet",
-      );
-    }
-
-    // For initial setup, require the private key
-    if (!settings.googleWallet.hasDbConfig && keyField.action !== "provided") {
-      return errorPage(
-        "Service account private key is required",
-        400,
-        "settings-google-wallet",
-      );
-    }
-
-    // Validate PEM format for newly provided key
-    if (
-      keyField.action === "provided" &&
-      !(await isValidGooglePrivateKey(keyField.value))
-    ) {
-      return errorPage(
-        "Service account private key is not a valid PEM private key",
-        400,
-        "settings-google-wallet",
-      );
-    }
-
-    await settings.update.googleWallet.issuerId(issuerId);
-    await settings.update.googleWallet.serviceAccountEmail(email);
-    if (keyField.action === "provided")
-      await settings.update.googleWallet.serviceAccountKey(keyField.value);
-
-    await logActivity("Google Wallet configuration updated");
-    return redirect(
-      "/admin/settings-advanced",
-      "Google Wallet settings updated",
-      true,
-      { formId: "settings-google-wallet" },
-    );
+    await settings.update.googleWallet.issuerId(d.issuerId);
+    await settings.update.googleWallet.serviceAccountEmail(d.email);
+    if (d.key.action === "provided")
+      await settings.update.googleWallet.serviceAccountKey(d.key.value);
   },
-);
+  log: (d) =>
+    isGoogleWalletCleared(d)
+      ? "Google Wallet configuration cleared"
+      : "Google Wallet configuration updated",
+});
 
 /**
  * Handle POST /admin/settings/reset-database - owner only

@@ -356,7 +356,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
     expectRedirectWithFlash(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
-      "Apple Wallet settings updated",
+      "Apple Wallet configuration updated",
     )(response);
 
     expect(settings.appleWallet.hasConfig).toBe(true);

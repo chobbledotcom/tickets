@@ -95,7 +95,7 @@ type SettingsHandlerConfig<T> = {
   /** Extract the value from form data */
   extract: (form: FormParams) => T;
   /** Validate the value. Return error string or null if valid. */
-  validate?: (value: T) => string | null;
+  validate?: (value: T) => string | null | Promise<string | null>;
   /** Persist the value */
   save: (value: T) => Promise<void> | void;
   /** Activity log + flash message (default: "${label} updated") */
@@ -107,7 +107,7 @@ const createSettingsHandler =
   async (form, errorPage) => {
     const value = cfg.extract(form);
     if (cfg.validate) {
-      const error = cfg.validate(value);
+      const error = await cfg.validate(value);
       if (error) return errorPage(error, 400, cfg.formId ?? "");
     }
     await cfg.save(value);
@@ -166,7 +166,7 @@ type ClearableFieldConfig = {
   /** Human-readable label (e.g. "Business email") */
   label: string;
   /** Validate non-empty values. Return error string or null. */
-  validate?: (value: string) => string | null;
+  validate?: (value: string) => string | null | Promise<string | null>;
   /** Persist the value (called for both set and clear) */
   save: (value: string) => Promise<void> | void;
   /** If true, redirect to /admin/settings-advanced */
@@ -231,7 +231,7 @@ type SecretFieldConfig = {
   /** If true, "cleared" returns an error. If false, "cleared" is allowed. */
   required?: boolean;
   /** Validate the provided value. Return error string or null. */
-  validate?: (value: string) => string | null;
+  validate?: (value: string) => string | null | Promise<string | null>;
   /** Persist the value (only called for "provided" action) */
   save: (value: string) => Promise<void> | void;
   /** Additional saves to run after the main save */
@@ -261,7 +261,7 @@ const secretFieldHandler =
     }
 
     if (cfg.validate) {
-      const error = cfg.validate(field.value);
+      const error = await cfg.validate(field.value);
       if (error) return errorPage(error, 400, cfg.formId ?? "");
     }
 
