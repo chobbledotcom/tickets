@@ -1138,7 +1138,7 @@ describeWithEnv(
       );
     });
 
-    test("sends correct request body with ScriptType 2", async () => {
+    test("sends correct request body with ScriptType 1", async () => {
       const calls: { url: string; init: RequestInit | undefined }[] = [];
       await withMocks(
         () =>
@@ -1157,7 +1157,7 @@ describeWithEnv(
           expect(calls).toHaveLength(1);
           const body = JSON.parse(calls[0]!.init!.body as string);
           expect(body.Name).toBe("My Script");
-          expect(body.ScriptType).toBe(2);
+          expect(body.ScriptType).toBe(1);
           expect(body.CreateLinkedPullZone).toBe(true);
         },
       );

@@ -111,7 +111,7 @@ jq -n \
     '{
         Name: $name,
         Code: $code,
-        ScriptType: 2,
+        ScriptType: 1,
         CreateLinkedPullZone: true
     }' > "$PAYLOAD_FILE"
 
