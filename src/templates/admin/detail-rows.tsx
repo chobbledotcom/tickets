@@ -2,7 +2,7 @@
  * Shared detail table rows for admin pages (event, group, calendar)
  */
 
-import { map, reduce } from "#fp";
+import { joinStrings, map, reduce } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
 import type { Attendee } from "#lib/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
@@ -12,9 +12,6 @@ export type DetailRow = {
   key: string;
   value: string;
 };
-
-/** Concatenate strings (curried reducer for use in pipe) */
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /** Render an array of DetailRows as <tr><th>…</th><td>…</td></tr> HTML */
 export const renderDetailRows = (rows: DetailRow[]): string =>

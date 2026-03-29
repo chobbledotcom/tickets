@@ -4,7 +4,12 @@
 
 import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { hashPassword, hashSessionToken, hmacHash, verifyPassword } from "#lib/crypto/hashing.ts";
+import {
+  hashPassword,
+  hashSessionToken,
+  hmacHash,
+  verifyPassword,
+} from "#lib/crypto/hashing.ts";
 import { deriveKEK, wrapKey } from "#lib/crypto/keys.ts";
 import { deleteByFieldBatch, getDb, queryAll } from "#lib/db/client.ts";
 import { now } from "#lib/now.ts";

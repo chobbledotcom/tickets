@@ -6,18 +6,18 @@ import { settings } from "#lib/db/settings.ts";
 import { loadSortedEvents } from "#lib/sort-events.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import {
+  htmlResponse,
+  isRegistrationClosed,
+  notFoundResponse,
+  redirectResponse,
+} from "#routes/utils.ts";
+import {
   buildTicketEvent,
   homepagePage,
   type PublicPageType,
   publicSitePage,
   type TicketEvent,
 } from "#templates/public.tsx";
-import {
-  htmlResponse,
-  isRegistrationClosed,
-  notFoundResponse,
-  redirectResponse,
-} from "#routes/utils.ts";
 
 /** Active+visible filter for public event listings */
 const isPublicEvent = (e: EventWithCount): boolean => e.active && !e.hidden;

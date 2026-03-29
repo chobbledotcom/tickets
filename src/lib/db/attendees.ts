@@ -7,10 +7,10 @@
  */
 
 import { filter, map, reduce } from "#fp";
-import { generateTicketToken } from "#lib/crypto/utils.ts";
 import { decrypt } from "#lib/crypto/encryption.ts";
 import { computeTicketTokenIndex } from "#lib/crypto/hashing.ts";
 import { decryptAttendeePII, encryptAttendeePII } from "#lib/crypto/keys.ts";
+import { generateTicketToken } from "#lib/crypto/utils.ts";
 import {
   executeBatch,
   getDb,
