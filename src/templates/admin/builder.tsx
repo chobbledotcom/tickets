@@ -85,11 +85,7 @@ const BuiltSitesTable = ({
           <tr>
             <td>{site.name}</td>
             <td>
-              <a
-                href={`https://${site.bunnyUrl}`}
-                target="_blank"
-                rel="noopener"
-              >
+              <a href={site.bunnyUrl} target="_blank" rel="noopener">
                 {site.bunnyUrl}
               </a>
             </td>

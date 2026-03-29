@@ -43,7 +43,11 @@ describe("adminBuilderPage", () => {
 
   test("renders sites as clickable links", () => {
     const sites: BuiltSiteDisplay[] = [
-      { name: "Test", bunnyUrl: "test.b-cdn.net", created: "1 Jan 2026" },
+      {
+        name: "Test",
+        bunnyUrl: "https://test.b-cdn.net",
+        created: "1 Jan 2026",
+      },
     ];
     const html = adminBuilderPage(SESSION, sites);
     expect(html).toContain('href="https://test.b-cdn.net"');
