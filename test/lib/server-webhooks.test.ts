@@ -4042,18 +4042,35 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Submit multi-ticket form with a question answer selected.
       // One event is paid, so this triggers the payment flow.
+      // Stub checkout creation to avoid flaky stripe-mock HTTP calls under
+      // high concurrency — this test verifies webhook processing, not checkout.
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createMultiCheckoutSession",
+        () =>
+          Promise.resolve({
+            sessionId: "cs_multi_q_stub",
+            checkoutUrl: "https://checkout.stripe.com/pay/cs_multi_q_stub",
+          }),
+      );
+
       const { submitMultiTicketForm, expectCheckoutRedirect } = await import(
         "#test-utils"
       );
       const slug = `${event1.slug}+${event2.slug}`;
-      const checkoutResponse = await submitMultiTicketForm(slug, {
-        name: "Q Buyer",
-        email: "qbuyer@example.com",
-        [`quantity_${event1.id}`]: "1",
-        [`quantity_${event2.id}`]: "1",
-        [`question_${q.id}`]: String(a1.id),
-      });
-      expectCheckoutRedirect(checkoutResponse);
+      try {
+        const checkoutResponse = await submitMultiTicketForm(slug, {
+          name: "Q Buyer",
+          email: "qbuyer@example.com",
+          [`quantity_${event1.id}`]: "1",
+          [`quantity_${event2.id}`]: "1",
+          [`question_${q.id}`]: String(a1.id),
+        });
+        expectCheckoutRedirect(checkoutResponse);
+      } finally {
+        mockCreate.restore();
+      }
 
       // Now simulate the webhook callback from the payment provider.
       // The metadata includes answer_ids serialized during checkout.
