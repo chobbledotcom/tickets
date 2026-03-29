@@ -14,6 +14,7 @@ import { attendeeRefundRoutes } from "#routes/admin/attendee-refunds.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
 import { builderRoutes } from "#routes/admin/builder.ts";
+import { builtSitesRoutes } from "#routes/admin/built-sites.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
@@ -55,6 +56,7 @@ const adminRoutes = {
   ...seedsRoutes,
   ...migrateRoutes,
   ...builderRoutes,
+  ...builtSitesRoutes,
   ...updateRoutes,
 };
 
