@@ -89,7 +89,8 @@ export type SessionMetadata = {
   address: string;
   special_instructions: string;
   quantity: string;
-  multi: string;
+  /** "1" for cart (multi-item) checkout, "" for single-item */
+  multi: "" | "1";
   items: string;
   date: string;
   answer_ids: string;

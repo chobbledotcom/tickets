@@ -40,10 +40,19 @@ import {
   type SessionMetadata,
   type ValidatedPaymentSession,
 } from "#lib/payments.ts";
-import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import type {
+  BookingIntent,
+  EventPriceValidation,
+  EventValidation,
+  PaymentFailureResult,
+  PaymentResult,
+  SessionValidation,
+  ValidatedSession,
+} from "#routes/webhook-types.ts";
 import { parseTokens } from "#routes/token-utils.ts";
 import {
   formatCreationError,
@@ -65,11 +74,26 @@ const PRICE_CHANGED_MESSAGE =
 const isCartSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
-/** Parse per-event answer IDs from metadata JSON string (object format) */
+/** Parse per-event answer IDs from metadata JSON string (object format).
+ * Returns undefined for empty input; validates the parsed structure at runtime. */
 const parseEventAnswerIds = (
   json: string,
-): Record<string, number[]> | undefined =>
-  json ? JSON.parse(json) : undefined;
+): Record<string, number[]> | undefined => {
+  if (!json) return undefined;
+  const parsed: unknown = JSON.parse(json);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Invalid answer_ids format: expected object, got ${JSON.stringify(parsed)}`);
+  }
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (
+      !Array.isArray(value) ||
+      !value.every((v) => Number.isInteger(v))
+    ) {
+      throw new Error(`Invalid answer_ids for event ${key}: expected number[], got ${JSON.stringify(value)}`);
+    }
+  }
+  return parsed as Record<string, number[]>;
+};
 
 /**
  * Extract registration intent from validated session metadata (single-ticket).
@@ -124,16 +148,6 @@ const withSessionId =
       ? handler(sessionId)
       : Promise.resolve(paymentErrorResponse("Invalid payment callback"));
   };
-
-/** Validated session data */
-type ValidatedSession = {
-  session: ValidatedPaymentSession;
-  intent: BookingIntent;
-};
-
-type SessionValidation =
-  | { ok: true; data: ValidatedSession }
-  | { ok: false; response: Response };
 
 /** Log a payment session error with redirect context prefix */
 const logRedirectError = (detail: string): void =>
@@ -197,22 +211,6 @@ const validatePaidSession = async (
     };
   }
 };
-
-/** Result type for processPaymentSession */
-type PaymentResult =
-  | {
-      success: true;
-      attendee: Pick<Attendee, "id">;
-      event: EventWithCount;
-      ticketTokens: string[];
-    }
-  | {
-      success: false;
-      error: string;
-      status?: number;
-      refunded?: boolean;
-      detail?: string;
-    };
 
 /**
  * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
@@ -299,11 +297,6 @@ const rollbackAttendees = async (
   }
 };
 
-/** Validate event is eligible for post-payment registration */
-type EventValidation =
-  | { ok: true; event: EventWithCount }
-  | { ok: false; error: string; status?: number };
-
 const validateEventForPayment = async (
   eventId: number,
   includeEventName = false,
@@ -329,11 +322,6 @@ const validateEventForPayment = async (
   }
   return { ok: true, event };
 };
-
-/** Validate event and compute expected price for post-payment attendee creation */
-type EventPriceValidation =
-  | { ok: true; event: EventWithCount; expectedPrice: number }
-  | { ok: false; error: string; status?: number };
 
 const validateAndPrice = async (
   input: { eventId: number; quantity: number },
@@ -385,10 +373,11 @@ const formatPostPaymentError = (
     eventName,
   );
 
-/** Return success result for an already-processed session */
+/** Return success result for an already-processed session.
+ * Accepts a finalized payment record where attendee_id is guaranteed non-null. */
 const alreadyProcessedResult = async (
   eventId: number,
-  existing: ProcessedPayment,
+  existing: ProcessedPayment & { attendee_id: number },
 ): Promise<PaymentResult> => {
   const event = await getEventWithCount(eventId);
   if (!event) return { success: false, error: "Event not found", status: 404 };
@@ -396,7 +385,7 @@ const alreadyProcessedResult = async (
   const ticketTokens = decrypted ? decrypted.split("+") : [];
   return {
     success: true,
-    attendee: { id: existing.attendee_id! },
+    attendee: { id: existing.attendee_id },
     event,
     ticketTokens,
   };
@@ -411,6 +400,18 @@ const alreadyProcessedResult = async (
  * JSON is unparseable or the array is empty — a corrupt item (e.g. missing
  * field) throws so the bug surfaces immediately.
  */
+const isBookingItem = (
+  item: unknown,
+): item is BookingItem =>
+  typeof item === "object" &&
+  item !== null &&
+  "e" in item &&
+  "q" in item &&
+  "p" in item &&
+  Number.isInteger((item as BookingItem).e) &&
+  Number.isInteger((item as BookingItem).q) &&
+  Number.isInteger((item as BookingItem).p);
+
 const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   let parsed: unknown;
   try {
@@ -422,28 +423,15 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   if (!Array.isArray(parsed) || parsed.length === 0) return null;
 
   for (const item of parsed) {
-    const valid =
-      typeof item === "object" &&
-      item !== null &&
-      Number.isInteger(item.e) &&
-      Number.isInteger(item.q) &&
-      Number.isInteger(item.p);
-    if (!valid) {
+    if (!isBookingItem(item)) {
       throw new Error(
         `Corrupt booking item in session metadata: ${JSON.stringify(item)}`,
       );
     }
   }
 
+  // Every element validated by the type guard above
   return parsed as BookingItem[];
-};
-
-/** Booking intent with one or more line items */
-type BookingIntent = ContactInfo & {
-  date: string | null;
-  items: BookingItem[];
-  /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
-  eventAnswerIds?: Record<string, number[]>;
 };
 
 /**
@@ -492,7 +480,7 @@ const priceMismatchRefund = async (
  */
 const processPaymentSession = async (
   sessionId: string,
-  data: { session: ValidatedPaymentSession; intent: BookingIntent },
+  data: ValidatedSession,
   options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
@@ -501,9 +489,13 @@ const processPaymentSession = async (
 
   if (!reservation.reserved) {
     const { existing } = reservation;
+    const { attendee_id } = existing;
 
-    if (existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.items[0]!.e, existing);
+    if (attendee_id !== null) {
+      return alreadyProcessedResult(intent.items[0]!.e, {
+        ...existing,
+        attendee_id,
+      });
     }
 
     // Session reserved but not finalized — another request is processing
@@ -675,7 +667,7 @@ const processPaymentSession = async (
  * Format error message based on refund status
  */
 const formatPaymentError = (
-  result: PaymentResult & { success: false },
+  result: PaymentFailureResult,
 ): string => {
   if (result.refunded === true) {
     return `${result.error} Your payment has been automatically refunded.`;
