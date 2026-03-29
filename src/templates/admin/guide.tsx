@@ -1562,6 +1562,10 @@ export const adminGuidePage = (
               your site (Bunny CDN only)
             </li>
             <li>
+              <strong>Software updates</strong> &mdash; check for and install
+              new versions
+            </li>
+            <li>
               <strong>Database reset</strong> &mdash; permanently delete all
               data
             </li>
@@ -1758,6 +1762,39 @@ export const adminGuidePage = (
             The <a href="/admin/api-keys/docs">API documentation page</a> has a
             complete reference for both public and admin API endpoints, with
             example request and response payloads for each.
+          </p>
+        </Q>
+      </Section>
+
+      <Section title="Software Updates">
+        <Q q="How do I check for updates?">
+          <p>
+            Go to <code>/admin/update</code> to see your current build date and
+            commit. Click <strong>Check for Updates</strong> to query GitHub for
+            the latest release. If a newer version is available, you'll see its
+            name and version number.
+          </p>
+        </Q>
+
+        <Q q="How do I install an update?">
+          <p>
+            If an update is available and your server has{" "}
+            <code>BUNNY_API_KEY</code> and <code>BUNNY_SCRIPT_ID</code>{" "}
+            configured, an <strong>Update Now</strong> button appears. Click it
+            to download and deploy the new version automatically via Bunny CDN.
+            The update is logged in the activity log. If the Bunny environment
+            variables are not set, you'll need to deploy the update manually.
+          </p>
+        </Q>
+
+        <Q q="Where can I read the release notes?">
+          <p>
+            The update page includes a link to the{" "}
+            <a href="https://github.com/chobbledotcom/tickets/releases">
+              release notes on GitHub
+            </a>
+            , where you can see what changed in each version before deciding to
+            update.
           </p>
         </Q>
       </Section>
