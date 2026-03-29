@@ -20,7 +20,7 @@ import {
   idAndEncryptedSlugSchema,
   registerCache,
 } from "#lib/db/common-schema.ts";
-import { col } from "#lib/db/table.ts";
+import { col, withCacheInvalidation } from "#lib/db/table.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
 import { requestCache } from "#lib/request-cache.ts";
@@ -164,23 +164,9 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   hidden: col.boolean(false),
 });
 
-export const eventsTable: typeof rawEventsTable = {
-  ...rawEventsTable,
-  insert: async (input) => {
-    const result = await rawEventsTable.insert(input);
-    invalidateEventsCache();
-    return result;
-  },
-  update: async (id, input) => {
-    const result = await rawEventsTable.update(id, input);
-    invalidateEventsCache();
-    return result;
-  },
-  deleteById: async (id) => {
-    await rawEventsTable.deleteById(id);
-    invalidateEventsCache();
-  },
-};
+export const eventsTable = withCacheInvalidation(rawEventsTable, () =>
+  invalidateEventsCache(),
+);
 
 /** Find a cached event by ID */
 const findCachedEventById = async (

@@ -25,6 +25,7 @@ import {
 } from "#lib/events-actions.ts";
 import {
   apiErrorResponse,
+  type DeleteBody,
   parseUpdateName,
   parseUpdateSlug,
   withApiEntity,
@@ -75,7 +76,7 @@ export type CreateEventBody = {
 export type UpdateEventBody = Partial<CreateEventBody> & { slug?: string };
 
 /** JSON body accepted by DELETE /api/admin/events/:eventId */
-export type DeleteEventBody = { confirm_identifier: string };
+export type DeleteEventBody = DeleteBody;
 
 // =============================================================================
 // Schema-driven field extraction

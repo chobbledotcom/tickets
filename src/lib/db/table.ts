@@ -353,6 +353,32 @@ export const defineTable = <Row, Input = Row>(config: {
   };
 };
 
+/**
+ * Wrap a table so that insert, update, and deleteById automatically
+ * call an invalidation callback (e.g. cache invalidation).
+ * Eliminates the repeated spread-and-override pattern in groups/holidays/events.
+ */
+export const withCacheInvalidation = <Row, Input>(
+  table: Table<Row, Input>,
+  invalidate: () => void,
+): Table<Row, Input> => ({
+  ...table,
+  insert: async (input) => {
+    const result = await table.insert(input);
+    invalidate();
+    return result;
+  },
+  update: async (id, input) => {
+    const result = await table.update(id, input);
+    invalidate();
+    return result;
+  },
+  deleteById: async (id) => {
+    await table.deleteById(id);
+    invalidate();
+  },
+});
+
 /** Transform function type for column read/write */
 type ColumnTransform<T> = (v: T) => Promise<T> | T;
 

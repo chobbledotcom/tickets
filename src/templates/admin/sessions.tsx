@@ -2,14 +2,12 @@
  * Admin sessions page template
  */
 
-import { map, pipe, reduce } from "#fp";
+import { joinStrings, map, pipe } from "#fp";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Session } from "#lib/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 const SessionRow = ({
   session,

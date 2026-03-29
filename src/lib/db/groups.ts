@@ -14,7 +14,7 @@ import {
 } from "#lib/db/common-schema.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { queryAndMap } from "#lib/db/query.ts";
-import { col } from "#lib/db/table.ts";
+import { col, withCacheInvalidation } from "#lib/db/table.ts";
 import { requestCache } from "#lib/request-cache.ts";
 import type { Event, EventType, EventWithCount, Group } from "#lib/types.ts";
 
@@ -56,23 +56,10 @@ export const invalidateGroupsCache = (): void => {
 };
 
 /** Groups table with CRUD operations — writes auto-invalidate the cache */
-export const groupsTable: typeof rawGroupsTable = {
-  ...rawGroupsTable,
-  insert: async (input) => {
-    const result = await rawGroupsTable.insert(input);
-    invalidateGroupsCache();
-    return result;
-  },
-  update: async (id, input) => {
-    const result = await rawGroupsTable.update(id, input);
-    invalidateGroupsCache();
-    return result;
-  },
-  deleteById: async (id) => {
-    await rawGroupsTable.deleteById(id);
-    invalidateGroupsCache();
-  },
-};
+export const groupsTable = withCacheInvalidation(
+  rawGroupsTable,
+  invalidateGroupsCache,
+);
 
 /**
  * Get all groups, decrypted, ordered by id (from cache)

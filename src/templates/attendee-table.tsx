@@ -3,15 +3,13 @@
  * across the event detail, check-in, and calendar views.
  */
 
-import { flatMap, map, pipe, reduce, sort } from "#fp";
+import { flatMap, joinStrings, map, pipe, reduce, sort } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { normalizePhone } from "#lib/phone.ts";
 import type { Attendee } from "#lib/types.ts";
-
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /** A single row in the unified attendee table */
 export type AttendeeTableRow = {

@@ -2,7 +2,7 @@
  * Admin dashboard page template
  */
 
-import { filter, map, pipe, reduce } from "#fp";
+import { filter, joinStrings, map, pipe, reduce } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { ActiveEventStats } from "#lib/db/attendees.ts";
@@ -16,8 +16,6 @@ import {
 } from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
-
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 export const EventRow = ({ e }: { e: EventWithCount }): string => {
   const isInactive = !e.active;

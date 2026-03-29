@@ -182,6 +182,12 @@ export const bracket =
   };
 
 /**
+ * Join an array of strings into a single string (curried reduce shorthand).
+ * Replaces the common pattern: reduce((acc: string, s: string) => acc + s, "")
+ */
+export const joinStrings = reduce((acc: string, s: string) => acc + s, "");
+
+/**
  * Split an array into chunks of a given size
  */
 export const chunk =

@@ -2,14 +2,12 @@
  * Admin activity log page template
  */
 
-import { map, pipe, reduce } from "#fp";
+import { joinStrings, map, pipe } from "#fp";
 import type { ActivityLogEntry } from "#lib/db/activityLog.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
   String(

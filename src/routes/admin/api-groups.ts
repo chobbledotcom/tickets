@@ -10,6 +10,7 @@ import {
   isGroupSlugTaken,
 } from "#lib/db/groups.ts";
 import {
+  type DeleteBody,
   defineCrudApi,
   parseUpdateName,
   parseUpdateSlug,
@@ -29,7 +30,7 @@ export type CreateGroupBody = {
 export type UpdateGroupBody = Partial<CreateGroupBody> & { slug?: string };
 
 /** JSON body accepted by DELETE /api/admin/groups/:groupId */
-export type DeleteGroupBody = { confirm_identifier: string };
+export type DeleteGroupBody = DeleteBody;
 
 /** Strip slug_index from response */
 const STRIP_KEYS = ["slug_index"];

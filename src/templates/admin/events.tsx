@@ -2,7 +2,7 @@
  * Admin event page templates - detail, edit, delete
  */
 
-import { filter, map, pipe, reduce } from "#fp";
+import { filter, joinStrings, map, pipe } from "#fp";
 import { toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { settings } from "#lib/db/settings.ts";
@@ -90,9 +90,6 @@ export const isIncompletePayment = (
   hasPaidEvent &&
   !attendee.payment_id &&
   Number.parseInt(attendee.price_paid, 10) > 0;
-
-/** Concatenate strings (curried reducer for use in pipe) */
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /** Render a single row in the Failed Payments table */
 const FailedPaymentRow = ({

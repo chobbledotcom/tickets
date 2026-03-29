@@ -2,7 +2,7 @@
  * Admin group management page templates
  */
 
-import { map, pipe, reduce } from "#fp";
+import { joinStrings, map, pipe, reduce } from "#fp";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import {
   ConfirmForm,
@@ -32,8 +32,6 @@ import {
 } from "#templates/attendee-table.tsx";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /**
  * Admin groups list page
