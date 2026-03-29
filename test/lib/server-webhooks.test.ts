@@ -576,6 +576,78 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("rejects non-object answer_ids in metadata", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_bad_answers",
+          payment_status: "paid",
+          payment_intent: "pi_bad_answers",
+          amount_total: 1000,
+          metadata: {
+            event_id: String(event.id),
+            name: "Bad Answers",
+            email: "bad@example.com",
+            quantity: "1",
+            answer_ids: JSON.stringify([1, 2, 3]),
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_bad_answers"),
+        );
+        expect(response.status).toBe(400);
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
+    test("rejects answer_ids with non-integer array values", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_bad_answer_vals",
+          payment_status: "paid",
+          payment_intent: "pi_bad_answer_vals",
+          amount_total: 1000,
+          metadata: {
+            event_id: String(event.id),
+            name: "Bad Values",
+            email: "badvals@example.com",
+            quantity: "1",
+            answer_ids: JSON.stringify({ "1": "not-an-array" }),
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_bad_answer_vals"),
+        );
+        expect(response.status).toBe(400);
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
     test("extractIntent preserves quantity 0 from metadata", async () => {
       await setupStripe();
 
