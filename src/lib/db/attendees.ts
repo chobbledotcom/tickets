@@ -23,11 +23,30 @@ import { settings } from "#lib/db/settings.ts";
 import { nowIso } from "#lib/now.ts";
 import type {
   Attendee,
-  ContactFields,
   ContactInfo,
   EventWithCount,
   PiiBlob,
 } from "#lib/types.ts";
+import type {
+  ActiveEventStats,
+  AttendeeInput,
+  BatchAvailabilityItem,
+  BuildAttendeeInput,
+  CreateAttendeeResult,
+  EncryptedAttendeeData,
+  EncryptInput,
+  MigrateBatchResult,
+  UpdateAttendeeInput,
+} from "#lib/db/attendee-types.ts";
+
+export type {
+  ActiveEventStats,
+  AttendeeInput,
+  BatchAvailabilityItem,
+  CreateAttendeeResult,
+  MigrateBatchResult,
+  UpdateAttendeeInput,
+} from "#lib/db/attendee-types.ts";
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
@@ -47,10 +66,34 @@ const buildPiiBlob = (
     t: info.ticket_token,
   } satisfies PiiBlob);
 
+/** Type guard: validate that a parsed value has the shape of a PiiBlob */
+const isPiiBlob = (raw: unknown): raw is Omit<PiiBlob, "v"> & { v?: number } =>
+  typeof raw === "object" &&
+  raw !== null &&
+  "n" in raw &&
+  typeof (raw as PiiBlob).n === "string" &&
+  "e" in raw &&
+  typeof (raw as PiiBlob).e === "string" &&
+  "p" in raw &&
+  typeof (raw as PiiBlob).p === "string" &&
+  "a" in raw &&
+  typeof (raw as PiiBlob).a === "string" &&
+  "s" in raw &&
+  typeof (raw as PiiBlob).s === "string" &&
+  "pi" in raw &&
+  typeof (raw as PiiBlob).pi === "string" &&
+  "t" in raw &&
+  typeof (raw as PiiBlob).t === "string";
+
 /** Parse a PII blob JSON back into contact fields (defaults v to 1 for pre-versioned blobs) */
 const parsePiiBlob = (json: string): PiiBlob => {
-  const raw = JSON.parse(json);
-  return { v: PII_BLOB_VERSION, ...raw } as PiiBlob;
+  const raw: unknown = JSON.parse(json);
+  if (!isPiiBlob(raw)) {
+    throw new Error(
+      `Invalid PII blob structure: missing required fields`,
+    );
+  }
+  return { v: PII_BLOB_VERSION, ...raw };
 };
 
 /** Encrypt a PII blob JSON string with the public key */
@@ -126,13 +169,6 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
     limit,
   ]);
 
-/** Aggregated statistics for active events */
-export type ActiveEventStats = {
-  income: number;
-  tickets: number;
-  attendees: number;
-};
-
 /**
  * Get aggregated statistics for active events.
  * Filters active events from the provided list, computes attendees
@@ -188,20 +224,6 @@ export const decryptAttendeeOrNull = (
 ): Promise<Attendee | null> =>
   row ? decryptAttendeeFields(row, privateKey) : Promise.resolve(null);
 
-/** Encrypted attendee data for insertion */
-type EncryptedAttendeeData = {
-  created: string;
-  ticketToken: string;
-  ticketTokenIndex: string;
-  encryptedPiiBlob: string;
-};
-
-/** Input for encrypting attendee fields */
-type EncryptInput = ContactInfo & {
-  paymentId: string;
-  pricePaid: number;
-};
-
 /** Extract ContactInfo fields from an object */
 const contactFields = ({
   name,
@@ -242,19 +264,6 @@ const encryptAttendeeFields = async (
     ticketTokenIndex,
     encryptedPiiBlob,
   };
-};
-
-/** Input for building an Attendee result from an insert */
-type BuildAttendeeInput = ContactInfo & {
-  insertId: number | bigint | undefined;
-  eventId: number;
-  created: string;
-  paymentId: string;
-  quantity: number;
-  pricePaid: number;
-  ticketToken: string;
-  ticketTokenIndex: string;
-  date: string | null;
 };
 
 /** Build plain Attendee object from insert result */
@@ -314,23 +323,6 @@ export const deleteAttendee = async (attendeeId: number): Promise<void> => {
   ]);
   invalidateEventsCache();
 };
-
-/** Result of atomic attendee creation */
-export type CreateAttendeeResult =
-  | { success: true; attendee: Attendee }
-  | { success: false; reason: "capacity_exceeded" | "encryption_error" };
-
-/** Input for creating an attendee atomically */
-export type AttendeeInput = ContactFields & {
-  eventId: number;
-  paymentId?: string;
-  quantity?: number;
-  pricePaid?: number;
-  date?: string | null;
-};
-
-/** Item for batch availability check */
-export type BatchAvailabilityItem = { eventId: number; quantity: number };
 
 /** Get the total attendee quantity for a specific event + date */
 export const getDateAttendeeCount = async (
@@ -644,21 +636,6 @@ export const updateCheckedIn = (
   checkedIn: boolean,
 ): Promise<void> => setCheckedInV2(attendeeId, checkedIn ? 1 : 0);
 
-/** Input for updating an attendee */
-export type UpdateAttendeeInput = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  special_instructions: string;
-  event_id: number;
-  quantity: number;
-  /** Decrypted payment_id for PII blob rebuild (from existing attendee) */
-  payment_id: string;
-  /** Decrypted ticket_token for PII blob rebuild (from existing attendee) */
-  ticket_token: string;
-};
-
 /**
  * Increment the attachment download counter for an attendee.
  * Uses atomic SQL increment to avoid race conditions.
@@ -702,12 +679,6 @@ export const MIGRATE_BATCH_SIZE = 100;
 /** Runtime batch size — reads env override for testing, falls back to constant */
 const getMigrateBatchSize = (): number =>
   Number(Deno.env.get("MIGRATE_BATCH_SIZE")) || MIGRATE_BATCH_SIZE;
-
-/** Result of a migration batch */
-export type MigrateBatchResult = {
-  migrated: number;
-  remaining: number;
-};
 
 /**
  * Migrate a batch of attendees from per-field encryption to PII blob.
