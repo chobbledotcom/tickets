@@ -622,6 +622,13 @@ export const adminAdvancedSettingsPage = (
         </div>
       )}
 
+      <div class="stack-md column">
+        <h2>Software Updates</h2>
+        <p>
+          <a href="/admin/update">Check for and install software updates</a>
+        </p>
+      </div>
+
       <ResetDatabaseForm
         action="/admin/settings/reset-database"
         id="settings-reset-database"
