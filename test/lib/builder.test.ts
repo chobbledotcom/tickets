@@ -167,7 +167,7 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 42,
-              defaultHostname: "test-42.b-cdn.net",
+              defaultHostname: "https://test-42.b-cdn.net",
             }),
           ),
           secretStub: stub(
@@ -299,7 +299,7 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 42,
-              defaultHostname: "test-42.b-cdn.net",
+              defaultHostname: "https://test-42.b-cdn.net",
             }),
           ),
           secretStub: stub(
@@ -329,7 +329,7 @@ describeWithEnv(
           expect(result.ok).toBe(true);
           if (result.ok) {
             expect(result.scriptId).toBe(42);
-            expect(result.defaultHostname).toBe("test-42.b-cdn.net");
+            expect(result.defaultHostname).toBe("https://test-42.b-cdn.net");
           }
 
           // Verify script was created with correct name
@@ -392,7 +392,7 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 42,
-              defaultHostname: "test.b-cdn.net",
+              defaultHostname: "https://test.b-cdn.net",
             }),
           ),
           secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
@@ -459,7 +459,7 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 42,
-              defaultHostname: "test.b-cdn.net",
+              defaultHostname: "https://test.b-cdn.net",
             }),
           ),
           secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
