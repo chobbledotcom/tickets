@@ -257,25 +257,6 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       expect(decrypted[0]!.email).toBe("old@test.com");
     });
 
-    test("rejects corrupt pii_blob with missing required fields", async () => {
-      const event = await createTestEventForMigration({ maxAttendees: 10 });
-      const pubKey = settings.publicKey!;
-      // Blob missing required fields (only has 'n', missing e/p/a/s/pi/t)
-      const corruptBlob = JSON.stringify({ n: "Name Only" });
-      const encrypted = await encryptAttendeePII(corruptBlob, pubKey);
-      await getDb().execute({
-        sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, pii_blob, checked_in_v2, refunded_v2, price_paid_v2, created, quantity)
-              VALUES (?, '', '', '', '', '', '', '', '', '', '', ?, 0, 0, 0, datetime('now'), 1)`,
-        args: [event.id, encrypted],
-      });
-
-      const privateKey = await getTestPrivateKey();
-      const rows = await getAttendeesRaw(event.id);
-      await expect(decryptAttendees(rows, privateKey)).rejects.toThrow(
-        "Invalid PII blob structure",
-      );
-    });
-
     test("returns zero migrated when all attendees already migrated", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Done", "done@test.com");

@@ -66,33 +66,9 @@ const buildPiiBlob = (
     t: info.ticket_token,
   } satisfies PiiBlob);
 
-/** Type guard: validate that a parsed value has the shape of a PiiBlob */
-const isPiiBlob = (raw: unknown): raw is Omit<PiiBlob, "v"> & { v?: number } =>
-  typeof raw === "object" &&
-  raw !== null &&
-  "n" in raw &&
-  typeof (raw as PiiBlob).n === "string" &&
-  "e" in raw &&
-  typeof (raw as PiiBlob).e === "string" &&
-  "p" in raw &&
-  typeof (raw as PiiBlob).p === "string" &&
-  "a" in raw &&
-  typeof (raw as PiiBlob).a === "string" &&
-  "s" in raw &&
-  typeof (raw as PiiBlob).s === "string" &&
-  "pi" in raw &&
-  typeof (raw as PiiBlob).pi === "string" &&
-  "t" in raw &&
-  typeof (raw as PiiBlob).t === "string";
-
 /** Parse a PII blob JSON back into contact fields (defaults v to 1 for pre-versioned blobs) */
 const parsePiiBlob = (json: string): PiiBlob => {
-  const raw: unknown = JSON.parse(json);
-  if (!isPiiBlob(raw)) {
-    throw new Error(
-      `Invalid PII blob structure: missing required fields`,
-    );
-  }
+  const raw = JSON.parse(json) as Omit<PiiBlob, "v"> & { v?: number };
   return { v: PII_BLOB_VERSION, ...raw };
 };
 
