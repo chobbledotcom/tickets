@@ -525,39 +525,21 @@ const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null => {
 };
 
 // ---------------------------------------------------------------------------
-// Shared wallet host-config helpers
+// Shared wallet config base
 // ---------------------------------------------------------------------------
 
-interface HostConfigProps<T> {
-  readonly config: T | null;
-  readonly hasConfig: boolean;
-  setHostConfigForTest: (c: T | null) => void;
-  resetHostConfig: () => void;
+abstract class WalletConfig<T> {
+  #setOverride: (v: T | null | undefined) => void;
+  constructor(setOverride: (v: T | null | undefined) => void) {
+    this.#setOverride = setOverride;
+  }
+  abstract get dbConfig(): T | null;
+  abstract get hostConfig(): T | null;
+  get config(): T | null { return this.dbConfig ?? this.hostConfig; }
+  get hasConfig(): boolean { return this.config !== null; }
+  setHostConfigForTest = (c: T | null): void => this.#setOverride(c);
+  resetHostConfig = (): void => this.#setOverride(undefined);
 }
-
-/** Add `config`, `hasConfig`, `setHostConfigForTest`, `resetHostConfig`. */
-const addHostConfigProps = <T, O extends { dbConfig: T | null; hostConfig: T | null }>(
-  target: O,
-  setOverride: (v: T | null | undefined) => void,
-): O & HostConfigProps<T> =>
-  Object.defineProperties(target, {
-    config: {
-      get(this: O) { return this.dbConfig ?? this.hostConfig; },
-      enumerable: true, configurable: true,
-    },
-    hasConfig: {
-      get(this: O & { config: T | null }) { return this.config !== null; },
-      enumerable: true, configurable: true,
-    },
-    setHostConfigForTest: {
-      value: (c: T | null): void => setOverride(c),
-      enumerable: true, configurable: true,
-    },
-    resetHostConfig: {
-      value: (): void => setOverride(undefined),
-      enumerable: true, configurable: true,
-    },
-  }) as O & HostConfigProps<T>;
 
 // ---------------------------------------------------------------------------
 // Current-task guard — prevents duplicate heavy operations
@@ -802,71 +784,47 @@ export const settings = {
   },
 
   // --- Apple Wallet ---
-  appleWallet: addHostConfigProps({
-    get passTypeId(): string {
-      return snap("apple_wallet_pass_type_id");
-    },
-    get teamId(): string {
-      return snap("apple_wallet_team_id");
-    },
-    get signingCert(): string {
-      return snap("apple_wallet_signing_cert");
-    },
-    get signingKey(): string {
-      return snap("apple_wallet_signing_key");
-    },
-    get wwdrCert(): string {
-      return snap("apple_wallet_wwdr_cert");
-    },
+  appleWallet: new class extends WalletConfig<SigningCredentials> {
+    constructor() { super(setHostWalletOverride); }
+    get passTypeId(): string { return snap("apple_wallet_pass_type_id"); }
+    get teamId(): string { return snap("apple_wallet_team_id"); }
+    get signingCert(): string { return snap("apple_wallet_signing_cert"); }
+    get signingKey(): string { return snap("apple_wallet_signing_key"); }
+    get wwdrCert(): string { return snap("apple_wallet_wwdr_cert"); }
     get hasDbConfig(): boolean {
-      return !!(
-        this.passTypeId &&
-        this.teamId &&
-        this.signingCert &&
-        this.signingKey &&
-        this.wwdrCert
-      );
-    },
+      return !!(this.passTypeId && this.teamId && this.signingCert &&
+        this.signingKey && this.wwdrCert);
+    }
     get dbConfig(): SigningCredentials | null {
       return toCredentials(
-        this.passTypeId,
-        this.teamId,
-        this.signingCert,
-        this.signingKey,
-        this.wwdrCert,
+        this.passTypeId, this.teamId, this.signingCert,
+        this.signingKey, this.wwdrCert,
       );
-    },
+    }
     get hostConfig(): SigningCredentials | null {
       return getHostAppleWalletConfig();
-    },
-  }, setHostWalletOverride),
+    }
+  }(),
 
   // --- Google Wallet ---
-  googleWallet: addHostConfigProps({
-    get issuerId(): string {
-      return snap("google_wallet_issuer_id");
-    },
-    get serviceAccountEmail(): string {
-      return snap("google_wallet_service_account_email");
-    },
-    get serviceAccountKey(): string {
-      return snap("google_wallet_service_account_key");
-    },
+  googleWallet: new class extends WalletConfig<GoogleWalletCredentials> {
+    constructor() { super(setHostGoogleWalletOverride); }
+    get issuerId(): string { return snap("google_wallet_issuer_id"); }
+    get serviceAccountEmail(): string { return snap("google_wallet_service_account_email"); }
+    get serviceAccountKey(): string { return snap("google_wallet_service_account_key"); }
     get hasDbConfig(): boolean {
-      const { issuerId, serviceAccountEmail, serviceAccountKey } = this;
-      return !!(issuerId && serviceAccountEmail && serviceAccountKey);
-    },
+      return !!(this.issuerId && this.serviceAccountEmail &&
+        this.serviceAccountKey);
+    }
     get dbConfig(): GoogleWalletCredentials | null {
       return toGoogleCredentials(
-        this.issuerId,
-        this.serviceAccountEmail,
-        this.serviceAccountKey,
+        this.issuerId, this.serviceAccountEmail, this.serviceAccountKey,
       );
-    },
+    }
     get hostConfig(): GoogleWalletCredentials | null {
       return getHostGoogleWalletConfig();
-    },
-  }, setHostGoogleWalletOverride),
+    }
+  }(),
 
   // --- Setup & auth ---
   setup: {
