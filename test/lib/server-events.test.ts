@@ -1,17 +1,13 @@
+import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { getDb } from "#lib/db/client.ts";
-import {
-  computeSlugIndex,
-  eventsTable,
-  invalidateEventsCache,
-} from "#lib/db/events.ts";
+import { getDb, setDb } from "#lib/db/client.ts";
+import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { nowMs } from "#lib/now.ts";
-import { generateUniqueSlug } from "#lib/slug.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
@@ -40,6 +36,7 @@ import {
   testCookie,
   testCsrfToken,
   updateTestEvent,
+  withExpectedError,
 } from "#test-utils";
 
 describeWithEnv("server (admin events)", { db: true }, () => {
@@ -2218,9 +2215,49 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("slug collision on create", () => {
     test("throws when all slug generation attempts collide", async () => {
-      await expect(
-        generateUniqueSlug(computeSlugIndex, () => Promise.resolve(true)),
-      ).rejects.toThrow("Failed to generate unique slug after 10 attempts");
+      // Install a proxy client via setDb so the intercept follows getDb()
+      // even if the underlying reference changes — avoids the flakiness of
+      // stubbing a specific instance's execute method.
+      const realDb = getDb();
+      const proxy: Client = Object.create(realDb, {
+        execute: {
+          value: async (
+            query: Parameters<Client["execute"]>[0],
+          ): Promise<ResultSet> => {
+            const sql =
+              typeof query === "string"
+                ? query
+                : (query as { sql: string }).sql;
+            if (
+              sql.includes("SELECT 1 WHERE EXISTS") &&
+              sql.includes("FROM events WHERE slug_index")
+            ) {
+              return {
+                rows: [{ "1": 1 }],
+                columns: ["1"],
+                rowsAffected: 0,
+                lastInsertRowid: 0n,
+              } as unknown as ResultSet;
+            }
+            return await realDb.execute(query);
+          },
+        },
+      });
+      setDb(proxy);
+
+      try {
+        await withExpectedError(async () => {
+          const { response } = await adminFormPost("/admin/event", {
+            name: "Collision Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com",
+          });
+          await expectHtmlResponse(response, 503, "Temporary Error");
+        });
+      } finally {
+        setDb(realDb);
+      }
     });
   });
 
