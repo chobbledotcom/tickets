@@ -31,7 +31,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "declarative schema migrations";
+export const LATEST_UPDATE = "add built_sites table";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -306,6 +306,17 @@ const SCHEMA: [name: string, table: Table][] = [
           columns: ["event_id", "question_id"],
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    "built_sites",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["site_data", "TEXT NOT NULL"],
+        ["created", "TEXT NOT NULL"],
       ],
     },
   ],

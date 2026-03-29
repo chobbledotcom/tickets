@@ -1069,3 +1069,195 @@ describeWithEnv("domain settings", { db: true }, () => {
     expect(settings.bunnySubdomain).toBe("");
   });
 });
+
+describeWithEnv(
+  "createEdgeScript",
+  { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
+  () => {
+    test("returns script ID and hostname on success", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  Id: 42,
+                  DefaultHostname: "test-42.b-cdn.net",
+                }),
+              ),
+            ),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.createEdgeScript(
+            "Test Script",
+            "console.log('test')",
+          );
+          expect(result).toEqual({
+            ok: true,
+            scriptId: 42,
+            defaultHostname: "test-42.b-cdn.net",
+          });
+        },
+      );
+    });
+
+    test("defaults hostname to empty string when not in response", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response(JSON.stringify({ Id: 7 }))),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.createEdgeScript("Test", "code");
+          expect(result).toEqual({
+            ok: true,
+            scriptId: 7,
+            defaultHostname: "",
+          });
+        },
+      );
+    });
+
+    test("returns error on API failure", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(
+              new Response(JSON.stringify({ Message: "Bad Request" }), {
+                status: 400,
+              }),
+            ),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.createEdgeScript("Test", "code");
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error).toContain("Create edge script failed");
+          }
+        },
+      );
+    });
+
+    test("sends correct request body with ScriptType 2", async () => {
+      const calls: { url: string; init: RequestInit | undefined }[] = [];
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request, init?: RequestInit) => {
+              calls.push({ url: String(input), init });
+              return Promise.resolve(
+                new Response(JSON.stringify({ Id: 1, DefaultHostname: "" })),
+              );
+            },
+          ),
+        async () => {
+          await bunnyCdnApi.createEdgeScript("My Script", "code");
+          expect(calls).toHaveLength(1);
+          const body = JSON.parse(calls[0]!.init!.body as string);
+          expect(body.Name).toBe("My Script");
+          expect(body.ScriptType).toBe(2);
+          expect(body.CreateLinkedPullZone).toBe(true);
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
+  "setEdgeScriptSecret",
+  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  () => {
+    test("sends PUT request with secret payload", async () => {
+      const calls: { url: string; init: RequestInit | undefined }[] = [];
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request, init?: RequestInit) => {
+              calls.push({ url: String(input), init });
+              return Promise.resolve(new Response(null, { status: 204 }));
+            },
+          ),
+        async () => {
+          const result = await bunnyCdnApi.setEdgeScriptSecret(
+            42,
+            "DB_URL",
+            "libsql://test",
+          );
+          expect(result.ok).toBe(true);
+          expect(calls[0]!.url).toContain("/compute/script/42/secrets");
+          expect(calls[0]!.init!.method).toBe("PUT");
+          const body = JSON.parse(calls[0]!.init!.body as string);
+          expect(body.Name).toBe("DB_URL");
+          expect(body.Secret).toBe("libsql://test");
+        },
+      );
+    });
+
+    test("returns error on API failure", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Forbidden", { status: 403 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.setEdgeScriptSecret(
+            42,
+            "DB_URL",
+            "test",
+          );
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error).toContain("Set secret DB_URL failed");
+          }
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
+  "publishEdgeScript",
+  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  () => {
+    test("sends POST to publish endpoint", async () => {
+      const calls: { url: string; init: RequestInit | undefined }[] = [];
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request, init?: RequestInit) => {
+              calls.push({ url: String(input), init });
+              return Promise.resolve(new Response(null, { status: 204 }));
+            },
+          ),
+        async () => {
+          const result = await bunnyCdnApi.publishEdgeScript(42);
+          expect(result.ok).toBe(true);
+          expect(calls[0]!.url).toContain("/compute/script/42/publish");
+          expect(calls[0]!.init!.method).toBe("POST");
+        },
+      );
+    });
+
+    test("returns error on API failure", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Server Error", { status: 500 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.publishEdgeScript(42);
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error).toContain("Publish edge script failed");
+          }
+        },
+      );
+    });
+  },
+);
