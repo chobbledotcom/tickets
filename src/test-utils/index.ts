@@ -16,9 +16,9 @@ import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
-import { generateSecureToken } from "#lib/crypto/utils.ts";
 import { setEncryptionKeyForTest } from "#lib/crypto/encryption.ts";
 import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
+import { generateSecureToken } from "#lib/crypto/utils.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { createApiKey } from "#lib/db/api-keys.ts";
@@ -790,8 +790,9 @@ const createDirectAdminSession = async (): Promise<{
   csrfToken: string;
 }> => {
   const { generateSecureToken } = await import("#lib/crypto/utils.ts");
-  const { deriveKEK, unwrapKey, wrapKeyWithToken } =
-    await import("#lib/crypto/keys.ts");
+  const { deriveKEK, unwrapKey, wrapKeyWithToken } = await import(
+    "#lib/crypto/keys.ts"
+  );
   const { createSession: createDbSession } = await import(
     "#lib/db/sessions.ts"
   );
@@ -2249,8 +2250,9 @@ export const createTestManagerSession = async (
 ): Promise<string> => {
   const { encrypt: enc } = await import("#lib/crypto/encryption.ts");
   const { hmacHash } = await import("#lib/crypto/hashing.ts");
-  const { deriveKEK, unwrapKey, wrapKeyWithToken } =
-    await import("#lib/crypto/keys.ts");
+  const { deriveKEK, unwrapKey, wrapKeyWithToken } = await import(
+    "#lib/crypto/keys.ts"
+  );
   const { getDb } = await import("#lib/db/client.ts");
   const { createSession } = await import("#lib/db/sessions.ts");
   const {

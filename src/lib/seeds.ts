@@ -4,10 +4,10 @@
  */
 
 import { map, reduce } from "#fp";
-import { generateTicketToken } from "#lib/crypto/utils.ts";
 import { encrypt } from "#lib/crypto/encryption.ts";
 import { computeTicketTokenIndex, hmacHash } from "#lib/crypto/hashing.ts";
 import { encryptAttendeePII } from "#lib/crypto/keys.ts";
+import { generateTicketToken } from "#lib/crypto/utils.ts";
 import { executeBatch, queryAll } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";

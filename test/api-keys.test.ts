@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildSessionCookie } from "#lib/cookies.ts";
-import { generateSecureToken } from "#lib/crypto/utils.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
 import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
+import { generateSecureToken } from "#lib/crypto/utils.ts";
 
 import { signCsrfToken } from "#lib/csrf.ts";
 import {

@@ -5,9 +5,10 @@
 import { filter, map } from "#fp";
 import { validatePrice } from "#lib/currency.ts";
 import type {
-  QuestionWithAnswers,
   QuestionEventMap,
+  QuestionWithAnswers,
 } from "#lib/db/questions.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import type { EventFields } from "#lib/types.ts";
 import {
   errorRedirect,
@@ -15,9 +16,8 @@ import {
   htmlResponse,
 } from "#routes/utils.ts";
 import { extractContact, mergeEventFields } from "#templates/fields.ts";
-import { ticketPage, type TicketEvent } from "#templates/public.tsx";
-import type { FormParams } from "#lib/form-data.ts";
-import type { TicketCtx, EventQty } from "./types.ts";
+import { type TicketEvent, ticketPage } from "#templates/public.tsx";
+import type { EventQty, TicketCtx } from "./types.ts";
 
 /** Parse and validate a quantity value from a raw string, capping at max */
 export const parseQuantityValue = (
