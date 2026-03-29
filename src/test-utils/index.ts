@@ -16,13 +16,9 @@ import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
-import {
-  clearEncryptionKeyCache,
-  generateSecureToken,
-  setEncryptionKeyForTest,
-  setTestPbkdf2Iterations,
-  unwrapKeyWithToken,
-} from "#lib/crypto.ts";
+import { generateSecureToken } from "#lib/crypto/utils.ts";
+import { setEncryptionKeyForTest } from "#lib/crypto/encryption.ts";
+import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { createApiKey } from "#lib/db/api-keys.ts";
@@ -68,14 +64,13 @@ export const TEST_ENCRYPTION_KEY =
  * Also enables fast PBKDF2 hashing for tests
  */
 export const setupTestEncryptionKey = (): void => {
-  setEncryptionKeyForTest(TEST_ENCRYPTION_KEY);
-  setTestPbkdf2Iterations(true); // Enable fast password hashing via module-level override
+  setEncryptionKeyForTest(TEST_ENCRYPTION_KEY); // Also clears all crypto caches via callbacks
   Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
+  Deno.env.set("TEST_FAST_PBKDF2", "1"); // Fast password hashing for tests
   Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
   Deno.env.set("TEST_RSA_KEY_SIZE", "1024"); // Use smaller RSA keys for faster test setup
   setSuppressRequestLogs(true); // Module-level override avoids env race in parallel tests
   Deno.env.set("TEST_RETHROW_ERRORS", "1"); // Surface real errors instead of "Temporary Error" page
-  clearEncryptionKeyCache();
 };
 
 /**
@@ -84,13 +79,12 @@ export const setupTestEncryptionKey = (): void => {
 export const clearTestEncryptionKey = (): void => {
   // Use empty string (not null) so the override stays active and doesn't
   // fall through to Deno.env, avoiding races with parallel test workers.
-  setEncryptionKeyForTest("");
-  setTestPbkdf2Iterations(false); // Disable via module-level override (avoids env race)
+  setEncryptionKeyForTest(""); // Also clears all crypto caches via callbacks
   Deno.env.delete("DB_ENCRYPTION_KEY");
+  Deno.env.delete("TEST_FAST_PBKDF2");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
   Deno.env.delete("TEST_RSA_KEY_SIZE");
   setSuppressRequestLogs(null); // Clear module-level override, fall through to Deno.env
-  clearEncryptionKeyCache();
 };
 
 // ---------------------------------------------------------------------------
@@ -795,8 +789,9 @@ const createDirectAdminSession = async (): Promise<{
   cookie: string;
   csrfToken: string;
 }> => {
-  const { deriveKEK, generateSecureToken, unwrapKey, wrapKeyWithToken } =
-    await import("#lib/crypto.ts");
+  const { generateSecureToken } = await import("#lib/crypto/utils.ts");
+  const { deriveKEK, unwrapKey, wrapKeyWithToken } =
+    await import("#lib/crypto/keys.ts");
   const { createSession: createDbSession } = await import(
     "#lib/db/sessions.ts"
   );
@@ -2252,13 +2247,10 @@ export const createTestManagerSession = async (
   token = "mgr-session",
   username = "testmanager",
 ): Promise<string> => {
-  const {
-    deriveKEK,
-    encrypt: enc,
-    hmacHash,
-    unwrapKey,
-    wrapKeyWithToken,
-  } = await import("#lib/crypto.ts");
+  const { encrypt: enc } = await import("#lib/crypto/encryption.ts");
+  const { hmacHash } = await import("#lib/crypto/hashing.ts");
+  const { deriveKEK, unwrapKey, wrapKeyWithToken } =
+    await import("#lib/crypto/keys.ts");
   const { getDb } = await import("#lib/db/client.ts");
   const { createSession } = await import("#lib/db/sessions.ts");
   const {

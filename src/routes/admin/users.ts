@@ -3,7 +3,7 @@
  */
 
 import { getEffectiveDomain } from "#lib/config.ts";
-import { unwrapKeyWithToken } from "#lib/crypto.ts";
+import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   activateUser,
@@ -219,7 +219,7 @@ const handleUserActivate: UserActionHandler = async (
   );
 
   // Decrypt user's password hash to derive their KEK
-  const { decrypt } = await import("#lib/crypto.ts");
+  const { decrypt } = await import("#lib/crypto/encryption.ts");
   const decryptedPasswordHash = await decrypt(user.password_hash);
 
   await activateUser(user.id, dataKey, decryptedPasswordHash);

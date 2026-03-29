@@ -183,7 +183,7 @@ const setupLoginAndRawScan = async (
 /** Point an attendee at a non-existent event to simulate orphan */
 const orphanAttendee = async (token: string) => {
   const { getDb } = await import("#lib/db/client.ts");
-  const { computeTicketTokenIndex } = await import("#lib/crypto.ts");
+  const { computeTicketTokenIndex } = await import("#lib/crypto/hashing.ts");
   const tokenIndex = await computeTicketTokenIndex(token);
   await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
   await getDb().execute({

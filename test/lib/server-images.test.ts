@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encryptBytes } from "#lib/crypto.ts";
+import { encryptBytes } from "#lib/crypto/encryption.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { eventsTable, getEvent, getEventWithCount } from "#lib/db/events.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";

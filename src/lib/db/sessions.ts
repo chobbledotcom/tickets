@@ -3,7 +3,7 @@
  */
 
 import { registerCache } from "#lib/cache-registry.ts";
-import { hashSessionToken } from "#lib/crypto.ts";
+import { hashSessionToken } from "#lib/crypto/hashing.ts";
 import { deleteByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
 
 import type { Session } from "#lib/types.ts";

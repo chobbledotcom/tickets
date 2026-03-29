@@ -5,7 +5,7 @@
  * Messages are encrypted - only admins can read them.
  */
 
-import { decrypt, encrypt } from "#lib/crypto.ts";
+import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
 import { queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import { col, defineTable } from "#lib/db/table.ts";

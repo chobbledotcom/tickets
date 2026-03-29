@@ -4,7 +4,7 @@
 
 import { filter } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
-import { decrypt, encrypt } from "#lib/crypto.ts";
+import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
 import { queryAndMap } from "#lib/db/query.ts";
 import { settings } from "#lib/db/settings.ts";
 import { col, defineTable } from "#lib/db/table.ts";

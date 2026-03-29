@@ -18,17 +18,9 @@ import { lazyRef } from "#fp";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { registerCache } from "#lib/cache-registry.ts";
 import { DEFAULT_COUNTRY, getCountry } from "#lib/countries.ts";
-import {
-  decrypt,
-  deriveKEK,
-  encrypt,
-  encryptWithKey,
-  generateDataKey,
-  generateKeyPair,
-  hashPassword,
-  unwrapKey,
-  wrapKey,
-} from "#lib/crypto.ts";
+import { decrypt, encrypt, encryptWithKey } from "#lib/crypto/encryption.ts";
+import { hashPassword } from "#lib/crypto/hashing.ts";
+import { deriveKEK, generateDataKey, generateKeyPair, unwrapKey, wrapKey } from "#lib/crypto/keys.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
 import { createUser, invalidateUsersCache } from "#lib/db/users.ts";

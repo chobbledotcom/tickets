@@ -2,7 +2,7 @@
  * Admin session management routes
  */
 
-import { hashSessionToken } from "#lib/crypto.ts";
+import { hashSessionToken } from "#lib/crypto/hashing.ts";
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";

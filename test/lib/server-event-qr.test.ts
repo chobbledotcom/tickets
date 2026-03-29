@@ -5,7 +5,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { handleTicketQrGet } from "#routes/public.ts";
+import { handleTicketQrGet } from "#routes/public/ticket-routes.ts";
 import {
   createTestEvent,
   createTestGroup,

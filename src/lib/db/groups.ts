@@ -3,7 +3,8 @@
  */
 
 import { mapParallel } from "#fp";
-import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
+import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
+import { hmacHash } from "#lib/crypto/hashing.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import {
   defineIdTable,

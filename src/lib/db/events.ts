@@ -4,7 +4,8 @@
 
 import type { ResultSet } from "@libsql/client";
 import { filter as fpFilter } from "#fp";
-import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
+import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
+import { hmacHash } from "#lib/crypto/hashing.ts";
 import {
   executeBatch,
   getDb,

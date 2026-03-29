@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
-import { encrypt, hashPassword } from "#lib/crypto.ts";
+import { encrypt } from "#lib/crypto/encryption.ts";
+import { hashPassword } from "#lib/crypto/hashing.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
@@ -946,7 +947,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("isInviteValid returns false when invite_expiry is null", async () => {
-      const { hmacHash } = await import("#lib/crypto.ts");
+      const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("no-expiry-user");
       await getDb().execute({
         sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
@@ -969,7 +970,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("decryptAdminLevel throws when admin_level decrypts to invalid value", async () => {
-      const { hmacHash } = await import("#lib/crypto.ts");
+      const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("badlevel-user");
       await getDb().execute({
         sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
@@ -993,7 +994,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("isInviteValid returns false when invite_expiry decrypts to empty string", async () => {
-      const { hmacHash } = await import("#lib/crypto.ts");
+      const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("empty-expiry-user");
       await getDb().execute({
         sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
@@ -1019,7 +1020,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("utils.ts edge cases", () => {
     test("withOwnerAuthForm returns 403 for manager role", async () => {
       // Create manager user
-      const { hmacHash } = await import("#lib/crypto.ts");
+      const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute({
         sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)

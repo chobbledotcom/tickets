@@ -5,7 +5,7 @@
 
 import * as BunnySDK from "@bunny.net/edgescript-sdk";
 import { once } from "#fp";
-import { validateEncryptionKey } from "#lib/crypto.ts";
+import { validateEncryptionKey } from "#lib/crypto/encryption.ts";
 import { initDb } from "#lib/db/migrations.ts";
 import {
   ErrorCode,

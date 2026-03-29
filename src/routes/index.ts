@@ -68,7 +68,7 @@ const loadPublicPages = once(async () => {
     handlePublicEvents,
     handlePublicTerms,
     handlePublicContact,
-  } = await import("#routes/public.ts");
+  } = await import("#routes/public/pages.ts");
   return {
     handleHome,
     handlePublicEvents,
@@ -79,7 +79,7 @@ const loadPublicPages = once(async () => {
 
 /** Lazy-load ticket reservation router */
 const loadTicketRoutes = once(async () => {
-  const { routeTicket } = await import("#routes/public.ts");
+  const { routeTicket } = await import("#routes/public/ticket-routes.ts");
   return routeTicket;
 });
 
