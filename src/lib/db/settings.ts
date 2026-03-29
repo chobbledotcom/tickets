@@ -525,6 +525,17 @@ const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null => {
 };
 
 // ---------------------------------------------------------------------------
+// Shared wallet host-config test helpers
+// ---------------------------------------------------------------------------
+
+const hostConfigTestHelpers = <T>(
+  setOverride: (v: T | null | undefined) => void,
+) => ({
+  setHostConfigForTest: (c: T | null): void => setOverride(c),
+  resetHostConfig: (): void => setOverride(undefined),
+});
+
+// ---------------------------------------------------------------------------
 // Current-task guard — prevents duplicate heavy operations
 // ---------------------------------------------------------------------------
 
@@ -810,9 +821,7 @@ export const settings = {
     get hasConfig(): boolean {
       return this.config !== null;
     },
-    setHostConfigForTest: (c: SigningCredentials | null): void =>
-      setHostWalletOverride(c),
-    resetHostConfig: (): void => setHostWalletOverride(undefined),
+    ...hostConfigTestHelpers<SigningCredentials>(setHostWalletOverride),
   },
 
   // --- Google Wallet ---
@@ -841,14 +850,14 @@ export const settings = {
       return getHostGoogleWalletConfig();
     },
     get config(): GoogleWalletCredentials | null {
-      return this.dbConfig ?? getHostGoogleWalletConfig();
+      return this.dbConfig ?? this.hostConfig;
     },
     get hasConfig(): boolean {
       return this.config !== null;
     },
-    setHostConfigForTest: (c: GoogleWalletCredentials | null): void =>
-      setHostGoogleWalletOverride(c),
-    resetHostConfig: (): void => setHostGoogleWalletOverride(undefined),
+    ...hostConfigTestHelpers<GoogleWalletCredentials>(
+      setHostGoogleWalletOverride,
+    ),
   },
 
   // --- Setup & auth ---
