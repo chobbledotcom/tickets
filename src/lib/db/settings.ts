@@ -525,15 +525,39 @@ const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null => {
 };
 
 // ---------------------------------------------------------------------------
-// Shared wallet host-config test helpers
+// Shared wallet host-config helpers
 // ---------------------------------------------------------------------------
 
-const hostConfigTestHelpers = <T>(
+interface HostConfigProps<T> {
+  readonly config: T | null;
+  readonly hasConfig: boolean;
+  setHostConfigForTest: (c: T | null) => void;
+  resetHostConfig: () => void;
+}
+
+/** Add `config`, `hasConfig`, `setHostConfigForTest`, `resetHostConfig`. */
+const addHostConfigProps = <T, O extends { dbConfig: T | null; hostConfig: T | null }>(
+  target: O,
   setOverride: (v: T | null | undefined) => void,
-) => ({
-  setHostConfigForTest: (c: T | null): void => setOverride(c),
-  resetHostConfig: (): void => setOverride(undefined),
-});
+): O & HostConfigProps<T> =>
+  Object.defineProperties(target, {
+    config: {
+      get(this: O) { return this.dbConfig ?? this.hostConfig; },
+      enumerable: true, configurable: true,
+    },
+    hasConfig: {
+      get(this: O & { config: T | null }) { return this.config !== null; },
+      enumerable: true, configurable: true,
+    },
+    setHostConfigForTest: {
+      value: (c: T | null): void => setOverride(c),
+      enumerable: true, configurable: true,
+    },
+    resetHostConfig: {
+      value: (): void => setOverride(undefined),
+      enumerable: true, configurable: true,
+    },
+  }) as O & HostConfigProps<T>;
 
 // ---------------------------------------------------------------------------
 // Current-task guard — prevents duplicate heavy operations
@@ -778,7 +802,7 @@ export const settings = {
   },
 
   // --- Apple Wallet ---
-  appleWallet: {
+  appleWallet: addHostConfigProps({
     get passTypeId(): string {
       return snap("apple_wallet_pass_type_id");
     },
@@ -815,17 +839,10 @@ export const settings = {
     get hostConfig(): SigningCredentials | null {
       return getHostAppleWalletConfig();
     },
-    get config(): SigningCredentials | null {
-      return this.dbConfig ?? this.hostConfig;
-    },
-    get hasConfig(): boolean {
-      return this.config !== null;
-    },
-    ...hostConfigTestHelpers<SigningCredentials>(setHostWalletOverride),
-  },
+  }, setHostWalletOverride),
 
   // --- Google Wallet ---
-  googleWallet: {
+  googleWallet: addHostConfigProps({
     get issuerId(): string {
       return snap("google_wallet_issuer_id");
     },
@@ -849,16 +866,7 @@ export const settings = {
     get hostConfig(): GoogleWalletCredentials | null {
       return getHostGoogleWalletConfig();
     },
-    get config(): GoogleWalletCredentials | null {
-      return this.dbConfig ?? this.hostConfig;
-    },
-    get hasConfig(): boolean {
-      return this.config !== null;
-    },
-    ...hostConfigTestHelpers<GoogleWalletCredentials>(
-      setHostGoogleWalletOverride,
-    ),
-  },
+  }, setHostGoogleWalletOverride),
 
   // --- Setup & auth ---
   setup: {
