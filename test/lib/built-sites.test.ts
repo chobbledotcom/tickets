@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   buildSiteDataBlob,
+  builtSitesCrudTable,
   getAllBuiltSites,
   insertBuiltSite,
   parseSiteDataBlob,
@@ -47,5 +48,75 @@ describeWithEnv("built-sites", { db: true }, () => {
   test("getAllBuiltSites returns empty array when no sites exist", async () => {
     const sites = await getAllBuiltSites();
     expect(sites).toHaveLength(0);
+  });
+
+  describe("builtSitesCrudTable", () => {
+    test("findAll returns all built sites", async () => {
+      await insertBuiltSite("Site A", "a.bunny.run");
+      await insertBuiltSite("Site B", "b.bunny.run");
+
+      const sites = await builtSitesCrudTable.findAll();
+      expect(sites).toHaveLength(2);
+    });
+
+    test("fromDb returns the row unchanged", async () => {
+      const site = {
+        id: 1,
+        name: "Test",
+        bunnyUrl: "test.bunny.run",
+        created: "2026-01-01",
+      };
+      const result = await builtSitesCrudTable.fromDb(site);
+      expect(result).toEqual(site);
+    });
+
+    test("toDbValues builds encrypted blob from input", async () => {
+      const values = await builtSitesCrudTable.toDbValues({
+        name: "Test",
+        bunnyUrl: "test.bunny.run",
+      });
+      expect(values.site_data).toBeTruthy();
+      const parsed = parseSiteDataBlob(values.site_data as string);
+      expect(parsed.n).toBe("Test");
+      expect(parsed.u).toBe("test.bunny.run");
+    });
+
+    test("update preserves existing name when only bunnyUrl provided", async () => {
+      const site = await builtSitesCrudTable.insert({
+        name: "Original",
+        bunnyUrl: "original.bunny.run",
+      });
+      const updated = await builtSitesCrudTable.update(site.id, {
+        bunnyUrl: "new.bunny.run",
+      });
+      expect(updated!.name).toBe("Original");
+      expect(updated!.bunnyUrl).toBe("new.bunny.run");
+    });
+
+    test("update preserves existing bunnyUrl when only name provided", async () => {
+      const site = await builtSitesCrudTable.insert({
+        name: "Original",
+        bunnyUrl: "original.bunny.run",
+      });
+      const updated = await builtSitesCrudTable.update(site.id, {
+        name: "Updated",
+      });
+      expect(updated!.name).toBe("Updated");
+      expect(updated!.bunnyUrl).toBe("original.bunny.run");
+    });
+
+    test("update returns null for non-existent id", async () => {
+      const result = await builtSitesCrudTable.update(999, {
+        name: "Test",
+      });
+      expect(result).toBeNull();
+    });
+
+    test("toDbValues handles partial input with missing fields", async () => {
+      const values = await builtSitesCrudTable.toDbValues({});
+      const parsed = parseSiteDataBlob(values.site_data as string);
+      expect(parsed.n).toBe("");
+      expect(parsed.u).toBe("");
+    });
   });
 });
