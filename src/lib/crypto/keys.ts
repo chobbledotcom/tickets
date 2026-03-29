@@ -5,7 +5,6 @@
 import { ttlCache } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
 import { getEnv } from "#lib/env.ts";
-import { fromBase64 } from "./utils.ts";
 import {
   aesGcmDecryptRaw,
   aesGcmEncryptRaw,
@@ -16,6 +15,7 @@ import {
   parseEncryptedPayload,
 } from "./encryption.ts";
 import { getPbkdf2Iterations } from "./hashing.ts";
+import { fromBase64 } from "./utils.ts";
 
 /**
  * =============================================================================
