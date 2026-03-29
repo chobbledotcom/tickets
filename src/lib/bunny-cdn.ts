@@ -471,7 +471,7 @@ const createEdgeScriptImpl = async (
   return {
     ok: true,
     scriptId: data.Id,
-    defaultHostname: (data.DefaultHostname ?? "").replace(/^https?:\/\//, ""),
+    defaultHostname: data.DefaultHostname ?? "",
   };
 };
 

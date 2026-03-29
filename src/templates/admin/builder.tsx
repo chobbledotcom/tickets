@@ -85,16 +85,8 @@ const BuiltSitesTable = ({
           <tr>
             <td>{site.name}</td>
             <td>
-              <a
-                href={
-                  site.bunnyUrl.startsWith("https://")
-                    ? site.bunnyUrl
-                    : `https://${site.bunnyUrl}`
-                }
-                target="_blank"
-                rel="noopener"
-              >
-                {site.bunnyUrl.replace(/^https?:\/\//, "")}
+              <a href={site.bunnyUrl} target="_blank" rel="noopener">
+                {site.bunnyUrl}
               </a>
             </td>
             <td>{site.created}</td>

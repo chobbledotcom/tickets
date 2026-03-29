@@ -54,7 +54,7 @@ const stubSuccessfulBuild = () => ({
     Promise.resolve({
       ok: true as const,
       scriptId: 42,
-      defaultHostname: "test-42.b-cdn.net",
+      defaultHostname: "https://test-42.b-cdn.net",
     }),
   ),
   secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
@@ -222,7 +222,7 @@ describeWithEnv(
         const sites = await getAllBuiltSites();
         expect(sites).toHaveLength(1);
         expect(sites[0]!.name).toBe("My Test Site");
-        expect(sites[0]!.bunnyUrl).toBe("test-42.b-cdn.net");
+        expect(sites[0]!.bunnyUrl).toBe("https://test-42.b-cdn.net");
       });
     });
 
@@ -279,7 +279,7 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 1,
-              defaultHostname: "test.b-cdn.net",
+              defaultHostname: "https://test.b-cdn.net",
             }),
           ),
         }),
