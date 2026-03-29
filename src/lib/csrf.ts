@@ -7,8 +7,12 @@
  * Instagram) where Safari/WebKit blocks third-party cookies.
  */
 
-import { base64ToBase64Url, constantTimeEqual, generateSecureToken } from "#lib/crypto/utils.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
+import {
+  base64ToBase64Url,
+  constantTimeEqual,
+  generateSecureToken,
+} from "#lib/crypto/utils.ts";
 import { nowMs } from "#lib/now.ts";
 
 const SIGNED_PREFIX = "s1.";

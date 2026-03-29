@@ -2,13 +2,13 @@
  * Group ticket context and routing
  */
 
-/* jscpd:ignore-start */
-import { getActiveHolidays } from "#lib/db/holidays.ts";
 import {
   computeGroupSlugIndex,
   getActiveEventsByGroupId,
   getGroupBySlugIndex,
 } from "#lib/db/groups.ts";
+/* jscpd:ignore-start */
+import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { getQuestionsWithEventIds } from "#lib/db/questions.ts";
 import { settings } from "#lib/db/settings.ts";
 /* jscpd:ignore-end */
@@ -19,8 +19,8 @@ import type { TicketEvent } from "#templates/public.tsx";
 import { computeSharedDates } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 import {
-  getActiveEvents,
   type AsyncHandler,
+  getActiveEvents,
   type TicketContextProvider,
 } from "./types.ts";
 

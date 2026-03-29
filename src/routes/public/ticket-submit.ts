@@ -4,8 +4,8 @@
 
 import { reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import { saveAttendeeAnswers } from "#lib/db/questions.ts";
+import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import { isPaidEvent } from "#lib/types.ts";
 import {
   applyFlash,
@@ -31,10 +31,10 @@ import {
   anyRequiresPayment,
   buildRegistrationItems,
   checkAvailability,
+  getTicketContext,
   handleMultiPaymentFlow,
   processFreeReservation,
   withActiveEvents,
-  getTicketContext,
 } from "./ticket-payment.ts";
 import {
   applyHiddenNoindex,

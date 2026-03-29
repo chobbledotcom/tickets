@@ -2,9 +2,9 @@
  * Password hashing (PBKDF2), session token hashing, HMAC, and ticket token indexing
  */
 
-import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
-import { importHmacKey } from "./encryption.ts";
 import { getEnv } from "#lib/env.ts";
+import { importHmacKey } from "./encryption.ts";
+import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 
 /**
  * Password hashing using PBKDF2 via Web Crypto API
@@ -14,7 +14,9 @@ const PBKDF2_ITERATIONS_DEFAULT = 600000; // OWASP recommended minimum for SHA-2
 const PBKDF2_ITERATIONS_TEST = 1000; // Fast iterations for tests
 
 export const getPbkdf2Iterations = (): number =>
-  getEnv("TEST_FAST_PBKDF2") ? PBKDF2_ITERATIONS_TEST : PBKDF2_ITERATIONS_DEFAULT;
+  getEnv("TEST_FAST_PBKDF2")
+    ? PBKDF2_ITERATIONS_TEST
+    : PBKDF2_ITERATIONS_DEFAULT;
 const PBKDF2_HASH_LENGTH = 32; // Output key length in bytes
 const PASSWORD_PREFIX = "pbkdf2";
 
