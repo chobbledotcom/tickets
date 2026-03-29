@@ -2,6 +2,7 @@
  * Group ticket context and routing
  */
 
+/* jscpd:ignore-start */
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import {
   computeGroupSlugIndex,
@@ -10,6 +11,7 @@ import {
 } from "#lib/db/groups.ts";
 import { getQuestionsWithEventIds } from "#lib/db/questions.ts";
 import { settings } from "#lib/db/settings.ts";
+/* jscpd:ignore-end */
 import { sortEvents } from "#lib/sort-events.ts";
 import type { Group } from "#lib/types.ts";
 import { notFoundResponse } from "#routes/utils.ts";

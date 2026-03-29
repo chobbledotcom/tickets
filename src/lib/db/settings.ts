@@ -15,21 +15,32 @@
  */
 
 import { lazyRef } from "#fp";
-import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { registerCache } from "#lib/cache-registry.ts";
 import { DEFAULT_COUNTRY, getCountry } from "#lib/countries.ts";
 import { decrypt, encrypt, encryptWithKey } from "#lib/crypto/encryption.ts";
 import { hashPassword } from "#lib/crypto/hashing.ts";
-import { deriveKEK, generateDataKey, generateKeyPair, unwrapKey, wrapKey } from "#lib/crypto/keys.ts";
+import {
+  deriveKEK,
+  generateDataKey,
+  generateKeyPair,
+  unwrapKey,
+  wrapKey,
+} from "#lib/crypto/keys.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
 import { createUser, invalidateUsersCache } from "#lib/db/users.ts";
-import { getEnv } from "#lib/env.ts";
-import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { nowMs } from "#lib/now.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import type { PaymentProviderType, Settings, Theme } from "#lib/types.ts";
 import { isPaymentProvider } from "#lib/types.ts";
+import {
+  createAppleWalletReadSettings,
+  createAppleWalletUpdateSettings,
+} from "#lib/wallets/apple-wallet-settings.ts";
+import {
+  createGoogleWalletReadSettings,
+  createGoogleWalletUpdateSettings,
+} from "#lib/wallets/google-wallet-settings.ts";
 
 // ---------------------------------------------------------------------------
 // Setting keys
@@ -464,83 +475,6 @@ const updateUserPassword = async (
 };
 
 // ---------------------------------------------------------------------------
-// Apple Wallet host config (env-var based, separate from DB settings)
-// ---------------------------------------------------------------------------
-
-const toCredentials = (
-  passTypeId: string | undefined,
-  teamId: string | undefined,
-  signingCert: string | undefined,
-  signingKey: string | undefined,
-  wwdrCert: string | undefined,
-): SigningCredentials | null =>
-  passTypeId && teamId && signingCert && signingKey && wwdrCert
-    ? { passTypeId, teamId, signingCert, signingKey, wwdrCert }
-    : null;
-
-const getHostAppleWalletConfigFromEnv = (): SigningCredentials | null =>
-  toCredentials(
-    getEnv("APPLE_WALLET_PASS_TYPE_ID"),
-    getEnv("APPLE_WALLET_TEAM_ID"),
-    getEnv("APPLE_WALLET_SIGNING_CERT"),
-    getEnv("APPLE_WALLET_SIGNING_KEY"),
-    getEnv("APPLE_WALLET_WWDR_CERT"),
-  );
-
-const [getHostWalletOverride, setHostWalletOverride] = lazyRef<
-  SigningCredentials | null | undefined
->(() => undefined);
-
-const getHostAppleWalletConfig = (): SigningCredentials | null => {
-  const override = getHostWalletOverride();
-  return override !== undefined ? override : getHostAppleWalletConfigFromEnv();
-};
-
-// ---------------------------------------------------------------------------
-// Google Wallet host config
-// ---------------------------------------------------------------------------
-
-const toGoogleCredentials = (
-  issuerId: string | undefined,
-  serviceAccountEmail: string | undefined,
-  serviceAccountKey: string | undefined,
-): GoogleWalletCredentials | null =>
-  issuerId && serviceAccountEmail && serviceAccountKey
-    ? { issuerId, serviceAccountEmail, serviceAccountKey }
-    : null;
-
-const [getHostGoogleWalletOverride, setHostGoogleWalletOverride] = lazyRef<
-  GoogleWalletCredentials | null | undefined
->(() => undefined);
-
-const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null => {
-  const override = getHostGoogleWalletOverride();
-  return override !== undefined
-    ? override
-    : toGoogleCredentials(
-        getEnv("GOOGLE_WALLET_ISSUER_ID"),
-        getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL"),
-        getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY"),
-      );
-};
-
-// ---------------------------------------------------------------------------
-// Shared wallet config base
-// ---------------------------------------------------------------------------
-
-abstract class WalletConfig<T> {
-  #setOverride: (v: T | null | undefined) => void;
-  constructor(setOverride: (v: T | null | undefined) => void) {
-    this.#setOverride = setOverride;
-  }
-  abstract get dbConfig(): T | null;
-  abstract get hostConfig(): T | null;
-  get config(): T | null { return this.dbConfig ?? this.hostConfig; }
-  get hasConfig(): boolean { return this.config !== null; }
-  setHostConfigForTest = (c: T | null): void => this.#setOverride(c);
-  resetHostConfig = (): void => this.#setOverride(undefined);
-}
-
 // ---------------------------------------------------------------------------
 // Current-task guard — prevents duplicate heavy operations
 // ---------------------------------------------------------------------------
@@ -784,47 +718,10 @@ export const settings = {
   },
 
   // --- Apple Wallet ---
-  appleWallet: new class extends WalletConfig<SigningCredentials> {
-    constructor() { super(setHostWalletOverride); }
-    get passTypeId(): string { return snap("apple_wallet_pass_type_id"); }
-    get teamId(): string { return snap("apple_wallet_team_id"); }
-    get signingCert(): string { return snap("apple_wallet_signing_cert"); }
-    get signingKey(): string { return snap("apple_wallet_signing_key"); }
-    get wwdrCert(): string { return snap("apple_wallet_wwdr_cert"); }
-    get hasDbConfig(): boolean {
-      return !!(this.passTypeId && this.teamId && this.signingCert &&
-        this.signingKey && this.wwdrCert);
-    }
-    get dbConfig(): SigningCredentials | null {
-      return toCredentials(
-        this.passTypeId, this.teamId, this.signingCert,
-        this.signingKey, this.wwdrCert,
-      );
-    }
-    get hostConfig(): SigningCredentials | null {
-      return getHostAppleWalletConfig();
-    }
-  }(),
+  appleWallet: createAppleWalletReadSettings(snap as (k: string) => string),
 
   // --- Google Wallet ---
-  googleWallet: new class extends WalletConfig<GoogleWalletCredentials> {
-    constructor() { super(setHostGoogleWalletOverride); }
-    get issuerId(): string { return snap("google_wallet_issuer_id"); }
-    get serviceAccountEmail(): string { return snap("google_wallet_service_account_email"); }
-    get serviceAccountKey(): string { return snap("google_wallet_service_account_key"); }
-    get hasDbConfig(): boolean {
-      return !!(this.issuerId && this.serviceAccountEmail &&
-        this.serviceAccountKey);
-    }
-    get dbConfig(): GoogleWalletCredentials | null {
-      return toGoogleCredentials(
-        this.issuerId, this.serviceAccountEmail, this.serviceAccountKey,
-      );
-    }
-    get hostConfig(): GoogleWalletCredentials | null {
-      return getHostGoogleWalletConfig();
-    }
-  }(),
+  googleWallet: createGoogleWalletReadSettings(snap as (k: string) => string),
 
   // --- Setup & auth ---
   setup: {
@@ -947,23 +844,13 @@ export const settings = {
     },
 
     // --- Apple Wallet writes ---
-    appleWallet: {
-      passTypeId: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID),
-      teamId: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_TEAM_ID),
-      signingCert: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT),
-      signingKey: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY),
-      wwdrCert: encryptedUpdate(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT),
-    },
+    appleWallet: createAppleWalletUpdateSettings(
+      encryptedUpdate as (k: string) => (v: string) => Promise<void>,
+    ),
 
     // --- Google Wallet writes ---
-    googleWallet: {
-      issuerId: encryptedUpdate(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID),
-      serviceAccountEmail: encryptedUpdate(
-        CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
-      ),
-      serviceAccountKey: encryptedUpdate(
-        CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
-      ),
-    },
+    googleWallet: createGoogleWalletUpdateSettings(
+      encryptedUpdate as (k: string) => (v: string) => Promise<void>,
+    ),
   },
 };
