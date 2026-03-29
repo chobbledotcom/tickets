@@ -1101,6 +1101,33 @@ describeWithEnv(
       );
     });
 
+    test("strips https:// prefix from DefaultHostname", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  Id: 42,
+                  DefaultHostname: "https://test-42.b-cdn.net",
+                }),
+              ),
+            ),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.createEdgeScript(
+            "Test Script",
+            "console.log('test')",
+          );
+          expect(result).toEqual({
+            ok: true,
+            scriptId: 42,
+            defaultHostname: "test-42.b-cdn.net",
+          });
+        },
+      );
+    });
+
     test("defaults hostname to empty string when not in response", async () => {
       await withMocks(
         () =>

@@ -50,6 +50,19 @@ describe("adminBuilderPage", () => {
     expect(html).toContain('target="_blank"');
   });
 
+  test("does not double https:// prefix in links", () => {
+    const sites: BuiltSiteDisplay[] = [
+      {
+        name: "Test",
+        bunnyUrl: "https://test.b-cdn.net",
+        created: "1 Jan 2026",
+      },
+    ];
+    const html = adminBuilderPage(SESSION, sites);
+    expect(html).toContain('href="https://test.b-cdn.net"');
+    expect(html).not.toContain('href="https://https://');
+  });
+
   test("renders error message", () => {
     const html = adminBuilderPage(SESSION, [], "Something went wrong");
     expect(html).toContain("Something went wrong");
