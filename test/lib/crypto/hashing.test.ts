@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
+import { setEncryptionKeyForTest } from "#lib/crypto/encryption.ts";
 import {
   computeTicketTokenIndex,
   hashPassword,
@@ -7,7 +8,6 @@ import {
   hmacHash,
   verifyPassword,
 } from "#lib/crypto/hashing.ts";
-import { setEncryptionKeyForTest } from "#lib/crypto/encryption.ts";
 import {
   describeWithEnv,
   setTestEnv,

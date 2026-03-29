@@ -304,4 +304,3 @@ export const importHmacKey = async (): Promise<CryptoKey> => {
   setHmacKeyResolved(key);
   return key;
 };
-

@@ -4,6 +4,7 @@
 
 import { compact } from "#fp";
 import { isPaymentsEnabled } from "#lib/config.ts";
+import { getAvailableDates } from "#lib/dates.ts";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
@@ -12,7 +13,6 @@ import { getEventsBySlugsBatch } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { getQuestionsWithEventIds } from "#lib/db/questions.ts";
 import { settings } from "#lib/db/settings.ts";
-import { getAvailableDates } from "#lib/dates.ts";
 import type { EmailEntry } from "#lib/email.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
@@ -30,15 +30,8 @@ import {
   notFoundResponse,
 } from "#routes/utils.ts";
 import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
-import {
-  eventsWithQuantity,
-  formatAtomicError,
-} from "./ticket-form.ts";
-import type {
-  AsyncHandler,
-  TicketCtx,
-  TicketSharedContext,
-} from "./types.ts";
+import { eventsWithQuantity, formatAtomicError } from "./ticket-form.ts";
+import type { AsyncHandler, TicketCtx, TicketSharedContext } from "./types.ts";
 
 /** Try to redirect to checkout, or return error using provided handler.
  * When in iframe mode, returns a popup page instead of redirect since Stripe cannot run in iframes. */

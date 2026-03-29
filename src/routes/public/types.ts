@@ -3,13 +3,13 @@
  */
 
 import { compact, filter, map, pipe } from "#fp";
-import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
-import type { EventWithCount } from "#lib/types.ts";
 import type {
   QuestionEventMap,
   QuestionWithAnswers,
 } from "#lib/db/questions.ts";
+import type { EventWithCount } from "#lib/types.ts";
 import { isRegistrationClosed } from "#routes/utils.ts";
+import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
 
 /** Shared rendering context for ticket pages */
 export type TicketCtx = {
