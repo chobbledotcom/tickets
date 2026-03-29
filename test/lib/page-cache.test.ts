@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { encrypt } from "#lib/crypto.ts";
+import { encrypt } from "#lib/crypto/encryption.ts";
 import { getDb } from "#lib/db/client.ts";
 import {
   CONFIG_KEYS,

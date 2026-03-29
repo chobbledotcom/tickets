@@ -9,7 +9,9 @@
  * Keys inherit admin_level from their parent user.
  */
 
-import { decrypt, encrypt, hmacHash, wrapKeyWithToken } from "#lib/crypto.ts";
+import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
+import { hmacHash } from "#lib/crypto/hashing.ts";
+import { wrapKeyWithToken } from "#lib/crypto/keys.ts";
 import { deleteByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
 import { nowIso } from "#lib/now.ts";
 import type { ApiKey } from "#lib/types.ts";

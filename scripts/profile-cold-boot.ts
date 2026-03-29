@@ -112,7 +112,7 @@ const main = async () => {
 
   // 9. Measure public routes (lazy load)
   await measure("9. Import routes/public (lazy)", async () => {
-    await import("#routes/public.ts");
+    await import("#routes/public/ticket-routes.ts");
   });
 
   // Print the report

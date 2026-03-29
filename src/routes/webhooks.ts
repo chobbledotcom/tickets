@@ -42,7 +42,7 @@ import {
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import { getFromEmailIfConfigured } from "#routes/public.ts";
+import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
 import {

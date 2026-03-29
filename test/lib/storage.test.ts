@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
+import { decryptBytes, encryptBytes } from "#lib/crypto/encryption.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
   deleteAllEventStorageFiles,

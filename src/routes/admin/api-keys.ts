@@ -6,7 +6,8 @@ import {
   ADMIN_API_ENDPOINTS,
   PUBLIC_API_ENDPOINTS,
 } from "#lib/admin-api-example.ts";
-import { generateSecureToken, unwrapKeyWithToken } from "#lib/crypto.ts";
+import { generateSecureToken } from "#lib/crypto/utils.ts";
+import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
 import {
   createApiKey,
   deleteApiKey,

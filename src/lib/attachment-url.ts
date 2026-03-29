@@ -6,7 +6,8 @@
  * their ticket page to get a fresh URL (prevents sharing).
  */
 
-import { base64ToBase64Url, constantTimeEqual, hmacHash } from "#lib/crypto.ts";
+import { base64ToBase64Url, constantTimeEqual } from "#lib/crypto/utils.ts";
+import { hmacHash } from "#lib/crypto/hashing.ts";
 import { ATTACHMENT_URL_MAX_AGE_S } from "#lib/limits.ts";
 import { nowMs } from "#lib/now.ts";
 

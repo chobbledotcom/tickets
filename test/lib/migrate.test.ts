@@ -1,14 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import {
-  decryptAttendeePII,
-  decryptWithKey,
-  deriveKEK,
-  encrypt,
-  encryptAttendeePII,
-  importPrivateKey,
-  unwrapKey,
-} from "#lib/crypto.ts";
+import { decryptWithKey, encrypt } from "#lib/crypto/encryption.ts";
+import { decryptAttendeePII, deriveKEK, encryptAttendeePII, importPrivateKey, unwrapKey } from "#lib/crypto/keys.ts";
 import {
   decryptAttendees,
   getAttendeesRaw,

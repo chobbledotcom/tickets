@@ -4,7 +4,7 @@
 
 import { lazyRef } from "#fp";
 import { buildSessionCookie, clearSessionCookie } from "#lib/cookies.ts";
-import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto.ts";
+import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto/keys.ts";
 import { verifySignedCsrfToken } from "#lib/csrf.ts";
 import {
   clearLoginAttempts,

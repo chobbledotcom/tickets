@@ -7,7 +7,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
-import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
+import { decryptBytes, encryptBytes } from "#lib/crypto/encryption.ts";
 import { getEnv } from "#lib/env.ts";
 import {
   formatBytes,

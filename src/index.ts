@@ -2,7 +2,7 @@
  * Entry point for ticket reservation system
  */
 
-import { validateEncryptionKey } from "#lib/crypto.ts";
+import { validateEncryptionKey } from "#lib/crypto/encryption.ts";
 import { initDb } from "#lib/db/migrations.ts";
 import { handleRequest } from "#routes/index.ts";
 

@@ -4,11 +4,8 @@
 
 import { compact, map, pipe, reduce } from "#fp";
 import { buildFlashCookie, getSessionCookieName } from "#lib/cookies.ts";
-import {
-  generateSecureToken,
-  getPrivateKeyFromSession,
-  unwrapKeyWithToken,
-} from "#lib/crypto.ts";
+import { generateSecureToken } from "#lib/crypto/utils.ts";
+import { getPrivateKeyFromSession, unwrapKeyWithToken } from "#lib/crypto/keys.ts";
 import {
   CSRF_INVALID_FORM_MESSAGE,
   signCsrfToken,

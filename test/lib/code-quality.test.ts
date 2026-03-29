@@ -274,12 +274,8 @@ describe("code quality", () => {
     const ALLOWED_TEST_HOOKS: string[] = [
       // Database injection for test isolation
       "lib/db/client.ts:setDb",
-      // Reset cached encryption key between tests
-      "lib/crypto.ts:clearEncryptionKeyCache",
       // Set encryption key directly to avoid env var races between parallel tests
-      "lib/crypto.ts:setEncryptionKeyForTest",
-      // Set PBKDF2 iterations directly to avoid env var races between parallel tests
-      "lib/crypto.ts:setTestPbkdf2Iterations",
+      "lib/crypto/encryption.ts:setEncryptionKeyForTest",
       // Reset cached Stripe client between tests
       "lib/stripe.ts:resetStripeClient",
       // TTL constant used by page-cache tests to verify caching behaviour

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { signAttachmentUrl } from "#lib/attachment-url.ts";
-import { encryptBytes } from "#lib/crypto.ts";
+import { encryptBytes } from "#lib/crypto/encryption.ts";
 import { getAttendeeRaw } from "#lib/db/attendees.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";

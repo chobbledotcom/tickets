@@ -5,7 +5,7 @@
 
 import { lazyRef, map } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
-import { toBase64 } from "#lib/crypto.ts";
+import { toBase64 } from "#lib/crypto/utils.ts";
 import { settings } from "#lib/db/settings.ts";
 import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
 import { getEnv } from "#lib/env.ts";
