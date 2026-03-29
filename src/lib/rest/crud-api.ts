@@ -25,6 +25,21 @@ import { verifyIdentifierOrJsonError } from "#routes/admin/utils.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { ADMIN_API, jsonResponse, withAuth } from "#routes/utils.ts";
 
+/** JSON body for confirmed delete endpoints */
+export type DeleteBody = { confirm_identifier: string };
+
+/**
+ * Parse a required non-empty string field from a JSON body.
+ * Returns the trimmed string or null if missing/empty.
+ */
+export const requireString = (
+  body: Record<string, unknown>,
+  key: string,
+): string | null =>
+  typeof body[key] === "string" && body[key].trim() !== ""
+    ? body[key].trim()
+    : null;
+
 /** Result of parsing a JSON body into a typed input */
 type ParseResult<Input> =
   | { ok: true; input: Input }

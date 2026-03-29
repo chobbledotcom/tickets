@@ -7,7 +7,7 @@ import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
 import { queryAndMap } from "#lib/db/query.ts";
 import { settings } from "#lib/db/settings.ts";
-import { col, defineTable } from "#lib/db/table.ts";
+import { col, defineTable, withCacheInvalidation } from "#lib/db/table.ts";
 import { requestCache } from "#lib/request-cache.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import type { Holiday } from "#lib/types.ts";
@@ -48,23 +48,10 @@ export const invalidateHolidaysCache = (): void => {
 };
 
 /** Holidays table with CRUD operations — writes auto-invalidate the cache */
-export const holidaysTable: typeof rawHolidaysTable = {
-  ...rawHolidaysTable,
-  insert: async (input) => {
-    const result = await rawHolidaysTable.insert(input);
-    invalidateHolidaysCache();
-    return result;
-  },
-  update: async (id, input) => {
-    const result = await rawHolidaysTable.update(id, input);
-    invalidateHolidaysCache();
-    return result;
-  },
-  deleteById: async (id) => {
-    await rawHolidaysTable.deleteById(id);
-    invalidateHolidaysCache();
-  },
-};
+export const holidaysTable = withCacheInvalidation(
+  rawHolidaysTable,
+  invalidateHolidaysCache,
+);
 
 /**
  * Get all holidays, decrypted, ordered by start_date (from cache)

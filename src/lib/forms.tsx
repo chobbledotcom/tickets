@@ -2,7 +2,7 @@
  * Minimal form framework for declarative form handling
  */
 
-import { map, pipe, reduce } from "#fp";
+import { joinStrings, map, pipe } from "#fp";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import type { FormParams } from "#lib/form-data.ts";
@@ -62,8 +62,6 @@ export type ValidationResult<T = FieldValues> =
 type FieldValidationResult =
   | { valid: true; value: string | number | null }
   | { valid: false; error: string };
-
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /** Render select options HTML */
 const renderSelectOptions = (

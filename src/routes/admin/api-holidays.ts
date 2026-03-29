@@ -7,7 +7,12 @@ import {
   type HolidayInput,
   holidaysTable,
 } from "#lib/db/holidays.ts";
-import { defineCrudApi, parseUpdateName } from "#lib/rest/crud-api.ts";
+import {
+  type DeleteBody,
+  defineCrudApi,
+  parseUpdateName,
+  requireString,
+} from "#lib/rest/crud-api.ts";
 import type { Holiday } from "#lib/types.ts";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 
@@ -22,16 +27,7 @@ export type CreateHolidayBody = {
 export type UpdateHolidayBody = Partial<CreateHolidayBody>;
 
 /** JSON body accepted by DELETE /api/admin/holidays/:holidayId */
-export type DeleteHolidayBody = { confirm_identifier: string };
-
-/** Parse required string field from body */
-const requireString = (
-  body: Record<string, unknown>,
-  key: string,
-): string | null =>
-  typeof body[key] === "string" && body[key].trim() !== ""
-    ? body[key].trim()
-    : null;
+export type DeleteHolidayBody = DeleteBody;
 
 export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   name: "holidays",
