@@ -375,6 +375,16 @@ for (const form of document.querySelectorAll<HTMLFormElement>(
   });
 }
 
+/* Re-enable forms restored from bfcache (back/forward navigation). */
+window.addEventListener("pageshow", (e) => {
+  if (!e.persisted) return;
+  for (const el of document.querySelectorAll<
+    HTMLInputElement | HTMLButtonElement
+  >("form[method='POST'] :disabled")) {
+    el.disabled = false;
+  }
+});
+
 /* Question visibility: show questions only when at least one
  * associated event has quantity > 0. Questions without data-event-ids are
  * always visible (single-event pages). */

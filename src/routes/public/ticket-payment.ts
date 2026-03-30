@@ -16,9 +16,9 @@ import { settings } from "#lib/db/settings.ts";
 import type { EmailEntry } from "#lib/email.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
+  type CheckoutIntent,
+  type CheckoutItem,
   getActivePaymentProvider,
-  type MultiRegistrationIntent,
-  type MultiRegistrationItem,
 } from "#lib/payments.ts";
 import type { ContactInfo } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
@@ -126,7 +126,7 @@ export const buildRegistrationItems = (
   events: TicketEvent[],
   quantities: Map<number, number>,
   customPrices: Map<number, number>,
-): MultiRegistrationItem[] => {
+): CheckoutItem[] => {
   const selected = events.filter(({ event }) => {
     const qty = quantities.get(event.id);
     return qty !== undefined && qty > 0;
@@ -141,22 +141,22 @@ export const buildRegistrationItems = (
 };
 
 /** Check if any selected event requires payment */
-export const anyRequiresPayment = (items: MultiRegistrationItem[]): boolean => {
+export const anyRequiresPayment = (items: CheckoutItem[]): boolean => {
   const paymentsEnabled = isPaymentsEnabled();
   if (!paymentsEnabled) return false;
   return items.some((item) => item.unitPrice > 0);
 };
 
 /** Handle payment flow for ticket purchase */
-export const handleMultiPaymentFlow = (
+export const handlePaymentFlow = (
   request: Request,
-  intent: MultiRegistrationIntent,
+  intent: CheckoutIntent,
   ctx: TicketCtx,
 ): Promise<Response> =>
   runCheckoutFlow(
     `ticket items=${intent.items.length}`,
     request,
-    (provider, baseUrl) => provider.createMultiCheckoutSession(intent, baseUrl),
+    (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
     (msg) => errorRedirect(`/ticket/${ctx.slugs.join("+")}`, msg),
   );
 

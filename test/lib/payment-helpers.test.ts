@@ -2,15 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ErrorCode } from "#lib/logger.ts";
 import {
-  buildCartMetadata,
-  buildSingleIntentMetadata,
+  buildMetadata,
   createWithClient,
   errorMessage,
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   PaymentUserError,
   safeAsync,
-  serializeBookingItems,
+  singleEventAnswerIds,
+  toBookingItems,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
 import { isPaymentStatus, type SessionMetadata } from "#lib/payments.ts";
@@ -18,15 +18,15 @@ import { isPaymentStatus, type SessionMetadata } from "#lib/payments.ts";
 describe("payment-helpers", () => {
   describe("metadata round-trip: build → validate → extract", () => {
     test("single-event metadata survives full pipeline", () => {
-      const metadata = buildSingleIntentMetadata(42, {
+      const metadata = buildMetadata({
         name: "Alice",
         email: "alice@example.com",
         phone: "+1234567890",
         address: "123 Main St",
         special_instructions: "No nuts",
-        quantity: 3,
         date: "2026-02-10",
-        answerIds: [10, 20],
+        items: [{ e: 42, q: 3, p: 0 }],
+        eventAnswerIds: { "42": [10, 20] },
       });
 
       expect(hasRequiredSessionMetadata(metadata)).toBe(true);
@@ -39,14 +39,12 @@ describe("payment-helpers", () => {
       expect(extracted.phone).toBe("+1234567890");
       expect(extracted.address).toBe("123 Main St");
       expect(extracted.special_instructions).toBe("No nuts");
-      expect(extracted.event_id).toBe("42");
-      expect(extracted.quantity).toBe("3");
       expect(extracted.date).toBe("2026-02-10");
       expect(JSON.parse(extracted.answer_ids)).toEqual({ "42": [10, 20] });
     });
 
     test("cart metadata survives full pipeline", () => {
-      const metadata = buildCartMetadata({
+      const intent = {
         name: "Bob",
         email: "bob@example.com",
         phone: "+9876543210",
@@ -70,6 +68,10 @@ describe("payment-helpers", () => {
           },
         ],
         eventAnswerIds: { "1": [10], "2": [20, 21] },
+      };
+      const metadata = buildMetadata({
+        ...intent,
+        items: toBookingItems(intent.items),
       });
 
       expect(hasRequiredSessionMetadata(metadata)).toBe(true);
@@ -77,7 +79,6 @@ describe("payment-helpers", () => {
       const extracted = extractSessionMetadata(
         metadata as unknown as SessionMetadata,
       );
-      expect(extracted.multi).toBe("1");
       expect(extracted.name).toBe("Bob");
       expect(extracted.phone).toBe("+9876543210");
       expect(extracted.address).toBe("");
@@ -93,11 +94,10 @@ describe("payment-helpers", () => {
 
     test("extractSessionMetadata preserves present fields and defaults absent ones", () => {
       const withFields = extractSessionMetadata({
-        event_id: "42",
         name: "Alice",
         email: "alice@example.com",
         phone: "+1234567890",
-        quantity: "3",
+        items: "[]",
       } as SessionMetadata);
       expect(withFields.email).toBe("alice@example.com");
       expect(withFields.phone).toBe("+1234567890");
@@ -109,17 +109,16 @@ describe("payment-helpers", () => {
       expect(minimal.email).toBe("");
       expect(minimal.phone).toBe("");
       expect(minimal._origin).toBe("");
-      expect(minimal.event_id).toBe("");
     });
 
     test("optional fields omitted during build normalize to empty on extract", () => {
-      const metadata = buildSingleIntentMetadata(1, {
+      const metadata = buildMetadata({
         name: "Min",
         email: "min@example.com",
         address: "",
         special_instructions: "",
         date: null,
-        quantity: 1,
+        items: [{ e: 1, q: 1, p: 0 }],
       });
 
       const extracted = extractSessionMetadata(
@@ -133,7 +132,7 @@ describe("payment-helpers", () => {
     });
 
     test("cart with no phone, empty eventAnswerIds omits optional fields", () => {
-      const metadata = buildCartMetadata({
+      const intent = {
         name: "Eve",
         email: "eve@example.com",
         phone: "",
@@ -144,6 +143,10 @@ describe("payment-helpers", () => {
           { eventId: 5, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
         ],
         eventAnswerIds: {},
+      };
+      const metadata = buildMetadata({
+        ...intent,
+        items: toBookingItems(intent.items),
       });
 
       expect("phone" in metadata).toBe(false);
@@ -151,19 +154,17 @@ describe("payment-helpers", () => {
     });
 
     test("single-event with date null omits date", () => {
-      const metadata = buildSingleIntentMetadata(1, {
+      const metadata = buildMetadata({
         name: "X",
         email: "x@x.com",
-        address: "",
-        special_instructions: "",
-        quantity: 1,
         date: null,
+        items: [{ e: 1, q: 1, p: 0 }],
       });
       expect("date" in metadata).toBe(false);
     });
 
     test("cart with date null omits date", () => {
-      const metadata = buildCartMetadata({
+      const intent = {
         name: "X",
         email: "x@x.com",
         phone: "",
@@ -173,31 +174,45 @@ describe("payment-helpers", () => {
         items: [
           { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
         ],
+      };
+      const metadata = buildMetadata({
+        ...intent,
+        items: toBookingItems(intent.items),
       });
       expect("date" in metadata).toBe(false);
     });
 
     test("single-event with empty answerIds omits answer_ids", () => {
-      const metadata = buildSingleIntentMetadata(1, {
+      const metadata = buildMetadata({
         name: "X",
         email: "x@x.com",
         date: null,
-        quantity: 1,
-        answerIds: [],
+        items: [{ e: 1, q: 1, p: 0 }],
+        eventAnswerIds: {},
       });
       expect("answer_ids" in metadata).toBe(false);
     });
 
-    test("serializeBookingItems produces compact JSON with total price", () => {
+    test("toBookingItems produces compact items with total price", () => {
       const items = [
         { eventId: 10, quantity: 3, unitPrice: 700, slug: "b", name: "B" },
       ];
-      const result = serializeBookingItems(items);
-      expect(JSON.parse(result)).toEqual([{ e: 10, q: 3, p: 2100 }]);
+      const result = toBookingItems(items);
+      expect(result).toEqual([{ e: 10, q: 3, p: 2100 }]);
     });
 
-    test("serializeBookingItems handles empty array", () => {
-      expect(serializeBookingItems([])).toBe("[]");
+    test("toBookingItems handles empty array", () => {
+      expect(toBookingItems([])).toEqual([]);
+    });
+
+    test("singleEventAnswerIds wraps answerIds for one event", () => {
+      expect(singleEventAnswerIds(42, [10, 20])).toEqual({ "42": [10, 20] });
+    });
+
+    test("singleEventAnswerIds returns undefined for empty or missing", () => {
+      expect(singleEventAnswerIds(1, [])).toBeUndefined();
+      expect(singleEventAnswerIds(1, undefined)).toBeUndefined();
+      expect(singleEventAnswerIds(1)).toBeUndefined();
     });
   });
 
@@ -209,50 +224,29 @@ describe("payment-helpers", () => {
 
     test("returns false when name is missing or empty", () => {
       expect(
-        hasRequiredSessionMetadata({ email: "a@b.com", event_id: "1" }),
+        hasRequiredSessionMetadata({ email: "a@b.com", items: "[]" }),
       ).toBe(false);
       expect(
         hasRequiredSessionMetadata({
           name: "",
           email: "a@b.com",
-          event_id: "1",
-        }),
-      ).toBe(false);
-    });
-
-    test("returns false when neither event_id nor multi+items present", () => {
-      expect(
-        hasRequiredSessionMetadata({ name: "Alice", email: "a@b.com" }),
-      ).toBe(false);
-    });
-
-    test("returns false when multi=1 but items missing", () => {
-      expect(
-        hasRequiredSessionMetadata({
-          name: "Alice",
-          email: "a@b.com",
-          multi: "1",
-        }),
-      ).toBe(false);
-    });
-
-    test("returns false when multi is not '1'", () => {
-      expect(
-        hasRequiredSessionMetadata({
-          name: "Alice",
-          email: "a@b.com",
-          multi: "0",
           items: "[]",
         }),
       ).toBe(false);
     });
 
+    test("returns false when items missing", () => {
+      expect(
+        hasRequiredSessionMetadata({ name: "Alice", email: "a@b.com" }),
+      ).toBe(false);
+    });
+
     test("returns true for valid single-event (email optional)", () => {
-      expect(hasRequiredSessionMetadata({ name: "Alice", event_id: "1" })).toBe(
+      expect(hasRequiredSessionMetadata({ name: "Alice", items: "[]" })).toBe(
         true,
       );
       expect(
-        hasRequiredSessionMetadata({ name: "Alice", email: "", event_id: "1" }),
+        hasRequiredSessionMetadata({ name: "Alice", email: "", items: "[]" }),
       ).toBe(true);
     });
 
@@ -261,8 +255,7 @@ describe("payment-helpers", () => {
         hasRequiredSessionMetadata({
           name: "Alice",
           email: "a@b.com",
-          multi: "1",
-          items: "[]",
+          items: '[{"e":1,"q":2,"p":2000}]',
         }),
       ).toBe(true);
     });

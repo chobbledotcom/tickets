@@ -506,6 +506,26 @@ export const holidayFields: Field[] = [
   },
 ];
 
+/**
+ * Built site form field definitions
+ */
+export const builtSiteFields: Field[] = [
+  {
+    name: "name",
+    label: "Site Name",
+    type: "text",
+    required: true,
+    placeholder: "My Ticket Site",
+  },
+  {
+    name: "bunny_url",
+    label: "Bunny URL",
+    type: "url",
+    required: true,
+    placeholder: "https://example.b-cdn.net",
+  },
+];
+
 /** Image upload field for event forms (appended when storage is enabled) */
 export const imageField: Field = {
   name: "image",

@@ -395,6 +395,111 @@ const deleteDnsRecordImpl = async (
 };
 
 // ---------------------------------------------------------------------------
+// Compute script helpers (shared by builder + self-update)
+// ---------------------------------------------------------------------------
+
+/** POST/PUT to a compute script endpoint with JSON body and AccessKey auth. */
+const computeScriptRequest = (
+  path: string,
+  method: string,
+  body: string,
+): Promise<FetchResult> =>
+  fetchText(`${BUNNY_API_BASE}${path}`, {
+    method,
+    headers: {
+      AccessKey: getBunnyApiKey(),
+      "Content-Type": "application/json",
+    },
+    body,
+  });
+
+/** POST/PUT to /compute/script/{id}/{action} */
+const scriptAction = (
+  scriptId: number | string,
+  action: string,
+  method: string,
+  body: string,
+): Promise<FetchResult> =>
+  computeScriptRequest(
+    `/compute/script/${encodeURIComponent(scriptId)}/${action}`,
+    method,
+    body,
+  );
+
+/** Publish a Bunny edge script by ID. */
+const publishScript = async (
+  scriptId: number | string,
+  label: string,
+): Promise<BunnyApiResult> =>
+  okOrError(await scriptAction(scriptId, "publish", "POST", "{}"), label);
+
+// ---------------------------------------------------------------------------
+// Edge script creation (site builder)
+// ---------------------------------------------------------------------------
+
+interface CreateEdgeScriptResult {
+  ok: true;
+  scriptId: number;
+  defaultHostname: string;
+}
+
+/**
+ * Create a new Bunny edge script with the given name and code.
+ * ScriptType 2 = standalone (no linked pull zone auto-created by default).
+ * CreateLinkedPullZone = true to get a default hostname.
+ */
+const createEdgeScriptImpl = async (
+  name: string,
+  code: string,
+): Promise<CreateEdgeScriptResult | { ok: false; error: string }> => {
+  const response = await computeScriptRequest(
+    "/compute/script",
+    "POST",
+    JSON.stringify({
+      Name: name,
+      Code: code,
+      ScriptType: 1,
+      CreateLinkedPullZone: true,
+    }),
+  );
+
+  if (!response.ok) {
+    return parseBunnyError(response, "Create edge script");
+  }
+
+  const data = JSON.parse(response.text);
+  return {
+    ok: true,
+    scriptId: data.Id,
+    defaultHostname: data.DefaultHostname ?? "",
+  };
+};
+
+/**
+ * Set a secret on a Bunny edge script.
+ */
+const setEdgeScriptSecretImpl = async (
+  scriptId: number,
+  name: string,
+  value: string,
+): Promise<BunnyApiResult> =>
+  okOrError(
+    await scriptAction(
+      scriptId,
+      "secrets",
+      "PUT",
+      JSON.stringify({ Name: name, Secret: value }),
+    ),
+    `Set secret ${name}`,
+  );
+
+/**
+ * Publish a Bunny edge script.
+ */
+const publishEdgeScriptImpl = (scriptId: number): Promise<BunnyApiResult> =>
+  publishScript(scriptId, "Publish edge script");
+
+// ---------------------------------------------------------------------------
 // Compute script deployment (self-update)
 // ---------------------------------------------------------------------------
 
@@ -404,29 +509,18 @@ const deleteDnsRecordImpl = async (
  */
 const deployScriptCodeImpl = async (code: string): Promise<BunnyApiResult> => {
   const scriptId = getBunnyScriptId();
-  const apiKey = getBunnyApiKey();
 
-  const upload = await fetchText(
-    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}/code`,
-    {
-      method: "POST",
-      headers: { AccessKey: apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ Code: code }),
-    },
+  const upload = await scriptAction(
+    scriptId,
+    "code",
+    "POST",
+    JSON.stringify({ Code: code }),
   );
   if (!upload.ok) {
     return okOrError(upload, "Upload script code");
   }
 
-  const publish = await fetchText(
-    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}/publish`,
-    {
-      method: "POST",
-      headers: { AccessKey: apiKey, "Content-Type": "application/json" },
-      body: "{}",
-    },
-  );
-  return okOrError(publish, "Publish script");
+  return publishScript(scriptId, "Publish script");
 };
 
 /** Stubbable API for testing */
@@ -440,6 +534,9 @@ export const bunnyCdnApi = {
   getCdnHostname: getCdnHostnameImpl,
   deleteDnsRecord: deleteDnsRecordImpl,
   deployScriptCode: deployScriptCodeImpl,
+  createEdgeScript: createEdgeScriptImpl,
+  setEdgeScriptSecret: setEdgeScriptSecretImpl,
+  publishEdgeScript: publishEdgeScriptImpl,
   delay,
 };
 
@@ -463,3 +560,22 @@ export const getCdnHostname = (): Promise<CdnHostnameResult> =>
 /** Upload and publish new script code to Bunny CDN. */
 export const deployScriptCode = (code: string): Promise<BunnyApiResult> =>
   bunnyCdnApi.deployScriptCode(code);
+
+/** Create a new Bunny edge script. */
+export const createEdgeScript = (
+  name: string,
+  code: string,
+): ReturnType<typeof createEdgeScriptImpl> =>
+  bunnyCdnApi.createEdgeScript(name, code);
+
+/** Set a secret on a Bunny edge script. */
+export const setEdgeScriptSecret = (
+  scriptId: number,
+  name: string,
+  value: string,
+): Promise<BunnyApiResult> =>
+  bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
+
+/** Publish a Bunny edge script. */
+export const publishEdgeScript = (scriptId: number): Promise<BunnyApiResult> =>
+  bunnyCdnApi.publishEdgeScript(scriptId);

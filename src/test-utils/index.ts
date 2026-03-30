@@ -1801,18 +1801,22 @@ export const webhookMeta = (
   metadata: Partial<SessionMetadata> & { name: string },
 ): SessionMetadata => ({
   _origin: "localhost",
-  event_id: "",
   email: "",
   phone: "",
   address: "",
   special_instructions: "",
-  quantity: "",
-  multi: "",
   items: "",
   date: "",
   answer_ids: "",
   ...metadata,
 });
+
+/** Build items metadata for a single-event checkout in tests */
+export const singleItem = (
+  eventId: number,
+  quantity: number,
+  price: number,
+): string => JSON.stringify([{ e: eventId, q: quantity, p: price }]);
 
 /**
  * Create a mock webhook POST request.
@@ -2014,6 +2018,86 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
 };
 
 export type { GroupInput, HolidayInput };
+
+import type { BuiltSite, BuiltSiteFormInput } from "#lib/db/built-sites.ts";
+
+/** Create a test BuiltSite with sensible defaults. Override any field via `overrides`. */
+export const testBuiltSite = (
+  overrides: Partial<BuiltSite> = {},
+): BuiltSite => ({
+  id: 1,
+  name: "Test Site",
+  bunnyUrl: "https://test.b-cdn.net",
+  created: "2026-01-01T00:00:00Z",
+  ...overrides,
+});
+
+/**
+ * Create a built site via the REST API
+ */
+export const createTestBuiltSite = (
+  overrides: Partial<BuiltSiteFormInput> = {},
+): Promise<BuiltSite> => {
+  const input: BuiltSiteFormInput = {
+    name: overrides.name ?? "Test Site",
+    bunnyUrl: overrides.bunnyUrl ?? "https://test.b-cdn.net",
+  };
+
+  return authenticatedFormRequest(
+    "/admin/built-sites",
+    {
+      name: input.name,
+      bunny_url: input.bunnyUrl,
+    },
+    async () => {
+      const { getAllBuiltSites } = await import("#lib/db/built-sites.ts");
+      const sites = await getAllBuiltSites();
+      return sites[sites.length - 1] as BuiltSite;
+    },
+    "create built site",
+  );
+};
+
+/**
+ * Update a built site via the REST API
+ */
+export const updateTestBuiltSite = async (
+  siteId: number,
+  updates: Partial<BuiltSiteFormInput>,
+): Promise<BuiltSite> => {
+  const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
+  const existing = (await builtSitesCrudTable.findById(siteId)) as BuiltSite;
+
+  return authenticatedFormRequest(
+    `/admin/built-sites/${siteId}/edit`,
+    {
+      name: updates.name ?? existing.name,
+      bunny_url: updates.bunnyUrl ?? existing.bunnyUrl,
+    },
+    async () => {
+      const updated = await builtSitesCrudTable.findById(siteId);
+      return updated as BuiltSite;
+    },
+    "update built site",
+  );
+};
+
+/**
+ * Delete a built site via the REST API
+ */
+export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
+  const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
+  const existing = (await builtSitesCrudTable.findById(siteId)) as BuiltSite;
+
+  return authenticatedFormRequest(
+    `/admin/built-sites/${siteId}/delete`,
+    { confirm_identifier: existing.name },
+    async () => {},
+    "delete built site",
+  );
+};
+
+export type { BuiltSiteFormInput };
 
 /**
  * Create an attendee directly using createAttendeeAtomic (bypasses HTTP layer).

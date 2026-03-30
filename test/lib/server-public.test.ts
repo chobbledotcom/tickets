@@ -33,6 +33,7 @@ import {
   mockRequest,
   setTestEnv,
   setupStripe,
+  singleItem,
   submitMultiTicketForm,
   submitTicketForm,
   testCookie,
@@ -2458,11 +2459,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-      // Mock createMultiCheckoutSession to return no URL
+      // Mock createCheckoutSession to return no URL
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockCreate = stub(
         stripePaymentProvider,
-        "createMultiCheckoutSession",
+        "createCheckoutSession",
         () => Promise.resolve(null),
       );
 
@@ -2513,7 +2514,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockCreate = stub(
         stripePaymentProvider,
-        "createMultiCheckoutSession",
+        "createCheckoutSession",
         () => Promise.resolve({ error: "Invalid phone number format" }),
       );
 
@@ -4225,7 +4226,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const response = await submitTicketForm(target.slug, {
         name: "Mallory",
         email: "mallory@example.com",
-        event_id: String(other.id),
+        items: singleItem(other.id, 1, 0),
       });
       // Booking succeeds (302 redirect to thank-you URL)
       expect(response.status).toBe(302);

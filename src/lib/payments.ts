@@ -11,7 +11,6 @@ import { logDebug } from "#lib/logger.ts";
 import {
   type ContactInfo,
   createTypeGuard,
-  type Event,
   type PaymentProviderType,
 } from "#lib/types.ts";
 
@@ -24,20 +23,8 @@ export const paymentsApi = {
 /** Re-export from types.ts (canonical definition) */
 export type { PaymentProviderType };
 
-/** Registration intent for a single event checkout */
-export type RegistrationIntent = ContactInfo & {
-  eventId: number;
-  quantity: number;
-  /** Selected date for daily events; null means no date selected */
-  date: string | null;
-  /** Custom unit price (minor units) when can_pay_more is enabled; overrides event.unit_price */
-  customUnitPrice?: number;
-  /** Custom question answer IDs selected during checkout */
-  answerIds?: number[];
-};
-
-/** Single item within a multi-event checkout */
-export type MultiRegistrationItem = {
+/** Single item within a checkout */
+export type CheckoutItem = {
   eventId: number;
   quantity: number;
   unitPrice: number;
@@ -48,10 +35,18 @@ export type MultiRegistrationItem = {
 /** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
 export type BookingItem = { e: number; q: number; p: number };
 
-/** Registration intent for multi-event checkout */
-export type MultiRegistrationIntent = ContactInfo & {
+/** Processed booking intent extracted from payment session metadata */
+export type BookingIntent = ContactInfo & {
   date: string | null;
-  items: MultiRegistrationItem[];
+  items: BookingItem[];
+  /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
+  eventAnswerIds?: Record<string, number[]>;
+};
+
+/** Registration intent for checkout (one or more events) */
+export type CheckoutIntent = ContactInfo & {
+  date: string | null;
+  items: CheckoutItem[];
   /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
 };
@@ -82,14 +77,11 @@ export type CheckoutSessionResult =
  */
 export type SessionMetadata = {
   _origin: string;
-  event_id: string;
   name: string;
   email: string;
   phone: string;
   address: string;
   special_instructions: string;
-  quantity: string;
-  multi: string;
   items: string;
   date: string;
   answer_ids: string;
@@ -149,21 +141,11 @@ export interface PaymentProvider {
   readonly type: PaymentProviderType;
 
   /**
-   * Create a checkout session for a single-event purchase.
+   * Create a checkout session for one or more events.
    * Returns a session ID and hosted checkout URL, or null on failure.
    */
   createCheckoutSession(
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ): Promise<CheckoutSessionResult>;
-
-  /**
-   * Create a checkout session for a multi-event purchase.
-   * Returns a session ID and hosted checkout URL, or null on failure.
-   */
-  createMultiCheckoutSession(
-    intent: MultiRegistrationIntent,
+    intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<CheckoutSessionResult>;
 

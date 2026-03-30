@@ -8,7 +8,7 @@
 
 import { isPaymentsEnabled } from "#lib/config.ts";
 import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
-import type { RegistrationIntent } from "#lib/payments.ts";
+import { singleEventAnswerIds } from "#lib/payment-helpers.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
@@ -52,16 +52,24 @@ export const processBooking = async (
     // Provider is guaranteed to exist when isPaymentsEnabled() is true
     const provider = (await getActivePaymentProvider())!;
 
-    const intent: RegistrationIntent = {
-      eventId: event.id,
-      ...contact,
-      quantity,
-      date,
-      customUnitPrice,
-      answerIds,
-    };
-
-    const result = await provider.createCheckoutSession(event, intent, baseUrl);
+    const unitPrice = customUnitPrice ?? event.unit_price;
+    const result = await provider.createCheckoutSession(
+      {
+        ...contact,
+        date,
+        items: [
+          {
+            eventId: event.id,
+            quantity,
+            unitPrice,
+            slug: event.slug,
+            name: event.name,
+          },
+        ],
+        eventAnswerIds: singleEventAnswerIds(event.id, answerIds),
+      },
+      baseUrl,
+    );
     if (!result) return { type: "checkout_failed" };
     if ("error" in result)
       return { type: "checkout_failed", error: result.error };

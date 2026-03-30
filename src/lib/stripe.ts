@@ -16,19 +16,16 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 import {
-  buildCartMetadata,
-  buildSingleIntentMetadata,
+  buildItemsMetadata,
   createWithClient,
   errorMessage,
 } from "#lib/payment-helpers.ts";
 import type {
-  MultiRegistrationIntent,
-  RegistrationIntent,
+  CheckoutIntent,
   WebhookEvent,
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#lib/payments.ts";
-import type { Event } from "#lib/types.ts";
 
 /** Lazy-load Stripe SDK only when needed */
 const loadStripe = once(async () => {
@@ -138,18 +135,6 @@ const getClientImpl = async (): Promise<Stripe | null> => {
 /** Run operation with stripe client, return null if not available */
 const withClient = createWithClient(getClientImpl);
 
-/** Build checkout session params */
-type SessionConfig = {
-  event: Event;
-  quantity: number;
-  email: string;
-  successUrl: string;
-  cancelUrl: string;
-  metadata: Record<string, string>;
-  /** Override unit price (minor units) for pay-more events */
-  unitPriceOverride?: number;
-};
-
 /** Build a Stripe fee line item array (empty when fee is zero). */
 const stripeFeeItems = (
   subtotal: number,
@@ -167,40 +152,6 @@ const stripeFeeItems = (
       quantity: 1,
     },
   ];
-};
-
-const buildSessionParams = (
-  cfg: SessionConfig,
-): Stripe.Checkout.SessionCreateParams => {
-  const unitAmount = cfg.unitPriceOverride ?? cfg.event.unit_price;
-  const currency = settings.currency.toLowerCase();
-  const label = cfg.quantity > 1 ? `${cfg.quantity} Tickets` : "Ticket";
-
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
-    {
-      price_data: {
-        currency,
-        product_data: {
-          name: `Ticket: ${cfg.event.name}`,
-          description: label,
-        },
-        unit_amount: unitAmount,
-      },
-      quantity: cfg.quantity,
-    },
-  ];
-
-  lineItems.push(...stripeFeeItems(unitAmount * cfg.quantity, currency));
-
-  return {
-    payment_method_types: ["card"],
-    line_items: lineItems,
-    mode: "payment",
-    success_url: cfg.successUrl,
-    cancel_url: cfg.cancelUrl,
-    ...(cfg.email ? { customer_email: cfg.email } : {}),
-    metadata: cfg.metadata,
-  };
 };
 
 /**
@@ -261,13 +212,8 @@ export const stripeApi: {
   ) => Promise<Stripe.Checkout.Session | null>;
   retrievePaymentIntent: (id: string) => Promise<Stripe.PaymentIntent | null>;
   refundPayment: (intentId: string) => Promise<Stripe.Refund | null>;
-  createCheckoutSessionWithIntent: (
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ) => Promise<Stripe.Checkout.Session | null>;
-  createMultiCheckoutSession: (
-    intent: MultiRegistrationIntent,
+  createCheckoutSession: (
+    intent: CheckoutIntent,
     baseUrl: string,
   ) => Promise<Stripe.Checkout.Session | null>;
   setupWebhookEndpoint: (
@@ -309,50 +255,14 @@ export const stripeApi: {
       ErrorCode.STRIPE_REFUND,
     ),
 
-  /** Create checkout session with intent (deferred attendee creation) */
-  createCheckoutSessionWithIntent: async (
-    event: Event,
-    intent: RegistrationIntent,
+  /** Create checkout session for one or more events */
+  createCheckoutSession: async (
+    intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<CheckoutResult> => {
     logDebug(
       "Stripe",
-      `Creating checkout session for event=${event.id} qty=${intent.quantity}`,
-    );
-    const config = buildSessionParams({
-      event,
-      quantity: intent.quantity,
-      email: intent.email,
-      successUrl: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
-      metadata: buildSingleIntentMetadata(event.id, intent),
-      unitPriceOverride: intent.customUnitPrice,
-    });
-    logDebug(
-      "Stripe",
-      `Calling Stripe API checkout.sessions.create for event=${event.id}`,
-    );
-    const session = await withClient(
-      (stripe) => stripe.checkout.sessions.create(config),
-      ErrorCode.STRIPE_CHECKOUT,
-    );
-    logDebug(
-      "Stripe",
-      session
-        ? `Session created id=${session.id} url=${session.url ?? "none"}`
-        : `Session creation failed for event=${event.id}`,
-    );
-    return session;
-  },
-
-  /** Create checkout session for multi-event registration */
-  createMultiCheckoutSession: async (
-    intent: MultiRegistrationIntent,
-    baseUrl: string,
-  ): Promise<CheckoutResult> => {
-    logDebug(
-      "Stripe",
-      `Creating multi-checkout session for ${intent.items.length} events`,
+      `Creating checkout session for ${intent.items.length} event(s)`,
     );
     const currency = settings.currency.toLowerCase();
 
@@ -380,13 +290,10 @@ export const stripeApi: {
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
-      metadata: buildCartMetadata(intent),
+      metadata: buildItemsMetadata(intent),
     };
 
-    logDebug(
-      "Stripe",
-      "Calling Stripe API checkout.sessions.create for multi-checkout",
-    );
+    logDebug("Stripe", "Calling Stripe API checkout.sessions.create");
     const session = await withClient(
       (stripe) => stripe.checkout.sessions.create(params),
       ErrorCode.STRIPE_CHECKOUT,
@@ -452,12 +359,6 @@ export const stripeApi: {
   setupWebhookEndpoint: setupWebhookEndpointImpl,
 };
 
-export type {
-  MultiRegistrationIntent,
-  MultiRegistrationItem,
-  RegistrationIntent,
-} from "#lib/payments.ts";
-
 /**
  * Create or update a webhook endpoint for the given URL.
  * If an endpoint already exists for this URL, updates it.
@@ -479,15 +380,8 @@ export const retrieveCheckoutSession = (id: string) =>
 export const retrievePaymentIntent = (id: string) =>
   stripeApi.retrievePaymentIntent(id);
 export const refundPayment = (id: string) => stripeApi.refundPayment(id);
-export const createCheckoutSessionWithIntent = (
-  e: Event,
-  i: RegistrationIntent,
-  b: string,
-) => stripeApi.createCheckoutSessionWithIntent(e, i, b);
-export const createMultiCheckoutSession = (
-  i: MultiRegistrationIntent,
-  b: string,
-) => stripeApi.createMultiCheckoutSession(i, b);
+export const createCheckoutSession = (i: CheckoutIntent, b: string) =>
+  stripeApi.createCheckoutSession(i, b);
 export const testStripeConnection = () => stripeApi.testStripeConnection();
 
 /**

@@ -4,8 +4,7 @@ import { spy, stub } from "@std/testing/mock";
 import { settings } from "#lib/db/settings.ts";
 import {
   constructTestWebhookEvent,
-  createCheckoutSessionWithIntent,
-  createMultiCheckoutSession,
+  createCheckoutSession,
   detectStripeKeyMode,
   getStripeClient,
   refundPayment,
@@ -184,18 +183,24 @@ describeWithEnv(
           hidden: false,
         };
         const intent = {
-          eventId: 1,
           name: "John Doe",
           email: "john@example.com",
           phone: "",
           address: "",
           special_instructions: "",
-          quantity: 1,
           date: null,
+          items: [
+            {
+              eventId: 1,
+              quantity: 1,
+              unitPrice: event.unit_price,
+              slug: event.slug,
+              name: event.name,
+            },
+          ],
         };
 
-        const createdSession = await createCheckoutSessionWithIntent(
-          event,
+        const createdSession = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -252,18 +257,24 @@ describeWithEnv(
         };
 
         const intent = {
-          eventId: 1,
           name: "John Doe",
           email: "john@example.com",
           phone: "",
           address: "",
           special_instructions: "",
-          quantity: 2,
           date: null,
+          items: [
+            {
+              eventId: 1,
+              quantity: 2,
+              unitPrice: event.unit_price,
+              slug: event.slug,
+              name: event.name,
+            },
+          ],
         };
 
-        const session = await createCheckoutSessionWithIntent(
-          event,
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -285,61 +296,26 @@ describeWithEnv(
       });
     });
 
-    describe("createCheckoutSessionWithIntent", () => {
+    describe("createCheckoutSession", () => {
       test("returns null when stripe key not set", async () => {
-        const event = {
-          id: 1,
-          group_id: 0,
-          slug: "test-event",
-          slug_index: "test-event-index",
-          name: "Test",
-          description: "Desc",
-          date: "",
-          location: "",
-          created: new Date().toISOString(),
-          max_attendees: 50,
-          thank_you_url: "https://example.com",
-          unit_price: 1000,
-          max_quantity: 1,
-          webhook_url: "",
-          active: true,
-          fields: "email" as const,
-          closes_at: null,
-          event_type: "standard" as const,
-          bookable_days: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          minimum_days_before: 1,
-          maximum_days_after: 90,
-          image_url: "",
-          attachment_url: "",
-          attachment_name: "",
-          non_transferable: false,
-          can_pay_more: false,
-          max_price: 0,
-          hidden: false,
-        };
         const intent = {
-          eventId: 1,
           name: "John",
           email: "john@example.com",
           phone: "",
           address: "",
           special_instructions: "",
-          quantity: 1,
           date: null,
+          items: [
+            {
+              eventId: 1,
+              quantity: 1,
+              unitPrice: 1000,
+              slug: "test-event",
+              name: "Test",
+            },
+          ],
         };
-        const result = await createCheckoutSessionWithIntent(
-          event,
-          intent,
-          "http://localhost",
-        );
+        const result = await createCheckoutSession(intent, "http://localhost");
         expect(result).toBeNull();
       });
 
@@ -361,21 +337,24 @@ describeWithEnv(
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            eventId: 1,
             name: "Jane",
             email: "jane@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: event.id,
+                quantity: 1,
+                unitPrice: event.unit_price,
+                slug: event.slug,
+                name: event.name,
+              },
+            ],
           };
 
-          await createCheckoutSessionWithIntent(
-            event,
-            intent,
-            "http://localhost:3000",
-          );
+          await createCheckoutSession(intent, "http://localhost:3000");
 
           const params = createSpy.calls[0]!.args[0] as unknown as {
             line_items: {
@@ -568,10 +547,9 @@ describeWithEnv(
               id: "cs_test_123",
               payment_status: "paid",
               metadata: {
-                event_id: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
                 name: "John Doe",
                 email: "john@example.com",
-                quantity: "1",
               },
             },
           },
@@ -928,24 +906,30 @@ describeWithEnv(
       });
     });
 
-    describe("createCheckoutSessionWithIntent - phone metadata", () => {
+    describe("createCheckoutSession - phone metadata", () => {
       test("includes phone in metadata when provided", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
         const event = testEvent({ unit_price: 1000 });
         const intent = {
-          eventId: 1,
           name: "John Doe",
           email: "john@example.com",
           phone: "+44 7700 900000",
           address: "",
           special_instructions: "",
-          quantity: 1,
           date: null,
+          items: [
+            {
+              eventId: event.id,
+              quantity: 1,
+              unitPrice: event.unit_price,
+              slug: event.slug,
+              name: event.name,
+            },
+          ],
         };
 
-        const session = await createCheckoutSessionWithIntent(
-          event,
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -956,24 +940,30 @@ describeWithEnv(
       });
     });
 
-    describe("createCheckoutSessionWithIntent - no email", () => {
+    describe("createCheckoutSession - no email", () => {
       test("creates checkout session without customer_email when email is empty", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
         const event = testEvent({ unit_price: 1000 });
         const intent = {
-          eventId: 1,
           name: "No Email User",
           email: "",
           phone: "+44 7700 900000",
           address: "",
           special_instructions: "",
-          quantity: 1,
           date: null,
+          items: [
+            {
+              eventId: event.id,
+              quantity: 1,
+              unitPrice: event.unit_price,
+              slug: event.slug,
+              name: event.name,
+            },
+          ],
         };
 
-        const session = await createCheckoutSessionWithIntent(
-          event,
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -984,7 +974,7 @@ describeWithEnv(
       });
     });
 
-    describe("createMultiCheckoutSession", () => {
+    describe("createCheckoutSession", () => {
       test("creates multi-checkout session with phone metadata", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
@@ -1013,7 +1003,7 @@ describeWithEnv(
           ],
         };
 
-        const session = await createMultiCheckoutSession(
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -1041,7 +1031,7 @@ describeWithEnv(
           ],
         };
 
-        const result = await createMultiCheckoutSession(
+        const result = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -1076,7 +1066,7 @@ describeWithEnv(
           ],
         };
 
-        const session = await createMultiCheckoutSession(
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -1626,19 +1616,25 @@ describeWithEnv(
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            eventId: 1,
             name: "John",
             email: "john@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: event.id,
+                quantity: 1,
+                unitPrice: event.unit_price,
+                slug: event.slug,
+                name: event.name,
+              },
+            ],
           };
 
           // Use stripePaymentProvider which wraps via toCheckoutResult
           const result = await stripePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost:3000",
           );
@@ -1661,18 +1657,24 @@ describeWithEnv(
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            eventId: 1,
             name: "John",
             email: "john@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: event.id,
+                quantity: 1,
+                unitPrice: event.unit_price,
+                slug: event.slug,
+                name: event.name,
+              },
+            ],
           };
 
           const result = await stripePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost:3000",
           );
@@ -1685,27 +1687,27 @@ describeWithEnv(
     });
 
     describe("retrieveSession - edge cases", () => {
-      test("returns null for non-multi session without event_id", async () => {
+      test("returns null for session without items", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
-            id: "cs_no_event",
+            id: "cs_no_items",
             payment_status: "paid",
             payment_intent: "pi_test_123",
             metadata: {
               name: "Test User",
               email: "test@example.com",
-              // No event_id, and not a multi session
+              // No items field
             },
           } as never),
         );
 
         try {
           const result =
-            await stripePaymentProvider.retrieveSession("cs_no_event");
+            await stripePaymentProvider.retrieveSession("cs_no_items");
           expect(result).toBeNull();
         } finally {
           retrieveSpy.restore();
@@ -1740,7 +1742,7 @@ describeWithEnv(
             id: "cs_no_meta",
             payment_status: "paid",
             metadata: {
-              event_id: "1",
+              items: '[{"e":1,"q":1,"p":0}]',
               // Missing name and email
             },
           } as never),
@@ -1769,7 +1771,6 @@ describeWithEnv(
               name: "Multi User",
               email: "multi@example.com",
               phone: "+44 7700 900000",
-              multi: "1",
               items: '[{"e":1,"q":2}]',
             },
           } as never),
@@ -1780,7 +1781,6 @@ describeWithEnv(
             await stripePaymentProvider.retrieveSession("cs_multi");
           expect(result).not.toBeNull();
           expect(result?.id).toBe("cs_multi");
-          expect(result?.metadata.multi).toBe("1");
           expect(result?.metadata.items).toBe('[{"e":1,"q":2}]');
           expect(result?.metadata.phone).toBe("+44 7700 900000");
         } finally {
@@ -1801,8 +1801,7 @@ describeWithEnv(
             metadata: {
               name: "Single User",
               email: "single@example.com",
-              event_id: "42",
-              quantity: "2",
+              items: '[{"e":42,"q":2,"p":0}]',
             },
           } as never),
         );
@@ -1814,8 +1813,7 @@ describeWithEnv(
           expect(result?.id).toBe("cs_single");
           expect(result?.paymentStatus).toBe("paid");
           expect(result?.paymentReference).toBe("pi_single_123");
-          expect(result?.metadata.event_id).toBe("42");
-          expect(result?.metadata.quantity).toBe("2");
+          expect(result?.metadata.items).toBe('[{"e":42,"q":2,"p":0}]');
         } finally {
           retrieveSpy.restore();
         }
@@ -1835,8 +1833,7 @@ describeWithEnv(
             metadata: {
               name: "Amount User",
               email: "amount@example.com",
-              event_id: "10",
-              quantity: "3",
+              items: '[{"e":10,"q":3,"p":0}]',
             },
           } as never),
         );
@@ -1866,8 +1863,7 @@ describeWithEnv(
             metadata: {
               name: "Null Amount User",
               email: "nullamount@example.com",
-              event_id: "1",
-              quantity: "1",
+              items: '[{"e":1,"q":1,"p":0}]',
             },
           } as never),
         );
@@ -1895,8 +1891,7 @@ describeWithEnv(
             metadata: {
               name: "Bad Status User",
               email: "badstatus@example.com",
-              event_id: "1",
-              quantity: "1",
+              items: '[{"e":1,"q":1,"p":0}]',
             },
           } as never),
         );
@@ -1925,8 +1920,7 @@ describeWithEnv(
             metadata: {
               name: "Cast User",
               email: "cast@example.com",
-              event_id: "11",
-              quantity: "1",
+              items: '[{"e":11,"q":1,"p":0}]',
             },
           } as never),
         );
@@ -2180,7 +2174,7 @@ describeWithEnv(
       });
     });
 
-    describe("createMultiCheckoutSession - via provider", () => {
+    describe("createCheckoutSession - via provider", () => {
       test("returns null when session has no URL", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
         const client = await getStripeClient();
@@ -2212,7 +2206,7 @@ describeWithEnv(
               },
             ],
           };
-          const result = await stripePaymentProvider.createMultiCheckoutSession(
+          const result = await stripePaymentProvider.createCheckoutSession(
             intent,
             "http://localhost:3000",
           );
@@ -2237,8 +2231,7 @@ describeWithEnv(
               metadata: {
                 name: "Alice",
                 email: "alice@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
             },
           },

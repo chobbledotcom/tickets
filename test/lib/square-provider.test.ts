@@ -46,8 +46,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Alice",
                 email: "alice@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_1" }],
               state: "COMPLETED",
@@ -81,8 +80,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Bob",
                 email: "bob@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_2" }],
               state: "OPEN",
@@ -116,8 +114,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Carol",
                 email: "carol@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_3" }],
               state: "OPEN",
@@ -149,8 +146,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Dave",
                 email: "dave@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               state: "OPEN",
               totalMoney: { amount: BigInt(1000), currency: "USD" },
@@ -236,14 +232,21 @@ describe("square-provider", () => {
     test("returns error result when createPaymentLink throws PaymentUserError", async () => {
       const event = testEvent({ unit_price: 1000, fields: "email" as const });
       const intent = {
-        eventId: 1,
         name: "John",
         email: "john@example.com",
         phone: "bad",
         address: "",
         special_instructions: "",
-        quantity: 1,
         date: null,
+        items: [
+          {
+            eventId: event.id,
+            quantity: 1,
+            unitPrice: event.unit_price,
+            slug: event.slug,
+            name: event.name,
+          },
+        ],
       };
       await withMocks(
         () =>
@@ -252,7 +255,6 @@ describe("square-provider", () => {
           }),
         async () => {
           const result = await squarePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost",
           );
@@ -268,14 +270,21 @@ describe("square-provider", () => {
     test("returns null when createPaymentLink throws a generic error", async () => {
       const event = testEvent({ unit_price: 1000, fields: "email" as const });
       const intent = {
-        eventId: 1,
         name: "John",
         email: "john@example.com",
         phone: "",
         address: "",
         special_instructions: "",
-        quantity: 1,
         date: null,
+        items: [
+          {
+            eventId: event.id,
+            quantity: 1,
+            unitPrice: event.unit_price,
+            slug: event.slug,
+            name: event.name,
+          },
+        ],
       };
       await withMocks(
         () =>
@@ -284,7 +293,6 @@ describe("square-provider", () => {
           }),
         async () => {
           const result = await squarePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost",
           );
@@ -294,8 +302,8 @@ describe("square-provider", () => {
     });
   });
 
-  describe("createMultiCheckoutSession", () => {
-    test("returns error result when createMultiPaymentLink throws PaymentUserError", async () => {
+  describe("createCheckoutSession", () => {
+    test("returns error result when createPaymentLink throws PaymentUserError", async () => {
       const intent = {
         name: "John",
         email: "bad",
@@ -315,11 +323,11 @@ describe("square-provider", () => {
       };
       await withMocks(
         () =>
-          stub(squareApi, "createMultiPaymentLink", () => {
+          stub(squareApi, "createPaymentLink", () => {
             throw new PaymentUserError("Email address is invalid");
           }),
         async () => {
-          const result = await squarePaymentProvider.createMultiCheckoutSession(
+          const result = await squarePaymentProvider.createCheckoutSession(
             intent,
             "http://localhost",
           );
@@ -343,8 +351,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Alice",
                 email: "alice@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
               state: "COMPLETED",
