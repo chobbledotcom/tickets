@@ -86,17 +86,6 @@ if (multiUrl) {
   }
 }
 
-/* Find in page: trigger browser's native find dialog via window.find() */
-const findLink = document.querySelector<HTMLAnchorElement>(
-  "[data-find-in-page]",
-);
-if (findLink) {
-  findLink.addEventListener("click", (e) => {
-    e.preventDefault();
-    (window as unknown as { find?: () => void }).find?.();
-  });
-}
-
 /* Fill default template: clicking "Edit default template" fills the textarea */
 for (const link of document.querySelectorAll<HTMLAnchorElement>(
   "[data-fill-default]",
