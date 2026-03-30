@@ -8,8 +8,8 @@ import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   PaymentUserError,
-  singleEventAnswerIds,
   safeAsync,
+  singleEventAnswerIds,
   toBookingItems,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
@@ -242,9 +242,9 @@ describe("payment-helpers", () => {
     });
 
     test("returns true for valid single-event (email optional)", () => {
-      expect(
-        hasRequiredSessionMetadata({ name: "Alice", items: "[]" }),
-      ).toBe(true);
+      expect(hasRequiredSessionMetadata({ name: "Alice", items: "[]" })).toBe(
+        true,
+      );
       expect(
         hasRequiredSessionMetadata({ name: "Alice", email: "", items: "[]" }),
       ).toBe(true);

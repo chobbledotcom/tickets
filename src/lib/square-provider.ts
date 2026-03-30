@@ -20,8 +20,8 @@ import {
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
 import type {
-  CheckoutSessionResult,
   CheckoutIntent,
+  CheckoutSessionResult,
   PaymentProvider,
   ValidatedPaymentSession,
   WebhookEvent,

@@ -293,10 +293,7 @@ export const stripeApi: {
       metadata: buildItemsMetadata(intent),
     };
 
-    logDebug(
-      "Stripe",
-      "Calling Stripe API checkout.sessions.create",
-    );
+    logDebug("Stripe", "Calling Stripe API checkout.sessions.create");
     const session = await withClient(
       (stripe) => stripe.checkout.sessions.create(params),
       ErrorCode.STRIPE_CHECKOUT,
@@ -362,7 +359,6 @@ export const stripeApi: {
   setupWebhookEndpoint: setupWebhookEndpointImpl,
 };
 
-
 /**
  * Create or update a webhook endpoint for the given URL.
  * If an endpoint already exists for this URL, updates it.
@@ -384,10 +380,8 @@ export const retrieveCheckoutSession = (id: string) =>
 export const retrievePaymentIntent = (id: string) =>
   stripeApi.retrievePaymentIntent(id);
 export const refundPayment = (id: string) => stripeApi.refundPayment(id);
-export const createCheckoutSession = (
-  i: CheckoutIntent,
-  b: string,
-) => stripeApi.createCheckoutSession(i, b);
+export const createCheckoutSession = (i: CheckoutIntent, b: string) =>
+  stripeApi.createCheckoutSession(i, b);
 export const testStripeConnection = () => stripeApi.testStripeConnection();
 
 /**

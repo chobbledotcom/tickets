@@ -16,9 +16,9 @@ import { settings } from "#lib/db/settings.ts";
 import type { EmailEntry } from "#lib/email.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
-  getActivePaymentProvider,
   type CheckoutIntent,
   type CheckoutItem,
+  getActivePaymentProvider,
 } from "#lib/payments.ts";
 import type { ContactInfo } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";

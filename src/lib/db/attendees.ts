@@ -11,6 +11,17 @@ import { decrypt } from "#lib/crypto/encryption.ts";
 import { computeTicketTokenIndex } from "#lib/crypto/hashing.ts";
 import { decryptAttendeePII, encryptAttendeePII } from "#lib/crypto/keys.ts";
 import { generateTicketToken } from "#lib/crypto/utils.ts";
+import type {
+  ActiveEventStats,
+  AttendeeInput,
+  BatchAvailabilityItem,
+  BuildAttendeeInput,
+  CreateAttendeeResult,
+  EncryptedAttendeeData,
+  EncryptInput,
+  MigrateBatchResult,
+  UpdateAttendeeInput,
+} from "#lib/db/attendee-types.ts";
 import {
   executeBatch,
   getDb,
@@ -27,17 +38,6 @@ import type {
   EventWithCount,
   PiiBlob,
 } from "#lib/types.ts";
-import type {
-  ActiveEventStats,
-  AttendeeInput,
-  BatchAvailabilityItem,
-  BuildAttendeeInput,
-  CreateAttendeeResult,
-  EncryptedAttendeeData,
-  EncryptInput,
-  MigrateBatchResult,
-  UpdateAttendeeInput,
-} from "#lib/db/attendee-types.ts";
 
 export type {
   ActiveEventStats,

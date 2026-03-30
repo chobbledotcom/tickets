@@ -10,8 +10,8 @@ import { logDebug, logError } from "#lib/logger.ts";
 import type {
   BookingIntent,
   BookingItem,
-  CheckoutSessionResult,
   CheckoutIntent,
+  CheckoutSessionResult,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#lib/payments.ts";
@@ -61,9 +61,7 @@ export const createWithClient =
   };
 
 /** Convert registration line items to compact booking items */
-export const toBookingItems = (
-  items: CheckoutIntent["items"],
-): BookingItem[] =>
+export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
   map(
     (i: CheckoutIntent["items"][number]): BookingItem => ({
       e: i.eventId,
@@ -120,7 +118,12 @@ export const buildItemsMetadata = (
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
 type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
-  Partial<Pick<BookingIntent, "phone" | "address" | "special_instructions" | "eventAnswerIds">>;
+  Partial<
+    Pick<
+      BookingIntent,
+      "phone" | "address" | "special_instructions" | "eventAnswerIds"
+    >
+  >;
 
 /**
  * Build checkout session metadata from booking data (items already compact).
