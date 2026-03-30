@@ -875,7 +875,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Check-in &amp; QR Scanner">
+      <Section id="checkin" title="Check-in &amp; QR Scanner">
         <Q q="How does check-in work?">
           <p>
             Each ticket has a unique QR code. When an attendee arrives, they
@@ -939,7 +939,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Apple Wallet">
+      <Section id="apple-wallet" title="Apple Wallet">
         <Q q="What is Apple Wallet integration?">
           <p>
             When configured, attendees see an{" "}
@@ -1007,7 +1007,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Google Wallet">
+      <Section id="google-wallet" title="Google Wallet">
         <Q q="What is Google Wallet integration?">
           <p>
             When configured, attendees see an{" "}
@@ -1220,7 +1220,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Email Notifications">
+      <Section id="email" title="Email Notifications">
         <Q q="What are email notifications?">
           <p>
             When configured, the system can send up to two emails after each
@@ -1335,7 +1335,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Email Templates">
+      <Section id="email-templates" title="Email Templates">
         <Q q="Can I customise the emails that are sent?">
           <p>
             Yes. In <a href="/admin/settings">Settings</a>, scroll to the email
@@ -1406,7 +1406,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Host Subdomain">
+      <Section id="host-subdomain" title="Host Subdomain">
         <Q q="What is a host subdomain?">
           <p>
             If your server administrator has enabled subdomain registration, you
@@ -1453,7 +1453,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Custom Domain">
+      <Section id="custom-domain" title="Custom Domain">
         <Q q="How do I set up a custom domain?">
           <p>
             If your site runs on Bunny CDN and the <code>BUNNY_API_KEY</code>{" "}

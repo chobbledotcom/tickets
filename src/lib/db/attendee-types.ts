@@ -69,9 +69,3 @@ export type UpdateAttendeeInput = {
   /** Decrypted ticket_token for PII blob rebuild (from existing attendee) */
   ticket_token: string;
 };
-
-/** Result of a migration batch */
-export type MigrateBatchResult = {
-  migrated: number;
-  remaining: number;
-};

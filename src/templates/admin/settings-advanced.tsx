@@ -54,7 +54,8 @@ const SubdomainIntroProse = (): SafeHtml => (
     <p>
       You can choose a prettier domain name for your tickets site. Enter a
       subdomain into the box below to preview the full URL &mdash; you can
-      change your mind before saving, but once set this cannot be changed.
+      change your mind before saving, but once set this cannot be changed.{" "}
+      <a href="/admin/guide#host-subdomain">Learn more</a>.
     </p>
   </div>
 );
@@ -180,7 +181,8 @@ export const adminAdvancedSettingsPage = (
         <h2>Apple Wallet</h2>
         <p>
           Configure Apple Wallet pass signing to show an &ldquo;Add to Apple
-          Wallet&rdquo; button on ticket pages.
+          Wallet&rdquo; button on ticket pages.{" "}
+          <a href="/admin/guide#apple-wallet">Setup guide</a>.
           {s.hostAppleWalletLabel && !s.appleWalletConfigured
             ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
             : s.hostAppleWalletLabel && s.appleWalletConfigured
@@ -248,7 +250,8 @@ export const adminAdvancedSettingsPage = (
         <p>
           Configure Google Wallet to show an &ldquo;Add to Google Wallet&rdquo;
           button on ticket pages. Requires a Google Cloud service account with
-          the Google Wallet API enabled.
+          the Google Wallet API enabled.{" "}
+          <a href="/admin/guide#google-wallet">Setup guide</a>.
           {s.hostGoogleWalletLabel && !s.googleWalletConfigured
             ? ` Currently using: ${s.hostGoogleWalletLabel}. Override below or leave empty to keep using host config.`
             : s.hostGoogleWalletLabel && s.googleWalletConfigured
@@ -294,7 +297,8 @@ export const adminAdvancedSettingsPage = (
       >
         <h2>Confirmation Email Template</h2>
         <p>
-          Customise the registration confirmation email sent to attendees. Uses{" "}
+          Customise the registration confirmation email sent to attendees (
+          <a href="/admin/guide#email-templates">template guide</a>). Uses{" "}
           <a href="https://liquidjs.com/" target="_blank" rel="noopener">
             Liquid
           </a>{" "}
@@ -490,7 +494,7 @@ export const adminAdvancedSettingsPage = (
         <h2>Email Notifications</h2>
         <p>
           Send confirmation emails to attendees and admin notifications when
-          registrations come in.
+          registrations come in. <a href="/admin/guide#email">Setup guide</a>.
         </p>
         <label>
           Email Provider
@@ -553,7 +557,8 @@ export const adminAdvancedSettingsPage = (
           >
             <h2>Custom Domain</h2>
             <p>
-              Set a custom domain for your tickets site.
+              Set a custom domain for your tickets site.{" "}
+              <a href="/admin/guide#custom-domain">Setup guide</a>.
               {s.bunnySubdomain &&
                 " Your host subdomain can be active at the same time as a custom domain."}
             </p>

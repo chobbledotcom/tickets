@@ -22,7 +22,6 @@ import { eventsRoutes } from "#routes/admin/events.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
-import { migrateRoutes } from "#routes/admin/migrate.ts";
 import { questionsRoutes } from "#routes/admin/questions.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { seedsRoutes } from "#routes/admin/seeds.ts";
@@ -32,7 +31,7 @@ import { siteRoutes } from "#routes/admin/site.ts";
 import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { createRouter } from "#routes/router.ts";
-import { getAuthenticatedSession, redirectResponse } from "#routes/utils.ts";
+import { getAuthenticatedSession } from "#routes/utils.ts";
 
 /** Combined admin routes */
 const adminRoutes = {
@@ -54,7 +53,6 @@ const adminRoutes = {
   ...questionsRoutes,
   ...scannerRoutes,
   ...seedsRoutes,
-  ...migrateRoutes,
   ...builderRoutes,
   ...builtSitesRoutes,
   ...updateRoutes,
@@ -64,19 +62,8 @@ const innerRouter = createRouter(adminRoutes);
 
 type RouterFn = ReturnType<typeof createRouter>;
 
-/** Routes that are always accessible (auth + migration itself) */
-const UNGATED_PREFIXES = [
-  "/admin/migrate",
-  "/admin/login",
-  "/admin/logout",
-] as const;
-
-const isUngatedRoute = (path: string): boolean =>
-  UNGATED_PREFIXES.some((p) => path.startsWith(p));
-
 /**
  * Route admin requests.
- * Gates all admin routes (except auth and migrate) behind migration completion.
  * For GET requests by authenticated admins, enables query logging so the
  * Layout template renders the debug footer inline.
  */
@@ -84,17 +71,9 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
   // Check admin status before tracking so the auth queries aren't logged
   const session = await getAuthenticatedSession(request);
 
-  // Load settings before migration check so isAttendeeBlobMigrated() uses
-  // a fresh DB read instead of a potentially stale cache entry.
   if (method === "GET" && session) {
     enableQueryLog();
     await settings.loadAll();
-  }
-
-  // Gate non-auth routes behind migration completion
-  if (session && !isUngatedRoute(path)) {
-    if (!settings.attendeeBlobMigrated)
-      return redirectResponse("/admin/migrate");
   }
 
   return innerRouter(request, path, method, server);
