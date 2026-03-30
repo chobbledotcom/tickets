@@ -91,7 +91,6 @@ export const CONFIG_KEYS = {
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
   BUNNY_SUBDOMAIN: "bunny_subdomain",
   CURRENT_TASK: "current_task",
-  ATTENDEE_BLOB_MIGRATED: "attendee_blob_migrated",
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
 } as const;
@@ -219,7 +218,6 @@ type SpecificFields = {
   payment_provider: PaymentProviderType | null;
   booking_fee: string;
   square_sandbox: boolean;
-  attendee_blob_migrated: boolean;
   currency: string;
   timezone: string;
   phone_prefix: string;
@@ -237,7 +235,6 @@ const data: SettingsData = {
   payment_provider: null,
   booking_fee: "0",
   square_sandbox: false,
-  attendee_blob_migrated: false,
   currency: "GBP",
   timezone: DEFAULT_TIMEZONE,
   phone_prefix: "+44",
@@ -346,8 +343,6 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
     rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
   data.booking_fee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
   data.square_sandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
-  const m = raw.get(CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED);
-  data.attendee_blob_migrated = m !== undefined && m !== "" && m !== null;
 
   // Plaintext string fields — config key IS the snapshot key
   for (const key of PLAINTEXT_KEYS) {
@@ -624,9 +619,6 @@ export const settings = {
   get embedHosts(): string {
     return snap("embed_hosts");
   },
-  get attendeeBlobMigrated(): boolean {
-    return snap("attendee_blob_migrated");
-  },
   get latestScriptVersion(): string {
     return snap("latest_script_version");
   },
@@ -783,14 +775,6 @@ export const settings = {
     latestScriptVersionName: plaintextUpdate(
       CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     ),
-    attendeeBlobMigrated: async (): Promise<void> => {
-      await writeRaw(
-        CONFIG_KEYS.ATTENDEE_BLOB_MIGRATED,
-        new Date().toISOString(),
-      );
-      data.attendee_blob_migrated = true;
-    },
-
     // --- Stripe writes ---
     stripe: {
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),

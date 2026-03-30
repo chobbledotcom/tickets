@@ -186,7 +186,6 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     TEST_ADMIN_PASSWORD,
     country,
   );
-  await settings.update.attendeeBlobMigrated();
   await settings.loadAll();
 
   // Default timezone to UTC for tests so datetime-local values pass through unchanged
