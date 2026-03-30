@@ -135,8 +135,9 @@ const decryptAttendeeFields = async (
 const ATTENDEE_COLS =
   "a.id, a.name, a.email, a.created, a.payment_id, a.phone, a.ticket_token, a.price_paid, a.checked_in, a.address, a.special_instructions, a.ticket_token_index, a.refunded, a.attachment_downloads, a.pii_blob, a.checked_in_v2, a.refunded_v2, a.price_paid_v2";
 
-/** SELECT clause for attendee + event_attendees JOINs */
-export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ea.event_id, ea.date, ea.quantity`;
+/** SELECT clause for attendee + event_attendees JOINs.
+ * Derives `date` from start_at for backward compatibility with the Attendee type. */
+export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity`;
 
 /**
  * Get attendees for an event without decrypting PII
@@ -332,14 +333,24 @@ export const deleteAttendee = async (attendeeId: number): Promise<void> => {
   invalidateEventsCache();
 };
 
+/** Convert a date string ("YYYY-MM-DD") to start_at/end_at pair for full-day range */
+export const dateToRange = (
+  date: string,
+): { startAt: string; endAt: string } => {
+  const ms = new Date(`${date}T00:00:00Z`).getTime();
+  const nextDay = new Date(ms + 86_400_000).toISOString();
+  return { startAt: `${date}T00:00:00Z`, endAt: nextDay };
+};
+
 /** Get the total attendee quantity for a specific event + date */
 export const getDateAttendeeCount = async (
   eventId: number,
   date: string,
 ): Promise<number> => {
+  const { startAt, endAt } = dateToRange(date);
   const rows = await queryAll<{ count: number }>(
-    "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND date = ?",
-    [eventId, date],
+    "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND start_at < ? AND end_at > ?",
+    [eventId, endAt, startAt],
   );
   return rows[0]!.count;
 };
@@ -361,13 +372,14 @@ const getGroupAttendeeCount = async (
   groupId: number,
   date: string | null,
 ): Promise<number> => {
+  const range = date ? dateToRange(date) : null;
   const rows = await queryAll<{ count: number }>(
     `SELECT COALESCE(SUM(ea.quantity), 0) as count
      FROM event_attendees ea
      JOIN events e ON e.id = ea.event_id
      WHERE e.group_id = ?
-       AND (? IS NULL OR e.event_type != 'daily' OR ea.date = ?)`,
-    [groupId, date, date],
+       AND (? IS NULL OR e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
+    [groupId, date, range?.endAt ?? null, range?.startAt ?? null],
   );
   return rows[0]!.count;
 };
@@ -385,6 +397,7 @@ export const attendeesApi = {
   ): Promise<boolean> => {
     if (items.length === 0) return true;
     const eventIds = items.map((i) => i.eventId);
+    const range = date ? dateToRange(date) : null;
     const rows = await queryAll<{
       id: number;
       max_attendees: number;
@@ -396,10 +409,10 @@ export const attendeesApi = {
               e.group_id
             FROM events e
             LEFT JOIN event_attendees ea ON ea.event_id = e.id
-              AND (e.event_type != 'daily' OR ea.date = ?)
+              AND (e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))
             WHERE e.id IN (${inPlaceholders(eventIds)})
             GROUP BY e.id`,
-      [date ?? null, ...eventIds],
+      [range?.endAt ?? null, range?.startAt ?? null, ...eventIds],
     );
     const counts = new Map(rows.map((r) => [r.id, r]));
     // Per-event capacity check
@@ -487,15 +500,20 @@ export const attendeesApi = {
       return { success: false, reason: "encryption_error" };
     }
 
-    // For daily events with a date, check capacity per-date; otherwise check total
+    // Convert date to start_at/end_at range for event_attendees
+    const range = date ? dateToRange(date) : null;
+    const startAt = range?.startAt ?? null;
+    const endAt = range?.endAt ?? null;
+
+    // For daily events with a date, check capacity via overlap; otherwise check total
     const capacityFilter = date
-      ? "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ? AND ea2.date = ?"
+      ? "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ? AND ea2.start_at < ? AND ea2.end_at > ?"
       : "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?";
-    const capacityArgs = date ? [eventId, date] : [eventId];
+    const capacityArgs = date ? [eventId, endAt, startAt] : [eventId];
 
     // Group capacity check via single CASE expression — one event+group lookup.
     // Skips when group_id=0 (no group) or max_attendees=0 (no limit).
-    // Date-aware: standard events always count, daily events only count matching date.
+    // Date-aware: standard events always count, daily events only count overlapping range.
     const groupCapacityCheck = `
             AND (
               SELECT CASE
@@ -506,7 +524,7 @@ export const attendeesApi = {
                   FROM event_attendees ea3
                   JOIN events e2 ON e2.id = ea3.event_id
                   WHERE e2.group_id = ev.group_id
-                    AND (? IS NULL OR e2.event_type != 'daily' OR ea3.date = ?)
+                    AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
                 ) + ? <= g.max_attendees THEN 1
                 ELSE 0
               END
@@ -515,16 +533,17 @@ export const attendeesApi = {
               WHERE ev.id = ?
             ) = 1`;
     const groupCapacityArgs = [
-      date, // date IS NULL check
-      date, // date match
+      date, // date IS NULL check (standard events skip overlap)
+      endAt, // overlap: start_at < endAt
+      startAt, // overlap: end_at > startAt
       qty, // quantity to add
       eventId, // event lookup
     ];
 
     // Phase 1: Win the race — atomic capacity check + event_attendees insert
     const raceResult = await getDb().execute({
-      sql: `INSERT INTO event_attendees (event_id, date, quantity)
-            SELECT ?, ?, ?
+      sql: `INSERT INTO event_attendees (event_id, start_at, end_at, quantity)
+            SELECT ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -532,7 +551,8 @@ export const attendeesApi = {
             )${groupCapacityCheck}`,
       args: [
         eventId,
-        date,
+        startAt,
+        endAt,
         qty,
         ...capacityArgs,
         qty,

@@ -6,7 +6,7 @@ import type { ResultSet } from "@libsql/client";
 import { filter as fpFilter } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
-import { ATTENDEE_JOIN_SELECT } from "#lib/db/attendees.ts";
+import { ATTENDEE_JOIN_SELECT, dateToRange } from "#lib/db/attendees.ts";
 import {
   executeBatch,
   getDb,
@@ -356,10 +356,10 @@ export const getAllStandardEvents = (): Promise<EventWithCount[]> =>
  */
 export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
   const rows = await queryAll<{ date: string }>(
-    `SELECT DISTINCT ea.date FROM event_attendees ea
+    `SELECT DISTINCT SUBSTR(ea.start_at, 1, 10) as date FROM event_attendees ea
      INNER JOIN events e ON ea.event_id = e.id
-     WHERE e.event_type = 'daily' AND ea.date IS NOT NULL
-     ORDER BY ea.date`,
+     WHERE e.event_type = 'daily' AND ea.start_at IS NOT NULL
+     ORDER BY date`,
   );
   return rows.map((r) => r.date);
 };
@@ -370,16 +370,18 @@ export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
  */
 export const getDailyEventAttendeesByDate = (
   date: string,
-): Promise<Attendee[]> =>
-  queryAll<Attendee>(
+): Promise<Attendee[]> => {
+  const { startAt, endAt } = dateToRange(date);
+  return queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN event_attendees ea ON ea.attendee_id = a.id
      JOIN events e ON ea.event_id = e.id
-     WHERE e.event_type = 'daily' AND ea.date = ?
+     WHERE e.event_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
      ORDER BY a.created DESC`,
-    [date],
+    [endAt, startAt],
   );
+};
 
 /**
  * Get raw attendees for a set of event IDs.

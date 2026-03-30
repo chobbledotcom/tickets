@@ -183,7 +183,8 @@ const SCHEMA: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["event_id", "INTEGER NOT NULL"],
         ["attendee_id", "INTEGER"],
-        ["date", "TEXT DEFAULT NULL"],
+        ["start_at", "TEXT DEFAULT NULL"],
+        ["end_at", "TEXT DEFAULT NULL"],
         ["quantity", "INTEGER NOT NULL DEFAULT 1"],
       ],
       foreignKeys: [
@@ -192,13 +193,17 @@ const SCHEMA: [name: string, table: Table][] = [
       ],
       indexes: [
         {
-          name: "idx_event_attendees_event_attendee_date",
-          columns: ["event_id", "attendee_id", "date"],
+          name: "idx_event_attendees_event_attendee_start",
+          columns: ["event_id", "attendee_id", "start_at"],
           unique: true,
         },
         {
           name: "idx_event_attendees_attendee_event",
           columns: ["attendee_id", "event_id"],
+        },
+        {
+          name: "idx_event_attendees_event_start_end",
+          columns: ["event_id", "start_at", "end_at"],
         },
       ],
     },
@@ -482,9 +487,14 @@ export const initDb = async (): Promise<void> => {
   }
 
   // 4. Backfill event_attendees from existing attendees data (idempotent)
+  // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
   await runMigration(
-    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, date, quantity)
-     SELECT event_id, id, date, quantity FROM attendees
+    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity)
+     SELECT event_id, id,
+       CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
+       CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
+       quantity
+     FROM attendees
      WHERE id NOT IN (SELECT attendee_id FROM event_attendees WHERE attendee_id IS NOT NULL)`,
   );
 
