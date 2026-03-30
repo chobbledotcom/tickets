@@ -20,6 +20,7 @@ import {
   mockRequest,
   mockWebhookRequest,
   setupStripe,
+  singleItem,
   stubWebhookVerify,
   webhookMeta,
   withExpectedError,
@@ -204,10 +205,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_test",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "John",
                     email: "john@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -256,10 +256,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_webhook_test",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "Webhook User",
                     email: "webhook@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -330,7 +329,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                     name: "Multi User",
                     email: "multi@example.com",
                     phone: "123456",
-                    multi: "1",
                     items: JSON.stringify([
                       { e: event1.id, q: 2, p: 1000 },
                       { e: event2.id, q: 1, p: 1000 },
@@ -389,7 +387,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             metadata: webhookMeta({
               name: "No Price User",
               email: "noprice@example.com",
-              multi: "1",
               items: JSON.stringify([{ e: event1.id, q: 1 }]),
             }),
           },
@@ -431,7 +428,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Bad Multi",
                     email: "bad@example.com",
-                    multi: "1",
                     items: "not-valid-json{",
                   }),
                 },
@@ -444,7 +440,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        await expectHtmlResponse(response, 400, "Invalid cart session data");
+        await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
         mockVerify.restore();
       }
@@ -483,10 +479,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_soldout",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "Late Buyer",
                     email: "late@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -540,25 +535,19 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       resetStripeClient();
     });
 
-    test("extractIntent rejects missing quantity in metadata", async () => {
+    test("extractIntent rejects missing items in metadata", async () => {
       await setupStripe();
-
-      const event = await createTestEvent({
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_no_qty",
+          id: "cs_no_items",
           payment_status: "paid",
-          payment_intent: "pi_no_qty",
+          payment_intent: "pi_no_items",
           amount_total: 1000,
           metadata: {
-            event_id: String(event.id),
             name: "John",
             email: "john@example.com",
-            // quantity intentionally omitted — should cause an error
+            // items intentionally omitted — should cause an error
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -567,7 +556,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       try {
         const redirectResponse = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_no_qty"),
+          mockRequest("/payment/success?session_id=cs_no_items"),
         );
         // extractIntent catches error and returns 400
         expect(redirectResponse.status).toBe(400);
@@ -591,10 +580,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_intent: "pi_bad_answers",
           amount_total: 1000,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "Bad Answers",
             email: "bad@example.com",
-            quantity: "1",
             answer_ids: JSON.stringify([1, 2, 3]),
           },
         } as unknown as Awaited<
@@ -627,10 +615,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_intent: "pi_bad_answer_vals",
           amount_total: 1000,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "Bad Values",
             email: "badvals@example.com",
-            quantity: "1",
             answer_ids: JSON.stringify({ "1": "not-an-array" }),
           },
         } as unknown as Awaited<
@@ -663,10 +650,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_intent: "pi_qty_zero",
           amount_total: 0,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 0, 0),
             name: "John",
             email: "john@example.com",
-            quantity: "0",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -706,10 +692,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_intent: "pi_square_order",
           amount_total: 1000,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "Square User",
             email: "square@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -744,10 +729,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_status: "paid",
           payment_intent: null, // No payment reference
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "John",
             email: "john@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -795,10 +779,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_extracted_ref",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "PI User",
                     email: "pi@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -849,7 +832,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Test",
                     email: "test@example.com",
-                    multi: "1",
                     items: '{"not":"an-array"}', // Valid JSON but not an array
                   }),
                 },
@@ -862,7 +844,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        await expectHtmlResponse(response, 400, "Invalid cart session data");
+        await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
         mockVerify.restore();
       }
@@ -890,8 +872,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Test",
                     email: "test@example.com",
-                    multi: "1",
-                    items: "", // empty items with multi=1: hasRequiredSessionMetadata rejects (no event_id, no items)
+                    items: "", // empty items: hasRequiredSessionMetadata rejects (no items)
                   }),
                 },
               },
@@ -938,7 +919,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           metadata: {
             name: "Concurrent",
             email: "concurrent@example.com",
-            multi: "1",
             items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
           },
         } as unknown as Awaited<
@@ -976,10 +956,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_status: "paid",
           payment_intent: "pi_single_concurrent",
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "Concurrent",
             email: "concurrent@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1014,7 +993,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           metadata: {
             name: "Price Test",
             email: "price@example.com",
-            multi: "1",
             items: JSON.stringify([{ e: event.id, q: 3, p: 1500 }]),
           },
         } as unknown as Awaited<
@@ -1056,10 +1034,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_intent: "pi_single_price",
           amount_total: 2000,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 2, 2000),
             name: "Price Single",
             email: "price@example.com",
-            quantity: "2",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1094,10 +1071,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_status: "unpaid",
           payment_intent: "pi_test",
           metadata: {
-            event_id: "1",
+            items: singleItem(1, 1, 0),
             name: "John",
             email: "john@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1151,7 +1127,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           metadata: {
             name: "Enc Error",
             email: "enc@example.com",
-            multi: "1",
             items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
           },
         } as unknown as Awaited<
@@ -1203,7 +1178,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           metadata: {
             name: "Empty Items",
             email: "empty@example.com",
-            multi: "1",
             items: "[]", // Empty array
           },
         } as unknown as Awaited<
@@ -1282,7 +1256,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Already Done",
                     email: "already@example.com",
-                    multi: "1",
                     items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
                   }),
                 },
@@ -1340,7 +1313,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Multi Inactive",
                     email: "inactive@example.com",
-                    multi: "1",
                     items: JSON.stringify([
                       { e: event1.id, q: 1, p: 500 },
                       { e: event2.id, q: 1, p: 500 },
@@ -1419,7 +1391,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Sold Out Multi",
                     email: "soldout@example.com",
-                    multi: "1",
                     items: JSON.stringify([
                       { e: event1.id, q: 1, p: 500 },
                       { e: event2.id, q: 1, p: 500 },
@@ -1535,7 +1506,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Multi Buyer",
                     email: "multi@example.com",
-                    multi: "1",
                     items: JSON.stringify([
                       { e: event1.id, q: 1, p: 500 },
                       { e: event2.id, q: 2, p: 600 },
@@ -1605,7 +1575,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Answer Buyer",
                     email: "answer@example.com",
-                    multi: "1",
                     items: JSON.stringify([{ e: event1.id, q: 1, p: 500 }]),
                     answer_ids: JSON.stringify({
                       [String(event1.id)]: [a.id],
@@ -1657,7 +1626,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Multi NotFound",
                     email: "notfound@example.com",
-                    multi: "1",
                     items: JSON.stringify([{ e: 99999, q: 1, p: 1000 }]),
                   }),
                 },
@@ -1727,7 +1695,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Multi Cap",
                     email: "cap@example.com",
-                    multi: "1",
                     items: JSON.stringify([
                       { e: event1.id, q: 1, p: 500 },
                       { e: event2.id, q: 1, p: 300 },
@@ -1809,8 +1776,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Deleted Event",
                     email: "deleted@example.com",
-                    event_id: "99999",
-                    quantity: "1",
+                    items: singleItem(99999, 1, 1000),
                   }),
                 },
               },
@@ -1861,8 +1827,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "No Ref",
                     email: "noref@example.com",
-                    event_id: String(event.id),
-                    quantity: "1",
+                    items: singleItem(event.id, 1, 500),
                   }),
                 },
               },
@@ -1891,11 +1856,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       resetStripeClient();
     });
 
-    test("extractIntent throws when event_id is missing from metadata", async () => {
+    test("webhook returns 400 when items is missing from metadata", async () => {
       await setupStripe();
 
-      // Session with missing event_id: after _origin verification, extractIntent
-      // throws because this should be impossible for our own sessions.
+      // Session with missing items: metadata has _origin but no items field,
+      // which means the session data is invalid.
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = stub(
         stripePaymentProvider,
@@ -1928,20 +1893,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             metadata: webhookMeta({
               name: "No EventId",
               email: "noeventid@example.com",
-              quantity: "1",
-              // event_id missing — corrupt metadata
+              // items missing — invalid session data
             }),
           }),
       );
 
       try {
-        await withExpectedError(async () => {
-          const response = await handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          );
-          // Corrupt metadata from a verified origin is a bug — surfaces as 503
-          expect(response.status).toBe(503);
-        });
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
         mockVerify.restore();
         mockRetrieveSession.restore();
@@ -1993,8 +1954,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "No Provider",
                     email: "noprov@example.com",
-                    event_id: String(event.id),
-                    quantity: "1",
+                    items: singleItem(event.id, 1, 500),
                   }),
                 },
               },
@@ -2047,7 +2007,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Rollback Test",
                     email: "rollback@example.com",
-                    multi: "1",
                     items: JSON.stringify([
                       { e: event1.id, q: 1, p: 500 },
                       { e: 99999, q: 1, p: 0 },
@@ -2102,7 +2061,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           metadata: {
             name: "Free Multi",
             email: "freemulti@example.com",
-            multi: "1",
             items: JSON.stringify([{ e: event.id, q: 2, p: 0 }]),
           },
         } as unknown as Awaited<
@@ -2143,10 +2101,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_intent: "pi_single_free",
           amount_total: 0,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 2, 0),
             name: "Free Single",
             email: "freesingle@example.com",
-            quantity: "2",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -2321,7 +2278,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           metadata: {
             name: "No Att",
             email: "noatt@example.com",
-            multi: "1",
             items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
           },
         } as unknown as Awaited<
@@ -2371,10 +2327,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_intent: "pi_single_cap",
           amount_total: 500,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 500),
             name: "Cap User",
             email: "cap@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -2424,10 +2379,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_bad_status",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "Bad Status",
                     email: "badstatus@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -2478,10 +2432,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_amount_total",
                   amount_total: 2500,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 2500),
                     name: "Amount User",
                     email: "amount@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -2536,10 +2489,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_mismatch",
                   amount_total: 1200,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "Mismatch User",
                     email: "mismatch@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -2614,7 +2566,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Multi Mismatch",
                     email: "multimismatch@example.com",
-                    multi: "1",
                     items: JSON.stringify([
                       { e: event1.id, q: 1, p: 400 },
                       { e: event2.id, q: 2, p: 600 },
@@ -2677,10 +2628,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_intent: "pi_redirect_mismatch",
           amount_total: 800,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "Redirect Mismatch",
             email: "redirect@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -2737,10 +2687,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_wh_no_email_single",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "No Email Single",
                     email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                    quantity: "1",
                   }),
                 },
               },
@@ -2794,7 +2743,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "No Email Multi",
                     email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                    multi: "1",
                     items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
                   }),
                 },
@@ -2844,10 +2792,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           payment_status: "paid",
           payment_intent: "pi_closed",
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "John",
             email: "john@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -2903,10 +2850,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_closed_wh",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "Jane",
                     email: "jane@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -2970,7 +2916,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Jane",
                     email: "jane@example.com",
-                    multi: "1",
                     items: JSON.stringify([
                       { e: event1.id, q: 1, p: 1000 },
                       { e: event2.id, q: 1, p: 500 },
@@ -3055,7 +3000,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     name: "Multi Daily Buyer",
                     email: "multidaily@example.com",
-                    multi: "1",
                     date: "2026-02-10",
                     items: JSON.stringify([
                       { e: event1.id, q: 1, p: 500 },
@@ -3120,10 +3064,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_foreign",
                   amount_total: 30,
                   metadata: {
-                    event_id: "1",
+                    items: singleItem(1, 1, 0),
                     name: "Foreign Buyer",
                     email: "foreign@example.com",
-                    quantity: "1",
                   },
                 },
               },
@@ -3174,10 +3117,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   amount_total: 500,
                   metadata: {
                     _origin: "other-domain.com",
-                    event_id: "1",
+                    items: singleItem(1, 1, 500),
                     name: "Other Instance",
                     email: "other@example.com",
-                    quantity: "1",
                   },
                 },
               },
@@ -3241,7 +3183,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             metadata: webhookMeta({
               name: "Fallback Foreign",
               email: "fallback@example.com",
-              quantity: "1",
               _origin: "", // Empty _origin -> should be rejected as unrecognized
             }),
           }),
@@ -3300,10 +3241,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_refund_log",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "Refund Log",
                     email: "refundlog@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -3379,10 +3319,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_refund_activity",
                   amount_total: 500,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 1000),
                     name: "Activity Log User",
                     email: "activity@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -3442,10 +3381,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_pay_more",
                   amount_total: 2500,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 2500),
                     name: "Generous User",
                     email: "generous@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -3508,7 +3446,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_multi_pay_more",
                   amount_total: 3000,
                   metadata: webhookMeta({
-                    multi: "1",
                     name: "Multi Generous",
                     email: "generous@example.com",
                     items: JSON.stringify([
@@ -3578,7 +3515,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_no_pay_more",
                   amount_total: 3000,
                   metadata: webhookMeta({
-                    multi: "1",
                     name: "Over Payer",
                     email: "over@example.com",
                     items: JSON.stringify([
@@ -3641,10 +3577,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_pay_less",
                   amount_total: 500,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 500),
                     name: "Cheap User",
                     email: "cheap@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -3701,10 +3636,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_pay_too_much",
                   amount_total: 20000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 1, 20000),
                     name: "Overpay User",
                     email: "overpay@example.com",
-                    quantity: "1",
                   }),
                 },
               },
@@ -3760,7 +3694,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_bad_p",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    multi: "1",
                     name: "Bad Metadata",
                     email: "bad@example.com",
                     items: JSON.stringify([{ e: event.id, q: 1, p: 10.5 }]),
@@ -3809,7 +3742,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_bad_item",
                   amount_total: 1000,
                   metadata: webhookMeta({
-                    multi: "1",
                     name: "Bad Item",
                     email: "bad@example.com",
                     items: JSON.stringify([42, { e: event.id, q: 1, p: 1000 }]),
@@ -3859,7 +3791,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_item_mismatch",
                   amount_total: 500,
                   metadata: webhookMeta({
-                    multi: "1",
                     name: "Mismatch User",
                     email: "mismatch@example.com",
                     items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
@@ -3920,7 +3851,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_total_mismatch",
                   amount_total: 1500,
                   metadata: webhookMeta({
-                    multi: "1",
                     name: "Total Mismatch",
                     email: "total@example.com",
                     items: JSON.stringify([{ e: event.id, q: 1, p: 2000 }]),
@@ -3983,10 +3913,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_qty2_at_max",
                   amount_total: 20000,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 2, 20000),
                     name: "Boundary User",
                     email: "boundary@example.com",
-                    quantity: "2",
                   }),
                 },
               },
@@ -4044,10 +3973,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   payment_intent: "pi_qty2_over_max",
                   amount_total: 20001,
                   metadata: webhookMeta({
-                    event_id: String(event.id),
+                    items: singleItem(event.id, 2, 20001),
                     name: "Overpay Qty2 User",
                     email: "overpay-qty2@example.com",
-                    quantity: "2",
                   }),
                 },
               },
@@ -4158,7 +4086,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             metadata: webhookMeta({
               name: "Q Buyer",
               email: "qbuyer@example.com",
-              multi: "1",
               items: JSON.stringify([
                 { e: event1.id, q: 1, p: 1000 },
                 { e: event2.id, q: 1, p: 0 },
@@ -4226,10 +4153,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             payment_intent: "pi_single_q",
             amount_total: 1000,
             metadata: webhookMeta({
-              event_id: String(event.id),
+              items: singleItem(event.id, 1, 1000),
               name: "Q Single Buyer",
               email: "qsingle@example.com",
-              quantity: "1",
               answer_ids: JSON.stringify({
                 [String(event.id)]: [a1.id],
               }),

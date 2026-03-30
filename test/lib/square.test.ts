@@ -304,10 +304,9 @@ describe("square", () => {
   describe("enforceMetadataLimits", () => {
     test("returns metadata unchanged when all values within limit", () => {
       const metadata = {
-        event_id: "1",
+        items: '[{"e":1,"q":2,"p":0}]',
         name: "John",
         email: "john@example.com",
-        quantity: "2",
       };
       expect(enforceMetadataLimits(metadata)).toEqual(metadata);
     });
@@ -315,22 +314,20 @@ describe("square", () => {
     test("truncates name to 255 characters", () => {
       const longName = "A".repeat(300);
       const metadata = {
-        event_id: "1",
+        items: '[{"e":1,"q":1,"p":0}]',
         name: longName,
         email: "john@example.com",
-        quantity: "1",
       };
       const result = enforceMetadataLimits(metadata);
       expect(result).not.toBeNull();
       expect(result!.name).toBe("A".repeat(255));
       expect(result!.name!.length).toBe(255);
-      expect(result!.event_id).toBe("1");
+      expect(result!.items).toBe('[{"e":1,"q":1,"p":0}]');
     });
 
     test("returns null when non-truncatable value exceeds limit", () => {
       const longItems = `[${"{e:1,q:1},".repeat(50)}]`;
       const metadata = {
-        multi: "1",
         name: "John",
         email: "john@example.com",
         items: longItems,
@@ -341,10 +338,9 @@ describe("square", () => {
     test("returns null when email exceeds limit", () => {
       const longEmail = `${"a".repeat(300)}@example.com`;
       const metadata = {
-        event_id: "1",
+        items: '[{"e":1,"q":1,"p":0}]',
         name: "John",
         email: longEmail,
-        quantity: "1",
       };
       expect(enforceMetadataLimits(metadata)).toBeNull();
     });
@@ -352,7 +348,7 @@ describe("square", () => {
     test("passes through metadata with exactly 255-char values", () => {
       const exactName = "A".repeat(255);
       const metadata = {
-        event_id: "1",
+        items: '[{"e":1,"q":1,"p":0}]',
         name: exactName,
         email: "john@example.com",
       };
@@ -566,11 +562,11 @@ describe("square", () => {
           expect(args.order.lineItems[0]!.note).toBe("3 Tickets");
 
           // Verify metadata includes intent fields
-          expect(args.order.metadata.event_id).toBe("7");
           expect(args.order.metadata.name).toBe("Jane Smith");
           expect(args.order.metadata.email).toBe("jane@example.com");
           expect(args.order.metadata.phone).toBe("555-9876");
-          expect(args.order.metadata.quantity).toBe("3");
+          const items = JSON.parse(args.order.metadata.items!);
+          expect(items).toEqual([{ e: 7, q: 3, p: 7500 }]);
 
           // Verify checkout options
           expect(args.checkoutOptions.redirectUrl).toBe(
@@ -1066,7 +1062,6 @@ describe("square", () => {
           expect(args.order.lineItems[1]!.note).toBe("Ticket");
 
           // Verify multi-intent metadata
-          expect(args.order.metadata.multi).toBe("1");
           expect(args.order.metadata.name).toBe("Alice Wonder");
           expect(args.order.metadata.email).toBe("alice@example.com");
           expect(args.order.metadata.phone).toBe("555-1111");
@@ -1333,7 +1328,7 @@ describe("square", () => {
             order: {
               id: "order_tenders",
               metadata: {
-                event_id: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
                 name: "John",
                 email: "john@example.com",
               },
@@ -1393,7 +1388,7 @@ describe("square", () => {
             order: {
               id: "order_with_total",
               metadata: {
-                event_id: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
                 name: "John",
                 email: "john@example.com",
               },
@@ -1790,7 +1785,7 @@ describe("square", () => {
               basePriceMoney: { amount: BigInt(2500), currency: "GBP" },
             },
           ],
-          metadata: { event_id: "1", name: "Test" },
+          metadata: { items: '[{"e":1,"q":2,"p":0}]', name: "Test" },
         },
         checkoutOptions: { redirectUrl: "https://example.com/success" },
         prePopulatedData: {
@@ -1817,7 +1812,7 @@ describe("square", () => {
       expect(body.order.location_id).toBe("L_rest");
       expect(body.order.line_items[0].base_price_money.amount).toBe(2500);
       expect(body.order.line_items[0].base_price_money.currency).toBe("GBP");
-      expect(body.order.metadata.event_id).toBe("1");
+      expect(body.order.metadata.items).toBe('[{"e":1,"q":2,"p":0}]');
       expect(body.checkout_options.redirect_url).toBe(
         "https://example.com/success",
       );
@@ -1912,7 +1907,7 @@ describe("square", () => {
           jsonResponse({
             order: {
               id: "ord_100",
-              metadata: { event_id: "5" },
+              metadata: { items: '[{"e":5,"q":1,"p":0}]' },
               tenders: [
                 { id: "t_1", payment_id: "pay_1" },
                 { id: "t_2", payment_id: null },
@@ -1931,7 +1926,7 @@ describe("square", () => {
         "https://connect.squareupsandbox.com/v2/orders/ord_100",
       );
       expect(result.order!.id).toBe("ord_100");
-      expect(result.order!.metadata!.event_id).toBe("5");
+      expect(result.order!.metadata!.items).toBe('[{"e":5,"q":1,"p":0}]');
       expect(result.order?.tenders?.[0]?.paymentId).toBe("pay_1");
       expect(result.order?.tenders?.[1]?.paymentId).toBeNull();
       expect(result.order!.state).toBe("COMPLETED");
@@ -2121,11 +2116,10 @@ describe("square", () => {
             order: {
               id: "order_paid",
               metadata: {
-                event_id: "1",
                 name: "John Doe",
                 email: "john@example.com",
                 phone: "555-1234",
-                quantity: "2",
+                items: '[{"e":1,"q":2,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
               state: "COMPLETED",
@@ -2147,11 +2141,10 @@ describe("square", () => {
           expect(result!.id).toBe("order_paid");
           expect(result!.paymentStatus).toBe("paid");
           expect(result!.paymentReference).toBe("pay_abc");
-          expect(result!.metadata.event_id).toBe("1");
           expect(result!.metadata.name).toBe("John Doe");
           expect(result!.metadata.email).toBe("john@example.com");
           expect(result!.metadata.phone).toBe("555-1234");
-          expect(result!.metadata.quantity).toBe("2");
+          expect(result!.metadata.items).toBe('[{"e":1,"q":2,"p":0}]');
         },
       );
     });
@@ -2163,7 +2156,7 @@ describe("square", () => {
             order: {
               id: "order_open",
               metadata: {
-                event_id: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
                 name: "John",
                 email: "john@example.com",
               },
@@ -2250,10 +2243,9 @@ describe("square", () => {
             order: {
               id: "order_with_amount",
               metadata: {
-                event_id: "5",
+                items: '[{"e":5,"q":2,"p":0}]',
                 name: "Total User",
                 email: "total@example.com",
-                quantity: "2",
               },
               tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
               state: "COMPLETED",
@@ -2290,7 +2282,6 @@ describe("square", () => {
             order: {
               id: "order_multi",
               metadata: {
-                multi: "1",
                 name: "John",
                 email: "john@example.com",
                 items,
@@ -2313,7 +2304,6 @@ describe("square", () => {
             await squarePaymentProvider.retrieveSession("order_multi");
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("paid");
-          expect(result!.metadata.multi).toBe("1");
           expect(result!.metadata.items).toBe(items);
         },
       );

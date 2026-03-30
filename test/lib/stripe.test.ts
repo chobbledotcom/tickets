@@ -568,10 +568,9 @@ describeWithEnv(
               id: "cs_test_123",
               payment_status: "paid",
               metadata: {
-                event_id: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
                 name: "John Doe",
                 email: "john@example.com",
-                quantity: "1",
               },
             },
           },
@@ -1685,27 +1684,27 @@ describeWithEnv(
     });
 
     describe("retrieveSession - edge cases", () => {
-      test("returns null for non-multi session without event_id", async () => {
+      test("returns null for session without items", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
 
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
-            id: "cs_no_event",
+            id: "cs_no_items",
             payment_status: "paid",
             payment_intent: "pi_test_123",
             metadata: {
               name: "Test User",
               email: "test@example.com",
-              // No event_id, and not a multi session
+              // No items field
             },
           } as never),
         );
 
         try {
           const result =
-            await stripePaymentProvider.retrieveSession("cs_no_event");
+            await stripePaymentProvider.retrieveSession("cs_no_items");
           expect(result).toBeNull();
         } finally {
           retrieveSpy.restore();
@@ -1740,7 +1739,7 @@ describeWithEnv(
             id: "cs_no_meta",
             payment_status: "paid",
             metadata: {
-              event_id: "1",
+              items: '[{"e":1,"q":1,"p":0}]',
               // Missing name and email
             },
           } as never),
@@ -1769,7 +1768,6 @@ describeWithEnv(
               name: "Multi User",
               email: "multi@example.com",
               phone: "+44 7700 900000",
-              multi: "1",
               items: '[{"e":1,"q":2}]',
             },
           } as never),
@@ -1780,7 +1778,6 @@ describeWithEnv(
             await stripePaymentProvider.retrieveSession("cs_multi");
           expect(result).not.toBeNull();
           expect(result?.id).toBe("cs_multi");
-          expect(result?.metadata.multi).toBe("1");
           expect(result?.metadata.items).toBe('[{"e":1,"q":2}]');
           expect(result?.metadata.phone).toBe("+44 7700 900000");
         } finally {
@@ -1801,8 +1798,7 @@ describeWithEnv(
             metadata: {
               name: "Single User",
               email: "single@example.com",
-              event_id: "42",
-              quantity: "2",
+              items: '[{"e":42,"q":2,"p":0}]',
             },
           } as never),
         );
@@ -1814,8 +1810,7 @@ describeWithEnv(
           expect(result?.id).toBe("cs_single");
           expect(result?.paymentStatus).toBe("paid");
           expect(result?.paymentReference).toBe("pi_single_123");
-          expect(result?.metadata.event_id).toBe("42");
-          expect(result?.metadata.quantity).toBe("2");
+          expect(result?.metadata.items).toBe('[{"e":42,"q":2,"p":0}]');
         } finally {
           retrieveSpy.restore();
         }
@@ -1835,8 +1830,7 @@ describeWithEnv(
             metadata: {
               name: "Amount User",
               email: "amount@example.com",
-              event_id: "10",
-              quantity: "3",
+              items: '[{"e":10,"q":3,"p":0}]',
             },
           } as never),
         );
@@ -1866,8 +1860,7 @@ describeWithEnv(
             metadata: {
               name: "Null Amount User",
               email: "nullamount@example.com",
-              event_id: "1",
-              quantity: "1",
+              items: '[{"e":1,"q":1,"p":0}]',
             },
           } as never),
         );
@@ -1895,8 +1888,7 @@ describeWithEnv(
             metadata: {
               name: "Bad Status User",
               email: "badstatus@example.com",
-              event_id: "1",
-              quantity: "1",
+              items: '[{"e":1,"q":1,"p":0}]',
             },
           } as never),
         );
@@ -1925,8 +1917,7 @@ describeWithEnv(
             metadata: {
               name: "Cast User",
               email: "cast@example.com",
-              event_id: "11",
-              quantity: "1",
+              items: '[{"e":11,"q":1,"p":0}]',
             },
           } as never),
         );
@@ -2237,8 +2228,7 @@ describeWithEnv(
               metadata: {
                 name: "Alice",
                 email: "alice@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
             },
           },

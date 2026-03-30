@@ -21,8 +21,9 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 import {
-  buildCartMetadata,
-  buildSingleIntentMetadata,
+  buildMetadata,
+  singleEventAnswerIds,
+  toBookingItems,
   createWithClient,
   errorMessage,
   PaymentUserError,
@@ -698,7 +699,15 @@ export const squareApi: {
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
-      buildSingleIntentMetadata(event.id, intent),
+      buildMetadata({
+        ...intent,
+        items: [{
+          e: event.id,
+          q: intent.quantity,
+          p: (intent.customUnitPrice ?? event.unit_price) * intent.quantity,
+        }],
+        eventAnswerIds: singleEventAnswerIds(event.id, intent.answerIds),
+      }),
       `payment link for event=${event.id} qty=${intent.quantity}`,
     );
     if (!prep) return null;
@@ -732,7 +741,10 @@ export const squareApi: {
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
-      buildCartMetadata(intent),
+      buildMetadata({
+        ...intent,
+        items: toBookingItems(intent.items),
+      }),
       `multi payment link for ${intent.items.length} events`,
     );
     if (!prep) return null;

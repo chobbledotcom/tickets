@@ -32,6 +32,7 @@ import {
   mockFormRequest,
   mockRequest,
   setTestEnv,
+  singleItem,
   setupStripe,
   submitMultiTicketForm,
   submitTicketForm,
@@ -4225,7 +4226,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const response = await submitTicketForm(target.slug, {
         name: "Mallory",
         email: "mallory@example.com",
-        event_id: String(other.id),
+        items: singleItem(other.id, 1, 0),
       });
       // Booking succeeds (302 redirect to thank-you URL)
       expect(response.status).toBe(302);

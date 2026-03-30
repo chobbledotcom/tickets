@@ -16,8 +16,9 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 import {
-  buildCartMetadata,
-  buildSingleIntentMetadata,
+  buildMetadata,
+  singleEventAnswerIds,
+  toBookingItems,
   createWithClient,
   errorMessage,
 } from "#lib/payment-helpers.ts";
@@ -325,7 +326,15 @@ export const stripeApi: {
       email: intent.email,
       successUrl: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
-      metadata: buildSingleIntentMetadata(event.id, intent),
+      metadata: buildMetadata({
+        ...intent,
+        items: [{
+          e: event.id,
+          q: intent.quantity,
+          p: (intent.customUnitPrice ?? event.unit_price) * intent.quantity,
+        }],
+        eventAnswerIds: singleEventAnswerIds(event.id, intent.answerIds),
+      }),
       unitPriceOverride: intent.customUnitPrice,
     });
     logDebug(
@@ -380,7 +389,10 @@ export const stripeApi: {
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
-      metadata: buildCartMetadata(intent),
+      metadata: buildMetadata({
+        ...intent,
+        items: toBookingItems(intent.items),
+      }),
     };
 
     logDebug(

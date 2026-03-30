@@ -46,8 +46,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Alice",
                 email: "alice@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_1" }],
               state: "COMPLETED",
@@ -81,8 +80,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Bob",
                 email: "bob@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_2" }],
               state: "OPEN",
@@ -116,8 +114,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Carol",
                 email: "carol@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_3" }],
               state: "OPEN",
@@ -149,8 +146,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Dave",
                 email: "dave@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               state: "OPEN",
               totalMoney: { amount: BigInt(1000), currency: "USD" },
@@ -343,8 +339,7 @@ describe("square-provider", () => {
               metadata: {
                 name: "Alice",
                 email: "alice@example.com",
-                event_id: "1",
-                quantity: "1",
+                items: '[{"e":1,"q":1,"p":0}]',
               },
               tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
               state: "COMPLETED",

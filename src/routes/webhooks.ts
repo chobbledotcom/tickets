@@ -33,11 +33,9 @@ import {
 } from "#lib/db/processed-payments.ts";
 import { saveAttendeeAnswers } from "#lib/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
-import { errorMessage } from "#lib/payment-helpers.ts";
 import {
   type BookingItem,
   getActivePaymentProvider,
-  type SessionMetadata,
   type ValidatedPaymentSession,
 } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
@@ -70,10 +68,6 @@ import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 const PRICE_CHANGED_MESSAGE =
   "The price for this event changed while you were completing payment.";
 
-/** Check if session uses cart (multi-item) metadata format */
-const isCartSession = (metadata: SessionMetadata): boolean =>
-  metadata.multi === "1" && metadata.items !== "";
-
 /** Parse per-event answer IDs from metadata JSON string (object format).
  * Returns undefined for empty input; validates the parsed structure at runtime. */
 const parseEventAnswerIds = (
@@ -93,44 +87,6 @@ const parseEventAnswerIds = (
     }
   }
   return parsed as Record<string, number[]>;
-};
-
-/**
- * Extract registration intent from validated session metadata (single-ticket).
- *
- * Precondition: hasRequiredSessionMetadata has verified event_id is present.
- * Converts from SessionMetadata's "" convention back to domain types:
- * - date: "" → null (BookingIntent uses null for "no date selected")
- *
- * Returns a BookingIntent with a single item so that single and multi bookings
- * share the same processing path.
- */
-const extractIntent = (session: ValidatedPaymentSession): BookingIntent => {
-  const eventId = Number.parseInt(session.metadata.event_id, 10);
-  const quantity = Number.parseInt(session.metadata.quantity, 10);
-
-  if (!Number.isFinite(eventId) || eventId <= 0) {
-    throw new Error(
-      `Invalid event_id in session metadata: "${session.metadata.event_id}"`,
-    );
-  }
-
-  if (!Number.isFinite(quantity) || quantity < 0) {
-    throw new Error(
-      `Invalid quantity in session metadata: "${session.metadata.quantity}"`,
-    );
-  }
-
-  return {
-    name: session.metadata.name,
-    email: session.metadata.email,
-    phone: session.metadata.phone,
-    address: session.metadata.address,
-    special_instructions: session.metadata.special_instructions,
-    date: session.metadata.date || null,
-    items: [{ e: eventId, q: quantity, p: 0 }],
-    eventAnswerIds: parseEventAnswerIds(session.metadata.answer_ids),
-  };
 };
 
 /** Wrap handler with session ID extraction */
@@ -186,30 +142,15 @@ const validatePaidSession = async (
     };
   }
 
-  // Extract intent — cart sessions parse items metadata, single-item
-  // sessions are wrapped into a one-item BookingIntent
-  if (isCartSession(session.metadata)) {
-    const intent = extractBookingIntent(session);
-    if (!intent) {
-      logRedirectError(`Invalid cart data (session=${sessionId})`);
-      return {
-        ok: false,
-        response: paymentErrorResponse("Invalid cart session data"),
-      };
-    }
-    return { ok: true, data: { session, intent } };
-  }
-
-  try {
-    const intent = extractIntent(session);
-    return { ok: true, data: { session, intent } };
-  } catch (err) {
-    logRedirectError(`${errorMessage(err)} (session=${sessionId})`);
+  const intent = extractIntent(session);
+  if (!intent) {
+    logRedirectError(`Invalid session data (session=${sessionId})`);
     return {
       ok: false,
       response: paymentErrorResponse("Invalid session data"),
     };
   }
+  return { ok: true, data: { session, intent } };
 };
 
 /**
@@ -395,7 +336,7 @@ const alreadyProcessedResult = async (
  * Parse booking items from metadata JSON.
  *
  * Precondition: the session has passed _origin verification, so this JSON
- * was serialized by our own serializeBookingItems(). We parse with JSON.parse
+ * was serialized by our own buildMetadata(). We parse with JSON.parse
  * (which is safe) and do a basic structural check. Returns null only if the
  * JSON is unparseable or the array is empty — a corrupt item (e.g. missing
  * field) throws so the bug surfaces immediately.
@@ -435,16 +376,22 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
 };
 
 /**
- * Extract booking intent from cart-style session metadata.
- *
- * Converts date from SessionMetadata's "" convention to null for domain use.
+ * Extract booking intent from session metadata.
+ * Converts date from metadata's "" convention to null for domain use.
  */
-const extractBookingIntent = (
+const extractIntent = (
   session: ValidatedPaymentSession,
 ): BookingIntent | null => {
   const { metadata } = session;
   const items = parseBookingItems(metadata.items);
   if (!items || items.length === 0) return null;
+
+  let eventAnswerIds: Record<string, number[]> | undefined;
+  try {
+    eventAnswerIds = parseEventAnswerIds(metadata.answer_ids);
+  } catch {
+    return null;
+  }
 
   return {
     name: metadata.name,
@@ -454,7 +401,7 @@ const extractBookingIntent = (
     special_instructions: metadata.special_instructions,
     date: metadata.date || null,
     items,
-    eventAnswerIds: parseEventAnswerIds(metadata.answer_ids),
+    eventAnswerIds,
   };
 };
 
@@ -507,11 +454,7 @@ const processPaymentSession = async (
   }
 
   // Phase 2: Validate events and create attendees atomically
-  // A single-item checkout uses strict price validation (exact match / pay-more
-  // range). A cart checkout uses per-item price validation when items have
-  // non-zero prices, or lenient total validation for free-event carts.
-  const isSingleItemCheckout = !isCartSession(session.metadata);
-  const includeEventName = !isSingleItemCheckout;
+  const includeEventName = intent.items.length > 1;
 
   const validatedItems: {
     item: BookingItem;
@@ -532,11 +475,12 @@ const processPaymentSession = async (
     });
   }
 
-  // Price validation
-  const hasPerItemPrices = intent.items.some((item) => item.p > 0);
+  // Price validation — items always carry per-item prices (p field).
+  // Free events have p=0 and skip validation.
+  const hasPaidItems = intent.items.some((item) => item.p > 0);
   const bookingFeePercent = getBookingFee();
 
-  if (hasPerItemPrices) {
+  if (hasPaidItems) {
     // Per-item prices are ticket-only (no fee), so validate without booking fee
     for (const { item, event, expectedPrice } of validatedItems) {
       if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
@@ -548,55 +492,29 @@ const processPaymentSession = async (
       }
     }
 
-    // Cart total must equal the sum of per-item prices + booking fee
+    // Total must equal sum of per-item prices + booking fee
     const metadataTotal = validatedItems.reduce(
       (sum, { item }) => sum + item.p,
       0,
     );
-    const expectedCartTotal =
+    const expectedTotal =
       metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
-    if (session.amountTotal !== expectedCartTotal) {
+    if (session.amountTotal !== expectedTotal) {
       return priceMismatchRefund(
         session,
-        `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedCartTotal}`,
+        `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedTotal}`,
         validatedItems[0]!.event.id,
       );
     }
-  } else if (isSingleItemCheckout) {
-    // Single-ticket checkout: validate with hasPriceMismatch (exact match for
-    // fixed-price, range check for pay-more events)
-    const { event, expectedPrice } = validatedItems[0]!;
-    if (
-      hasPriceMismatch(
-        session.amountTotal,
-        expectedPrice,
-        event,
-        bookingFeePercent,
-        intent.items[0]!.q,
-      )
-    ) {
-      return priceMismatchRefund(
-        session,
-        `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
-        event.id,
-      );
-    }
   }
-  // Free-event cart (all p=0, not single-item): no price validation needed
 
   // Create attendees
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
-  for (const { item, event, expectedPrice } of validatedItems) {
-    // For single-ticket pay-more events, use the actual amount charged to capture
-    // the customer's chosen price. Otherwise use per-item or expected price.
-    const pricePaid = hasPerItemPrices
-      ? item.p
-      : isSingleItemCheckout && event.can_pay_more
-        ? session.amountTotal
-        : expectedPrice;
+  for (const { item, event } of validatedItems) {
+    const pricePaid = item.p;
 
     const result = await createAttendeeAtomic({
       eventId: item.e,
@@ -816,10 +734,7 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return paymentErrorResponse("Payment session not found");
   }
 
-  // Extract first event ID for redirect (multi uses items metadata, single uses event_id)
-  const intent = isCartSession(session.metadata)
-    ? extractBookingIntent(session)
-    : extractIntent(session);
+  const intent = extractIntent(session);
   const eventId = intent?.items[0]?.e ?? 0;
 
   // Use getEvent (not getEventWithCount) - we only need slug for redirect
@@ -954,20 +869,14 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse({ status: "pending" });
   }
 
-  // Extract intent — cart sessions parse items metadata, single-item
-  // sessions are wrapped into a one-item BookingIntent
-  const isCart = isCartSession(session.metadata);
-  const intent = isCart
-    ? extractBookingIntent(session)
-    : extractIntent(session);
-
+  const intent = extractIntent(session);
   if (!intent) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Invalid cart session data for ${session.id}`,
+      detail: `Invalid session data for ${session.id}`,
     });
     logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse("Invalid cart session data", 400);
+    return plainResponse("Invalid session data", 400);
   }
 
   const eventIdForLog = intent.items[0]?.e;

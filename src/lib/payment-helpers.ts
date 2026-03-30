@@ -14,7 +14,7 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#lib/payments.ts";
-import type { ContactFields, ContactInfo } from "#lib/types.ts";
+import type { ContactInfo } from "#lib/types.ts";
 
 /** Extract a human-readable message from an unknown caught value */
 export const errorMessage = (err: unknown): string =>
@@ -59,19 +59,17 @@ export const createWithClient =
     return client ? safeAsync(() => op(client), errorCode) : null;
   };
 
-/** Serialize booking items for metadata storage (compact JSON) */
-export const serializeBookingItems = (
+/** Convert registration line items to compact booking items */
+export const toBookingItems = (
   items: MultiRegistrationIntent["items"],
-): string =>
-  JSON.stringify(
-    map(
-      (i: MultiRegistrationIntent["items"][number]): BookingItem => ({
-        e: i.eventId,
-        q: i.quantity,
-        p: i.unitPrice * i.quantity,
-      }),
-    )(items),
-  );
+): BookingItem[] =>
+  map(
+    (i: MultiRegistrationIntent["items"][number]): BookingItem => ({
+      e: i.eventId,
+      q: i.quantity,
+      p: i.unitPrice * i.quantity,
+    }),
+  )(items);
 
 /**
  * Spread optional contact/date fields into metadata (only if truthy).
@@ -93,35 +91,6 @@ const optionalFields = (
   ...(intent.date ? { date: intent.date } : {}),
 });
 
-/** Single-event checkout intent for metadata building */
-type SingleIntentMetadata = ContactFields & {
-  quantity: number;
-  date: string | null;
-  answerIds?: number[];
-};
-
-/**
- * Build intent metadata for a single-event checkout.
- * Common fields: event_id, name, email, quantity, optional phone/address/date.
- * Answer IDs are stored in per-event format for consistency.
- */
-export const buildSingleIntentMetadata = (
-  eventId: number,
-  intent: SingleIntentMetadata,
-): Record<string, string> => ({
-  _origin: getEffectiveDomain(),
-  event_id: String(eventId),
-  name: intent.name,
-  email: intent.email,
-  quantity: String(intent.quantity),
-  ...optionalFields(intent),
-  ...eventAnswerIdsField(
-    intent.answerIds && intent.answerIds.length > 0
-      ? { [String(eventId)]: intent.answerIds }
-      : undefined,
-  ),
-});
-
 /** Serialize per-event answer IDs for metadata (only if non-empty) */
 const eventAnswerIdsField = (
   eventAnswerIds?: Record<string, number[]>,
@@ -130,18 +99,36 @@ const eventAnswerIdsField = (
     ? { answer_ids: JSON.stringify(eventAnswerIds) }
     : {};
 
+/** Convert single-event answerIds to the per-event format used in metadata */
+export const singleEventAnswerIds = (
+  eventId: number,
+  answerIds?: number[],
+): Record<string, number[]> | undefined =>
+  answerIds?.length ? { [String(eventId)]: answerIds } : undefined;
+
+/** Input for building checkout metadata (all checkouts use items array) */
+type MetadataIntent = {
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  special_instructions?: string;
+  date: string | null;
+  items: BookingItem[];
+  eventAnswerIds?: Record<string, number[]>;
+};
+
 /**
- * Build intent metadata for a cart checkout.
- * Common fields: multi flag, name, email, serialized items, optional phone/date.
+ * Build checkout session metadata. All checkouts (single or multiple events)
+ * use the same items array format.
  */
-export const buildCartMetadata = (
-  intent: MultiRegistrationIntent,
+export const buildMetadata = (
+  intent: MetadataIntent,
 ): Record<string, string> => ({
   _origin: getEffectiveDomain(),
-  multi: "1",
   name: intent.name,
   email: intent.email,
-  items: serializeBookingItems(intent.items),
+  items: JSON.stringify(intent.items),
   ...optionalFields(intent),
   ...eventAnswerIdsField(intent.eventAnswerIds),
 });
@@ -163,16 +150,13 @@ export const toCheckoutResult = (
 };
 
 /**
- * Validate that session metadata contains required fields (name)
- * and either event_id (single) or multi+items (multi).
- * Returns false if validation fails.
+ * Validate that session metadata contains required fields (name + items).
  */
 export const hasRequiredSessionMetadata = (
   metadata: Record<string, string | undefined> | null | undefined,
 ): metadata is SessionMetadata => {
   if (!metadata?.name) return false;
-  const isMulti = metadata.multi === "1" && !!metadata.items;
-  return isMulti || !!metadata.event_id;
+  return !!metadata.items;
 };
 
 /**
@@ -186,14 +170,11 @@ export const extractSessionMetadata = (
   metadata: SessionMetadata,
 ): ValidatedPaymentSession["metadata"] => ({
   _origin: metadata._origin || "",
-  event_id: metadata.event_id || "",
   name: metadata.name,
   email: metadata.email || "",
   phone: metadata.phone || "",
   address: metadata.address || "",
   special_instructions: metadata.special_instructions || "",
-  quantity: metadata.quantity || "",
-  multi: metadata.multi || "",
   date: metadata.date || "",
   items: metadata.items || "",
   answer_ids: metadata.answer_ids || "",

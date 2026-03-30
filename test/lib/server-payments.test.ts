@@ -16,6 +16,7 @@ import {
   mockRequest,
   setTestEnv,
   setupStripe,
+  singleItem,
   submitTicketForm,
   withMocks,
 } from "#test-utils";
@@ -66,10 +67,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               payment_status: "unpaid",
               payment_intent: "pi_test",
               metadata: {
-                event_id: String(event.id),
+                items: singleItem(event.id, 1, 1000),
                 name: "John",
                 email: "john@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -141,10 +141,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               payment_status: "paid",
               payment_intent: "pi_test_123",
               metadata: {
-                event_id: String(event.id),
+                items: singleItem(event.id, 1, 1000),
                 name: "John",
                 email: "john@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -202,10 +201,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               payment_intent: "pi_second",
               amount_total: 1000,
               metadata: {
-                event_id: String(event.id),
+                items: singleItem(event.id, 1, 1000),
                 name: "Second",
                 email: "second@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -303,10 +301,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_cancel",
               payment_status: "unpaid",
               metadata: {
-                event_id: "99999", // Non-existent event
+                items: singleItem(99999, 1, 0), // Non-existent event
                 name: "John",
                 email: "john@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -340,10 +337,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_cancel",
               payment_status: "unpaid",
               metadata: {
-                event_id: String(event.id),
+                items: singleItem(event.id, 1, 1000),
                 name: "John",
                 email: "john@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -387,7 +383,6 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_cancel_multi",
               payment_status: "unpaid",
               metadata: {
-                multi: "1",
                 name: "John",
                 email: "john@example.com",
                 items: JSON.stringify([
@@ -426,7 +421,6 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_cancel_bad_multi",
               payment_status: "unpaid",
               metadata: {
-                multi: "1",
                 name: "John",
                 email: "john@example.com",
                 items: "[]", // Empty items array
@@ -604,10 +598,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               payment_status: "paid",
               payment_intent: "pi_test",
               metadata: {
-                event_id: "99999", // Non-existent event
+                items: singleItem(99999, 1, 0), // Non-existent event
                 name: "John",
                 email: "john@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -648,10 +641,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               payment_intent: "pi_test_123",
               amount_total: 1000,
               metadata: {
-                event_id: String(event.id),
+                items: singleItem(event.id, 1, 1000),
                 name: "John",
                 email: "john@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -724,10 +716,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               payment_intent: "pi_test_123",
               amount_total: 1000,
               metadata: {
-                event_id: String(event.id),
+                items: singleItem(event.id, 1, 1000),
                 name: "John",
                 email: "john@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -770,10 +761,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               payment_intent: "pi_test_123",
               amount_total: 3000,
               metadata: {
-                event_id: String(event.id),
+                items: singleItem(event.id, 3, 3000),
                 name: "John",
                 email: "john@example.com",
-                quantity: "3",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -854,10 +844,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               payment_intent: "pi_test_123",
               amount_total: 1000,
               metadata: {
-                event_id: String(event.id),
+                items: singleItem(event.id, 1, 1000),
                 name: "John",
                 email: "john@example.com",
-                quantity: "1",
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -922,7 +911,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           metadata: {
             name: "Multi Payer",
             email: "multi@example.com",
-            multi: "1",
+
             items: JSON.stringify([
               { e: event1.id, q: 1, p: 500 },
               { e: event2.id, q: 2, p: 2000 },
@@ -976,7 +965,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           metadata: {
             name: "Bad",
             email: "bad@example.com",
-            multi: "1",
+
             items: "not-an-array",
           },
         } as unknown as Awaited<
@@ -988,7 +977,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_bad_multi"),
         );
-        await expectHtmlResponse(response, 400, "Invalid cart session data");
+        await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
         mockRetrieve.restore();
       }
@@ -1005,7 +994,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           metadata: {
             name: "Missing Event",
             email: "missing@example.com",
-            multi: "1",
+
             items: JSON.stringify([{ e: 99999, q: 1, p: 500 }]),
           },
         } as unknown as Awaited<
@@ -1046,7 +1035,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           metadata: {
             name: "Inactive Event",
             email: "inactive@example.com",
-            multi: "1",
+
             items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
           },
         } as unknown as Awaited<
@@ -1099,10 +1088,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           payment_intent: "pi_refund_fail",
           amount_total: 1000,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "Refund Fail",
             email: "refund@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1156,7 +1144,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           metadata: {
             name: "Rollback User",
             email: "rollback@example.com",
-            multi: "1",
+
             items: JSON.stringify([
               { e: event1.id, q: 1, p: 500 },
               { e: event2.id, q: 1, p: 1000 },
@@ -1205,10 +1193,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           payment_intent: "pi_single_thankyou",
           amount_total: 500,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 500),
             name: "Single",
             email: "single@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1248,10 +1235,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           payment_intent: "pi_dupe",
           amount_total: 1000,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 1000),
             name: "Dupe",
             email: "dupe@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1302,7 +1288,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           metadata: {
             name: "Cart Single Buyer",
             email: "cartsingle@example.com",
-            multi: "1",
+
             items: JSON.stringify([{ e: event.id, q: 1, p: 800 }]),
           },
         } as unknown as Awaited<
@@ -1360,7 +1346,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           metadata: {
             name: "Multi Replay",
             email: "multireplay@example.com",
-            multi: "1",
+
             items: JSON.stringify([
               { e: event1.id, q: 1, p: 500 },
               { e: event2.id, q: 1, p: 1000 },
@@ -1437,10 +1423,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           payment_intent: "pi_token_verify",
           amount_total: 500,
           metadata: {
-            event_id: String(event.id),
+            items: singleItem(event.id, 1, 500),
             name: "Token Verify",
             email: "verify@example.com",
-            quantity: "1",
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>

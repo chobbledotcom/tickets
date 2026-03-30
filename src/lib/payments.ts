@@ -82,15 +82,11 @@ export type CheckoutSessionResult =
  */
 export type SessionMetadata = {
   _origin: string;
-  event_id: string;
   name: string;
   email: string;
   phone: string;
   address: string;
   special_instructions: string;
-  quantity: string;
-  /** "1" for cart (multi-item) checkout, "" for single-item */
-  multi: "" | "1";
   items: string;
   date: string;
   answer_ids: string;
