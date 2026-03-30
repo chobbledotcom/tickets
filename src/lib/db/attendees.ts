@@ -549,14 +549,26 @@ export const attendeesApi = {
       eventId, // event lookup
     ];
 
-    // Single transaction: capacity race + attendee creation + linkage
-    // If any statement is skipped (capacity exceeded), subsequent guards prevent orphans.
-    // If the process crashes mid-batch, the entire transaction rolls back.
+    // Single ACID transaction: attendee first, then capacity-checked event link.
+    // If capacity is exceeded, the attendee is cleaned up in step 3.
+    // If the process crashes, the entire transaction rolls back.
     const batchResults = await executeBatchWithResults([
-      // Step 1: Win the race — atomic capacity check + event_attendees insert
+      // Step 1: Create attendee record (unconditional)
       {
-        sql: `INSERT INTO event_attendees (event_id, start_at, end_at, quantity)
-              SELECT ?, ?, ?, ?
+        sql: `INSERT INTO attendees (event_id, name, email, created, ticket_token_index, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
+              VALUES (?, '', '', ?, ?, ?, 0, 0, ?)`,
+        args: [
+          eventId,
+          enc.created,
+          enc.ticketTokenIndex,
+          enc.encryptedPiiBlob,
+          pricePaid,
+        ],
+      },
+      // Step 2: Win the race — capacity check + event_attendees insert with attendee_id
+      {
+        sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity)
+              SELECT ?, last_insert_rowid(), ?, ?, ?
               WHERE (
                 ${capacityFilter}
               ) + ? <= (
@@ -573,37 +585,20 @@ export const attendeesApi = {
           ...groupCapacityArgs,
         ],
       },
-      // Step 2: Create attendee record (only if step 1 inserted)
-      // Writes eventId to attendees.event_id to satisfy NOT NULL + FK constraint;
-      // all reads use event_attendees — this column is vestigial.
+      // Step 3: Clean up attendee if capacity was exceeded (step 2 inserted nothing)
       {
-        sql: `INSERT INTO attendees (event_id, name, email, created, ticket_token_index, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
-              SELECT ?, '', '', ?, ?, ?, 0, 0, ?
-              WHERE (SELECT COUNT(*) FROM event_attendees WHERE event_id = ? AND attendee_id IS NULL AND start_at IS ? AND end_at IS ?) > 0`,
-        args: [
-          eventId,
-          enc.created,
-          enc.ticketTokenIndex,
-          enc.encryptedPiiBlob,
-          pricePaid,
-          eventId,
-          startAt,
-          endAt,
-        ],
-      },
-      // Step 3: Link attendee to event_attendees row
-      {
-        sql: `UPDATE event_attendees SET attendee_id = last_insert_rowid()
-              WHERE id = (
-                SELECT id FROM event_attendees
-                WHERE event_id = ? AND attendee_id IS NULL AND start_at IS ? AND end_at IS ?
-                ORDER BY id DESC LIMIT 1
+        sql: `DELETE FROM attendees WHERE id = (
+                SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
+              ) AND NOT EXISTS (
+                SELECT 1 FROM event_attendees WHERE attendee_id = (
+                  SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
+                )
               )`,
-        args: [eventId, startAt, endAt],
+        args: [enc.ticketTokenIndex, enc.ticketTokenIndex],
       },
     ]);
 
-    if (batchResults[0]!.rowsAffected === 0) {
+    if (batchResults[1]!.rowsAffected === 0) {
       return { success: false, reason: "capacity_exceeded" };
     }
 
@@ -611,7 +606,7 @@ export const attendeesApi = {
     return {
       success: true,
       attendee: buildAttendeeResult({
-        insertId: batchResults[1]!.lastInsertRowid,
+        insertId: batchResults[0]!.lastInsertRowid,
         eventId,
         name,
         email,

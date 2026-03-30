@@ -273,7 +273,7 @@ export const createSeeds = async (
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
        quantity
      FROM attendees
-     WHERE id NOT IN (SELECT attendee_id FROM event_attendees WHERE attendee_id IS NOT NULL)`,
+     WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
   );
 
   invalidateEventsCache();

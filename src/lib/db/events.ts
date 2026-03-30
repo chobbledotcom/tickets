@@ -217,11 +217,11 @@ export const deleteEvent = async (eventId: number): Promise<void> => {
   // Uses attendees.event_id for the final attendee cleanup (vestigial column, still written).
   await executeBatch([
     {
-      sql: "DELETE FROM processed_payments WHERE attendee_id IN (SELECT attendee_id FROM event_attendees WHERE event_id = ? AND attendee_id IS NOT NULL)",
+      sql: "DELETE FROM processed_payments WHERE attendee_id IN (SELECT attendee_id FROM event_attendees WHERE event_id = ?)",
       args: [eventId],
     },
     {
-      sql: "DELETE FROM attendee_answers WHERE attendee_id IN (SELECT attendee_id FROM event_attendees WHERE event_id = ? AND attendee_id IS NOT NULL)",
+      sql: "DELETE FROM attendee_answers WHERE attendee_id IN (SELECT attendee_id FROM event_attendees WHERE event_id = ?)",
       args: [eventId],
     },
     { sql: "DELETE FROM event_attendees WHERE event_id = ?", args: [eventId] },

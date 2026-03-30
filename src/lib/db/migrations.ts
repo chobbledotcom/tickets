@@ -182,7 +182,7 @@ const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["event_id", "INTEGER NOT NULL"],
-        ["attendee_id", "INTEGER"],
+        ["attendee_id", "INTEGER NOT NULL"],
         ["start_at", "TEXT DEFAULT NULL"],
         ["end_at", "TEXT DEFAULT NULL"],
         ["quantity", "INTEGER NOT NULL DEFAULT 1"],
@@ -495,7 +495,7 @@ export const initDb = async (): Promise<void> => {
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
        quantity
      FROM attendees
-     WHERE id NOT IN (SELECT attendee_id FROM event_attendees WHERE attendee_id IS NOT NULL)`,
+     WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
   );
 
   // 5. Update version marker and schema hash
