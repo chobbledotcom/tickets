@@ -127,11 +127,12 @@ const parseBunnyError = (
 /** POST to a Bunny CDN pull zone endpoint with JSON body. */
 const pullZonePost = async (
   pullZoneId: number,
-  action: string,
+  action: string | undefined,
   body: Record<string, unknown>,
   label: string,
 ): Promise<BunnyApiResult> => {
-  const url = `${BUNNY_API_BASE}/pullzone/${pullZoneId}/${action}`;
+  const suffix = action ? `/${action}` : "";
+  const url = `${BUNNY_API_BASE}/pullzone/${pullZoneId}${suffix}`;
 
   const response = await fetchText(url, {
     method: "POST",
@@ -440,6 +441,7 @@ const publishScript = async (
 interface CreateEdgeScriptResult {
   ok: true;
   scriptId: number;
+  pullZoneId: number | undefined;
   defaultHostname: string;
 }
 
@@ -471,6 +473,7 @@ const createEdgeScriptImpl = async (
   return {
     ok: true,
     scriptId: data.Id,
+    pullZoneId: data.LinkedPullZones?.[0]?.Id as number | undefined,
     defaultHostname: data.DefaultHostname ?? "",
   };
 };
@@ -498,6 +501,16 @@ const setEdgeScriptSecretImpl = async (
  */
 const publishEdgeScriptImpl = (scriptId: number): Promise<BunnyApiResult> =>
   publishScript(scriptId, "Publish edge script");
+
+/**
+ * Update pull zone settings by ID.
+ * Uses POST to /pullzone/{id} with a partial settings payload.
+ */
+const updatePullZoneImpl = (
+  pullZoneId: number,
+  settings: Record<string, unknown>,
+): Promise<BunnyApiResult> =>
+  pullZonePost(pullZoneId, undefined, settings, "Update pull zone");
 
 // ---------------------------------------------------------------------------
 // Compute script deployment (self-update)
@@ -537,6 +550,7 @@ export const bunnyCdnApi = {
   createEdgeScript: createEdgeScriptImpl,
   setEdgeScriptSecret: setEdgeScriptSecretImpl,
   publishEdgeScript: publishEdgeScriptImpl,
+  updatePullZone: updatePullZoneImpl,
   delay,
 };
 

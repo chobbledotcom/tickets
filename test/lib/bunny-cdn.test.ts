@@ -1074,7 +1074,7 @@ describeWithEnv(
   "createEdgeScript",
   { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
   () => {
-    test("returns script ID and hostname on success", async () => {
+    test("returns script ID, pull zone ID, and hostname on success", async () => {
       await withMocks(
         () =>
           stub(globalThis, "fetch", () =>
@@ -1083,6 +1083,7 @@ describeWithEnv(
                 JSON.stringify({
                   Id: 42,
                   DefaultHostname: "test-42.b-cdn.net",
+                  LinkedPullZones: [{ Id: 99 }],
                 }),
               ),
             ),
@@ -1095,13 +1096,14 @@ describeWithEnv(
           expect(result).toEqual({
             ok: true,
             scriptId: 42,
+            pullZoneId: 99,
             defaultHostname: "test-42.b-cdn.net",
           });
         },
       );
     });
 
-    test("defaults hostname to empty string when not in response", async () => {
+    test("defaults hostname to empty string and pullZoneId to undefined when not in response", async () => {
       await withMocks(
         () =>
           stub(globalThis, "fetch", () =>
@@ -1112,6 +1114,7 @@ describeWithEnv(
           expect(result).toEqual({
             ok: true,
             scriptId: 7,
+            pullZoneId: undefined,
             defaultHostname: "",
           });
         },
@@ -1255,6 +1258,55 @@ describeWithEnv(
           expect(result.ok).toBe(false);
           if (!result.ok) {
             expect(result.error).toContain("Publish edge script failed");
+          }
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
+  "updatePullZone",
+  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  () => {
+    test("sends POST to pull zone with settings payload", async () => {
+      const calls: { url: string; init: RequestInit | undefined }[] = [];
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request, init?: RequestInit) => {
+              calls.push({ url: String(input), init });
+              return Promise.resolve(new Response(null, { status: 200 }));
+            },
+          ),
+        async () => {
+          const result = await bunnyCdnApi.updatePullZone(99, {
+            DisableCookies: false,
+          });
+          expect(result.ok).toBe(true);
+          expect(calls[0]!.url).toContain("/pullzone/99");
+          expect(calls[0]!.init!.method).toBe("POST");
+          const body = JSON.parse(calls[0]!.init!.body as string);
+          expect(body.DisableCookies).toBe(false);
+        },
+      );
+    });
+
+    test("returns error on API failure", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Server Error", { status: 500 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.updatePullZone(99, {
+            DisableCookies: false,
+          });
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error).toContain("Update pull zone failed");
           }
         },
       );

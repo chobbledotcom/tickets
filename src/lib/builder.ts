@@ -4,11 +4,12 @@
  * Flow:
  * 1. Fetch latest release code from GitHub
  * 2. Create a new Bunny edge script with the code
- * 3. Set secrets: user-provided (DB_URL, DB_TOKEN), generated (DB_ENCRYPTION_KEY),
+ * 3. Enable cookies on the linked pull zone (DisableCookies: false)
+ * 4. Set secrets: user-provided (DB_URL, DB_TOKEN), generated (DB_ENCRYPTION_KEY),
  *    and copied from host (email, wallet, ntfy, storage, DNS config)
- * 4. Test database connection
- * 5. Publish the script
- * 6. Record the built site in the local database
+ * 5. Test database connection
+ * 6. Publish the script
+ * 7. Record the built site in the local database
  */
 
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
@@ -116,12 +117,20 @@ export const buildSite = async (
   const createResult = await bunnyCdnApi.createEdgeScript(fullName, code);
   if (!createResult.ok) return createResult;
 
-  const { scriptId, defaultHostname } = createResult;
+  const { scriptId, pullZoneId, defaultHostname } = createResult;
 
-  // 3. Generate encryption key
+  // 3. Enable cookies on the linked pull zone
+  if (pullZoneId !== undefined) {
+    const pzResult = await bunnyCdnApi.updatePullZone(pullZoneId, {
+      DisableCookies: false,
+    });
+    if (!pzResult.ok) return pzResult;
+  }
+
+  // 4. Generate encryption key
   const encryptionKey = builderApi.generateEncryptionKey();
 
-  // 4. Set secrets
+  // 5. Set secrets
   const secrets: [string, string][] = [
     ["DB_URL", input.dbUrl],
     ["DB_TOKEN", input.dbToken],
@@ -140,7 +149,7 @@ export const buildSite = async (
     return { ok: false, error: `Failed to set secrets: ${secretErrors[0]}` };
   }
 
-  // 5. Publish
+  // 6. Publish
   const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
   if (!publishResult.ok) return publishResult;
 
