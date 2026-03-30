@@ -21,7 +21,7 @@ import {
 } from "#lib/payment-helpers.ts";
 import type {
   CheckoutSessionResult,
-  CartIntent,
+  CheckoutIntent,
   PaymentProvider,
   ValidatedPaymentSession,
   WebhookEvent,
@@ -54,7 +54,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
   checkoutCompletedEventType: "payment.updated",
 
-  createCheckoutSession(intent: CartIntent, baseUrl: string) {
+  createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
     return withUserError(() => createPaymentLink(intent, baseUrl));
   },
 

@@ -8,9 +8,10 @@ import { getEffectiveDomain } from "#lib/config.ts";
 import type { ErrorCodeType, LogCategory } from "#lib/logger.ts";
 import { logDebug, logError } from "#lib/logger.ts";
 import type {
+  BookingIntent,
   BookingItem,
   CheckoutSessionResult,
-  CartIntent,
+  CheckoutIntent,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#lib/payments.ts";
@@ -61,10 +62,10 @@ export const createWithClient =
 
 /** Convert registration line items to compact booking items */
 export const toBookingItems = (
-  items: CartIntent["items"],
+  items: CheckoutIntent["items"],
 ): BookingItem[] =>
   map(
-    (i: CartIntent["items"][number]): BookingItem => ({
+    (i: CheckoutIntent["items"][number]): BookingItem => ({
       e: i.eventId,
       q: i.quantity,
       p: i.unitPrice * i.quantity,
@@ -106,35 +107,26 @@ export const singleEventAnswerIds = (
 ): Record<string, number[]> | undefined =>
   answerIds?.length ? { [String(eventId)]: answerIds } : undefined;
 
-/** Input for building checkout metadata (all checkouts use items array) */
-type MetadataIntent = {
-  name: string;
-  email: string;
-  phone?: string;
-  address?: string;
-  special_instructions?: string;
-  date: string | null;
-  items: BookingItem[];
-  eventAnswerIds?: Record<string, number[]>;
-};
-
 /**
- * Build multi-event checkout metadata from a CartIntent.
+ * Build checkout metadata from a CheckoutIntent (converts items to compact form).
  */
 export const buildItemsMetadata = (
-  intent: CartIntent,
+  intent: CheckoutIntent,
 ): Record<string, string> =>
   buildMetadata({
     ...intent,
     items: toBookingItems(intent.items),
   });
 
+/** Input for buildMetadata — like BookingIntent but with optional contact fields */
+type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
+  Partial<Pick<BookingIntent, "phone" | "address" | "special_instructions" | "eventAnswerIds">>;
+
 /**
- * Build checkout session metadata. All checkouts (single or multiple events)
- * use the same items array format.
+ * Build checkout session metadata from booking data (items already compact).
  */
 export const buildMetadata = (
-  intent: MetadataIntent,
+  intent: MetadataInput,
 ): Record<string, string> => ({
   _origin: getEffectiveDomain(),
   name: intent.name,

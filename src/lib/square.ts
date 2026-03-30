@@ -27,7 +27,7 @@ import {
   PaymentUserError,
 } from "#lib/payment-helpers.ts";
 import type {
-  CartIntent,
+  CheckoutIntent,
   WebhookEvent,
   WebhookVerifyResult,
 } from "#lib/payments.ts";
@@ -604,7 +604,7 @@ export const squareApi: {
   resetSquareClient: () => void;
   testSquareConnection: () => Promise<SquareConnectionTestResult>;
   createPaymentLink: (
-    intent: CartIntent,
+    intent: CheckoutIntent,
     baseUrl: string,
   ) => Promise<PaymentLinkResult>;
   retrieveOrder: (orderId: string) => Promise<SquareOrder | null>;
@@ -685,7 +685,7 @@ export const squareApi: {
 
   /** Create a payment link for one or more events */
   createPaymentLink: async (
-    intent: CartIntent,
+    intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
@@ -695,7 +695,7 @@ export const squareApi: {
     if (!prep) return null;
 
     const lineItems: SquareLineItem[] = map(
-      (item: CartIntent["items"][number]) => ({
+      (item: CheckoutIntent["items"][number]) => ({
         name: `Ticket: ${item.name}`,
         quantity: String(item.quantity),
         note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
@@ -797,7 +797,7 @@ export const squareApi: {
 export const getSquareClient = () => squareApi.getSquareClient();
 export const resetSquareClient = () => squareApi.resetSquareClient();
 export const testSquareConnection = () => squareApi.testSquareConnection();
-export const createPaymentLink = (i: CartIntent, b: string) =>
+export const createPaymentLink = (i: CheckoutIntent, b: string) =>
   squareApi.createPaymentLink(i, b);
 export const retrieveOrder = (id: string) => squareApi.retrieveOrder(id);
 export const retrievePayment = (id: string) => squareApi.retrievePayment(id);

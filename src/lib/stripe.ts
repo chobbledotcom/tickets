@@ -21,7 +21,7 @@ import {
   errorMessage,
 } from "#lib/payment-helpers.ts";
 import type {
-  CartIntent,
+  CheckoutIntent,
   WebhookEvent,
   WebhookSetupResult,
   WebhookVerifyResult,
@@ -213,7 +213,7 @@ export const stripeApi: {
   retrievePaymentIntent: (id: string) => Promise<Stripe.PaymentIntent | null>;
   refundPayment: (intentId: string) => Promise<Stripe.Refund | null>;
   createCheckoutSession: (
-    intent: CartIntent,
+    intent: CheckoutIntent,
     baseUrl: string,
   ) => Promise<Stripe.Checkout.Session | null>;
   setupWebhookEndpoint: (
@@ -257,7 +257,7 @@ export const stripeApi: {
 
   /** Create checkout session for one or more events */
   createCheckoutSession: async (
-    intent: CartIntent,
+    intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<CheckoutResult> => {
     logDebug(
@@ -385,7 +385,7 @@ export const retrievePaymentIntent = (id: string) =>
   stripeApi.retrievePaymentIntent(id);
 export const refundPayment = (id: string) => stripeApi.refundPayment(id);
 export const createCheckoutSession = (
-  i: CartIntent,
+  i: CheckoutIntent,
   b: string,
 ) => stripeApi.createCheckoutSession(i, b);
 export const testStripeConnection = () => stripeApi.testStripeConnection();

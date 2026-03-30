@@ -12,7 +12,7 @@ import {
 } from "#lib/payment-helpers.ts";
 import {
   isPaymentStatus,
-  type CartIntent,
+  type CheckoutIntent,
   type PaymentProvider,
   type ValidatedPaymentSession,
   type WebhookEvent,
@@ -38,7 +38,7 @@ export const stripePaymentProvider: PaymentProvider = {
 
   checkoutCompletedEventType: "checkout.session.completed",
 
-  async createCheckoutSession(intent: CartIntent, baseUrl: string) {
+  async createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
     const session = await createCheckoutSession(intent, baseUrl);
     return stripeCheckoutResult(session);
   },

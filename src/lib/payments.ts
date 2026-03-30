@@ -24,7 +24,7 @@ export const paymentsApi = {
 export type { PaymentProviderType };
 
 /** Single item within a checkout */
-export type CartItem = {
+export type CheckoutItem = {
   eventId: number;
   quantity: number;
   unitPrice: number;
@@ -35,10 +35,18 @@ export type CartItem = {
 /** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
 export type BookingItem = { e: number; q: number; p: number };
 
-/** Registration intent for multi-event checkout */
-export type CartIntent = ContactInfo & {
+/** Processed booking intent extracted from payment session metadata */
+export type BookingIntent = ContactInfo & {
   date: string | null;
-  items: CartItem[];
+  items: BookingItem[];
+  /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
+  eventAnswerIds?: Record<string, number[]>;
+};
+
+/** Registration intent for checkout (one or more events) */
+export type CheckoutIntent = ContactInfo & {
+  date: string | null;
+  items: CheckoutItem[];
   /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
 };
@@ -137,7 +145,7 @@ export interface PaymentProvider {
    * Returns a session ID and hosted checkout URL, or null on failure.
    */
   createCheckoutSession(
-    intent: CartIntent,
+    intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<CheckoutSessionResult>;
 
