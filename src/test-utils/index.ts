@@ -407,9 +407,37 @@ export const installUrlHandler = (
   };
 };
 
+// ---------------------------------------------------------------------------
+// Per-worker Deno.env overlay for test isolation.
+// Intercepts Deno.env.get/set/delete so that env vars set during a test stay
+// local to this worker and never leak to parallel workers via the real env.
+// When no overlay is active, Deno.env behaves normally.
+// ---------------------------------------------------------------------------
+const _realGet = Deno.env.get.bind(Deno.env);
+const _realSet = Deno.env.set.bind(Deno.env);
+const _realDelete = Deno.env.delete.bind(Deno.env);
+
+/** Keys currently managed by an active setTestEnv scope. */
+let _overlay: Record<string, string | undefined> | null = null;
+
+Deno.env.get = (key: string): string | undefined =>
+  _overlay && key in _overlay ? _overlay[key] : _realGet(key);
+
+Deno.env.set = (key: string, value: string): void => {
+  if (_overlay && key in _overlay) _overlay[key] = value;
+  else _realSet(key, value);
+};
+
+Deno.env.delete = (key: string): void => {
+  if (_overlay && key in _overlay) _overlay[key] = undefined;
+  else _realDelete(key);
+};
+
 /**
  * Set env vars for a test and return a restore function that puts them back.
- * Saves originals so cleanup restores the exact prior state (or deletes if unset).
+ * Uses a per-worker overlay on Deno.env so parallel test workers cannot leak
+ * env vars to each other. All Deno.env.get/set/delete calls within the scope
+ * are transparently intercepted for the managed keys.
  * Pass `undefined` as a value to delete the key (useful for ensuring a clean slate).
  *
  * @example
@@ -423,18 +451,24 @@ export const installUrlHandler = (
 export const setTestEnv = (
   vars: Record<string, string | undefined>,
 ): (() => void) => {
-  const saved: [string, string | undefined][] = [];
+  const prev = _overlay;
+  const layer: Record<string, string | undefined> = prev
+    ? { ...prev }
+    : Object.create(null);
   for (const key of Object.keys(vars)) {
-    saved.push([key, Deno.env.get(key)]);
+    // Save the real env value only the first time this key enters the overlay
+    if (!(key in layer)) layer[key] = _realGet(key);
+  }
+  _overlay = layer;
+  // Apply the requested values through the intercepted Deno.env so they
+  // land in the overlay (not the real env).
+  for (const key of Object.keys(vars)) {
     const value = vars[key];
     if (value !== undefined) Deno.env.set(key, value);
     else Deno.env.delete(key);
   }
   return () => {
-    for (const [key, orig] of saved) {
-      if (orig !== undefined) Deno.env.set(key, orig);
-      else Deno.env.delete(key);
-    }
+    _overlay = prev;
   };
 };
 
