@@ -1,9 +1,10 @@
+import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, setDb } from "#lib/db/client.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { nowMs } from "#lib/now.ts";
@@ -2214,28 +2215,35 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("slug collision on create", () => {
     test("throws when all slug generation attempts collide", async () => {
-      // Spy on db.execute to make isSlugTaken always return true
-      const db = getDb();
-      const originalExecute = db.execute.bind(db);
-      const executeStub = stub(db, "execute", async (query: unknown) => {
-        const sql =
-          typeof query === "string" ? query : (query as { sql: string }).sql;
-        // Intercept the isSlugTaken query
-        if (
-          sql.includes("SELECT 1 WHERE EXISTS") &&
-          sql.includes("FROM events WHERE slug_index")
-        ) {
-          return {
-            rows: [{ "1": 1 }],
-            columns: ["1"],
-            rowsAffected: 0,
-            lastInsertRowid: 0n,
-          } as unknown as Awaited<ReturnType<typeof originalExecute>>;
-        }
-        return await originalExecute(
-          query as Parameters<typeof originalExecute>[0],
-        );
+      // Install a proxy client via setDb so the intercept follows getDb()
+      // even if the underlying reference changes — avoids the flakiness of
+      // stubbing a specific instance's execute method.
+      const realDb = getDb();
+      const proxy: Client = Object.create(realDb, {
+        execute: {
+          value: async (
+            query: Parameters<Client["execute"]>[0],
+          ): Promise<ResultSet> => {
+            const sql =
+              typeof query === "string"
+                ? query
+                : (query as { sql: string }).sql;
+            if (
+              sql.includes("SELECT 1 WHERE EXISTS") &&
+              sql.includes("FROM events WHERE slug_index")
+            ) {
+              return {
+                rows: [{ "1": 1 }],
+                columns: ["1"],
+                rowsAffected: 0,
+                lastInsertRowid: 0n,
+              } as unknown as ResultSet;
+            }
+            return await realDb.execute(query);
+          },
+        },
       });
+      setDb(proxy);
 
       try {
         await withExpectedError(async () => {
@@ -2248,7 +2256,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           await expectHtmlResponse(response, 503, "Temporary Error");
         });
       } finally {
-        executeStub.restore();
+        setDb(realDb);
       }
     });
   });
