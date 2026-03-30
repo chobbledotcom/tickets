@@ -400,28 +400,26 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       expect(html).toContain("1 remaining");
     });
 
-    test("shows completion message when already migrated", async () => {
+    test("redirects to dashboard when already migrated", async () => {
       await settings.update.attendeeBlobMigrated();
       const { response } = await adminGet("/admin/migrate");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Migration complete");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
     });
 
-    test("accessible to managers", async () => {
+    test("accessible to managers and redirects when migrated", async () => {
       await settings.update.attendeeBlobMigrated();
       const managerCookie = await createTestManagerSession();
       const response = await awaitTestRequest("/admin/migrate", {
         cookie: managerCookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Migration complete");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
     });
   });
 
   describe("POST /admin/migrate", () => {
-    test("processes a batch and redirects to dashboard when done", async () => {
+    test("processes a batch and redirects to dashboard with flash when done", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Mig", "mig@test.com");
       // Simulate pre-migration
@@ -431,7 +429,9 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
 
       const { response } = await adminFormPost("/admin/migrate");
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      const location = response.headers.get("location")!;
+      expect(location).toContain("/admin/");
+      expect(location).toContain("flash=");
 
       // Verify the batch was actually processed
       const progress = await getMigrationProgress();
@@ -463,14 +463,14 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       }
     });
 
-    test("redirects when already migrated", async () => {
+    test("redirects to dashboard when already migrated", async () => {
       await settings.update.attendeeBlobMigrated();
       const { response } = await adminFormPost("/admin/migrate");
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/migrate");
+      expect(response.headers.get("location")).toBe("/admin/");
     });
 
-    test("accessible to managers", async () => {
+    test("accessible to managers and redirects when migrated", async () => {
       await settings.update.attendeeBlobMigrated();
       const managerCookie = await createTestManagerSession();
       const { signCsrfToken } = await import("#lib/csrf.ts");
@@ -484,7 +484,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/migrate");
+      expect(response.headers.get("location")).toBe("/admin/");
     });
   });
 
@@ -528,18 +528,17 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
   });
 
   describe("auto-complete migration for fresh databases", () => {
-    test("GET /admin/migrate auto-completes when no attendees exist", async () => {
+    test("GET /admin/migrate auto-completes and redirects when no attendees exist", async () => {
       expect(settings.attendeeBlobMigrated).toBe(false);
 
       const { response } = await adminGet("/admin/migrate");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Migration complete");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
 
       expect(settings.attendeeBlobMigrated).toBe(true);
     });
 
-    test("GET /admin/migrate auto-completes when all attendees already migrated", async () => {
+    test("GET /admin/migrate auto-completes and redirects when all attendees already migrated", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(
         event.id,
@@ -551,9 +550,8 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       expect(settings.attendeeBlobMigrated).toBe(false);
 
       const { response } = await adminGet("/admin/migrate");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Migration complete");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
 
       expect(settings.attendeeBlobMigrated).toBe(true);
     });
