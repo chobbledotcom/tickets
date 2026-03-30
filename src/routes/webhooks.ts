@@ -68,26 +68,13 @@ import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 const PRICE_CHANGED_MESSAGE =
   "The price for this event changed while you were completing payment.";
 
-/** Parse per-event answer IDs from metadata JSON string (object format).
- * Returns undefined for empty input; validates the parsed structure at runtime. */
+/** Parse per-event answer IDs from metadata JSON string.
+ * Returns undefined for empty input. The JSON was serialized by our own
+ * buildMetadata, so we trust the structure. */
 const parseEventAnswerIds = (
   json: string,
-): Record<string, number[]> | undefined => {
-  if (!json) return undefined;
-  const parsed: unknown = JSON.parse(json);
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`Invalid answer_ids format: expected object, got ${JSON.stringify(parsed)}`);
-  }
-  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (
-      !Array.isArray(value) ||
-      !value.every((v) => Number.isInteger(v))
-    ) {
-      throw new Error(`Invalid answer_ids for event ${key}: expected number[], got ${JSON.stringify(value)}`);
-    }
-  }
-  return parsed as Record<string, number[]>;
-};
+): Record<string, number[]> | undefined =>
+  json ? JSON.parse(json) as Record<string, number[]> : undefined;
 
 /** Wrap handler with session ID extraction */
 const withSessionId =
@@ -386,13 +373,6 @@ const extractIntent = (
   const items = parseBookingItems(metadata.items);
   if (!items || items.length === 0) return null;
 
-  let eventAnswerIds: Record<string, number[]> | undefined;
-  try {
-    eventAnswerIds = parseEventAnswerIds(metadata.answer_ids);
-  } catch {
-    return null;
-  }
-
   return {
     name: metadata.name,
     email: metadata.email,
@@ -401,7 +381,7 @@ const extractIntent = (
     special_instructions: metadata.special_instructions,
     date: metadata.date || null,
     items,
-    eventAnswerIds,
+    eventAnswerIds: parseEventAnswerIds(metadata.answer_ids),
   };
 };
 

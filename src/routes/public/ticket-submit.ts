@@ -32,7 +32,7 @@ import {
   buildRegistrationItems,
   checkAvailability,
   getTicketContext,
-  handleMultiPaymentFlow,
+  handlePaymentFlow,
   processFreeReservation,
   withActiveEvents,
 } from "./ticket-payment.ts";
@@ -184,7 +184,7 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
           items,
           eventAnswerIds,
         };
-        return handleMultiPaymentFlow(request, intent, ctx);
+        return handlePaymentFlow(request, intent, ctx);
       }
 
       // Free registration

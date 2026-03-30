@@ -148,7 +148,7 @@ export const anyRequiresPayment = (items: CheckoutItem[]): boolean => {
 };
 
 /** Handle payment flow for ticket purchase */
-export const handleMultiPaymentFlow = (
+export const handlePaymentFlow = (
   request: Request,
   intent: CheckoutIntent,
   ctx: TicketCtx,

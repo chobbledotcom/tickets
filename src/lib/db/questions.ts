@@ -322,12 +322,12 @@ export const saveEventAnswers = async (
         sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
         args: [attendee.id],
       });
-      for (const answerId of answers) {
-        statements.push({
-          sql: ATTENDEE_ANSWER_INSERT,
-          args: [attendee.id, answerId],
-        });
-      }
+      const placeholders = answers.map(() => "(?, ?)").join(", ");
+      const args = answers.flatMap((id) => [attendee.id, id]);
+      statements.push({
+        sql: `INSERT INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
+        args,
+      });
     }
   }
   if (statements.length > 0) {
