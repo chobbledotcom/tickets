@@ -35,7 +35,7 @@ import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
-import { resetHostEmailConfig } from "#lib/email.ts";
+import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { setSuppressRequestLogs } from "#lib/logger.ts";
@@ -242,6 +242,7 @@ export const resetDb = (): void => {
   resetEffectiveDomain();
   resetHostEmailConfig();
   settings.appleWallet.resetHostConfig();
+  settings.googleWallet.resetHostConfig();
   settings.clearTestOverrides();
 };
 
@@ -502,6 +503,9 @@ export const describeWithEnv = (
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
         resetTestSlugCounter();
+        setHostEmailConfigForTest(null);
+        settings.appleWallet.setHostConfigForTest(null);
+        settings.googleWallet.setHostConfigForTest(null);
         await createTestDbWithSetup();
       }
       if (options.env) restoreEnv = setTestEnv(options.env);
