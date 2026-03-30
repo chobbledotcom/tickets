@@ -359,56 +359,24 @@ describe("square", () => {
 
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
-      const event = {
-        id: 1,
-        group_id: 0,
-        slug: "test-event",
-        slug_index: "test-event-index",
-        name: "Test Event",
-        description: "Test Description",
-        date: "",
-        location: "",
-        created: new Date().toISOString(),
-        max_attendees: 50,
-        thank_you_url: "https://example.com/thanks",
-        unit_price: 1000,
-        max_quantity: 1,
-        webhook_url: "",
-        active: true,
-        fields: "email" as const,
-        closes_at: null,
-        event_type: "standard" as const,
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
-        minimum_days_before: 1,
-        maximum_days_after: 90,
-        image_url: "",
-        attachment_url: "",
-        attachment_name: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
-      };
       const intent = {
-        eventId: 1,
         name: "John Doe",
         email: "john@example.com",
         phone: "",
         address: "",
         special_instructions: "",
-        quantity: 1,
         date: null,
+        items: [
+          {
+            eventId: 1,
+            quantity: 1,
+            unitPrice: 1000,
+            slug: "test-event",
+            name: "Test Event",
+          },
+        ],
       };
       const result = await squareApi.createPaymentLink(
-        event,
         intent,
         "http://localhost",
       );
@@ -418,56 +386,24 @@ describe("square", () => {
     test("returns null when location ID not configured", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       // No location ID set
-      const event = {
-        id: 1,
-        group_id: 0,
-        slug: "test-event",
-        slug_index: "test-event-index",
-        name: "Test",
-        description: "Desc",
-        date: "",
-        location: "",
-        created: new Date().toISOString(),
-        max_attendees: 50,
-        thank_you_url: "https://example.com",
-        unit_price: 1000,
-        max_quantity: 1,
-        webhook_url: "",
-        active: true,
-        fields: "email" as const,
-        closes_at: null,
-        event_type: "standard" as const,
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
-        minimum_days_before: 1,
-        maximum_days_after: 90,
-        image_url: "",
-        attachment_url: "",
-        attachment_name: "",
-        non_transferable: false,
-        can_pay_more: false,
-        max_price: 0,
-        hidden: false,
-      };
       const intent = {
-        eventId: 1,
         name: "John",
         email: "john@example.com",
         phone: "",
         address: "",
         special_instructions: "",
-        quantity: 1,
         date: null,
+        items: [
+          {
+            eventId: 1,
+            quantity: 1,
+            unitPrice: 1000,
+            slug: "test-event",
+            name: "Test",
+          },
+        ],
       };
       const result = await squareApi.createPaymentLink(
-        event,
         intent,
         "http://localhost",
       );
@@ -490,57 +426,25 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = {
-            id: 7,
-            group_id: 0,
-            slug: "concert-2025",
-            slug_index: "concert-2025-index",
-            name: "Concert",
-            description: "A concert",
-            date: "",
-            location: "",
-            created: new Date().toISOString(),
-            max_attendees: 100,
-            thank_you_url: "https://example.com/thanks",
-            unit_price: 2500,
-            max_quantity: 4,
-            webhook_url: "",
-            active: true,
-            fields: "email" as const,
-            closes_at: null,
-            event_type: "standard" as const,
-            bookable_days: [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday",
-            ],
-            minimum_days_before: 1,
-            maximum_days_after: 90,
-            image_url: "",
-            attachment_url: "",
-            attachment_name: "",
-            non_transferable: false,
-            can_pay_more: false,
-            max_price: 0,
-            hidden: false,
-          };
           const intent = {
-            eventId: 7,
             name: "Jane Smith",
             email: "jane@example.com",
             phone: "555-9876",
             address: "",
             special_instructions: "",
-            quantity: 3,
             date: null,
+            items: [
+              {
+                eventId: 7,
+                quantity: 3,
+                unitPrice: 2500,
+                slug: "concert-2025",
+                name: "Concert",
+              },
+            ],
           };
 
           const result = await squareApi.createPaymentLink(
-            event,
             intent,
             "https://tickets.example.com",
           );
@@ -604,18 +508,24 @@ describe("square", () => {
         async () => {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            eventId: 1,
             name: "Jane",
             email: "jane@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 2,
             date: null,
+            items: [
+              {
+                eventId: event.id,
+                quantity: 2,
+                unitPrice: event.unit_price,
+                slug: event.slug,
+                name: event.name,
+              },
+            ],
           };
 
           await squareApi.createPaymentLink(
-            event,
             intent,
             "https://tickets.example.com",
           );
@@ -647,56 +557,25 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = {
-            id: 1,
-            group_id: 0,
-            slug: "test-event",
-            slug_index: "test-event-index",
-            name: "Test",
-            description: "Desc",
-            date: "",
-            location: "",
-            created: new Date().toISOString(),
-            max_attendees: 50,
-            thank_you_url: "https://example.com",
-            unit_price: 1000,
-            max_quantity: 1,
-            webhook_url: "",
-            active: true,
-            fields: "email" as const,
-            closes_at: null,
-            event_type: "standard" as const,
-            bookable_days: [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday",
-            ],
-            minimum_days_before: 1,
-            maximum_days_after: 90,
-            image_url: "",
-            attachment_url: "",
-            attachment_name: "",
-            non_transferable: false,
-            can_pay_more: false,
-            max_price: 0,
-            hidden: false,
-          };
           const intent = {
-            eventId: 1,
             name: "John",
             email: "john@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: 1,
+                quantity: 1,
+                unitPrice: 1000,
+                slug: "test-event",
+                name: "Test",
+              },
+            ],
           };
 
-          await squareApi.createPaymentLink(event, intent, "http://localhost");
+          await squareApi.createPaymentLink(intent, "http://localhost");
 
           const args = checkoutCreate.calls[0]
             ?.args[0] as CreatePaymentLinkInput;
@@ -720,57 +599,25 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = {
-            id: 1,
-            group_id: 0,
-            slug: "test-event",
-            slug_index: "test-event-index",
-            name: "Test",
-            description: "Desc",
-            date: "",
-            location: "",
-            created: new Date().toISOString(),
-            max_attendees: 50,
-            thank_you_url: "https://example.com",
-            unit_price: 1000,
-            max_quantity: 1,
-            webhook_url: "",
-            active: true,
-            fields: "email" as const,
-            closes_at: null,
-            event_type: "standard" as const,
-            bookable_days: [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday",
-            ],
-            minimum_days_before: 1,
-            maximum_days_after: 90,
-            image_url: "",
-            attachment_url: "",
-            attachment_name: "",
-            non_transferable: false,
-            can_pay_more: false,
-            max_price: 0,
-            hidden: false,
-          };
           const intent = {
-            eventId: 1,
             name: "John",
             email: "john@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: 1,
+                quantity: 1,
+                unitPrice: 1000,
+                slug: "test-event",
+                name: "Test",
+              },
+            ],
           };
 
           const result = await squareApi.createPaymentLink(
-            event,
             intent,
             "http://localhost",
           );
@@ -795,57 +642,25 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = {
-            id: 1,
-            group_id: 0,
-            slug: "test-event",
-            slug_index: "test-event-index",
-            name: "Test",
-            description: "Desc",
-            date: "",
-            location: "",
-            created: new Date().toISOString(),
-            max_attendees: 50,
-            thank_you_url: "https://example.com",
-            unit_price: 1000,
-            max_quantity: 1,
-            webhook_url: "",
-            active: true,
-            fields: "email" as const,
-            closes_at: null,
-            event_type: "standard" as const,
-            bookable_days: [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday",
-            ],
-            minimum_days_before: 1,
-            maximum_days_after: 90,
-            image_url: "",
-            attachment_url: "",
-            attachment_name: "",
-            non_transferable: false,
-            can_pay_more: false,
-            max_price: 0,
-            hidden: false,
-          };
           const intent = {
-            eventId: 1,
             name: "A".repeat(300),
             email: "john@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: 1,
+                quantity: 1,
+                unitPrice: 1000,
+                slug: "test-event",
+                name: "Test",
+              },
+            ],
           };
 
           const result = await squareApi.createPaymentLink(
-            event,
             intent,
             "http://localhost",
           );
@@ -872,18 +687,24 @@ describe("square", () => {
             fields: "email" as const,
           });
           const intent = {
-            eventId: 1,
             name: "John",
             email: `${"a".repeat(300)}@example.com`,
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: event.id,
+                quantity: 1,
+                unitPrice: event.unit_price,
+                slug: event.slug,
+                name: event.name,
+              },
+            ],
           };
 
           const result = await squareApi.createPaymentLink(
-            event,
             intent,
             "http://localhost",
           );
@@ -893,7 +714,7 @@ describe("square", () => {
     });
   });
 
-  describe("createCartPaymentLink", () => {
+  describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
       const intent = {
         name: "John Doe",
@@ -919,7 +740,7 @@ describe("square", () => {
           },
         ],
       };
-      const result = await squareApi.createCartPaymentLink(
+      const result = await squareApi.createPaymentLink(
         intent,
         "http://localhost",
       );
@@ -945,7 +766,7 @@ describe("square", () => {
           },
         ],
       };
-      const result = await squareApi.createCartPaymentLink(
+      const result = await squareApi.createPaymentLink(
         intent,
         "http://localhost",
       );
@@ -983,7 +804,7 @@ describe("square", () => {
             ],
           };
 
-          const result = await squareApi.createCartPaymentLink(
+          const result = await squareApi.createPaymentLink(
             intent,
             "http://localhost",
           );
@@ -1033,7 +854,7 @@ describe("square", () => {
             ],
           };
 
-          const result = await squareApi.createCartPaymentLink(
+          const result = await squareApi.createPaymentLink(
             intent,
             "https://tickets.example.com",
           );
@@ -1108,7 +929,7 @@ describe("square", () => {
             items,
           };
 
-          const result = await squareApi.createCartPaymentLink(
+          const result = await squareApi.createPaymentLink(
             intent,
             "https://tickets.example.com",
           );
@@ -1124,14 +945,21 @@ describe("square", () => {
 
   describe("createPaymentLink with validation errors", () => {
     const validationIntent = {
-      eventId: 1,
       name: "John",
       email: "john@example.com",
       phone: "bad-phone",
       address: "",
       special_instructions: "",
-      quantity: 1,
       date: null,
+      items: [
+        {
+          eventId: 1,
+          quantity: 1,
+          unitPrice: 1000,
+          slug: "test-event",
+          name: "Test Event",
+        },
+      ],
     };
 
     /** Set up Square credentials and a mock client with a failing checkout */
@@ -1157,13 +985,8 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = testEvent({
-            unit_price: 1000,
-            fields: "email" as const,
-          });
           try {
             await squareApi.createPaymentLink(
-              event,
               validationIntent,
               "http://localhost",
             );
@@ -1186,13 +1009,8 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = testEvent({
-            unit_price: 1000,
-            fields: "email" as const,
-          });
           try {
             await squareApi.createPaymentLink(
-              event,
               validationIntent,
               "http://localhost",
             );
@@ -1217,12 +1035,7 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = testEvent({
-            unit_price: 1000,
-            fields: "email" as const,
-          });
           const result = await squareApi.createPaymentLink(
-            event,
             validationIntent,
             "http://localhost",
           );
@@ -1241,12 +1054,7 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = testEvent({
-            unit_price: 1000,
-            fields: "email" as const,
-          });
           const result = await squareApi.createPaymentLink(
-            event,
             validationIntent,
             "http://localhost",
           );
@@ -1261,12 +1069,7 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = testEvent({
-            unit_price: 1000,
-            fields: "email" as const,
-          });
           const result = await squareApi.createPaymentLink(
-            event,
             validationIntent,
             "http://localhost",
           );
@@ -1283,12 +1086,7 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
-          const event = testEvent({
-            unit_price: 1000,
-            fields: "email" as const,
-          });
           const result = await squareApi.createPaymentLink(
-            event,
             validationIntent,
             "http://localhost",
           );
@@ -2325,57 +2123,25 @@ describe("square", () => {
         async () => {
           await settings.update.square.accessToken("EAAAl_test_123");
           await settings.update.square.locationId("L_loc_prov");
-          const event = {
-            id: 1,
-            group_id: 0,
-            slug: "test-event",
-            slug_index: "test-event-index",
-            name: "Test",
-            description: "Desc",
-            date: "",
-            location: "",
-            created: new Date().toISOString(),
-            max_attendees: 50,
-            thank_you_url: "https://example.com",
-            unit_price: 1000,
-            max_quantity: 1,
-            webhook_url: "",
-            active: true,
-            fields: "email" as const,
-            closes_at: null,
-            event_type: "standard" as const,
-            bookable_days: [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday",
-            ],
-            minimum_days_before: 1,
-            maximum_days_after: 90,
-            image_url: "",
-            attachment_url: "",
-            attachment_name: "",
-            non_transferable: false,
-            can_pay_more: false,
-            max_price: 0,
-            hidden: false,
-          };
           const intent = {
-            eventId: 1,
             name: "John",
             email: "john@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: 1,
+                quantity: 1,
+                unitPrice: 1000,
+                slug: "test-event",
+                name: "Test",
+              },
+            ],
           };
 
           const result = await squarePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost",
           );
@@ -2388,7 +2154,7 @@ describe("square", () => {
       );
     });
 
-    test("createCartCheckoutSession passes through SDK results", async () => {
+    test("createCheckoutSession passes through SDK results", async () => {
       const { client } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -2422,7 +2188,7 @@ describe("square", () => {
             ],
           };
 
-          const result = await squarePaymentProvider.createCartCheckoutSession(
+          const result = await squarePaymentProvider.createCheckoutSession(
             intent,
             "http://localhost",
           );

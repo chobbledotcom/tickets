@@ -156,7 +156,7 @@ export const handleMultiPaymentFlow = (
   runCheckoutFlow(
     `ticket items=${intent.items.length}`,
     request,
-    (provider, baseUrl) => provider.createCartCheckoutSession(intent, baseUrl),
+    (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
     (msg) => errorRedirect(`/ticket/${ctx.slugs.join("+")}`, msg),
   );
 

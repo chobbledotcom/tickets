@@ -4,8 +4,7 @@ import { spy, stub } from "@std/testing/mock";
 import { settings } from "#lib/db/settings.ts";
 import {
   constructTestWebhookEvent,
-  createCheckoutSessionWithIntent,
-  createCartCheckoutSession,
+  createCheckoutSession,
   detectStripeKeyMode,
   getStripeClient,
   refundPayment,
@@ -184,18 +183,24 @@ describeWithEnv(
           hidden: false,
         };
         const intent = {
-          eventId: 1,
           name: "John Doe",
           email: "john@example.com",
           phone: "",
           address: "",
           special_instructions: "",
-          quantity: 1,
           date: null,
+          items: [
+            {
+              eventId: 1,
+              quantity: 1,
+              unitPrice: event.unit_price,
+              slug: event.slug,
+              name: event.name,
+            },
+          ],
         };
 
-        const createdSession = await createCheckoutSessionWithIntent(
-          event,
+        const createdSession = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -252,18 +257,24 @@ describeWithEnv(
         };
 
         const intent = {
-          eventId: 1,
           name: "John Doe",
           email: "john@example.com",
           phone: "",
           address: "",
           special_instructions: "",
-          quantity: 2,
           date: null,
+          items: [
+            {
+              eventId: 1,
+              quantity: 2,
+              unitPrice: event.unit_price,
+              slug: event.slug,
+              name: event.name,
+            },
+          ],
         };
 
-        const session = await createCheckoutSessionWithIntent(
-          event,
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -285,58 +296,26 @@ describeWithEnv(
       });
     });
 
-    describe("createCheckoutSessionWithIntent", () => {
+    describe("createCheckoutSession", () => {
       test("returns null when stripe key not set", async () => {
-        const event = {
-          id: 1,
-          group_id: 0,
-          slug: "test-event",
-          slug_index: "test-event-index",
-          name: "Test",
-          description: "Desc",
-          date: "",
-          location: "",
-          created: new Date().toISOString(),
-          max_attendees: 50,
-          thank_you_url: "https://example.com",
-          unit_price: 1000,
-          max_quantity: 1,
-          webhook_url: "",
-          active: true,
-          fields: "email" as const,
-          closes_at: null,
-          event_type: "standard" as const,
-          bookable_days: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          minimum_days_before: 1,
-          maximum_days_after: 90,
-          image_url: "",
-          attachment_url: "",
-          attachment_name: "",
-          non_transferable: false,
-          can_pay_more: false,
-          max_price: 0,
-          hidden: false,
-        };
         const intent = {
-          eventId: 1,
           name: "John",
           email: "john@example.com",
           phone: "",
           address: "",
           special_instructions: "",
-          quantity: 1,
           date: null,
+          items: [
+            {
+              eventId: 1,
+              quantity: 1,
+              unitPrice: 1000,
+              slug: "test-event",
+              name: "Test",
+            },
+          ],
         };
-        const result = await createCheckoutSessionWithIntent(
-          event,
+        const result = await createCheckoutSession(
           intent,
           "http://localhost",
         );
@@ -361,18 +340,24 @@ describeWithEnv(
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            eventId: 1,
             name: "Jane",
             email: "jane@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: event.id,
+                quantity: 1,
+                unitPrice: event.unit_price,
+                slug: event.slug,
+                name: event.name,
+              },
+            ],
           };
 
-          await createCheckoutSessionWithIntent(
-            event,
+          await createCheckoutSession(
             intent,
             "http://localhost:3000",
           );
@@ -927,24 +912,30 @@ describeWithEnv(
       });
     });
 
-    describe("createCheckoutSessionWithIntent - phone metadata", () => {
+    describe("createCheckoutSession - phone metadata", () => {
       test("includes phone in metadata when provided", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
         const event = testEvent({ unit_price: 1000 });
         const intent = {
-          eventId: 1,
           name: "John Doe",
           email: "john@example.com",
           phone: "+44 7700 900000",
           address: "",
           special_instructions: "",
-          quantity: 1,
           date: null,
+          items: [
+            {
+              eventId: event.id,
+              quantity: 1,
+              unitPrice: event.unit_price,
+              slug: event.slug,
+              name: event.name,
+            },
+          ],
         };
 
-        const session = await createCheckoutSessionWithIntent(
-          event,
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -955,24 +946,30 @@ describeWithEnv(
       });
     });
 
-    describe("createCheckoutSessionWithIntent - no email", () => {
+    describe("createCheckoutSession - no email", () => {
       test("creates checkout session without customer_email when email is empty", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
         const event = testEvent({ unit_price: 1000 });
         const intent = {
-          eventId: 1,
           name: "No Email User",
           email: "",
           phone: "+44 7700 900000",
           address: "",
           special_instructions: "",
-          quantity: 1,
           date: null,
+          items: [
+            {
+              eventId: event.id,
+              quantity: 1,
+              unitPrice: event.unit_price,
+              slug: event.slug,
+              name: event.name,
+            },
+          ],
         };
 
-        const session = await createCheckoutSessionWithIntent(
-          event,
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -983,7 +980,7 @@ describeWithEnv(
       });
     });
 
-    describe("createCartCheckoutSession", () => {
+    describe("createCheckoutSession", () => {
       test("creates multi-checkout session with phone metadata", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
@@ -1012,7 +1009,7 @@ describeWithEnv(
           ],
         };
 
-        const session = await createCartCheckoutSession(
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -1040,7 +1037,7 @@ describeWithEnv(
           ],
         };
 
-        const result = await createCartCheckoutSession(
+        const result = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -1075,7 +1072,7 @@ describeWithEnv(
           ],
         };
 
-        const session = await createCartCheckoutSession(
+        const session = await createCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -1625,19 +1622,25 @@ describeWithEnv(
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            eventId: 1,
             name: "John",
             email: "john@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: event.id,
+                quantity: 1,
+                unitPrice: event.unit_price,
+                slug: event.slug,
+                name: event.name,
+              },
+            ],
           };
 
           // Use stripePaymentProvider which wraps via toCheckoutResult
           const result = await stripePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost:3000",
           );
@@ -1660,18 +1663,24 @@ describeWithEnv(
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            eventId: 1,
             name: "John",
             email: "john@example.com",
             phone: "",
             address: "",
             special_instructions: "",
-            quantity: 1,
             date: null,
+            items: [
+              {
+                eventId: event.id,
+                quantity: 1,
+                unitPrice: event.unit_price,
+                slug: event.slug,
+                name: event.name,
+              },
+            ],
           };
 
           const result = await stripePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost:3000",
           );
@@ -2171,7 +2180,7 @@ describeWithEnv(
       });
     });
 
-    describe("createCartCheckoutSession - via provider", () => {
+    describe("createCheckoutSession - via provider", () => {
       test("returns null when session has no URL", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
         const client = await getStripeClient();
@@ -2203,7 +2212,7 @@ describeWithEnv(
               },
             ],
           };
-          const result = await stripePaymentProvider.createCartCheckoutSession(
+          const result = await stripePaymentProvider.createCheckoutSession(
             intent,
             "http://localhost:3000",
           );

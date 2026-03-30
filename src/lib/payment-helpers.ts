@@ -11,7 +11,6 @@ import type {
   BookingItem,
   CheckoutSessionResult,
   CartIntent,
-  RegistrationIntent,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#lib/payments.ts";
@@ -106,24 +105,6 @@ export const singleEventAnswerIds = (
   answerIds?: number[],
 ): Record<string, number[]> | undefined =>
   answerIds?.length ? { [String(eventId)]: answerIds } : undefined;
-
-/**
- * Build metadata for a single-event checkout.
- * Wraps the event + intent into the items array format used by buildMetadata.
- */
-export const buildSingleItemMetadata = (
-  event: { id: number; unit_price: number },
-  intent: RegistrationIntent,
-): Record<string, string> =>
-  buildMetadata({
-    ...intent,
-    items: [{
-      e: event.id,
-      q: intent.quantity,
-      p: (intent.customUnitPrice ?? event.unit_price) * intent.quantity,
-    }],
-    eventAnswerIds: singleEventAnswerIds(event.id, intent.answerIds),
-  });
 
 /** Input for building checkout metadata (all checkouts use items array) */
 type MetadataIntent = {

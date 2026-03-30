@@ -308,17 +308,30 @@ export const saveAttendeeAnswers = async (
 
 /**
  * Save per-event question answers for a batch of attendee/event pairs.
- * Looks up each event's answers from the eventAnswerIds map and saves them.
+ * Collects all deletes and inserts into a single executeBatch call.
  */
 export const saveEventAnswers = async (
   entries: { attendee: { id: number }; event: { id: number } }[],
   eventAnswerIds: Record<string, number[]>,
 ): Promise<void> => {
+  const statements: { sql: string; args: InValue[] }[] = [];
   for (const { attendee, event } of entries) {
     const answers = eventAnswerIds[String(event.id)];
     if (answers && answers.length > 0) {
-      await saveAttendeeAnswers([attendee.id], answers);
+      statements.push({
+        sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
+        args: [attendee.id],
+      });
+      for (const answerId of answers) {
+        statements.push({
+          sql: ATTENDEE_ANSWER_INSERT,
+          args: [attendee.id, answerId],
+        });
+      }
     }
+  }
+  if (statements.length > 0) {
+    await executeBatch(statements);
   }
 };
 

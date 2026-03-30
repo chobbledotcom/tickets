@@ -11,7 +11,6 @@ import { logDebug } from "#lib/logger.ts";
 import {
   type ContactInfo,
   createTypeGuard,
-  type Event,
   type PaymentProviderType,
 } from "#lib/types.ts";
 
@@ -24,19 +23,7 @@ export const paymentsApi = {
 /** Re-export from types.ts (canonical definition) */
 export type { PaymentProviderType };
 
-/** Registration intent for a single event checkout */
-export type RegistrationIntent = ContactInfo & {
-  eventId: number;
-  quantity: number;
-  /** Selected date for daily events; null means no date selected */
-  date: string | null;
-  /** Custom unit price (minor units) when can_pay_more is enabled; overrides event.unit_price */
-  customUnitPrice?: number;
-  /** Custom question answer IDs selected during checkout */
-  answerIds?: number[];
-};
-
-/** Single item within a multi-event checkout */
+/** Single item within a checkout */
 export type CartItem = {
   eventId: number;
   quantity: number;
@@ -146,20 +133,10 @@ export interface PaymentProvider {
   readonly type: PaymentProviderType;
 
   /**
-   * Create a checkout session for a single-event purchase.
+   * Create a checkout session for one or more events.
    * Returns a session ID and hosted checkout URL, or null on failure.
    */
   createCheckoutSession(
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ): Promise<CheckoutSessionResult>;
-
-  /**
-   * Create a checkout session for a multi-event purchase.
-   * Returns a session ID and hosted checkout URL, or null on failure.
-   */
-  createCartCheckoutSession(
     intent: CartIntent,
     baseUrl: string,
   ): Promise<CheckoutSessionResult>;

@@ -4047,7 +4047,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockCreate = stub(
         stripePaymentProvider,
-        "createCartCheckoutSession",
+        "createCheckoutSession",
         () =>
           Promise.resolve({
             sessionId: "cs_multi_q_stub",

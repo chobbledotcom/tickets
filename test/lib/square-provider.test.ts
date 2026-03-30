@@ -232,14 +232,21 @@ describe("square-provider", () => {
     test("returns error result when createPaymentLink throws PaymentUserError", async () => {
       const event = testEvent({ unit_price: 1000, fields: "email" as const });
       const intent = {
-        eventId: 1,
         name: "John",
         email: "john@example.com",
         phone: "bad",
         address: "",
         special_instructions: "",
-        quantity: 1,
         date: null,
+        items: [
+          {
+            eventId: event.id,
+            quantity: 1,
+            unitPrice: event.unit_price,
+            slug: event.slug,
+            name: event.name,
+          },
+        ],
       };
       await withMocks(
         () =>
@@ -248,7 +255,6 @@ describe("square-provider", () => {
           }),
         async () => {
           const result = await squarePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost",
           );
@@ -264,14 +270,21 @@ describe("square-provider", () => {
     test("returns null when createPaymentLink throws a generic error", async () => {
       const event = testEvent({ unit_price: 1000, fields: "email" as const });
       const intent = {
-        eventId: 1,
         name: "John",
         email: "john@example.com",
         phone: "",
         address: "",
         special_instructions: "",
-        quantity: 1,
         date: null,
+        items: [
+          {
+            eventId: event.id,
+            quantity: 1,
+            unitPrice: event.unit_price,
+            slug: event.slug,
+            name: event.name,
+          },
+        ],
       };
       await withMocks(
         () =>
@@ -280,7 +293,6 @@ describe("square-provider", () => {
           }),
         async () => {
           const result = await squarePaymentProvider.createCheckoutSession(
-            event,
             intent,
             "http://localhost",
           );
@@ -290,8 +302,8 @@ describe("square-provider", () => {
     });
   });
 
-  describe("createCartCheckoutSession", () => {
-    test("returns error result when createCartPaymentLink throws PaymentUserError", async () => {
+  describe("createCheckoutSession", () => {
+    test("returns error result when createPaymentLink throws PaymentUserError", async () => {
       const intent = {
         name: "John",
         email: "bad",
@@ -311,11 +323,11 @@ describe("square-provider", () => {
       };
       await withMocks(
         () =>
-          stub(squareApi, "createCartPaymentLink", () => {
+          stub(squareApi, "createPaymentLink", () => {
             throw new PaymentUserError("Email address is invalid");
           }),
         async () => {
-          const result = await squarePaymentProvider.createCartCheckoutSession(
+          const result = await squarePaymentProvider.createCheckoutSession(
             intent,
             "http://localhost",
           );
