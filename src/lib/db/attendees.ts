@@ -129,11 +129,12 @@ const decryptAttendeeFields = async (
 };
 
 /**
- * Attendee columns excluding event_id, date, quantity (which come from event_attendees).
- * Avoids column name conflicts when JOINing with event_attendees.
+ * Attendee columns for JOIN queries — only the columns actually used at runtime.
+ * Legacy per-field encrypted columns (name, email, phone, etc.) are omitted since
+ * all PII is read from pii_blob and status from the _v2 columns.
  */
 const ATTENDEE_COLS =
-  "a.id, a.name, a.email, a.created, a.payment_id, a.phone, a.ticket_token, a.price_paid, a.checked_in, a.address, a.special_instructions, a.ticket_token_index, a.refunded, a.attachment_downloads, a.pii_blob, a.checked_in_v2, a.refunded_v2, a.price_paid_v2";
+  "a.id, a.created, a.ticket_token_index, a.attachment_downloads, a.pii_blob, a.checked_in_v2, a.refunded_v2, a.price_paid_v2";
 
 /** SELECT clause for attendee + event_attendees JOINs.
  * Derives `date` from start_at for backward compatibility with the Attendee type. */

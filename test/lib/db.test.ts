@@ -2729,7 +2729,8 @@ describeWithEnv("db", { db: true }, () => {
 
       const privateKey = await getTestPrivateKey();
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]?.checked_in as unknown).toBe("");
+      // checked_in_v2 is 0 (not checked in) — legacy checked_in column is no longer selected
+      expect(rows[0]?.checked_in_v2).toBe(0);
 
       const decrypted = await decryptAttendees(rows, privateKey);
       expect(decrypted[0]?.checked_in).toBe(false);
