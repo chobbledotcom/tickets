@@ -120,12 +120,10 @@ export const buildSite = async (
   const { scriptId, pullZoneId, defaultHostname } = createResult;
 
   // 3. Enable cookies on the linked pull zone
-  if (pullZoneId !== undefined) {
-    const pzResult = await bunnyCdnApi.updatePullZone(pullZoneId, {
-      DisableCookies: false,
-    });
-    if (!pzResult.ok) return pzResult;
-  }
+  const pzResult = await bunnyCdnApi.updatePullZone(pullZoneId, {
+    DisableCookies: false,
+  });
+  if (!pzResult.ok) return pzResult;
 
   // 4. Generate encryption key
   const encryptionKey = builderApi.generateEncryptionKey();

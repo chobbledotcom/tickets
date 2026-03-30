@@ -1103,18 +1103,25 @@ describeWithEnv(
       );
     });
 
-    test("defaults hostname to empty string and pullZoneId to undefined when not in response", async () => {
+    test("defaults hostname to empty string when not in response", async () => {
       await withMocks(
         () =>
           stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response(JSON.stringify({ Id: 7 }))),
+            Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  Id: 7,
+                  LinkedPullZones: [{ Id: 50 }],
+                }),
+              ),
+            ),
           ),
         async () => {
           const result = await bunnyCdnApi.createEdgeScript("Test", "code");
           expect(result).toEqual({
             ok: true,
             scriptId: 7,
-            pullZoneId: undefined,
+            pullZoneId: 50,
             defaultHostname: "",
           });
         },
@@ -1151,7 +1158,13 @@ describeWithEnv(
             (input: string | URL | Request, init?: RequestInit) => {
               calls.push({ url: String(input), init });
               return Promise.resolve(
-                new Response(JSON.stringify({ Id: 1, DefaultHostname: "" })),
+                new Response(
+                  JSON.stringify({
+                    Id: 1,
+                    DefaultHostname: "",
+                    LinkedPullZones: [{ Id: 10 }],
+                  }),
+                ),
               );
             },
           ),

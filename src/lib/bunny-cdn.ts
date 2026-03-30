@@ -441,7 +441,7 @@ const publishScript = async (
 interface CreateEdgeScriptResult {
   ok: true;
   scriptId: number;
-  pullZoneId: number | undefined;
+  pullZoneId: number;
   defaultHostname: string;
 }
 
@@ -473,7 +473,7 @@ const createEdgeScriptImpl = async (
   return {
     ok: true,
     scriptId: data.Id,
-    pullZoneId: data.LinkedPullZones?.[0]?.Id as number | undefined,
+    pullZoneId: data.LinkedPullZones[0].Id,
     defaultHostname: data.DefaultHostname ?? "",
   };
 };
