@@ -16,18 +16,18 @@ import {
   AUTH_FORM,
   type AuthSession,
   htmlResponse,
+  redirect,
   redirectResponse,
   requireSessionOr,
   withAuth,
 } from "#routes/utils.ts";
 import { adminMigratePage } from "#templates/admin/migrate.tsx";
 
-/** Run handler only when migration is incomplete; return doneResponse otherwise */
+/** Run handler only when migration is incomplete; redirect to dashboard otherwise */
 const whenNotMigrated =
-  (doneResponse: (session: AuthSession) => Response | Promise<Response>) =>
   (handler: (session: AuthSession) => Promise<Response>) =>
   (session: AuthSession): Response | Promise<Response> => {
-    if (settings.attendeeBlobMigrated) return doneResponse(session);
+    if (settings.attendeeBlobMigrated) return redirectResponse("/admin/");
     return handler(session);
   };
 
@@ -37,18 +37,15 @@ const whenNotMigrated =
 const handleMigrateGet: TypedRouteHandler<"GET /admin/migrate"> = (request) =>
   requireSessionOr(
     request,
-    whenNotMigrated((session) =>
-      htmlResponse(adminMigratePage(session, { done: true })),
-    )(async (session) => {
+    whenNotMigrated(async (session) => {
       const progress = await getMigrationProgress();
       // Auto-complete: fresh DBs and fully-migrated DBs have 0 remaining
       if (progress.remaining === 0) {
         await settings.update.attendeeBlobMigrated();
-        return htmlResponse(adminMigratePage(session, { done: true }));
+        return redirectResponse("/admin/");
       }
       return htmlResponse(
         adminMigratePage(session, {
-          done: false,
           total: progress.total,
           remaining: progress.remaining,
           batchSize: MIGRATE_BATCH_SIZE,
@@ -64,17 +61,19 @@ const handleMigratePost = (request: Request): Promise<Response> =>
   withAuth(
     request,
     AUTH_FORM,
-    whenNotMigrated(() => redirectResponse("/admin/migrate"))(
-      async (session) => {
-        const privateKey = await requirePrivateKey(session);
-        const result = await migrateAttendeeBatch(privateKey);
-        if (result.remaining === 0) {
-          await settings.update.attendeeBlobMigrated();
-          return redirectResponse("/admin/");
-        }
-        return redirectResponse("/admin/migrate");
-      },
-    ),
+    whenNotMigrated(async (session) => {
+      const privateKey = await requirePrivateKey(session);
+      const result = await migrateAttendeeBatch(privateKey);
+      if (result.remaining === 0) {
+        await settings.update.attendeeBlobMigrated();
+        return redirect(
+          "/admin/",
+          "Migration complete. All attendee records have been upgraded.",
+          true,
+        );
+      }
+      return redirectResponse("/admin/migrate");
+    }),
   );
 
 /** Migration routes */
