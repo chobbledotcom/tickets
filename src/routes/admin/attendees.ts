@@ -5,7 +5,7 @@
 import { compact, filter, uniqueBy } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
-  ATTENDEE_JOIN_SELECT,
+  ATTENDEE_LEFT_JOIN_SELECT,
   createAttendeeAtomic,
   decryptAttendeeOrNull,
   deleteAttendee,
@@ -351,9 +351,9 @@ const loadAttendeeForEdit = async (
 } | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
-     JOIN event_attendees ea ON ea.attendee_id = a.id
+     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
      WHERE a.id = ?`,
     [attendeeId],
   );

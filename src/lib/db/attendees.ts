@@ -136,9 +136,14 @@ const decryptAttendeeFields = async (
 const ATTENDEE_COLS =
   "a.id, a.created, a.ticket_token_index, a.attachment_downloads, a.pii_blob, a.checked_in_v2, a.refunded_v2, a.price_paid_v2";
 
-/** SELECT clause for attendee + event_attendees JOINs.
+/** SELECT clause for attendee + event_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for backward compatibility with the Attendee type. */
 export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity`;
+
+/** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
+ * attendees with broken/missing event_attendees linkage still appear in results
+ * (with event_id=0 as an obvious corruption indicator). */
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity`;
 
 /**
  * Get attendees for an event without decrypting PII
@@ -160,9 +165,9 @@ export const getAttendeesRaw = (eventId: number): Promise<Attendee[]> =>
  */
 export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
   queryAll<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
-     JOIN event_attendees ea ON ea.attendee_id = a.id
+     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
      ORDER BY a.created DESC LIMIT ?`,
     [limit],
   );
@@ -294,9 +299,9 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
  */
 export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
   return queryOne<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
-     JOIN event_attendees ea ON ea.attendee_id = a.id
+     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
      WHERE a.id = ?`,
     [id],
   );
@@ -472,8 +477,11 @@ export const attendeesApi = {
   },
   /**
    * Atomically create attendee with capacity check.
-   * Two-phase: first wins the race by inserting into event_attendees with
-   * a capacity check, then creates the attendee record and links it back.
+   * All three operations run in a single batch transaction:
+   *   1. INSERT event_attendees with capacity check (wins the race)
+   *   2. INSERT attendees (guarded — only if step 1 succeeded)
+   *   3. UPDATE event_attendees to link attendee_id (guarded)
+   * If any step fails or the process crashes, the entire transaction rolls back.
    */
   createAttendeeAtomic: async (
     input: AttendeeInput,
@@ -541,61 +549,69 @@ export const attendeesApi = {
       eventId, // event lookup
     ];
 
-    // Phase 1: Win the race — atomic capacity check + event_attendees insert
-    const raceResult = await getDb().execute({
-      sql: `INSERT INTO event_attendees (event_id, start_at, end_at, quantity)
-            SELECT ?, ?, ?, ?
-            WHERE (
-              ${capacityFilter}
-            ) + ? <= (
-              SELECT max_attendees FROM events WHERE id = ?
-            )${groupCapacityCheck}`,
-      args: [
-        eventId,
-        startAt,
-        endAt,
-        qty,
-        ...capacityArgs,
-        qty,
-        eventId,
-        ...groupCapacityArgs,
-      ],
-    });
-
-    if (raceResult.rowsAffected === 0) {
-      return { success: false, reason: "capacity_exceeded" };
-    }
-
-    const eventAttendeeId = Number(raceResult.lastInsertRowid);
-
-    // Phase 2: Create attendee record + link back to event_attendees
+    // Single transaction: capacity race + attendee creation + linkage
+    // If any statement is skipped (capacity exceeded), subsequent guards prevent orphans.
+    // If the process crashes mid-batch, the entire transaction rolls back.
     const batchResults = await executeBatchWithResults([
+      // Step 1: Win the race — atomic capacity check + event_attendees insert
       {
-        sql: `INSERT INTO attendees (event_id, name, email, created, quantity, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
-              VALUES (?, '', '', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO event_attendees (event_id, start_at, end_at, quantity)
+              SELECT ?, ?, ?, ?
+              WHERE (
+                ${capacityFilter}
+              ) + ? <= (
+                SELECT max_attendees FROM events WHERE id = ?
+              )${groupCapacityCheck}`,
+        args: [
+          eventId,
+          startAt,
+          endAt,
+          qty,
+          ...capacityArgs,
+          qty,
+          eventId,
+          ...groupCapacityArgs,
+        ],
+      },
+      // Step 2: Create attendee record (only if step 1 inserted)
+      // Writes eventId to attendees.event_id to satisfy NOT NULL + FK constraint;
+      // all reads use event_attendees — this column is vestigial.
+      {
+        sql: `INSERT INTO attendees (event_id, name, email, created, ticket_token_index, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
+              SELECT ?, '', '', ?, ?, ?, 0, 0, ?
+              WHERE (SELECT COUNT(*) FROM event_attendees WHERE event_id = ? AND attendee_id IS NULL AND start_at IS ? AND end_at IS ?) > 0`,
         args: [
           eventId,
           enc.created,
-          qty,
           enc.ticketTokenIndex,
-          date,
           enc.encryptedPiiBlob,
-          0,
-          0,
           pricePaid,
+          eventId,
+          startAt,
+          endAt,
         ],
       },
+      // Step 3: Link attendee to event_attendees row
       {
-        sql: "UPDATE event_attendees SET attendee_id = last_insert_rowid() WHERE id = ?",
-        args: [eventAttendeeId],
+        sql: `UPDATE event_attendees SET attendee_id = last_insert_rowid()
+              WHERE id = (
+                SELECT id FROM event_attendees
+                WHERE event_id = ? AND attendee_id IS NULL AND start_at IS ? AND end_at IS ?
+                ORDER BY id DESC LIMIT 1
+              )`,
+        args: [eventId, startAt, endAt],
       },
     ]);
+
+    if (batchResults[0]!.rowsAffected === 0) {
+      return { success: false, reason: "capacity_exceeded" };
+    }
 
     invalidateEventsCache();
     return {
       success: true,
       attendee: buildAttendeeResult({
-        insertId: batchResults[0]!.lastInsertRowid,
+        insertId: batchResults[1]!.lastInsertRowid,
         eventId,
         name,
         email,
@@ -643,9 +659,9 @@ export const getAttendeesByTokens = async (
   );
 
   const rows = await queryAll<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
-     JOIN event_attendees ea ON ea.attendee_id = a.id
+     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
      WHERE a.ticket_token_index IN (${inPlaceholders(tokenIndexes)})`,
     tokenIndexes,
   );
