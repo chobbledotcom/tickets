@@ -54,8 +54,12 @@ const stubSuccessfulBuild = () => ({
     Promise.resolve({
       ok: true as const,
       scriptId: 42,
+      pullZoneId: 99,
       defaultHostname: "https://test-42.b-cdn.net",
     }),
+  ),
+  updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+    Promise.resolve({ ok: true as const }),
   ),
   secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
     Promise.resolve({ ok: true as const }),

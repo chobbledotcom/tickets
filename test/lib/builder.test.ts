@@ -167,8 +167,12 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 42,
+              pullZoneId: 99,
               defaultHostname: "https://test-42.b-cdn.net",
             }),
+          ),
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({ ok: true as const }),
           ),
           secretStub: stub(
             bunnyCdnApi,
@@ -299,8 +303,12 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 42,
+              pullZoneId: 99,
               defaultHostname: "https://test-42.b-cdn.net",
             }),
+          ),
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({ ok: true as const }),
           ),
           secretStub: stub(
             bunnyCdnApi,
@@ -319,7 +327,7 @@ describeWithEnv(
             () => "dGVzdGtleQ==",
           ),
         }),
-        async ({ createStub, publishStub }) => {
+        async ({ createStub, updatePzStub, publishStub }) => {
           const result = await builderApi.buildSite({
             siteName: "My Site",
             dbUrl: "libsql://test.turso.io",
@@ -334,6 +342,13 @@ describeWithEnv(
 
           // Verify script was created with correct name
           expect(createStub.calls[0]!.args[0]).toBe("Tickets - My Site");
+
+          // Verify pull zone was updated with DisableCookies: false
+          expect(updatePzStub.calls.length).toBe(1);
+          expect(updatePzStub.calls[0]!.args[0]).toBe(99);
+          expect(updatePzStub.calls[0]!.args[1]).toEqual({
+            DisableCookies: false,
+          });
 
           // Verify required secrets were set
           const secretNames = secretsSet.map(([name]) => name);
@@ -353,6 +368,66 @@ describeWithEnv(
           // Verify publish was called
           expect(publishStub.calls.length).toBe(1);
           expect(publishStub.calls[0]!.args[0]).toBe(42);
+        },
+      );
+    });
+
+    test("buildSite returns error when pull zone update fails", async () => {
+      await withMocks(
+        () => ({
+          fetchStub: stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request) => {
+              const url = String(input);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      tag_name: "v2026-01-01-000000",
+                      name: "Test",
+                      published_at: "2026-01-01T00:00:00Z",
+                      assets: [
+                        {
+                          name: "bunny-script.ts",
+                          browser_download_url: "https://example.com/script.ts",
+                        },
+                      ],
+                    }),
+                    { status: 200 },
+                  ),
+                );
+              }
+              return Promise.resolve(
+                new Response("console.log('code')", { status: 200 }),
+              );
+            },
+          ),
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              ok: true as const,
+              scriptId: 42,
+              pullZoneId: 99,
+              defaultHostname: "https://test.b-cdn.net",
+            }),
+          ),
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({
+              ok: false as const,
+              error: "Update pull zone failed (500): Server Error",
+            }),
+          ),
+        }),
+        async () => {
+          const result = await builderApi.buildSite({
+            siteName: "Test",
+            dbUrl: "libsql://test.turso.io",
+            dbToken: "token123",
+          });
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error).toContain("Update pull zone failed");
+          }
         },
       );
     });
@@ -392,8 +467,12 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 42,
+              pullZoneId: 99,
               defaultHostname: "https://test.b-cdn.net",
             }),
+          ),
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({ ok: true as const }),
           ),
           secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
             Promise.resolve({
@@ -459,8 +538,12 @@ describeWithEnv(
             Promise.resolve({
               ok: true as const,
               scriptId: 42,
+              pullZoneId: 99,
               defaultHostname: "https://test.b-cdn.net",
             }),
+          ),
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({ ok: true as const }),
           ),
           secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
             Promise.resolve({ ok: true as const }),
