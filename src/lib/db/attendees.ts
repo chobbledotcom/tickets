@@ -66,9 +66,12 @@ const buildPiiBlob = (
     t: info.ticket_token,
   } satisfies PiiBlob);
 
-/** Parse a PII blob JSON back into contact fields */
-const parsePiiBlob = (json: string): PiiBlob =>
-  JSON.parse(json) as PiiBlob;
+/** Parse a PII blob JSON back into contact fields (defaults v to 1 for pre-versioned blobs) */
+const parsePiiBlob = (json: string): PiiBlob => {
+  const blob = JSON.parse(json) as PiiBlob;
+  blob.v ??= PII_BLOB_VERSION;
+  return blob;
+};
 
 /** Encrypt a PII blob JSON string with the public key */
 const encryptPiiBlob = (
