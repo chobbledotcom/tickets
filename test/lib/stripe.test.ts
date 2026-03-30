@@ -5,7 +5,7 @@ import { settings } from "#lib/db/settings.ts";
 import {
   constructTestWebhookEvent,
   createCheckoutSessionWithIntent,
-  createMultiCheckoutSession,
+  createCartCheckoutSession,
   detectStripeKeyMode,
   getStripeClient,
   refundPayment,
@@ -983,7 +983,7 @@ describeWithEnv(
       });
     });
 
-    describe("createMultiCheckoutSession", () => {
+    describe("createCartCheckoutSession", () => {
       test("creates multi-checkout session with phone metadata", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
@@ -1012,7 +1012,7 @@ describeWithEnv(
           ],
         };
 
-        const session = await createMultiCheckoutSession(
+        const session = await createCartCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -1040,7 +1040,7 @@ describeWithEnv(
           ],
         };
 
-        const result = await createMultiCheckoutSession(
+        const result = await createCartCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -1075,7 +1075,7 @@ describeWithEnv(
           ],
         };
 
-        const session = await createMultiCheckoutSession(
+        const session = await createCartCheckoutSession(
           intent,
           "http://localhost:3000",
         );
@@ -2171,7 +2171,7 @@ describeWithEnv(
       });
     });
 
-    describe("createMultiCheckoutSession - via provider", () => {
+    describe("createCartCheckoutSession - via provider", () => {
       test("returns null when session has no URL", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
         const client = await getStripeClient();
@@ -2203,7 +2203,7 @@ describeWithEnv(
               },
             ],
           };
-          const result = await stripePaymentProvider.createMultiCheckoutSession(
+          const result = await stripePaymentProvider.createCartCheckoutSession(
             intent,
             "http://localhost:3000",
           );

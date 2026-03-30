@@ -2459,11 +2459,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-      // Mock createMultiCheckoutSession to return no URL
+      // Mock createCartCheckoutSession to return no URL
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockCreate = stub(
         stripePaymentProvider,
-        "createMultiCheckoutSession",
+        "createCartCheckoutSession",
         () => Promise.resolve(null),
       );
 
@@ -2514,7 +2514,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockCreate = stub(
         stripePaymentProvider,
-        "createMultiCheckoutSession",
+        "createCartCheckoutSession",
         () => Promise.resolve({ error: "Invalid phone number format" }),
       );
 

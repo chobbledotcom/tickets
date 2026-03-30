@@ -306,6 +306,22 @@ export const saveAttendeeAnswers = async (
   await executeBatch([...deletes, ...inserts]);
 };
 
+/**
+ * Save per-event question answers for a batch of attendee/event pairs.
+ * Looks up each event's answers from the eventAnswerIds map and saves them.
+ */
+export const saveEventAnswers = async (
+  entries: { attendee: { id: number }; event: { id: number } }[],
+  eventAnswerIds: Record<string, number[]>,
+): Promise<void> => {
+  for (const { attendee, event } of entries) {
+    const answers = eventAnswerIds[String(event.id)];
+    if (answers && answers.length > 0) {
+      await saveAttendeeAnswers([attendee.id], answers);
+    }
+  }
+};
+
 /** Get answers for multiple attendees in a single query */
 export const getAttendeeAnswersBatch = async (
   attendeeIds: number[],

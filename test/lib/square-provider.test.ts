@@ -290,8 +290,8 @@ describe("square-provider", () => {
     });
   });
 
-  describe("createMultiCheckoutSession", () => {
-    test("returns error result when createMultiPaymentLink throws PaymentUserError", async () => {
+  describe("createCartCheckoutSession", () => {
+    test("returns error result when createCartPaymentLink throws PaymentUserError", async () => {
       const intent = {
         name: "John",
         email: "bad",
@@ -311,11 +311,11 @@ describe("square-provider", () => {
       };
       await withMocks(
         () =>
-          stub(squareApi, "createMultiPaymentLink", () => {
+          stub(squareApi, "createCartPaymentLink", () => {
             throw new PaymentUserError("Email address is invalid");
           }),
         async () => {
-          const result = await squarePaymentProvider.createMultiCheckoutSession(
+          const result = await squarePaymentProvider.createCartCheckoutSession(
             intent,
             "http://localhost",
           );

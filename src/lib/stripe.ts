@@ -16,14 +16,13 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 import {
-  buildMetadata,
-  singleEventAnswerIds,
-  toBookingItems,
+  buildItemsMetadata,
+  buildSingleItemMetadata,
   createWithClient,
   errorMessage,
 } from "#lib/payment-helpers.ts";
 import type {
-  MultiRegistrationIntent,
+  CartIntent,
   RegistrationIntent,
   WebhookEvent,
   WebhookSetupResult,
@@ -267,8 +266,8 @@ export const stripeApi: {
     intent: RegistrationIntent,
     baseUrl: string,
   ) => Promise<Stripe.Checkout.Session | null>;
-  createMultiCheckoutSession: (
-    intent: MultiRegistrationIntent,
+  createCartCheckoutSession: (
+    intent: CartIntent,
     baseUrl: string,
   ) => Promise<Stripe.Checkout.Session | null>;
   setupWebhookEndpoint: (
@@ -326,15 +325,7 @@ export const stripeApi: {
       email: intent.email,
       successUrl: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
-      metadata: buildMetadata({
-        ...intent,
-        items: [{
-          e: event.id,
-          q: intent.quantity,
-          p: (intent.customUnitPrice ?? event.unit_price) * intent.quantity,
-        }],
-        eventAnswerIds: singleEventAnswerIds(event.id, intent.answerIds),
-      }),
+      metadata: buildSingleItemMetadata(event, intent),
       unitPriceOverride: intent.customUnitPrice,
     });
     logDebug(
@@ -355,8 +346,8 @@ export const stripeApi: {
   },
 
   /** Create checkout session for multi-event registration */
-  createMultiCheckoutSession: async (
-    intent: MultiRegistrationIntent,
+  createCartCheckoutSession: async (
+    intent: CartIntent,
     baseUrl: string,
   ): Promise<CheckoutResult> => {
     logDebug(
@@ -389,10 +380,7 @@ export const stripeApi: {
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
-      metadata: buildMetadata({
-        ...intent,
-        items: toBookingItems(intent.items),
-      }),
+      metadata: buildItemsMetadata(intent),
     };
 
     logDebug(
@@ -465,8 +453,8 @@ export const stripeApi: {
 };
 
 export type {
-  MultiRegistrationIntent,
-  MultiRegistrationItem,
+  CartIntent,
+  CartItem,
   RegistrationIntent,
 } from "#lib/payments.ts";
 
@@ -496,10 +484,10 @@ export const createCheckoutSessionWithIntent = (
   i: RegistrationIntent,
   b: string,
 ) => stripeApi.createCheckoutSessionWithIntent(e, i, b);
-export const createMultiCheckoutSession = (
-  i: MultiRegistrationIntent,
+export const createCartCheckoutSession = (
+  i: CartIntent,
   b: string,
-) => stripeApi.createMultiCheckoutSession(i, b);
+) => stripeApi.createCartCheckoutSession(i, b);
 export const testStripeConnection = () => stripeApi.testStripeConnection();
 
 /**

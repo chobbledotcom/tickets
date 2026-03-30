@@ -4,7 +4,7 @@
 
 import { reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { saveAttendeeAnswers } from "#lib/db/questions.ts";
+import { saveEventAnswers } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import { isPaidEvent } from "#lib/types.ts";
 import {
@@ -207,12 +207,7 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
           ctx.questionEventMap,
           selectedEventIds,
         );
-        for (const { event, attendee } of result.entries) {
-          const answers = eventAnswerMap[String(event.id)];
-          if (answers && answers.length > 0) {
-            await saveAttendeeAnswers([attendee.id], answers);
-          }
-        }
+        await saveEventAnswers(result.entries, eventAnswerMap);
       }
 
       // For single-event bookings, respect the event's custom thank-you URL

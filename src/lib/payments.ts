@@ -37,7 +37,7 @@ export type RegistrationIntent = ContactInfo & {
 };
 
 /** Single item within a multi-event checkout */
-export type MultiRegistrationItem = {
+export type CartItem = {
   eventId: number;
   quantity: number;
   unitPrice: number;
@@ -49,9 +49,9 @@ export type MultiRegistrationItem = {
 export type BookingItem = { e: number; q: number; p: number };
 
 /** Registration intent for multi-event checkout */
-export type MultiRegistrationIntent = ContactInfo & {
+export type CartIntent = ContactInfo & {
   date: string | null;
-  items: MultiRegistrationItem[];
+  items: CartItem[];
   /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
 };
@@ -159,8 +159,8 @@ export interface PaymentProvider {
    * Create a checkout session for a multi-event purchase.
    * Returns a session ID and hosted checkout URL, or null on failure.
    */
-  createMultiCheckoutSession(
-    intent: MultiRegistrationIntent,
+  createCartCheckoutSession(
+    intent: CartIntent,
     baseUrl: string,
   ): Promise<CheckoutSessionResult>;
 

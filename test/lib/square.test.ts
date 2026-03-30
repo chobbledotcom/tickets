@@ -893,7 +893,7 @@ describe("square", () => {
     });
   });
 
-  describe("createMultiPaymentLink", () => {
+  describe("createCartPaymentLink", () => {
     test("returns null when access token not set", async () => {
       const intent = {
         name: "John Doe",
@@ -919,7 +919,7 @@ describe("square", () => {
           },
         ],
       };
-      const result = await squareApi.createMultiPaymentLink(
+      const result = await squareApi.createCartPaymentLink(
         intent,
         "http://localhost",
       );
@@ -945,7 +945,7 @@ describe("square", () => {
           },
         ],
       };
-      const result = await squareApi.createMultiPaymentLink(
+      const result = await squareApi.createCartPaymentLink(
         intent,
         "http://localhost",
       );
@@ -983,7 +983,7 @@ describe("square", () => {
             ],
           };
 
-          const result = await squareApi.createMultiPaymentLink(
+          const result = await squareApi.createCartPaymentLink(
             intent,
             "http://localhost",
           );
@@ -1033,7 +1033,7 @@ describe("square", () => {
             ],
           };
 
-          const result = await squareApi.createMultiPaymentLink(
+          const result = await squareApi.createCartPaymentLink(
             intent,
             "https://tickets.example.com",
           );
@@ -1108,7 +1108,7 @@ describe("square", () => {
             items,
           };
 
-          const result = await squareApi.createMultiPaymentLink(
+          const result = await squareApi.createCartPaymentLink(
             intent,
             "https://tickets.example.com",
           );
@@ -2388,7 +2388,7 @@ describe("square", () => {
       );
     });
 
-    test("createMultiCheckoutSession passes through SDK results", async () => {
+    test("createCartCheckoutSession passes through SDK results", async () => {
       const { client } = createMockClient({
         checkoutCreate: () =>
           Promise.resolve({
@@ -2422,7 +2422,7 @@ describe("square", () => {
             ],
           };
 
-          const result = await squarePaymentProvider.createMultiCheckoutSession(
+          const result = await squarePaymentProvider.createCartCheckoutSession(
             intent,
             "http://localhost",
           );

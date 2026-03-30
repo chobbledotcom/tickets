@@ -494,11 +494,11 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      // Mock createMultiCheckoutSession to return a validation error result
+      // Mock createCartCheckoutSession to return a validation error result
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockCreate = stub(
         stripePaymentProvider,
-        "createMultiCheckoutSession",
+        "createCartCheckoutSession",
         () =>
           Promise.resolve({
             error:

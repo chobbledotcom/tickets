@@ -12,7 +12,7 @@ import {
 } from "#lib/payment-helpers.ts";
 import {
   isPaymentStatus,
-  type MultiRegistrationIntent,
+  type CartIntent,
   type PaymentProvider,
   type RegistrationIntent,
   type ValidatedPaymentSession,
@@ -21,7 +21,7 @@ import {
 } from "#lib/payments.ts";
 import {
   createCheckoutSessionWithIntent,
-  createMultiCheckoutSession,
+  createCartCheckoutSession,
   retrieveCheckoutSession,
   retrievePaymentIntent,
   setupWebhookEndpoint,
@@ -54,11 +54,11 @@ export const stripePaymentProvider: PaymentProvider = {
     return stripeCheckoutResult(session);
   },
 
-  async createMultiCheckoutSession(
-    intent: MultiRegistrationIntent,
+  async createCartCheckoutSession(
+    intent: CartIntent,
     baseUrl: string,
   ) {
-    const session = await createMultiCheckoutSession(intent, baseUrl);
+    const session = await createCartCheckoutSession(intent, baseUrl);
     return stripeCheckoutResult(session);
   },
 

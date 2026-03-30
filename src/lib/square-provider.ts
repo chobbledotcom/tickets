@@ -21,7 +21,7 @@ import {
 } from "#lib/payment-helpers.ts";
 import type {
   CheckoutSessionResult,
-  MultiRegistrationIntent,
+  CartIntent,
   PaymentProvider,
   RegistrationIntent,
   ValidatedPaymentSession,
@@ -29,7 +29,7 @@ import type {
   WebhookSetupResult,
 } from "#lib/payments.ts";
 import {
-  createMultiPaymentLink,
+  createCartPaymentLink,
   createPaymentLink,
   refundPayment,
   retrieveOrder,
@@ -65,8 +65,8 @@ export const squarePaymentProvider: PaymentProvider = {
     return withUserError(() => createPaymentLink(event, intent, baseUrl));
   },
 
-  createMultiCheckoutSession(intent: MultiRegistrationIntent, baseUrl: string) {
-    return withUserError(() => createMultiPaymentLink(intent, baseUrl));
+  createCartCheckoutSession(intent: CartIntent, baseUrl: string) {
+    return withUserError(() => createCartPaymentLink(intent, baseUrl));
   },
 
   async retrieveSession(

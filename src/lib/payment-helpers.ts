@@ -10,7 +10,8 @@ import { logDebug, logError } from "#lib/logger.ts";
 import type {
   BookingItem,
   CheckoutSessionResult,
-  MultiRegistrationIntent,
+  CartIntent,
+  RegistrationIntent,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#lib/payments.ts";
@@ -61,10 +62,10 @@ export const createWithClient =
 
 /** Convert registration line items to compact booking items */
 export const toBookingItems = (
-  items: MultiRegistrationIntent["items"],
+  items: CartIntent["items"],
 ): BookingItem[] =>
   map(
-    (i: MultiRegistrationIntent["items"][number]): BookingItem => ({
+    (i: CartIntent["items"][number]): BookingItem => ({
       e: i.eventId,
       q: i.quantity,
       p: i.unitPrice * i.quantity,
@@ -106,6 +107,24 @@ export const singleEventAnswerIds = (
 ): Record<string, number[]> | undefined =>
   answerIds?.length ? { [String(eventId)]: answerIds } : undefined;
 
+/**
+ * Build metadata for a single-event checkout.
+ * Wraps the event + intent into the items array format used by buildMetadata.
+ */
+export const buildSingleItemMetadata = (
+  event: { id: number; unit_price: number },
+  intent: RegistrationIntent,
+): Record<string, string> =>
+  buildMetadata({
+    ...intent,
+    items: [{
+      e: event.id,
+      q: intent.quantity,
+      p: (intent.customUnitPrice ?? event.unit_price) * intent.quantity,
+    }],
+    eventAnswerIds: singleEventAnswerIds(event.id, intent.answerIds),
+  });
+
 /** Input for building checkout metadata (all checkouts use items array) */
 type MetadataIntent = {
   name: string;
@@ -117,6 +136,17 @@ type MetadataIntent = {
   items: BookingItem[];
   eventAnswerIds?: Record<string, number[]>;
 };
+
+/**
+ * Build multi-event checkout metadata from a CartIntent.
+ */
+export const buildItemsMetadata = (
+  intent: CartIntent,
+): Record<string, string> =>
+  buildMetadata({
+    ...intent,
+    items: toBookingItems(intent.items),
+  });
 
 /**
  * Build checkout session metadata. All checkouts (single or multiple events)

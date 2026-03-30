@@ -31,7 +31,7 @@ import {
   type ProcessedPayment,
   reserveSession,
 } from "#lib/db/processed-payments.ts";
-import { saveAttendeeAnswers } from "#lib/db/questions.ts";
+import { saveEventAnswers } from "#lib/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   type BookingItem,
@@ -546,14 +546,8 @@ const processPaymentSession = async (
     return { success: false, error, refunded };
   }
 
-  // Save per-event question answers for each attendee
   if (intent.eventAnswerIds) {
-    for (const { attendee, event } of createdAttendees) {
-      const answers = intent.eventAnswerIds[String(event.id)];
-      if (answers && answers.length > 0) {
-        await saveAttendeeAnswers([attendee.id], answers);
-      }
-    }
+    await saveEventAnswers(createdAttendees, intent.eventAnswerIds);
   }
 
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)

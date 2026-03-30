@@ -21,15 +21,14 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 import {
-  buildMetadata,
-  singleEventAnswerIds,
-  toBookingItems,
+  buildItemsMetadata,
+  buildSingleItemMetadata,
   createWithClient,
   errorMessage,
   PaymentUserError,
 } from "#lib/payment-helpers.ts";
 import type {
-  MultiRegistrationIntent,
+  CartIntent,
   RegistrationIntent,
   WebhookEvent,
   WebhookVerifyResult,
@@ -612,8 +611,8 @@ export const squareApi: {
     intent: RegistrationIntent,
     baseUrl: string,
   ) => Promise<PaymentLinkResult>;
-  createMultiPaymentLink: (
-    intent: MultiRegistrationIntent,
+  createCartPaymentLink: (
+    intent: CartIntent,
     baseUrl: string,
   ) => Promise<PaymentLinkResult>;
   retrieveOrder: (orderId: string) => Promise<SquareOrder | null>;
@@ -699,15 +698,7 @@ export const squareApi: {
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
-      buildMetadata({
-        ...intent,
-        items: [{
-          e: event.id,
-          q: intent.quantity,
-          p: (intent.customUnitPrice ?? event.unit_price) * intent.quantity,
-        }],
-        eventAnswerIds: singleEventAnswerIds(event.id, intent.answerIds),
-      }),
+      buildSingleItemMetadata(event, intent),
       `payment link for event=${event.id} qty=${intent.quantity}`,
     );
     if (!prep) return null;
@@ -736,21 +727,18 @@ export const squareApi: {
   },
 
   /** Create a payment link for multi-event registration */
-  createMultiPaymentLink: async (
-    intent: MultiRegistrationIntent,
+  createCartPaymentLink: async (
+    intent: CartIntent,
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
-      buildMetadata({
-        ...intent,
-        items: toBookingItems(intent.items),
-      }),
+      buildItemsMetadata(intent),
       `multi payment link for ${intent.items.length} events`,
     );
     if (!prep) return null;
 
     const lineItems: SquareLineItem[] = map(
-      (item: MultiRegistrationIntent["items"][number]) => ({
+      (item: CartIntent["items"][number]) => ({
         name: `Ticket: ${item.name}`,
         quantity: String(item.quantity),
         note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
@@ -854,8 +842,8 @@ export const resetSquareClient = () => squareApi.resetSquareClient();
 export const testSquareConnection = () => squareApi.testSquareConnection();
 export const createPaymentLink = (e: Event, i: RegistrationIntent, b: string) =>
   squareApi.createPaymentLink(e, i, b);
-export const createMultiPaymentLink = (i: MultiRegistrationIntent, b: string) =>
-  squareApi.createMultiPaymentLink(i, b);
+export const createCartPaymentLink = (i: CartIntent, b: string) =>
+  squareApi.createCartPaymentLink(i, b);
 export const retrieveOrder = (id: string) => squareApi.retrieveOrder(id);
 export const retrievePayment = (id: string) => squareApi.retrievePayment(id);
 export const refundPayment = (id: string) => squareApi.refundPayment(id);
