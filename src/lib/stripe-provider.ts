@@ -12,23 +12,20 @@ import {
 } from "#lib/payment-helpers.ts";
 import {
   isPaymentStatus,
-  type MultiRegistrationIntent,
+  type CheckoutIntent,
   type PaymentProvider,
-  type RegistrationIntent,
   type ValidatedPaymentSession,
   type WebhookEvent,
   type WebhookVerifyResult,
 } from "#lib/payments.ts";
 import {
-  createCheckoutSessionWithIntent,
-  createMultiCheckoutSession,
+  createCheckoutSession,
   retrieveCheckoutSession,
   retrievePaymentIntent,
   setupWebhookEndpoint,
   refundPayment as stripeRefund,
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
-import type { Event } from "#lib/types.ts";
 
 /** Convert a Stripe checkout session to a CheckoutResult */
 const stripeCheckoutResult = (
@@ -41,24 +38,8 @@ export const stripePaymentProvider: PaymentProvider = {
 
   checkoutCompletedEventType: "checkout.session.completed",
 
-  async createCheckoutSession(
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ) {
-    const session = await createCheckoutSessionWithIntent(
-      event,
-      intent,
-      baseUrl,
-    );
-    return stripeCheckoutResult(session);
-  },
-
-  async createMultiCheckoutSession(
-    intent: MultiRegistrationIntent,
-    baseUrl: string,
-  ) {
-    const session = await createMultiCheckoutSession(intent, baseUrl);
+  async createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
+    const session = await createCheckoutSession(intent, baseUrl);
     return stripeCheckoutResult(session);
   },
 

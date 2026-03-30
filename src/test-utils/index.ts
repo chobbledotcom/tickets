@@ -1801,18 +1801,22 @@ export const webhookMeta = (
   metadata: Partial<SessionMetadata> & { name: string },
 ): SessionMetadata => ({
   _origin: "localhost",
-  event_id: "",
   email: "",
   phone: "",
   address: "",
   special_instructions: "",
-  quantity: "",
-  multi: "",
   items: "",
   date: "",
   answer_ids: "",
   ...metadata,
 });
+
+/** Build items metadata for a single-event checkout in tests */
+export const singleItem = (
+  eventId: number,
+  quantity: number,
+  price: number,
+): string => JSON.stringify([{ e: eventId, q: quantity, p: price }]);
 
 /**
  * Create a mock webhook POST request.

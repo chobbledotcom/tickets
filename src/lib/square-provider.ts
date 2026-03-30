@@ -21,22 +21,19 @@ import {
 } from "#lib/payment-helpers.ts";
 import type {
   CheckoutSessionResult,
-  MultiRegistrationIntent,
+  CheckoutIntent,
   PaymentProvider,
-  RegistrationIntent,
   ValidatedPaymentSession,
   WebhookEvent,
   WebhookSetupResult,
 } from "#lib/payments.ts";
 import {
-  createMultiPaymentLink,
   createPaymentLink,
   refundPayment,
   retrieveOrder,
   retrievePayment,
   verifyWebhookSignature,
 } from "#lib/square.ts";
-import type { Event } from "#lib/types.ts";
 
 /** Wrap a checkout operation, converting PaymentUserError to { error } result */
 const withUserError = async <T extends { orderId: string; url: string }>(
@@ -57,16 +54,8 @@ export const squarePaymentProvider: PaymentProvider = {
 
   checkoutCompletedEventType: "payment.updated",
 
-  createCheckoutSession(
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ) {
-    return withUserError(() => createPaymentLink(event, intent, baseUrl));
-  },
-
-  createMultiCheckoutSession(intent: MultiRegistrationIntent, baseUrl: string) {
-    return withUserError(() => createMultiPaymentLink(intent, baseUrl));
+  createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
+    return withUserError(() => createPaymentLink(intent, baseUrl));
   },
 
   async retrieveSession(

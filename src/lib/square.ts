@@ -21,20 +21,17 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 import {
-  buildCartMetadata,
-  buildSingleIntentMetadata,
+  buildItemsMetadata,
   createWithClient,
   errorMessage,
   PaymentUserError,
 } from "#lib/payment-helpers.ts";
 import type {
-  MultiRegistrationIntent,
-  RegistrationIntent,
+  CheckoutIntent,
   WebhookEvent,
   WebhookVerifyResult,
 } from "#lib/payments.ts";
 import { normalizePhone } from "#lib/phone.ts";
-import type { Event } from "#lib/types.ts";
 
 /**
  * Square order metadata constraints (from Square API docs):
@@ -607,12 +604,7 @@ export const squareApi: {
   resetSquareClient: () => void;
   testSquareConnection: () => Promise<SquareConnectionTestResult>;
   createPaymentLink: (
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ) => Promise<PaymentLinkResult>;
-  createMultiPaymentLink: (
-    intent: MultiRegistrationIntent,
+    intent: CheckoutIntent,
     baseUrl: string,
   ) => Promise<PaymentLinkResult>;
   retrieveOrder: (orderId: string) => Promise<SquareOrder | null>;
@@ -691,54 +683,19 @@ export const squareApi: {
     return result;
   },
 
-  /** Create a payment link for a single-event purchase */
+  /** Create a payment link for one or more events */
   createPaymentLink: async (
-    event: Event,
-    intent: RegistrationIntent,
+    intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
-      buildSingleIntentMetadata(event.id, intent),
-      `payment link for event=${event.id} qty=${intent.quantity}`,
-    );
-    if (!prep) return null;
-
-    const unitPrice = intent.customUnitPrice ?? event.unit_price;
-    const lineItems: SquareLineItem[] = [
-      {
-        name: `Ticket: ${event.name}`,
-        quantity: String(intent.quantity),
-        note: intent.quantity > 1 ? `${intent.quantity} Tickets` : "Ticket",
-        basePriceMoney: {
-          amount: BigInt(unitPrice),
-          currency: prep.config.currency,
-        },
-      },
-    ];
-
-    return submitPaymentLink(
-      prep,
-      lineItems,
-      unitPrice * intent.quantity,
-      intent,
-      baseUrl,
-      "Payment link",
-    );
-  },
-
-  /** Create a payment link for multi-event registration */
-  createMultiPaymentLink: async (
-    intent: MultiRegistrationIntent,
-    baseUrl: string,
-  ): Promise<PaymentLinkResult> => {
-    const prep = await preparePaymentLink(
-      buildCartMetadata(intent),
-      `multi payment link for ${intent.items.length} events`,
+      buildItemsMetadata(intent),
+      `payment link for ${intent.items.length} event(s)`,
     );
     if (!prep) return null;
 
     const lineItems: SquareLineItem[] = map(
-      (item: MultiRegistrationIntent["items"][number]) => ({
+      (item: CheckoutIntent["items"][number]) => ({
         name: `Ticket: ${item.name}`,
         quantity: String(item.quantity),
         note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
@@ -755,7 +712,7 @@ export const squareApi: {
       itemsSubtotal(intent.items),
       intent,
       baseUrl,
-      "Multi payment link",
+      "Payment link",
     );
   },
 
@@ -840,10 +797,8 @@ export const squareApi: {
 export const getSquareClient = () => squareApi.getSquareClient();
 export const resetSquareClient = () => squareApi.resetSquareClient();
 export const testSquareConnection = () => squareApi.testSquareConnection();
-export const createPaymentLink = (e: Event, i: RegistrationIntent, b: string) =>
-  squareApi.createPaymentLink(e, i, b);
-export const createMultiPaymentLink = (i: MultiRegistrationIntent, b: string) =>
-  squareApi.createMultiPaymentLink(i, b);
+export const createPaymentLink = (i: CheckoutIntent, b: string) =>
+  squareApi.createPaymentLink(i, b);
 export const retrieveOrder = (id: string) => squareApi.retrieveOrder(id);
 export const retrievePayment = (id: string) => squareApi.retrievePayment(id);
 export const refundPayment = (id: string) => squareApi.refundPayment(id);
