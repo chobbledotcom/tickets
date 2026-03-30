@@ -315,10 +315,7 @@ describeWithEnv(
             },
           ],
         };
-        const result = await createCheckoutSession(
-          intent,
-          "http://localhost",
-        );
+        const result = await createCheckoutSession(intent, "http://localhost");
         expect(result).toBeNull();
       });
 
@@ -357,10 +354,7 @@ describeWithEnv(
             ],
           };
 
-          await createCheckoutSession(
-            intent,
-            "http://localhost:3000",
-          );
+          await createCheckoutSession(intent, "http://localhost:3000");
 
           const params = createSpy.calls[0]!.args[0] as unknown as {
             line_items: {

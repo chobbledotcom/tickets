@@ -42,15 +42,6 @@ import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import type {
-  BookingIntent,
-  EventPriceValidation,
-  EventValidation,
-  PaymentFailureResult,
-  PaymentResult,
-  SessionValidation,
-  ValidatedSession,
-} from "#routes/webhook-types.ts";
 import { parseTokens } from "#routes/token-utils.ts";
 import {
   formatCreationError,
@@ -62,6 +53,15 @@ import {
   plainResponse,
   redirectResponse,
 } from "#routes/utils.ts";
+import type {
+  BookingIntent,
+  EventPriceValidation,
+  EventValidation,
+  PaymentFailureResult,
+  PaymentResult,
+  SessionValidation,
+  ValidatedSession,
+} from "#routes/webhook-types.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 
 /** User-facing message when the event price changed between checkout and payment */
@@ -74,7 +74,7 @@ const PRICE_CHANGED_MESSAGE =
 const parseEventAnswerIds = (
   json: string,
 ): Record<string, number[]> | undefined =>
-  json ? JSON.parse(json) as Record<string, number[]> : undefined;
+  json ? (JSON.parse(json) as Record<string, number[]>) : undefined;
 
 /** Wrap handler with session ID extraction */
 const withSessionId =
@@ -328,9 +328,7 @@ const alreadyProcessedResult = async (
  * JSON is unparseable or the array is empty — a corrupt item (e.g. missing
  * field) throws so the bug surfaces immediately.
  */
-const isBookingItem = (
-  item: unknown,
-): item is BookingItem =>
+const isBookingItem = (item: unknown): item is BookingItem =>
   typeof item === "object" &&
   item !== null &&
   "e" in item &&
@@ -558,9 +556,7 @@ const processPaymentSession = async (
 /**
  * Format error message based on refund status
  */
-const formatPaymentError = (
-  result: PaymentFailureResult,
-): string => {
+const formatPaymentError = (result: PaymentFailureResult): string => {
   if (result.refunded === true) {
     return `${result.error} Your payment has been automatically refunded.`;
   }

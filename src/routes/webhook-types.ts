@@ -2,10 +2,7 @@
  * Types for webhook route handlers (payment callbacks and provider webhooks)
  */
 
-import type {
-  BookingIntent,
-  ValidatedPaymentSession,
-} from "#lib/payments.ts";
+import type { BookingIntent, ValidatedPaymentSession } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 
 export type { BookingIntent };

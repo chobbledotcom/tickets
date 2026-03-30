@@ -57,13 +57,15 @@ export const processBooking = async (
       {
         ...contact,
         date,
-        items: [{
-          eventId: event.id,
-          quantity,
-          unitPrice,
-          slug: event.slug,
-          name: event.name,
-        }],
+        items: [
+          {
+            eventId: event.id,
+            quantity,
+            unitPrice,
+            slug: event.slug,
+            name: event.name,
+          },
+        ],
         eventAnswerIds: singleEventAnswerIds(event.id, answerIds),
       },
       baseUrl,
