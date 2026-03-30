@@ -8,7 +8,7 @@ import { encrypt } from "#lib/crypto/encryption.ts";
 import { computeTicketTokenIndex, hmacHash } from "#lib/crypto/hashing.ts";
 import { encryptAttendeePII } from "#lib/crypto/keys.ts";
 import { generateTicketToken } from "#lib/crypto/utils.ts";
-import { executeBatch, queryAll } from "#lib/db/client.ts";
+import { executeBatch, getDb, queryAll } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
@@ -264,6 +264,13 @@ export const createSeeds = async (
       totalAttendees += batchSize;
     }
   }
+
+  // Backfill event_attendees from newly created attendees
+  await getDb().execute(
+    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, date, quantity)
+     SELECT event_id, id, date, quantity FROM attendees
+     WHERE id NOT IN (SELECT attendee_id FROM event_attendees WHERE attendee_id IS NOT NULL)`,
+  );
 
   invalidateEventsCache();
 

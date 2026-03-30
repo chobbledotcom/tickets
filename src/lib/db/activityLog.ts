@@ -100,9 +100,9 @@ export const getEventWithActivityLog = async (
 ): Promise<EventWithActivityLog | null> => {
   const results = await queryBatch([
     {
-      sql: `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+      sql: `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
             FROM events e
-            LEFT JOIN attendees a ON e.id = a.event_id
+            LEFT JOIN event_attendees ea ON e.id = ea.event_id
             WHERE e.id = ?
             GROUP BY e.id`,
       args: [eventId],

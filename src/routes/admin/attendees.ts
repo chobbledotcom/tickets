@@ -5,6 +5,7 @@
 import { compact, filter, uniqueBy } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
+  ATTENDEE_JOIN_SELECT,
   createAttendeeAtomic,
   decryptAttendeeOrNull,
   deleteAttendee,
@@ -350,7 +351,10 @@ const loadAttendeeForEdit = async (
 } | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>(
-    "SELECT * FROM attendees WHERE id = ?",
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id = ?`,
     [attendeeId],
   );
   if (!attendeeRaw) return null;

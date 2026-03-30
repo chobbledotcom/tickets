@@ -120,9 +120,9 @@ const queryGroupEvents = async (
     ? "e.active = 1 AND e.group_id = ?"
     : "e.group_id = ?";
   const rows = await queryAll<EventWithCount>(
-    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+    `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
      FROM events e
-     LEFT JOIN attendees a ON e.id = a.event_id
+     LEFT JOIN event_attendees ea ON e.id = ea.event_id
      WHERE ${where}
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
@@ -170,9 +170,9 @@ export const validateGroupEventType = async (
  */
 export const getUngroupedEvents = async (): Promise<EventWithCount[]> => {
   const rows = await queryAll<EventWithCount>(
-    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+    `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
      FROM events e
-     LEFT JOIN attendees a ON e.id = a.event_id
+     LEFT JOIN event_attendees ea ON e.id = ea.event_id
      WHERE e.group_id = 0
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,

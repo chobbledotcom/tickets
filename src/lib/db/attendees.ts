@@ -24,6 +24,7 @@ import type {
 } from "#lib/db/attendee-types.ts";
 import {
   executeBatch,
+  executeBatchWithResults,
   getDb,
   inPlaceholders,
   queryAll,
@@ -128,12 +129,26 @@ const decryptAttendeeFields = async (
 };
 
 /**
+ * Attendee columns excluding event_id, date, quantity (which come from event_attendees).
+ * Avoids column name conflicts when JOINing with event_attendees.
+ */
+const ATTENDEE_COLS =
+  "a.id, a.name, a.email, a.created, a.payment_id, a.phone, a.ticket_token, a.price_paid, a.checked_in, a.address, a.special_instructions, a.ticket_token_index, a.refunded, a.attachment_downloads, a.pii_blob, a.checked_in_v2, a.refunded_v2, a.price_paid_v2";
+
+/** SELECT clause for attendee + event_attendees JOINs */
+export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ea.event_id, ea.date, ea.quantity`;
+
+/**
  * Get attendees for an event without decrypting PII
  * Used for tests and operations that don't need decrypted data
  */
 export const getAttendeesRaw = (eventId: number): Promise<Attendee[]> =>
   queryAll<Attendee>(
-    "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE ea.event_id = ?
+     ORDER BY a.created DESC`,
     [eventId],
   );
 
@@ -142,9 +157,13 @@ export const getAttendeesRaw = (eventId: number): Promise<Attendee[]> =>
  * Used for the admin dashboard to show recent registrations.
  */
 export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
-  queryAll<Attendee>("SELECT * FROM attendees ORDER BY created DESC LIMIT ?", [
-    limit,
-  ]);
+  queryAll<Attendee>(
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN event_attendees ea ON ea.attendee_id = a.id
+     ORDER BY a.created DESC LIMIT ?`,
+    [limit],
+  );
 
 /**
  * Get aggregated statistics for active events.
@@ -166,7 +185,9 @@ export const getActiveEventStats = async (
   )(active);
 
   const rows = await queryAll<{ price_paid_v2: number }>(
-    `SELECT price_paid_v2 FROM attendees WHERE event_id IN (${inPlaceholders(activeIds)})`,
+    `SELECT a.price_paid_v2 FROM attendees a
+     JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
     activeIds,
   );
   const income = reduce(
@@ -270,7 +291,13 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
  * Returns the attendee with encrypted fields (id, event_id, quantity are plaintext)
  */
 export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
-  return queryOne<Attendee>("SELECT * FROM attendees WHERE id = ?", [id]);
+  return queryOne<Attendee>(
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id = ?`,
+    [id],
+  );
 };
 
 /**
@@ -296,6 +323,10 @@ export const deleteAttendee = async (attendeeId: number): Promise<void> => {
       sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
       args: [attendeeId],
     },
+    {
+      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
+      args: [attendeeId],
+    },
     { sql: "DELETE FROM attendees WHERE id = ?", args: [attendeeId] },
   ]);
   invalidateEventsCache();
@@ -307,7 +338,7 @@ export const getDateAttendeeCount = async (
   date: string,
 ): Promise<number> => {
   const rows = await queryAll<{ count: number }>(
-    "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ? AND date = ?",
+    "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND date = ?",
     [eventId, date],
   );
   return rows[0]!.count;
@@ -331,11 +362,11 @@ const getGroupAttendeeCount = async (
   date: string | null,
 ): Promise<number> => {
   const rows = await queryAll<{ count: number }>(
-    `SELECT COALESCE(SUM(a.quantity), 0) as count
-     FROM attendees a
-     JOIN events e ON e.id = a.event_id
+    `SELECT COALESCE(SUM(ea.quantity), 0) as count
+     FROM event_attendees ea
+     JOIN events e ON e.id = ea.event_id
      WHERE e.group_id = ?
-       AND (? IS NULL OR e.event_type != 'daily' OR a.date = ?)`,
+       AND (? IS NULL OR e.event_type != 'daily' OR ea.date = ?)`,
     [groupId, date, date],
   );
   return rows[0]!.count;
@@ -361,11 +392,11 @@ export const attendeesApi = {
       group_id: number;
     }>(
       `SELECT e.id, e.max_attendees,
-              COALESCE(SUM(a.quantity), 0) as current_count,
+              COALESCE(SUM(ea.quantity), 0) as current_count,
               e.group_id
             FROM events e
-            LEFT JOIN attendees a ON a.event_id = e.id
-              AND (e.event_type != 'daily' OR a.date = ?)
+            LEFT JOIN event_attendees ea ON ea.event_id = e.id
+              AND (e.event_type != 'daily' OR ea.date = ?)
             WHERE e.id IN (${inPlaceholders(eventIds)})
             GROUP BY e.id`,
       [date ?? null, ...eventIds],
@@ -426,8 +457,9 @@ export const attendeesApi = {
     return true;
   },
   /**
-   * Atomically create attendee with capacity check in single SQL statement.
-   * Prevents race conditions by combining check and insert.
+   * Atomically create attendee with capacity check.
+   * Two-phase: first wins the race by inserting into event_attendees with
+   * a capacity check, then creates the attendee record and links it back.
    */
   createAttendeeAtomic: async (
     input: AttendeeInput,
@@ -457,8 +489,8 @@ export const attendeesApi = {
 
     // For daily events with a date, check capacity per-date; otherwise check total
     const capacityFilter = date
-      ? "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ? AND date = ?"
-      : "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?";
+      ? "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ? AND ea2.date = ?"
+      : "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?";
     const capacityArgs = date ? [eventId, date] : [eventId];
 
     // Group capacity check via single CASE expression — one event+group lookup.
@@ -470,11 +502,11 @@ export const attendeesApi = {
                 WHEN ev.group_id = 0 THEN 1
                 WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
                 WHEN (
-                  SELECT COALESCE(SUM(a2.quantity), 0)
-                  FROM attendees a2
-                  JOIN events e2 ON e2.id = a2.event_id
+                  SELECT COALESCE(SUM(ea3.quantity), 0)
+                  FROM event_attendees ea3
+                  JOIN events e2 ON e2.id = ea3.event_id
                   WHERE e2.group_id = ev.group_id
-                    AND (? IS NULL OR e2.event_type != 'daily' OR a2.date = ?)
+                    AND (? IS NULL OR e2.event_type != 'daily' OR ea3.date = ?)
                 ) + ? <= g.max_attendees THEN 1
                 ELSE 0
               END
@@ -489,10 +521,10 @@ export const attendeesApi = {
       eventId, // event lookup
     ];
 
-    // Atomic check-and-insert: only inserts if capacity allows
-    const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, created, quantity, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
-            SELECT ?, '', '', ?, ?, ?, ?, ?, ?, ?, ?
+    // Phase 1: Win the race — atomic capacity check + event_attendees insert
+    const raceResult = await getDb().execute({
+      sql: `INSERT INTO event_attendees (event_id, date, quantity)
+            SELECT ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -500,14 +532,8 @@ export const attendeesApi = {
             )${groupCapacityCheck}`,
       args: [
         eventId,
-        enc.created,
-        qty,
-        enc.ticketTokenIndex,
         date,
-        enc.encryptedPiiBlob,
-        0,
-        0,
-        pricePaid,
+        qty,
         ...capacityArgs,
         qty,
         eventId,
@@ -515,15 +541,40 @@ export const attendeesApi = {
       ],
     });
 
-    if (insertResult.rowsAffected === 0) {
+    if (raceResult.rowsAffected === 0) {
       return { success: false, reason: "capacity_exceeded" };
     }
+
+    const eventAttendeeId = Number(raceResult.lastInsertRowid);
+
+    // Phase 2: Create attendee record + link back to event_attendees
+    const batchResults = await executeBatchWithResults([
+      {
+        sql: `INSERT INTO attendees (event_id, name, email, created, quantity, ticket_token_index, date, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
+              VALUES (?, '', '', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          eventId,
+          enc.created,
+          qty,
+          enc.ticketTokenIndex,
+          date,
+          enc.encryptedPiiBlob,
+          0,
+          0,
+          pricePaid,
+        ],
+      },
+      {
+        sql: "UPDATE event_attendees SET attendee_id = last_insert_rowid() WHERE id = ?",
+        args: [eventAttendeeId],
+      },
+    ]);
 
     invalidateEventsCache();
     return {
       success: true,
       attendee: buildAttendeeResult({
-        insertId: insertResult.lastInsertRowid,
+        insertId: batchResults[0]!.lastInsertRowid,
         eventId,
         name,
         email,
@@ -571,7 +622,10 @@ export const getAttendeesByTokens = async (
   );
 
   const rows = await queryAll<Attendee>(
-    `SELECT * FROM attendees WHERE ticket_token_index IN (${inPlaceholders(tokenIndexes)})`,
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE a.ticket_token_index IN (${inPlaceholders(tokenIndexes)})`,
     tokenIndexes,
   );
 
@@ -643,10 +697,16 @@ export const updateAttendee = async (
     settings.publicKey,
   );
 
-  await getDb().execute({
-    sql: "UPDATE attendees SET event_id = ?, quantity = ?, pii_blob = ? WHERE id = ?",
-    args: [input.event_id, input.quantity, encryptedPiiBlob, attendeeId],
-  });
+  await executeBatch([
+    {
+      sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
+      args: [encryptedPiiBlob, attendeeId],
+    },
+    {
+      sql: "UPDATE event_attendees SET event_id = ?, quantity = ? WHERE attendee_id = ?",
+      args: [input.event_id, input.quantity, attendeeId],
+    },
+  ]);
   invalidateEventsCache();
 };
 

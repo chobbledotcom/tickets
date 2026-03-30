@@ -31,7 +31,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "add built_sites table";
+export const LATEST_UPDATE = "add event_attendees table";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -171,6 +171,34 @@ const SCHEMA: [name: string, table: Table][] = [
           name: "idx_attendees_ticket_token_index",
           columns: ["ticket_token_index"],
           unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    "event_attendees",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["event_id", "INTEGER NOT NULL"],
+        ["attendee_id", "INTEGER"],
+        ["date", "TEXT DEFAULT NULL"],
+        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+      ],
+      foreignKeys: [
+        "FOREIGN KEY (event_id) REFERENCES events(id)",
+        "FOREIGN KEY (attendee_id) REFERENCES attendees(id)",
+      ],
+      indexes: [
+        {
+          name: "idx_event_attendees_event_attendee_date",
+          columns: ["event_id", "attendee_id", "date"],
+          unique: true,
+        },
+        {
+          name: "idx_event_attendees_attendee_event",
+          columns: ["attendee_id", "event_id"],
         },
       ],
     },
@@ -453,7 +481,14 @@ export const initDb = async (): Promise<void> => {
     }
   }
 
-  // 4. Update version marker and schema hash
+  // 4. Backfill event_attendees from existing attendees data (idempotent)
+  await runMigration(
+    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, date, quantity)
+     SELECT event_id, id, date, quantity FROM attendees
+     WHERE id NOT IN (SELECT attendee_id FROM event_attendees WHERE attendee_id IS NOT NULL)`,
+  );
+
+  // 5. Update version marker and schema hash
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],

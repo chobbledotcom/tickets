@@ -6,6 +6,7 @@ import type { ResultSet } from "@libsql/client";
 import { filter as fpFilter } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
+import { ATTENDEE_JOIN_SELECT } from "#lib/db/attendees.ts";
 import {
   executeBatch,
   getDb,
@@ -212,6 +213,7 @@ export const deleteEvent = async (eventId: number): Promise<void> => {
       sql: "DELETE FROM processed_payments WHERE attendee_id IN (SELECT id FROM attendees WHERE event_id = ?)",
       args: [eventId],
     },
+    { sql: "DELETE FROM event_attendees WHERE event_id = ?", args: [eventId] },
     { sql: "DELETE FROM attendees WHERE event_id = ?", args: [eventId] },
     { sql: "DELETE FROM activity_log WHERE event_id = ?", args: [eventId] },
     { sql: "DELETE FROM events WHERE id = ?", args: [eventId] },
@@ -248,9 +250,9 @@ const queryEventsWithCounts = async (
   whereClause = "",
 ): Promise<EventWithCount[]> => {
   const rows = await queryAll<EventWithCount>(
-    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+    `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
      FROM events e
-     LEFT JOIN attendees a ON e.id = a.event_id
+     LEFT JOIN event_attendees ea ON e.id = ea.event_id
      ${whereClause}
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
@@ -310,7 +312,11 @@ export const getEventWithAttendeesRaw = async (
   const [eventResult, attendeesResult] = await queryBatch([
     { sql: "SELECT * FROM events WHERE id = ?", args: [id] },
     {
-      sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
+      sql: `SELECT ${ATTENDEE_JOIN_SELECT}
+            FROM attendees a
+            JOIN event_attendees ea ON ea.attendee_id = a.id
+            WHERE ea.event_id = ?
+            ORDER BY a.created DESC`,
       args: [id],
     },
   ]);
@@ -350,10 +356,10 @@ export const getAllStandardEvents = (): Promise<EventWithCount[]> =>
  */
 export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
   const rows = await queryAll<{ date: string }>(
-    `SELECT DISTINCT a.date FROM attendees a
-     INNER JOIN events e ON a.event_id = e.id
-     WHERE e.event_type = 'daily' AND a.date IS NOT NULL
-     ORDER BY a.date`,
+    `SELECT DISTINCT ea.date FROM event_attendees ea
+     INNER JOIN events e ON ea.event_id = e.id
+     WHERE e.event_type = 'daily' AND ea.date IS NOT NULL
+     ORDER BY ea.date`,
   );
   return rows.map((r) => r.date);
 };
@@ -366,10 +372,12 @@ export const getDailyEventAttendeesByDate = (
   date: string,
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
-    `SELECT a.* FROM attendees a
-          INNER JOIN events e ON a.event_id = e.id
-          WHERE e.event_type = 'daily' AND a.date = ?
-          ORDER BY a.created DESC`,
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN event_attendees ea ON ea.attendee_id = a.id
+     JOIN events e ON ea.event_id = e.id
+     WHERE e.event_type = 'daily' AND ea.date = ?
+     ORDER BY a.created DESC`,
     [date],
   );
 
@@ -382,7 +390,11 @@ export const getAttendeesByEventIds = (
   eventIds: number[],
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
-    `SELECT * FROM attendees WHERE event_id IN (${inPlaceholders(eventIds)}) ORDER BY created DESC`,
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE ea.event_id IN (${inPlaceholders(eventIds)})
+     ORDER BY a.created DESC`,
     eventIds,
   );
 
@@ -403,9 +415,15 @@ export const getEventWithAttendeeRaw = async (
 ): Promise<EventWithAttendeeRaw | null> => {
   const [eventResult, attendeeResult, countResult] = await queryBatch([
     { sql: "SELECT * FROM events WHERE id = ?", args: [eventId] },
-    { sql: "SELECT * FROM attendees WHERE id = ?", args: [attendeeId] },
     {
-      sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ?",
+      sql: `SELECT ${ATTENDEE_JOIN_SELECT}
+            FROM attendees a
+            JOIN event_attendees ea ON ea.attendee_id = a.id
+            WHERE a.id = ?`,
+      args: [attendeeId],
+    },
+    {
+      sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
       args: [eventId],
     },
   ]);

@@ -82,7 +82,7 @@ const insertLegacyAttendee = async (
     ? await encryptAttendeePII("true", pubKey)
     : await encryptAttendeePII("false", pubKey);
   const encToken = await encryptAttendeePII("tok_legacy", pubKey);
-  await getDb().execute({
+  const result = await getDb().execute({
     sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, created, quantity)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1)`,
     args: [
@@ -98,6 +98,11 @@ const insertLegacyAttendee = async (
       encRefunded,
       encToken,
     ],
+  });
+  // Also insert into event_attendees join table
+  await getDb().execute({
+    sql: "INSERT INTO event_attendees (event_id, attendee_id, quantity) VALUES (?, ?, 1)",
+    args: [eventId, Number(result.lastInsertRowid)],
   });
 };
 
@@ -244,10 +249,14 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
         t: "tok_old",
       });
       const encrypted = await encryptAttendeePII(blobWithoutVersion, pubKey);
-      await getDb().execute({
+      const insertResult = await getDb().execute({
         sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, pii_blob, checked_in_v2, refunded_v2, price_paid_v2, created, quantity)
               VALUES (?, '', '', '', '', '', '', '', '', '', '', ?, 0, 0, 0, datetime('now'), 1)`,
         args: [event.id, encrypted],
+      });
+      await getDb().execute({
+        sql: "INSERT INTO event_attendees (event_id, attendee_id, quantity) VALUES (?, ?, 1)",
+        args: [event.id, Number(insertResult.lastInsertRowid)],
       });
 
       const privateKey = await getTestPrivateKey();
