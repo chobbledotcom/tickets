@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { createBackupZip } from "#lib/db/backup.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import { handleRequest } from "#routes";
 import {
@@ -12,6 +13,7 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  getTestSession,
   mockFormRequest,
   mockRequest,
   withLocalStorageEnabled,
@@ -95,6 +97,104 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         expect(response.status).toBe(404);
       });
     });
+
+    test("downloads existing backup as zip", async () => {
+      await withLocalStorageEnabled(async () => {
+        // Create a backup first
+        await adminFormPost("/admin/backup/create");
+
+        // List backups from the page
+        const { response: listResp } = await adminGet("/admin/backup");
+        const html = await listResp.text();
+        const linkMatch = html.match(
+          /\/admin\/backup\/download\/(backup-[^"]+\.zip)/,
+        );
+        expect(linkMatch).toBeTruthy();
+
+        // Download it
+        const { response } = await adminGet(
+          `/admin/backup/download/${linkMatch![1]}`,
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toBe("application/zip");
+        expect(response.headers.get("content-disposition")).toContain(".zip");
+        const body = await response.arrayBuffer();
+        expect(body.byteLength).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe("POST /admin/backup/restore", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/backup/restore", {}),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("shows confirm page after uploading valid zip", async () => {
+      await withLocalStorageEnabled(async () => {
+        const zipData = await createBackupZip();
+        const { cookie, csrfToken } = await getTestSession();
+        const formData = new FormData();
+        formData.append("csrf_token", csrfToken);
+        formData.append(
+          "backup_file",
+          new File([zipData.buffer as ArrayBuffer], "backup.zip"),
+        );
+        const response = await handleRequest(
+          new Request("http://localhost/admin/backup/restore", {
+            method: "POST",
+            headers: { cookie, host: "localhost" },
+            body: formData,
+          }),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Confirm Database Restore");
+        expect(html).toContain("SQL statements");
+      });
+    });
+
+    test("rejects empty file upload", async () => {
+      await withLocalStorageEnabled(async () => {
+        const { cookie, csrfToken } = await getTestSession();
+        const formData = new FormData();
+        formData.append("csrf_token", csrfToken);
+        formData.append(
+          "backup_file",
+          new File([], "empty.zip"),
+        );
+        const response = await handleRequest(
+          new Request("http://localhost/admin/backup/restore", {
+            method: "POST",
+            headers: { cookie, host: "localhost" },
+            body: formData,
+          }),
+        );
+        expect(response.status).toBe(302);
+      });
+    });
+
+    test("rejects invalid zip file", async () => {
+      await withLocalStorageEnabled(async () => {
+        const { cookie, csrfToken } = await getTestSession();
+        const formData = new FormData();
+        formData.append("csrf_token", csrfToken);
+        formData.append(
+          "backup_file",
+          new File([new ArrayBuffer(100)], "bad.zip"),
+        );
+        const response = await handleRequest(
+          new Request("http://localhost/admin/backup/restore", {
+            method: "POST",
+            headers: { cookie, host: "localhost" },
+            body: formData,
+          }),
+        );
+        expect(response.status).toBe(302);
+      });
+    });
   });
 
   describe("POST /admin/backup/restore/confirm", () => {
@@ -121,6 +221,17 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         "/admin/backup/restore/confirm",
         {
           backup_filename: "restore-pending-test.sql",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      expectRedirectWithFlash("/admin/backup")(response);
+    });
+
+    test("rejects empty filename", async () => {
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "",
           confirm_identifier: RESTORE_CONFIRM_PHRASE,
         },
       );
