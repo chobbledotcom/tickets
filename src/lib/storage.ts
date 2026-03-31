@@ -426,12 +426,15 @@ export const listFiles = async (prefix: string): Promise<string[]> => {
     }
     return files.sort();
   }
-  const sz = connectZone();
-  const items = await BunnyStorageSDK.file.list(sz, "/");
+  const { zoneName, zoneKey } = getStorageConfig();
+  const url = `https://storage.bunnycdn.com/${zoneName}/`;
+  const response = await fetch(url, {
+    headers: { AccessKey: zoneKey },
+  });
+  const items = (await response.json()) as Array<Record<string, unknown>>;
   const files: string[] = [];
   for (const item of items) {
-    const record = item as unknown as Record<string, unknown>;
-    const name = String(record["ObjectName"] ?? "");
+    const name = String(item["ObjectName"] ?? "");
     if (name.startsWith(prefix)) files.push(name);
   }
   return files.sort();

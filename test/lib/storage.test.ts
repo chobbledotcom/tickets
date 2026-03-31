@@ -584,24 +584,6 @@ describeWithEnv(
         // Only listFiles is a wholly new Bunny codepath that needs direct testing.
 
         test("listFiles lists files from Bunny CDN matching prefix", async () => {
-          const mockFile = (name: string) => ({
-            ObjectName: name,
-            ContentType: "application/octet-stream",
-            Length: 100,
-            LastChanged: "2024-01-01T00:00:00Z",
-            IsDirectory: false,
-            ServerId: 0,
-            ArrayNumber: 0,
-            Guid: crypto.randomUUID(),
-            StorageZoneName: "testzone",
-            Path: "/",
-            ReplicatedZones: "",
-            DateCreated: "2024-01-01T00:00:00Z",
-            StorageZoneId: 0,
-            Checksum: "",
-            UserId: "",
-          });
-
           await runWithStorageConfig(
             { zoneName: "testzone", zoneKey: "testkey" },
             () =>
@@ -611,9 +593,9 @@ describeWithEnv(
                     return Promise.resolve(
                       new Response(
                         JSON.stringify([
-                          mockFile("backup-2024.zip"),
-                          mockFile("backup-2025.zip"),
-                          mockFile("other-file.txt"),
+                          { ObjectName: "backup-2024.zip" },
+                          { ObjectName: "backup-2025.zip" },
+                          { ObjectName: "other-file.txt" },
                         ]),
                         { status: 200 },
                       ),
