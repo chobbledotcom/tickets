@@ -189,6 +189,29 @@ describeWithEnv(
           expect(files).toEqual([]);
         });
       });
+
+      test("listFiles returns empty array when directory does not exist", async () => {
+        await runWithStorageConfig(
+          {
+            zoneName: "",
+            zoneKey: "",
+            localPath: "/tmp/nonexistent-dir-" + crypto.randomUUID(),
+          },
+          async () => {
+            const files = await listFiles("backup-");
+            expect(files).toEqual([]);
+          },
+        );
+      });
+
+      test("listFiles skips directory entries", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          await uploadRaw(new Uint8Array(0), "backup-a.zip");
+          await Deno.mkdir(`${dir}/backup-subdir`);
+          const files = await listFiles("backup-");
+          expect(files).toEqual(["backup-a.zip"]);
+        });
+      });
     });
 
     describe("getImageProxyUrl", () => {
