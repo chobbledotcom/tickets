@@ -501,7 +501,14 @@ const processPaymentSession = async (
       phone: intent.phone,
       address: intent.address,
       special_instructions: intent.special_instructions,
-      bookings: [{ eventId: item.e, quantity: item.q, pricePaid, date: event.event_type === "daily" ? intent.date : null }],
+      bookings: [
+        {
+          eventId: item.e,
+          quantity: item.q,
+          pricePaid,
+          date: event.event_type === "daily" ? intent.date : null,
+        },
+      ],
     });
 
     if (!result.success) {

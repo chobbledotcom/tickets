@@ -1434,13 +1434,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: inactiveEvent.id,
         name: "John Doe",
         email: "john@example.com",
-        quantity: 1,
+        bookings: [{ eventId: inactiveEvent.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -1453,13 +1452,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John Doe",
         email: "john@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
@@ -1479,16 +1477,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John Doe",
         email: "john@example.com",
         phone: "555-1234",
         address: "123 Main St",
         special_instructions: "VIP",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
@@ -1837,12 +1834,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Create attendee with price_paid using createAttendeeAtomic
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Jane Paid",
         email: "jane@example.com",
-        quantity: 1,
-        pricePaid: 1000,
         paymentId: "pi_test",
+        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
 
       if (!result.success) {
@@ -1850,7 +1845,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       }
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${result.attendee.id}/resend-notification`,
+        `/admin/event/${event.id}/attendee/${result.attendees[0]!.id}/resend-notification`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -1979,16 +1974,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Paid User",
         email: "paid@example.com",
-        quantity: 1,
-        pricePaid: 1000,
         paymentId: "pi_test_123",
+        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const response = await awaitTestRequest(
-        `/admin/attendees/${result.attendee.id}`,
+        `/admin/attendees/${result.attendees[0]!.id}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -2010,17 +2003,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "#lib/db/attendees.ts"
       );
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Refunded User",
         email: "refunded@example.com",
-        quantity: 1,
-        pricePaid: 1000,
         paymentId: "pi_refunded_123",
+        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      await markRefunded(result.attendee.id, event.id);
+      await markRefunded(result.attendees[0]!.id, event.id);
       const response = await awaitTestRequest(
-        `/admin/attendees/${result.attendee.id}`,
+        `/admin/attendees/${result.attendees[0]!.id}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Refunded");

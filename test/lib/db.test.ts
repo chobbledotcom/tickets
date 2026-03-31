@@ -1161,6 +1161,19 @@ describeWithEnv("db", { db: true }, () => {
       }
     });
 
+    test("createAttendeeAtomic fails with empty bookings", async () => {
+      const result = await createAttendeeAtomic({
+        name: "Nobody",
+        email: "nobody@example.com",
+        bookings: [],
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.reason).toBe("capacity_exceeded");
+      }
+    });
+
     test("createAttendeeAtomic fails when encryption key not configured", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -2311,7 +2324,9 @@ describeWithEnv("db", { db: true }, () => {
       const result = await reserveSession("sess_dup");
       expect(result.reserved).toBe(false);
       if (!result.reserved) {
-        expect(result.existing.attendee_id).toBe(attendeeResult.attendees[0]!.id);
+        expect(result.existing.attendee_id).toBe(
+          attendeeResult.attendees[0]!.id,
+        );
       }
     });
 

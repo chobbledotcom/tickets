@@ -6,6 +6,7 @@
  * - Decryption requires the private key (only available to authenticated sessions)
  */
 
+import type { InValue } from "@libsql/client";
 import { filter, map, reduce } from "#fp";
 import { computeTicketTokenIndex } from "#lib/crypto/hashing.ts";
 import { decryptAttendeePII, encryptAttendeePII } from "#lib/crypto/keys.ts";
@@ -20,7 +21,6 @@ import type {
   EncryptInput,
   UpdateAttendeeInput,
 } from "#lib/db/attendee-types.ts";
-import type { InValue } from "@libsql/client";
 import {
   executeBatch,
   executeBatchWithResults,
@@ -46,6 +46,7 @@ export type {
   CreateAttendeeResult,
   UpdateAttendeeInput,
 } from "#lib/db/attendee-types.ts";
+
 import type { EventBooking } from "#lib/db/attendee-types.ts";
 
 /** Current PII blob schema version */
@@ -407,9 +408,7 @@ const buildCapacityCheckedInsert = (
   const capacityFilter = date
     ? "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ? AND ea2.start_at < ? AND ea2.end_at > ?"
     : "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?";
-  const capacityArgs: InValue[] = date
-    ? [eventId, endAt, startAt]
-    : [eventId];
+  const capacityArgs: InValue[] = date ? [eventId, endAt, startAt] : [eventId];
 
   const groupCapacityCheck = `
           AND (
