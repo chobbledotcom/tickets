@@ -33,6 +33,9 @@ export function getEnv(key: string): string | undefined {
  * Get a required environment variable, throwing if not set.
  * Use this instead of `getEnv(key) as string` when the variable must exist.
  */
+/** Check if the system is in read-only mode (READ_ONLY env var) */
+export const isReadOnly = (): boolean => getEnv("READ_ONLY") === "true";
+
 export function requireEnv(key: string): string {
   const value = getEnv(key);
   if (value === undefined) {

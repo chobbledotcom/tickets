@@ -12,6 +12,7 @@ import {
 } from "#lib/cookies.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { settings } from "#lib/db/settings.ts";
+import { isReadOnly } from "#lib/env.ts";
 import {
   hasFlash,
   runWithFlashContext,
@@ -42,6 +43,8 @@ import { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
+  htmlResponse,
+  jsonResponse,
   normalizePath,
   notFoundResponse,
   parseCookies,
@@ -51,6 +54,7 @@ import {
   temporaryErrorResponse,
   withCookie,
 } from "#routes/utils.ts";
+import { readOnlyPage } from "#templates/public.tsx";
 
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;
@@ -205,6 +209,57 @@ const lazyRoute =
   async (request, path, method, server) =>
     (await load())(request, path, method, server);
 
+/** Read-only mode message */
+const READ_ONLY_MESSAGE = "This site is in read-only mode";
+
+/** Paths that should redirect to /read-only when visited via GET in read-only mode */
+const READ_ONLY_GET_PATTERNS = [
+  /^\/admin\/event\/new$/,
+  /^\/admin\/event\/\d+\/edit$/,
+  /^\/admin\/event\/\d+\/duplicate$/,
+  /^\/admin\/groups\/new$/,
+  /^\/admin\/groups\/\d+\/edit$/,
+];
+
+/** Paths that should be blocked when POSTed in read-only mode */
+const READ_ONLY_POST_PATTERNS = [
+  /^\/ticket\//,
+  /^\/admin\/event$/,
+  /^\/admin\/event\/\d+\/edit$/,
+  /^\/admin\/groups$/,
+  /^\/admin\/groups\/\d+\/edit$/,
+  /^\/admin\/event\/\d+\/attendee$/,
+];
+
+/**
+ * Guard that blocks mutating requests in read-only mode.
+ * Returns a response to send, or null to allow the request through.
+ */
+const readOnlyGuard = (path: string, method: string): Response | null => {
+  if (!isReadOnly()) return null;
+
+  // Block all JSON API mutations (POST/PUT/DELETE on /api/*)
+  if (path.startsWith("/api/") && method !== "GET" && method !== "OPTIONS") {
+    return jsonResponse({ error: true, message: READ_ONLY_MESSAGE }, 403);
+  }
+
+  // Block GET pages for create/edit forms
+  if (method === "GET") {
+    for (const pattern of READ_ONLY_GET_PATTERNS) {
+      if (pattern.test(path)) return redirectResponse("/read-only");
+    }
+  }
+
+  // Block form POSTs for create/edit actions
+  if (method === "POST") {
+    for (const pattern of READ_ONLY_POST_PATTERNS) {
+      if (pattern.test(path)) return redirectResponse("/read-only");
+    }
+  }
+
+  return null;
+};
+
 /** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */
 const prefixHandlers: Record<string, RouterFn> = {
   // Exact-match public pages
@@ -242,6 +297,10 @@ const prefixHandlers: Record<string, RouterFn> = {
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   v1: lazyRoute(loadWalletWebserviceRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
+  "read-only": (_request, path, method) =>
+    path === "/read-only" && method === "GET"
+      ? Promise.resolve(htmlResponse(readOnlyPage()))
+      : Promise.resolve(null),
   api: async (request, path, method, server) => {
     // Admin API is always available (auth-protected)
     const adminResult = await (await loadAdminApiRoutes())(
@@ -263,6 +322,9 @@ const prefixHandlers: Record<string, RouterFn> = {
  * Uses prefix dispatch for O(1) route group lookup instead of sequential matching
  */
 const routeMainApp: RouterFn = async (request, path, method, server) => {
+  const blocked = readOnlyGuard(path, method);
+  if (blocked) return blocked;
+
   const prefix = getPrefix(path);
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
   return (

@@ -6,6 +6,7 @@ import { filter, joinStrings, map, pipe, reduce } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { ActiveEventStats } from "#lib/db/attendees.ts";
+import { isReadOnly } from "#lib/env.ts";
 import { renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
@@ -187,9 +188,11 @@ export const adminDashboardPage = (
 
       {imageError && <p class="error">{imageError}</p>}
 
-      <p>
-        <a href="/admin/event/new">Add Event</a>
-      </p>
+      {!isReadOnly() && (
+        <p>
+          <a href="/admin/event/new">Add Event</a>
+        </p>
+      )}
 
       <div class="table-scroll">
         <table>
