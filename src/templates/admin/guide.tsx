@@ -1074,11 +1074,10 @@ export const adminGuidePage = (
           <p>
             <strong>Owners</strong> have full access: events, calendar, groups,
             questions, holidays, users, site pages, settings, API keys,
-            sessions, built sites, and the activity log.{" "}
-            <strong>Managers</strong> can manage events, view the calendar,
-            manage groups, and view the activity log. They cannot change
-            settings, manage users, manage questions or holidays, create API
-            keys, edit site pages, or view sessions.
+            sessions, and the activity log. <strong>Managers</strong> can manage
+            events, view the calendar, manage groups, and view the activity log.
+            They cannot change settings, manage users, manage questions or
+            holidays, create API keys, edit site pages, or view sessions.
           </p>
         </Q>
 
