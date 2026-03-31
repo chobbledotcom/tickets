@@ -90,7 +90,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
   describe("GET /admin/backup/download/:filename", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockRequest("/admin/backup/download/backup-test.zip"),
+        mockRequest("/admin/backup/download/backup-local-test.zip"),
       );
       expectAdminRedirect(response);
     });
@@ -105,7 +105,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("returns 404 for missing file", async () => {
       await withLocalStorageEnabled(async () => {
         const { response } = await adminGet(
-          "/admin/backup/download/backup-2024-test.zip",
+          "/admin/backup/download/backup-local-2024-test.zip",
         );
         expect(response.status).toBe(404);
       });

@@ -8,6 +8,7 @@ import {
   countZipStatements,
   createBackup,
   createBackupZip,
+  dbName,
   exportTable,
   isRemoteDatabase,
   readManifest,
@@ -101,10 +102,58 @@ describeWithEnv("backup", { db: true }, () => {
     });
   });
 
+  describe("dbName", () => {
+    test("returns 'local' for in-memory databases", () => {
+      expect(dbName()).toBe("local");
+    });
+
+    test("extracts name from libsql:// URL", () => {
+      const restore = setTestEnv({
+        DB_URL:
+          "libsql://01KFXBFGMADR58XZ2PBX7HCB5Y-tickets-spencer.lite.bunnydb.net/",
+      });
+      try {
+        expect(dbName()).toBe("tickets-spencer");
+      } finally {
+        restore();
+      }
+    });
+
+    test("extracts name from https:// URL", () => {
+      const restore = setTestEnv({
+        DB_URL: "https://abc123-my-site.turso.io",
+      });
+      try {
+        expect(dbName()).toBe("my-site");
+      } finally {
+        restore();
+      }
+    });
+
+    test("returns full hostname segment when no dash", () => {
+      const restore = setTestEnv({ DB_URL: "libsql://standalone.turso.io" });
+      try {
+        expect(dbName()).toBe("standalone");
+      } finally {
+        restore();
+      }
+    });
+
+    test("returns 'local' for invalid URLs", () => {
+      const restore = setTestEnv({ DB_URL: "not-a-url" });
+      try {
+        expect(dbName()).toBe("local");
+      } finally {
+        restore();
+      }
+    });
+  });
+
   describe("backupFilename / backupTimestamp", () => {
-    test("creates filename with .zip extension", () => {
+    test("creates filename with db name and .zip extension", () => {
+      // In test env, DB_URL is :memory: so dbName() returns "local"
       expect(backupFilename("2024-01-15T12-30-00-000Z")).toBe(
-        "backup-2024-01-15T12-30-00-000Z.zip",
+        "backup-local-2024-01-15T12-30-00-000Z.zip",
       );
     });
 

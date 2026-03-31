@@ -12,6 +12,7 @@ import {
   backupTimestamp,
   countZipStatements,
   createBackupZip,
+  dbName,
   isRemoteDatabase,
   readManifest,
   restoreFromZip,
@@ -44,20 +45,22 @@ import {
   RESTORE_CONFIRM_PHRASE,
 } from "#templates/admin/backup.tsx";
 
-const BACKUP_PREFIX = "backup-";
 const RESTORE_PENDING_PREFIX = "restore-pending-";
+
+/** Build the prefix for listing backups scoped to the current DB */
+const backupPrefix = (): string => `backup-${dbName()}-`;
 
 /** Parse a backup filename into display info */
 const parseBackupEntry = (filename: string): BackupEntry => {
-  // Format: backup-2024-01-15T12-30-00-000Z.zip
-  const withoutPrefix = filename.slice(BACKUP_PREFIX.length);
+  // Format: backup-{dbname}-2024-01-15T12-30-00-000Z.zip
+  const withoutPrefix = filename.slice(backupPrefix().length);
   const timestamp = withoutPrefix.replace(/\.zip$/, "");
   return { filename, timestamp };
 };
 
-/** List existing backups from storage */
+/** List existing backups from storage scoped to the current DB */
 const listBackups = async (): Promise<BackupEntry[]> => {
-  const files = await listFiles(BACKUP_PREFIX);
+  const files = await listFiles(backupPrefix());
   return files.filter((f) => f.endsWith(".zip")).map(parseBackupEntry);
 };
 
@@ -102,7 +105,7 @@ const handleBackupDownload: TypedRouteHandler<
   "GET /admin/backup/download/:filename"
 > = (request, { filename }) =>
   requireOwnerOr(request, async () => {
-    if (!filename.startsWith(BACKUP_PREFIX) || !filename.endsWith(".zip")) {
+    if (!filename.startsWith(backupPrefix()) || !filename.endsWith(".zip")) {
       return htmlResponse("Invalid backup filename", 400);
     }
 

@@ -73,6 +73,27 @@ export const isRemoteDatabase = (): boolean => {
   return url.startsWith("libsql://") || url.startsWith("https://");
 };
 
+/**
+ * Extract a short database name from DB_URL for use in backup filenames.
+ * e.g. "libsql://01KFXB...-tickets-spencer.lite.bunnydb.net/" → "tickets-spencer"
+ * Falls back to "local" for non-remote or unparseable URLs.
+ */
+export const dbName = (): string => {
+  const url = getEnv("DB_URL") ?? "";
+  try {
+    // Strip protocol, get hostname: "01KFXB...-tickets-spencer.lite.bunnydb.net"
+    const host = new URL(url).hostname;
+    // Split on dots, take first segment: "01KFXB...-tickets-spencer"
+    const first = host.split(".")[0] ?? "";
+    // Drop the leading ID chunk (everything before the first hyphen-letter pair)
+    const dashIdx = first.indexOf("-");
+    if (dashIdx === -1) return first || "local";
+    return first.slice(dashIdx + 1) || "local";
+  } catch {
+    return "local";
+  }
+};
+
 // ─── Backup ─────────────────────────────────────────────────────
 
 /** Export a single table as INSERT statements (deterministic row order) */
@@ -107,9 +128,9 @@ export const createBackup = async (): Promise<TableBackup[]> => {
   return backups;
 };
 
-/** Generate a timestamped backup filename */
+/** Generate a timestamped backup filename scoped to the current DB */
 export const backupFilename = (timestamp: string): string =>
-  `backup-${timestamp}.zip`;
+  `backup-${dbName()}-${timestamp}.zip`;
 
 /** Generate a timestamp string for backup filenames */
 export const backupTimestamp = (): string =>
