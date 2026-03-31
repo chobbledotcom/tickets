@@ -619,6 +619,7 @@ describeWithEnv(
                           { ObjectName: "backup-2024.zip" },
                           { ObjectName: "backup-2025.zip" },
                           { ObjectName: "other-file.txt" },
+                          {},
                         ]),
                         { status: 200 },
                       ),
