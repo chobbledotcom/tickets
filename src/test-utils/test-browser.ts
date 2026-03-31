@@ -270,6 +270,23 @@ export class TestBrowser {
     await this.visit(link.href);
   }
 
+  /** Find a form by button text and extract its action + hidden fields */
+  private findForm(buttonText?: string): {
+    action: string;
+    body: string;
+    hiddenFields: Record<string, string>;
+  } {
+    const forms = findForms(this.currentHtml);
+    const form = buttonText
+      ? findFormByButton(forms, buttonText)
+      : (forms[0] ?? throwNoForm());
+    return {
+      action: form.action,
+      body: form.body,
+      hiddenFields: extractHiddenInputs(form.body),
+    };
+  }
+
   /**
    * Submit a form by providing field data and identifying the form by its submit button text.
    * Auto-includes CSRF token and any hidden fields found in the form.
@@ -280,15 +297,7 @@ export class TestBrowser {
     data: Record<string, string | string[]>,
     buttonText?: string,
   ): Promise<void> {
-    const forms = findForms(this.currentHtml);
-
-    // Find the form containing the button text
-    const form = buttonText
-      ? findFormByButton(forms, buttonText)
-      : (forms[0] ?? throwNoForm());
-
-    // Collect hidden fields (includes csrf_token)
-    const hiddenFields = extractHiddenInputs(form.body);
+    const { action, body, hiddenFields } = this.findForm(buttonText);
 
     // Build the form body as URLSearchParams
     const params = new URLSearchParams();
@@ -310,7 +319,7 @@ export class TestBrowser {
         }
       } else if (value === "__ALL_CHECKBOXES__") {
         // Auto-select all checkbox values for this field
-        const values = extractCheckboxValues(form.body, key);
+        const values = extractCheckboxValues(body, key);
         for (const v of values) {
           params.append(key, v);
         }
@@ -319,7 +328,7 @@ export class TestBrowser {
       }
     }
 
-    await this.request(form.action, {
+    await this.request(action, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: params.toString(),
@@ -380,31 +389,21 @@ export class TestBrowser {
     data: Record<string, string> = {},
     buttonText?: string,
   ): Promise<void> {
-    const forms = findForms(this.currentHtml);
-    const form = buttonText
-      ? findFormByButton(forms, buttonText)
-      : (forms[0] ?? throwNoForm());
-
-    const hiddenFields = extractHiddenInputs(form.body);
+    const { action, hiddenFields } = this.findForm(buttonText);
     const formData = new FormData();
 
-    // Add hidden fields (includes csrf_token)
     for (const [key, value] of Object.entries(hiddenFields)) {
       formData.append(key, value);
     }
-
-    // Add user-provided text fields
     for (const [key, value] of Object.entries(data)) {
       formData.append(key, value);
     }
-
-    // Add the file
     formData.append(
       fileField,
       new File([fileData.buffer as ArrayBuffer], fileName),
     );
 
-    await this.request(form.action, {
+    await this.request(action, {
       method: "POST",
       body: formData,
     });
