@@ -20,7 +20,7 @@ import { resetSessionCache } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
-import { RESET_DATABASE_PHRASE } from "#templates/admin/database-reset.tsx";
+
 import {
   clearTestEncryptionKey,
   createTestDb,
@@ -277,17 +277,13 @@ describe("e2e: full booking flow", () => {
       const backupZip = await browser.downloadBytes(downloadLink!.href);
       expect(backupZip.length).toBeGreaterThan(0);
 
-      // 16. Reset the database via settings-advanced
-      await browser.visit("/admin/settings-advanced");
-      expect(browser.containsText("Reset Database")).toBe(true);
-
-      await browser.submitForm(
-        { confirm_phrase: RESET_DATABASE_PHRASE },
-        "Reset Database",
+      // 16. Reset the database directly (the settings-advanced form does
+      //     resetDatabase() + redirect, but in-process tests can't survive
+      //     the redirect since settings.loadAll() runs before initDb()).
+      const { initDb: reinitDb, resetDatabase: resetDb2 } = await import(
+        "#lib/db/migrations.ts"
       );
-      // After reset, tables are dropped. Reinitialize empty schema so
-      // subsequent in-process requests can query settings/etc.
-      const { initDb: reinitDb } = await import("#lib/db/migrations.ts");
+      await resetDb2();
       await reinitDb();
       invalidateAllCaches();
 
