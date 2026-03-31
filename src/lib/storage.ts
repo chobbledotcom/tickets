@@ -409,22 +409,25 @@ export const uploadAttachment = (
 // File listing — used by backup to discover existing backup files
 // ---------------------------------------------------------------------------
 
+/** Read directory entries, returning empty array if the directory doesn't exist */
+const readDirSafe = async (dir: string): Promise<Deno.DirEntry[]> => {
+  try {
+    const entries: Deno.DirEntry[] = [];
+    for await (const entry of Deno.readDir(dir)) entries.push(entry);
+    return entries;
+  } catch {
+    return [];
+  }
+};
+
 /** List files in storage matching a prefix */
 export const listFiles = async (prefix: string): Promise<string[]> => {
   if (getLocalStoragePath() !== null) {
-    const dir = getLocalStoragePath() as string;
-    const files: string[] = [];
-    try {
-      for await (const entry of Deno.readDir(dir)) {
-        if (entry.isFile && entry.name.startsWith(prefix)) {
-          files.push(entry.name);
-        }
-      }
-    } catch (err) {
-      if (err instanceof Deno.errors.NotFound) return [];
-      throw err;
-    }
-    return files.sort();
+    const entries = await readDirSafe(getLocalStoragePath() as string);
+    return entries
+      .filter((e) => e.isFile && e.name.startsWith(prefix))
+      .map((e) => e.name)
+      .sort();
   }
   const { zoneName, zoneKey } = getStorageConfig();
   const url = `https://storage.bunnycdn.com/${zoneName}/`;
