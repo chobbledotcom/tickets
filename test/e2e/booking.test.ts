@@ -13,9 +13,14 @@
 
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { RESET_DATABASE_PHRASE } from "#templates/admin/database-reset.tsx";
-import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
+import { invalidateEventsCache } from "#lib/db/events.ts";
+import { invalidateGroupsCache } from "#lib/db/groups.ts";
+import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
+import { resetSessionCache } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
+import { invalidateUsersCache } from "#lib/db/users.ts";
+import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
+import { RESET_DATABASE_PHRASE } from "#templates/admin/database-reset.tsx";
 import {
   clearTestEncryptionKey,
   createTestDb,
@@ -24,6 +29,16 @@ import {
   TestBrowser,
   withLocalStorageEnabled,
 } from "#test-utils";
+
+/** Invalidate all in-process caches after a destructive DB operation */
+const invalidateAllCaches = (): void => {
+  settings.invalidateCache();
+  invalidateUsersCache();
+  invalidateEventsCache();
+  invalidateGroupsCache();
+  invalidateHolidaysCache();
+  resetSessionCache();
+};
 
 describe("e2e: full booking flow", () => {
   let browser: TestBrowser;
@@ -60,7 +75,7 @@ describe("e2e: full booking flow", () => {
     // Invalidate settings cache so subsequent requests see the newly written keys.
     // In production this isn't needed since each HTTP request starts fresh,
     // but in-process tests share the settings singleton.
-    settings.invalidateCache();
+    invalidateAllCaches();
 
     // 3. Click through to admin dashboard
     await browser.clickLink("Go to Admin Dashboard");
@@ -271,7 +286,7 @@ describe("e2e: full booking flow", () => {
         "Reset Database",
       );
       // After reset, should redirect to setup page
-      settings.invalidateCache();
+      invalidateAllCaches();
 
       // 17. Verify the homepage shows setup (database is empty)
       await browser.visit("/");
@@ -289,7 +304,7 @@ describe("e2e: full booking flow", () => {
         "Complete Setup",
       );
       expect(browser.currentHtml).toContain("Setup Complete");
-      settings.invalidateCache();
+      invalidateAllCaches();
 
       // 19. Log in again
       await browser.clickLink("Go to Admin Dashboard");
@@ -323,7 +338,7 @@ describe("e2e: full booking flow", () => {
         "Restore Database",
       );
       expect(browser.containsText("Database restored successfully")).toBe(true);
-      settings.invalidateCache();
+      invalidateAllCaches();
 
       // 23. Log in again (restore wiped sessions)
       await browser.visit("/admin/");

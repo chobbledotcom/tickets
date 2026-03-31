@@ -12,7 +12,7 @@
 
 import { unzipSync, zipSync } from "fflate";
 import { map, pipe } from "#fp";
-import { executeBatch, queryAll } from "#lib/db/client.ts";
+import { executeBatch, getDb, queryAll } from "#lib/db/client.ts";
 import {
   initDb,
   LATEST_UPDATE,
@@ -177,6 +177,10 @@ export const countZipStatements = (zipData: Uint8Array): number => {
 export const restoreFromSql = async (sql: string): Promise<void> => {
   await resetDatabase();
   await initDb();
+
+  // initDb writes migration markers into settings; clear them so the
+  // backup's own settings rows don't collide on the PRIMARY KEY.
+  await getDb().execute("DELETE FROM settings");
 
   const statements = splitStatements(sql);
   if (statements.length === 0) return;
