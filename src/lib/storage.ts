@@ -241,20 +241,19 @@ const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
   );
 };
 
-/** Encrypt and upload bytes, routing to local or Bunny based on config */
-const encryptAndUpload = async (
+/** Upload raw bytes to storage, routing to local or Bunny based on config */
+export const uploadRaw = async (
   data: Uint8Array,
   filename: string,
 ): Promise<string> => {
-  const encrypted = await encryptBytes(data);
   if (getLocalStoragePath() !== null) {
-    await localWrite(encrypted, filename);
+    await localWrite(data, filename);
     return filename;
   }
   const sz = connectZone();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(encrypted);
+      controller.enqueue(data);
       controller.close();
     },
   });
@@ -263,6 +262,12 @@ const encryptAndUpload = async (
   });
   return filename;
 };
+
+/** Encrypt and upload bytes */
+const encryptAndUpload = async (
+  data: Uint8Array,
+  filename: string,
+): Promise<string> => uploadRaw(await encryptBytes(data), filename);
 
 /**
  * Upload an image to Bunny storage.
@@ -303,27 +308,33 @@ const collectStream = async (
 const isFileNotFound = (err: Error): boolean =>
   err.message.startsWith("File not found:");
 
+/** Download raw bytes from storage. Returns null if the file does not exist. */
+export const downloadRaw = async (
+  filename: string,
+): Promise<Uint8Array | null> => {
+  if (getLocalStoragePath() !== null) {
+    return localRead(filename);
+  }
+  try {
+    const sz = connectZone();
+    const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
+    return collectStream(stream as ReadableStream<Uint8Array>);
+  } catch (err) {
+    if (isFileNotFound(err as Error)) return null;
+    throw err;
+  }
+};
+
 /**
- * Download and decrypt a file, routing to local or Bunny based on config.
+ * Download and decrypt a file.
  * Returns the decrypted bytes, or null if the file does not exist.
  */
 export const downloadImage = async (
   filename: string,
 ): Promise<Uint8Array | null> => {
-  if (getLocalStoragePath() !== null) {
-    const encrypted = await localRead(filename);
-    if (encrypted === null) return null;
-    return decryptBytes(encrypted);
-  }
-  try {
-    const sz = connectZone();
-    const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
-    const encrypted = await collectStream(stream as ReadableStream<Uint8Array>);
-    return decryptBytes(encrypted);
-  } catch (err) {
-    if (isFileNotFound(err as Error)) return null;
-    throw err;
-  }
+  const encrypted = await downloadRaw(filename);
+  if (encrypted === null) return null;
+  return decryptBytes(encrypted);
 };
 
 /**
@@ -395,50 +406,11 @@ export const uploadAttachment = (
 ): Promise<string> => encryptAndUpload(data, filename);
 
 // ---------------------------------------------------------------------------
-// Raw (unencrypted) storage — for backups where field-level encryption suffices
+// File listing — used by backup to discover existing backup files
 // ---------------------------------------------------------------------------
 
-/** Upload raw bytes without encryption */
-export const uploadRaw = async (
-  data: Uint8Array,
-  filename: string,
-): Promise<string> => {
-  if (getLocalStoragePath() !== null) {
-    await localWrite(data, filename);
-    return filename;
-  }
-  const sz = connectZone();
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(data);
-      controller.close();
-    },
-  });
-  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream as never, {
-    contentType: "application/octet-stream",
-  });
-  return filename;
-};
-
-/** Download raw bytes without decryption */
-export const downloadRaw = async (
-  filename: string,
-): Promise<Uint8Array | null> => {
-  if (getLocalStoragePath() !== null) {
-    return localRead(filename);
-  }
-  try {
-    const sz = connectZone();
-    const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
-    return collectStream(stream as ReadableStream<Uint8Array>);
-  } catch (err) {
-    if (isFileNotFound(err as Error)) return null;
-    throw err;
-  }
-};
-
-/** List files in storage matching a prefix (local backend only lists directory) */
-export const listRawFiles = async (prefix: string): Promise<string[]> => {
+/** List files in storage matching a prefix */
+export const listFiles = async (prefix: string): Promise<string[]> => {
   if (getLocalStoragePath() !== null) {
     const dir = getLocalStoragePath() as string;
     const files: string[] = [];

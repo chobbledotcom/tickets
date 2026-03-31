@@ -1,7 +1,7 @@
 /**
  * Admin backup/restore routes — owner only
  *
- * Provides database backup (export to .sql) and restore (import from .sql)
+ * Provides database backup (export to .zip) and restore (import from .zip)
  * functionality for remote databases. Backups are stored unencrypted on CDN
  * storage since the sensitive data is already encrypted at the field level.
  */
@@ -10,16 +10,17 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import {
   backupFilename,
   backupTimestamp,
-  createBackup,
+  countZipStatements,
+  createBackupZip,
   isRemoteDatabase,
-  restoreFromSql,
+  restoreFromZip,
 } from "#lib/db/backup.ts";
 import { getEncryptionKeyString } from "#lib/crypto/encryption.ts";
 import {
   deleteFile,
   downloadRaw,
   isStorageEnabled,
-  listRawFiles,
+  listFiles,
   uploadRaw,
 } from "#lib/storage.ts";
 import { verifyOrRedirect } from "#routes/admin/utils.ts";
@@ -36,7 +37,7 @@ import {
 import {
   adminBackupPage,
   adminRestoreConfirmPage,
-  type BackupFile,
+  type BackupEntry,
   type BackupPageState,
   RESTORE_CONFIRM_PHRASE,
 } from "#templates/admin/backup.tsx";
@@ -44,20 +45,17 @@ import {
 const BACKUP_PREFIX = "backup-";
 
 /** Parse a backup filename into display info */
-const parseBackupFile = (filename: string): BackupFile => {
-  // Format: backup-2024-01-15T12-30-00-000Z-tablename.sql
+const parseBackupEntry = (filename: string): BackupEntry => {
+  // Format: backup-2024-01-15T12-30-00-000Z.zip
   const withoutPrefix = filename.slice(BACKUP_PREFIX.length);
-  const timestampEnd = withoutPrefix.indexOf("-", withoutPrefix.indexOf("Z"));
-  const timestamp = timestampEnd > 0
-    ? withoutPrefix.slice(0, timestampEnd)
-    : withoutPrefix.slice(0, withoutPrefix.lastIndexOf("-"));
+  const timestamp = withoutPrefix.replace(/\.zip$/, "");
   return { filename, timestamp };
 };
 
-/** List existing backups from storage, grouped by timestamp */
-const listBackups = async (): Promise<BackupFile[]> => {
-  const files = await listRawFiles(BACKUP_PREFIX);
-  return files.map(parseBackupFile);
+/** List existing backups from storage */
+const listBackups = async (): Promise<BackupEntry[]> => {
+  const files = await listFiles(BACKUP_PREFIX);
+  return files.filter((f) => f.endsWith(".zip")).map(parseBackupEntry);
 };
 
 /** Build page state */
@@ -83,21 +81,15 @@ const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> = (
   request,
 ) =>
   withAuth(request, OWNER_FORM, async () => {
-    const encoder = new TextEncoder();
     const timestamp = backupTimestamp();
-    const tables = await createBackup();
-    let fileCount = 0;
+    const zipData = await createBackupZip();
+    const filename = backupFilename(timestamp);
+    await uploadRaw(zipData, filename);
 
-    for (const { table, sql } of tables) {
-      const name = backupFilename(table, timestamp);
-      await uploadRaw(encoder.encode(sql), name);
-      fileCount++;
-    }
-
-    await logActivity(`Database backup created (${fileCount} tables)`);
+    await logActivity("Database backup created");
     return redirect(
       "/admin/backup",
-      `Backup created successfully (${fileCount} tables)`,
+      "Backup created successfully",
       true,
     );
   });
@@ -107,7 +99,7 @@ const handleBackupDownload: TypedRouteHandler<
   "GET /admin/backup/download/:filename"
 > = (request, { filename }) =>
   requireOwnerOr(request, async () => {
-    if (!filename.startsWith(BACKUP_PREFIX) || !filename.endsWith(".sql")) {
+    if (!filename.startsWith(BACKUP_PREFIX) || !filename.endsWith(".zip")) {
       return htmlResponse("Invalid backup filename", 400);
     }
 
@@ -116,13 +108,13 @@ const handleBackupDownload: TypedRouteHandler<
 
     return new Response(data.buffer as ArrayBuffer, {
       headers: {
-        "content-type": "application/sql",
+        "content-type": "application/zip",
         "content-disposition": `attachment; filename="${filename}"`,
       },
     });
   });
 
-/** POST /admin/backup/restore — upload a .sql file for review */
+/** POST /admin/backup/restore — upload a .zip file for review */
 const handleBackupRestore: TypedRouteHandler<"POST /admin/backup/restore"> = (
   request,
 ) =>
@@ -132,18 +124,25 @@ const handleBackupRestore: TypedRouteHandler<"POST /admin/backup/restore"> = (
       return redirect("/admin/backup", "Please select a backup file", false);
     }
 
-    const content = await file.text();
-    const lines = content
-      .split("\n")
-      .filter((l) => l.trim() !== "" && !l.trim().startsWith("--"));
+    const bytes = new Uint8Array(await file.arrayBuffer());
 
-    // Store the uploaded SQL temporarily so the confirm step can use it
-    const tempFilename = `restore-pending-${crypto.randomUUID()}.sql`;
-    const encoder = new TextEncoder();
-    await uploadRaw(encoder.encode(content), tempFilename);
+    let statementCount: number;
+    try {
+      statementCount = countZipStatements(bytes);
+    } catch {
+      return redirect(
+        "/admin/backup",
+        "Invalid backup file. Please upload a valid .zip backup.",
+        false,
+      );
+    }
+
+    // Store the uploaded zip temporarily so the confirm step can use it
+    const tempFilename = `restore-pending-${crypto.randomUUID()}.zip`;
+    await uploadRaw(bytes, tempFilename);
 
     return htmlResponse(
-      adminRestoreConfirmPage(session, tempFilename, lines.length),
+      adminRestoreConfirmPage(session, tempFilename, statementCount),
     );
   });
 
@@ -175,9 +174,7 @@ const handleBackupRestoreConfirm: TypedRouteHandler<
       );
     }
 
-    const decoder = new TextDecoder();
-    const sql = decoder.decode(data);
-    await restoreFromSql(sql);
+    await restoreFromZip(data);
 
     // Clean up the temp file (best effort)
     try {

@@ -1,13 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { unzipSync } from "fflate";
 import {
   backupFilename,
   backupTimestamp,
+  countZipStatements,
   createBackup,
+  createBackupZip,
   exportTable,
   isRemoteDatabase,
   listTables,
   restoreFromSql,
+  restoreFromZip,
 } from "#lib/db/backup.ts";
 import { queryAll, queryOne } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
@@ -89,10 +93,35 @@ describeWithEnv("backup", { db: true }, () => {
     });
   });
 
+  describe("createBackupZip", () => {
+    test("creates a valid zip with one .sql file per table", async () => {
+      await eventsTable.insert({
+        name: "Zip Test",
+        description: "test",
+        maxAttendees: 10,
+      });
+      const zipData = await createBackupZip();
+      const files = unzipSync(zipData);
+      expect(Object.keys(files)).toContain("events.sql");
+      expect(Object.keys(files)).toContain("settings.sql");
+      const decoder = new TextDecoder();
+      expect(decoder.decode(files["events.sql"]!)).toContain("Zip Test");
+    });
+
+    test("includes all tables in zip", async () => {
+      const zipData = await createBackupZip();
+      const files = unzipSync(zipData);
+      const tables = await listTables();
+      for (const table of tables) {
+        expect(Object.keys(files)).toContain(`${table}.sql`);
+      }
+    });
+  });
+
   describe("backupFilename", () => {
-    test("creates filename with timestamp and table name", () => {
-      const name = backupFilename("events", "2024-01-15T12-30-00-000Z");
-      expect(name).toBe("backup-2024-01-15T12-30-00-000Z-events.sql");
+    test("creates filename with timestamp and .zip extension", () => {
+      const name = backupFilename("2024-01-15T12-30-00-000Z");
+      expect(name).toBe("backup-2024-01-15T12-30-00-000Z.zip");
     });
   });
 
@@ -100,6 +129,20 @@ describeWithEnv("backup", { db: true }, () => {
     test("returns ISO-like timestamp with dashes", () => {
       const ts = backupTimestamp();
       expect(ts).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/);
+    });
+  });
+
+  describe("countZipStatements", () => {
+    test("counts SQL statements across all files in zip", async () => {
+      await eventsTable.insert({
+        name: "Count Test",
+        description: "",
+        maxAttendees: 5,
+      });
+      const zipData = await createBackupZip();
+      const count = countZipStatements(zipData);
+      // At least the settings rows + the event we inserted
+      expect(count).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -112,8 +155,6 @@ describeWithEnv("backup", { db: true }, () => {
       });
 
       const backup = await exportTable("events");
-
-      // Clear and restore
       await restoreFromSql(backup);
 
       const events = await queryAll<{ name: string }>(
@@ -155,9 +196,27 @@ describeWithEnv("backup", { db: true }, () => {
     });
   });
 
+  describe("restoreFromZip", () => {
+    test("round-trips backup and restore via zip", async () => {
+      await eventsTable.insert({
+        name: "Zip Restore Test",
+        description: "roundtrip",
+        maxAttendees: 25,
+      });
+
+      const zipData = await createBackupZip();
+      await restoreFromZip(zipData);
+
+      const events = await queryAll<{ name: string }>(
+        "SELECT name FROM events",
+      );
+      expect(events.length).toBe(1);
+      expect(events[0]!.name).toBe("Zip Restore Test");
+    });
+  });
+
   describe("isRemoteDatabase", () => {
     test("returns false for file: or :memory: URLs", () => {
-      // Test DB uses file: or :memory: URL, not libsql://
       expect(isRemoteDatabase()).toBe(false);
     });
   });

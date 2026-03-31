@@ -1,11 +1,12 @@
 /**
- * Database backup and restore — exports each table as SQL statements
- * and restores by dropping all tables and replaying SQL files.
+ * Database backup and restore — exports all tables as a single .zip archive
+ * containing one .sql file per table, and restores by replaying the SQL.
  *
  * Backups are stored unencrypted on the configured storage backend
  * (the sensitive data inside is already encrypted at the field level).
  */
 
+import { unzipSync, zipSync } from "fflate";
 import { map, pipe } from "#fp";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import { initDb, resetDatabase } from "#lib/db/migrations.ts";
@@ -85,12 +86,23 @@ export const createBackup = async (): Promise<TableBackup[]> => {
 };
 
 /** Generate a timestamped backup filename */
-export const backupFilename = (table: string, timestamp: string): string =>
-  `backup-${timestamp}-${table}.sql`;
+export const backupFilename = (timestamp: string): string =>
+  `backup-${timestamp}.zip`;
 
 /** Generate a timestamp string for backup filenames */
 export const backupTimestamp = (): string =>
   new Date().toISOString().replace(/[:.]/g, "-");
+
+/** Create a zip archive from table backups */
+export const createBackupZip = async (): Promise<Uint8Array> => {
+  const encoder = new TextEncoder();
+  const tables = await createBackup();
+  const files: Record<string, Uint8Array> = {};
+  for (const { table, sql } of tables) {
+    files[`${table}.sql`] = encoder.encode(sql);
+  }
+  return zipSync(files);
+};
 
 // ─── Restore ────────────────────────────────────────────────────
 
@@ -110,4 +122,34 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   for (const stmt of statements) {
     await db.execute(stmt);
   }
+};
+
+/** Count SQL statements across all files in a zip archive */
+export const countZipStatements = (zipData: Uint8Array): number => {
+  const files = unzipSync(zipData);
+  const decoder = new TextDecoder();
+  let count = 0;
+  for (const name of Object.keys(files)) {
+    if (!name.endsWith(".sql")) continue;
+    const content = decoder.decode(files[name]!);
+    count += content
+      .split("\n")
+      .filter((l) => l.trim() !== "" && !l.trim().startsWith("--")).length;
+  }
+  return count;
+};
+
+/**
+ * Restore the database from a zip archive.
+ * Each .sql file in the zip is concatenated and executed.
+ */
+export const restoreFromZip = async (zipData: Uint8Array): Promise<void> => {
+  const files = unzipSync(zipData);
+  const decoder = new TextDecoder();
+  const allSql: string[] = [];
+  for (const name of Object.keys(files).sort()) {
+    if (!name.endsWith(".sql")) continue;
+    allSql.push(decoder.decode(files[name]!));
+  }
+  await restoreFromSql(allSql.join("\n"));
 };

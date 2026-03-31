@@ -8,13 +8,13 @@ import type { AdminSession } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
-export type BackupFile = {
+export type BackupEntry = {
   filename: string;
   timestamp: string;
 };
 
 export type BackupPageState = {
-  backups: BackupFile[];
+  backups: BackupEntry[];
   encryptionKey: string;
   isRemote: boolean;
   storageEnabled: boolean;
@@ -67,8 +67,8 @@ export const adminBackupPage = (
           <section>
             <h2>Create Backup</h2>
             <p>
-              Creates a .sql file for each database table and stores it on CDN
-              storage. Backups are not encrypted (the sensitive contents are
+              Creates a .zip archive containing a .sql file for each database
+              table. Backups are not encrypted (the sensitive contents are
               already encrypted at the field level).
             </p>
             <CsrfForm action="/admin/backup/create" id="backup-create">
@@ -89,7 +89,6 @@ export const adminBackupPage = (
                   <thead>
                     <tr>
                       <th>Timestamp</th>
-                      <th>File</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -97,7 +96,6 @@ export const adminBackupPage = (
                     {state.backups.map((b) => (
                       <tr>
                         <td>{b.timestamp}</td>
-                        <td>{b.filename}</td>
                         <td>
                           <a href={`/admin/backup/download/${b.filename}`}>
                             Download
@@ -123,8 +121,8 @@ export const adminBackupPage = (
               enctype="multipart/form-data"
             >
               <label>
-                SQL backup file
-                <input type="file" name="backup_file" accept=".sql" required />
+                Backup file (.zip)
+                <input type="file" name="backup_file" accept=".zip" required />
               </label>
               <button type="submit">Upload &amp; Review</button>
             </CsrfForm>
@@ -150,7 +148,7 @@ export const adminRestoreConfirmPage = (
       {renderError(error)}
 
       <p>
-        You are about to restore from an uploaded file containing{" "}
+        You are about to restore from an uploaded backup containing{" "}
         <strong>{lineCount}</strong> SQL statements. This will:
       </p>
       <ul>

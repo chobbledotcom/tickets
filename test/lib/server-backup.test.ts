@@ -52,7 +52,6 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("shows storage not configured message when storage is disabled", async () => {
       const { response } = await adminGet("/admin/backup");
       const html = await response.text();
-      // No storage configured in test env by default
       expect(html).toContain("Storage is not configured");
     });
   });
@@ -88,7 +87,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
   describe("GET /admin/backup/download/:filename", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockRequest("/admin/backup/download/backup-test.sql"),
+        mockRequest("/admin/backup/download/backup-test.zip"),
       );
       expectAdminRedirect(response);
     });
@@ -109,7 +108,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         },
         async () => {
           const { response } = await adminGet(
-            "/admin/backup/download/backup-2024-test.sql",
+            "/admin/backup/download/backup-2024-test.zip",
           );
           expect(response.status).toBe(404);
         },
@@ -129,7 +128,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/backup/restore/confirm",
         {
-          backup_filename: "restore-pending-test.sql",
+          backup_filename: "restore-pending-test.zip",
           confirm_identifier: "WRONG PHRASE",
         },
       );
@@ -147,7 +146,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           const { response } = await adminFormPost(
             "/admin/backup/restore/confirm",
             {
-              backup_filename: "restore-pending-nonexistent.sql",
+              backup_filename: "restore-pending-nonexistent.zip",
               confirm_identifier: RESTORE_CONFIRM_PHRASE,
             },
           );

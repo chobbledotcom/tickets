@@ -79,21 +79,23 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       ...baseState,
       backups: [
         {
-          filename: "backup-2024-01-15T12-00-00-000Z-events.sql",
+          filename: "backup-2024-01-15T12-00-00-000Z.zip",
           timestamp: "2024-01-15T12-00-00-000Z",
         },
       ],
     });
-    expect(html).toContain("backup-2024-01-15T12-00-00-000Z-events.sql");
     expect(html).toContain("2024-01-15T12-00-00-000Z");
     expect(html).toContain("Download");
+    expect(html).toContain(
+      "/admin/backup/download/backup-2024-01-15T12-00-00-000Z.zip",
+    );
   });
 
-  test("renders restore form with file upload", () => {
+  test("renders restore form with file upload for .zip", () => {
     const html = adminBackupPage(mockSession, baseState);
     expect(html).toContain("Restore from Backup");
     expect(html).toContain('type="file"');
-    expect(html).toContain('accept=".sql"');
+    expect(html).toContain('accept=".zip"');
   });
 
   test("shows error message when provided", () => {
@@ -117,31 +119,31 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
     expect(html).toContain("success");
   });
 
-  test("restore confirm page shows line count", () => {
-    const html = adminRestoreConfirmPage(mockSession, "test.sql", 42);
+  test("restore confirm page shows statement count", () => {
+    const html = adminRestoreConfirmPage(mockSession, "test.zip", 42);
     expect(html).toContain("42");
     expect(html).toContain("SQL statements");
   });
 
   test("restore confirm page shows confirmation phrase", () => {
-    const html = adminRestoreConfirmPage(mockSession, "test.sql", 10);
+    const html = adminRestoreConfirmPage(mockSession, "test.zip", 10);
     expect(html).toContain(RESTORE_CONFIRM_PHRASE);
   });
 
   test("restore confirm page includes hidden backup filename", () => {
     const html = adminRestoreConfirmPage(
       mockSession,
-      "restore-pending-abc.sql",
+      "restore-pending-abc.zip",
       5,
     );
-    expect(html).toContain("restore-pending-abc.sql");
+    expect(html).toContain("restore-pending-abc.zip");
     expect(html).toContain('name="backup_filename"');
   });
 
   test("restore confirm page renders error when provided", () => {
     const html = adminRestoreConfirmPage(
       mockSession,
-      "test.sql",
+      "test.zip",
       10,
       "Phrase mismatch",
     );
