@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import { handleRequest } from "#routes";
-import { eventsTable } from "#lib/db/events.ts";
 import {
   adminFormPost,
   adminGet,
   awaitTestRequest,
+  createTestEvent,
   createTestManagerSession,
   describeWithEnv,
   expectAdminRedirect,
@@ -65,13 +65,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
     test("creates backup and redirects with success", async () => {
       await withLocalStorageEnabled(async () => {
-        await eventsTable.insert({
-          name: "Backup Test Event",
-          description: "test",
-          maxAttendees: 50,
-        });
+        await createTestEvent({ name: "Backup Test Event" });
         const { response } = await adminFormPost("/admin/backup/create");
-        expectRedirectWithFlash(response, "/admin/backup");
+        expectRedirectWithFlash("/admin/backup")(response);
       });
     });
   });
@@ -117,7 +113,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           confirm_identifier: RESTORE_CONFIRM_PHRASE,
         },
       );
-      expectRedirectWithFlash(response, "/admin/backup");
+      expectRedirectWithFlash("/admin/backup")(response);
     });
 
     test("rejects filename without .zip extension", async () => {
@@ -128,7 +124,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           confirm_identifier: RESTORE_CONFIRM_PHRASE,
         },
       );
-      expectRedirectWithFlash(response, "/admin/backup");
+      expectRedirectWithFlash("/admin/backup")(response);
     });
 
     test("redirects with error when confirmation phrase is wrong", async () => {
@@ -139,7 +135,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           confirm_identifier: "WRONG PHRASE",
         },
       );
-      expectRedirectWithFlash(response, "/admin/backup");
+      expectRedirectWithFlash("/admin/backup")(response);
     });
 
     test("redirects with error when backup file is missing", async () => {
@@ -151,7 +147,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
-        expectRedirectWithFlash(response, "/admin/backup");
+        expectRedirectWithFlash("/admin/backup")(response);
       });
     });
   });

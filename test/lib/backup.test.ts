@@ -16,9 +16,8 @@ import {
   splitStatements,
 } from "#lib/db/backup.ts";
 import { queryAll } from "#lib/db/client.ts";
-import { eventsTable } from "#lib/db/events.ts";
 import { SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "#lib/db/migrations.ts";
-import { describeWithEnv } from "#test-utils";
+import { createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {
   describe("splitStatements", () => {
@@ -64,47 +63,30 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("exports INSERT statements for table with data", async () => {
-      await eventsTable.insert({
-        name: "Test Event",
-        description: "A test",
-        maxAttendees: 100,
-      });
+      await createTestEvent({ name: "Test Event", description: "A test" });
       const sql = await exportTable("events");
       expect(sql).toContain("INSERT INTO events");
       expect(sql).toContain("Test Event");
     });
 
     test("escapes single quotes in values", async () => {
-      await eventsTable.insert({
+      await createTestEvent({
         name: "Event's Name",
         description: "It's a test",
-        maxAttendees: 50,
       });
       const sql = await exportTable("events");
       expect(sql).toContain("Event''s Name");
     });
 
     test("handles NULL values", async () => {
-      await eventsTable.insert({
-        name: "Null Test",
-        description: "",
-        maxAttendees: 10,
-      });
+      await createTestEvent({ name: "Null Test" });
       const sql = await exportTable("events");
       expect(sql).toContain("NULL");
     });
 
     test("produces deterministic output with ORDER BY rowid", async () => {
-      await eventsTable.insert({
-        name: "Second",
-        description: "",
-        maxAttendees: 1,
-      });
-      await eventsTable.insert({
-        name: "First",
-        description: "",
-        maxAttendees: 1,
-      });
+      await createTestEvent({ name: "Second" });
+      await createTestEvent({ name: "First" });
       const sql = await exportTable("events");
       const secondIdx = sql.indexOf("Second");
       const firstIdx = sql.indexOf("First");
@@ -131,11 +113,7 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("createBackupZip", () => {
     test("creates a valid zip with one .sql file per table", async () => {
-      await eventsTable.insert({
-        name: "Zip Test",
-        description: "test",
-        maxAttendees: 10,
-      });
+      await createTestEvent({ name: "Zip Test" });
       const zipData = await createBackupZip();
       const files = unzipSync(zipData);
       expect(Object.keys(files)).toContain("events.sql");
@@ -153,11 +131,7 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("includes manifest.json with schema metadata", async () => {
-      await eventsTable.insert({
-        name: "Manifest Test",
-        description: "",
-        maxAttendees: 5,
-      });
+      await createTestEvent({ name: "Manifest Test" });
       const zipData = await createBackupZip();
       const files = unzipSync(zipData);
       expect(Object.keys(files)).toContain("manifest.json");
@@ -201,11 +175,7 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("countZipStatements", () => {
     test("counts SQL statements across all files in zip", async () => {
-      await eventsTable.insert({
-        name: "Count Test",
-        description: "",
-        maxAttendees: 5,
-      });
+      await createTestEvent({ name: "Count Test" });
       const zipData = await createBackupZip();
       const count = countZipStatements(zipData);
       // At least the settings rows + the event we inserted
@@ -215,8 +185,6 @@ describeWithEnv("backup", { db: true }, () => {
     test("skips manifest.json when counting", async () => {
       const zipData = await createBackupZip();
       const count = countZipStatements(zipData);
-      // If manifest were counted it would add extra "statements"
-      // Verify by checking count matches actual SQL file content
       const files = unzipSync(zipData);
       const decoder = new TextDecoder();
       let expectedCount = 0;
@@ -231,11 +199,7 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("restoreFromSql", () => {
     test("restores data from SQL statements", async () => {
-      await eventsTable.insert({
-        name: "Before Restore",
-        description: "Will be gone",
-        maxAttendees: 10,
-      });
+      await createTestEvent({ name: "Before Restore", description: "gone" });
 
       const backup = await exportTable("events");
       await restoreFromSql(backup);
@@ -248,10 +212,9 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("handles values with embedded newlines", async () => {
-      await eventsTable.insert({
+      await createTestEvent({
         name: "Newline Test",
         description: "line1\nline2\nline3",
-        maxAttendees: 10,
       });
 
       const backup = await exportTable("events");
@@ -264,11 +227,7 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("clears existing data before restoring", async () => {
-      await eventsTable.insert({
-        name: "Existing Event",
-        description: "",
-        maxAttendees: 5,
-      });
+      await createTestEvent({ name: "Existing Event" });
 
       await restoreFromSql("");
       const events = await queryAll<{ name: string }>(
@@ -280,11 +239,7 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("restoreFromZip", () => {
     test("round-trips backup and restore via zip", async () => {
-      await eventsTable.insert({
-        name: "Zip Restore Test",
-        description: "roundtrip",
-        maxAttendees: 25,
-      });
+      await createTestEvent({ name: "Zip Restore Test" });
 
       const zipData = await createBackupZip();
       await restoreFromZip(zipData);
@@ -297,10 +252,9 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("preserves newlines in values through zip roundtrip", async () => {
-      await eventsTable.insert({
+      await createTestEvent({
         name: "Newline Zip",
         description: "first\nsecond\nthird",
-        maxAttendees: 5,
       });
 
       const zipData = await createBackupZip();
