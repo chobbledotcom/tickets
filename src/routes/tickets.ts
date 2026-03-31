@@ -47,9 +47,6 @@ const handleTicketView = async (
   if (!result.ok) return result.response;
 
   const entries = await resolveEntries(result.attendees);
-  for (const entry of entries) {
-    entry.attendee.price_paid = String(entry.attendee.price_paid_v2);
-  }
   // With multi-event, one token maps to multiple entries.
   // Use the first URL token for all cards (it's the same attendee).
   const token = tokens[0]!;

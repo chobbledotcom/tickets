@@ -119,18 +119,38 @@ const decryptPiiBlob = async (
  * Requires migration to be complete (admin is gated behind migration).
  * When paidEvent is false, payment_id and refunded are skipped.
  */
+/** Raw row from attendee+event_attendees JOINs (before decryption) */
+type RawAttendeeRow = Attendee & {
+  checked_in_raw: number;
+  refunded_raw: number;
+  price_paid_raw: number;
+};
+
 const decryptAttendeeFields = async (
   row: Attendee,
   privateKey: CryptoKey,
   paidEvent = true,
 ): Promise<Attendee> => {
+  const raw = row as Partial<RawAttendeeRow>;
   const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidEvent);
   return {
     ...row,
     ...pii,
-    price_paid: String(row.price_paid_v2),
-    checked_in: row.checked_in_v2 === 1,
-    refunded: paidEvent ? row.refunded_v2 === 1 : false,
+    // Use raw integer values from JOIN query if present, otherwise keep existing derived values
+    price_paid:
+      raw.price_paid_raw !== undefined
+        ? String(raw.price_paid_raw)
+        : row.price_paid,
+    checked_in:
+      raw.checked_in_raw !== undefined
+        ? raw.checked_in_raw === 1
+        : row.checked_in,
+    refunded:
+      raw.refunded_raw !== undefined
+        ? paidEvent
+          ? raw.refunded_raw === 1
+          : false
+        : row.refunded,
     attachment_downloads: row.attachment_downloads,
   };
 };
@@ -145,7 +165,7 @@ const ATTENDEE_COLS =
 
 /** Columns sourced from event_attendees (per-event data) */
 const EA_COLS =
-  "ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity, ea.checked_in_v2, ea.refunded_v2, ea.price_paid_v2";
+  "ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity, ea.checked_in as checked_in_raw, ea.refunded as refunded_raw, ea.price_paid as price_paid_raw";
 
 /** SELECT clause for attendee + event_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for backward compatibility with the Attendee type. */
@@ -154,7 +174,7 @@ export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
  * attendees with broken/missing event_attendees linkage still appear in results
  * (with event_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in_v2, 0) as checked_in_v2, COALESCE(ea.refunded_v2, 0) as refunded_v2, COALESCE(ea.price_paid_v2, 0) as price_paid_v2`;
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in_raw, COALESCE(ea.refunded, 0) as refunded_raw, COALESCE(ea.price_paid, 0) as price_paid_raw`;
 
 /**
  * Get attendees for an event without decrypting PII
@@ -187,7 +207,7 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
  * Get aggregated statistics for active events.
  * Filters active events from the provided list, computes attendees
  * (sum of quantities) from cached EventWithCount data, and queries
- * ticket count (rows) and income (sum of price_paid_v2).
+ * ticket count (rows) and income (sum of price_paid).
  */
 export const getActiveEventStats = async (
   events: EventWithCount[],
@@ -202,13 +222,13 @@ export const getActiveEventStats = async (
     0,
   )(active);
 
-  const rows = await queryAll<{ price_paid_v2: number }>(
-    `SELECT ea.price_paid_v2 FROM event_attendees ea
+  const rows = await queryAll<{ price_paid: number }>(
+    `SELECT ea.price_paid FROM event_attendees ea
      WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
     activeIds,
   );
   const income = reduce(
-    (sum: number, r: { price_paid_v2: number }) => sum + r.price_paid_v2,
+    (sum: number, r: { price_paid: number }) => sum + r.price_paid,
     0,
   )(rows);
   return { income, tickets: rows.length, attendees };
@@ -297,9 +317,6 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   date: input.date,
   attachment_downloads: 0,
   pii_blob: "",
-  checked_in_v2: 0,
-  refunded_v2: 0,
-  price_paid_v2: input.pricePaid,
 });
 
 /**
@@ -438,7 +455,7 @@ const buildCapacityCheckedInsert = (
   const groupCapacityArgs: InValue[] = [date, endAt, startAt, qty, eventId];
 
   return {
-    sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid_v2)
+    sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid)
           SELECT ?, last_insert_rowid(), ?, ?, ?, ?
           WHERE (
             ${capacityFilter}
@@ -698,7 +715,7 @@ export const getAttendeesByTokens = async (
   const bookingRows = await queryAll<
     EventAttendeeRow & { attendee_id: number }
   >(
-    `SELECT attendee_id, event_id, start_at, end_at, quantity, checked_in_v2, refunded_v2, price_paid_v2
+    `SELECT attendee_id, event_id, start_at, end_at, quantity, checked_in, refunded, price_paid
      FROM event_attendees WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
      ORDER BY start_at, event_id`,
     attendeeIds,
@@ -713,9 +730,9 @@ export const getAttendeesByTokens = async (
       start_at: row.start_at,
       end_at: row.end_at,
       quantity: row.quantity,
-      checked_in_v2: row.checked_in_v2,
-      refunded_v2: row.refunded_v2,
-      price_paid_v2: row.price_paid_v2,
+      checked_in: row.checked_in,
+      refunded: row.refunded,
+      price_paid: row.price_paid,
     });
     bookingsByAttendee.set(row.attendee_id, list);
   }
@@ -751,8 +768,8 @@ const updateEventAttendeeField =
     });
   };
 
-const setRefundedV2 = updateEventAttendeeField("refunded_v2");
-const setCheckedInV2 = updateEventAttendeeField("checked_in_v2");
+const setRefunded = updateEventAttendeeField("refunded");
+const setCheckedIn = updateEventAttendeeField("checked_in");
 
 /**
  * Mark an attendee as refunded for a specific event.
@@ -761,7 +778,7 @@ const setCheckedInV2 = updateEventAttendeeField("checked_in_v2");
 export const markRefunded = (
   attendeeId: number,
   eventId: number,
-): Promise<void> => setRefundedV2(attendeeId, eventId, 1);
+): Promise<void> => setRefunded(attendeeId, eventId, 1);
 
 /**
  * Update an attendee's checked_in status for a specific event.
@@ -771,7 +788,7 @@ export const updateCheckedIn = (
   attendeeId: number,
   eventId: number,
   checkedIn: boolean,
-): Promise<void> => setCheckedInV2(attendeeId, eventId, checkedIn ? 1 : 0);
+): Promise<void> => setCheckedIn(attendeeId, eventId, checkedIn ? 1 : 0);
 
 /**
  * Increment the attachment download counter for an attendee.

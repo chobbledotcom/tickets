@@ -27,9 +27,6 @@ const makeAttendee = (id: number, name: string): Attendee => ({
   date: null,
   attachment_downloads: 0,
   pii_blob: "",
-  checked_in_v2: 0,
-  refunded_v2: 0,
-  price_paid_v2: 0,
 });
 
 const makeQuestions = (): QuestionWithAnswers[] => [

@@ -63,9 +63,9 @@ export type EventAttendeeRow = {
   start_at: string | null;
   end_at: string | null;
   quantity: number;
-  checked_in_v2: number;
-  refunded_v2: number;
-  price_paid_v2: number;
+  checked_in: number;
+  refunded: number;
+  price_paid: number;
 };
 
 /** An attendee with all their event bookings (for token resolution) */

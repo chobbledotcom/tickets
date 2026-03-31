@@ -53,7 +53,7 @@ export const buildWalletPassData = (
     eventLocation: event.location,
     attendeeDate: attendee.date,
     quantity: attendee.quantity,
-    pricePaid: attendee.price_paid_v2,
+    pricePaid: Number(attendee.price_paid),
     currencyCode: settings.currency,
     checkinUrl: `https://${domain}/checkin/${token}`,
   };
@@ -127,17 +127,14 @@ const buildAttendeeView = (
   created: base.created,
   payment_id: "",
   quantity: booking.quantity,
-  price_paid: String(booking.price_paid_v2),
-  checked_in: booking.checked_in_v2 === 1,
-  refunded: booking.refunded_v2 === 1,
+  price_paid: String(booking.price_paid),
+  checked_in: booking.checked_in === 1,
+  refunded: booking.refunded === 1,
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,
   date: booking.start_at ? booking.start_at.slice(0, 10) : null,
   attachment_downloads: base.attachment_downloads,
   pii_blob: base.pii_blob,
-  checked_in_v2: booking.checked_in_v2,
-  refunded_v2: booking.refunded_v2,
-  price_paid_v2: booking.price_paid_v2,
 });
 
 /**
