@@ -33,6 +33,7 @@ import {
 /** Invalidate all in-process caches after a destructive DB operation */
 const invalidateAllCaches = (): void => {
   settings.invalidateCache();
+  settings.setup.clearCache();
   invalidateUsersCache();
   invalidateEventsCache();
   invalidateGroupsCache();
