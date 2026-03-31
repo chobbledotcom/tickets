@@ -182,6 +182,18 @@ describeWithEnv(
       expect(res.headers.get("location")).not.toBe("/read-only");
     });
 
+    test("POST /admin/groups/5/add-events redirects to /read-only", async () => {
+      const res = await handleRequest(
+        mockRequest("/admin/groups/5/add-events", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: "event_ids=1",
+        }),
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/read-only");
+    });
+
     test("POST /read-only returns 404", async () => {
       const res = await handleRequest(
         mockRequest("/read-only", {

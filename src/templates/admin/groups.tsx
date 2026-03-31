@@ -343,7 +343,7 @@ export const adminGroupDetailPage = (
         </div>
       </article>
 
-      {ungroupedEvents.length > 0 && (
+      {!isReadOnly() && ungroupedEvents.length > 0 && (
         <>
           <h2>Add Events to Group</h2>
           <CsrfForm action={`/admin/groups/${group.id}/add-events`}>
