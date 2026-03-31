@@ -55,23 +55,12 @@ const escapeSql = (value: unknown): string => {
 
 /**
  * Split SQL text into individual statements.
- * First strips comment-only lines, then splits on statement-ending semicolons.
- * Handles embedded newlines within values (e.g. from textarea fields).
+ * Splits on ";\n" boundaries, which is the format produced by exportTable.
  */
 export const splitStatements = (sql: string): string[] => {
-  // Strip comment lines and blank lines, normalize line endings
-  const cleaned = sql
+  if (sql.trim() === "") return [];
+  return sql
     .replace(/\r\n/g, "\n")
-    .split("\n")
-    .filter((line) => {
-      const trimmed = line.trim();
-      return trimmed !== "" && !trimmed.startsWith("--");
-    })
-    .join("\n");
-  if (cleaned === "") return [];
-
-  // Split on semicolons that end a statement (followed by newline or end-of-string)
-  return cleaned
     .split(/;\s*\n/)
     .map((s) => s.trim())
     .filter((s) => s !== "")

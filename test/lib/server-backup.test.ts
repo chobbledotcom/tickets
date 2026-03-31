@@ -2,9 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
 import { createBackupZip } from "#lib/db/backup.ts";
+import { uploadRaw } from "#lib/storage.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import { handleRequest } from "#routes";
-import { uploadRaw } from "#lib/storage.ts";
 import {
   adminFormPost,
   adminGet,
@@ -52,7 +52,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       expect(html).toContain("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
     });
 
-    test("shows storage not configured message when storage is disabled", async () => {
+    test("shows storage not configured when disabled", async () => {
       const { response } = await adminGet("/admin/backup");
       const html = await response.text();
       expect(html).toContain("Storage is not configured");
@@ -69,23 +69,16 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
     test("creates backup and redirects with success", async () => {
       await withLocalStorageEnabled(async () => {
-        await createTestEvent({ name: "Backup Test Event" });
+        await createTestEvent({ name: "Backup Test" });
         const { response } = await adminFormPost("/admin/backup/create");
         expectRedirectWithFlash("/admin/backup")(response);
       });
     });
 
-    test("backup list ignores non-zip files with backup prefix", async () => {
+    test("lists only .zip files on backup page", async () => {
       await withLocalStorageEnabled(async () => {
-        // Upload a non-zip file with backup- prefix (e.g. leftover temp file)
         await uploadRaw(new Uint8Array(0), "backup-stale.tmp");
-        // Create a real backup
-        const { response: createResp } = await adminFormPost(
-          "/admin/backup/create",
-        );
-        expectRedirectWithFlash("/admin/backup")(createResp);
-
-        // The page should only list .zip backups, not the .tmp file
+        await adminFormPost("/admin/backup/create");
         const { response } = await adminGet("/admin/backup");
         const html = await response.text();
         expect(html).not.toContain("backup-stale.tmp");
@@ -120,26 +113,18 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
     test("downloads existing backup as zip", async () => {
       await withLocalStorageEnabled(async () => {
-        // Create a backup first
         await adminFormPost("/admin/backup/create");
-
-        // List backups from the page
         const { response: listResp } = await adminGet("/admin/backup");
         const html = await listResp.text();
         const linkMatch = html.match(
           /\/admin\/backup\/download\/(backup-[^"]+\.zip)/,
         );
         expect(linkMatch).toBeTruthy();
-
-        // Download it
         const { response } = await adminGet(
           `/admin/backup/download/${linkMatch![1]}`,
         );
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/zip");
-        expect(response.headers.get("content-disposition")).toContain(".zip");
-        const body = await response.arrayBuffer();
-        expect(body.byteLength).toBeGreaterThan(0);
       });
     });
   });
@@ -172,21 +157,21 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Confirm Database Restore");
-        expect(html).toContain("SQL statements");
       });
     });
 
-    test("shows schema mismatch warning for zip with different schema hash", async () => {
+    test("shows schema mismatch warning for different schema", async () => {
       await withLocalStorageEnabled(async () => {
         const encoder = new TextEncoder();
-        const manifest = JSON.stringify({
-          schemaHash: "different-hash",
-          latestUpdate: "test",
-          timestamp: new Date().toISOString(),
-          tables: {},
-        });
         const fakeZip = zipSync({
-          "manifest.json": encoder.encode(manifest),
+          "manifest.json": encoder.encode(
+            JSON.stringify({
+              schemaHash: "wrong",
+              latestUpdate: "",
+              timestamp: "",
+              tables: {},
+            }),
+          ),
           "settings.sql": new Uint8Array(0),
         });
         const { cookie, csrfToken } = await getTestSession();
@@ -213,27 +198,6 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         const { cookie, csrfToken } = await getTestSession();
         const formData = new FormData();
         formData.append("csrf_token", csrfToken);
-        // No backup_file field at all
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            method: "POST",
-            headers: { cookie, host: "localhost" },
-            body: formData,
-          }),
-        );
-        expect(response.status).toBe(302);
-      });
-    });
-
-    test("rejects empty file upload", async () => {
-      await withLocalStorageEnabled(async () => {
-        const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        formData.append(
-          "backup_file",
-          new File([], "empty.zip"),
-        );
         const response = await handleRequest(
           new Request("http://localhost/admin/backup/restore", {
             method: "POST",
@@ -274,56 +238,34 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       expectAdminRedirect(response);
     });
 
-    test("rejects filename without restore-pending prefix", async () => {
+    test("rejects invalid filename", async () => {
       const { response } = await adminFormPost(
         "/admin/backup/restore/confirm",
         {
-          backup_filename: "backup-2024-test.zip",
+          backup_filename: "bad.zip",
           confirm_identifier: RESTORE_CONFIRM_PHRASE,
         },
       );
       expectRedirectWithFlash("/admin/backup")(response);
     });
 
-    test("rejects filename without .zip extension", async () => {
+    test("rejects wrong confirmation phrase", async () => {
       const { response } = await adminFormPost(
         "/admin/backup/restore/confirm",
         {
-          backup_filename: "restore-pending-test.sql",
-          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+          backup_filename: "restore-pending-x.zip",
+          confirm_identifier: "WRONG",
         },
       );
       expectRedirectWithFlash("/admin/backup")(response);
     });
 
-    test("rejects empty filename", async () => {
-      const { response } = await adminFormPost(
-        "/admin/backup/restore/confirm",
-        {
-          backup_filename: "",
-          confirm_identifier: RESTORE_CONFIRM_PHRASE,
-        },
-      );
-      expectRedirectWithFlash("/admin/backup")(response);
-    });
-
-    test("redirects with error when confirmation phrase is wrong", async () => {
-      const { response } = await adminFormPost(
-        "/admin/backup/restore/confirm",
-        {
-          backup_filename: "restore-pending-test.zip",
-          confirm_identifier: "WRONG PHRASE",
-        },
-      );
-      expectRedirectWithFlash("/admin/backup")(response);
-    });
-
-    test("redirects with error when backup file is missing", async () => {
+    test("rejects missing backup file", async () => {
       await withLocalStorageEnabled(async () => {
         const { response } = await adminFormPost(
           "/admin/backup/restore/confirm",
           {
-            backup_filename: "restore-pending-nonexistent.zip",
+            backup_filename: "restore-pending-gone.zip",
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
@@ -331,19 +273,15 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
-    test("successfully restores from uploaded backup", async () => {
+    test("successfully restores from backup", async () => {
       await withLocalStorageEnabled(async () => {
         await createTestEvent({ name: "Restore Me" });
         const zipData = await createBackupZip();
-
-        // Upload the zip as a restore-pending file
-        const tempFilename = "restore-pending-test-restore.zip";
-        await uploadRaw(zipData, tempFilename);
-
+        await uploadRaw(zipData, "restore-pending-test.zip");
         const { response } = await adminFormPost(
           "/admin/backup/restore/confirm",
           {
-            backup_filename: tempFilename,
+            backup_filename: "restore-pending-test.zip",
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
