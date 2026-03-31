@@ -242,6 +242,16 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       }
     });
 
+    test("contains built sites section", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Built Sites",
+        'id="built-sites"',
+        "CAN_BUILD_SITES",
+        "Add Built Site",
+      );
+    });
+
     test("shows default wallet setup instructions when no host wallet configured", async () => {
       const html = await assertAdminHtml(
         "/admin/guide",
