@@ -186,10 +186,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event with another attendee (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event.id }],
       });
 
       await withMocks(
@@ -701,10 +701,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Create attendee as if payment was already processed (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "John",
         email: "john@example.com",
         paymentId: "pi_test_123",
+        bookings: [{ eventId: event.id }],
       });
 
       await withMocks(
@@ -802,10 +802,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event.id }],
       });
 
       // Try to register - should fail before Stripe session is created
@@ -1075,10 +1075,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event.id }],
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
@@ -1129,10 +1129,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill event2
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event2.id }],
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
@@ -1468,11 +1468,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Create attendee directly (simulates post-payment state)
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Email Test",
         email: "buyer@example.com",
         paymentId: "pi_email_notice",
-        pricePaid: 500,
+        bookings: [{ eventId: event.id, pricePaid: 500 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
@@ -1485,7 +1484,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       try {
         const response = await handleRequest(
           mockRequest(
-            `/payment/success?tokens=${encodeURIComponent(result.attendee.ticket_token)}`,
+            `/payment/success?tokens=${encodeURIComponent(result.attendees[0]!.ticket_token)}`,
           ),
         );
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");

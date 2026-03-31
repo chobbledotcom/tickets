@@ -174,10 +174,8 @@ export const processFreeReservation = async (
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
     const eventDate = event.event_type === "daily" ? date : null;
     const result = await createAttendeeAtomic({
-      eventId: event.id,
       ...contact,
-      quantity: qty,
-      date: eventDate,
+      bookings: [{ eventId: event.id, quantity: qty, date: eventDate }],
     });
     if (!result.success) {
       return {
@@ -185,7 +183,7 @@ export const processFreeReservation = async (
         error: formatAtomicError(result.reason, event.name),
       };
     }
-    entries.push({ event, attendee: result.attendee });
+    entries.push({ event, attendee: result.attendees[0]! });
   }
   await logAndNotifyRegistration(entries);
   return {

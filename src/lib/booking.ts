@@ -79,15 +79,13 @@ export const processBooking = async (
 
   // Free event — create attendee atomically
   const result = await createAttendeeAtomic({
-    eventId: event.id,
     ...contact,
-    quantity,
-    date,
+    bookings: [{ eventId: event.id, quantity, date }],
   });
 
   if (!result.success)
     return { type: "creation_failed", reason: result.reason };
 
-  await logAndNotifyRegistration([{ event, attendee: result.attendee }]);
-  return { type: "success", attendee: result.attendee };
+  await logAndNotifyRegistration([{ event, attendee: result.attendees[0]! }]);
+  return { type: "success", attendee: result.attendees[0]! };
 };

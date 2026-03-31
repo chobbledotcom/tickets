@@ -971,16 +971,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John Doe",
         email: "john@example.com",
         phone: "555-1234",
         address: "123 Main St",
         special_instructions: "VIP guest",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -1382,13 +1381,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event1.id,
         name: "John Doe",
         email: "john@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event1.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -1407,13 +1405,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John Doe",
         email: "",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,

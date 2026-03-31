@@ -249,10 +249,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 1,
       });
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "Attendee",
         email: "a@test.com",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       const response = await handleRequest(mockRequest("/events"));
       const html = await expectHtmlResponse(response, 200, "Sold Out");
@@ -1441,10 +1440,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       // Fill up event2
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "John",
         email: "john@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
       const response = await handleRequest(
@@ -1465,10 +1463,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         description: "Sold out desc",
       });
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "Jane",
         email: "jane@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
       const response = await handleRequest(
@@ -2133,10 +2130,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // Fill up event1 to make it sold out
       await createAttendeeAtomic({
-        eventId: event1.id,
         name: "First",
         email: "first@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event1.id, quantity: 1 }],
       });
 
       // GET the ticket page (sold-out event will show Sold Out label)
@@ -2225,10 +2221,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // Fill event1
       await createAttendeeAtomic({
-        eventId: event1.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event1.id }],
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2555,10 +2551,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // Fill event1 to capacity
       await createAttendeeAtomic({
-        eventId: event1.id,
         name: "First",
         email: "first@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event1.id, quantity: 1 }],
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;

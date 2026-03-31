@@ -456,10 +456,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Fill the event
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event.id }],
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -1149,14 +1149,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
       // Create attendee directly (not via public form which redirects to Stripe for paid events)
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Already Done",
         email: "already@example.com",
         paymentId: "pi_already_done",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create test attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const {
         reserveSession: reserveSessionFn,
@@ -1295,11 +1294,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 500,
       });
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
-        quantity: 1,
+        bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -1600,10 +1598,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Fill event2 to capacity
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "Existing",
         email: "existing@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -1670,11 +1667,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 500,
       });
       const attResult = await createAttendeeAtomic({
-        eventId: event.id,
         name: "WH Del",
         email: "whdel@example.com",
         paymentId: "pi_del",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!attResult.success) throw new Error("Failed to create attendee");
 
@@ -1684,7 +1680,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         finalizeSession: finalizeSessionFn,
       } = await import("#lib/db/processed-payments.ts");
       await reserveSessionFn("cs_del_event_wh");
-      await finalizeSessionFn("cs_del_event_wh", attResult.attendee.id);
+      await finalizeSessionFn("cs_del_event_wh", attResult.attendees[0]!.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       // Use a non-existent event_id in metadata to trigger "Event not found" in alreadyProcessedResult

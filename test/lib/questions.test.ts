@@ -23,13 +23,13 @@ import { createTestEvent, describeWithEnv } from "#test-utils";
 /** Create a test attendee directly via the DB (bypasses routes) */
 const createAttendee = async (eventId: number, name = "Alice") => {
   const result = await createAttendeeAtomic({
-    eventId,
     name,
     email: `${name.toLowerCase()}@test.com`,
+    bookings: [{ eventId }],
   });
   if (!result.success)
     throw new Error(`Failed to create attendee: ${result.reason}`);
-  return result.attendee;
+  return result.attendees[0]!;
 };
 
 describeWithEnv("custom questions", { db: true }, () => {

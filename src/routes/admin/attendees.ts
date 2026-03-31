@@ -297,14 +297,12 @@ const handleAddAttendee = (
     } = validation.values;
 
     const result = await createAttendeeAtomic({
-      eventId,
       name,
       email: email || "",
-      quantity,
       phone: phone || "",
       address: address || "",
       special_instructions: special_instructions || "",
-      date: isDaily ? date : null,
+      bookings: [{ eventId, quantity, date: isDaily ? date : null }],
     });
 
     if (!result.success) {

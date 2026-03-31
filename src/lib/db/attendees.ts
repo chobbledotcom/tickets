@@ -20,6 +20,7 @@ import type {
   EncryptInput,
   UpdateAttendeeInput,
 } from "#lib/db/attendee-types.ts";
+import type { InValue } from "@libsql/client";
 import {
   executeBatch,
   executeBatchWithResults,
@@ -45,6 +46,7 @@ export type {
   CreateAttendeeResult,
   UpdateAttendeeInput,
 } from "#lib/db/attendee-types.ts";
+import type { EventBooking } from "#lib/db/attendee-types.ts";
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
@@ -390,6 +392,67 @@ const getGroupAttendeeCount = async (
   return rows[0]!.count;
 };
 
+/**
+ * Build a capacity-checked INSERT INTO event_attendees for a single booking.
+ * Uses last_insert_rowid() to reference the attendee created in step 1 of the batch.
+ */
+const buildCapacityCheckedInsert = (
+  booking: EventBooking,
+): { sql: string; args: InValue[] } => {
+  const { eventId, quantity: qty = 1, pricePaid = 0, date = null } = booking;
+  const range = date ? dateToRange(date) : null;
+  const startAt = range?.startAt ?? null;
+  const endAt = range?.endAt ?? null;
+
+  const capacityFilter = date
+    ? "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ? AND ea2.start_at < ? AND ea2.end_at > ?"
+    : "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?";
+  const capacityArgs: InValue[] = date
+    ? [eventId, endAt, startAt]
+    : [eventId];
+
+  const groupCapacityCheck = `
+          AND (
+            SELECT CASE
+              WHEN ev.group_id = 0 THEN 1
+              WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
+              WHEN (
+                SELECT COALESCE(SUM(ea3.quantity), 0)
+                FROM event_attendees ea3
+                JOIN events e2 ON e2.id = ea3.event_id
+                WHERE e2.group_id = ev.group_id
+                  AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
+              ) + ? <= g.max_attendees THEN 1
+              ELSE 0
+            END
+            FROM events ev
+            LEFT JOIN groups g ON g.id = ev.group_id
+            WHERE ev.id = ?
+          ) = 1`;
+  const groupCapacityArgs: InValue[] = [date, endAt, startAt, qty, eventId];
+
+  return {
+    sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid_v2)
+          SELECT ?, last_insert_rowid(), ?, ?, ?, ?
+          WHERE (
+            ${capacityFilter}
+          ) + ? <= (
+            SELECT max_attendees FROM events WHERE id = ?
+          )${groupCapacityCheck}`,
+    args: [
+      eventId,
+      startAt,
+      endAt,
+      qty,
+      pricePaid,
+      ...capacityArgs,
+      qty,
+      eventId,
+      ...groupCapacityArgs,
+    ],
+  };
+};
+
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
   /**
@@ -476,82 +539,48 @@ export const attendeesApi = {
     return true;
   },
   /**
-   * Atomically create attendee with capacity check.
-   * All three operations run in a single batch transaction:
-   *   1. INSERT event_attendees with capacity check (wins the race)
-   *   2. INSERT attendees (guarded — only if step 1 succeeded)
-   *   3. UPDATE event_attendees to link attendee_id (guarded)
-   * If any step fails or the process crashes, the entire transaction rolls back.
+   * Atomically create an attendee linked to one or more events.
+   * Single ACID batch transaction:
+   *   1. INSERT attendee (unconditional)
+   *   2..N+1. For each booking: INSERT event_attendees with capacity check
+   *   N+2. Clean up attendee if ALL capacity checks failed
+   * Returns one Attendee per successful booking.
    */
   createAttendeeAtomic: async (
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
     const {
-      eventId,
       name,
       email,
       paymentId = "",
-      quantity: qty = 1,
       phone = "",
       address = "",
       special_instructions = "",
-      pricePaid = 0,
-      date = null,
+      bookings,
     } = input;
-    // Ensure all ContactInfo fields are strings (convert undefined to empty string)
+    if (bookings.length === 0) {
+      return { success: false, reason: "capacity_exceeded" };
+    }
+
     const contactInfo = { name, email, phone, address, special_instructions };
+    // Use first booking's pricePaid for encryption (PII blob is shared)
     const enc = await encryptAttendeeFields({
       ...contactInfo,
       paymentId,
-      pricePaid,
+      pricePaid: bookings[0]!.pricePaid ?? 0,
     });
     if (!enc) {
       return { success: false, reason: "encryption_error" };
     }
 
-    // Convert date to start_at/end_at range for event_attendees
-    const range = date ? dateToRange(date) : null;
-    const startAt = range?.startAt ?? null;
-    const endAt = range?.endAt ?? null;
+    // Build capacity-checked INSERT for each booking
+    const bookingStatements = bookings.map((booking) => {
+      const { sql, args } = buildCapacityCheckedInsert(booking);
+      return { sql, args };
+    });
 
-    // For daily events with a date, check capacity via overlap; otherwise check total
-    const capacityFilter = date
-      ? "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ? AND ea2.start_at < ? AND ea2.end_at > ?"
-      : "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?";
-    const capacityArgs = date ? [eventId, endAt, startAt] : [eventId];
-
-    // Group capacity check via single CASE expression — one event+group lookup.
-    // Skips when group_id=0 (no group) or max_attendees=0 (no limit).
-    // Date-aware: standard events always count, daily events only count overlapping range.
-    const groupCapacityCheck = `
-            AND (
-              SELECT CASE
-                WHEN ev.group_id = 0 THEN 1
-                WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
-                WHEN (
-                  SELECT COALESCE(SUM(ea3.quantity), 0)
-                  FROM event_attendees ea3
-                  JOIN events e2 ON e2.id = ea3.event_id
-                  WHERE e2.group_id = ev.group_id
-                    AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
-                ) + ? <= g.max_attendees THEN 1
-                ELSE 0
-              END
-              FROM events ev
-              LEFT JOIN groups g ON g.id = ev.group_id
-              WHERE ev.id = ?
-            ) = 1`;
-    const groupCapacityArgs = [
-      date, // date IS NULL check (standard events skip overlap)
-      endAt, // overlap: start_at < endAt
-      startAt, // overlap: end_at > startAt
-      qty, // quantity to add
-      eventId, // event lookup
-    ];
-
-    // Single ACID transaction: attendee first, then capacity-checked event link.
-    // If capacity is exceeded, the attendee is cleaned up in step 3.
-    // If the process crashes, the entire transaction rolls back.
+    // Single ACID transaction: attendee first, then capacity-checked event links.
+    // If all capacity checks fail, the attendee is cleaned up in the final step.
     const batchResults = await executeBatchWithResults([
       // Step 1: Create attendee record (unconditional)
       {
@@ -559,28 +588,9 @@ export const attendeesApi = {
               VALUES ('', '', ?, ?, ?)`,
         args: [enc.created, enc.ticketTokenIndex, enc.encryptedPiiBlob],
       },
-      // Step 2: Win the race — capacity check + event_attendees insert with attendee_id
-      {
-        sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid_v2)
-              SELECT ?, last_insert_rowid(), ?, ?, ?, ?
-              WHERE (
-                ${capacityFilter}
-              ) + ? <= (
-                SELECT max_attendees FROM events WHERE id = ?
-              )${groupCapacityCheck}`,
-        args: [
-          eventId,
-          startAt,
-          endAt,
-          qty,
-          pricePaid,
-          ...capacityArgs,
-          qty,
-          eventId,
-          ...groupCapacityArgs,
-        ],
-      },
-      // Step 3: Clean up attendee if capacity was exceeded (step 2 inserted nothing)
+      // Steps 2..N+1: One capacity-checked INSERT per booking
+      ...bookingStatements,
+      // Final step: Clean up attendee if no event links were created
       {
         sql: `DELETE FROM attendees WHERE id = (
                 SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
@@ -593,30 +603,34 @@ export const attendeesApi = {
       },
     ]);
 
-    if (batchResults[1]!.rowsAffected === 0) {
+    // Check which bookings succeeded (steps 2..N+1 in batchResults, offset by 1)
+    const successfulBookings: Attendee[] = [];
+    for (let i = 0; i < bookings.length; i++) {
+      if (batchResults[i + 1]!.rowsAffected > 0) {
+        const booking = bookings[i]!;
+        successfulBookings.push(
+          buildAttendeeResult({
+            insertId: batchResults[0]!.lastInsertRowid,
+            eventId: booking.eventId,
+            ...contactInfo,
+            created: enc.created,
+            paymentId,
+            quantity: booking.quantity ?? 1,
+            pricePaid: booking.pricePaid ?? 0,
+            ticketToken: enc.ticketToken,
+            ticketTokenIndex: enc.ticketTokenIndex,
+            date: booking.date ?? null,
+          }),
+        );
+      }
+    }
+
+    if (successfulBookings.length === 0) {
       return { success: false, reason: "capacity_exceeded" };
     }
 
     invalidateEventsCache();
-    return {
-      success: true,
-      attendee: buildAttendeeResult({
-        insertId: batchResults[0]!.lastInsertRowid,
-        eventId,
-        name,
-        email,
-        phone,
-        address,
-        special_instructions,
-        created: enc.created,
-        paymentId,
-        quantity: qty,
-        pricePaid,
-        ticketToken: enc.ticketToken,
-        ticketTokenIndex: enc.ticketTokenIndex,
-        date,
-      }),
-    };
+    return { success: true, attendees: successfulBookings };
   },
 };
 

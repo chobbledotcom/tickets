@@ -488,13 +488,13 @@ describeWithEnv("db", { db: true }, () => {
 
       // Create an attendee BEFORE password change
       const beforeResult = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Alice Before",
         email: "alice@example.com",
         paymentId: "pi_before_change",
+        bookings: [{ eventId: event.id }],
       });
       if (!beforeResult.success) throw new Error("Failed to create attendee");
-      const attendeeBefore = beforeResult.attendee;
+      const attendeeBefore = beforeResult.attendees[0]!;
 
       // Change the password using user-based API
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
@@ -512,13 +512,13 @@ describeWithEnv("db", { db: true }, () => {
 
       // Create an attendee AFTER password change
       const afterResult = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Bob After",
         email: "bob@example.com",
         paymentId: "pi_after_change",
+        bookings: [{ eventId: event.id }],
       });
       if (!afterResult.success) throw new Error("Failed to create attendee");
-      const attendeeAfter = afterResult.attendee;
+      const attendeeAfter = afterResult.attendees[0]!;
 
       // Get the private key using the NEW password
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
@@ -1124,17 +1124,16 @@ describeWithEnv("db", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John",
         email: "john@example.com",
         paymentId: "pi_test",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.attendee.name).toBe("John");
-        expect(result.attendee.payment_id).toBe("pi_test");
+        expect(result.attendees[0]!.name).toBe("John");
+        expect(result.attendees[0]!.payment_id).toBe("pi_test");
       }
     });
 
@@ -1145,16 +1144,15 @@ describeWithEnv("db", { db: true }, () => {
       });
       // Use createAttendeeAtomic to fill capacity (production code path)
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
+        bookings: [{ eventId: event.id }],
       });
 
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Second",
         email: "second@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
 
       expect(result.success).toBe(false);
@@ -1177,9 +1175,9 @@ describeWithEnv("db", { db: true }, () => {
       settings.invalidateCache();
 
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John",
         email: "john@example.com",
+        bookings: [{ eventId: event.id }],
       });
 
       expect(result.success).toBe(false);
@@ -1261,10 +1259,9 @@ describeWithEnv("db", { db: true }, () => {
 
       // Create an attendee for a specific date
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "Day User",
         email: "day@example.com",
-        date: "2026-02-10",
+        bookings: [{ eventId: event.id, date: "2026-02-10" }],
       });
 
       // That date should be full
@@ -1316,18 +1313,14 @@ describeWithEnv("db", { db: true }, () => {
       });
 
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "User 1",
         email: "u1@example.com",
-        quantity: 2,
-        date: "2026-02-10",
+        bookings: [{ eventId: event.id, quantity: 2, date: "2026-02-10" }],
       });
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "User 2",
         email: "u2@example.com",
-        quantity: 3,
-        date: "2026-02-10",
+        bookings: [{ eventId: event.id, quantity: 3, date: "2026-02-10" }],
       });
 
       const count = await getDateAttendeeCount(event.id, "2026-02-10");
@@ -1352,11 +1345,9 @@ describeWithEnv("db", { db: true }, () => {
       });
 
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "User 1",
         email: "u1@example.com",
-        quantity: 2,
-        date: "2026-02-10",
+        bookings: [{ eventId: event.id, quantity: 2, date: "2026-02-10" }],
       });
 
       const count = await getDateAttendeeCount(event.id, "2026-02-11");
@@ -1396,11 +1387,9 @@ describeWithEnv("db", { db: true }, () => {
       });
 
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "Existing",
         email: "existing@example.com",
-        quantity: 1,
-        date: "2026-02-10",
+        bookings: [{ eventId: event.id, quantity: 1, date: "2026-02-10" }],
       });
 
       // Should have 1 spot left on that date
@@ -2008,16 +1997,15 @@ describeWithEnv("db", { db: true }, () => {
 
       // Create attendee with a non-empty phone to exercise the phone decryption branch
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Phone Person",
         email: "phone@example.com",
-        quantity: 1,
         phone: "+44 7700 900000",
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.attendee.phone).toBe("+44 7700 900000");
+        expect(result.attendees[0]!.phone).toBe("+44 7700 900000");
       }
 
       // Decrypt and verify phone is correctly decrypted
@@ -2039,21 +2027,20 @@ describeWithEnv("db", { db: true }, () => {
 
       // Create attendee with empty email/phone/address/special_instructions via createAttendeeAtomic
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "NoContact Person",
         email: "", // empty email
-        quantity: 1,
         phone: "", // empty phone
         address: "", // empty address
         special_instructions: "", // empty special instructions
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.attendee.email).toBe("");
-        expect(result.attendee.phone).toBe("");
-        expect(result.attendee.address).toBe("");
-        expect(result.attendee.special_instructions).toBe("");
+        expect(result.attendees[0]!.email).toBe("");
+        expect(result.attendees[0]!.phone).toBe("");
+        expect(result.attendees[0]!.address).toBe("");
+        expect(result.attendees[0]!.special_instructions).toBe("");
       }
 
       // Decrypt and verify empty strings come back correctly
@@ -2074,16 +2061,15 @@ describeWithEnv("db", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Instructions Person",
         email: "inst@example.com",
-        quantity: 1,
         special_instructions: "No nuts please\nAllergic to dairy",
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.attendee.special_instructions).toBe(
+        expect(result.attendees[0]!.special_instructions).toBe(
           "No nuts please\nAllergic to dairy",
         );
       }
@@ -2104,16 +2090,15 @@ describeWithEnv("db", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Address Person",
         email: "addr@example.com",
-        quantity: 1,
         address: "123 Main St\nSpringfield\nIL 62701",
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.attendee.address).toBe(
+        expect(result.attendees[0]!.address).toBe(
           "123 Main St\nSpringfield\nIL 62701",
         );
       }
@@ -2133,17 +2118,15 @@ describeWithEnv("db", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Paying Customer",
         email: "pay@example.com",
         paymentId: "pi_test_price",
-        quantity: 1,
-        pricePaid: 2500,
+        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 2500 }],
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.attendee.price_paid).toBe("2500");
+        expect(result.attendees[0]!.price_paid).toBe("2500");
       }
 
       // Verify decrypted price_paid
@@ -2316,19 +2299,19 @@ describeWithEnv("db", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
       const attendeeResult = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Test",
         email: "test@example.com",
+        bookings: [{ eventId: event.id }],
       });
       if (!attendeeResult.success) throw new Error("Failed to create attendee");
 
       await reserveSession("sess_dup");
-      await finalizePaymentSession("sess_dup", attendeeResult.attendee.id);
+      await finalizePaymentSession("sess_dup", attendeeResult.attendees[0]!.id);
 
       const result = await reserveSession("sess_dup");
       expect(result.reserved).toBe(false);
       if (!result.reserved) {
-        expect(result.existing.attendee_id).toBe(attendeeResult.attendee.id);
+        expect(result.existing.attendee_id).toBe(attendeeResult.attendees[0]!.id);
       }
     });
 
@@ -2980,10 +2963,9 @@ describeWithEnv("db", { db: true }, () => {
       });
 
       const attendee = await createAttendeeAtomic({
-        eventId: e1.id,
         name: "A",
         email: "a@example.com",
-        quantity: 3,
+        bookings: [{ eventId: e1.id, quantity: 3 }],
       });
       if (!attendee.success) throw new Error("Failed to create attendee");
 
@@ -3036,11 +3018,9 @@ describeWithEnv("db", { db: true }, () => {
     /** Book attendees atomically with minimal boilerplate */
     const book = (eventId: number, quantity: number, date?: string) =>
       createAttendeeAtomic({
-        eventId,
         name: `attendee-${eventId}-${quantity}`,
         email: `a${eventId}q${quantity}@example.com`,
-        quantity,
-        date,
+        bookings: [{ eventId, quantity, date }],
       });
 
     test("createAttendeeAtomic enforces group max_attendees across events", async () => {

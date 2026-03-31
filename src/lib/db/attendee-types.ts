@@ -40,16 +40,21 @@ export type BuildAttendeeInput = ContactInfo & {
 
 /** Result of atomic attendee creation */
 export type CreateAttendeeResult =
-  | { success: true; attendee: Attendee }
+  | { success: true; attendees: Attendee[] }
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
 
-/** Input for creating an attendee atomically */
-export type AttendeeInput = ContactFields & {
+/** A single event booking within a multi-event attendee creation */
+export type EventBooking = {
   eventId: number;
-  paymentId?: string;
   quantity?: number;
   pricePaid?: number;
   date?: string | null;
+};
+
+/** Input for creating an attendee atomically (one or more events) */
+export type AttendeeInput = ContactFields & {
+  paymentId?: string;
+  bookings: EventBooking[];
 };
 
 /** Item for batch availability check */

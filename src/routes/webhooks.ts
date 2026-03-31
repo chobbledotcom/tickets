@@ -495,16 +495,13 @@ const processPaymentSession = async (
     const pricePaid = item.p;
 
     const result = await createAttendeeAtomic({
-      eventId: item.e,
       name: intent.name,
       email: intent.email,
       paymentId: session.paymentReference,
-      quantity: item.q,
       phone: intent.phone,
       address: intent.address,
       special_instructions: intent.special_instructions,
-      pricePaid,
-      date: event.event_type === "daily" ? intent.date : null,
+      bookings: [{ eventId: item.e, quantity: item.q, pricePaid, date: event.event_type === "daily" ? intent.date : null }],
     });
 
     if (!result.success) {
@@ -513,7 +510,7 @@ const processPaymentSession = async (
       break;
     }
 
-    createdAttendees.push({ attendee: result.attendee, event });
+    createdAttendees.push({ attendee: result.attendees[0]!, event });
   }
 
   // If any creation failed, rollback already-created attendees and refund

@@ -206,14 +206,14 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     test("renders empty email and phone for attendee without contact details", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "NoContact",
         email: "",
+        bookings: [{ eventId: event.id }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
       const { response } = await adminGet(
-        `/checkin/${result.attendee.ticket_token}`,
+        `/checkin/${result.attendees[0]!.ticket_token}`,
       );
       const body = await response.text();
       expect(body).toContain("NoContact");
