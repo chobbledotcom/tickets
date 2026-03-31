@@ -943,7 +943,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(3);
         expect(
-          (attendees[0] as unknown as Record<string, unknown>).price_paid_raw,
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
         ).toBe(1500);
       } finally {
         mockRetrieve.restore();
@@ -987,7 +987,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(
-          (attendees[0] as unknown as Record<string, unknown>).price_paid_raw,
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
         ).toBe(2000);
       } finally {
         mockRetrieve.restore();
@@ -2011,7 +2011,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
         expect(
-          (attendees[0] as unknown as Record<string, unknown>).price_paid_raw,
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
         ).toBe(0);
       } finally {
         mockRetrieve.restore();
@@ -2055,7 +2055,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
         expect(
-          (attendees[0] as unknown as Record<string, unknown>).price_paid_raw,
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
         ).toBe(0);
       } finally {
         mockRetrieve.restore();
@@ -2391,7 +2391,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(
-          (attendees[0] as unknown as Record<string, unknown>).price_paid_raw,
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
         ).toBe(2500);
       } finally {
         mockVerify.restore();
@@ -3343,7 +3343,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(
-          (attendees[0] as unknown as Record<string, unknown>).price_paid_raw,
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
         ).toBe(2500);
       } finally {
         mockVerify.restore();
@@ -3414,11 +3414,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
         expect(
-          (attendees1[0] as unknown as Record<string, unknown>).price_paid_raw,
+          (attendees1[0] as unknown as Record<string, unknown>).price_paid,
         ).toBe(2000);
         expect(attendees2.length).toBe(1);
         expect(
-          (attendees2[0] as unknown as Record<string, unknown>).price_paid_raw,
+          (attendees2[0] as unknown as Record<string, unknown>).price_paid,
         ).toBe(1000);
       } finally {
         mockVerify.restore();

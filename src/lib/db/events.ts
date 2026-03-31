@@ -220,21 +220,31 @@ export const deleteEvent = async (eventId: number): Promise<void> => {
     )
   ).map((r) => r.attendee_id);
 
+  // Remove event links first
   const deletes: Array<{ sql: string; args: InValue[] }> = [
     { sql: "DELETE FROM event_attendees WHERE event_id = ?", args: [eventId] },
   ];
+
   if (attendeeIds.length > 0) {
     const ph = inPlaceholders(attendeeIds);
+    // Only delete attendees that have zero remaining event links (orphans).
+    // Attendees linked to other events are preserved.
     deletes.push(
       {
-        sql: `DELETE FROM processed_payments WHERE attendee_id IN (${ph})`,
+        sql: `DELETE FROM processed_payments WHERE attendee_id IN (${ph})
+              AND attendee_id NOT IN (SELECT attendee_id FROM event_attendees)`,
         args: attendeeIds,
       },
       {
-        sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${ph})`,
+        sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${ph})
+              AND attendee_id NOT IN (SELECT attendee_id FROM event_attendees)`,
         args: attendeeIds,
       },
-      { sql: `DELETE FROM attendees WHERE id IN (${ph})`, args: attendeeIds },
+      {
+        sql: `DELETE FROM attendees WHERE id IN (${ph})
+              AND id NOT IN (SELECT attendee_id FROM event_attendees)`,
+        args: attendeeIds,
+      },
     );
   }
   deletes.push(

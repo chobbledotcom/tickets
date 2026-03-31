@@ -119,39 +119,19 @@ const decryptPiiBlob = async (
  * Requires migration to be complete (admin is gated behind migration).
  * When paidEvent is false, payment_id and refunded are skipped.
  */
-/** Raw row from attendee+event_attendees JOINs (before decryption) */
-type RawAttendeeRow = Attendee & {
-  checked_in_raw: number;
-  refunded_raw: number;
-  price_paid_raw: number;
-};
-
 const decryptAttendeeFields = async (
   row: Attendee,
   privateKey: CryptoKey,
   paidEvent = true,
 ): Promise<Attendee> => {
-  const raw = row as Partial<RawAttendeeRow>;
   const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidEvent);
   return {
     ...row,
     ...pii,
-    // Use raw integer values from JOIN query if present, otherwise keep existing derived values
-    price_paid:
-      raw.price_paid_raw !== undefined
-        ? String(raw.price_paid_raw)
-        : row.price_paid,
-    checked_in:
-      raw.checked_in_raw !== undefined
-        ? raw.checked_in_raw === 1
-        : row.checked_in,
-    refunded:
-      raw.refunded_raw !== undefined
-        ? paidEvent
-          ? raw.refunded_raw === 1
-          : false
-        : row.refunded,
-    attachment_downloads: row.attachment_downloads,
+    // Convert to proper types — value may be integer (from SQL) or boolean (from buildAttendeeView)
+    price_paid: String(row.price_paid),
+    checked_in: Boolean(row.checked_in),
+    refunded: paidEvent ? Boolean(row.refunded) : false,
   };
 };
 
@@ -165,7 +145,7 @@ const ATTENDEE_COLS =
 
 /** Columns sourced from event_attendees (per-event data) */
 const EA_COLS =
-  "ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity, ea.checked_in as checked_in_raw, ea.refunded as refunded_raw, ea.price_paid as price_paid_raw";
+  "ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity, ea.checked_in, ea.refunded, ea.price_paid";
 
 /** SELECT clause for attendee + event_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for backward compatibility with the Attendee type. */
@@ -174,7 +154,7 @@ export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
  * attendees with broken/missing event_attendees linkage still appear in results
  * (with event_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in_raw, COALESCE(ea.refunded, 0) as refunded_raw, COALESCE(ea.price_paid, 0) as price_paid_raw`;
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, COALESCE(ea.refunded, 0) as refunded, COALESCE(ea.price_paid, 0) as price_paid`;
 
 /**
  * Get attendees for an event without decrypting PII
@@ -351,10 +331,15 @@ export const getAttendee = async (
  * Uses write batch to cascade: processed_payments → attendee.
  * Reduces 2 sequential HTTP round-trips to 1.
  */
-export const deleteAttendee = async (attendeeId: number): Promise<void> => {
-  await executeBatch([
+/** Delete an attendee and all dependent data (payments, answers, event links) */
+const purgeAttendee = (attendeeId: number): Promise<void> =>
+  executeBatch([
     {
       sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
+      args: [attendeeId],
+    },
+    {
+      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
       args: [attendeeId],
     },
     {
@@ -363,7 +348,42 @@ export const deleteAttendee = async (attendeeId: number): Promise<void> => {
     },
     { sql: "DELETE FROM attendees WHERE id = ?", args: [attendeeId] },
   ]);
+
+/**
+ * Delete an attendee and all its event links, payments, and answers.
+ */
+export const deleteAttendee = async (attendeeId: number): Promise<void> => {
+  await purgeAttendee(attendeeId);
   invalidateEventsCache();
+};
+
+/**
+ * Remove a single event link for an attendee.
+ * If the attendee has no remaining event links, deletes the attendee entirely.
+ * Returns whether the attendee was fully deleted.
+ */
+export const unlinkAttendeeFromEvent = async (
+  attendeeId: number,
+  eventId: number,
+): Promise<{ attendeeDeleted: boolean }> => {
+  await getDb().execute({
+    sql: "DELETE FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
+    args: [attendeeId, eventId],
+  });
+
+  const remaining = await queryOne<{ count: number }>(
+    "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
+    [attendeeId],
+  );
+
+  if (remaining && remaining.count === 0) {
+    await purgeAttendee(attendeeId);
+    invalidateEventsCache();
+    return { attendeeDeleted: true };
+  }
+
+  invalidateEventsCache();
+  return { attendeeDeleted: false };
 };
 
 /** Convert a date string ("YYYY-MM-DD") to start_at/end_at pair for full-day range */

@@ -800,6 +800,96 @@ describeWithEnv("db", { db: true }, () => {
       expect(fetched).toBeNull();
     });
 
+    test("deleteEvent preserves attendees linked to other events", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      // Create one attendee linked to both events
+      const result = await createAttendeeAtomic({
+        name: "Multi",
+        email: "multi@example.com",
+        bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const attendeeId = result.attendees[0]!.id;
+
+      // Delete event1 — attendee should survive (still linked to event2)
+      await deleteEvent(event1.id);
+
+      const raw = await getAttendeesRaw(event2.id);
+      expect(raw.length).toBe(1);
+      expect(raw[0]!.id).toBe(attendeeId);
+    });
+
+    test("deleteEvent cleans up orphaned attendees", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Solo",
+        "solo@example.com",
+      );
+
+      await deleteEvent(event.id);
+
+      // Attendee linked only to this event should be deleted
+      const { getDb } = await import("#lib/db/client.ts");
+      const rows = await getDb().execute(
+        "SELECT COUNT(*) as count FROM attendees",
+      );
+      expect(rows.rows[0]!.count).toBe(0);
+    });
+
+    test("unlinkAttendeeFromEvent removes link and preserves attendee", async () => {
+      const { unlinkAttendeeFromEvent } = await import("#lib/db/attendees.ts");
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const result = await createAttendeeAtomic({
+        name: "Unlink",
+        email: "unlink@example.com",
+        bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const { attendeeDeleted } = await unlinkAttendeeFromEvent(
+        result.attendees[0]!.id,
+        event1.id,
+      );
+
+      expect(attendeeDeleted).toBe(false);
+      // Attendee still linked to event2
+      const raw = await getAttendeesRaw(event2.id);
+      expect(raw.length).toBe(1);
+      // No longer linked to event1
+      const raw1 = await getAttendeesRaw(event1.id);
+      expect(raw1.length).toBe(0);
+    });
+
+    test("unlinkAttendeeFromEvent deletes orphaned attendee", async () => {
+      const { unlinkAttendeeFromEvent } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const result = await createAttendeeAtomic({
+        name: "Orphan",
+        email: "orphan@example.com",
+        bookings: [{ eventId: event.id }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const { attendeeDeleted } = await unlinkAttendeeFromEvent(
+        result.attendees[0]!.id,
+        event.id,
+      );
+
+      expect(attendeeDeleted).toBe(true);
+      const { getDb } = await import("#lib/db/client.ts");
+      const rows = await getDb().execute(
+        "SELECT COUNT(*) as count FROM attendees",
+      );
+      expect(rows.rows[0]!.count).toBe(0);
+    });
+
     test("eventsTable.deleteById invalidates cache", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -2747,10 +2837,10 @@ describeWithEnv("db", { db: true }, () => {
 
       const privateKey = await getTestPrivateKey();
       const rows = await getAttendeesRaw(event.id);
-      // checked_in_raw is 0 (not checked in) — raw integer from the SQL alias
-      expect(
-        (rows[0] as unknown as Record<string, unknown>).checked_in_raw,
-      ).toBe(0);
+      // checked_in is 0 (not checked in) — raw integer from SQL before decryption
+      expect((rows[0] as unknown as Record<string, unknown>).checked_in).toBe(
+        0,
+      );
 
       const decrypted = await decryptAttendees(rows, privateKey);
       expect(decrypted[0]?.checked_in).toBe(false);
