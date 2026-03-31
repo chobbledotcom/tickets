@@ -569,6 +569,124 @@ describeWithEnv(
       },
     );
 
+    describeWithEnv(
+      "Bunny CDN raw operations",
+      {
+        env: {
+          STORAGE_ZONE_NAME: "testzone",
+          STORAGE_ZONE_KEY: "testkey",
+        },
+      },
+      () => {
+        test("uploadRaw uploads bytes to Bunny CDN", async () => {
+          await runWithStorageConfig(
+            { zoneName: "testzone", zoneKey: "testkey" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                const uploadedUrls: string[] = [];
+                installUrlHandler(originalFetch, (url, init) => {
+                  if (
+                    url.includes("storage.bunnycdn.com") &&
+                    init?.method === "PUT"
+                  ) {
+                    uploadedUrls.push(url);
+                    return Promise.resolve(
+                      new Response(JSON.stringify({ HttpCode: 201 }), {
+                        status: 201,
+                      }),
+                    );
+                  }
+                  return null;
+                });
+
+                await uploadRaw(new Uint8Array([1, 2, 3]), "test-file.zip");
+                expect(
+                  uploadedUrls.some((u) => u.includes("test-file.zip")),
+                ).toBe(true);
+              }),
+          );
+        });
+
+        test("downloadRaw downloads bytes from Bunny CDN", async () => {
+          await runWithStorageConfig(
+            { zoneName: "testzone", zoneKey: "testkey" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) => {
+                  if (
+                    url.includes("storage.bunnycdn.com") &&
+                    url.includes("test-file.zip")
+                  ) {
+                    return Promise.resolve(
+                      new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
+                    );
+                  }
+                  return null;
+                });
+
+                const result = await downloadRaw("test-file.zip");
+                expect(result).toEqual(new Uint8Array([1, 2, 3]));
+              }),
+          );
+        });
+
+        test("downloadRaw returns null for missing file on Bunny CDN", async () => {
+          await runWithStorageConfig(
+            { zoneName: "testzone", zoneKey: "testkey" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) => {
+                  if (url.includes("storage.bunnycdn.com")) {
+                    return Promise.resolve(
+                      new Response(
+                        JSON.stringify({
+                          Message: "File not found: /missing.zip",
+                        }),
+                        { status: 404 },
+                      ),
+                    );
+                  }
+                  return null;
+                });
+
+                const result = await downloadRaw("missing.zip");
+                expect(result).toBeNull();
+              }),
+          );
+        });
+
+        test("listFiles lists files from Bunny CDN matching prefix", async () => {
+          await runWithStorageConfig(
+            { zoneName: "testzone", zoneKey: "testkey" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) => {
+                  if (url.includes("storage.bunnycdn.com")) {
+                    return Promise.resolve(
+                      new Response(
+                        JSON.stringify([
+                          { ObjectName: "backup-2024.zip" },
+                          { ObjectName: "backup-2025.zip" },
+                          { ObjectName: "other-file.txt" },
+                        ]),
+                        { status: 200 },
+                      ),
+                    );
+                  }
+                  return null;
+                });
+
+                const files = await listFiles("backup-");
+                expect(files).toEqual([
+                  "backup-2024.zip",
+                  "backup-2025.zip",
+                ]);
+              }),
+          );
+        });
+      },
+    );
+
     describe("encryptBytes / decryptBytes", () => {
       test("round-trips binary data through encrypt then decrypt", async () => {
         const original = new Uint8Array([
