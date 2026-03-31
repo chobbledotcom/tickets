@@ -10,6 +10,7 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   mockRequest,
+  setTestEnv,
 } from "#test-utils";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
@@ -242,14 +243,23 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       }
     });
 
-    test("contains built sites section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "Built Sites",
-        'id="built-sites"',
-        "CAN_BUILD_SITES",
-        "Add Built Site",
-      );
+    test("hides built sites section when builder is disabled", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).not.toContain('id="built-sites"');
+    });
+
+    test("shows built sites section when builder is enabled", async () => {
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      try {
+        await assertAdminHtml(
+          "/admin/guide",
+          'id="built-sites"',
+          "Add Built Site",
+        );
+      } finally {
+        restore();
+      }
     });
 
     test("shows default wallet setup instructions when no host wallet configured", async () => {

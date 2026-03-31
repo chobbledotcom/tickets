@@ -4,6 +4,7 @@
 
 import { settings } from "#lib/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#lib/email.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { htmlResponse, requireSessionOr } from "#routes/utils.ts";
 import { adminGuidePage } from "#templates/admin/guide.tsx";
@@ -24,6 +25,7 @@ const handleAdminGuideGet = (request: Request): Promise<Response> =>
           settings.appleWallet.hostConfig?.passTypeId ?? null,
         hostGoogleWalletIssuerId:
           settings.googleWallet.hostConfig?.issuerId ?? null,
+        builderEnabled: isBuilderEnabled(),
       }),
     );
   });
