@@ -2781,6 +2781,71 @@ describeWithEnv("db", { db: true }, () => {
     });
   });
 
+  describe("updateEventLink", () => {
+    test("updates quantity with capacity guard", async () => {
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({ maxAttendees: 5 });
+      const result = await createAttendeeAtomic({
+        name: "Link",
+        email: "link@test.com",
+        bookings: [{ eventId: event.id, quantity: 2 }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const update = await updateEventLink(result.attendees[0]!.id, event.id, {
+        quantity: 3,
+        date: null,
+      });
+      expect(update.success).toBe(true);
+
+      const raw = await getAttendeesRaw(event.id);
+      expect(raw[0]!.quantity).toBe(3);
+    });
+
+    test("rejects update that would exceed capacity", async () => {
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({ maxAttendees: 3 });
+      const result = await createAttendeeAtomic({
+        name: "Cap",
+        email: "cap@test.com",
+        bookings: [{ eventId: event.id, quantity: 2 }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const update = await updateEventLink(result.attendees[0]!.id, event.id, {
+        quantity: 4,
+        date: null,
+      });
+      expect(update.success).toBe(false);
+    });
+
+    test("updates date for daily event link", async () => {
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+      });
+      const result = await createAttendeeAtomic({
+        name: "Daily",
+        email: "daily@test.com",
+        bookings: [{ eventId: event.id, date: "2026-04-07" }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const update = await updateEventLink(result.attendees[0]!.id, event.id, {
+        quantity: 1,
+        date: "2026-04-08",
+      });
+      expect(update.success).toBe(true);
+
+      const raw = await getAttendeesRaw(event.id);
+      expect(raw[0]!.date).toBe("2026-04-08");
+    });
+  });
+
   describe("updateCheckedIn", () => {
     test("updates checked_in to true for existing attendee", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });

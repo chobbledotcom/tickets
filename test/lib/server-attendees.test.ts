@@ -1199,33 +1199,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expectFlash(response, expect.stringContaining("Name is required"), false);
     });
 
-    test("rejects missing event_id", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: "0",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Event is required"),
-        false,
-      );
-    });
-
     test("updates attendee with new data", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
@@ -1298,43 +1271,32 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expectFlash(response, expect.stringContaining("John Doe"));
     });
 
-    test("allows moving attendee to different event", async () => {
-      const event1 = await createTestEvent({
+    test("updates attendee PII via edit form", async () => {
+      const event = await createTestEvent({
         name: "Event 1",
         maxAttendees: 100,
       });
-      const event2 = await createTestEvent({
-        name: "Event 2",
-        maxAttendees: 100,
-      });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        event.id,
+        event.slug,
         "John Doe",
         "john@example.com",
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "John Doe",
-          email: "john@example.com",
+          name: "Jane Smith",
+          email: "jane@example.com",
           phone: "",
           address: "",
           special_instructions: "",
-          event_id: String(event2.id),
         },
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/event/${event2.id}#attendees`,
-        "Updated John Doe",
+        `/admin/event/${event.id}#attendees`,
+        "Updated Jane Smith",
       )(response);
-
-      // Verify attendee was moved to event2 by checking the raw attendee data
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const updated = await getAttendeeRaw(attendee.id);
-      expect(updated).not.toBeNull();
-      expect(updated!.event_id).toBe(event2.id);
     });
 
     test("event page shows edit success message", async () => {
@@ -1640,33 +1602,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
       expect(updated!.quantity).toBe(1);
-    });
-
-    test("rejects non-existent event_id on quantity update", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: "9999",
-          quantity: "2",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Event not found"), false);
     });
 
     test("treats invalid quantity as 1", async () => {

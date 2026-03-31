@@ -84,17 +84,26 @@ export type AttendeeWithBookings = {
 /** Item for batch availability check */
 export type BatchAvailabilityItem = { eventId: number; quantity: number };
 
-/** Input for updating an attendee */
-export type UpdateAttendeeInput = {
+/** Input for updating attendee PII (shared across events) */
+export type UpdateAttendeePIIInput = {
   name: string;
   email: string;
   phone: string;
   address: string;
   special_instructions: string;
-  event_id: number;
-  quantity: number;
   /** Decrypted payment_id for PII blob rebuild (from existing attendee) */
   payment_id: string;
   /** Decrypted ticket_token for PII blob rebuild (from existing attendee) */
   ticket_token: string;
 };
+
+/** Input for updating a single event link */
+export type UpdateEventLinkInput = {
+  quantity: number;
+  date: string | null;
+};
+
+/** Result of updating an event link */
+export type UpdateEventLinkResult =
+  | { success: true }
+  | { success: false; reason: "capacity_exceeded" };

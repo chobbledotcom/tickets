@@ -9,10 +9,10 @@ import {
   createAttendeeAtomic,
   decryptAttendeeOrNull,
   deleteAttendee,
-  hasAvailableSpots,
   markRefunded,
-  updateAttendee,
+  updateAttendeePII,
   updateCheckedIn,
+  updateEventLink,
 } from "#lib/db/attendees.ts";
 import { queryOne } from "#lib/db/client.ts";
 import {
@@ -440,33 +440,13 @@ async function editAttendeeHandler(
   const phone = form.getString("phone");
   const address = form.getString("address");
   const special_instructions = form.getString("special_instructions");
-  const event_id = Number(form.get("event_id")) || 0;
 
   if (!name.trim()) return editError("Name is required");
-  if (!event_id) return editError("Event is required");
-
-  const targetEvent =
-    event_id === data.event.id ? data.event : await getEventWithCount(event_id);
-  if (!targetEvent) return editError("Event not found");
 
   const quantity = parseQuantity(
     form.get("quantity") || "1",
-    targetEvent.max_quantity,
+    data.event.max_quantity,
   );
-
-  // Check capacity when quantity increases or event changes
-  const quantityDelta = quantity - data.attendee.quantity;
-  const eventChanged = event_id !== data.attendee.event_id;
-  if (quantityDelta > 0 || eventChanged) {
-    // For event change, check full quantity against new event; for same event, check only the delta
-    const spotsNeeded = eventChanged ? quantity : quantityDelta;
-    const available = await hasAvailableSpots(
-      event_id,
-      spotsNeeded,
-      data.attendee.date,
-    );
-    if (!available) return editError("Not enough spots available");
-  }
 
   // Parse question answers
   const answerIds: number[] = [];
@@ -480,27 +460,35 @@ async function editAttendeeHandler(
     }
   }
 
-  await updateAttendee(attendeeId, {
+  // Update PII (shared across events)
+  await updateAttendeePII(attendeeId, {
     name,
     email,
     phone,
     address,
     special_instructions,
-    event_id,
-    quantity,
     payment_id: data.attendee.payment_id,
     ticket_token: data.attendee.ticket_token,
   });
+
+  // Update event link with atomic capacity guard
+  const linkResult = await updateEventLink(attendeeId, data.attendee.event_id, {
+    quantity,
+    date: data.attendee.date,
+  });
+  if (!linkResult.success) {
+    return editError("Not enough spots available");
+  }
 
   // Update answers (atomic delete + insert)
   if (data.questions.length > 0) {
     await saveAttendeeAnswers([attendeeId], answerIds);
   }
 
-  await logActivity(`Attendee '${name}' updated`, event_id);
+  await logActivity(`Attendee '${name}' updated`, data.event.id);
 
   return redirect(
-    `/admin/event/${event_id}#attendees`,
+    `/admin/event/${data.event.id}#attendees`,
     `Updated ${name}`,
     true,
     { form },

@@ -19,7 +19,6 @@ import type {
   CreateAttendeeResult,
   EncryptedAttendeeData,
   EncryptInput,
-  UpdateAttendeeInput,
 } from "#lib/db/attendee-types.ts";
 import {
   executeBatch,
@@ -47,13 +46,18 @@ export type {
   CreateAttendeeResult,
   EventAttendeeRow,
   EventBooking,
-  UpdateAttendeeInput,
+  UpdateAttendeePIIInput,
+  UpdateEventLinkInput,
+  UpdateEventLinkResult,
 } from "#lib/db/attendee-types.ts";
 
 import type {
   AttendeeWithBookings,
   EventAttendeeRow,
   EventBooking,
+  UpdateAttendeePIIInput,
+  UpdateEventLinkInput,
+  UpdateEventLinkResult,
 } from "#lib/db/attendee-types.ts";
 
 /** Current PII blob schema version */
@@ -386,6 +390,21 @@ export const unlinkAttendeeFromEvent = async (
   return { attendeeDeleted: false };
 };
 
+/** Shared failure result for capacity-exceeded */
+const CAPACITY_EXCEEDED = {
+  success: false as const,
+  reason: "capacity_exceeded" as const,
+};
+
+/** Convert nullable date to start_at/end_at (null-safe wrapper around dateToRange) */
+const dateToStartEnd = (
+  date: string | null,
+): { startAt: string | null; endAt: string | null } => {
+  if (!date) return { startAt: null, endAt: null };
+  const range = dateToRange(date);
+  return { startAt: range.startAt, endAt: range.endAt };
+};
+
 /** Convert a date string ("YYYY-MM-DD") to start_at/end_at pair for full-day range */
 export const dateToRange = (
   date: string,
@@ -438,22 +457,34 @@ const getGroupAttendeeCount = async (
 };
 
 /**
- * Build a capacity-checked INSERT INTO event_attendees for a single booking.
- * Uses last_insert_rowid() to reference the attendee created in step 1 of the batch.
+ * Build the WHERE clause for capacity checking on event_attendees.
+ * @param excludeAttendeeId - If set, excludes this attendee's rows from the count (for updates)
  */
-const buildCapacityCheckedInsert = (
-  booking: EventBooking,
+const buildCapacityCondition = (
+  eventId: number,
+  qty: number,
+  date: string | null,
+  excludeAttendeeId?: number,
 ): { sql: string; args: InValue[] } => {
-  const { eventId, quantity: qty = 1, pricePaid = 0, date = null } = booking;
   const range = date ? dateToRange(date) : null;
-  const startAt = range?.startAt ?? null;
   const endAt = range?.endAt ?? null;
+  const startAt = range?.startAt ?? null;
 
+  const excludeClause = excludeAttendeeId ? " AND ea2.attendee_id != ?" : "";
   const capacityFilter = date
-    ? "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ? AND ea2.start_at < ? AND ea2.end_at > ?"
-    : "SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?";
-  const capacityArgs: InValue[] = date ? [eventId, endAt, startAt] : [eventId];
+    ? `SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?${excludeClause} AND ea2.start_at < ? AND ea2.end_at > ?`
+    : `SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?${excludeClause}`;
+  const capacityArgs: InValue[] = date
+    ? excludeAttendeeId
+      ? [eventId, excludeAttendeeId, endAt, startAt]
+      : [eventId, endAt, startAt]
+    : excludeAttendeeId
+      ? [eventId, excludeAttendeeId]
+      : [eventId];
 
+  const groupExclude = excludeAttendeeId
+    ? "AND ea3.attendee_id != ?\n                  "
+    : "";
   const groupCapacityCheck = `
           AND (
             SELECT CASE
@@ -464,7 +495,7 @@ const buildCapacityCheckedInsert = (
                 FROM event_attendees ea3
                 JOIN events e2 ON e2.id = ea3.event_id
                 WHERE e2.group_id = ev.group_id
-                  AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
+                  ${groupExclude}AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
               ) + ? <= g.max_attendees THEN 1
               ELSE 0
             END
@@ -472,27 +503,32 @@ const buildCapacityCheckedInsert = (
             LEFT JOIN groups g ON g.id = ev.group_id
             WHERE ev.id = ?
           ) = 1`;
-  const groupCapacityArgs: InValue[] = [date, endAt, startAt, qty, eventId];
+  const groupCapacityArgs: InValue[] = excludeAttendeeId
+    ? [excludeAttendeeId, date, endAt, startAt, qty, eventId]
+    : [date, endAt, startAt, qty, eventId];
+
+  return {
+    sql: `(${capacityFilter}) + ? <= (SELECT max_attendees FROM events WHERE id = ?)${groupCapacityCheck}`,
+    args: [...capacityArgs, qty, eventId, ...groupCapacityArgs],
+  };
+};
+
+/**
+ * Build a capacity-checked INSERT INTO event_attendees for a single booking.
+ * Uses last_insert_rowid() to reference the attendee created in step 1 of the batch.
+ */
+const buildCapacityCheckedInsert = (
+  booking: EventBooking,
+): { sql: string; args: InValue[] } => {
+  const { eventId, quantity: qty = 1, pricePaid = 0, date = null } = booking;
+  const condition = buildCapacityCondition(eventId, qty, date);
+  const { startAt, endAt } = dateToStartEnd(date);
 
   return {
     sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid)
           SELECT ?, last_insert_rowid(), ?, ?, ?, ?
-          WHERE (
-            ${capacityFilter}
-          ) + ? <= (
-            SELECT max_attendees FROM events WHERE id = ?
-          )${groupCapacityCheck}`,
-    args: [
-      eventId,
-      startAt,
-      endAt,
-      qty,
-      pricePaid,
-      ...capacityArgs,
-      qty,
-      eventId,
-      ...groupCapacityArgs,
-    ],
+          WHERE ${condition.sql}`,
+    args: [eventId, startAt, endAt, qty, pricePaid, ...condition.args],
   };
 };
 
@@ -824,12 +860,12 @@ export const incrementAttachmentDownloads = async (
 };
 
 /**
- * Update an attendee's information (encrypted PII blob)
- * Caller must be authenticated admin (public key always exists after setup)
+ * Update an attendee's PII (name, email, phone, etc.) — shared across all event links.
+ * Caller must be authenticated admin (public key always exists after setup).
  */
-export const updateAttendee = async (
+export const updateAttendeePII = async (
   attendeeId: number,
-  input: UpdateAttendeeInput,
+  input: UpdateAttendeePIIInput,
 ): Promise<void> => {
   const encryptedPiiBlob = await encryptPiiBlob(
     buildPiiBlob({
@@ -839,16 +875,37 @@ export const updateAttendee = async (
     }),
     settings.publicKey,
   );
+  await getDb().execute({
+    sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
+    args: [encryptedPiiBlob, attendeeId],
+  });
+};
 
-  await executeBatch([
-    {
-      sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
-      args: [encryptedPiiBlob, attendeeId],
-    },
-    {
-      sql: "UPDATE event_attendees SET event_id = ?, quantity = ? WHERE attendee_id = ?",
-      args: [input.event_id, input.quantity, attendeeId],
-    },
-  ]);
+/**
+ * Update a single event link's quantity and date with atomic capacity check.
+ * Excludes this attendee's current row from the capacity calculation so
+ * no-op edits (same quantity) don't self-fail.
+ */
+/**
+ * Update a single event link's quantity and date with atomic capacity check.
+ * Excludes this attendee's current row from the capacity calculation.
+ */
+export const updateEventLink = async (
+  attendeeId: number,
+  eventId: number,
+  input: UpdateEventLinkInput,
+): Promise<UpdateEventLinkResult> => {
+  const { quantity: qty, date } = input;
+  const { startAt, endAt } = dateToStartEnd(date);
+  const condition = buildCapacityCondition(eventId, qty, date, attendeeId);
+
+  const result = await getDb().execute({
+    sql: `UPDATE event_attendees SET quantity = ?, start_at = ?, end_at = ?
+          WHERE attendee_id = ? AND event_id = ? AND ${condition.sql}`,
+    args: [qty, startAt, endAt, attendeeId, eventId, ...condition.args],
+  });
+
+  if (!result.rowsAffected) return CAPACITY_EXCEEDED;
   invalidateEventsCache();
+  return { success: true };
 };
