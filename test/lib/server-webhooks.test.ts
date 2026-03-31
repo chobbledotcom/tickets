@@ -4043,10 +4043,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(att1.length).toBe(1);
         expect(att2.length).toBe(1);
 
-        // Verify answers saved only for event1's attendee (question belongs to event1 only)
-        const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
-        expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
-        expect(batch.get(att2[0]!.id)).toBeUndefined();
+        // With multi-event attendees, one attendee is linked to both events.
+        // Answers are stored on the shared attendee ID.
+        const attendeeId = att1[0]!.id;
+        expect(attendeeId).toBe(att2[0]!.id); // same attendee
+        const batch = await getAttendeeAnswersBatch([attendeeId]);
+        expect(batch.get(attendeeId)).toEqual([a1.id]);
       } finally {
         mockVerify.restore();
       }

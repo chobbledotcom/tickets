@@ -926,21 +926,16 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
-        // Ticket should have multiple tokens joined by + (URL-encoded as %2B)
-        expectRedirect(
-          redirectResponse,
-          /^\/payment\/success\?tokens=.+%2B.+$/,
-        );
+        // With multi-event attendees, one token covers all events
+        expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
 
         const response = await followRedirect(redirectResponse, handleRequest);
-        const html = await expectHtmlResponse(
+        await expectHtmlResponse(
           response,
           200,
           "Payment Successful",
-          "Click here to view your tickets",
+          "Click here to view your ticket",
         );
-        // Multi-slug ticket should NOT have thank_you_url (different events)
-        expect(html).not.toContain("redirected");
 
         // Verify attendees created for both events
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");

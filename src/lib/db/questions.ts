@@ -314,21 +314,29 @@ export const saveEventAnswers = async (
   entries: { attendee: { id: number }; event: { id: number } }[],
   eventAnswerIds: Record<string, number[]>,
 ): Promise<void> => {
-  const statements: { sql: string; args: InValue[] }[] = [];
+  // Collect all answer IDs per attendee (one attendee may span multiple events)
+  const answersByAttendee = new Map<number, number[]>();
   for (const { attendee, event } of entries) {
     const answers = eventAnswerIds[String(event.id)];
     if (answers && answers.length > 0) {
-      statements.push({
-        sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-        args: [attendee.id],
-      });
-      const placeholders = answers.map(() => "(?, ?)").join(", ");
-      const args = answers.flatMap((id) => [attendee.id, id]);
-      statements.push({
-        sql: `INSERT INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
-        args,
-      });
+      const existing = answersByAttendee.get(attendee.id) ?? [];
+      existing.push(...answers);
+      answersByAttendee.set(attendee.id, existing);
     }
+  }
+
+  const statements: { sql: string; args: InValue[] }[] = [];
+  for (const [attendeeId, answers] of answersByAttendee) {
+    statements.push({
+      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
+      args: [attendeeId],
+    });
+    const placeholders = answers.map(() => "(?, ?)").join(", ");
+    const args = answers.flatMap((id) => [attendeeId, id]);
+    statements.push({
+      sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
+      args,
+    });
   }
   if (statements.length > 0) {
     await executeBatch(statements);

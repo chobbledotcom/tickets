@@ -216,8 +216,8 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
         if (thankYouUrl) return redirectResponse(thankYouUrl);
       }
 
-      const tokens = encodeURIComponent(result.tokens.join("+"));
-      return redirectResponse(`/ticket/reserved?tokens=${tokens}`);
+      const token = encodeURIComponent(result.token);
+      return redirectResponse(`/ticket/reserved?tokens=${token}`);
     },
   );
 
