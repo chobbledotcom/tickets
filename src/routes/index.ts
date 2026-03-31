@@ -3,7 +3,7 @@
  * Uses lazy loading to minimize startup time for edge scripts
  */
 
-import { once } from "#fp";
+import { lazyRef, once } from "#fp";
 import { loadEffectiveDomain } from "#lib/config.ts";
 import {
   clearFlashCookie,
@@ -54,6 +54,15 @@ import {
 
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;
+
+/** Module-level override avoids env race in parallel tests */
+const [getRethrowErrors, setRethrowErrors] = lazyRef<boolean | null>(
+  () => null,
+);
+
+/** Explicitly enable/disable test error rethrowing without env var races */
+export const setRethrowErrorsForTest = (rethrow: boolean | null): void =>
+  setRethrowErrors(rethrow);
 
 /** Lazy-load admin routes (only needed for authenticated admin requests) */
 const loadAdminRoutes = once(async () => {
@@ -423,7 +432,7 @@ export const handleRequest = async (
                 // In tests, surface the real error instead of swallowing it
                 // behind a generic "Temporary Error" page
                 if (
-                  Deno.env.get("TEST_RETHROW_ERRORS") &&
+                  getRethrowErrors() &&
                   !(error instanceof SessionKeyError) &&
                   !Deno.env.get("TEST_EXPECT_ERROR")
                 ) {
