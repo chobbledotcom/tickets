@@ -260,12 +260,12 @@ describe("e2e: full booking flow", () => {
 
     // ── Backup / Reset / Restore flow ──────────────────────────
 
-    // 14. Navigate to backup page and create a backup
-    await browser.visit("/admin/backup");
-    expect(browser.containsText("Database Backup")).toBe(true);
-    expect(browser.containsText("Encryption Key")).toBe(true);
-
     await withLocalStorageEnabled(async () => {
+      // 14. Navigate to backup page and create a backup
+      await browser.visit("/admin/backup");
+      expect(browser.containsText("Database Backup")).toBe(true);
+      expect(browser.containsText("Encryption Key")).toBe(true);
+
       await browser.submitForm({}, "Create Backup Now");
       expect(browser.containsText("Backup created successfully")).toBe(true);
 
