@@ -517,18 +517,28 @@ const buildCapacityCondition = (
  * Build a capacity-checked INSERT INTO event_attendees for a single booking.
  * Uses last_insert_rowid() to reference the attendee created in step 1 of the batch.
  */
+/**
+ * Build a capacity-checked INSERT into event_attendees.
+ * @param attendeeIdExpr - SQL expression for attendee_id (e.g. "last_insert_rowid()" or "?")
+ * @param attendeeIdArg - Argument for "?" expr, omit for last_insert_rowid()
+ */
 const buildCapacityCheckedInsert = (
   booking: EventBooking,
+  attendeeIdExpr = "last_insert_rowid()",
+  attendeeIdArg?: number,
 ): { sql: string; args: InValue[] } => {
   const { eventId, quantity: qty = 1, pricePaid = 0, date = null } = booking;
   const condition = buildCapacityCondition(eventId, qty, date);
   const { startAt, endAt } = dateToStartEnd(date);
+  const args: InValue[] = [eventId];
+  if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
+  args.push(startAt, endAt, qty, pricePaid, ...condition.args);
 
   return {
     sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid)
-          SELECT ?, last_insert_rowid(), ?, ?, ?, ?
+          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?
           WHERE ${condition.sql}`,
-    args: [eventId, startAt, endAt, qty, pricePaid, ...condition.args],
+    args,
   };
 };
 
@@ -905,7 +915,26 @@ export const updateEventLink = async (
     args: [qty, startAt, endAt, attendeeId, eventId, ...condition.args],
   });
 
+  return checkCapacityResult(result);
+};
+
+/** Check a capacity-guarded write result and invalidate cache on success */
+const checkCapacityResult = (result: {
+  rowsAffected: number;
+}): UpdateEventLinkResult => {
   if (!result.rowsAffected) return CAPACITY_EXCEEDED;
   invalidateEventsCache();
   return { success: true };
 };
+
+/**
+ * Add a new event link for an existing attendee with atomic capacity check.
+ * Does NOT create a new attendee or touch PII — just inserts an event_attendees row.
+ */
+export const addEventLink = async (
+  attendeeId: number,
+  booking: EventBooking,
+): Promise<UpdateEventLinkResult> =>
+  checkCapacityResult(
+    await getDb().execute(buildCapacityCheckedInsert(booking, "?", attendeeId)),
+  );

@@ -2,8 +2,9 @@
  * Admin attendee page templates
  */
 
-import { map, pipe, unique } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
+import { formatDateLabel } from "#lib/dates.ts";
+import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import { ConfirmForm, CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -141,29 +142,6 @@ export const adminRefundAllAttendeesPage = (
     </Layout>,
   );
 
-/** Render event selector for edit attendee page */
-const renderEventSelector = (
-  currentEventId: number,
-  allEvents: EventWithCount[],
-): string => {
-  // Get unique event IDs (current event + active events, uniquified)
-  const eventIds = pipe(
-    map((e: EventWithCount) => e.id),
-    unique,
-  )([{ id: currentEventId } as EventWithCount, ...allEvents]);
-
-  // Build options HTML
-  const options = eventIds
-    .map((id) => {
-      const event = allEvents.find((e) => e.id === id)!;
-      const selected = id === currentEventId ? " selected" : "";
-      return `<option value="${id}"${selected}>${event.name}${!event.active ? " (inactive)" : ""}</option>`;
-    })
-    .join("");
-
-  return `<label for="event_id">Event<select id="event_id" name="event_id" required>${options}</select></label>`;
-};
-
 /** Render payment details section (read-only) */
 const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
   if (!attendee.payment_id) return "";
@@ -221,19 +199,29 @@ const renderEditQuestions = (
 /**
  * Admin edit attendee page
  */
+/** Event link data for the edit page */
+type EventLinkDisplay = {
+  event: EventWithCount;
+  booking: EventAttendeeRow;
+  date: string | null;
+};
+
 export const adminEditAttendeePage = (
   {
-    event,
     attendee,
+    eventLinks = [],
     allEvents,
     questions = [],
     selectedAnswerIds = [],
+    availableDatesByEvent = {},
   }: {
     event: EventWithCount;
     attendee: Attendee;
+    eventLinks?: EventLinkDisplay[];
     allEvents: EventWithCount[];
     questions?: QuestionWithAnswers[];
     selectedAnswerIds?: number[];
+    availableDatesByEvent?: Record<number, string[]>;
   },
   session: AdminSession,
   returnUrl?: string,
@@ -248,6 +236,8 @@ export const adminEditAttendeePage = (
 
       <Raw html={PaymentDetails({ attendee })} />
 
+      {/* PII Section — shared across all events */}
+      <h3>Contact Information</h3>
       <CsrfForm action={`/admin/attendees/${attendee.id}`}>
         {returnUrl && (
           <input type="hidden" name="return_url" value={returnUrl} />
@@ -306,25 +296,139 @@ export const adminEditAttendeePage = (
           </textarea>
         </label>
 
-        <label for="quantity">
+        <Raw html={renderEditQuestions(questions, selectedAnswerIds)} />
+
+        <button type="submit">Save Contact Info</button>
+      </CsrfForm>
+
+      {/* Event Links Section */}
+      <h3>Event Registrations</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Date</th>
+              <th>Qty</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {eventLinks.map(({ event: evt, booking, date: linkDate }) => (
+              <tr>
+                <td>
+                  <a href={`/admin/event/${evt.id}`}>{evt.name}</a>
+                </td>
+                <td>{linkDate ? formatDateLabel(linkDate) : ""}</td>
+                <td>
+                  <CsrfForm
+                    action={`/admin/attendees/${attendee.id}/event/${evt.id}`}
+                  >
+                    <input
+                      type="number"
+                      name="quantity"
+                      value={String(booking.quantity)}
+                      min="1"
+                      max={String(evt.max_quantity)}
+                      style="width:4em"
+                    />
+                    <button type="submit" class="link-button">
+                      Update
+                    </button>
+                  </CsrfForm>
+                </td>
+                <td>
+                  {Boolean(booking.checked_in) && (
+                    <span class="badge">Checked in</span>
+                  )}
+                  {Boolean(booking.refunded) && (
+                    <span class="badge danger">Refunded</span>
+                  )}
+                </td>
+                <td>
+                  <CsrfForm
+                    action={`/admin/attendees/${attendee.id}/unlink/${evt.id}`}
+                  >
+                    <button type="submit" class="link-button danger">
+                      Remove
+                    </button>
+                  </CsrfForm>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add Event Link Section */}
+      <h3>Add to Event</h3>
+      <CsrfForm action={`/admin/attendees/${attendee.id}/link`}>
+        <label for="add_event_id">
+          Event
+          <select id="add_event_id" name="event_id" required>
+            <option value="">Select event...</option>
+            {allEvents
+              .filter((e) => e.active)
+              .map((e) => (
+                <option value={String(e.id)} data-event-type={e.event_type}>
+                  {e.name}
+                </option>
+              ))}
+          </select>
+        </label>
+
+        <label for="add_quantity">
           Quantity
           <input
             type="number"
-            id="quantity"
+            id="add_quantity"
             name="quantity"
-            value={String(attendee.quantity)}
+            value="1"
             min="1"
-            max={String(event.max_quantity)}
             required
           />
         </label>
 
-        <Raw html={renderEventSelector(event.id, allEvents)} />
+        <label for="add_date" class="daily-date-field" style="display:none">
+          Date
+          <select id="add_date" name="date">
+            <option value="">Select date...</option>
+          </select>
+        </label>
 
-        <Raw html={renderEditQuestions(questions, selectedAnswerIds)} />
-
-        <button type="submit">Save Changes</button>
+        <button type="submit">Add to Event</button>
       </CsrfForm>
+
+      {/* Embed available dates as JSON for client-side date picker filtering */}
+      <script type="application/json" id="available-dates-data">
+        {JSON.stringify(availableDatesByEvent)}
+      </script>
+      <Raw
+        html={`<script>
+(function() {
+  var datesData = JSON.parse(document.getElementById('available-dates-data').textContent);
+  var eventSelect = document.getElementById('add_event_id');
+  var dateField = document.querySelector('.daily-date-field');
+  var dateSelect = document.getElementById('add_date');
+  if (!eventSelect || !dateField || !dateSelect) return;
+  eventSelect.addEventListener('change', function() {
+    var eventId = eventSelect.value;
+    var dates = datesData[eventId];
+    if (dates && dates.length > 0) {
+      dateField.style.display = '';
+      dateSelect.innerHTML = '<option value="">Select date...</option>' +
+        dates.map(function(d) { return '<option value="' + d + '">' + d + '</option>'; }).join('');
+      dateSelect.required = true;
+    } else {
+      dateField.style.display = 'none';
+      dateSelect.required = false;
+      dateSelect.value = '';
+    }
+  });
+})();
+</script>`}
+      />
     </Layout>,
   );
 
