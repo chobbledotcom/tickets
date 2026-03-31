@@ -140,7 +140,7 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
     expect(html).toContain('name="backup_filename"');
   });
 
-  test("restore confirm page renders error when provided", () => {
+  test("restore confirm page renders error as HTML not escaped text", () => {
     const html = adminRestoreConfirmPage(
       mockSession,
       "test.zip",
@@ -148,7 +148,31 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       "Phrase mismatch",
     );
     expect(html).toContain("Phrase mismatch");
-    expect(html).toContain("error");
+    // Should be rendered as HTML div, not escaped
+    expect(html).toContain('class="error"');
+  });
+
+  test("restore confirm page shows schema mismatch warning", () => {
+    const html = adminRestoreConfirmPage(
+      mockSession,
+      "test.zip",
+      10,
+      undefined,
+      true,
+    );
+    expect(html).toContain("Schema mismatch");
+    expect(html).toContain("different database schema version");
+  });
+
+  test("restore confirm page hides schema warning when schemas match", () => {
+    const html = adminRestoreConfirmPage(
+      mockSession,
+      "test.zip",
+      10,
+      undefined,
+      false,
+    );
+    expect(html).not.toContain("Schema mismatch");
   });
 
   test("RESTORE_CONFIRM_PHRASE is RESTORE DATABASE", () => {

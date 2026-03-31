@@ -349,6 +349,9 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 ];
 
+/** Ordered table names — matches FK dependency order (parents before children) */
+export const SCHEMA_TABLE_NAMES: string[] = SCHEMA.map(([name]) => name);
+
 // ─── Schema hash (auto-detects changes even if LATEST_UPDATE isn't bumped) ──
 
 /** DJB2 hash — deterministic, fast, good enough for change detection */
@@ -437,7 +440,9 @@ export const initDb = async (): Promise<void> => {
       declaredIndexNames.add(idx.name);
       const unique = idx.unique ? "UNIQUE " : "";
       await runMigration(
-        `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${name}(${idx.columns.join(", ")})`,
+        `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${name}(${
+          idx.columns.join(", ")
+        })`,
       );
     }
   }
@@ -455,11 +460,13 @@ export const initDb = async (): Promise<void> => {
 
   // 4. Update version marker and schema hash
   await getDb().execute({
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+    sql:
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
   });
   await getDb().execute({
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+    sql:
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
     args: [SCHEMA_HASH],
   });
 };

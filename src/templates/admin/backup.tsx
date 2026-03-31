@@ -139,13 +139,23 @@ export const adminRestoreConfirmPage = (
   filename: string,
   lineCount: number,
   error?: string,
+  schemaMismatch?: boolean,
 ): string =>
   String(
     <Layout title="Confirm Restore">
       <AdminNav session={session} active="/admin/backup" />
       <Breadcrumb href="/admin/backup" label="Backup" />
       <h1>Confirm Database Restore</h1>
-      {renderError(error)}
+      <Raw html={renderError(error)} />
+
+      {schemaMismatch && (
+        <div class="error">
+          <strong>Schema mismatch:</strong>{" "}
+          This backup was created with a different database schema version. The
+          restore will apply current migrations after importing data, but some
+          data may be incompatible.
+        </div>
+      )}
 
       <p>
         You are about to restore from an uploaded backup containing{" "}

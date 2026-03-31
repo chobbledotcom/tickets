@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import { handleRequest } from "#routes";
-import { runWithStorageConfig } from "#lib/storage.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import {
   adminFormPost,
@@ -15,6 +14,7 @@ import {
   expectRedirectWithFlash,
   mockFormRequest,
   mockRequest,
+  withLocalStorageEnabled,
 } from "#test-utils";
 
 describeWithEnv("server (admin backup)", { db: true }, () => {
@@ -45,7 +45,6 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("shows encryption key on page", async () => {
       const { response } = await adminGet("/admin/backup");
       const html = await response.text();
-      // The test encryption key should be displayed
       expect(html).toContain("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
     });
 
@@ -65,22 +64,15 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("creates backup and redirects with success", async () => {
-      await runWithStorageConfig(
-        {
-          zoneName: "",
-          zoneKey: "",
-          localPath: await Deno.makeTempDir(),
-        },
-        async () => {
-          await eventsTable.insert({
-            name: "Backup Test Event",
-            description: "test",
-            maxAttendees: 50,
-          });
-          const { response } = await adminFormPost("/admin/backup/create");
-          expectRedirectWithFlash(response, "/admin/backup");
-        },
-      );
+      await withLocalStorageEnabled(async () => {
+        await eventsTable.insert({
+          name: "Backup Test Event",
+          description: "test",
+          maxAttendees: 50,
+        });
+        const { response } = await adminFormPost("/admin/backup/create");
+        expectRedirectWithFlash(response, "/admin/backup");
+      });
     });
   });
 
@@ -100,19 +92,12 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("returns 404 for missing file", async () => {
-      await runWithStorageConfig(
-        {
-          zoneName: "",
-          zoneKey: "",
-          localPath: await Deno.makeTempDir(),
-        },
-        async () => {
-          const { response } = await adminGet(
-            "/admin/backup/download/backup-2024-test.zip",
-          );
-          expect(response.status).toBe(404);
-        },
-      );
+      await withLocalStorageEnabled(async () => {
+        const { response } = await adminGet(
+          "/admin/backup/download/backup-2024-test.zip",
+        );
+        expect(response.status).toBe(404);
+      });
     });
   });
 
@@ -122,6 +107,28 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         mockFormRequest("/admin/backup/restore/confirm", {}),
       );
       expectAdminRedirect(response);
+    });
+
+    test("rejects filename without restore-pending prefix", async () => {
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "backup-2024-test.zip",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      expectRedirectWithFlash(response, "/admin/backup");
+    });
+
+    test("rejects filename without .zip extension", async () => {
+      const { response } = await adminFormPost(
+        "/admin/backup/restore/confirm",
+        {
+          backup_filename: "restore-pending-test.sql",
+          confirm_identifier: RESTORE_CONFIRM_PHRASE,
+        },
+      );
+      expectRedirectWithFlash(response, "/admin/backup");
     });
 
     test("redirects with error when confirmation phrase is wrong", async () => {
@@ -136,23 +143,16 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     });
 
     test("redirects with error when backup file is missing", async () => {
-      await runWithStorageConfig(
-        {
-          zoneName: "",
-          zoneKey: "",
-          localPath: await Deno.makeTempDir(),
-        },
-        async () => {
-          const { response } = await adminFormPost(
-            "/admin/backup/restore/confirm",
-            {
-              backup_filename: "restore-pending-nonexistent.zip",
-              confirm_identifier: RESTORE_CONFIRM_PHRASE,
-            },
-          );
-          expectRedirectWithFlash(response, "/admin/backup");
-        },
-      );
+      await withLocalStorageEnabled(async () => {
+        const { response } = await adminFormPost(
+          "/admin/backup/restore/confirm",
+          {
+            backup_filename: "restore-pending-nonexistent.zip",
+            confirm_identifier: RESTORE_CONFIRM_PHRASE,
+          },
+        );
+        expectRedirectWithFlash(response, "/admin/backup");
+      });
     });
   });
 });

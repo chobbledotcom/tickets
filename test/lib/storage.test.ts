@@ -7,15 +7,18 @@ import {
   deleteFile,
   detectImageType,
   downloadImage,
+  downloadRaw,
   generateAttachmentFilename,
   generateImageFilename,
   getImageProxyUrl,
   getMimeTypeFromFilename,
   isStorageEnabled,
+  listFiles,
   MAX_ATTACHMENT_SIZE,
   runWithStorageConfig,
   uploadAttachment,
   uploadImage,
+  uploadRaw,
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
@@ -140,6 +143,49 @@ describeWithEnv(
           const filename = "collision.jpg";
           await Deno.mkdir(`${dir}/${filename}`);
           await expect(downloadImage(filename)).rejects.toBeInstanceOf(Error);
+        });
+      });
+
+      test("uploadRaw stores bytes without encryption", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          const data = new TextEncoder().encode("hello raw");
+          await uploadRaw(data, "raw-test.txt");
+          const stored = await Deno.readFile(`${dir}/raw-test.txt`);
+          // Raw bytes should match exactly (no encryption overhead)
+          expect(stored).toEqual(data);
+        });
+      });
+
+      test("downloadRaw reads bytes without decryption", async () => {
+        await withLocalStorageEnabled(async () => {
+          const data = new TextEncoder().encode("raw roundtrip");
+          await uploadRaw(data, "raw-dl.txt");
+          const result = await downloadRaw("raw-dl.txt");
+          expect(result).toEqual(data);
+        });
+      });
+
+      test("downloadRaw returns null for missing file", async () => {
+        await withLocalStorageEnabled(async () => {
+          const result = await downloadRaw("nonexistent.txt");
+          expect(result).toBeNull();
+        });
+      });
+
+      test("listFiles returns files matching prefix", async () => {
+        await withLocalStorageEnabled(async () => {
+          await uploadRaw(new Uint8Array(0), "backup-a.zip");
+          await uploadRaw(new Uint8Array(0), "backup-b.zip");
+          await uploadRaw(new Uint8Array(0), "other-file.txt");
+          const files = await listFiles("backup-");
+          expect(files).toEqual(["backup-a.zip", "backup-b.zip"]);
+        });
+      });
+
+      test("listFiles returns empty array when no files match", async () => {
+        await withLocalStorageEnabled(async () => {
+          const files = await listFiles("nonexistent-");
+          expect(files).toEqual([]);
         });
       });
     });
@@ -525,7 +571,14 @@ describeWithEnv(
     describe("encryptBytes / decryptBytes", () => {
       test("round-trips binary data through encrypt then decrypt", async () => {
         const original = new Uint8Array([
-          0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46,
+          0xff,
+          0xd8,
+          0xff,
+          0xe0,
+          0x00,
+          0x10,
+          0x4a,
+          0x46,
         ]);
         const encrypted = await encryptBytes(original);
         // Encrypted data should be larger (12 byte IV + 16 byte auth tag)

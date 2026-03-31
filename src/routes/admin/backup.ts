@@ -13,9 +13,11 @@ import {
   countZipStatements,
   createBackupZip,
   isRemoteDatabase,
+  readManifest,
   restoreFromZip,
 } from "#lib/db/backup.ts";
 import { getEncryptionKeyString } from "#lib/crypto/encryption.ts";
+import { SCHEMA_HASH } from "#lib/db/migrations.ts";
 import {
   deleteFile,
   downloadRaw,
@@ -43,6 +45,7 @@ import {
 } from "#templates/admin/backup.tsx";
 
 const BACKUP_PREFIX = "backup-";
+const RESTORE_PENDING_PREFIX = "restore-pending-";
 
 /** Parse a backup filename into display info */
 const parseBackupEntry = (filename: string): BackupEntry => {
@@ -137,12 +140,23 @@ const handleBackupRestore: TypedRouteHandler<"POST /admin/backup/restore"> = (
       );
     }
 
+    // Read manifest for schema compatibility check
+    const manifest = readManifest(bytes);
+    const schemaMismatch = manifest !== null &&
+      manifest.schemaHash !== SCHEMA_HASH;
+
     // Store the uploaded zip temporarily so the confirm step can use it
-    const tempFilename = `restore-pending-${crypto.randomUUID()}.zip`;
+    const tempFilename = `${RESTORE_PENDING_PREFIX}${crypto.randomUUID()}.zip`;
     await uploadRaw(bytes, tempFilename);
 
     return htmlResponse(
-      adminRestoreConfirmPage(session, tempFilename, statementCount),
+      adminRestoreConfirmPage(
+        session,
+        tempFilename,
+        statementCount,
+        undefined,
+        schemaMismatch,
+      ),
     );
   });
 
@@ -152,8 +166,12 @@ const handleBackupRestoreConfirm: TypedRouteHandler<
 > = (request) =>
   withAuth(request, OWNER_FORM, async (_session, form) => {
     const filename = form.getString("backup_filename");
-    if (!filename) {
-      return redirect("/admin/backup", "Missing backup reference", false);
+    if (
+      !filename ||
+      !filename.startsWith(RESTORE_PENDING_PREFIX) ||
+      !filename.endsWith(".zip")
+    ) {
+      return redirect("/admin/backup", "Invalid backup reference", false);
     }
 
     const error = verifyOrRedirect(

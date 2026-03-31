@@ -1,38 +1,59 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { unzipSync } from "fflate";
+import { unzipSync, zipSync } from "fflate";
 import {
   backupFilename,
+  type BackupManifest,
   backupTimestamp,
   countZipStatements,
   createBackup,
   createBackupZip,
   exportTable,
   isRemoteDatabase,
-  listTables,
+  readManifest,
   restoreFromSql,
   restoreFromZip,
+  splitStatements,
 } from "#lib/db/backup.ts";
-import { queryAll, queryOne } from "#lib/db/client.ts";
+import { queryAll } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
+import { SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "#lib/db/migrations.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {
-  describe("listTables", () => {
-    test("returns all application tables", async () => {
-      const tables = await listTables();
-      expect(tables).toContain("settings");
-      expect(tables).toContain("events");
-      expect(tables).toContain("users");
-      expect(tables).toContain("attendees");
-      expect(tables.length).toBeGreaterThanOrEqual(10);
+  describe("splitStatements", () => {
+    test("splits on semicolon-newline boundaries", () => {
+      const sql = "INSERT INTO a VALUES (1);\nINSERT INTO b VALUES (2);";
+      const stmts = splitStatements(sql);
+      expect(stmts).toHaveLength(2);
+      expect(stmts[0]).toBe("INSERT INTO a VALUES (1);");
+      expect(stmts[1]).toBe("INSERT INTO b VALUES (2);");
     });
 
-    test("excludes sqlite internal tables", async () => {
-      const tables = await listTables();
-      for (const table of tables) {
-        expect(table).not.toMatch(/^sqlite_/);
-      }
+    test("handles values with embedded newlines", () => {
+      const sql =
+        "INSERT INTO a (t) VALUES ('line1\nline2');\nINSERT INTO b VALUES (1);";
+      const stmts = splitStatements(sql);
+      expect(stmts).toHaveLength(2);
+      expect(stmts[0]).toContain("line1\nline2");
+    });
+
+    test("skips empty lines and comments", () => {
+      const sql =
+        "-- comment\n\nINSERT INTO a VALUES (1);\n\n-- another\nINSERT INTO b VALUES (2);";
+      const stmts = splitStatements(sql);
+      expect(stmts).toHaveLength(2);
+    });
+
+    test("handles trailing statement without newline", () => {
+      const sql = "INSERT INTO a VALUES (1);";
+      const stmts = splitStatements(sql);
+      expect(stmts).toHaveLength(1);
+    });
+
+    test("returns empty array for empty input", () => {
+      expect(splitStatements("")).toHaveLength(0);
+      expect(splitStatements("-- only comments")).toHaveLength(0);
     });
   });
 
@@ -72,16 +93,31 @@ describeWithEnv("backup", { db: true }, () => {
       const sql = await exportTable("events");
       expect(sql).toContain("NULL");
     });
+
+    test("produces deterministic output with ORDER BY rowid", async () => {
+      await eventsTable.insert({
+        name: "Second",
+        description: "",
+        maxAttendees: 1,
+      });
+      await eventsTable.insert({
+        name: "First",
+        description: "",
+        maxAttendees: 1,
+      });
+      const sql = await exportTable("events");
+      const secondIdx = sql.indexOf("Second");
+      const firstIdx = sql.indexOf("First");
+      // "Second" was inserted first (rowid 1), so it should appear before "First" (rowid 2)
+      expect(secondIdx).toBeLessThan(firstIdx);
+    });
   });
 
   describe("createBackup", () => {
-    test("returns a TableBackup for each table", async () => {
+    test("returns tables in SCHEMA order", async () => {
       const backups = await createBackup();
-      const tables = await listTables();
-      expect(backups.length).toBe(tables.length);
-      for (const backup of backups) {
-        expect(tables).toContain(backup.table);
-      }
+      const names = backups.map((b) => b.table);
+      expect(names).toEqual(SCHEMA_TABLE_NAMES);
     });
 
     test("each backup has table name and sql string", async () => {
@@ -111,10 +147,41 @@ describeWithEnv("backup", { db: true }, () => {
     test("includes all tables in zip", async () => {
       const zipData = await createBackupZip();
       const files = unzipSync(zipData);
-      const tables = await listTables();
-      for (const table of tables) {
+      for (const table of SCHEMA_TABLE_NAMES) {
         expect(Object.keys(files)).toContain(`${table}.sql`);
       }
+    });
+
+    test("includes manifest.json with schema metadata", async () => {
+      await eventsTable.insert({
+        name: "Manifest Test",
+        description: "",
+        maxAttendees: 5,
+      });
+      const zipData = await createBackupZip();
+      const files = unzipSync(zipData);
+      expect(Object.keys(files)).toContain("manifest.json");
+      const manifest: BackupManifest = JSON.parse(
+        new TextDecoder().decode(files["manifest.json"]!),
+      );
+      expect(manifest.schemaHash).toBe(SCHEMA_HASH);
+      expect(manifest.latestUpdate).toBeTruthy();
+      expect(manifest.timestamp).toBeTruthy();
+      expect(manifest.tables.events).toBe(1);
+    });
+  });
+
+  describe("readManifest", () => {
+    test("reads manifest from backup zip", async () => {
+      const zipData = await createBackupZip();
+      const manifest = readManifest(zipData);
+      expect(manifest).not.toBeNull();
+      expect(manifest!.schemaHash).toBe(SCHEMA_HASH);
+    });
+
+    test("returns null for zip without manifest", () => {
+      const zipData = zipSync({ "test.sql": new Uint8Array(0) });
+      expect(readManifest(zipData)).toBeNull();
     });
   });
 
@@ -144,6 +211,22 @@ describeWithEnv("backup", { db: true }, () => {
       // At least the settings rows + the event we inserted
       expect(count).toBeGreaterThanOrEqual(2);
     });
+
+    test("skips manifest.json when counting", async () => {
+      const zipData = await createBackupZip();
+      const count = countZipStatements(zipData);
+      // If manifest were counted it would add extra "statements"
+      // Verify by checking count matches actual SQL file content
+      const files = unzipSync(zipData);
+      const decoder = new TextDecoder();
+      let expectedCount = 0;
+      for (const [name, data] of Object.entries(files)) {
+        if (!name.endsWith(".sql")) continue;
+        const content = decoder.decode(data!);
+        if (content.trim()) expectedCount += splitStatements(content).length;
+      }
+      expect(count).toBe(expectedCount);
+    });
   });
 
   describe("restoreFromSql", () => {
@@ -164,21 +247,20 @@ describeWithEnv("backup", { db: true }, () => {
       expect(events[0]!.name).toBe("Before Restore");
     });
 
-    test("skips empty lines and comments", async () => {
-      const sql = [
-        "-- This is a comment",
-        "",
-        "INSERT INTO settings (key, value) VALUES ('test_key', 'test_value');",
-        "",
-        "-- Another comment",
-      ].join("\n");
+    test("handles values with embedded newlines", async () => {
+      await eventsTable.insert({
+        name: "Newline Test",
+        description: "line1\nline2\nline3",
+        maxAttendees: 10,
+      });
 
-      await restoreFromSql(sql);
-      const row = await queryOne<{ value: string }>(
-        "SELECT value FROM settings WHERE key = ?",
-        ["test_key"],
+      const backup = await exportTable("events");
+      await restoreFromSql(backup);
+
+      const events = await queryAll<{ description: string }>(
+        "SELECT description FROM events",
       );
-      expect(row?.value).toBe("test_value");
+      expect(events[0]!.description).toBe("line1\nline2\nline3");
     });
 
     test("clears existing data before restoring", async () => {
@@ -212,6 +294,22 @@ describeWithEnv("backup", { db: true }, () => {
       );
       expect(events.length).toBe(1);
       expect(events[0]!.name).toBe("Zip Restore Test");
+    });
+
+    test("preserves newlines in values through zip roundtrip", async () => {
+      await eventsTable.insert({
+        name: "Newline Zip",
+        description: "first\nsecond\nthird",
+        maxAttendees: 5,
+      });
+
+      const zipData = await createBackupZip();
+      await restoreFromZip(zipData);
+
+      const events = await queryAll<{ description: string }>(
+        "SELECT description FROM events",
+      );
+      expect(events[0]!.description).toBe("first\nsecond\nthird");
     });
   });
 
