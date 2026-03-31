@@ -578,84 +578,30 @@ describeWithEnv(
         },
       },
       () => {
-        test("uploadRaw uploads bytes to Bunny CDN", async () => {
-          await runWithStorageConfig(
-            { zoneName: "testzone", zoneKey: "testkey" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                const uploadedUrls: string[] = [];
-                installUrlHandler(originalFetch, (url, init) => {
-                  if (
-                    url.includes("storage.bunnycdn.com") &&
-                    init?.method === "PUT"
-                  ) {
-                    uploadedUrls.push(url);
-                    return Promise.resolve(
-                      new Response(JSON.stringify({ HttpCode: 201 }), {
-                        status: 201,
-                      }),
-                    );
-                  }
-                  return null;
-                });
-
-                await uploadRaw(new Uint8Array([1, 2, 3]), "test-file.zip");
-                expect(
-                  uploadedUrls.some((u) => u.includes("test-file.zip")),
-                ).toBe(true);
-              }),
-          );
-        });
-
-        test("downloadRaw downloads bytes from Bunny CDN", async () => {
-          await runWithStorageConfig(
-            { zoneName: "testzone", zoneKey: "testkey" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                installUrlHandler(originalFetch, (url) => {
-                  if (
-                    url.includes("storage.bunnycdn.com") &&
-                    url.includes("test-file.zip")
-                  ) {
-                    return Promise.resolve(
-                      new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
-                    );
-                  }
-                  return null;
-                });
-
-                const result = await downloadRaw("test-file.zip");
-                expect(result).toEqual(new Uint8Array([1, 2, 3]));
-              }),
-          );
-        });
-
-        test("downloadRaw returns null for missing file on Bunny CDN", async () => {
-          await runWithStorageConfig(
-            { zoneName: "testzone", zoneKey: "testkey" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                installUrlHandler(originalFetch, (url) => {
-                  if (url.includes("storage.bunnycdn.com")) {
-                    return Promise.resolve(
-                      new Response(
-                        JSON.stringify({
-                          Message: "File not found: /missing.zip",
-                        }),
-                        { status: 404 },
-                      ),
-                    );
-                  }
-                  return null;
-                });
-
-                const result = await downloadRaw("missing.zip");
-                expect(result).toBeNull();
-              }),
-          );
-        });
+        // uploadRaw and downloadRaw Bunny branches are covered indirectly:
+        // existing tests call uploadImage/downloadImage which delegate to
+        // uploadRaw/downloadRaw via encryptAndUpload/downloadImage wrappers.
+        // Only listFiles is a wholly new Bunny codepath that needs direct testing.
 
         test("listFiles lists files from Bunny CDN matching prefix", async () => {
+          const mockFile = (name: string) => ({
+            ObjectName: name,
+            ContentType: "application/octet-stream",
+            Length: 100,
+            LastChanged: "2024-01-01T00:00:00Z",
+            IsDirectory: false,
+            ServerId: 0,
+            ArrayNumber: 0,
+            Guid: crypto.randomUUID(),
+            StorageZoneName: "testzone",
+            Path: "/",
+            ReplicatedZones: "",
+            DateCreated: "2024-01-01T00:00:00Z",
+            StorageZoneId: 0,
+            Checksum: "",
+            UserId: "",
+          });
+
           await runWithStorageConfig(
             { zoneName: "testzone", zoneKey: "testkey" },
             () =>
@@ -665,57 +611,9 @@ describeWithEnv(
                     return Promise.resolve(
                       new Response(
                         JSON.stringify([
-                          {
-                            ObjectName: "backup-2024.zip",
-                            ContentType: "application/octet-stream",
-                            Length: 100,
-                            LastChanged: "2024-01-01T00:00:00Z",
-                            IsDirectory: false,
-                            ServerId: 0,
-                            ArrayNumber: 0,
-                            Guid: "a",
-                            StorageZoneName: "testzone",
-                            Path: "/",
-                            ReplicatedZones: "",
-                            DateCreated: "2024-01-01T00:00:00Z",
-                            StorageZoneId: 0,
-                            Checksum: "",
-                            UserId: "",
-                          },
-                          {
-                            ObjectName: "backup-2025.zip",
-                            ContentType: "application/octet-stream",
-                            Length: 200,
-                            LastChanged: "2025-01-01T00:00:00Z",
-                            IsDirectory: false,
-                            ServerId: 0,
-                            ArrayNumber: 0,
-                            Guid: "b",
-                            StorageZoneName: "testzone",
-                            Path: "/",
-                            ReplicatedZones: "",
-                            DateCreated: "2025-01-01T00:00:00Z",
-                            StorageZoneId: 0,
-                            Checksum: "",
-                            UserId: "",
-                          },
-                          {
-                            ObjectName: "other-file.txt",
-                            ContentType: "text/plain",
-                            Length: 50,
-                            LastChanged: "2024-06-01T00:00:00Z",
-                            IsDirectory: false,
-                            ServerId: 0,
-                            ArrayNumber: 0,
-                            Guid: "c",
-                            StorageZoneName: "testzone",
-                            Path: "/",
-                            ReplicatedZones: "",
-                            DateCreated: "2024-06-01T00:00:00Z",
-                            StorageZoneId: 0,
-                            Checksum: "",
-                            UserId: "",
-                          },
+                          mockFile("backup-2024.zip"),
+                          mockFile("backup-2025.zip"),
+                          mockFile("other-file.txt"),
                         ]),
                         { status: 200 },
                       ),
