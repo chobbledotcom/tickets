@@ -48,7 +48,7 @@
 
 9. **Wallet passes** (`src/routes/wallet.ts`, `src/routes/google-wallet.ts`):
    - **Decision**: One pass per event. Add event-scoped route: `/wallet/:token/:eventId.pkpass`
-   - **Backward compat**: Keep old `/wallet/:token.pkpass` route working — serve the first/primary event's pass (or 404 if multi-event). Old URLs in email receipts must not break.
+   - Since all phases ship together, old single-token route can redirect or serve primary event. No intermediate migration needed.
    - Update ticket page to render one wallet button per event entry
 
 ### Phase 6: Safe deleteEvent
@@ -162,6 +162,10 @@
 | Client-only date filtering trusted on save | Phase 8 | Server-side date validation mandatory |
 | N+1 event lookups in resolveEntries | Phase 4 | Batch-fetch events by ID (cache is already in place) |
 | Duplicate token in URL causing double operations | Phase 4 | Dedupe tokens before processing |
+
+## Deployment note
+
+All phases ship together — no intermediate deployments. This means we do NOT need backward-compatible transitional states for wallet routes, token resolution, or admin UI. Old single-event behavior can be replaced outright.
 
 ## Order of implementation
 

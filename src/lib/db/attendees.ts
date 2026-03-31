@@ -42,12 +42,19 @@ import type {
 export type {
   ActiveEventStats,
   AttendeeInput,
+  AttendeeWithBookings,
   BatchAvailabilityItem,
   CreateAttendeeResult,
+  EventAttendeeRow,
+  EventBooking,
   UpdateAttendeeInput,
 } from "#lib/db/attendee-types.ts";
 
-import type { EventBooking } from "#lib/db/attendee-types.ts";
+import type {
+  AttendeeWithBookings,
+  EventAttendeeRow,
+  EventBooking,
+} from "#lib/db/attendee-types.ts";
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
@@ -653,29 +660,85 @@ export const checkBatchAvailability = (
  * Get attendees by ticket tokens (plaintext tokens, looked up via HMAC index)
  * Returns attendees in the same order as the input tokens.
  */
+/**
+ * Look up attendees by plaintext tokens, returning full booking data.
+ * Two queries: attendees by token index, then all event_attendees for those attendees.
+ * Returns results in the same order as input tokens (deduped). Bookings sorted
+ * by start_at then event_id for deterministic ordering.
+ */
 export const getAttendeesByTokens = async (
   tokens: string[],
-): Promise<(Attendee | null)[]> => {
-  // Compute HMAC index for each token
+): Promise<(AttendeeWithBookings | null)[]> => {
+  // Dedupe tokens to prevent double processing
+  const uniqueTokens = [...new Set(tokens)];
   const tokenIndexes = await Promise.all(
-    map((t: string) => computeTicketTokenIndex(t))(tokens),
+    map((t: string) => computeTicketTokenIndex(t))(uniqueTokens),
   );
 
-  const rows = await queryAll<Attendee>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees a
-     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
-     WHERE a.ticket_token_index IN (${inPlaceholders(tokenIndexes)})`,
+  // Query 1: Get attendee base rows (no event join)
+  type AttendeeBase = {
+    id: number;
+    created: string;
+    ticket_token_index: string;
+    attachment_downloads: number;
+    pii_blob: string;
+  };
+  const attendeeRows = await queryAll<AttendeeBase>(
+    `SELECT id, created, ticket_token_index, attachment_downloads, pii_blob
+     FROM attendees WHERE ticket_token_index IN (${inPlaceholders(tokenIndexes)})`,
     tokenIndexes,
   );
 
-  // Build a map from token index to attendee
-  const byTokenIndex = new Map(
-    map((r: Attendee) => [r.ticket_token_index, r] as const)(rows),
+  if (attendeeRows.length === 0) {
+    return tokens.map(() => null);
+  }
+
+  // Query 2: Get all event links for these attendees
+  const attendeeIds = attendeeRows.map((a) => a.id);
+  const bookingRows = await queryAll<
+    EventAttendeeRow & { attendee_id: number }
+  >(
+    `SELECT attendee_id, event_id, start_at, end_at, quantity, checked_in_v2, refunded_v2, price_paid_v2
+     FROM event_attendees WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
+     ORDER BY start_at, event_id`,
+    attendeeIds,
   );
 
-  // Return attendees in the same order as input tokens
-  return map((idx: string) => byTokenIndex.get(idx) ?? null)(tokenIndexes);
+  // Group bookings by attendee_id
+  const bookingsByAttendee = new Map<number, EventAttendeeRow[]>();
+  for (const row of bookingRows) {
+    const list = bookingsByAttendee.get(row.attendee_id) ?? [];
+    list.push({
+      event_id: row.event_id,
+      start_at: row.start_at,
+      end_at: row.end_at,
+      quantity: row.quantity,
+      checked_in_v2: row.checked_in_v2,
+      refunded_v2: row.refunded_v2,
+      price_paid_v2: row.price_paid_v2,
+    });
+    bookingsByAttendee.set(row.attendee_id, list);
+  }
+
+  // Build AttendeeWithBookings map by token index
+  const byTokenIndex = new Map<string, AttendeeWithBookings>();
+  for (const row of attendeeRows) {
+    byTokenIndex.set(row.ticket_token_index, {
+      id: row.id,
+      created: row.created,
+      ticket_token: "", // populated after decryption by caller
+      ticket_token_index: row.ticket_token_index,
+      attachment_downloads: row.attachment_downloads,
+      pii_blob: row.pii_blob,
+      bookings: bookingsByAttendee.get(row.id) ?? [],
+    });
+  }
+
+  // Return in original token order (before dedup) using the unique index mapping
+  const indexToResult = new Map(
+    uniqueTokens.map((t, i) => [t, byTokenIndex.get(tokenIndexes[i]!) ?? null]),
+  );
+  return tokens.map((t) => indexToResult.get(t) ?? null);
 };
 
 /** Update a per-event status field on event_attendees */

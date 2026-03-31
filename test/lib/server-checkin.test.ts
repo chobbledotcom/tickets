@@ -125,6 +125,20 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("returns 404 for orphaned attendee with no event links", async () => {
+      const { event, token } = await setupCheckinTest(
+        "Orphan",
+        "orphan@test.com",
+      );
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "DELETE FROM event_attendees WHERE event_id = ?",
+        args: [event.id],
+      });
+      const { response } = await adminGet(`/checkin/${token}`);
+      expect(response.status).toBe(404);
+    });
+
     test("shows event name and quantity in admin view", async () => {
       const { event, token, session } = await setupCheckinTest(
         "Dave",

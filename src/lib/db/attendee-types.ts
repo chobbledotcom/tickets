@@ -57,6 +57,30 @@ export type AttendeeInput = ContactFields & {
   bookings: EventBooking[];
 };
 
+/** Row from event_attendees — per-event booking data */
+export type EventAttendeeRow = {
+  event_id: number;
+  start_at: string | null;
+  end_at: string | null;
+  quantity: number;
+  checked_in_v2: number;
+  refunded_v2: number;
+  price_paid_v2: number;
+};
+
+/** An attendee with all their event bookings (for token resolution) */
+export type AttendeeWithBookings = {
+  /** Base attendee fields (PII, token, created — shared across events) */
+  id: number;
+  created: string;
+  ticket_token: string;
+  ticket_token_index: string;
+  attachment_downloads: number;
+  pii_blob: string;
+  /** Per-event bookings, sorted by start_at then event_id */
+  bookings: EventAttendeeRow[];
+};
+
 /** Item for batch availability check */
 export type BatchAvailabilityItem = { eventId: number; quantity: number };
 

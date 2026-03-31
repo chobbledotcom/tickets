@@ -613,10 +613,13 @@ const renderSuccessFromTokens = async (
   const eventIds: number[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
-    const attendee = attendeeResults[i];
-    if (attendee) {
+    const awb = attendeeResults[i];
+    if (awb) {
       verifiedTokens.push(tokens[i]!);
-      eventIds.push(attendee.event_id);
+      // Collect all event IDs from all bookings
+      for (const booking of awb.bookings) {
+        eventIds.push(booking.event_id);
+      }
     }
   }
 
@@ -631,7 +634,7 @@ const renderSuccessFromTokens = async (
   let thankYouUrl = "";
   if (uniqueEventIds.length === 1) {
     const event = await getEvent(uniqueEventIds[0]!);
-    if (event) thankYouUrl = event.thank_you_url;
+    if (event) thankYouUrl = event.thank_you_url.trim();
   }
 
   const fromEmail = await getFromEmailIfConfigured();

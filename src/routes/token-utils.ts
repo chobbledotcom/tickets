@@ -2,9 +2,14 @@
  * Shared utilities for token-based routes (/t/:tokens and /checkin/:tokens)
  */
 
-import { compact, map } from "#fp";
+import { compact, unique } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
-import { getAttendeesByTokens } from "#lib/db/attendees.ts";
+import {
+  type AttendeeWithBookings,
+  decryptAttendees,
+  type EventAttendeeRow,
+  getAttendeesByTokens,
+} from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
@@ -59,7 +64,8 @@ export type SingleTokenResult =
   | { ok: true; passData: WalletPassData }
   | { ok: false; response: Response };
 
-/** Look up a single token and build wallet pass data, returning 404 on failure */
+/** Look up a single token and build wallet pass data, returning 404 on failure.
+ * For multi-event attendees, returns the first event's pass data. */
 export const lookupSingleTokenPassData = async (
   tokens: string[],
 ): Promise<SingleTokenResult> => {
@@ -71,8 +77,9 @@ export const lookupSingleTokenPassData = async (
   if (!result.ok) return { ok: false, response: result.response };
 
   const entries = await resolveEntries(result.attendees);
-  const passData = await buildWalletPassData(entries[0]!, token);
-  return { ok: true, passData };
+  const entry = entries[0];
+  if (!entry) return { ok: false, response: notFoundResponse() };
+  return { ok: true, passData: buildWalletPassData(entry, token) };
 };
 
 /** Route function signature for token-based routes */
@@ -105,27 +112,93 @@ export const extractTokenSegment = (
 export const parseTokens = (tokensStr: string): string[] =>
   tokensStr.split("+").filter((s) => s.length > 0);
 
-/** Look up the event for an attendee and pair them */
-const resolveEntry = async (attendee: Attendee): Promise<TokenEntry> => {
-  const event = (await getEventWithCount(attendee.event_id))!;
-  return { attendee, event };
+/** Build an Attendee object from base attendee data + one booking's per-event data */
+const buildAttendeeView = (
+  base: AttendeeWithBookings,
+  booking: EventAttendeeRow,
+): Attendee => ({
+  id: base.id,
+  event_id: booking.event_id,
+  name: "",
+  email: "",
+  phone: "",
+  address: "",
+  special_instructions: "",
+  created: base.created,
+  payment_id: "",
+  quantity: booking.quantity,
+  price_paid: String(booking.price_paid_v2),
+  checked_in: booking.checked_in_v2 === 1,
+  refunded: booking.refunded_v2 === 1,
+  ticket_token: base.ticket_token,
+  ticket_token_index: base.ticket_token_index,
+  date: booking.start_at ? booking.start_at.slice(0, 10) : null,
+  attachment_downloads: base.attachment_downloads,
+  pii_blob: base.pii_blob,
+  checked_in_v2: booking.checked_in_v2,
+  refunded_v2: booking.refunded_v2,
+  price_paid_v2: booking.price_paid_v2,
+});
+
+/**
+ * Resolve attendees with bookings to token entries.
+ * Expands each attendee × booking into a separate TokenEntry.
+ * Events are batch-fetched via cache (getEventWithCount).
+ */
+export const resolveEntries = async (
+  attendeesWithBookings: AttendeeWithBookings[],
+): Promise<TokenEntry[]> => {
+  // Collect all event IDs and batch-fetch (getEventWithCount is cached)
+  const allEventIds = unique(
+    attendeesWithBookings.flatMap((a) => a.bookings.map((b) => b.event_id)),
+  );
+  const events = new Map<number, EventWithCount>();
+  await Promise.all(
+    allEventIds.map(async (id) => {
+      const event = await getEventWithCount(id);
+      if (event) events.set(id, event);
+    }),
+  );
+
+  // Expand each attendee × booking into a TokenEntry
+  const entries: TokenEntry[] = [];
+  for (const awb of attendeesWithBookings) {
+    for (const booking of awb.bookings) {
+      const event = events.get(booking.event_id);
+      if (event) {
+        entries.push({
+          attendee: buildAttendeeView(awb, booking),
+          event,
+        });
+      }
+    }
+  }
+  return entries;
 };
 
-/** Resolve all attendees to entries with their events */
-export const resolveEntries = (attendees: Attendee[]): Promise<TokenEntry[]> =>
-  Promise.all(map(resolveEntry)(attendees));
+/** Decrypt PII in token entries' attendees using the given private key */
+export const decryptTokenEntries = async (
+  entries: TokenEntry[],
+  privateKey: CryptoKey,
+): Promise<TokenEntry[]> => {
+  const decrypted = await decryptAttendees(
+    entries.map((e) => e.attendee),
+    privateKey,
+  );
+  return entries.map((e, i) => ({ ...e, attendee: decrypted[i]! }));
+};
 
-/** Result of looking up attendees by tokens - either valid attendees or a 404 response */
+/** Result of looking up attendees by tokens - either valid data or a 404 response */
 export type TokenLookupResult =
-  | { ok: true; attendees: Attendee[] }
+  | { ok: true; attendees: AttendeeWithBookings[] }
   | { ok: false; response: Response };
 
 /** Look up attendees by tokens, returning 404 if none found */
 export const lookupAttendees = async (
   tokens: string[],
 ): Promise<TokenLookupResult> => {
-  const attendees = await getAttendeesByTokens(tokens);
-  const valid = compact(attendees);
+  const results = await getAttendeesByTokens(tokens);
+  const valid = compact(results);
   return valid.length === 0
     ? { ok: false, response: notFoundResponse() }
     : { ok: true, attendees: valid };

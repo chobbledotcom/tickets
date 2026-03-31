@@ -101,6 +101,21 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
+  test("returns 404 for orphaned attendee with no event links", async () => {
+    await configureAppleWallet();
+    const { token, attendee } = await createTestAttendeeWithToken(
+      "Orphan",
+      "orphan@test.com",
+    );
+    const { getDb } = await import("#lib/db/client.ts");
+    await getDb().execute({
+      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
+      args: [attendee.id],
+    });
+    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
+    expect(response.status).toBe(404);
+  });
+
   test("returns 404 for multi-token request", async () => {
     await configureAppleWallet();
     const { token: a } = await createTestAttendeeWithToken("A", "a@test.com");

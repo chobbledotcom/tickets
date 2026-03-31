@@ -2262,6 +2262,26 @@ describeWithEnv("db", { db: true }, () => {
       expect(results.length).toBe(1);
       expect(results[0]).toBeNull();
     });
+
+    test("getAttendeesByTokens returns empty bookings for orphaned attendee", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { createTestAttendeeDirect: createDirect } = await import(
+        "#test-utils"
+      );
+      const { attendee, token } = await createDirect(
+        event.id,
+        "Orphan",
+        "orphan@test.com",
+      );
+      // Remove event link to create orphan
+      await getDb().execute({
+        sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
+        args: [attendee.id],
+      });
+      const results = await getAttendeesByTokens([token]);
+      expect(results[0]).not.toBeNull();
+      expect(results[0]!.bookings).toEqual([]);
+    });
   });
 
   describe("login-attempts - expired lockout", () => {
