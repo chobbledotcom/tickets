@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { zipSync } from "fflate";
 import { createBackupZip } from "#lib/db/backup.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import { handleRequest } from "#routes";
+import { uploadRaw } from "#lib/storage.ts";
 import {
   adminFormPost,
   adminGet,
@@ -156,6 +158,38 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
+    test("shows schema mismatch warning for zip with different schema hash", async () => {
+      await withLocalStorageEnabled(async () => {
+        const encoder = new TextEncoder();
+        const manifest = JSON.stringify({
+          schemaHash: "different-hash",
+          latestUpdate: "test",
+          timestamp: new Date().toISOString(),
+          tables: {},
+        });
+        const fakeZip = zipSync({
+          "manifest.json": encoder.encode(manifest),
+          "settings.sql": new Uint8Array(0),
+        });
+        const { cookie, csrfToken } = await getTestSession();
+        const formData = new FormData();
+        formData.append("csrf_token", csrfToken);
+        formData.append(
+          "backup_file",
+          new File([fakeZip.buffer as ArrayBuffer], "backup.zip"),
+        );
+        const response = await handleRequest(
+          new Request("http://localhost/admin/backup/restore", {
+            method: "POST",
+            headers: { cookie, host: "localhost" },
+            body: formData,
+          }),
+        );
+        const html = await response.text();
+        expect(html).toContain("Schema mismatch");
+      });
+    });
+
     test("rejects empty file upload", async () => {
       await withLocalStorageEnabled(async () => {
         const { cookie, csrfToken } = await getTestSession();
@@ -255,6 +289,26 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           "/admin/backup/restore/confirm",
           {
             backup_filename: "restore-pending-nonexistent.zip",
+            confirm_identifier: RESTORE_CONFIRM_PHRASE,
+          },
+        );
+        expectRedirectWithFlash("/admin/backup")(response);
+      });
+    });
+
+    test("successfully restores from uploaded backup", async () => {
+      await withLocalStorageEnabled(async () => {
+        await createTestEvent({ name: "Restore Me" });
+        const zipData = await createBackupZip();
+
+        // Upload the zip as a restore-pending file
+        const tempFilename = "restore-pending-test-restore.zip";
+        await uploadRaw(zipData, tempFilename);
+
+        const { response } = await adminFormPost(
+          "/admin/backup/restore/confirm",
+          {
+            backup_filename: tempFilename,
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );

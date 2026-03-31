@@ -194,12 +194,8 @@ const handleBackupRestoreConfirm: TypedRouteHandler<
 
     await restoreFromZip(data);
 
-    // Clean up the temp file (best effort)
-    try {
-      await deleteFile(filename);
-    } catch {
-      // Ignore cleanup failures
-    }
+    // Clean up the temp file (best effort — ignore failures)
+    await deleteFile(filename).catch(() => {});
 
     await logActivity("Database restored from backup");
     return redirect(

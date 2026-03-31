@@ -18,7 +18,7 @@ import {
 import { queryAll } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import { SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "#lib/db/migrations.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { createTestEvent, describeWithEnv, setTestEnv } from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {
   describe("splitStatements", () => {
@@ -254,6 +254,24 @@ describeWithEnv("backup", { db: true }, () => {
   describe("isRemoteDatabase", () => {
     test("returns false for file: or :memory: URLs", () => {
       expect(isRemoteDatabase()).toBe(false);
+    });
+
+    test("returns true for libsql:// URLs", () => {
+      const restore = setTestEnv({ DB_URL: "libsql://my-db.turso.io" });
+      try {
+        expect(isRemoteDatabase()).toBe(true);
+      } finally {
+        restore();
+      }
+    });
+
+    test("returns true for https:// URLs", () => {
+      const restore = setTestEnv({ DB_URL: "https://my-db.turso.io" });
+      try {
+        expect(isRemoteDatabase()).toBe(true);
+      } finally {
+        restore();
+      }
     });
   });
 });
