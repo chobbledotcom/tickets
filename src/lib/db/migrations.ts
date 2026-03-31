@@ -507,13 +507,53 @@ const syncIndexes = async (): Promise<void> => {
   }
 };
 
+const MIGRATION_LOCK_KEY = "migration_lock";
+
+/**
+ * Acquire an advisory migration lock via the settings table.
+ * Returns true if acquired, false if another process holds it.
+ * The lock has no TTL — if a migration crashes, the lock persists
+ * and requires manual clearing (the DB may need investigation).
+ */
+const acquireMigrationLock = async (): Promise<boolean> => {
+  const result = await getDb()
+    .execute({
+      sql: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
+      args: [MIGRATION_LOCK_KEY, new Date().toISOString()],
+    })
+    .catch(() => null); // settings table may not exist yet on first run
+  return result === null || result.rowsAffected === 1;
+};
+
+/** Release the migration lock */
+const releaseMigrationLock = async (): Promise<void> => {
+  await runMigration(
+    `DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
+  );
+};
+
 // ─── Main migration ─────────────────────────────────────────────
 
 /**
  * Initialize database tables — idempotent, safe to call on every startup.
+ * Uses an advisory lock to prevent concurrent migrations.
  */
 export const initDb = async (): Promise<void> => {
   if (await isDbUpToDate()) return;
+
+  const acquired = await acquireMigrationLock();
+  if (!acquired) {
+    throw new Error(
+      "Database migration is already in progress (migration_lock held). " +
+        "If a previous migration crashed, manually DELETE FROM settings WHERE key = 'migration_lock'.",
+    );
+  }
+
+  // Re-check after acquiring lock (another process may have finished)
+  if (await isDbUpToDate()) {
+    await releaseMigrationLock();
+    return;
+  }
 
   await applySchemaChanges();
   await syncIndexes();
@@ -553,6 +593,10 @@ export const initDb = async (): Promise<void> => {
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
     args: [SCHEMA_HASH],
   });
+
+  // Release lock only on success — if migration crashes, lock persists
+  // and requires manual investigation + clearing
+  await releaseMigrationLock();
 };
 
 // ─── Reset ──────────────────────────────────────────────────────
