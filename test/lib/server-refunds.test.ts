@@ -87,9 +87,9 @@ const submitRefundAll = (
     ),
   );
 
-const markAsRefunded = async (attendeeId: number) => {
+const markAsRefunded = async (attendeeId: number, eventId: number) => {
   const { markRefunded } = await import("#lib/db/attendees.ts");
-  await markRefunded(attendeeId);
+  await markRefunded(attendeeId, eventId);
 };
 
 // -- Mock provider helper ------------------------------------------------- //
@@ -609,7 +609,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
   describe("already-refunded guard", () => {
     test("GET refund page shows error for already-refunded attendee", async () => {
       const ctx = await setupRefundTest("pi_already_refunded");
-      await markAsRefunded(ctx.attendee.id);
+      await markAsRefunded(ctx.attendee.id, ctx.event.id);
 
       const response = await awaitTestRequest(
         refundUrl(ctx.event.id, ctx.attendee.id),
@@ -620,7 +620,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("POST refund returns error for already-refunded attendee", async () => {
       const ctx = await setupRefundTest("pi_post_already");
-      await markAsRefunded(ctx.attendee.id);
+      await markAsRefunded(ctx.attendee.id, ctx.event.id);
 
       const response = await submitRefund(ctx);
       expectRedirectWithFlash(
@@ -644,7 +644,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "notrefunded@example.com",
         "pi_ra_2",
       );
-      await markAsRefunded(refundedAttendee.id);
+      await markAsRefunded(refundedAttendee.id, event.id);
 
       const response = await awaitTestRequest(refundAllUrl(event.id), {
         cookie: await testCookie(),

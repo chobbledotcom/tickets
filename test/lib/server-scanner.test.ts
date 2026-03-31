@@ -315,7 +315,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id);
+      await markRefunded(attendees[0]!.id, event.id);
 
       const result = await scanAndGetJson(
         event.id,

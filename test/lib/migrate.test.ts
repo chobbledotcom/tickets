@@ -249,8 +249,8 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       });
       const encrypted = await encryptAttendeePII(blobWithoutVersion, pubKey);
       const insertResult = await getDb().execute({
-        sql: `INSERT INTO attendees (name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, pii_blob, checked_in_v2, refunded_v2, price_paid_v2, created)
-              VALUES ('', '', '', '', '', '', '', '', '', '', ?, 0, 0, 0, datetime('now'))`,
+        sql: `INSERT INTO attendees (name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, pii_blob, created)
+              VALUES ('', '', '', '', '', '', '', '', '', '', ?, datetime('now'))`,
         args: [encrypted],
       });
       await getDb().execute({
@@ -336,7 +336,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
         "check@test.com",
       );
 
-      await updateCheckedIn(attendee.id, true);
+      await updateCheckedIn(attendee.id, event.id, true);
 
       const rows = await getAttendeesRaw(event.id);
       expect(rows[0]!.checked_in_v2).toBe(1);
@@ -351,8 +351,8 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
         "uncheck@test.com",
       );
 
-      await updateCheckedIn(attendee.id, true);
-      await updateCheckedIn(attendee.id, false);
+      await updateCheckedIn(attendee.id, event.id, true);
+      await updateCheckedIn(attendee.id, event.id, false);
 
       const rows = await getAttendeesRaw(event.id);
       expect(rows[0]!.checked_in_v2).toBe(0);
@@ -373,7 +373,7 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
         500,
       );
 
-      await markRefunded(attendee.id);
+      await markRefunded(attendee.id, event.id);
 
       const rows = await getAttendeesRaw(event.id);
       expect(rows[0]!.refunded_v2).toBe(1);
@@ -432,9 +432,10 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
     test("processes a batch and redirects to dashboard when done", async () => {
       const event = await createTestEventForMigration({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Mig", "mig@test.com");
-      // Simulate pre-migration
+      // Simulate pre-migration: clear pii_blob on attendees, reset v2 cols on event_attendees
+      await getDb().execute("UPDATE attendees SET pii_blob = ''");
       await getDb().execute(
-        "UPDATE attendees SET pii_blob = '', checked_in_v2 = 0, refunded_v2 = 0, price_paid_v2 = 0",
+        "UPDATE event_attendees SET checked_in_v2 = 0, refunded_v2 = 0, price_paid_v2 = 0",
       );
 
       const { response } = await adminFormPost("/admin/migrate");

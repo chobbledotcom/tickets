@@ -248,7 +248,7 @@ const handleAttendeeCheckin = attendeeFormAction(
     const wasCheckedIn = data.attendee.checked_in;
     const nowCheckedIn = !wasCheckedIn;
 
-    await updateCheckedIn(attendeeId, nowCheckedIn);
+    await updateCheckedIn(attendeeId, eventId, nowCheckedIn);
 
     const action = nowCheckedIn ? "checked in" : "checked out";
     await logActivity(`Attendee ${action} for '${data.event.name}'`, eventId);
@@ -562,7 +562,7 @@ async function refreshPaymentHandler(
 
   const isRefunded = await provider.isPaymentRefunded(data.attendee.payment_id);
   if (isRefunded && !data.attendee.refunded) {
-    await markRefunded(attendeeId);
+    await markRefunded(attendeeId, data.event.id);
     await logActivity(
       `Payment marked as refunded for attendee '${data.attendee.name}'`,
       data.event.id,

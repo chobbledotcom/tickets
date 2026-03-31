@@ -118,7 +118,7 @@ const handleScanPost = (
     }
 
     // Check them in
-    await updateCheckedIn(attendee.id, true);
+    await updateCheckedIn(attendee.id, attendee.event_id, true);
     const eventName = event?.name ?? (await getEventName(attendee.event_id));
     await logActivity(
       `Attendee checked in via scanner for '${eventName}'`,

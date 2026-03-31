@@ -2021,7 +2021,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         paymentId: "pi_refunded_123",
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      await markRefunded(result.attendee.id);
+      await markRefunded(result.attendee.id, event.id);
       const response = await awaitTestRequest(
         `/admin/attendees/${result.attendee.id}`,
         { cookie: await testCookie() },

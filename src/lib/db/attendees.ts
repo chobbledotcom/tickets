@@ -134,16 +134,20 @@ const decryptAttendeeFields = async (
  * all PII is read from pii_blob and status from the _v2 columns.
  */
 const ATTENDEE_COLS =
-  "a.id, a.created, a.ticket_token_index, a.attachment_downloads, a.pii_blob, a.checked_in_v2, a.refunded_v2, a.price_paid_v2";
+  "a.id, a.created, a.ticket_token_index, a.attachment_downloads, a.pii_blob";
+
+/** Columns sourced from event_attendees (per-event data) */
+const EA_COLS =
+  "ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity, ea.checked_in_v2, ea.refunded_v2, ea.price_paid_v2";
 
 /** SELECT clause for attendee + event_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for backward compatibility with the Attendee type. */
-export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity`;
+export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
  * attendees with broken/missing event_attendees linkage still appear in results
  * (with event_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity`;
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in_v2, 0) as checked_in_v2, COALESCE(ea.refunded_v2, 0) as refunded_v2, COALESCE(ea.price_paid_v2, 0) as price_paid_v2`;
 
 /**
  * Get attendees for an event without decrypting PII
@@ -192,8 +196,7 @@ export const getActiveEventStats = async (
   )(active);
 
   const rows = await queryAll<{ price_paid_v2: number }>(
-    `SELECT a.price_paid_v2 FROM attendees a
-     JOIN event_attendees ea ON ea.attendee_id = a.id
+    `SELECT ea.price_paid_v2 FROM event_attendees ea
      WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
     activeIds,
   );
@@ -555,19 +558,14 @@ export const attendeesApi = {
     const batchResults = await executeBatchWithResults([
       // Step 1: Create attendee record (unconditional)
       {
-        sql: `INSERT INTO attendees (name, email, created, ticket_token_index, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
-              VALUES ('', '', ?, ?, ?, 0, 0, ?)`,
-        args: [
-          enc.created,
-          enc.ticketTokenIndex,
-          enc.encryptedPiiBlob,
-          pricePaid,
-        ],
+        sql: `INSERT INTO attendees (name, email, created, ticket_token_index, pii_blob)
+              VALUES ('', '', ?, ?, ?)`,
+        args: [enc.created, enc.ticketTokenIndex, enc.encryptedPiiBlob],
       },
       // Step 2: Win the race — capacity check + event_attendees insert with attendee_id
       {
-        sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity)
-              SELECT ?, last_insert_rowid(), ?, ?, ?
+        sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid_v2)
+              SELECT ?, last_insert_rowid(), ?, ?, ?, ?
               WHERE (
                 ${capacityFilter}
               ) + ? <= (
@@ -578,6 +576,7 @@ export const attendeesApi = {
           startAt,
           endAt,
           qty,
+          pricePaid,
           ...capacityArgs,
           qty,
           eventId,
@@ -669,34 +668,37 @@ export const getAttendeesByTokens = async (
   return map((idx: string) => byTokenIndex.get(idx) ?? null)(tokenIndexes);
 };
 
-/** Update a v2 integer column on an attendee */
-const updateV2Field =
+/** Update a per-event status field on event_attendees */
+const updateEventAttendeeField =
   (field: string) =>
-  async (attendeeId: number, value: number): Promise<void> => {
+  async (attendeeId: number, eventId: number, value: number): Promise<void> => {
     await getDb().execute({
-      sql: `UPDATE attendees SET ${field} = ? WHERE id = ?`,
-      args: [value, attendeeId],
+      sql: `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
+      args: [value, attendeeId, eventId],
     });
   };
 
-const setRefundedV2 = updateV2Field("refunded_v2");
-const setCheckedInV2 = updateV2Field("checked_in_v2");
+const setRefundedV2 = updateEventAttendeeField("refunded_v2");
+const setCheckedInV2 = updateEventAttendeeField("checked_in_v2");
 
 /**
- * Mark an attendee as refunded.
+ * Mark an attendee as refunded for a specific event.
  * Keeps payment_id intact so payment details can still be viewed.
  */
-export const markRefunded = (attendeeId: number): Promise<void> =>
-  setRefundedV2(attendeeId, 1);
+export const markRefunded = (
+  attendeeId: number,
+  eventId: number,
+): Promise<void> => setRefundedV2(attendeeId, eventId, 1);
 
 /**
- * Update an attendee's checked_in status
+ * Update an attendee's checked_in status for a specific event.
  * Caller must be authenticated admin (public key always exists after setup)
  */
 export const updateCheckedIn = (
   attendeeId: number,
+  eventId: number,
   checkedIn: boolean,
-): Promise<void> => setCheckedInV2(attendeeId, checkedIn ? 1 : 0);
+): Promise<void> => setCheckedInV2(attendeeId, eventId, checkedIn ? 1 : 0);
 
 /**
  * Increment the attachment download counter for an attendee.
@@ -813,17 +815,22 @@ export const migrateAttendeeBatch = async (
     });
     const encryptedBlob = await encryptPiiBlob(piiJson, settings.publicKey);
 
-    // Write new columns
-    await getDb().execute({
-      sql: "UPDATE attendees SET pii_blob = ?, checked_in_v2 = ?, refunded_v2 = ?, price_paid_v2 = ? WHERE id = ?",
-      args: [
-        encryptedBlob,
-        checkedInStr === "true" ? 1 : 0,
-        refundedStr === "true" ? 1 : 0,
-        Number.parseInt(pricePaidStr, 10) || 0,
-        row.id,
-      ],
-    });
+    // Write pii_blob to attendees, per-event status to event_attendees
+    await executeBatch([
+      {
+        sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
+        args: [encryptedBlob, row.id],
+      },
+      {
+        sql: "UPDATE event_attendees SET checked_in_v2 = ?, refunded_v2 = ?, price_paid_v2 = ? WHERE attendee_id = ?",
+        args: [
+          checkedInStr === "true" ? 1 : 0,
+          refundedStr === "true" ? 1 : 0,
+          Number.parseInt(pricePaidStr, 10) || 0,
+          row.id,
+        ],
+      },
+    ]);
   }
 
   // Count remaining

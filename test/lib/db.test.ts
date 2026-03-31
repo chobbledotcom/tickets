@@ -2684,7 +2684,7 @@ describeWithEnv("db", { db: true }, () => {
         "check@example.com",
       );
 
-      await updateCheckedIn(attendee.id, true);
+      await updateCheckedIn(attendee.id, event.id, true);
 
       const privateKey = await getTestPrivateKey();
       const rows = await getAttendeesRaw(event.id);
@@ -2701,8 +2701,8 @@ describeWithEnv("db", { db: true }, () => {
         "check@example.com",
       );
 
-      await updateCheckedIn(attendee.id, true);
-      await updateCheckedIn(attendee.id, false);
+      await updateCheckedIn(attendee.id, event.id, true);
+      await updateCheckedIn(attendee.id, event.id, false);
 
       const privateKey = await getTestPrivateKey();
       const rows = await getAttendeesRaw(event.id);

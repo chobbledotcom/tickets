@@ -31,7 +31,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "drop attendees event_id/date/quantity";
+export const LATEST_UPDATE = "multi-event attendees with per-event status";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -158,9 +158,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["refunded", "TEXT NOT NULL DEFAULT ''"],
         ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
-        ["checked_in_v2", "INTEGER NOT NULL DEFAULT 0"],
-        ["refunded_v2", "INTEGER NOT NULL DEFAULT 0"],
-        ["price_paid_v2", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -182,6 +179,9 @@ const SCHEMA: [name: string, table: Table][] = [
         ["start_at", "TEXT DEFAULT NULL"],
         ["end_at", "TEXT DEFAULT NULL"],
         ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+        ["checked_in_v2", "INTEGER NOT NULL DEFAULT 0"],
+        ["refunded_v2", "INTEGER NOT NULL DEFAULT 0"],
+        ["price_paid_v2", "INTEGER NOT NULL DEFAULT 0"],
       ],
       foreignKeys: [
         "FOREIGN KEY (event_id) REFERENCES events(id)",
@@ -520,17 +520,28 @@ export const initDb = async (): Promise<void> => {
 
   // 4. Backfill event_attendees from existing attendees data (idempotent)
   // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
+  // Also copies checked_in_v2/refunded_v2/price_paid_v2 to event_attendees
   await runMigration(
-    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity)
+    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in_v2, refunded_v2, price_paid_v2)
      SELECT event_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
-       quantity
+       quantity, checked_in_v2, refunded_v2, price_paid_v2
      FROM attendees
      WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
   );
 
-  // 5. Drop deprecated columns from attendees (event_id, date, quantity → now on event_attendees).
+  // 4b. Backfill v2 columns into event_attendees for rows created before this migration
+  await runMigration(
+    `UPDATE event_attendees SET
+       checked_in_v2 = (SELECT a.checked_in_v2 FROM attendees a WHERE a.id = event_attendees.attendee_id),
+       refunded_v2 = (SELECT a.refunded_v2 FROM attendees a WHERE a.id = event_attendees.attendee_id),
+       price_paid_v2 = (SELECT a.price_paid_v2 FROM attendees a WHERE a.id = event_attendees.attendee_id)
+     WHERE checked_in_v2 = 0 AND refunded_v2 = 0 AND price_paid_v2 = 0
+       AND EXISTS (SELECT 1 FROM attendees a WHERE a.id = event_attendees.attendee_id AND (a.checked_in_v2 != 0 OR a.refunded_v2 != 0 OR a.price_paid_v2 != 0))`,
+  );
+
+  // 5. Drop deprecated columns from attendees → now on event_attendees.
   await dropDeprecatedAttendeeColumns();
 
   // 6. Update version marker and schema hash
