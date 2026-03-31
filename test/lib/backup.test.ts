@@ -55,6 +55,13 @@ describeWithEnv("backup", { db: true }, () => {
       expect(splitStatements("")).toHaveLength(0);
       expect(splitStatements("-- only comments")).toHaveLength(0);
     });
+
+    test("handles trailing semicolon-newline", () => {
+      const sql = "INSERT INTO a VALUES (1);\n";
+      const stmts = splitStatements(sql);
+      expect(stmts).toHaveLength(1);
+      expect(stmts[0]).toBe("INSERT INTO a VALUES (1);");
+    });
   });
 
   describe("exportTable", () => {
@@ -234,6 +241,22 @@ describeWithEnv("backup", { db: true }, () => {
       const events = await eventsTable.findAll();
       expect(events.length).toBe(1);
       expect(events[0]!.name).toBe("Zip Restore Test");
+    });
+
+    test("skips missing table files in zip gracefully", async () => {
+      // A zip with only a settings.sql file — other tables are missing
+      const encoder = new TextEncoder();
+      const partialZip = zipSync({
+        "settings.sql": encoder.encode(
+          "INSERT INTO settings (key, value) VALUES ('test_key', 'test_val');",
+        ),
+      });
+      await restoreFromZip(partialZip);
+
+      const rows = await queryAll<{ value: string }>(
+        "SELECT value FROM settings WHERE key = 'test_key'",
+      );
+      expect(rows[0]!.value).toBe("test_val");
     });
 
     test("preserves newlines in values through zip roundtrip", async () => {

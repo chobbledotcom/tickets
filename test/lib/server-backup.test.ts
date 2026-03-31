@@ -74,6 +74,24 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         expectRedirectWithFlash("/admin/backup")(response);
       });
     });
+
+    test("backup list ignores non-zip files with backup prefix", async () => {
+      await withLocalStorageEnabled(async () => {
+        // Upload a non-zip file with backup- prefix (e.g. leftover temp file)
+        await uploadRaw(new Uint8Array(0), "backup-stale.tmp");
+        // Create a real backup
+        const { response: createResp } = await adminFormPost(
+          "/admin/backup/create",
+        );
+        expectRedirectWithFlash("/admin/backup")(createResp);
+
+        // The page should only list .zip backups, not the .tmp file
+        const { response } = await adminGet("/admin/backup");
+        const html = await response.text();
+        expect(html).not.toContain("backup-stale.tmp");
+        expect(html).toContain(".zip");
+      });
+    });
   });
 
   describe("GET /admin/backup/download/:filename", () => {
@@ -187,6 +205,23 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         );
         const html = await response.text();
         expect(html).toContain("Schema mismatch");
+      });
+    });
+
+    test("rejects missing file field", async () => {
+      await withLocalStorageEnabled(async () => {
+        const { cookie, csrfToken } = await getTestSession();
+        const formData = new FormData();
+        formData.append("csrf_token", csrfToken);
+        // No backup_file field at all
+        const response = await handleRequest(
+          new Request("http://localhost/admin/backup/restore", {
+            method: "POST",
+            headers: { cookie, host: "localhost" },
+            body: formData,
+          }),
+        );
+        expect(response.status).toBe(302);
       });
     });
 
