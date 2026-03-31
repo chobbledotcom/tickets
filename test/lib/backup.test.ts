@@ -247,7 +247,8 @@ describeWithEnv("backup", { db: true }, () => {
 
       // Use table abstraction to get decrypted values
       const events = await eventsTable.findAll();
-      expect(events[0]!.description).toBe("first\nsecond\nthird");
+      const desc = events[0]!.description.replace(/\r\n/g, "\n");
+      expect(desc).toBe("first\nsecond\nthird");
     });
   });
 

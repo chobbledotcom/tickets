@@ -55,15 +55,28 @@ const escapeSql = (value: unknown): string => {
 
 /**
  * Split SQL text into individual statements.
- * Statements are delimited by ";" at end-of-line (or end-of-string).
- * Skips empty lines and SQL comments.
+ * First strips comment-only lines, then splits on statement-ending semicolons.
+ * Handles embedded newlines within values (e.g. from textarea fields).
  */
-export const splitStatements = (sql: string): string[] =>
-  sql
+export const splitStatements = (sql: string): string[] => {
+  // Strip comment lines and blank lines, normalize line endings
+  const cleaned = sql
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      return trimmed !== "" && !trimmed.startsWith("--");
+    })
+    .join("\n");
+  if (cleaned === "") return [];
+
+  // Split on semicolons that end a statement (followed by newline or end-of-string)
+  return cleaned
     .split(/;\s*\n/)
     .map((s) => s.trim())
-    .filter((s) => s !== "" && !s.startsWith("--"))
+    .filter((s) => s !== "")
     .map((s) => (s.endsWith(";") ? s : `${s};`));
+};
 
 /** Check if DB_URL points to a remote database */
 export const isRemoteDatabase = (): boolean => {

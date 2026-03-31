@@ -285,7 +285,10 @@ describe("e2e: full booking flow", () => {
         { confirm_phrase: RESET_DATABASE_PHRASE },
         "Reset Database",
       );
-      // After reset, should redirect to setup page
+      // After reset, tables are dropped. Reinitialize empty schema so
+      // subsequent in-process requests can query settings/etc.
+      const { initDb: reinitDb } = await import("#lib/db/migrations.ts");
+      await reinitDb();
       invalidateAllCaches();
 
       // 17. Verify the homepage shows setup (database is empty)
