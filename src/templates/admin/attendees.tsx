@@ -324,6 +324,7 @@ export const adminEditAttendeePage = (
                 <td>
                   <CsrfForm
                     action={`/admin/attendees/${attendee.id}/event/${evt.id}`}
+                    class="inline"
                   >
                     <input
                       type="number"
@@ -349,6 +350,7 @@ export const adminEditAttendeePage = (
                 <td>
                   <CsrfForm
                     action={`/admin/attendees/${attendee.id}/unlink/${evt.id}`}
+                    class="inline"
                   >
                     <button type="submit" class="link-button danger">
                       Remove
@@ -400,35 +402,10 @@ export const adminEditAttendeePage = (
         <button type="submit">Add to Event</button>
       </CsrfForm>
 
-      {/* Embed available dates as JSON for client-side date picker filtering */}
+      {/* Available dates JSON for client-side date picker filtering (read by admin.ts) */}
       <script type="application/json" id="available-dates-data">
         {JSON.stringify(availableDatesByEvent)}
       </script>
-      <Raw
-        html={`<script>
-(function() {
-  var datesData = JSON.parse(document.getElementById('available-dates-data').textContent);
-  var eventSelect = document.getElementById('add_event_id');
-  var dateField = document.querySelector('.daily-date-field');
-  var dateSelect = document.getElementById('add_date');
-  if (!eventSelect || !dateField || !dateSelect) return;
-  eventSelect.addEventListener('change', function() {
-    var eventId = eventSelect.value;
-    var dates = datesData[eventId];
-    if (dates && dates.length > 0) {
-      dateField.style.display = '';
-      dateSelect.innerHTML = '<option value="">Select date...</option>' +
-        dates.map(function(d) { return '<option value="' + d + '">' + d + '</option>'; }).join('');
-      dateSelect.required = true;
-    } else {
-      dateField.style.display = 'none';
-      dateSelect.required = false;
-      dateSelect.value = '';
-    }
-  });
-})();
-</script>`}
-      />
     </Layout>,
   );
 

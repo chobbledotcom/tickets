@@ -354,7 +354,6 @@ const loadAttendeeForEdit = async (
   attendeeId: number,
 ): Promise<{
   attendee: Attendee;
-  /** First event (for backward compat with redirect URLs) */
   event: EventWithCount;
   eventLinks: EventLinkData[];
   allEvents: EventWithCount[];

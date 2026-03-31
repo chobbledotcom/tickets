@@ -571,16 +571,6 @@ export const initDb = async (): Promise<void> => {
      WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
   );
 
-  // 4b. Backfill per-event status into event_attendees for rows created before this migration
-  await runMigration(
-    `UPDATE event_attendees SET
-       checked_in = (SELECT a.checked_in_v2 FROM attendees a WHERE a.id = event_attendees.attendee_id),
-       refunded = (SELECT a.refunded_v2 FROM attendees a WHERE a.id = event_attendees.attendee_id),
-       price_paid = (SELECT a.price_paid_v2 FROM attendees a WHERE a.id = event_attendees.attendee_id)
-     WHERE checked_in = 0 AND refunded = 0 AND price_paid = 0
-       AND EXISTS (SELECT 1 FROM attendees a WHERE a.id = event_attendees.attendee_id AND (a.checked_in_v2 != 0 OR a.refunded_v2 != 0 OR a.price_paid_v2 != 0))`,
-  );
-
   // 5. Drop deprecated columns from attendees → now on event_attendees.
   await dropDeprecatedAttendeeColumns();
 
