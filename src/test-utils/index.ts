@@ -499,6 +499,19 @@ export const describeWithEnv = (
   describe(name, () => {
     let restoreEnv: () => void;
     beforeEach(async () => {
+      // Set up env overlay FIRST so that setupTestEncryptionKey writes
+      // (DB_ENCRYPTION_KEY, TEST_FAST_PBKDF2, etc.) land in the overlay
+      // instead of the real process env, preventing cross-worker leakage.
+      const envVars: Record<string, string | undefined> = {};
+      if (options.encryptionKey || options.db) {
+        envVars.DB_ENCRYPTION_KEY = undefined;
+        envVars.TEST_FAST_PBKDF2 = undefined;
+        envVars.TEST_SKIP_LOGIN_DELAY = undefined;
+        envVars.TEST_RSA_KEY_SIZE = undefined;
+      }
+      if (options.env) Object.assign(envVars, options.env);
+      if (Object.keys(envVars).length > 0) restoreEnv = setTestEnv(envVars);
+
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
         resetTestSlugCounter();
@@ -507,11 +520,10 @@ export const describeWithEnv = (
         settings.googleWallet.setHostConfigForTest(null);
         await createTestDbWithSetup();
       }
-      if (options.env) restoreEnv = setTestEnv(options.env);
     });
     afterEach(() => {
       if (options.db) resetDb();
-      if (options.env) restoreEnv();
+      if (restoreEnv) restoreEnv();
     });
     fn();
   });
