@@ -2,9 +2,8 @@
  * Key management: KEK derivation, key wrapping, RSA key pairs, hybrid encryption, PII
  */
 
-import { ttlCache } from "#fp";
+import { lazyRef, ttlCache } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
-import { getEnv } from "#lib/env.ts";
 import {
   aesGcmDecryptRaw,
   aesGcmEncryptRaw,
@@ -193,6 +192,13 @@ export const unwrapKeyWithToken = async (
  * Hybrid encryption: RSA encrypts a random AES key, AES encrypts the data.
  */
 
+/** Module-level override avoids env race in parallel tests */
+const [getRsaKeySize, setRsaKeySize] = lazyRef<number | null>(() => null);
+
+/** Explicitly set RSA key size for testing without env var races */
+export const setRsaKeySizeForTest = (size: number | null): void =>
+  setRsaKeySize(size);
+
 /**
  * Generate an RSA key pair for asymmetric encryption
  * Returns { publicKey, privateKey } as exportable JWK strings
@@ -204,9 +210,7 @@ export const generateKeyPair = async (): Promise<{
   const keyPair = await crypto.subtle.generateKey(
     {
       name: "RSA-OAEP",
-      modulusLength: getEnv("TEST_RSA_KEY_SIZE")
-        ? Number(getEnv("TEST_RSA_KEY_SIZE"))
-        : 2048,
+      modulusLength: getRsaKeySize() ?? 2048,
       publicExponent: new Uint8Array([1, 0, 1]),
       hash: "SHA-256",
     },

@@ -2,7 +2,7 @@
  * Password hashing (PBKDF2), session token hashing, HMAC, and ticket token indexing
  */
 
-import { getEnv } from "#lib/env.ts";
+import { lazyRef } from "#fp";
 import { importHmacKey } from "./encryption.ts";
 import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 
@@ -13,10 +13,15 @@ import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 const PBKDF2_ITERATIONS_DEFAULT = 600000; // OWASP recommended minimum for SHA-256
 const PBKDF2_ITERATIONS_TEST = 1000; // Fast iterations for tests
 
+/** Module-level override avoids env race in parallel tests */
+const [getFastPbkdf2, setFastPbkdf2] = lazyRef<boolean | null>(() => null);
+
+/** Explicitly enable/disable fast PBKDF2 for testing without env var races */
+export const setFastPbkdf2ForTest = (fast: boolean | null): void =>
+  setFastPbkdf2(fast);
+
 export const getPbkdf2Iterations = (): number =>
-  getEnv("TEST_FAST_PBKDF2")
-    ? PBKDF2_ITERATIONS_TEST
-    : PBKDF2_ITERATIONS_DEFAULT;
+  getFastPbkdf2() ? PBKDF2_ITERATIONS_TEST : PBKDF2_ITERATIONS_DEFAULT;
 const PBKDF2_HASH_LENGTH = 32; // Output key length in bytes
 const PASSWORD_PREFIX = "pbkdf2";
 
