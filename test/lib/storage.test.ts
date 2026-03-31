@@ -33,6 +33,7 @@ import {
 describeWithEnv(
   "storage",
   {
+    encryptionKey: true,
     env: {
       STORAGE_ZONE_NAME: undefined,
       STORAGE_ZONE_KEY: undefined,

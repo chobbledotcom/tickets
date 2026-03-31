@@ -9,13 +9,14 @@ import {
   hybridEncrypt,
   importPrivateKey,
   importPublicKey,
+  setRsaKeySizeForTest,
   unwrapKey,
   unwrapKeyWithToken,
   wrapKey,
   wrapKeyWithToken,
 } from "#lib/crypto/keys.ts";
 import { generateSecureToken } from "#lib/crypto/utils.ts";
-import { describeWithEnv, setTestEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
   it("derives a usable CryptoKey", async () => {
@@ -151,14 +152,14 @@ describe("RSA key pair and hybrid encryption", () => {
     });
 
     it("uses production key size when TEST_RSA_KEY_SIZE is unset", async () => {
-      const restore = setTestEnv({ TEST_RSA_KEY_SIZE: undefined });
+      setRsaKeySizeForTest(null);
       try {
         const pair = await generateKeyPair();
         const jwk = JSON.parse(pair.publicKey);
         // 2048-bit RSA key: n (modulus) is 256 bytes = 344 base64url chars
         expect(jwk.n.length).toBeGreaterThan(300);
       } finally {
-        restore();
+        setRsaKeySizeForTest(1024);
       }
     });
 

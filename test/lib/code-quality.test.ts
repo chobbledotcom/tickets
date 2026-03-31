@@ -276,6 +276,10 @@ describe("code quality", () => {
       "lib/db/client.ts:setDb",
       // Set encryption key directly to avoid env var races between parallel tests
       "lib/crypto/encryption.ts:setEncryptionKeyForTest",
+      // Set fast PBKDF2 directly to avoid env var races between parallel tests
+      "lib/crypto/hashing.ts:setFastPbkdf2ForTest",
+      // Set RSA key size directly to avoid env var races between parallel tests
+      "lib/crypto/keys.ts:setRsaKeySizeForTest",
       // Reset cached Stripe client between tests
       "lib/stripe.ts:resetStripeClient",
       // TTL constant used by page-cache tests to verify caching behaviour
@@ -331,6 +335,8 @@ describe("code quality", () => {
       "lib/db/settings.ts:SETTINGS_CACHE_TTL_MS",
       // Set request log suppression directly to avoid env var races between parallel tests
       "lib/logger.ts:setSuppressRequestLogs",
+      // Rethrow errors in tests without env var races
+      "routes/index.ts:setRethrowErrorsForTest",
       // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
       "lib/update.ts:setBuildTimestampForTest",
     ];

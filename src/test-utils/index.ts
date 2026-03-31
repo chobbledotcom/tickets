@@ -17,7 +17,8 @@ import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { resetEffectiveDomain } from "#lib/config.ts";
 import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
 import { setEncryptionKeyForTest } from "#lib/crypto/encryption.ts";
-import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
+import { setFastPbkdf2ForTest } from "#lib/crypto/hashing.ts";
+import { setRsaKeySizeForTest, unwrapKeyWithToken } from "#lib/crypto/keys.ts";
 import { generateSecureToken } from "#lib/crypto/utils.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
@@ -41,6 +42,8 @@ import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { setSuppressRequestLogs } from "#lib/logger.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
+import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
+import { setRethrowErrorsForTest } from "#routes/index.ts";
 
 /**
  * Default test admin username
@@ -65,12 +68,11 @@ export const TEST_ENCRYPTION_KEY =
  */
 export const setupTestEncryptionKey = (): void => {
   setEncryptionKeyForTest(TEST_ENCRYPTION_KEY); // Also clears all crypto caches via callbacks
-  Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
-  Deno.env.set("TEST_FAST_PBKDF2", "1"); // Fast password hashing for tests
-  Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
-  Deno.env.set("TEST_RSA_KEY_SIZE", "1024"); // Use smaller RSA keys for faster test setup
-  setSuppressRequestLogs(true); // Module-level override avoids env race in parallel tests
-  Deno.env.set("TEST_RETHROW_ERRORS", "1"); // Surface real errors instead of "Temporary Error" page
+  setFastPbkdf2ForTest(true); // Module-level override avoids env race in parallel tests
+  setSkipLoginDelayForTest(true);
+  setRsaKeySizeForTest(1024);
+  setSuppressRequestLogs(true);
+  setRethrowErrorsForTest(true);
 };
 
 /**
@@ -79,12 +81,12 @@ export const setupTestEncryptionKey = (): void => {
 export const clearTestEncryptionKey = (): void => {
   // Use empty string (not null) so the override stays active and doesn't
   // fall through to Deno.env, avoiding races with parallel test workers.
-  setEncryptionKeyForTest(""); // Also clears all crypto caches via callbacks
-  Deno.env.delete("DB_ENCRYPTION_KEY");
-  Deno.env.delete("TEST_FAST_PBKDF2");
-  Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
-  Deno.env.delete("TEST_RSA_KEY_SIZE");
-  setSuppressRequestLogs(null); // Clear module-level override, fall through to Deno.env
+  setEncryptionKeyForTest("");
+  setFastPbkdf2ForTest(null);
+  setSkipLoginDelayForTest(false);
+  setRsaKeySizeForTest(null);
+  setSuppressRequestLogs(null);
+  setRethrowErrorsForTest(null);
 };
 
 // ---------------------------------------------------------------------------
