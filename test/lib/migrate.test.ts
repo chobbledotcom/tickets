@@ -83,10 +83,9 @@ const insertLegacyAttendee = async (
     : await encryptAttendeePII("false", pubKey);
   const encToken = await encryptAttendeePII("tok_legacy", pubKey);
   const result = await getDb().execute({
-    sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, created, quantity)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1)`,
+    sql: `INSERT INTO attendees (name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, created)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     args: [
-      eventId,
       encName,
       encEmail,
       encPhone,
@@ -250,9 +249,9 @@ describeWithEnv("attendee blob migration", { db: true }, () => {
       });
       const encrypted = await encryptAttendeePII(blobWithoutVersion, pubKey);
       const insertResult = await getDb().execute({
-        sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, pii_blob, checked_in_v2, refunded_v2, price_paid_v2, created, quantity)
-              VALUES (?, '', '', '', '', '', '', '', '', '', '', ?, 0, 0, 0, datetime('now'), 1)`,
-        args: [event.id, encrypted],
+        sql: `INSERT INTO attendees (name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, refunded, ticket_token, pii_blob, checked_in_v2, refunded_v2, price_paid_v2, created)
+              VALUES ('', '', '', '', '', '', '', '', '', '', ?, 0, 0, 0, datetime('now'))`,
+        args: [encrypted],
       });
       await getDb().execute({
         sql: "INSERT INTO event_attendees (event_id, attendee_id, quantity) VALUES (?, ?, 1)",

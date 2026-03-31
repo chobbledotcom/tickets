@@ -2723,7 +2723,8 @@ describeWithEnv("db", { db: true }, () => {
 
       // Simulate pre-migration state: set checked_in to empty string directly
       await getDb().execute({
-        sql: "UPDATE attendees SET checked_in = '' WHERE event_id = ?",
+        sql: `UPDATE attendees SET checked_in = ''
+              WHERE id IN (SELECT attendee_id FROM event_attendees WHERE event_id = ?)`,
         args: [event.id],
       });
 

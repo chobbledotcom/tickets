@@ -2,7 +2,7 @@
  * Events table operations
  */
 
-import type { ResultSet } from "@libsql/client";
+import type { InValue, ResultSet } from "@libsql/client";
 import { filter as fpFilter } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
@@ -212,23 +212,36 @@ export const isSlugTaken = async (
  * Reduces 3 sequential HTTP round-trips to 1.
  */
 export const deleteEvent = async (eventId: number): Promise<void> => {
-  // FK order: children before parents.
-  // event_attendees.attendee_id → attendees.id, so event_attendees deleted before attendees.
-  // Uses attendees.event_id for the final attendee cleanup (vestigial column, still written).
-  await executeBatch([
-    {
-      sql: "DELETE FROM processed_payments WHERE attendee_id IN (SELECT attendee_id FROM event_attendees WHERE event_id = ?)",
-      args: [eventId],
-    },
-    {
-      sql: "DELETE FROM attendee_answers WHERE attendee_id IN (SELECT attendee_id FROM event_attendees WHERE event_id = ?)",
-      args: [eventId],
-    },
+  // Collect attendee IDs before deleting event_attendees (FK enforcement is on in libsql).
+  const attendeeIds = (
+    await queryAll<{ attendee_id: number }>(
+      "SELECT attendee_id FROM event_attendees WHERE event_id = ?",
+      [eventId],
+    )
+  ).map((r) => r.attendee_id);
+
+  const deletes: Array<{ sql: string; args: InValue[] }> = [
     { sql: "DELETE FROM event_attendees WHERE event_id = ?", args: [eventId] },
-    { sql: "DELETE FROM attendees WHERE event_id = ?", args: [eventId] },
+  ];
+  if (attendeeIds.length > 0) {
+    const ph = inPlaceholders(attendeeIds);
+    deletes.push(
+      {
+        sql: `DELETE FROM processed_payments WHERE attendee_id IN (${ph})`,
+        args: attendeeIds,
+      },
+      {
+        sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${ph})`,
+        args: attendeeIds,
+      },
+      { sql: `DELETE FROM attendees WHERE id IN (${ph})`, args: attendeeIds },
+    );
+  }
+  deletes.push(
     { sql: "DELETE FROM activity_log WHERE event_id = ?", args: [eventId] },
     { sql: "DELETE FROM events WHERE id = ?", args: [eventId] },
-  ]);
+  );
+  await executeBatch(deletes);
   invalidateEventsCache();
 };
 

@@ -8,7 +8,7 @@ import { encrypt } from "#lib/crypto/encryption.ts";
 import { computeTicketTokenIndex, hmacHash } from "#lib/crypto/hashing.ts";
 import { encryptAttendeePII } from "#lib/crypto/keys.ts";
 import { generateTicketToken } from "#lib/crypto/utils.ts";
-import { executeBatch, getDb, queryAll } from "#lib/db/client.ts";
+import { executeBatch, queryAll } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
@@ -167,27 +167,30 @@ const prepareAttendee = async (
   ]);
 
   const [encName, encEmail, encPhone, encAddress, encSpecial] = encContact;
-  return {
-    sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      eventId,
-      encName,
-      encEmail,
-      encPhone,
-      encAddress,
-      encSpecial,
-      created,
-      encPaymentId,
-      quantity,
-      encPricePaid,
-      encCheckedIn,
-      encRefunded,
-      encTicketToken,
-      ticketTokenIndex,
-      null,
-    ],
-  };
+  return [
+    {
+      sql: `INSERT INTO attendees (name, email, phone, address, special_instructions, created, payment_id, price_paid, checked_in, refunded, ticket_token, ticket_token_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        encName,
+        encEmail,
+        encPhone,
+        encAddress,
+        encSpecial,
+        created,
+        encPaymentId,
+        encPricePaid,
+        encCheckedIn,
+        encRefunded,
+        encTicketToken,
+        ticketTokenIndex,
+      ],
+    },
+    {
+      sql: "INSERT INTO event_attendees (event_id, attendee_id, quantity) VALUES (?, last_insert_rowid(), ?)",
+      args: [eventId, quantity],
+    },
+  ];
 };
 
 /** Result of a seed operation */
@@ -255,26 +258,17 @@ export const createSeeds = async (
     for (let offset = 0; offset < attendeesPerEvent; offset += CHUNK_SIZE) {
       const batchSize = Math.min(CHUNK_SIZE, attendeesPerEvent - offset);
       const chunkQuantities = quantities.slice(offset, offset + batchSize);
-      const attendeeStatements = await Promise.all(
+      const statementPairs = await Promise.all(
         map((q: number) =>
           prepareAttendee(eventId, publicKeyJwk, q, unitPrice),
         )(chunkQuantities),
       );
-      await executeBatch(attendeeStatements);
+      // Each pair is [attendee INSERT, event_attendees INSERT] — flatten in order
+      // so each event_attendees INSERT follows its attendee (last_insert_rowid works)
+      await executeBatch(statementPairs.flat());
       totalAttendees += batchSize;
     }
   }
-
-  // Backfill event_attendees from newly created attendees
-  await getDb().execute(
-    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity)
-     SELECT event_id, id,
-       CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
-       CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
-       quantity
-     FROM attendees
-     WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
-  );
 
   invalidateEventsCache();
 

@@ -31,7 +31,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "add event_attendees table";
+export const LATEST_UPDATE = "drop attendees event_id/date/quantity";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -144,17 +144,14 @@ const SCHEMA: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["event_id", "INTEGER NOT NULL"],
         ["name", "TEXT NOT NULL"],
         ["email", "TEXT NOT NULL"],
         ["created", "TEXT NOT NULL"],
         ["payment_id", "TEXT"],
-        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
         ["phone", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token", "TEXT NOT NULL DEFAULT ''"],
         ["price_paid", "TEXT"],
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
-        ["date", "TEXT DEFAULT NULL"],
         ["address", "TEXT NOT NULL DEFAULT ''"],
         ["special_instructions", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
@@ -165,7 +162,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["refunded_v2", "INTEGER NOT NULL DEFAULT 0"],
         ["price_paid_v2", "INTEGER NOT NULL DEFAULT 0"],
       ],
-      foreignKeys: ["FOREIGN KEY (event_id) REFERENCES events(id)"],
       indexes: [
         {
           name: "idx_attendees_ticket_token_index",
@@ -430,19 +426,51 @@ const isDbUpToDate = async (): Promise<boolean> => {
   }
 };
 
-// ─── Main migration ─────────────────────────────────────────────
+/** Create indexes for a named table from SCHEMA */
+const createIndexesForTable = async (
+  tableName: string,
+  indexes: Index[],
+): Promise<void> => {
+  for (const idx of indexes) {
+    const unique = idx.unique ? "UNIQUE " : "";
+    await runMigration(
+      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(", ")})`,
+    );
+  }
+};
 
 /**
- * Initialize database tables — idempotent, safe to call on every startup.
- *
- * 1. Create tables that don't exist
- * 2. Add any missing columns to existing tables
- * 3. Create any missing indexes
+ * Drop event_id, date, quantity from attendees table.
+ * SQLite can't DROP COLUMN when a FK references the column, so we recreate the table.
+ * Only runs if the old columns still exist (idempotent).
  */
-export const initDb = async (): Promise<void> => {
-  if (await isDbUpToDate()) return;
+const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
+  const cols = await getExistingColumns("attendees");
+  if (!cols.has("event_id")) return;
 
-  // 1. Create tables
+  const tableSchema = SCHEMA.find(([name]) => name === "attendees")!;
+  const newCols = tableSchema[1].columns;
+  const colNames = newCols.map(([col]) => col).join(", ");
+  const colDefs = newCols.map(([col, type]) => `${col} ${type}`).join(", ");
+
+  await getDb().batch(
+    [
+      { sql: `CREATE TABLE attendees_new (${colDefs})`, args: [] },
+      {
+        sql: `INSERT INTO attendees_new (${colNames}) SELECT ${colNames} FROM attendees`,
+        args: [],
+      },
+      { sql: "DROP TABLE attendees", args: [] },
+      { sql: "ALTER TABLE attendees_new RENAME TO attendees", args: [] },
+    ],
+    "write",
+  );
+
+  await createIndexesForTable("attendees", tableSchema[1].indexes ?? []);
+};
+
+/** Create missing tables and add missing columns in a single pass */
+const applySchemaChanges = async (): Promise<void> => {
   for (const [name, table] of SCHEMA) {
     const parts = [
       ...table.columns.map(([col, type]) => `${col} ${type}`),
@@ -451,10 +479,6 @@ export const initDb = async (): Promise<void> => {
     await runMigration(
       `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`,
     );
-  }
-
-  // 2. Add missing columns
-  for (const [name, table] of SCHEMA) {
     const existing = await getExistingColumns(name);
     for (const [col, type] of table.columns) {
       if (!existing.has(col)) {
@@ -462,20 +486,16 @@ export const initDb = async (): Promise<void> => {
       }
     }
   }
+};
 
-  // 3. Create indexes
+/** Create missing indexes and drop legacy ones */
+const syncIndexes = async (): Promise<void> => {
   const declaredIndexNames = new Set<string>();
   for (const [name, table] of SCHEMA) {
-    for (const idx of table.indexes ?? []) {
-      declaredIndexNames.add(idx.name);
-      const unique = idx.unique ? "UNIQUE " : "";
-      await runMigration(
-        `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${name}(${idx.columns.join(", ")})`,
-      );
-    }
+    const indexes = table.indexes ?? [];
+    for (const idx of indexes) declaredIndexNames.add(idx.name);
+    await createIndexesForTable(name, indexes);
   }
-
-  // 3b. Drop legacy indexes not in current schema (prefix-matched to our naming convention)
   const allIndexes = await getDb().execute(
     "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'",
   );
@@ -485,6 +505,18 @@ export const initDb = async (): Promise<void> => {
       await runMigration(`DROP INDEX IF EXISTS ${indexName}`);
     }
   }
+};
+
+// ─── Main migration ─────────────────────────────────────────────
+
+/**
+ * Initialize database tables — idempotent, safe to call on every startup.
+ */
+export const initDb = async (): Promise<void> => {
+  if (await isDbUpToDate()) return;
+
+  await applySchemaChanges();
+  await syncIndexes();
 
   // 4. Backfill event_attendees from existing attendees data (idempotent)
   // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
@@ -498,7 +530,10 @@ export const initDb = async (): Promise<void> => {
      WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
   );
 
-  // 5. Update version marker and schema hash
+  // 5. Drop deprecated columns from attendees (event_id, date, quantity → now on event_attendees).
+  await dropDeprecatedAttendeeColumns();
+
+  // 6. Update version marker and schema hash
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],

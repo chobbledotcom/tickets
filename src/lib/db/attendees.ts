@@ -555,10 +555,9 @@ export const attendeesApi = {
     const batchResults = await executeBatchWithResults([
       // Step 1: Create attendee record (unconditional)
       {
-        sql: `INSERT INTO attendees (event_id, name, email, created, ticket_token_index, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
-              VALUES (?, '', '', ?, ?, ?, 0, 0, ?)`,
+        sql: `INSERT INTO attendees (name, email, created, ticket_token_index, pii_blob, checked_in_v2, refunded_v2, price_paid_v2)
+              VALUES ('', '', ?, ?, ?, 0, 0, ?)`,
         args: [
-          eventId,
           enc.created,
           enc.ticketTokenIndex,
           enc.encryptedPiiBlob,
