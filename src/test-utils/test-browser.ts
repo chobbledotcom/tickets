@@ -83,11 +83,13 @@ const findLinkByText = (html: string, text: string): LinkMatch | null => {
 /** Extract all hidden input fields from a form */
 const extractHiddenInputs = (formHtml: string): Record<string, string> => {
   const result: Record<string, string> = {};
-  for (const tag of regexCollect(
-    /<input[^>]*type="hidden"[^>]*>/gi,
-    formHtml,
-    (m) => m[0],
-  )) {
+  for (
+    const tag of regexCollect(
+      /<input[^>]*type="hidden"[^>]*>/gi,
+      formHtml,
+      (m) => m[0],
+    )
+  ) {
     const nameMatch = tag.match(/name="([^"]+)"/);
     const valueMatch = tag.match(/value="([^"]*)"/);
     if (nameMatch) {
@@ -122,12 +124,14 @@ const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
 const findFormByButton = (forms: FormInfo[], buttonText: string): FormInfo => {
   const lower = buttonText.toLowerCase();
   const form = forms.find((f) =>
-    stripTags(f.body).toLowerCase().includes(lower),
+    stripTags(f.body).toLowerCase().includes(lower)
   );
   if (form) return form;
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(
-    `No form found with button text "${buttonText}". Available forms:\n${available.join("\n")}`,
+    `No form found with button text "${buttonText}". Available forms:\n${
+      available.join("\n")
+    }`,
   );
 };
 
@@ -197,7 +201,9 @@ export class TestBrowser {
     if (this.debug) {
       // biome-ignore lint/suspicious/noConsole: debug logging for test browser
       console.log(
-        `[browser] ${debugLabel} -> ${response.status}${formatCookies(response)}`,
+        `[browser] ${debugLabel} -> ${response.status}${
+          formatCookies(response)
+        }`,
       );
     }
     parseCookies(response, this.cookies);
@@ -256,7 +262,9 @@ export class TestBrowser {
         map((l: LinkMatch) => `  "${l.text}" -> ${l.href}`),
       )(findAllLinks(this.currentHtml));
       throw new Error(
-        `No link found with text "${text}". Available links:\n${available.join("\n")}`,
+        `No link found with text "${text}". Available links:\n${
+          available.join("\n")
+        }`,
       );
     }
     await this.visit(link.href);
@@ -346,5 +354,59 @@ export class TestBrowser {
   /** Extract all checkbox values for a given field name from the current page */
   getCheckboxValues(fieldName: string): string[] {
     return extractCheckboxValues(this.currentHtml, fieldName);
+  }
+
+  /**
+   * Download a URL and return the raw bytes (for binary content like .zip files).
+   * Does NOT update currentHtml/currentUrl.
+   */
+  async downloadBytes(path: string): Promise<Uint8Array> {
+    const handler = await this.getHandler();
+    const req = this.buildRequest(toPath(path));
+    const response = await handler(req);
+    parseCookies(response, this.cookies);
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  /**
+   * Submit a multipart form with a file attachment.
+   * Used for file upload forms (e.g. backup restore).
+   * Finds the form by button text, auto-includes CSRF token and hidden fields.
+   */
+  async submitFormWithFile(
+    fileField: string,
+    fileName: string,
+    fileData: Uint8Array,
+    data: Record<string, string> = {},
+    buttonText?: string,
+  ): Promise<void> {
+    const forms = findForms(this.currentHtml);
+    const form = buttonText
+      ? findFormByButton(forms, buttonText)
+      : (forms[0] ?? throwNoForm());
+
+    const hiddenFields = extractHiddenInputs(form.body);
+    const formData = new FormData();
+
+    // Add hidden fields (includes csrf_token)
+    for (const [key, value] of Object.entries(hiddenFields)) {
+      formData.append(key, value);
+    }
+
+    // Add user-provided text fields
+    for (const [key, value] of Object.entries(data)) {
+      formData.append(key, value);
+    }
+
+    // Add the file
+    formData.append(
+      fileField,
+      new File([fileData.buffer as ArrayBuffer], fileName),
+    );
+
+    await this.request(form.action, {
+      method: "POST",
+      body: formData,
+    });
   }
 }

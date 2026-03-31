@@ -13,6 +13,8 @@
 
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { RESET_DATABASE_PHRASE } from "#templates/admin/database-reset.tsx";
+import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import { settings } from "#lib/db/settings.ts";
 import {
   clearTestEncryptionKey,
@@ -20,6 +22,7 @@ import {
   resetDb,
   setupTestEncryptionKey,
   TestBrowser,
+  withLocalStorageEnabled,
 } from "#test-utils";
 
 describe("e2e: full booking flow", () => {
@@ -160,7 +163,7 @@ describe("e2e: full booking flow", () => {
     //    The group detail page shows a "Public URL" with a link containing /ticket/
     //    The link text shows "localhost/ticket/{slug}"
     const ticketLink = browser.links.find((l) =>
-      l.text.includes("localhost/ticket/"),
+      l.text.includes("localhost/ticket/")
     );
     expect(ticketLink).toBeTruthy();
     // The link is an absolute URL (https://...), extract the path
@@ -233,11 +236,112 @@ describe("e2e: full booking flow", () => {
     // Find the column index for our question
     const headers = headerLine.split(",");
     const qColIndex = headers.findIndex((h) =>
-      h.includes("What is your t-shirt size?"),
+      h.includes("What is your t-shirt size?")
     );
     expect(qColIndex).toBeGreaterThan(-1);
     // Verify the answer in the data row
     const dataCols = dataLine.split(",");
     expect(dataCols[qColIndex]).toBe("Medium");
+
+    // ── Backup / Reset / Restore flow ──────────────────────────
+
+    // 14. Navigate to backup page and create a backup
+    await browser.visit("/admin/backup");
+    expect(browser.containsText("Database Backup")).toBe(true);
+    expect(browser.containsText("Encryption Key")).toBe(true);
+
+    await withLocalStorageEnabled(async () => {
+      await browser.submitForm({}, "Create Backup Now");
+      expect(browser.containsText("Backup created successfully")).toBe(true);
+
+      // 15. Download the backup zip for later restore
+      const downloadLink = browser.links.find((l) =>
+        l.text.includes("Download")
+      );
+      expect(downloadLink).toBeTruthy();
+      const backupZip = await browser.downloadBytes(downloadLink!.href);
+      expect(backupZip.length).toBeGreaterThan(0);
+
+      // 16. Reset the database via settings-advanced
+      await browser.visit("/admin/settings-advanced");
+      expect(browser.containsText("Reset Database")).toBe(true);
+
+      await browser.submitForm(
+        { confirm_phrase: RESET_DATABASE_PHRASE },
+        "Reset Database",
+      );
+      // After reset, should redirect to setup page
+      settings.invalidateCache();
+
+      // 17. Verify the homepage shows setup (database is empty)
+      await browser.visit("/");
+      expect(browser.currentHtml).toContain("Initial Setup");
+
+      // 18. Complete setup again with same credentials
+      await browser.submitForm(
+        {
+          admin_username: "admin",
+          admin_password: "password",
+          admin_password_confirm: "password",
+          country: "GB",
+          accept_agreement: "yes",
+        },
+        "Complete Setup",
+      );
+      expect(browser.currentHtml).toContain("Setup Complete");
+      settings.invalidateCache();
+
+      // 19. Log in again
+      await browser.clickLink("Go to Admin Dashboard");
+      await browser.submitForm(
+        { username: "admin", password: "password" },
+        "Login",
+      );
+      if (browser.containsText("Migration complete")) {
+        await browser.clickLink("Back to dashboard");
+      }
+
+      // 20. Verify the event and attendee are gone after reset
+      expect(browser.containsText("Summer Concert")).toBe(false);
+
+      // 21. Navigate to backup page and restore from the saved zip
+      await browser.visit("/admin/backup");
+      await browser.submitFormWithFile(
+        "backup_file",
+        "backup.zip",
+        backupZip,
+        {},
+        "Upload",
+      );
+      // Should show the restore confirmation page
+      expect(browser.containsText("Confirm Database Restore")).toBe(true);
+      expect(browser.containsText("SQL statements")).toBe(true);
+
+      // 22. Confirm the restore
+      await browser.submitForm(
+        { confirm_identifier: RESTORE_CONFIRM_PHRASE },
+        "Restore Database",
+      );
+      expect(browser.containsText("Database restored successfully")).toBe(true);
+      settings.invalidateCache();
+
+      // 23. Log in again (restore wiped sessions)
+      await browser.visit("/admin/");
+      if (browser.currentHtml.includes("Login")) {
+        await browser.submitForm(
+          { username: "admin", password: "password" },
+          "Login",
+        );
+      }
+      if (browser.containsText("Migration complete")) {
+        await browser.clickLink("Back to dashboard");
+      }
+
+      // 24. Verify the event and attendee are back
+      expect(browser.containsText("Summer Concert")).toBe(true);
+      await browser.clickLink("Summer Concert");
+      expect(browser.containsText("Jane Doe")).toBe(true);
+      expect(browser.containsText("jane@example.com")).toBe(true);
+    });
   });
 });
