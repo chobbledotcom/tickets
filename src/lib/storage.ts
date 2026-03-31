@@ -154,14 +154,14 @@ export const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
   invalid_content: "File does not appear to be a valid image",
 };
 
-/** Try to delete an image from CDN storage, logging errors on failure */
-export const tryDeleteImage = async (
+/** Try to delete a file from storage, logging errors on failure */
+export const tryDeleteFile = async (
   filename: string,
   eventId: number | undefined,
   detail: string,
 ): Promise<void> => {
   try {
-    await deleteImage(filename);
+    await deleteFile(filename);
   } catch {
     logError({ code: ErrorCode.STORAGE_DELETE, detail, eventId });
   }
@@ -177,10 +177,10 @@ export const deleteAllEventStorageFiles = async (
 ): Promise<void> => {
   for (const event of events) {
     if (event.image_url) {
-      await tryDeleteImage(event.image_url, event.id, "database reset");
+      await tryDeleteFile(event.image_url, event.id, "database reset");
     }
     if (event.attachment_url) {
-      await tryDeleteImage(event.attachment_url, event.id, "database reset");
+      await tryDeleteFile(event.attachment_url, event.id, "database reset");
     }
   }
 };
@@ -329,7 +329,7 @@ export const downloadImage = async (
 /**
  * Delete a file, routing to local or Bunny based on config.
  */
-export const deleteImage = async (filename: string): Promise<void> => {
+export const deleteFile = async (filename: string): Promise<void> => {
   if (getLocalStoragePath() !== null) {
     await localRemove(filename);
     return;
@@ -368,7 +368,9 @@ export const ATTACHMENT_ERROR_MESSAGES: Record<
   AttachmentValidationError,
   string
 > = {
-  too_large: `Attachment exceeds the ${formatBytes(MAX_ATTACHMENT_SIZE)} size limit`,
+  too_large: `Attachment exceeds the ${
+    formatBytes(MAX_ATTACHMENT_SIZE)
+  } size limit`,
 };
 
 /** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */
@@ -391,3 +393,74 @@ export const uploadAttachment = (
   data: Uint8Array,
   filename: string,
 ): Promise<string> => encryptAndUpload(data, filename);
+
+// ---------------------------------------------------------------------------
+// Raw (unencrypted) storage — for backups where field-level encryption suffices
+// ---------------------------------------------------------------------------
+
+/** Upload raw bytes without encryption */
+export const uploadRaw = async (
+  data: Uint8Array,
+  filename: string,
+): Promise<string> => {
+  if (getLocalStoragePath() !== null) {
+    await localWrite(data, filename);
+    return filename;
+  }
+  const sz = connectZone();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(data);
+      controller.close();
+    },
+  });
+  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream as never, {
+    contentType: "application/octet-stream",
+  });
+  return filename;
+};
+
+/** Download raw bytes without decryption */
+export const downloadRaw = async (
+  filename: string,
+): Promise<Uint8Array | null> => {
+  if (getLocalStoragePath() !== null) {
+    return localRead(filename);
+  }
+  try {
+    const sz = connectZone();
+    const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
+    return collectStream(stream as ReadableStream<Uint8Array>);
+  } catch (err) {
+    if (isFileNotFound(err as Error)) return null;
+    throw err;
+  }
+};
+
+/** List files in storage matching a prefix (local backend only lists directory) */
+export const listRawFiles = async (prefix: string): Promise<string[]> => {
+  if (getLocalStoragePath() !== null) {
+    const dir = getLocalStoragePath() as string;
+    const files: string[] = [];
+    try {
+      for await (const entry of Deno.readDir(dir)) {
+        if (entry.isFile && entry.name.startsWith(prefix)) {
+          files.push(entry.name);
+        }
+      }
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return [];
+      throw err;
+    }
+    return files.sort();
+  }
+  const sz = connectZone();
+  const items = await BunnyStorageSDK.file.list(sz, "/");
+  const files: string[] = [];
+  for (const item of items) {
+    const record = item as unknown as Record<string, unknown>;
+    const name = String(record["ObjectName"] ?? "");
+    if (name.startsWith(prefix)) files.push(name);
+  }
+  return files.sort();
+};

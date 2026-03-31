@@ -4,7 +4,7 @@ import { decryptBytes, encryptBytes } from "#lib/crypto/encryption.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
   deleteAllEventStorageFiles,
-  deleteImage,
+  deleteFile,
   detectImageType,
   downloadImage,
   generateAttachmentFilename,
@@ -75,10 +75,10 @@ describeWithEnv(
       });
     });
 
-    describe("deleteImage", () => {
+    describe("deleteFile", () => {
       test("throws when storage is not configured", async () => {
         await withStorageDisabled(async () => {
-          await expect(deleteImage("test.jpg")).rejects.toThrow(
+          await expect(deleteFile("test.jpg")).rejects.toThrow(
             "Storage is not configured",
           );
         });
@@ -114,10 +114,10 @@ describeWithEnv(
         });
       });
 
-      test("deleteImage removes file from local dir", async () => {
+      test("deleteFile removes file from local dir", async () => {
         await withLocalStorageEnabled(async (dir) => {
           const filename = await uploadImage(jpegBytes, "image/jpeg");
-          await deleteImage(filename);
+          await deleteFile(filename);
           await expect(Deno.stat(`${dir}/${filename}`)).rejects.toBeInstanceOf(
             Deno.errors.NotFound,
           );

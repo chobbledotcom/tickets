@@ -41,6 +41,8 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
         navLink("/admin/holidays", "Holidays", active)}
       {session.adminLevel === "owner" &&
         navLink("/admin/built-sites", "Built Sites", active)}
+      {session.adminLevel === "owner" &&
+        navLink("/admin/backup", "Backup", active)}
       {navLink("/admin/guide", "Guide", active)}
       <li>
         <CsrfForm action="/admin/logout" class="inline">

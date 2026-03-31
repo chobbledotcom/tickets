@@ -17,20 +17,23 @@ import {
 } from "#lib/db/events.ts";
 import { groupsTable, validateGroupEventType } from "#lib/db/groups.ts";
 import { generateUniqueSlug } from "#lib/slug.ts";
-import { tryDeleteImage } from "#lib/storage.ts";
+import { tryDeleteFile } from "#lib/storage.ts";
 import type { EventWithCount } from "#lib/types.ts";
 
 /** Generate a unique event slug, retrying on collision */
 export const generateUniqueEventSlug = (excludeEventId?: number) =>
-  generateUniqueSlug(computeSlugIndex, (slug) =>
-    isSlugTaken(slug, excludeEventId),
+  generateUniqueSlug(
+    computeSlugIndex,
+    (slug) => isSlugTaken(slug, excludeEventId),
   );
 
 /** Validate max_price is at least unit_price + 100 cents */
 const validateMaxPrice = (input: EventInput): string | null => {
   const minPrice = (input.unitPrice ?? 0) + 100;
   return input.maxPrice < minPrice
-    ? `Maximum price must be at least ${formatCurrency(100)} more than the ticket price`
+    ? `Maximum price must be at least ${
+      formatCurrency(100)
+    } more than the ticket price`
     : null;
 };
 
@@ -64,10 +67,10 @@ export const performEventDelete = async (
   event: EventWithCount,
 ): Promise<void> => {
   if (event.image_url) {
-    await tryDeleteImage(event.image_url, event.id, "event deletion");
+    await tryDeleteFile(event.image_url, event.id, "event deletion");
   }
   if (event.attachment_url) {
-    await tryDeleteImage(event.attachment_url, event.id, "event deletion");
+    await tryDeleteFile(event.attachment_url, event.id, "event deletion");
   }
   await deleteEvent(event.id);
   await logActivity(
