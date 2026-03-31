@@ -248,7 +248,6 @@ describeWithEnv("db", { db: true }, () => {
 
       // Verify we can create new data
       await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
-      await settings.update.attendeeBlobMigrated();
       const event = await createTestEvent({
         name: "New Event",
         maxAttendees: 25,

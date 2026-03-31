@@ -7,7 +7,6 @@
  */
 
 import { filter, map, reduce } from "#fp";
-import { decrypt } from "#lib/crypto/encryption.ts";
 import { computeTicketTokenIndex } from "#lib/crypto/hashing.ts";
 import { decryptAttendeePII, encryptAttendeePII } from "#lib/crypto/keys.ts";
 import { generateTicketToken } from "#lib/crypto/utils.ts";
@@ -19,7 +18,6 @@ import type {
   CreateAttendeeResult,
   EncryptedAttendeeData,
   EncryptInput,
-  MigrateBatchResult,
   UpdateAttendeeInput,
 } from "#lib/db/attendee-types.ts";
 import {
@@ -45,7 +43,6 @@ export type {
   AttendeeInput,
   BatchAvailabilityItem,
   CreateAttendeeResult,
-  MigrateBatchResult,
   UpdateAttendeeInput,
 } from "#lib/db/attendee-types.ts";
 
@@ -741,119 +738,4 @@ export const updateAttendee = async (
     },
   ]);
   invalidateEventsCache();
-};
-
-/** Batch size for attendee blob migration (overridable via env for testing) */
-export const MIGRATE_BATCH_SIZE = 100;
-
-/** Runtime batch size — reads env override for testing, falls back to constant */
-const getMigrateBatchSize = (): number =>
-  Number(Deno.env.get("MIGRATE_BATCH_SIZE")) || MIGRATE_BATCH_SIZE;
-
-/**
- * Migrate a batch of attendees from per-field encryption to PII blob.
- * Decrypts old fields, builds blob, encrypts blob, writes new columns.
- * Returns number migrated and remaining.
- */
-export const migrateAttendeeBatch = async (
-  privateKey: CryptoKey,
-): Promise<MigrateBatchResult> => {
-  // Get a batch of unmigrated attendees
-  const rows = await queryAll<Attendee>(
-    `SELECT * FROM attendees WHERE COALESCE(pii_blob, '') = '' LIMIT ?`,
-    [getMigrateBatchSize()],
-  );
-
-  if (rows.length === 0) {
-    const remaining = await queryAll<{ count: number }>(
-      "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
-    );
-    return { migrated: 0, remaining: remaining[0]!.count };
-  }
-
-  // Process each row: decrypt old fields, build blob, prepare update
-  for (const row of rows) {
-    // Decrypt all PII fields from old columns (empty strings = unset fields)
-    const decryptOrEmpty = (v: string) =>
-      v ? decryptAttendeePII(v, privateKey) : Promise.resolve("");
-    const [
-      name,
-      email,
-      phone,
-      address,
-      special_instructions,
-      payment_id,
-      ticket_token,
-    ] = await Promise.all([
-      decryptOrEmpty(row.name),
-      decryptOrEmpty(row.email),
-      decryptOrEmpty(row.phone),
-      decryptOrEmpty(row.address),
-      decryptOrEmpty(row.special_instructions),
-      decryptOrEmpty(row.payment_id),
-      decryptOrEmpty(row.ticket_token),
-    ]);
-
-    // Decrypt status fields from old columns
-    const decryptBool = (v: string) =>
-      v ? decryptAttendeePII(v, privateKey) : Promise.resolve("false");
-    const [checkedInStr, refundedStr, pricePaidStr] = await Promise.all([
-      decryptBool(row.checked_in as unknown as string),
-      decryptBool(row.refunded as unknown as string),
-      row.price_paid ? decrypt(row.price_paid) : Promise.resolve("0"),
-    ]);
-
-    // Build and encrypt the PII blob
-    const piiJson = buildPiiBlob({
-      name,
-      email,
-      phone,
-      address,
-      special_instructions,
-      payment_id,
-      ticket_token,
-    });
-    const encryptedBlob = await encryptPiiBlob(piiJson, settings.publicKey);
-
-    // Write pii_blob to attendees, per-event status to event_attendees
-    await executeBatch([
-      {
-        sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
-        args: [encryptedBlob, row.id],
-      },
-      {
-        sql: "UPDATE event_attendees SET checked_in_v2 = ?, refunded_v2 = ?, price_paid_v2 = ? WHERE attendee_id = ?",
-        args: [
-          checkedInStr === "true" ? 1 : 0,
-          refundedStr === "true" ? 1 : 0,
-          Number.parseInt(pricePaidStr, 10) || 0,
-          row.id,
-        ],
-      },
-    ]);
-  }
-
-  // Count remaining
-  const remaining = await queryAll<{ count: number }>(
-    "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
-  );
-
-  return { migrated: rows.length, remaining: remaining[0]!.count };
-};
-
-/** Count total attendees and unmigrated attendees */
-export const getMigrationProgress = async (): Promise<{
-  total: number;
-  remaining: number;
-}> => {
-  const [totalRows, remainingRows] = await Promise.all([
-    queryAll<{ count: number }>("SELECT COUNT(*) as count FROM attendees"),
-    queryAll<{ count: number }>(
-      "SELECT COUNT(*) as count FROM attendees WHERE COALESCE(pii_blob, '') = ''",
-    ),
-  ]);
-  return {
-    total: totalRows[0]!.count,
-    remaining: remainingRows[0]!.count,
-  };
 };
