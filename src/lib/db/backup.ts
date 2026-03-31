@@ -80,18 +80,18 @@ export const isRemoteDatabase = (): boolean => {
  */
 export const dbName = (): string => {
   const url = getEnv("DB_URL") ?? "";
+  let host: string;
   try {
-    // Strip protocol, get hostname: "01KFXB...-tickets-spencer.lite.bunnydb.net"
-    const host = new URL(url).hostname;
-    // Split on dots, take first segment: "01KFXB...-tickets-spencer"
-    const first = host.split(".")[0] ?? "";
-    // Drop the leading ID chunk (everything before the first hyphen-letter pair)
-    const dashIdx = first.indexOf("-");
-    if (dashIdx === -1) return first || "local";
-    return first.slice(dashIdx + 1) || "local";
+    host = new URL(url).hostname;
   } catch {
     return "local";
   }
+  // "01KFXB...-tickets-spencer.lite.bunnydb.net" → "01KFXB...-tickets-spencer"
+  const first = host.split(".")[0]!;
+  // Drop the leading ID chunk (before first hyphen)
+  const dashIdx = first.indexOf("-");
+  if (dashIdx === -1) return first;
+  return first.slice(dashIdx + 1);
 };
 
 // ─── Backup ─────────────────────────────────────────────────────

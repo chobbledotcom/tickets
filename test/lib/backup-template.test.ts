@@ -175,7 +175,7 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
     expect(html).not.toContain("Schema mismatch");
   });
 
-  test("RESTORE_CONFIRM_PHRASE is RESTORE DATABASE", () => {
-    expect(RESTORE_CONFIRM_PHRASE).toBe("RESTORE DATABASE");
+  test("RESTORE_CONFIRM_PHRASE describes the danger", () => {
+    expect(RESTORE_CONFIRM_PHRASE).toContain("dangerous");
   });
 });

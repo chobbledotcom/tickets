@@ -132,7 +132,8 @@ export const adminBackupPage = (
     </Layout>,
   );
 
-export const RESTORE_CONFIRM_PHRASE = "RESTORE DATABASE";
+export const RESTORE_CONFIRM_PHRASE =
+  "This will restore my whole database to an earlier state. Existing info will be lost. I understand that this is dangerous.";
 
 export const adminRestoreConfirmPage = (
   session: AdminSession,
