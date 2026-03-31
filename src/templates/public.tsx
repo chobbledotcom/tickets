@@ -501,15 +501,17 @@ export const ticketPage = ({
       )}
       <Raw html={renderError(error)} />
 
-      {allUnavailable ? (
+      {allUnavailable || isReadOnly() ? (
         <div class="error">
-          {isSingleEvent
-            ? allClosed
-              ? "Registration closed."
-              : "Sorry, this event is full."
-            : allClosed
-              ? "Registration closed."
-              : "Sorry, all events are sold out."}
+          {isReadOnly()
+            ? "Registration closed."
+            : isSingleEvent
+              ? allClosed
+                ? "Registration closed."
+                : "Sorry, this event is full."
+              : allClosed
+                ? "Registration closed."
+                : "Sorry, all events are sold out."}
         </div>
       ) : (
         <CsrfForm action={`/ticket/${slugs.join("+")}`}>

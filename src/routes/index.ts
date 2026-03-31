@@ -228,6 +228,7 @@ const READ_ONLY_POST_PATTERNS = [
   /^\/admin\/event\/\d+\/edit$/,
   /^\/admin\/groups$/,
   /^\/admin\/groups\/\d+\/edit$/,
+  /^\/admin\/groups\/\d+\/add-events$/,
   /^\/admin\/event\/\d+\/attendee$/,
 ];
 
