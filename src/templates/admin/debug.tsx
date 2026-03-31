@@ -4,7 +4,7 @@
 
 import { formatLimitValue, type LIMIT_ENTRIES } from "#lib/limits.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type DebugPageState = {
@@ -62,11 +62,9 @@ export type DebugPageState = {
 };
 
 const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
-  ok ? (
-    <span class="badge-ok">Configured</span>
-  ) : (
-    <span class="badge-missing">Not configured</span>
-  );
+  ok
+    ? <span class="badge-ok">Configured</span>
+    : <span class="badge-missing">Not configured</span>;
 
 /**
  * Admin debug page
@@ -78,6 +76,7 @@ export const adminDebugPage = (
   String(
     <Layout title="Debug Info" theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
+      <SettingsSubNav />
 
       <h1>Debug Info</h1>
       <p>
@@ -244,13 +243,11 @@ export const adminDebugPage = (
             <tr>
               <td>File storage (images)</td>
               <td>
-                {s.bunny.storageBackend === "bunny" ? (
-                  <span class="badge-ok">Bunny CDN</span>
-                ) : s.bunny.storageBackend === "local" ? (
-                  <span class="badge-ok">Local filesystem</span>
-                ) : (
-                  <span class="badge-missing">Not configured</span>
-                )}
+                {s.bunny.storageBackend === "bunny"
+                  ? <span class="badge-ok">Bunny CDN</span>
+                  : s.bunny.storageBackend === "local"
+                  ? <span class="badge-ok">Local filesystem</span>
+                  : <span class="badge-missing">Not configured</span>}
               </td>
             </tr>
             <tr>
@@ -327,13 +324,13 @@ export const adminDebugPage = (
                 </td>
                 <td>{formatLimitValue(l.defaultValue, l.unit)}</td>
                 <td>
-                  {l.current === l.defaultValue ? (
-                    <span>{formatLimitValue(l.current, l.unit)}</span>
-                  ) : (
-                    <strong>
-                      {formatLimitValue(l.current, l.unit)} (overridden)
-                    </strong>
-                  )}
+                  {l.current === l.defaultValue
+                    ? <span>{formatLimitValue(l.current, l.unit)}</span>
+                    : (
+                      <strong>
+                        {formatLimitValue(l.current, l.unit)} (overridden)
+                      </strong>
+                    )}
                 </td>
               </tr>
             ))}

@@ -5,7 +5,7 @@
 import { CsrfForm, renderError, renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav, Breadcrumb, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type BackupEntry = {
@@ -28,7 +28,8 @@ export const adminBackupPage = (
 ): string =>
   String(
     <Layout title="Database Backup">
-      <AdminNav session={session} active="/admin/backup" />
+      <AdminNav session={session} active="/admin/settings" />
+      <SettingsSubNav />
       <h1>Database Backup &amp; Restore</h1>
       <Raw html={renderError(error)} />
       <Raw html={renderSuccess(success)} />
@@ -144,7 +145,8 @@ export const adminRestoreConfirmPage = (
 ): string =>
   String(
     <Layout title="Confirm Restore">
-      <AdminNav session={session} active="/admin/backup" />
+      <AdminNav session={session} active="/admin/settings" />
+      <SettingsSubNav />
       <Breadcrumb href="/admin/backup" label="Backup" />
       <h1>Confirm Database Restore</h1>
       <Raw html={renderError(error)} />
