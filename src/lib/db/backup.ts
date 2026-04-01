@@ -42,9 +42,12 @@ export type BackupManifest = {
 
 // ─── Helpers ────────────────────────────────────────────────────
 
+/** Double-quote a SQL identifier (table or column name) */
+const quoteId = (name: string): string => `"${name}"`;
+
 /** Get column info for a table */
 const getColumns = (table: string): Promise<ColumnInfo[]> =>
-  queryAll<ColumnInfo>(`PRAGMA table_info(${table})`);
+  queryAll<ColumnInfo>(`PRAGMA table_info(${quoteId(table)})`);
 
 /** Escape a SQL string value (single quotes doubled) */
 const escapeSql = (value: unknown): string => {
@@ -101,18 +104,20 @@ export const exportTable = async (table: string): Promise<string> => {
   const columns = await getColumns(table);
   const colNames = pipe(map((c: ColumnInfo) => c.name))(columns);
   const rows = await queryAll<Record<string, unknown>>(
-    `SELECT * FROM ${table} ORDER BY rowid`,
+    `SELECT * FROM ${quoteId(table)} ORDER BY rowid`,
   );
 
   if (rows.length === 0) return "";
 
+  const quotedTable = quoteId(table);
+  const quotedCols = pipe(map(quoteId))(colNames);
   const lines: string[] = [];
   for (const row of rows) {
     const values = pipe(map((col: string) => escapeSql(row[col])))(colNames);
     lines.push(
-      `INSERT INTO ${table} (${colNames.join(", ")}) VALUES (${
-        values.join(", ")
-      });`,
+      `INSERT INTO ${quotedTable} (${quotedCols.join(", ")}) VALUES (${values.join(
+        ", ",
+      )});`,
     );
   }
   return lines.join("\n");
@@ -170,12 +175,23 @@ export const createBackupZip = async (): Promise<Uint8Array> => {
 
 // ─── Restore ────────────────────────────────────────────────────
 
-/** Read and parse manifest.json from a backup zip. Returns null if missing. */
+/** Validate that a parsed object has the expected BackupManifest shape */
+const isValidManifest = (v: unknown): v is BackupManifest =>
+  typeof v === "object" &&
+  v !== null &&
+  typeof (v as Record<string, unknown>).schemaHash === "string" &&
+  typeof (v as Record<string, unknown>).latestUpdate === "string" &&
+  typeof (v as Record<string, unknown>).timestamp === "string" &&
+  typeof (v as Record<string, unknown>).tables === "object" &&
+  (v as Record<string, unknown>).tables !== null;
+
+/** Read and parse manifest.json from a backup zip. Returns null if missing or invalid. */
 export const readManifest = (zipData: Uint8Array): BackupManifest | null => {
   const files = unzipSync(zipData);
   const manifestBytes = files["manifest.json"];
   if (!manifestBytes) return null;
-  return JSON.parse(new TextDecoder().decode(manifestBytes));
+  const parsed: unknown = JSON.parse(new TextDecoder().decode(manifestBytes));
+  return isValidManifest(parsed) ? parsed : null;
 };
 
 /** Count SQL statements across all .sql files in a zip archive */

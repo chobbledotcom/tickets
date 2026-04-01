@@ -6,6 +6,7 @@
  * storage since the sensitive data is already encrypted at the field level.
  */
 
+import { getEncryptionKeyString } from "#lib/crypto/encryption.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   backupFilename,
@@ -17,7 +18,6 @@ import {
   readManifest,
   restoreFromZip,
 } from "#lib/db/backup.ts";
-import { getEncryptionKeyString } from "#lib/crypto/encryption.ts";
 import { SCHEMA_HASH } from "#lib/db/migrations.ts";
 import {
   deleteFile,
@@ -64,6 +64,14 @@ const listBackups = async (): Promise<BackupEntry[]> => {
   return files.filter((f) => f.endsWith(".zip")).map(parseBackupEntry);
 };
 
+/** Delete any stale restore-pending temp files (best effort, fire-and-forget) */
+const cleanupStalePendingFiles = async (): Promise<void> => {
+  const files = await listFiles(RESTORE_PENDING_PREFIX);
+  for (const file of files) {
+    await deleteFile(file).catch(() => {});
+  }
+};
+
 /** Build page state */
 const getBackupPageState = async (): Promise<BackupPageState> => ({
   backups: isStorageEnabled() ? await listBackups() : [],
@@ -76,6 +84,8 @@ const getBackupPageState = async (): Promise<BackupPageState> => ({
 const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const flash = applyFlash(request);
+    // Clean up any abandoned restore-pending temp files (fire-and-forget)
+    if (isStorageEnabled()) cleanupStalePendingFiles().catch(() => {});
     const state = await getBackupPageState();
     return htmlResponse(
       adminBackupPage(session, state, flash.error, flash.success),
@@ -93,11 +103,7 @@ const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> = (
     await uploadRaw(zipData, filename);
 
     await logActivity("Database backup created");
-    return redirect(
-      "/admin/backup",
-      "Backup created successfully",
-      true,
-    );
+    return redirect("/admin/backup", "Backup created successfully", true);
   });
 
 /** GET /admin/backup/download/:filename — download a backup file */
@@ -112,7 +118,8 @@ const handleBackupDownload: TypedRouteHandler<
     const data = await downloadRaw(filename);
     if (!data) return htmlResponse("Backup file not found", 404);
 
-    return new Response(data.buffer as ArrayBuffer, {
+    const body = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+    return new Response(body, {
       headers: {
         "content-type": "application/zip",
         "content-disposition": `attachment; filename="${filename}"`,
@@ -145,8 +152,8 @@ const handleBackupRestore: TypedRouteHandler<"POST /admin/backup/restore"> = (
 
     // Read manifest for schema compatibility check
     const manifest = readManifest(bytes);
-    const schemaMismatch = manifest !== null &&
-      manifest.schemaHash !== SCHEMA_HASH;
+    const schemaMismatch =
+      manifest !== null && manifest.schemaHash !== SCHEMA_HASH;
 
     // Store the uploaded zip temporarily so the confirm step can use it
     const tempFilename = `${RESTORE_PENDING_PREFIX}${crypto.randomUUID()}.zip`;
@@ -195,17 +202,15 @@ const handleBackupRestoreConfirm: TypedRouteHandler<
       );
     }
 
-    await restoreFromZip(data);
-
-    // Clean up the temp file (best effort — ignore failures)
-    await deleteFile(filename).catch(() => {});
+    try {
+      await restoreFromZip(data);
+    } finally {
+      // Clean up the temp file whether restore succeeds or fails
+      await deleteFile(filename).catch(() => {});
+    }
 
     await logActivity("Database restored from backup");
-    return redirect(
-      "/admin/backup",
-      "Database restored successfully",
-      true,
-    );
+    return redirect("/admin/backup", "Database restored successfully", true);
   });
 
 /** Backup routes */

@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync, zipSync } from "fflate";
 import {
-  backupFilename,
   type BackupManifest,
+  backupFilename,
   backupTimestamp,
   countZipStatements,
   createBackup,
@@ -51,7 +51,13 @@ describeWithEnv("backup", { db: true }, () => {
     test("exports INSERT statements for table with data", async () => {
       await createTestEvent({ name: "Test Event" });
       const sql = await exportTable("events");
-      expect(sql).toContain("INSERT INTO events");
+      expect(sql).toContain('INSERT INTO "events"');
+    });
+
+    test("quotes column names in INSERT statements", async () => {
+      await createTestEvent({ name: "Quote Test" });
+      const sql = await exportTable("events");
+      expect(sql).toMatch(/INSERT INTO "events" \("id", "created"/);
     });
 
     test("handles NULL values", async () => {
@@ -99,6 +105,24 @@ describeWithEnv("backup", { db: true }, () => {
 
     test("returns null for zip without manifest", () => {
       expect(readManifest(zipSync({ "a.sql": new Uint8Array(0) }))).toBeNull();
+    });
+
+    test("returns null for manifest with invalid shape", () => {
+      const encoder = new TextEncoder();
+      const zip = zipSync({
+        "manifest.json": encoder.encode(JSON.stringify({ wrong: "shape" })),
+      });
+      expect(readManifest(zip)).toBeNull();
+    });
+
+    test("returns null for manifest missing required fields", () => {
+      const encoder = new TextEncoder();
+      const zip = zipSync({
+        "manifest.json": encoder.encode(
+          JSON.stringify({ schemaHash: "ok", latestUpdate: "ok" }),
+        ),
+      });
+      expect(readManifest(zip)).toBeNull();
     });
   });
 
