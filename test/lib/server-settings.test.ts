@@ -60,9 +60,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/settings?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${await testCookie()}; ${
-            flashCookieHeader("Test success message")
-          }`,
+          cookie: `${await testCookie()}; ${flashCookieHeader(
+            "Test success message",
+          )}`,
         },
       );
       const html = await response.text();
@@ -73,9 +73,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/settings?form=settings-country&flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${await testCookie()}; ${
-            flashCookieHeader("Country updated")
-          }`,
+          cookie: `${await testCookie()}; ${flashCookieHeader(
+            "Country updated",
+          )}`,
         },
       );
       const html = await response.text();
@@ -91,9 +91,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/settings?form=settings-country&flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${await testCookie()}; ${
-            flashCookieHeader("Country updated")
-          }`,
+          cookie: `${await testCookie()}; ${flashCookieHeader(
+            "Country updated",
+          )}`,
         },
       );
       const html = await response.text();
@@ -327,7 +327,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           const { response } = await adminFormPost("/admin/settings/stripe", {
             stripe_secret_key: "sk_test_new_key_123",
@@ -364,7 +365,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           // Set the Stripe key
           await adminFormPost("/admin/settings/stripe", {
@@ -391,7 +393,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           await adminFormPost("/admin/settings/stripe", {
             stripe_secret_key: "sk_test_mode_check",
@@ -415,7 +418,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_live_123",
               secret: "whsec_live_secret",
-            })),
+            }),
+          ),
         async () => {
           await adminFormPost("/admin/settings/stripe", {
             stripe_secret_key: "sk_live_mode_check",
@@ -475,7 +479,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
                 error: "No Stripe secret key configured",
               },
               webhooks: [],
-            })),
+            }),
+          ),
         async () => {
           const { response } = await adminFormPost(
             "/admin/settings/stripe/test",
@@ -510,7 +515,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
                   enabledEvents: ["checkout.session.completed"],
                 },
               ],
-            })),
+            }),
+          ),
         async () => {
           const { response } = await adminFormPost(
             "/admin/settings/stripe/test",
@@ -540,7 +546,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               ok: false,
               apiKey: { valid: true, mode: "test" },
               webhooks: [],
-            })),
+            }),
+          ),
         async () => {
           const { response } = await adminFormPost(
             "/admin/settings/stripe/test",
@@ -742,7 +749,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               },
               location: { configured: false },
               webhook: { configured: false },
-            })),
+            }),
+          ),
         async () => {
           const { response } = await adminFormPost(
             "/admin/settings/square/test",
@@ -775,7 +783,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
                 status: "ACTIVE",
               },
               webhook: { configured: true },
-            })),
+            }),
+          ),
         async () => {
           const { response } = await adminFormPost(
             "/admin/settings/square/test",
@@ -804,7 +813,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
                 error: "No location ID configured",
               },
               webhook: { configured: true },
-            })),
+            }),
+          ),
         async () => {
           const { response } = await adminFormPost(
             "/admin/settings/square/test",
@@ -875,14 +885,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/stripe (webhook setup failure)", () => {
     test("shows error when webhook setup fails", async () => {
-      const mockSetupWebhook = stub(
-        stripeApi,
-        "setupWebhookEndpoint",
-        () =>
-          Promise.resolve({
-            success: false,
-            error: "Connection refused",
-          }),
+      const mockSetupWebhook = stub(stripeApi, "setupWebhookEndpoint", () =>
+        Promise.resolve({
+          success: false,
+          error: "Connection refused",
+        }),
       );
 
       try {
@@ -1187,7 +1194,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           await adminFormPost("/admin/settings/stripe", {
             stripe_secret_key: "sk_test_log_key",
@@ -1221,7 +1229,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) =>
-          l.message.includes("Square webhook signature key configured")
+          l.message.includes("Square webhook signature key configured"),
         ),
       ).toBe(true);
     });
@@ -1849,7 +1857,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           // Configure a Stripe key
           await handleRequest(
@@ -1928,7 +1937,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           // Configure a Stripe key
           await handleRequest(
@@ -2076,7 +2086,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           // Configure initial key
           await handleRequest(
@@ -2118,7 +2129,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           // Configure a Stripe key first
           await handleRequest(

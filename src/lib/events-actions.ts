@@ -22,18 +22,17 @@ import type { EventWithCount } from "#lib/types.ts";
 
 /** Generate a unique event slug, retrying on collision */
 export const generateUniqueEventSlug = (excludeEventId?: number) =>
-  generateUniqueSlug(
-    computeSlugIndex,
-    (slug) => isSlugTaken(slug, excludeEventId),
+  generateUniqueSlug(computeSlugIndex, (slug) =>
+    isSlugTaken(slug, excludeEventId),
   );
 
 /** Validate max_price is at least unit_price + 100 cents */
 const validateMaxPrice = (input: EventInput): string | null => {
   const minPrice = (input.unitPrice ?? 0) + 100;
   return input.maxPrice < minPrice
-    ? `Maximum price must be at least ${
-      formatCurrency(100)
-    } more than the ticket price`
+    ? `Maximum price must be at least ${formatCurrency(
+        100,
+      )} more than the ticket price`
     : null;
 };
 

@@ -91,8 +91,8 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
-  applyFlash,
   type AuthSession,
+  applyFlash,
   errorRedirect,
   htmlResponse,
   jsonResponse,
@@ -105,8 +105,8 @@ import {
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import {
-  changePasswordFields,
   type ChangePasswordFormValues,
+  changePasswordFields,
 } from "#templates/fields.ts";
 
 /** Build the webhook URL from the configured domain */
@@ -462,7 +462,8 @@ const handleAdminSquareWebhookPost = settingsSecret({
 
 /** Owner auth POST that runs a test function and returns JSON */
 const testRoute =
-  (testFn: () => Promise<unknown>) => (request: Request): Promise<Response> =>
+  (testFn: () => Promise<unknown>) =>
+  (request: Request): Promise<Response> =>
     withAuth(request, OWNER_FORM, async () => jsonResponse(await testFn()));
 
 const handleStripeTestPost = testRoute(testStripeConnection);
@@ -515,8 +516,8 @@ const handleCountryPost = settingsHandler({
     v === ""
       ? "Country is required"
       : !isValidCountry(v)
-      ? "Please select a valid country"
-      : null,
+        ? "Please select a valid country"
+        : null,
   save: (v) => settings.update.country(v),
   log: (v) => `Country set to ${v}`,
 });
@@ -624,9 +625,9 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
         formId: "settings-header-image",
       });
     }
-    const uploadDetail = `Header image upload failed: ${
-      String(uploadResult.reason)
-    }`;
+    const uploadDetail = `Header image upload failed: ${String(
+      uploadResult.reason,
+    )}`;
     logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
     return redirect("/admin/settings", "Header image upload failed", false, {
       formId: "settings-header-image",
@@ -653,9 +654,9 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
       formId: "settings-header-image-delete",
     });
   }
-  const deleteDetail = `Header image removal failed: ${
-    String(deleteResult.reason)
-  }`;
+  const deleteDetail = `Header image removal failed: ${String(
+    deleteResult.reason,
+  )}`;
   logError({ code: ErrorCode.STORAGE_DELETE, detail: deleteDetail });
   return redirect("/admin/settings", "Header image removal failed", false, {
     formId: "settings-header-image-delete",
@@ -735,9 +736,8 @@ const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
 });
 
 /** Valid template types for form submissions — derived from the EmailTemplateType union */
-const VALID_TEMPLATE_TYPES: ReadonlySet<EmailTemplateType> = new Set<
-  EmailTemplateType
->(["confirmation", "admin"]);
+const VALID_TEMPLATE_TYPES: ReadonlySet<EmailTemplateType> =
+  new Set<EmailTemplateType>(["confirmation", "admin"]);
 
 /** Type guard: narrows a string to EmailTemplateType after Set membership check */
 const isEmailTemplateType = (v: string): v is EmailTemplateType =>
@@ -751,13 +751,11 @@ const validateTemplateFields = ({
   html,
   text,
 }: TemplateFormData): string | null => {
-  for (
-    const [name, value] of [
-      ["subject", subject],
-      ["html", html],
-      ["text", text],
-    ] as const
-  ) {
+  for (const [name, value] of [
+    ["subject", subject],
+    ["html", html],
+    ["text", text],
+  ] as const) {
     if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
       return `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`;
     }
@@ -1260,12 +1258,10 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/email": handleEmailPost,
   "POST /admin/settings/email/test": handleEmailTestPost,
-  "POST /admin/settings/email-templates/confirmation": handleEmailTemplatePost(
-    "confirmation",
-  ),
-  "POST /admin/settings/email-templates/admin": handleEmailTemplatePost(
-    "admin",
-  ),
+  "POST /admin/settings/email-templates/confirmation":
+    handleEmailTemplatePost("confirmation"),
+  "POST /admin/settings/email-templates/admin":
+    handleEmailTemplatePost("admin"),
   "POST /admin/settings/email-templates/preview":
     handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,

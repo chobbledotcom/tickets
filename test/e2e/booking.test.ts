@@ -179,7 +179,7 @@ describe("e2e: full booking flow", () => {
     //    The group detail page shows a "Public URL" with a link containing /ticket/
     //    The link text shows "localhost/ticket/{slug}"
     const ticketLink = browser.links.find((l) =>
-      l.text.includes("localhost/ticket/")
+      l.text.includes("localhost/ticket/"),
     );
     expect(ticketLink).toBeTruthy();
     // The link is an absolute URL (https://...), extract the path
@@ -252,7 +252,7 @@ describe("e2e: full booking flow", () => {
     // Find the column index for our question
     const headers = headerLine.split(",");
     const qColIndex = headers.findIndex((h) =>
-      h.includes("What is your t-shirt size?")
+      h.includes("What is your t-shirt size?"),
     );
     expect(qColIndex).toBeGreaterThan(-1);
     // Verify the answer in the data row
@@ -272,7 +272,7 @@ describe("e2e: full booking flow", () => {
 
       // 15. Download the backup zip for later restore
       const downloadLink = browser.links.find((l) =>
-        l.text.includes("Download")
+        l.text.includes("Download"),
       );
       expect(downloadLink).toBeTruthy();
       const backupZip = await browser.downloadBytes(downloadLink!.href);

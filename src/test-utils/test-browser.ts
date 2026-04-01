@@ -83,13 +83,11 @@ const findLinkByText = (html: string, text: string): LinkMatch | null => {
 /** Extract all hidden input fields from a form */
 const extractHiddenInputs = (formHtml: string): Record<string, string> => {
   const result: Record<string, string> = {};
-  for (
-    const tag of regexCollect(
-      /<input[^>]*type="hidden"[^>]*>/gi,
-      formHtml,
-      (m) => m[0],
-    )
-  ) {
+  for (const tag of regexCollect(
+    /<input[^>]*type="hidden"[^>]*>/gi,
+    formHtml,
+    (m) => m[0],
+  )) {
     const nameMatch = tag.match(/name="([^"]+)"/);
     const valueMatch = tag.match(/value="([^"]*)"/);
     if (nameMatch) {
@@ -124,14 +122,14 @@ const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
 const findFormByButton = (forms: FormInfo[], buttonText: string): FormInfo => {
   const lower = buttonText.toLowerCase();
   const form = forms.find((f) =>
-    stripTags(f.body).toLowerCase().includes(lower)
+    stripTags(f.body).toLowerCase().includes(lower),
   );
   if (form) return form;
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(
-    `No form found with button text "${buttonText}". Available forms:\n${
-      available.join("\n")
-    }`,
+    `No form found with button text "${buttonText}". Available forms:\n${available.join(
+      "\n",
+    )}`,
   );
 };
 
@@ -201,9 +199,9 @@ export class TestBrowser {
     if (this.debug) {
       // biome-ignore lint/suspicious/noConsole: debug logging for test browser
       console.log(
-        `[browser] ${debugLabel} -> ${response.status}${
-          formatCookies(response)
-        }`,
+        `[browser] ${debugLabel} -> ${response.status}${formatCookies(
+          response,
+        )}`,
       );
     }
     parseCookies(response, this.cookies);
@@ -262,9 +260,9 @@ export class TestBrowser {
         map((l: LinkMatch) => `  "${l.text}" -> ${l.href}`),
       )(findAllLinks(this.currentHtml));
       throw new Error(
-        `No link found with text "${text}". Available links:\n${
-          available.join("\n")
-        }`,
+        `No link found with text "${text}". Available links:\n${available.join(
+          "\n",
+        )}`,
       );
     }
     await this.visit(link.href);

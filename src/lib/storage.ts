@@ -379,9 +379,9 @@ export const ATTACHMENT_ERROR_MESSAGES: Record<
   AttachmentValidationError,
   string
 > = {
-  too_large: `Attachment exceeds the ${
-    formatBytes(MAX_ATTACHMENT_SIZE)
-  } size limit`,
+  too_large: `Attachment exceeds the ${formatBytes(
+    MAX_ATTACHMENT_SIZE,
+  )} size limit`,
 };
 
 /** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */

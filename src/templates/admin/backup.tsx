@@ -79,42 +79,39 @@ export const adminBackupPage = (
 
           <section>
             <h2>Existing Backups</h2>
-            {state.backups.length === 0
-              ? (
-                <p>
-                  <em>No backups found.</em>
-                </p>
-              )
-              : (
-                <table>
-                  <thead>
+            {state.backups.length === 0 ? (
+              <p>
+                <em>No backups found.</em>
+              </p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.backups.map((b) => (
                     <tr>
-                      <th>Timestamp</th>
-                      <th>Actions</th>
+                      <td>{b.timestamp}</td>
+                      <td>
+                        <a href={`/admin/backup/download/${b.filename}`}>
+                          Download
+                        </a>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {state.backups.map((b) => (
-                      <tr>
-                        <td>{b.timestamp}</td>
-                        <td>
-                          <a href={`/admin/backup/download/${b.filename}`}>
-                            Download
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+                  ))}
+                </tbody>
+              </table>
+            )}
           </section>
 
           <section>
             <h2>Restore from Backup</h2>
             <p>
-              <strong>Warning:</strong>{" "}
-              Restoring will delete all current data and replace it with the
-              backup contents. This cannot be undone.
+              <strong>Warning:</strong> Restoring will delete all current data
+              and replace it with the backup contents. This cannot be undone.
             </p>
             <CsrfForm
               action="/admin/backup/restore"
@@ -153,10 +150,9 @@ export const adminRestoreConfirmPage = (
 
       {schemaMismatch && (
         <div class="error">
-          <strong>Schema mismatch:</strong>{" "}
-          This backup was created with a different database schema version. The
-          restore will apply current migrations after importing data, but some
-          data may be incompatible.
+          <strong>Schema mismatch:</strong> This backup was created with a
+          different database schema version. The restore will apply current
+          migrations after importing data, but some data may be incompatible.
         </div>
       )}
 

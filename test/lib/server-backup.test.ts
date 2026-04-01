@@ -2,9 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
 import { createBackupZip } from "#lib/db/backup.ts";
-import { uploadRaw } from "#lib/storage.ts";
-import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
+import { downloadRaw, uploadRaw } from "#lib/storage.ts";
 import { handleRequest } from "#routes";
+import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import {
   adminFormPost,
   adminGet,
@@ -56,6 +56,20 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       const { response } = await adminGet("/admin/backup");
       const html = await response.text();
       expect(html).toContain("Storage is not configured");
+    });
+
+    test("cleans up stale restore-pending files on page load", async () => {
+      await withLocalStorageEnabled(async () => {
+        await uploadRaw(new Uint8Array(1), "restore-pending-stale.zip");
+
+        await adminGet("/admin/backup");
+
+        // Give the fire-and-forget cleanup a moment to complete
+        await new Promise((r) => setTimeout(r, 50));
+
+        const data = await downloadRaw("restore-pending-stale.zip");
+        expect(data).toBeNull();
+      });
     });
   });
 
@@ -286,6 +300,30 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           },
         );
         expectRedirectWithFlash("/admin/backup")(response);
+      });
+    });
+
+    test("cleans up temp file even on restore failure", async () => {
+      await withLocalStorageEnabled(async () => {
+        // Upload an invalid zip (valid zip format but contains bad SQL)
+        const badZip = zipSync({
+          "settings.sql": new TextEncoder().encode("INVALID SQL SYNTAX;"),
+        });
+        await uploadRaw(badZip, "restore-pending-fail.zip");
+
+        // Attempt restore — should fail but still clean up the temp file
+        try {
+          await adminFormPost("/admin/backup/restore/confirm", {
+            backup_filename: "restore-pending-fail.zip",
+            confirm_identifier: RESTORE_CONFIRM_PHRASE,
+          });
+        } catch {
+          // Restore failure is expected
+        }
+
+        // Temp file should be cleaned up regardless
+        const data = await downloadRaw("restore-pending-fail.zip");
+        expect(data).toBeNull();
       });
     });
   });
