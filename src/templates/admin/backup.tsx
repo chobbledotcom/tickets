@@ -2,7 +2,12 @@
  * Admin backup/restore page template
  */
 
-import { CsrfForm, renderError, renderSuccess } from "#lib/forms.tsx";
+import {
+  ConfirmForm,
+  CsrfForm,
+  renderError,
+  renderSuccess,
+} from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav, Breadcrumb, SettingsSubNav } from "#templates/admin/nav.tsx";
@@ -160,35 +165,27 @@ export const adminRestoreConfirmPage = (
         </div>
       )}
 
-      <p>
-        You are about to restore from an uploaded backup containing{" "}
-        <strong>{lineCount}</strong> SQL statements. This will:
-      </p>
-      <ul>
-        <li>Drop all existing tables</li>
-        <li>Recreate the database schema</li>
-        <li>Import all data from the backup</li>
-      </ul>
-      <p>
-        <strong>This action cannot be undone.</strong> Type{" "}
-        <code>{RESTORE_CONFIRM_PHRASE}</code> below to confirm.
-      </p>
-
-      <CsrfForm
+      <ConfirmForm
         action="/admin/backup/restore/confirm"
         id="backup-restore-confirm"
+        name={RESTORE_CONFIRM_PHRASE}
+        label="Confirmation phrase"
+        buttonText="Restore Database"
+        hiddenFields={{ backup_filename: filename }}
       >
-        <input type="hidden" name="backup_filename" value={filename} />
-        <label>
-          Confirmation phrase
-          <input
-            type="text"
-            name="confirm_identifier"
-            placeholder={RESTORE_CONFIRM_PHRASE}
-            required
-          />
-        </label>
-        <button type="submit">Restore Database</button>
-      </CsrfForm>
+        <p>
+          You are about to restore from an uploaded backup containing{" "}
+          <strong>{lineCount}</strong> SQL statements. This will:
+        </p>
+        <ul>
+          <li>Drop all existing tables</li>
+          <li>Recreate the database schema</li>
+          <li>Import all data from the backup</li>
+        </ul>
+        <p>
+          <strong>This action cannot be undone.</strong> Type{" "}
+          <code>{RESTORE_CONFIRM_PHRASE}</code> below to confirm.
+        </p>
+      </ConfirmForm>
     </Layout>,
   );

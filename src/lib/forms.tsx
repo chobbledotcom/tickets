@@ -407,6 +407,8 @@ export const ConfirmForm = ({
   buttonText,
   danger = true,
   returnUrl,
+  id,
+  hiddenFields,
   children,
 }: {
   action: string;
@@ -415,13 +417,19 @@ export const ConfirmForm = ({
   buttonText: string;
   danger?: boolean;
   returnUrl?: string;
+  id?: string;
+  hiddenFields?: Record<string, string>;
   children?: Child;
 }): JSX.Element => (
   <>
     <div class="prose">{children}</div>
 
-    <CsrfForm action={action}>
+    <CsrfForm action={action} id={id}>
       {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([fieldName, value]) => (
+          <input type="hidden" name={fieldName} value={value} />
+        ))}
       <label>
         {label}
         <input
