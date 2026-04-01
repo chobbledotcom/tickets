@@ -7,6 +7,7 @@ import { toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { settings } from "#lib/db/settings.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
+import { isReadOnly } from "#lib/env.ts";
 import type { Field } from "#lib/forms.tsx";
 import {
   ConfirmForm,
@@ -290,12 +291,16 @@ export const adminEventPage = ({
 
       <nav>
         <ul>
-          <li>
-            <a href={`/admin/event/${event.id}/edit`}>Edit</a>
-          </li>
-          <li>
-            <a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a>
-          </li>
+          {!isReadOnly() && (
+            <li>
+              <a href={`/admin/event/${event.id}/edit`}>Edit</a>
+            </li>
+          )}
+          {!isReadOnly() && (
+            <li>
+              <a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a>
+            </li>
+          )}
           <li>
             <a href={`/admin/event/${event.id}/log`}>Log</a>
           </li>
@@ -622,17 +627,22 @@ export const adminEventPage = ({
         </article>
       )}
 
-      <article>
-        <h2 id="add-attendee">Add Attendee</h2>
-        <CsrfForm action={`/admin/event/${event.id}/attendee`}>
-          <Raw
-            html={renderFields(
-              getAddAttendeeFields(event.fields, event.event_type === "daily"),
-            )}
-          />
-          <button type="submit">Add Attendee</button>
-        </CsrfForm>
-      </article>
+      {!isReadOnly() && (
+        <article>
+          <h2 id="add-attendee">Add Attendee</h2>
+          <CsrfForm action={`/admin/event/${event.id}/attendee`}>
+            <Raw
+              html={renderFields(
+                getAddAttendeeFields(
+                  event.fields,
+                  event.event_type === "daily",
+                ),
+              )}
+            />
+            <button type="submit">Add Attendee</button>
+          </CsrfForm>
+        </article>
+      )}
     </Layout>,
   );
 };

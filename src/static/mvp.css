@@ -1385,6 +1385,15 @@ button.secondary:hover {
   font-weight: bold;
 }
 
+/* Read-only mode banner */
+.read-only-banner {
+  background: #f59e0b;
+  color: #000;
+  text-align: center;
+  padding: 8px;
+  font-weight: bold;
+}
+
 /* Stripe/Square test result */
 .stripe-test-result,
 .square-test-result {

@@ -10,6 +10,7 @@ import type {
   QuestionWithAnswers,
 } from "#lib/db/questions.ts";
 import { settings } from "#lib/db/settings.ts";
+import { isReadOnly } from "#lib/env.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
@@ -118,7 +119,7 @@ const renderEventListing = (info: TicketEvent): string => {
     : "";
   const linkHtml = isSoldOut
     ? "<p><strong>Sold Out</strong></p>"
-    : isClosed
+    : isClosed || isReadOnly()
       ? "<p><strong>Registration Closed</strong></p>"
       : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>Book now</strong></a></p>`;
 
@@ -294,6 +295,16 @@ export const temporaryErrorPage = (): string =>
       <p>
         Something went wrong loading this page. Retrying automatically&hellip;
       </p>
+    </Layout>,
+  );
+
+/**
+ * Read-only mode page
+ */
+export const readOnlyPage = (): string =>
+  String(
+    <Layout title="Read Only">
+      <p>Disabled: This site is in read-only mode.</p>
     </Layout>,
   );
 
@@ -490,15 +501,17 @@ export const ticketPage = ({
       )}
       <Raw html={renderError(error)} />
 
-      {allUnavailable ? (
+      {allUnavailable || isReadOnly() ? (
         <div class="error">
-          {isSingleEvent
-            ? allClosed
-              ? "Registration closed."
-              : "Sorry, this event is full."
-            : allClosed
-              ? "Registration closed."
-              : "Sorry, all events are sold out."}
+          {isReadOnly()
+            ? "Registration closed."
+            : isSingleEvent
+              ? allClosed
+                ? "Registration closed."
+                : "Sorry, this event is full."
+              : allClosed
+                ? "Registration closed."
+                : "Sorry, all events are sold out."}
         </div>
       ) : (
         <CsrfForm action={`/ticket/${slugs.join("+")}`}>

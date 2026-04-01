@@ -66,6 +66,7 @@ export type EventAttendeeRow = {
   checked_in: number;
   refunded: number;
   price_paid: number;
+  attachment_downloads: number;
 };
 
 /** An attendee with all their event bookings (for token resolution) */
@@ -75,7 +76,6 @@ export type AttendeeWithBookings = {
   created: string;
   ticket_token: string;
   ticket_token_index: string;
-  attachment_downloads: number;
   pii_blob: string;
   /** Per-event bookings, sorted by start_at then event_id */
   bookings: EventAttendeeRow[];

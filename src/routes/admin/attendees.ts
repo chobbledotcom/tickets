@@ -375,7 +375,7 @@ const loadAttendeeForEdit = async (
 
   // Load all event bookings for this attendee
   const bookingRows = await queryAll<EventAttendeeRow>(
-    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid
+    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
      FROM event_attendees WHERE attendee_id = ?
      ORDER BY start_at, event_id`,
     [attendeeId],

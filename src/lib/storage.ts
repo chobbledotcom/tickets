@@ -154,14 +154,14 @@ export const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
   invalid_content: "File does not appear to be a valid image",
 };
 
-/** Try to delete an image from CDN storage, logging errors on failure */
-export const tryDeleteImage = async (
+/** Try to delete a file from storage, logging errors on failure */
+export const tryDeleteFile = async (
   filename: string,
   eventId: number | undefined,
   detail: string,
 ): Promise<void> => {
   try {
-    await deleteImage(filename);
+    await deleteFile(filename);
   } catch {
     logError({ code: ErrorCode.STORAGE_DELETE, detail, eventId });
   }
@@ -177,10 +177,10 @@ export const deleteAllEventStorageFiles = async (
 ): Promise<void> => {
   for (const event of events) {
     if (event.image_url) {
-      await tryDeleteImage(event.image_url, event.id, "database reset");
+      await tryDeleteFile(event.image_url, event.id, "database reset");
     }
     if (event.attachment_url) {
-      await tryDeleteImage(event.attachment_url, event.id, "database reset");
+      await tryDeleteFile(event.attachment_url, event.id, "database reset");
     }
   }
 };
@@ -241,20 +241,19 @@ const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
   );
 };
 
-/** Encrypt and upload bytes, routing to local or Bunny based on config */
-const encryptAndUpload = async (
+/** Upload raw bytes to storage, routing to local or Bunny based on config */
+export const uploadRaw = async (
   data: Uint8Array,
   filename: string,
 ): Promise<string> => {
-  const encrypted = await encryptBytes(data);
   if (getLocalStoragePath() !== null) {
-    await localWrite(encrypted, filename);
+    await localWrite(data, filename);
     return filename;
   }
   const sz = connectZone();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(encrypted);
+      controller.enqueue(data);
       controller.close();
     },
   });
@@ -263,6 +262,12 @@ const encryptAndUpload = async (
   });
   return filename;
 };
+
+/** Encrypt and upload bytes */
+const encryptAndUpload = async (
+  data: Uint8Array,
+  filename: string,
+): Promise<string> => uploadRaw(await encryptBytes(data), filename);
 
 /**
  * Upload an image to Bunny storage.
@@ -303,23 +308,17 @@ const collectStream = async (
 const isFileNotFound = (err: Error): boolean =>
   err.message.startsWith("File not found:");
 
-/**
- * Download and decrypt a file, routing to local or Bunny based on config.
- * Returns the decrypted bytes, or null if the file does not exist.
- */
-export const downloadImage = async (
+/** Download raw bytes from storage. Returns null if the file does not exist. */
+export const downloadRaw = async (
   filename: string,
 ): Promise<Uint8Array | null> => {
   if (getLocalStoragePath() !== null) {
-    const encrypted = await localRead(filename);
-    if (encrypted === null) return null;
-    return decryptBytes(encrypted);
+    return localRead(filename);
   }
   try {
     const sz = connectZone();
     const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
-    const encrypted = await collectStream(stream as ReadableStream<Uint8Array>);
-    return decryptBytes(encrypted);
+    return collectStream(stream as ReadableStream<Uint8Array>);
   } catch (err) {
     if (isFileNotFound(err as Error)) return null;
     throw err;
@@ -327,9 +326,21 @@ export const downloadImage = async (
 };
 
 /**
+ * Download and decrypt a file.
+ * Returns the decrypted bytes, or null if the file does not exist.
+ */
+export const downloadImage = async (
+  filename: string,
+): Promise<Uint8Array | null> => {
+  const encrypted = await downloadRaw(filename);
+  if (encrypted === null) return null;
+  return decryptBytes(encrypted);
+};
+
+/**
  * Delete a file, routing to local or Bunny based on config.
  */
-export const deleteImage = async (filename: string): Promise<void> => {
+export const deleteFile = async (filename: string): Promise<void> => {
   if (getLocalStoragePath() !== null) {
     await localRemove(filename);
     return;
@@ -368,7 +379,9 @@ export const ATTACHMENT_ERROR_MESSAGES: Record<
   AttachmentValidationError,
   string
 > = {
-  too_large: `Attachment exceeds the ${formatBytes(MAX_ATTACHMENT_SIZE)} size limit`,
+  too_large: `Attachment exceeds the ${formatBytes(
+    MAX_ATTACHMENT_SIZE,
+  )} size limit`,
 };
 
 /** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */
@@ -391,3 +404,41 @@ export const uploadAttachment = (
   data: Uint8Array,
   filename: string,
 ): Promise<string> => encryptAndUpload(data, filename);
+
+// ---------------------------------------------------------------------------
+// File listing — used by backup to discover existing backup files
+// ---------------------------------------------------------------------------
+
+/** Read directory entries, returning empty array if the directory doesn't exist */
+const readDirSafe = async (dir: string): Promise<Deno.DirEntry[]> => {
+  try {
+    const entries: Deno.DirEntry[] = [];
+    for await (const entry of Deno.readDir(dir)) entries.push(entry);
+    return entries;
+  } catch {
+    return [];
+  }
+};
+
+/** List files in storage matching a prefix */
+export const listFiles = async (prefix: string): Promise<string[]> => {
+  if (getLocalStoragePath() !== null) {
+    const entries = await readDirSafe(getLocalStoragePath() as string);
+    return entries
+      .filter((e) => e.isFile && e.name.startsWith(prefix))
+      .map((e) => e.name)
+      .sort();
+  }
+  const { zoneName, zoneKey } = getStorageConfig();
+  const url = `https://storage.bunnycdn.com/${zoneName}/`;
+  const response = await fetch(url, {
+    headers: { AccessKey: zoneKey },
+  });
+  const items = (await response.json()) as Array<Record<string, unknown>>;
+  const files: string[] = [];
+  for (const item of items) {
+    const name = String(item.ObjectName ?? "");
+    if (name.startsWith(prefix)) files.push(name);
+  }
+  return files.sort();
+};

@@ -87,7 +87,7 @@ const handleAttachmentDownload: TypedRouteHandler<
   if (!data) return notFoundResponse();
 
   // Increment download counter (fire-and-forget)
-  await incrementAttachmentDownloads(attendeeId);
+  await incrementAttachmentDownloads(attendeeId, id);
 
   // Serve with Content-Disposition for proper download filename
   const contentType = getMimeType(event.attachment_name);

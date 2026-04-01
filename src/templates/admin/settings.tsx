@@ -13,7 +13,7 @@ import {
 } from "#lib/limits.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession, Theme } from "#lib/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import {
   changePasswordFields,
   FORMATTING_HINT,
@@ -52,6 +52,7 @@ export const adminSettingsPage = (
   String(
     <Layout title="Settings" theme={s.theme}>
       <AdminNav session={session} active="/admin/settings" />
+      <SettingsSubNav />
 
       {s.storageEnabled && (
         <div class="stack">
@@ -446,15 +447,5 @@ export const adminSettingsPage = (
         </label>
         <button type="submit">Save Theme</button>
       </CsrfForm>
-
-      <p>
-        For advanced settings including public API, Apple Wallet, custom email
-        templates, mail provider, timezone, custom domain, and database reset,{" "}
-        <a href="/admin/settings-advanced">click here</a>.
-      </p>
-
-      <p>
-        For nerdy debug info <a href="/admin/debug">click here</a>.
-      </p>
     </Layout>,
   );

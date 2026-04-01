@@ -291,11 +291,23 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
   });
 
   describe("nav link", () => {
-    test("built sites link visible to owners", async () => {
+    test("built sites link visible when CAN_BUILD_SITES is true", async () => {
+      Deno.env.set("CAN_BUILD_SITES", "true");
+      try {
+        const { response } = await adminGet("/admin/built-sites");
+        const body = await response.text();
+        expect(body).toContain("/admin/built-sites");
+        expect(body).toContain("Built Sites");
+      } finally {
+        Deno.env.delete("CAN_BUILD_SITES");
+      }
+    });
+
+    test("built sites link hidden when CAN_BUILD_SITES is not set", async () => {
+      Deno.env.delete("CAN_BUILD_SITES");
       const { response } = await adminGet("/admin/built-sites");
       const body = await response.text();
-      expect(body).toContain("/admin/built-sites");
-      expect(body).toContain("Built Sites");
+      expect(body).not.toContain('href="/admin/built-sites"');
     });
   });
 

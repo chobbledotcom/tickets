@@ -4,18 +4,21 @@ import { decryptBytes, encryptBytes } from "#lib/crypto/encryption.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
   deleteAllEventStorageFiles,
-  deleteImage,
+  deleteFile,
   detectImageType,
   downloadImage,
+  downloadRaw,
   generateAttachmentFilename,
   generateImageFilename,
   getImageProxyUrl,
   getMimeTypeFromFilename,
   isStorageEnabled,
+  listFiles,
   MAX_ATTACHMENT_SIZE,
   runWithStorageConfig,
   uploadAttachment,
   uploadImage,
+  uploadRaw,
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
@@ -76,10 +79,10 @@ describeWithEnv(
       });
     });
 
-    describe("deleteImage", () => {
+    describe("deleteFile", () => {
       test("throws when storage is not configured", async () => {
         await withStorageDisabled(async () => {
-          await expect(deleteImage("test.jpg")).rejects.toThrow(
+          await expect(deleteFile("test.jpg")).rejects.toThrow(
             "Storage is not configured",
           );
         });
@@ -115,10 +118,10 @@ describeWithEnv(
         });
       });
 
-      test("deleteImage removes file from local dir", async () => {
+      test("deleteFile removes file from local dir", async () => {
         await withLocalStorageEnabled(async (dir) => {
           const filename = await uploadImage(jpegBytes, "image/jpeg");
-          await deleteImage(filename);
+          await deleteFile(filename);
           await expect(Deno.stat(`${dir}/${filename}`)).rejects.toBeInstanceOf(
             Deno.errors.NotFound,
           );
@@ -141,6 +144,72 @@ describeWithEnv(
           const filename = "collision.jpg";
           await Deno.mkdir(`${dir}/${filename}`);
           await expect(downloadImage(filename)).rejects.toBeInstanceOf(Error);
+        });
+      });
+
+      test("uploadRaw stores bytes without encryption", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          const data = new TextEncoder().encode("hello raw");
+          await uploadRaw(data, "raw-test.txt");
+          const stored = await Deno.readFile(`${dir}/raw-test.txt`);
+          // Raw bytes should match exactly (no encryption overhead)
+          expect(stored).toEqual(data);
+        });
+      });
+
+      test("downloadRaw reads bytes without decryption", async () => {
+        await withLocalStorageEnabled(async () => {
+          const data = new TextEncoder().encode("raw roundtrip");
+          await uploadRaw(data, "raw-dl.txt");
+          const result = await downloadRaw("raw-dl.txt");
+          expect(result).toEqual(data);
+        });
+      });
+
+      test("downloadRaw returns null for missing file", async () => {
+        await withLocalStorageEnabled(async () => {
+          const result = await downloadRaw("nonexistent.txt");
+          expect(result).toBeNull();
+        });
+      });
+
+      test("listFiles returns files matching prefix", async () => {
+        await withLocalStorageEnabled(async () => {
+          await uploadRaw(new Uint8Array(0), "backup-a.zip");
+          await uploadRaw(new Uint8Array(0), "backup-b.zip");
+          await uploadRaw(new Uint8Array(0), "other-file.txt");
+          const files = await listFiles("backup-");
+          expect(files).toEqual(["backup-a.zip", "backup-b.zip"]);
+        });
+      });
+
+      test("listFiles returns empty array when no files match", async () => {
+        await withLocalStorageEnabled(async () => {
+          const files = await listFiles("nonexistent-");
+          expect(files).toEqual([]);
+        });
+      });
+
+      test("listFiles returns empty array when directory does not exist", async () => {
+        await runWithStorageConfig(
+          {
+            zoneName: "",
+            zoneKey: "",
+            localPath: `/tmp/nonexistent-dir-${crypto.randomUUID()}`,
+          },
+          async () => {
+            const files = await listFiles("backup-");
+            expect(files).toEqual([]);
+          },
+        );
+      });
+
+      test("listFiles skips directory entries", async () => {
+        await withLocalStorageEnabled(async (dir) => {
+          await uploadRaw(new Uint8Array(0), "backup-a.zip");
+          await Deno.mkdir(`${dir}/backup-subdir`);
+          const files = await listFiles("backup-");
+          expect(files).toEqual(["backup-a.zip"]);
         });
       });
     });
@@ -517,6 +586,50 @@ describeWithEnv(
                 expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(
                   true,
                 );
+              }),
+          );
+        });
+      },
+    );
+
+    describeWithEnv(
+      "Bunny CDN raw operations",
+      {
+        env: {
+          STORAGE_ZONE_NAME: "testzone",
+          STORAGE_ZONE_KEY: "testkey",
+        },
+      },
+      () => {
+        // uploadRaw and downloadRaw Bunny branches are covered indirectly:
+        // existing tests call uploadImage/downloadImage which delegate to
+        // uploadRaw/downloadRaw via encryptAndUpload/downloadImage wrappers.
+        // Only listFiles is a wholly new Bunny codepath that needs direct testing.
+
+        test("listFiles lists files from Bunny CDN matching prefix", async () => {
+          await runWithStorageConfig(
+            { zoneName: "testzone", zoneKey: "testkey" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) => {
+                  if (url.includes("storage.bunnycdn.com")) {
+                    return Promise.resolve(
+                      new Response(
+                        JSON.stringify([
+                          { ObjectName: "backup-2024.zip" },
+                          { ObjectName: "backup-2025.zip" },
+                          { ObjectName: "other-file.txt" },
+                          {},
+                        ]),
+                        { status: 200 },
+                      ),
+                    );
+                  }
+                  return null;
+                });
+
+                const files = await listFiles("backup-");
+                expect(files).toEqual(["backup-2024.zip", "backup-2025.zip"]);
               }),
           );
         });

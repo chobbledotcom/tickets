@@ -127,7 +127,9 @@ const findFormByButton = (forms: FormInfo[], buttonText: string): FormInfo => {
   if (form) return form;
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(
-    `No form found with button text "${buttonText}". Available forms:\n${available.join("\n")}`,
+    `No form found with button text "${buttonText}". Available forms:\n${available.join(
+      "\n",
+    )}`,
   );
 };
 
@@ -197,7 +199,9 @@ export class TestBrowser {
     if (this.debug) {
       // biome-ignore lint/suspicious/noConsole: debug logging for test browser
       console.log(
-        `[browser] ${debugLabel} -> ${response.status}${formatCookies(response)}`,
+        `[browser] ${debugLabel} -> ${response.status}${formatCookies(
+          response,
+        )}`,
       );
     }
     parseCookies(response, this.cookies);
@@ -256,10 +260,29 @@ export class TestBrowser {
         map((l: LinkMatch) => `  "${l.text}" -> ${l.href}`),
       )(findAllLinks(this.currentHtml));
       throw new Error(
-        `No link found with text "${text}". Available links:\n${available.join("\n")}`,
+        `No link found with text "${text}". Available links:\n${available.join(
+          "\n",
+        )}`,
       );
     }
     await this.visit(link.href);
+  }
+
+  /** Find a form by button text and extract its action + hidden fields */
+  private findForm(buttonText?: string): {
+    action: string;
+    body: string;
+    hiddenFields: Record<string, string>;
+  } {
+    const forms = findForms(this.currentHtml);
+    const form = buttonText
+      ? findFormByButton(forms, buttonText)
+      : (forms[0] ?? throwNoForm());
+    return {
+      action: form.action,
+      body: form.body,
+      hiddenFields: extractHiddenInputs(form.body),
+    };
   }
 
   /**
@@ -272,15 +295,7 @@ export class TestBrowser {
     data: Record<string, string | string[]>,
     buttonText?: string,
   ): Promise<void> {
-    const forms = findForms(this.currentHtml);
-
-    // Find the form containing the button text
-    const form = buttonText
-      ? findFormByButton(forms, buttonText)
-      : (forms[0] ?? throwNoForm());
-
-    // Collect hidden fields (includes csrf_token)
-    const hiddenFields = extractHiddenInputs(form.body);
+    const { action, body, hiddenFields } = this.findForm(buttonText);
 
     // Build the form body as URLSearchParams
     const params = new URLSearchParams();
@@ -302,7 +317,7 @@ export class TestBrowser {
         }
       } else if (value === "__ALL_CHECKBOXES__") {
         // Auto-select all checkbox values for this field
-        const values = extractCheckboxValues(form.body, key);
+        const values = extractCheckboxValues(body, key);
         for (const v of values) {
           params.append(key, v);
         }
@@ -311,7 +326,7 @@ export class TestBrowser {
       }
     }
 
-    await this.request(form.action, {
+    await this.request(action, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: params.toString(),
@@ -346,5 +361,49 @@ export class TestBrowser {
   /** Extract all checkbox values for a given field name from the current page */
   getCheckboxValues(fieldName: string): string[] {
     return extractCheckboxValues(this.currentHtml, fieldName);
+  }
+
+  /**
+   * Download a URL and return the raw bytes (for binary content like .zip files).
+   * Does NOT update currentHtml/currentUrl.
+   */
+  async downloadBytes(path: string): Promise<Uint8Array> {
+    const handler = await this.getHandler();
+    const req = this.buildRequest(toPath(path));
+    const response = await handler(req);
+    parseCookies(response, this.cookies);
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  /**
+   * Submit a multipart form with a file attachment.
+   * Used for file upload forms (e.g. backup restore).
+   * Finds the form by button text, auto-includes CSRF token and hidden fields.
+   */
+  async submitFormWithFile(
+    fileField: string,
+    fileName: string,
+    fileData: Uint8Array,
+    data: Record<string, string> = {},
+    buttonText?: string,
+  ): Promise<void> {
+    const { action, hiddenFields } = this.findForm(buttonText);
+    const formData = new FormData();
+
+    for (const [key, value] of Object.entries(hiddenFields)) {
+      formData.append(key, value);
+    }
+    for (const [key, value] of Object.entries(data)) {
+      formData.append(key, value);
+    }
+    formData.append(
+      fileField,
+      new File([fileData.buffer as ArrayBuffer], fileName),
+    );
+
+    await this.request(action, {
+      method: "POST",
+      body: formData,
+    });
   }
 }

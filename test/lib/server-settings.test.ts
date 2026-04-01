@@ -60,7 +60,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/settings?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${await testCookie()}; ${flashCookieHeader("Test success message")}`,
+          cookie: `${await testCookie()}; ${flashCookieHeader(
+            "Test success message",
+          )}`,
         },
       );
       const html = await response.text();
@@ -71,7 +73,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/settings?form=settings-country&flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${await testCookie()}; ${flashCookieHeader("Country updated")}`,
+          cookie: `${await testCookie()}; ${flashCookieHeader(
+            "Country updated",
+          )}`,
         },
       );
       const html = await response.text();
@@ -87,7 +91,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/settings?form=settings-country&flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${await testCookie()}; ${flashCookieHeader("Country updated")}`,
+          cookie: `${await testCookie()}; ${flashCookieHeader(
+            "Country updated",
+          )}`,
         },
       );
       const html = await response.text();
@@ -112,13 +118,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(html).toContain('id="settings-theme"');
     });
 
-    test("shows link to advanced settings", async () => {
+    test("shows settings sub-navigation", async () => {
       const response = await awaitTestRequest("/admin/settings", {
         cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain('href="/admin/settings-advanced"');
-      expect(html).toContain("advanced settings");
+      expect(html).toContain('href="/admin/backup"');
+      expect(html).toContain('href="/admin/debug"');
     });
   });
 

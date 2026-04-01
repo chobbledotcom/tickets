@@ -156,7 +156,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["special_instructions", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
         ["refunded", "TEXT NOT NULL DEFAULT ''"],
-        ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
@@ -182,6 +181,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["checked_in", "INTEGER NOT NULL DEFAULT 0"],
         ["refunded", "INTEGER NOT NULL DEFAULT 0"],
         ["price_paid", "INTEGER NOT NULL DEFAULT 0"],
+        ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
       ],
       foreignKeys: [
         "FOREIGN KEY (event_id) REFERENCES events(id)",
@@ -378,6 +378,9 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 ];
 
+/** Ordered table names — matches FK dependency order (parents before children) */
+export const SCHEMA_TABLE_NAMES: string[] = SCHEMA.map(([name]) => name);
+
 // ─── Schema hash (auto-detects changes even if LATEST_UPDATE isn't bumped) ──
 
 /** DJB2 hash — deterministic, fast, good enough for change detection */
@@ -562,11 +565,11 @@ export const initDb = async (): Promise<void> => {
   // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
   // Also copies per-event status columns to event_attendees
   await runMigration(
-    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid)
+    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
      SELECT event_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
-       quantity, checked_in_v2, refunded_v2, price_paid_v2
+       quantity, checked_in_v2, refunded_v2, price_paid_v2, attachment_downloads
      FROM attendees
      WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
   );

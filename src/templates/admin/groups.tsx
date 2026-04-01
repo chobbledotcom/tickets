@@ -4,6 +4,7 @@
 
 import { joinStrings, map, pipe, reduce } from "#fp";
 import { buildEmbedSnippets } from "#lib/embed.ts";
+import { isReadOnly } from "#lib/env.ts";
 import {
   ConfirmForm,
   CsrfForm,
@@ -45,9 +46,11 @@ export const adminGroupsPage = (
     <Layout title="Groups">
       <AdminNav session={session} active="/admin/groups" />
       <Raw html={renderSuccess(successMessage)} />
-      <p>
-        <a href="/admin/groups/new">Add Group</a>
-      </p>
+      {!isReadOnly() && (
+        <p>
+          <a href="/admin/groups/new">Add Group</a>
+        </p>
+      )}
       {groups.length === 0 ? (
         <p>No groups configured.</p>
       ) : (
@@ -68,7 +71,11 @@ export const adminGroupsPage = (
                   </td>
                   <td>{g.slug}</td>
                   <td>
-                    <a href={`/admin/groups/${g.id}/edit`}>Edit</a>{" "}
+                    {!isReadOnly() && (
+                      <>
+                        <a href={`/admin/groups/${g.id}/edit`}>Edit</a>{" "}
+                      </>
+                    )}
                     <a href={`/admin/groups/${g.id}/delete`}>Delete</a>
                   </td>
                 </tr>
@@ -240,7 +247,11 @@ export const adminGroupDetailPage = (
       <AdminNav session={session} active="/admin/groups" />
       <Raw html={renderSuccess(successMessage)} />
       <p>
-        <a href={`/admin/groups/${group.id}/edit`}>Edit Group</a>{" "}
+        {!isReadOnly() && (
+          <>
+            <a href={`/admin/groups/${group.id}/edit`}>Edit Group</a>{" "}
+          </>
+        )}
         <a href={`/admin/groups/${group.id}/delete`}>Delete Group</a>
       </p>
 
@@ -332,7 +343,7 @@ export const adminGroupDetailPage = (
         </div>
       </article>
 
-      {ungroupedEvents.length > 0 && (
+      {!isReadOnly() && ungroupedEvents.length > 0 && (
         <>
           <h2>Add Events to Group</h2>
           <CsrfForm action={`/admin/groups/${group.id}/add-events`}>

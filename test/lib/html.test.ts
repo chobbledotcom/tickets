@@ -40,7 +40,7 @@ import {
   nearCapacity,
 } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
-import { Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import {
   adminAnswerDeletePage,
   adminEventQuestionsPage,
@@ -2704,10 +2704,11 @@ describe("html", () => {
       expect(html).toContain('name="square_sandbox"');
     });
 
-    test("shows link to advanced settings", () => {
+    test("shows settings sub-navigation", () => {
       const html = adminSettingsPage(TEST_SESSION, defaultState);
       expect(html).toContain('href="/admin/settings-advanced"');
-      expect(html).toContain("advanced settings");
+      expect(html).toContain('href="/admin/backup"');
+      expect(html).toContain('href="/admin/debug"');
     });
   });
 
@@ -4292,3 +4293,28 @@ describe("html", () => {
     });
   });
 });
+
+describeWithEnv(
+  "read-only mode templates",
+  { env: { READ_ONLY: "true" } },
+  () => {
+    test("AdminNav shows read-only banner", () => {
+      const html = String(
+        AdminNav({ session: TEST_SESSION, active: "/admin/" }),
+      );
+      expect(html).toContain("read-only-banner");
+      expect(html).toContain("This site is in read-only mode");
+    });
+
+    test("ticketPage hides booking form in read-only mode", () => {
+      const event = testEventWithCount({ attendee_count: 0 });
+      const html = ticketPage({
+        events: [buildTicketEvent(event)],
+        slugs: [event.slug],
+        dates: [],
+      });
+      expect(html).toContain("Registration closed.");
+      expect(html).not.toContain("Reserve Ticket");
+    });
+  },
+);

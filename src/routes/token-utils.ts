@@ -133,7 +133,7 @@ const buildAttendeeView = (
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,
   date: booking.start_at ? booking.start_at.slice(0, 10) : null,
-  attachment_downloads: base.attachment_downloads,
+  attachment_downloads: booking.attachment_downloads,
   pii_blob: base.pii_blob,
 });
 

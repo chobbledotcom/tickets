@@ -65,10 +65,10 @@ import type { PaymentProviderType } from "#lib/payments.ts";
 import { testSquareConnection } from "#lib/square.ts";
 import {
   deleteAllEventStorageFiles,
-  deleteImage,
+  deleteFile,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
-  tryDeleteImage,
+  tryDeleteFile,
   uploadImage,
   validateImage,
 } from "#lib/storage.ts";
@@ -608,7 +608,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
     // Delete old header image if one exists (best-effort, don't block new upload)
     const existingUrl = settings.headerImageUrl;
     if (existingUrl) {
-      await tryDeleteImage(
+      await tryDeleteFile(
         existingUrl,
         undefined,
         `header image: ${existingUrl}`,
@@ -625,7 +625,9 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
         formId: "settings-header-image",
       });
     }
-    const uploadDetail = `Header image upload failed: ${String(uploadResult.reason)}`;
+    const uploadDetail = `Header image upload failed: ${String(
+      uploadResult.reason,
+    )}`;
     logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
     return redirect("/admin/settings", "Header image upload failed", false, {
       formId: "settings-header-image",
@@ -643,7 +645,7 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   }
 
   const [deleteResult] = await Promise.allSettled([
-    deleteImage(settings.headerImageUrl),
+    deleteFile(settings.headerImageUrl),
   ]);
   if (deleteResult.status === "fulfilled") {
     await settings.update.headerImageUrl("");
@@ -652,7 +654,9 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
       formId: "settings-header-image-delete",
     });
   }
-  const deleteDetail = `Header image removal failed: ${String(deleteResult.reason)}`;
+  const deleteDetail = `Header image removal failed: ${String(
+    deleteResult.reason,
+  )}`;
   logError({ code: ErrorCode.STORAGE_DELETE, detail: deleteDetail });
   return redirect("/admin/settings", "Header image removal failed", false, {
     formId: "settings-header-image-delete",
@@ -691,8 +695,9 @@ const handleEmailPost = settingsHandler<EmailFormData>({
       return;
     }
     await settings.update.email.provider(provider);
-    if (apiKey.action === "provided")
+    if (apiKey.action === "provided") {
       await settings.update.email.apiKey(apiKey.value);
+    }
     if (fromAddress) await settings.update.email.fromAddress(fromAddress);
   },
   log: ({ provider }) =>
@@ -704,8 +709,9 @@ const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
   const businessEmail = settings.businessEmail;
-  if (!businessEmail)
+  if (!businessEmail) {
     return errorPage("No business email set", 400, "settings-email-test");
+  }
   const status = await sendTestEmail(config, businessEmail);
   if (!status) {
     return errorPage(
@@ -1103,8 +1109,9 @@ const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     if (!d.passTypeId) return "Pass Type ID is required";
     if (!d.teamId) return "Team ID is required";
     if (!settings.appleWallet.hasDbConfig) {
-      if (d.cert.action !== "provided")
+      if (d.cert.action !== "provided") {
         return "Signing certificate is required";
+      }
       if (d.key.action !== "provided") return "Signing private key is required";
       if (d.wwdr.action !== "provided") return "WWDR certificate is required";
     }
@@ -1132,12 +1139,15 @@ const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     }
     await settings.update.appleWallet.passTypeId(d.passTypeId);
     await settings.update.appleWallet.teamId(d.teamId);
-    if (d.cert.action === "provided")
+    if (d.cert.action === "provided") {
       await settings.update.appleWallet.signingCert(d.cert.value);
-    if (d.key.action === "provided")
+    }
+    if (d.key.action === "provided") {
       await settings.update.appleWallet.signingKey(d.key.value);
-    if (d.wwdr.action === "provided")
+    }
+    if (d.wwdr.action === "provided") {
       await settings.update.appleWallet.wwdrCert(d.wwdr.value);
+    }
   },
   log: (d) =>
     isAllCleared(d)
@@ -1192,8 +1202,9 @@ const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
     }
     await settings.update.googleWallet.issuerId(d.issuerId);
     await settings.update.googleWallet.serviceAccountEmail(d.email);
-    if (d.key.action === "provided")
+    if (d.key.action === "provided") {
       await settings.update.googleWallet.serviceAccountKey(d.key.value);
+    }
   },
   log: (d) =>
     isGoogleWalletCleared(d)
@@ -1207,8 +1218,9 @@ const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
 const handleResetDatabasePost = advancedSettingsRoute(
   async (form, errorPage) => {
     const phraseError = validateResetPhrase(form);
-    if (phraseError)
+    if (phraseError) {
       return errorPage(phraseError, 400, "settings-reset-database");
+    }
 
     await logActivity("Database reset initiated");
     if (isStorageEnabled()) {
