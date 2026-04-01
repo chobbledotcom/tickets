@@ -140,7 +140,12 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains attendee editing info", async () => {
-      await assertAdminHtml("/admin/guide", "edit an attendee", "reassign");
+      await assertAdminHtml(
+        "/admin/guide",
+        "edit an attendee",
+        "Event Registrations",
+        "Add to Event",
+      );
     });
 
     test("contains text formatting section", async () => {

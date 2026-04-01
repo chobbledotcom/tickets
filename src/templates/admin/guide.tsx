@@ -145,6 +145,11 @@ export const adminGuidePage = (
             one go. If any are paid, they complete one checkout for the total.
           </p>
           <p>
+            The attendee gets a single ticket with one QR code covering all
+            their events. Their ticket page shows one card per event. In the
+            admin, they appear as one attendee linked to multiple events.
+          </p>
+          <p>
             To generate the link, open the <strong>Multi-booking link</strong>{" "}
             section on the <strong>Events</strong> page and tick the events you
             want to combine. The link updates as you select, and events appear
@@ -318,11 +323,44 @@ export const adminGuidePage = (
         <Q q="How do I edit an attendee?">
           <p>
             Open the event's attendee list, find the attendee, and click{" "}
-            <strong>Edit</strong>. You can update their name, email, phone,
-            address, special instructions, quantity, and custom question
-            answers. You can also reassign them to a different event using the
-            event dropdown. Quantity changes are validated against the event's
-            capacity and maximum tickets per purchase.
+            <strong>Edit</strong>. The edit page has three sections:
+          </p>
+          <ul>
+            <li>
+              <strong>Contact Information</strong> &mdash; name, email, phone,
+              address, special instructions, and custom question answers. These
+              are shared across all the attendee's event registrations.
+            </li>
+            <li>
+              <strong>Event Registrations</strong> &mdash; a table showing each
+              event the attendee is registered for, with their quantity,
+              check-in status, and refund status. You can update the quantity
+              per event or remove a registration.
+            </li>
+            <li>
+              <strong>Add to Event</strong> &mdash; link the attendee to an
+              additional event. For daily events, you also pick a date. Capacity
+              is checked when adding.
+            </li>
+          </ul>
+        </Q>
+
+        <Q q="How do I add an attendee to another event?">
+          <p>
+            Open the attendee's edit page and use the{" "}
+            <strong>Add to Event</strong> section at the bottom. Select the
+            event, choose a quantity, and for daily events pick a date. If the
+            event has enough capacity the attendee is linked immediately.
+          </p>
+        </Q>
+
+        <Q q="How do I remove an attendee from an event?">
+          <p>
+            On the attendee's edit page, find the event in the{" "}
+            <strong>Event Registrations</strong> table and click{" "}
+            <strong>Remove</strong>. If the attendee is registered for other
+            events they stay in the system. If it was their only event, the
+            attendee is deleted entirely.
           </p>
         </Q>
 
@@ -817,6 +855,11 @@ export const adminGuidePage = (
             event. If you also want to remove them, delete the attendee
             separately after refunding.
           </p>
+          <p>
+            Refunds are per-event. If the attendee is registered for multiple
+            events, refunding one event does not affect their other
+            registrations.
+          </p>
         </Q>
 
         <Q q="Can I refund an attendee who booked a free event?">
@@ -885,6 +928,11 @@ export const adminGuidePage = (
             logged in as an admin, they'll see the attendee's details and ticket
             quantity, with a button to check them in or out.
           </p>
+          <p>
+            Check-in is per-event. If an attendee is registered for multiple
+            events, checking them in at one event doesn't affect their status at
+            other events.
+          </p>
         </Q>
 
         <Q q="What's the QR code for?">
@@ -917,7 +965,9 @@ export const adminGuidePage = (
 
         <Q q="What if a QR code is for a different event?">
           <p>
-            If you scan a ticket registered for a different event, you'll be
+            The scanner checks all of the attendee's event registrations. If
+            they're registered for the event you're scanning, check-in proceeds
+            normally. If they're only registered for other events, you'll be
             prompted to confirm before checking them in. This lets you handle
             last-minute event changes without turning anyone away.
           </p>
@@ -1172,8 +1222,7 @@ export const adminGuidePage = (
             Prices are in the smallest currency unit (e.g. pence for GBP, cents
             for USD). The <code>ticket_url</code> links to the attendee's ticket
             page. For multi-event bookings the <code>tickets</code> array
-            contains one entry per event and the URL combines all tokens with{" "}
-            <code>+</code>.
+            contains one entry per event, all sharing the same ticket token.
           </p>
         </Q>
       </Section>
@@ -1379,8 +1428,10 @@ export const adminGuidePage = (
           <p>
             For multi-event bookings, loop through the <code>entries</code>{" "}
             array: <code>{"{% for entry in entries %}"}</code>. Each entry has{" "}
-            <code>entry.event.name</code>, <code>entry.attendee.quantity</code>,
-            etc.
+            <code>entry.event.name</code>, <code>entry.attendee.quantity</code>,{" "}
+            <code>entry.attendee.date</code>, etc. The quantity and date are
+            per-event &mdash; each entry shows the values for that specific
+            event registration.
           </p>
         </Q>
 
