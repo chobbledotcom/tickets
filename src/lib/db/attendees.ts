@@ -415,7 +415,7 @@ export const dateToRange = (
   date: string,
 ): { startAt: string; endAt: string } => {
   const ms = new Date(`${date}T00:00:00Z`).getTime();
-  const nextDay = new Date(ms + 86_400_000).toISOString();
+  const nextDay = new Date(ms + 86_400_000).toISOString().replace(".000Z", "Z");
   return { startAt: `${date}T00:00:00Z`, endAt: nextDay };
 };
 

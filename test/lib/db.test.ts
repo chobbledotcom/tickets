@@ -4198,13 +4198,13 @@ describeWithEnv("db", { db: true }, () => {
         args: [result.attendees[0]!.id],
       });
       expect(rows.rows[0]!.start_at).toBe("2026-03-16T00:00:00Z");
-      expect(rows.rows[0]!.end_at).toBe("2026-03-17T00:00:00.000Z");
+      expect(rows.rows[0]!.end_at).toBe("2026-03-17T00:00:00Z");
     });
 
     test("dateToRange produces correct full-day UTC range", () => {
       const range = dateToRange("2026-03-16");
       expect(range.startAt).toBe("2026-03-16T00:00:00Z");
-      expect(range.endAt).toBe("2026-03-17T00:00:00.000Z");
+      expect(range.endAt).toBe("2026-03-17T00:00:00Z");
     });
   });
 
