@@ -297,7 +297,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "/admin/guide",
         "Host Subdomain",
         "permanent and cannot be changed",
-        "host subdomain and a custom domain",
+        "host subdomain and custom domain",
       );
     });
 
@@ -307,6 +307,22 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Host subdomain",
         "register a pretty",
       );
+    });
+
+    test("shows subdomain suffix when Bunny DNS is configured", async () => {
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_DNS_ZONE_ID: "test-zone",
+        BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets.example.com",
+      });
+      try {
+        await assertAdminHtml(
+          "/admin/guide",
+          ".tickets.example.com",
+        );
+      } finally {
+        restore();
+      }
     });
   });
 });
