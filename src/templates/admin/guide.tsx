@@ -25,6 +25,7 @@ export type GuideHostConfig = {
   hostAppleWalletPassTypeId: string | null;
   hostGoogleWalletIssuerId: string | null;
   builderEnabled: boolean;
+  bunnyDnsSubdomainSuffix: string | null;
 };
 
 const Section = ({
@@ -1412,8 +1413,11 @@ export const adminGuidePage = (
           <p>
             If your server administrator has enabled subdomain registration, you
             can claim a pretty subdomain for your tickets site (e.g.{" "}
-            <code>my-business.example.com</code>) instead of using the default
-            CDN hostname. The option appears in{" "}
+            <code>
+              my-business
+              {hostConfig?.bunnyDnsSubdomainSuffix || ".example.com"}
+            </code>
+            ) instead of using the default CDN hostname. The option appears in{" "}
             <strong>Advanced Settings</strong> under{" "}
             <strong>Host Subdomain</strong>.
           </p>
@@ -1440,9 +1444,9 @@ export const adminGuidePage = (
             </li>
           </ol>
           <p>
-            <strong>Important:</strong> Once registered, a subdomain{" "}
-            <strong>cannot be changed</strong>. DNS, SSL, and CDN configuration
-            are handled automatically.
+            <strong>Important:</strong> Once registered, a subdomain is{" "}
+            <strong>permanent and cannot be changed</strong>. DNS, SSL, and CDN
+            configuration are handled automatically.
           </p>
         </Q>
 
@@ -1460,9 +1464,10 @@ export const adminGuidePage = (
             If your site runs on Bunny CDN and the <code>BUNNY_API_KEY</code>{" "}
             environment variable is configured, you'll see a{" "}
             <strong>Custom Domain</strong> section in{" "}
-            <a href="/admin/settings">Settings</a>. Enter your domain (e.g.{" "}
-            <code>tickets.yourdomain.com</code>) and save, then follow the CNAME
-            instructions shown and click <strong>Validate</strong>.
+            <a href="/admin/settings-advanced">Advanced Settings</a>. Enter your
+            domain (e.g. <code>tickets.yourdomain.com</code>) and save, then
+            follow the CNAME instructions shown and click{" "}
+            <strong>Validate</strong>.
           </p>
         </Q>
 
