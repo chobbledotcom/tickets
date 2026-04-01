@@ -11,8 +11,10 @@ import {
   logActivity,
 } from "#lib/db/activityLog.ts";
 import {
+  addEventLink,
   checkBatchAvailability,
   createAttendeeAtomic,
+  dateToRange,
   decryptAttendees,
   deleteAttendee,
   getActiveEventStats,
@@ -22,6 +24,7 @@ import {
   getDateAttendeeCount,
   getNewestAttendeesRaw,
   hasAvailableSpots,
+  markRefunded,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getDb, setDb } from "#lib/db/client.ts";
@@ -77,6 +80,7 @@ import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { nowMs } from "#lib/now.ts";
 import {
+  createDailyTestEvent,
   createPaidTestAttendee,
   createTestAttendee,
   createTestEvent,
@@ -3496,6 +3500,838 @@ describeWithEnv("db", { db: true }, () => {
           { eventId: openGroupEvent.id, quantity: 1 },
         ]),
       ).toBe(true);
+    });
+  });
+
+  // ─── Migration backfill tests ─────────────────────────────────────
+
+  describe("migration backfill", () => {
+    /** Shared legacy schema setup for migration tests */
+    const setupLegacySchema = async () => {
+      const db = getDb();
+      await resetDatabase();
+      // Disable FK checks so dropDeprecatedAttendeeColumns can recreate the table
+      await db.execute("PRAGMA foreign_keys = OFF");
+
+      await db.execute(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY, value TEXT NOT NULL
+      )`);
+      await db.execute(`CREATE TABLE IF NOT EXISTS events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL,
+        max_attendees INTEGER NOT NULL,
+        thank_you_url TEXT,
+        unit_price INTEGER,
+        max_quantity INTEGER NOT NULL DEFAULT 1,
+        webhook_url TEXT,
+        slug TEXT,
+        slug_index TEXT,
+        group_id INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        fields TEXT NOT NULL DEFAULT 'email',
+        closes_at TEXT,
+        name TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        event_type TEXT NOT NULL DEFAULT 'standard',
+        bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+        minimum_days_before INTEGER NOT NULL DEFAULT 1,
+        maximum_days_after INTEGER NOT NULL DEFAULT 90,
+        date TEXT NOT NULL DEFAULT '',
+        location TEXT NOT NULL DEFAULT '',
+        image_url TEXT NOT NULL DEFAULT '',
+        attachment_url TEXT NOT NULL DEFAULT '',
+        attachment_name TEXT NOT NULL DEFAULT '',
+        non_transferable INTEGER NOT NULL DEFAULT 0,
+        can_pay_more INTEGER NOT NULL DEFAULT 0,
+        hidden INTEGER NOT NULL DEFAULT 0,
+        max_price INTEGER NOT NULL DEFAULT 0
+      )`);
+      // Legacy attendees table with event_id, date, quantity, checked_in_v2, etc.
+      await db.execute(`CREATE TABLE IF NOT EXISTS attendees (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        created TEXT NOT NULL,
+        payment_id TEXT,
+        phone TEXT NOT NULL DEFAULT '',
+        ticket_token TEXT NOT NULL DEFAULT '',
+        price_paid TEXT,
+        checked_in TEXT NOT NULL DEFAULT '',
+        address TEXT NOT NULL DEFAULT '',
+        special_instructions TEXT NOT NULL DEFAULT '',
+        ticket_token_index TEXT,
+        refunded TEXT NOT NULL DEFAULT '',
+        attachment_downloads INTEGER NOT NULL DEFAULT 0,
+        pii_blob TEXT NOT NULL DEFAULT '',
+        event_id INTEGER NOT NULL DEFAULT 0,
+        date TEXT,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        checked_in_v2 INTEGER NOT NULL DEFAULT 0,
+        refunded_v2 INTEGER NOT NULL DEFAULT 0,
+        price_paid_v2 INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (event_id) REFERENCES events(id)
+      )`);
+      return db;
+    };
+
+    /** Restore FK checks and reinitialize clean DB after migration test */
+    const teardownLegacy = async () => {
+      const db = getDb();
+      await db.execute("PRAGMA foreign_keys = ON");
+      await resetDatabase();
+      await initDb();
+      invalidateTestDbCache();
+    };
+
+    test("backfills attendees.date to event_attendees start_at/end_at correctly", async () => {
+      const db = await setupLegacySchema();
+      try {
+        await db.execute({
+          sql: "INSERT INTO events (id, created, max_attendees) VALUES (?, ?, ?)",
+          args: [1, "2025-01-01T00:00:00Z", 100],
+        });
+
+        // Attendee with a date (daily booking)
+        await db.execute({
+          sql: `INSERT INTO attendees (id, name, email, created, event_id, date, quantity, checked_in_v2, refunded_v2, price_paid_v2, pii_blob)
+                VALUES (?, '', '', ?, ?, ?, ?, ?, ?, ?, 'enc')`,
+          args: [1, "2025-01-01T00:00:00Z", 1, "2026-03-15", 2, 1, 1, 500],
+        });
+
+        // Attendee without a date (standard booking)
+        await db.execute({
+          sql: `INSERT INTO attendees (id, name, email, created, event_id, date, quantity, checked_in_v2, refunded_v2, price_paid_v2, pii_blob)
+                VALUES (?, '', '', ?, ?, NULL, ?, ?, ?, ?, 'enc')`,
+          args: [2, "2025-01-02T00:00:00Z", 1, 3, 0, 0, 1000],
+        });
+
+        await initDb();
+
+        const rows = await db.execute(
+          "SELECT * FROM event_attendees ORDER BY attendee_id",
+        );
+        expect(rows.rows.length).toBe(2);
+
+        // Dated attendee: start_at = YYYY-MM-DDT00:00:00Z, end_at = next day
+        const dated = rows.rows[0]!;
+        expect(dated.start_at).toBe("2026-03-15T00:00:00Z");
+        expect(dated.end_at).toBe("2026-03-16T00:00:00Z");
+        expect(dated.quantity).toBe(2);
+        expect(dated.checked_in).toBe(1);
+        expect(dated.refunded).toBe(1);
+        expect(dated.price_paid).toBe(500);
+
+        // Non-dated attendee: start_at/end_at are NULL
+        const standard = rows.rows[1]!;
+        expect(standard.start_at).toBeNull();
+        expect(standard.end_at).toBeNull();
+        expect(standard.quantity).toBe(3);
+        expect(standard.checked_in).toBe(0);
+        expect(standard.refunded).toBe(0);
+        expect(standard.price_paid).toBe(1000);
+      } finally {
+        await teardownLegacy();
+      }
+    });
+
+    test("migration backfill is idempotent and does not duplicate event_attendees rows", async () => {
+      const db = await setupLegacySchema();
+      try {
+        await db.execute({
+          sql: "INSERT INTO events (id, created, max_attendees) VALUES (?, ?, ?)",
+          args: [1, "2025-01-01T00:00:00Z", 100],
+        });
+        await db.execute({
+          sql: `INSERT INTO attendees (id, name, email, created, event_id, date, quantity, checked_in_v2, refunded_v2, price_paid_v2, pii_blob)
+                VALUES (?, '', '', ?, ?, ?, ?, ?, ?, ?, 'enc')`,
+          args: [1, "2025-01-01T00:00:00Z", 1, "2026-03-15", 1, 0, 0, 100],
+        });
+
+        // First migration
+        await initDb();
+
+        const countAfterFirst = await db.execute(
+          "SELECT COUNT(*) as count FROM event_attendees",
+        );
+        expect(countAfterFirst.rows[0]!.count).toBe(1);
+
+        // Force re-run by clearing the version marker
+        await db.execute(
+          "DELETE FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
+        );
+
+        // Second migration — should not duplicate
+        await initDb();
+
+        const countAfterSecond = await db.execute(
+          "SELECT COUNT(*) as count FROM event_attendees",
+        );
+        expect(countAfterSecond.rows[0]!.count).toBe(1);
+      } finally {
+        await teardownLegacy();
+      }
+    });
+  });
+
+  // ─── getDateAttendeeCount boundary tests ──────────────────────────
+
+  describe("getDateAttendeeCount boundaries", () => {
+    /** Create a dummy attendee row for raw SQL inserts (bypasses FK constraint) */
+    const createDummyAttendee = async (): Promise<number> => {
+      const db = getDb();
+      await db.execute({
+        sql: "INSERT INTO attendees (name, email, created, pii_blob) VALUES ('', '', '2026-01-01T00:00:00Z', '')",
+        args: [],
+      });
+      const row = await db.execute("SELECT last_insert_rowid() as id");
+      return Number(row.rows[0]!.id);
+    };
+
+    test("treats end_at boundary as exclusive (end_at == dayStart is non-overlap)", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 100 });
+      const attendeeId = await createDummyAttendee();
+
+      // Query for 2026-03-16: dayStart = 2026-03-16T00:00:00Z, dayEnd = 2026-03-17T00:00:00Z
+      // Row ends at dayStart → end_at > startAt is false → should NOT count
+      await getDb().execute({
+        sql: "INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity) VALUES (?, ?, ?, ?, ?)",
+        args: [
+          event.id,
+          attendeeId,
+          "2026-03-15T00:00:00Z",
+          "2026-03-16T00:00:00Z",
+          1,
+        ],
+      });
+
+      const count = await getDateAttendeeCount(event.id, "2026-03-16");
+      expect(count).toBe(0);
+    });
+
+    test("treats start_at boundary as exclusive (start_at == dayEnd is non-overlap)", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 100 });
+      const attendeeId = await createDummyAttendee();
+
+      // Query for 2026-03-16: dayStart = 2026-03-16T00:00:00Z, dayEnd = 2026-03-17T00:00:00Z
+      // Row starts at dayEnd → start_at < endAt is false → should NOT count
+      await getDb().execute({
+        sql: "INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity) VALUES (?, ?, ?, ?, ?)",
+        args: [
+          event.id,
+          attendeeId,
+          "2026-03-17T00:00:00Z",
+          "2026-03-18T00:00:00Z",
+          1,
+        ],
+      });
+
+      const count = await getDateAttendeeCount(event.id, "2026-03-16");
+      expect(count).toBe(0);
+    });
+
+    test("counts partial overlaps spanning midnight", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 100 });
+      const attendeeId = await createDummyAttendee();
+
+      // Row spans from 2026-03-15T18:00:00Z to 2026-03-16T06:00:00Z
+      // Query for 2026-03-16: start_at (18:00 on 15th) < dayEnd (17th 00:00) AND end_at (06:00 on 16th) > dayStart (16th 00:00)
+      await getDb().execute({
+        sql: "INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity) VALUES (?, ?, ?, ?, ?)",
+        args: [
+          event.id,
+          attendeeId,
+          "2026-03-15T18:00:00Z",
+          "2026-03-16T06:00:00Z",
+          3,
+        ],
+      });
+
+      const count = await getDateAttendeeCount(event.id, "2026-03-16");
+      expect(count).toBe(3);
+    });
+
+    test("does not count rows with null start_at/end_at for daily overlap", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 100 });
+      const attendeeId = await createDummyAttendee();
+
+      // Standard booking with null start_at/end_at should not match date overlap
+      await getDb().execute({
+        sql: "INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity) VALUES (?, ?, NULL, NULL, ?)",
+        args: [event.id, attendeeId, 5],
+      });
+
+      const count = await getDateAttendeeCount(event.id, "2026-03-16");
+      expect(count).toBe(0);
+    });
+  });
+
+  // ─── hasAvailableSpots overlap tests ──────────────────────────────
+
+  describe("hasAvailableSpots overlap", () => {
+    /** Create a dummy attendee row for raw SQL inserts */
+    const createDummyAttendee = async (): Promise<number> => {
+      const db = getDb();
+      await db.execute({
+        sql: "INSERT INTO attendees (name, email, created, pii_blob) VALUES ('', '', '2026-01-01T00:00:00Z', '')",
+        args: [],
+      });
+      const row = await db.execute("SELECT last_insert_rowid() as id");
+      return Number(row.rows[0]!.id);
+    };
+
+    test("counts overlapping partial-day windows for daily events", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 2 });
+      const attendeeId = await createDummyAttendee();
+
+      // Insert custom partial-day interval that overlaps 2026-03-16
+      await getDb().execute({
+        sql: "INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity) VALUES (?, ?, ?, ?, ?)",
+        args: [
+          event.id,
+          attendeeId,
+          "2026-03-15T20:00:00Z",
+          "2026-03-16T04:00:00Z",
+          2,
+        ],
+      });
+
+      // Date 2026-03-16 should be full (2 of 2 spots via partial overlap)
+      const full = await hasAvailableSpots(event.id, 1, "2026-03-16");
+      expect(full).toBe(false);
+    });
+
+    test("ignores non-overlapping partial-day windows", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 2 });
+      const attendeeId = await createDummyAttendee();
+
+      // Interval that ends before the queried day starts
+      await getDb().execute({
+        sql: "INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity) VALUES (?, ?, ?, ?, ?)",
+        args: [
+          event.id,
+          attendeeId,
+          "2026-03-15T20:00:00Z",
+          "2026-03-16T00:00:00Z",
+          2,
+        ],
+      });
+
+      // end_at == dayStart → not overlapping → spots available
+      const available = await hasAvailableSpots(event.id, 1, "2026-03-16");
+      expect(available).toBe(true);
+    });
+
+    test("uses overlap window not string date equality", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 1 });
+
+      // Full-day booking for 2026-03-16
+      await createAttendeeAtomic({
+        name: "A",
+        email: "a@test.com",
+        bookings: [{ eventId: event.id, date: "2026-03-16" }],
+      });
+
+      // The overlap SQL should find it — not just a string match on "2026-03-16"
+      const full = await hasAvailableSpots(event.id, 1, "2026-03-16");
+      expect(full).toBe(false);
+
+      // Adjacent day should be free
+      const free = await hasAvailableSpots(event.id, 1, "2026-03-17");
+      expect(free).toBe(true);
+    });
+  });
+
+  // ─── checkBatchAvailability mixed daily/standard ──────────────────
+
+  describe("checkBatchAvailability mixed", () => {
+    test("handles mixed overlapping and non-overlapping intervals", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 2 });
+
+      // Book 2026-03-16 with quantity 2 (full)
+      await createAttendeeAtomic({
+        name: "A",
+        email: "a@test.com",
+        bookings: [{ eventId: event.id, quantity: 2, date: "2026-03-16" }],
+      });
+
+      // Batch check for same date: should fail
+      expect(
+        await checkBatchAvailability(
+          [{ eventId: event.id, quantity: 1 }],
+          "2026-03-16",
+        ),
+      ).toBe(false);
+
+      // Batch check for different date: should succeed
+      expect(
+        await checkBatchAvailability(
+          [{ eventId: event.id, quantity: 1 }],
+          "2026-03-17",
+        ),
+      ).toBe(true);
+    });
+
+    test("with mixed daily and standard in same batch applies date scoping only to daily", async () => {
+      const dailyEvent = await createDailyTestEvent({ maxAttendees: 5 });
+      const standardEvent = await createTestEvent({ maxAttendees: 5 });
+
+      // Book 3 into daily for 2026-03-16
+      await createAttendeeAtomic({
+        name: "D",
+        email: "d@test.com",
+        bookings: [{ eventId: dailyEvent.id, quantity: 3, date: "2026-03-16" }],
+      });
+
+      // Book 4 into standard (no date — counted always)
+      await createAttendeeAtomic({
+        name: "S",
+        email: "s@test.com",
+        bookings: [{ eventId: standardEvent.id, quantity: 4 }],
+      });
+
+      // Batch: daily has room for 2 more on 2026-03-16, standard has room for 1 more
+      expect(
+        await checkBatchAvailability(
+          [
+            { eventId: dailyEvent.id, quantity: 2 },
+            { eventId: standardEvent.id, quantity: 1 },
+          ],
+          "2026-03-16",
+        ),
+      ).toBe(true);
+
+      // Standard event would exceed capacity (already 4, adding 2 > 5)
+      expect(
+        await checkBatchAvailability(
+          [
+            { eventId: dailyEvent.id, quantity: 1 },
+            { eventId: standardEvent.id, quantity: 2 },
+          ],
+          "2026-03-16",
+        ),
+      ).toBe(false);
+
+      // Daily event on different date should have full capacity (5 spots)
+      expect(
+        await checkBatchAvailability(
+          [{ eventId: dailyEvent.id, quantity: 5 }],
+          "2026-03-17",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  // ─── Unique constraint tests ──────────────────────────────────────
+
+  describe("event_attendees unique constraint", () => {
+    test("allows same attendee same event on different start_at", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        name: "Multi",
+        email: "multi@test.com",
+        bookings: [
+          { eventId: event.id, date: "2026-03-16" },
+          { eventId: event.id, date: "2026-03-17" },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.attendees.length).toBe(2);
+    });
+
+    test("rejects duplicate (event_id, attendee_id, start_at) row", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        name: "Dup",
+        email: "dup@test.com",
+        bookings: [{ eventId: event.id, date: "2026-03-16" }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      // Try to insert a duplicate via raw SQL
+      try {
+        await getDb().execute({
+          sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity)
+                VALUES (?, ?, '2026-03-16T00:00:00Z', '2026-03-17T00:00:00Z', 1)`,
+          args: [event.id, result.attendees[0]!.id],
+        });
+        // If we get here, the constraint didn't fire
+        expect(true).toBe(false);
+      } catch (err) {
+        expect(String(err)).toMatch(/UNIQUE constraint failed/);
+      }
+    });
+
+    test("addEventLink rejects duplicate event/date for same attendee", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        name: "Dup",
+        email: "dup@test.com",
+        bookings: [{ eventId: event.id, date: "2026-03-16" }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      // addEventLink for the same event+date should fail (unique constraint)
+      try {
+        await addEventLink(result.attendees[0]!.id, {
+          eventId: event.id,
+          date: "2026-03-16",
+        });
+        expect(true).toBe(false);
+      } catch (err) {
+        expect(String(err)).toMatch(/UNIQUE constraint failed/);
+      }
+    });
+  });
+
+  // ─── getAttendeesByTokens ordering/dedup tests ────────────────────
+
+  describe("getAttendeesByTokens ordering", () => {
+    test("returns all bookings for single token multi-event attendee", async () => {
+      const { createTestAttendeeDirect } = await import("#test-utils");
+      const event1 = await createTestEvent({ maxAttendees: 10 });
+      const event2 = await createTestEvent({ maxAttendees: 10 });
+
+      // Create attendee linked to event1
+      const { attendee, token } = await createTestAttendeeDirect(
+        event1.id,
+        "Multi",
+        "multi@test.com",
+      );
+
+      // Add second event link
+      await addEventLink(attendee.id, { eventId: event2.id });
+
+      const results = await getAttendeesByTokens([token]);
+      expect(results[0]).not.toBeNull();
+      expect(results[0]!.bookings.length).toBe(2);
+    });
+
+    test("preserves deterministic order by start_at then event_id", async () => {
+      const daily1 = await createDailyTestEvent({ maxAttendees: 10 });
+      const daily2 = await createDailyTestEvent({ maxAttendees: 10 });
+
+      // Create attendee with bookings on different dates/events
+      const result = await createAttendeeAtomic({
+        name: "Order",
+        email: "order@test.com",
+        bookings: [
+          { eventId: daily2.id, date: "2026-03-18" },
+          { eventId: daily1.id, date: "2026-03-16" },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const token = result.attendees[0]!.ticket_token;
+      const results = await getAttendeesByTokens([token]);
+      const bookings = results[0]!.bookings;
+
+      // Should be sorted by start_at: 2026-03-16 before 2026-03-18
+      expect(bookings[0]!.start_at).toBe("2026-03-16T00:00:00Z");
+      expect(bookings[1]!.start_at).toBe("2026-03-18T00:00:00Z");
+    });
+
+    test("null start_at sorts first (SQLite default ascending)", async () => {
+      const standardEvent = await createTestEvent({ maxAttendees: 10 });
+      const dailyEvent = await createDailyTestEvent({ maxAttendees: 10 });
+
+      // Create attendee with standard (null start_at) and daily booking
+      const result = await createAttendeeAtomic({
+        name: "NullFirst",
+        email: "nullfirst@test.com",
+        bookings: [
+          { eventId: dailyEvent.id, date: "2026-03-16" },
+          { eventId: standardEvent.id },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const token = result.attendees[0]!.ticket_token;
+      const results = await getAttendeesByTokens([token]);
+      const bookings = results[0]!.bookings;
+
+      expect(bookings.length).toBe(2);
+      // Null start_at sorts first in SQLite ascending
+      expect(bookings[0]!.start_at).toBeNull();
+      expect(bookings[1]!.start_at).toBe("2026-03-16T00:00:00Z");
+    });
+
+    test("deduplicates duplicate token input without dropping bookings", async () => {
+      const { createTestAttendeeDirect } = await import("#test-utils");
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { token } = await createTestAttendeeDirect(
+        event.id,
+        "Dedup",
+        "dedup@test.com",
+      );
+
+      // Pass same token twice
+      const results = await getAttendeesByTokens([token, token]);
+      expect(results.length).toBe(2);
+      // Both entries should resolve to the same attendee
+      expect(results[0]!.id).toBe(results[1]!.id);
+      // Bookings should be present on both
+      expect(results[0]!.bookings.length).toBe(1);
+      expect(results[1]!.bookings.length).toBe(1);
+    });
+  });
+
+  // ─── updateEventLink tests ────────────────────────────────────────
+
+  describe("updateEventLink advanced", () => {
+    test("excludes current attendee row from capacity check when moving date window", async () => {
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createDailyTestEvent({ maxAttendees: 1 });
+
+      // Book date with capacity 1
+      const result = await createAttendeeAtomic({
+        name: "Self",
+        email: "self@test.com",
+        bookings: [{ eventId: event.id, date: "2026-03-16" }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      // Update same row to same date — should succeed (self-exclusion)
+      const update = await updateEventLink(result.attendees[0]!.id, event.id, {
+        quantity: 1,
+        date: "2026-03-16",
+      });
+      expect(update.success).toBe(true);
+    });
+
+    test("rejects date move when target date capacity is full", async () => {
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createDailyTestEvent({ maxAttendees: 1 });
+
+      // Book two different dates
+      const r1 = await createAttendeeAtomic({
+        name: "A",
+        email: "a@test.com",
+        bookings: [{ eventId: event.id, date: "2026-03-16" }],
+      });
+      const r2 = await createAttendeeAtomic({
+        name: "B",
+        email: "b@test.com",
+        bookings: [{ eventId: event.id, date: "2026-03-17" }],
+      });
+      expect(r1.success && r2.success).toBe(true);
+      if (!r1.success || !r2.success) return;
+
+      // Try to move A to B's date (which is already full)
+      const update = await updateEventLink(r1.attendees[0]!.id, event.id, {
+        quantity: 1,
+        date: "2026-03-17",
+      });
+      expect(update.success).toBe(false);
+    });
+
+    test("prevents collision with existing link on same event/start_at", async () => {
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createDailyTestEvent({ maxAttendees: 10 });
+
+      // Attendee with two different dates on same event
+      const result = await createAttendeeAtomic({
+        name: "Collision",
+        email: "collision@test.com",
+        bookings: [
+          { eventId: event.id, date: "2026-03-16" },
+          { eventId: event.id, date: "2026-03-17" },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      // Try to move the 2026-03-17 booking to 2026-03-16 — unique constraint
+      try {
+        await updateEventLink(result.attendees[0]!.id, event.id, {
+          quantity: 1,
+          date: "2026-03-16",
+        });
+        expect(true).toBe(false);
+      } catch (err) {
+        expect(String(err)).toMatch(/UNIQUE constraint failed/);
+      }
+    });
+  });
+
+  // ─── addEventLink + createAttendeeAtomic tests ───────────────────
+
+  describe("addEventLink", () => {
+    test("stores null start_at/end_at for standard event bookings", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        name: "Std",
+        email: "std@test.com",
+        bookings: [{ eventId: event.id }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const rows = await getDb().execute({
+        sql: "SELECT start_at, end_at FROM event_attendees WHERE attendee_id = ?",
+        args: [result.attendees[0]!.id],
+      });
+      expect(rows.rows[0]!.start_at).toBeNull();
+      expect(rows.rows[0]!.end_at).toBeNull();
+    });
+  });
+
+  describe("createAttendeeAtomic daily range", () => {
+    test("writes exact start_at/end_at full-day range for daily booking", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        name: "Daily",
+        email: "daily@test.com",
+        bookings: [{ eventId: event.id, date: "2026-03-16" }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const rows = await getDb().execute({
+        sql: "SELECT start_at, end_at FROM event_attendees WHERE attendee_id = ?",
+        args: [result.attendees[0]!.id],
+      });
+      expect(rows.rows[0]!.start_at).toBe("2026-03-16T00:00:00Z");
+      expect(rows.rows[0]!.end_at).toBe("2026-03-17T00:00:00.000Z");
+    });
+
+    test("dateToRange produces correct full-day UTC range", () => {
+      const range = dateToRange("2026-03-16");
+      expect(range.startAt).toBe("2026-03-16T00:00:00Z");
+      expect(range.endAt).toBe("2026-03-17T00:00:00.000Z");
+    });
+  });
+
+  // ─── updateCheckedIn / markRefunded targeted row tests ────────────
+
+  describe("updateCheckedIn targeted", () => {
+    test("updates only targeted event_attendees row for multi-linked attendee", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 10 });
+      const event2 = await createTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        name: "Multi",
+        email: "multi@test.com",
+        bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const attendeeId = result.attendees[0]!.id;
+
+      // Check in only event1
+      await updateCheckedIn(attendeeId, event1.id, true);
+
+      const rows = await getDb().execute({
+        sql: "SELECT event_id, checked_in FROM event_attendees WHERE attendee_id = ? ORDER BY event_id",
+        args: [attendeeId],
+      });
+      expect(rows.rows.length).toBe(2);
+      // event1 checked in, event2 not
+      const e1Row = rows.rows.find((r) => r.event_id === event1.id);
+      const e2Row = rows.rows.find((r) => r.event_id === event2.id);
+      expect(e1Row!.checked_in).toBe(1);
+      expect(e2Row!.checked_in).toBe(0);
+    });
+  });
+
+  describe("markRefunded targeted", () => {
+    test("updates only targeted event_attendees row for multi-linked attendee", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 10 });
+      const event2 = await createTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        name: "Refund",
+        email: "refund@test.com",
+        bookings: [
+          { eventId: event1.id, pricePaid: 500 },
+          { eventId: event2.id, pricePaid: 300 },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const attendeeId = result.attendees[0]!.id;
+
+      // Refund only event1
+      await markRefunded(attendeeId, event1.id);
+
+      const rows = await getDb().execute({
+        sql: "SELECT event_id, refunded FROM event_attendees WHERE attendee_id = ? ORDER BY event_id",
+        args: [attendeeId],
+      });
+      const e1Row = rows.rows.find((r) => r.event_id === event1.id);
+      const e2Row = rows.rows.find((r) => r.event_id === event2.id);
+      expect(e1Row!.refunded).toBe(1);
+      expect(e2Row!.refunded).toBe(0);
+    });
+  });
+
+  // ─── unlinkAttendeeFromEvent tests ────────────────────────────────
+
+  describe("unlinkAttendeeFromEvent advanced", () => {
+    test("only removes targeted event link when multiple dated links exist", async () => {
+      const { unlinkAttendeeFromEvent } = await import("#lib/db/attendees.ts");
+      const event1 = await createDailyTestEvent({ maxAttendees: 10 });
+      const event2 = await createDailyTestEvent({ maxAttendees: 10 });
+
+      const result = await createAttendeeAtomic({
+        name: "MultiDate",
+        email: "multi@test.com",
+        bookings: [
+          { eventId: event1.id, date: "2026-03-16" },
+          { eventId: event2.id, date: "2026-03-17" },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const attendeeId = result.attendees[0]!.id;
+
+      const { attendeeDeleted } = await unlinkAttendeeFromEvent(
+        attendeeId,
+        event1.id,
+      );
+      expect(attendeeDeleted).toBe(false);
+
+      // event2 link should still exist
+      const rows = await getDb().execute({
+        sql: "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
+        args: [attendeeId],
+      });
+      expect(rows.rows.length).toBe(1);
+      expect(rows.rows[0]!.event_id).toBe(event2.id);
+    });
+
+    test("sequential double-unlink is safe (second call is no-op)", async () => {
+      const { unlinkAttendeeFromEvent } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const event2 = await createTestEvent({ maxAttendees: 10 });
+
+      const result = await createAttendeeAtomic({
+        name: "Double",
+        email: "double@test.com",
+        bookings: [{ eventId: event.id }, { eventId: event2.id }],
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const attendeeId = result.attendees[0]!.id;
+
+      // First unlink
+      const first = await unlinkAttendeeFromEvent(attendeeId, event.id);
+      expect(first.attendeeDeleted).toBe(false);
+
+      // Second unlink of the same event — already removed, should be no-op
+      const second = await unlinkAttendeeFromEvent(attendeeId, event.id);
+      expect(second.attendeeDeleted).toBe(false);
+
+      // Attendee still exists with event2 link
+      const rows = await getDb().execute({
+        sql: "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
+        args: [attendeeId],
+      });
+      expect(rows.rows[0]!.count).toBe(1);
     });
   });
 });

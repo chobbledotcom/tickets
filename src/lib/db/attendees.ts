@@ -370,24 +370,29 @@ export const unlinkAttendeeFromEvent = async (
   attendeeId: number,
   eventId: number,
 ): Promise<{ attendeeDeleted: boolean }> => {
-  await getDb().execute({
-    sql: "DELETE FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
-    args: [attendeeId, eventId],
-  });
-
-  const remaining = await queryOne<{ count: number }>(
-    "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
-    [attendeeId],
-  );
-
-  if (remaining && remaining.count === 0) {
-    await purgeAttendee(attendeeId);
-    invalidateEventsCache();
-    return { attendeeDeleted: true };
-  }
+  const results = await executeBatchWithResults([
+    // Step 1: Remove the event link
+    {
+      sql: "DELETE FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
+      args: [attendeeId, eventId],
+    },
+    // Steps 2-4: Conditionally purge orphaned attendee (no remaining event links)
+    {
+      sql: "DELETE FROM processed_payments WHERE attendee_id = ? AND NOT EXISTS (SELECT 1 FROM event_attendees WHERE attendee_id = ?)",
+      args: [attendeeId, attendeeId],
+    },
+    {
+      sql: "DELETE FROM attendee_answers WHERE attendee_id = ? AND NOT EXISTS (SELECT 1 FROM event_attendees WHERE attendee_id = ?)",
+      args: [attendeeId, attendeeId],
+    },
+    {
+      sql: "DELETE FROM attendees WHERE id = ? AND NOT EXISTS (SELECT 1 FROM event_attendees WHERE attendee_id = ?)",
+      args: [attendeeId, attendeeId],
+    },
+  ]);
 
   invalidateEventsCache();
-  return { attendeeDeleted: false };
+  return { attendeeDeleted: results[3]!.rowsAffected > 0 };
 };
 
 /** Shared failure result for capacity-exceeded */
