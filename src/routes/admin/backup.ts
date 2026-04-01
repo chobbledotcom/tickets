@@ -118,7 +118,10 @@ const handleBackupDownload: TypedRouteHandler<
     const data = await downloadRaw(filename);
     if (!data) return htmlResponse("Backup file not found", 404);
 
-    const body = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+    const body = data.buffer.slice(
+      data.byteOffset,
+      data.byteOffset + data.byteLength,
+    ) as ArrayBuffer;
     return new Response(body, {
       headers: {
         "content-type": "application/zip",
