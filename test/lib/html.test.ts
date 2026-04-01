@@ -2652,8 +2652,8 @@ describe("html", () => {
   });
 
   describe("adminSettingsPage", () => {
-    const defaultState:
-      import("#templates/admin/settings.tsx").SettingsPageState = {
+    const defaultState: import("#templates/admin/settings.tsx").SettingsPageState =
+      {
         stripeKeyConfigured: false,
         stripeKeyMode: null,
         paymentProvider: "",
@@ -2713,36 +2713,35 @@ describe("html", () => {
   });
 
   describe("adminAdvancedSettingsPage", () => {
-    const advancedDefaultState:
-      import("#templates/admin/settings-advanced.tsx").AdvancedSettingsPageState =
-        {
-          showPublicApi: false,
-          emailProvider: "",
-          emailApiKeyConfigured: false,
-          emailFromAddress: "",
-          hostEmailLabel: "",
-          businessEmail: "",
-          confirmationTemplates: { subject: "", html: "", text: "" },
-          adminTemplates: { subject: "", html: "", text: "" },
-          bunnyCdnEnabled: false,
-          bunnyDnsEnabled: false,
-          bunnySubdomain: "",
-          bunnyDnsSubdomainSuffix: "",
-          customDomain: "",
-          customDomainLastValidated: "",
-          cdnHostname: "",
-          appleWalletConfigured: false,
-          appleWalletPassTypeId: "",
-          appleWalletTeamId: "",
-          hostAppleWalletLabel: "",
-          googleWalletConfigured: false,
-          googleWalletIssuerId: "",
-          googleWalletServiceAccountEmail: "",
-          hostGoogleWalletLabel: "",
-          subdomainPreview: "",
-          subdomainPreviewFullDomain: "",
-          theme: "light",
-        };
+    const advancedDefaultState: import("#templates/admin/settings-advanced.tsx").AdvancedSettingsPageState =
+      {
+        showPublicApi: false,
+        emailProvider: "",
+        emailApiKeyConfigured: false,
+        emailFromAddress: "",
+        hostEmailLabel: "",
+        businessEmail: "",
+        confirmationTemplates: { subject: "", html: "", text: "" },
+        adminTemplates: { subject: "", html: "", text: "" },
+        bunnyCdnEnabled: false,
+        bunnyDnsEnabled: false,
+        bunnySubdomain: "",
+        bunnyDnsSubdomainSuffix: "",
+        customDomain: "",
+        customDomainLastValidated: "",
+        cdnHostname: "",
+        appleWalletConfigured: false,
+        appleWalletPassTypeId: "",
+        appleWalletTeamId: "",
+        hostAppleWalletLabel: "",
+        googleWalletConfigured: false,
+        googleWalletIssuerId: "",
+        googleWalletServiceAccountEmail: "",
+        hostGoogleWalletLabel: "",
+        subdomainPreview: "",
+        subdomainPreviewFullDomain: "",
+        theme: "light",
+      };
 
     test("shows email provider selection when configured", () => {
       const html = adminAdvancedSettingsPage(TEST_SESSION, {

@@ -188,9 +188,8 @@ export const adminSettingsPage = (
           )}
           {s.stripeKeyConfigured && s.stripeKeyMode === "live" && (
             <p class="notice">
-              <strong>Live mode:</strong>{" "}
-              You are using a Stripe live key. Payments will be charged for
-              real.
+              <strong>Live mode:</strong> You are using a Stripe live key.
+              Payments will be charged for real.
             </p>
           )}
           <p>
@@ -274,8 +273,8 @@ export const adminSettingsPage = (
               </p>
               <ol>
                 <li>
-                  Go to your <strong>Square Developer Dashboard</strong>{" "}
-                  and select your application
+                  Go to your <strong>Square Developer Dashboard</strong> and
+                  select your application
                 </li>
                 <li>
                   Navigate to <strong>Webhooks</strong> in the left sidebar
@@ -360,9 +359,8 @@ export const adminSettingsPage = (
         </label>
         <p>
           <small>
-            Use <code>*.example.com</code>{" "}
-            to allow all subdomains. Direct visits to the booking page are
-            always allowed.
+            Use <code>*.example.com</code> to allow all subdomains. Direct
+            visits to the booking page are always allowed.
           </small>
         </p>
         <button type="submit">Save Embed Hosts</button>

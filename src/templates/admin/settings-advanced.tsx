@@ -86,8 +86,8 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         </p>
         <input type="hidden" name="subdomain" value={s.subdomainPreview} />
         <label>
-          <input type="checkbox" name="save" value="1" />{" "}
-          Confirm registration (cannot be undone)
+          <input type="checkbox" name="save" value="1" /> Confirm registration
+          (cannot be undone)
         </label>
         <footer>
           <button type="submit">Register Subdomain</button>
@@ -151,8 +151,7 @@ export const adminAdvancedSettingsPage = (
         <h2>Enable public API?</h2>
         <p>
           Exposes a JSON API for listing events, checking availability, and
-          creating bookings. See the <a href="/admin/guide#api">API guide</a>
-          {" "}
+          creating bookings. See the <a href="/admin/guide#api">API guide</a>{" "}
           for details.
         </p>
         <label>
@@ -188,8 +187,8 @@ export const adminAdvancedSettingsPage = (
           {s.hostAppleWalletLabel && !s.appleWalletConfigured
             ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
             : s.hostAppleWalletLabel && s.appleWalletConfigured
-            ? ` Overriding: ${s.hostAppleWalletLabel}.`
-            : ""}
+              ? ` Overriding: ${s.hostAppleWalletLabel}.`
+              : ""}
         </p>
         <label>
           Pass Type ID
@@ -257,8 +256,8 @@ export const adminAdvancedSettingsPage = (
           {s.hostGoogleWalletLabel && !s.googleWalletConfigured
             ? ` Currently using: ${s.hostGoogleWalletLabel}. Override below or leave empty to keep using host config.`
             : s.hostGoogleWalletLabel && s.googleWalletConfigured
-            ? ` Overriding: ${s.hostGoogleWalletLabel}.`
-            : ""}
+              ? ` Overriding: ${s.hostGoogleWalletLabel}.`
+              : ""}
         </p>
         <label>
           Issuer ID
@@ -586,8 +585,7 @@ export const adminAdvancedSettingsPage = (
                 <article>
                   <aside role="alert">
                     <p>
-                      <strong>Your custom domain is not yet validated.</strong>
-                      {" "}
+                      <strong>Your custom domain is not yet validated.</strong>{" "}
                       It will not work until validation is complete.
                     </p>
                   </aside>
@@ -596,8 +594,7 @@ export const adminAdvancedSettingsPage = (
               <article>
                 <aside>
                   <p>
-                    To use your custom domain, create a <strong>CNAME</strong>
-                    {" "}
+                    To use your custom domain, create a <strong>CNAME</strong>{" "}
                     record:
                   </p>
                   <ul>

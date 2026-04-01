@@ -629,10 +629,7 @@ describeWithEnv(
                 });
 
                 const files = await listFiles("backup-");
-                expect(files).toEqual([
-                  "backup-2024.zip",
-                  "backup-2025.zip",
-                ]);
+                expect(files).toEqual(["backup-2024.zip", "backup-2025.zip"]);
               }),
           );
         });
@@ -642,14 +639,7 @@ describeWithEnv(
     describe("encryptBytes / decryptBytes", () => {
       test("round-trips binary data through encrypt then decrypt", async () => {
         const original = new Uint8Array([
-          0xff,
-          0xd8,
-          0xff,
-          0xe0,
-          0x00,
-          0x10,
-          0x4a,
-          0x46,
+          0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46,
         ]);
         const encrypted = await encryptBytes(original);
         // Encrypted data should be larger (12 byte IV + 16 byte auth tag)

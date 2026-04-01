@@ -62,9 +62,11 @@ export type DebugPageState = {
 };
 
 const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
-  ok
-    ? <span class="badge-ok">Configured</span>
-    : <span class="badge-missing">Not configured</span>;
+  ok ? (
+    <span class="badge-ok">Configured</span>
+  ) : (
+    <span class="badge-missing">Not configured</span>
+  );
 
 /**
  * Admin debug page
@@ -243,11 +245,13 @@ export const adminDebugPage = (
             <tr>
               <td>File storage (images)</td>
               <td>
-                {s.bunny.storageBackend === "bunny"
-                  ? <span class="badge-ok">Bunny CDN</span>
-                  : s.bunny.storageBackend === "local"
-                  ? <span class="badge-ok">Local filesystem</span>
-                  : <span class="badge-missing">Not configured</span>}
+                {s.bunny.storageBackend === "bunny" ? (
+                  <span class="badge-ok">Bunny CDN</span>
+                ) : s.bunny.storageBackend === "local" ? (
+                  <span class="badge-ok">Local filesystem</span>
+                ) : (
+                  <span class="badge-missing">Not configured</span>
+                )}
               </td>
             </tr>
             <tr>
@@ -324,13 +328,13 @@ export const adminDebugPage = (
                 </td>
                 <td>{formatLimitValue(l.defaultValue, l.unit)}</td>
                 <td>
-                  {l.current === l.defaultValue
-                    ? <span>{formatLimitValue(l.current, l.unit)}</span>
-                    : (
-                      <strong>
-                        {formatLimitValue(l.current, l.unit)} (overridden)
-                      </strong>
-                    )}
+                  {l.current === l.defaultValue ? (
+                    <span>{formatLimitValue(l.current, l.unit)}</span>
+                  ) : (
+                    <strong>
+                      {formatLimitValue(l.current, l.unit)} (overridden)
+                    </strong>
+                  )}
                 </td>
               </tr>
             ))}
