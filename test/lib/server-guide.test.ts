@@ -291,5 +291,22 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         settings.appleWallet.resetHostConfig();
       }
     });
+
+    test("contains host subdomain section", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Host Subdomain",
+        "permanent and cannot be changed",
+        "host subdomain and a custom domain",
+      );
+    });
+
+    test("contains host subdomain in advanced settings list", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Host subdomain",
+        "register a pretty",
+      );
+    });
   });
 });
