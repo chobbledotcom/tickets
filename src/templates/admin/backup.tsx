@@ -72,7 +72,11 @@ export const adminBackupPage = (
               table. Backups are not encrypted (the sensitive contents are
               already encrypted at the field level).
             </p>
-            <CsrfForm action="/admin/backup/create" id="backup-create">
+            <CsrfForm
+              action="/admin/backup/create"
+              id="backup-create"
+              class="no-bg"
+            >
               <button type="submit">Create Backup Now</button>
             </CsrfForm>
           </section>
