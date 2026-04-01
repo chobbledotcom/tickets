@@ -24,6 +24,7 @@ export type GuideHostConfig = {
   hostEmailFromAddress: string | null;
   hostAppleWalletPassTypeId: string | null;
   hostGoogleWalletIssuerId: string | null;
+  builderEnabled: boolean;
 };
 
 const Section = ({
@@ -1579,6 +1580,49 @@ export const adminGuidePage = (
           </p>
         </Q>
       </Section>
+
+      {hostConfig?.builderEnabled && (
+        <Section id="built-sites" title="Built Sites">
+          <Q q="What are built sites?">
+            <p>
+              The <strong>Built Sites</strong> page (owners only) keeps a
+              registry of Tickets instances you've deployed. Each entry records
+              the site name and its Bunny CDN URL. You can add, edit, and delete
+              entries to keep track of all the instances you manage.
+            </p>
+          </Q>
+
+          <Q q="How do I create a new Tickets instance?">
+            <p>
+              Visit <code>/admin/builder</code> to deploy a new instance. Enter
+              a site name, database URL (libsql format), and database token. The
+              builder will fetch the latest release code from GitHub, create a
+              Bunny edge script, configure secrets (including a generated
+              encryption key), test the database connection, and publish the
+              site. Host-level configuration such as email, wallet, and storage
+              settings are copied automatically.
+            </p>
+          </Q>
+
+          <Q q="What do I need before building a site?">
+            <p>
+              You need a libsql database (e.g. from{" "}
+              <a href="https://turso.tech">Turso</a>) with its URL and auth
+              token. The server must have <code>BUNNY_API_KEY</code> configured.
+              The builder is owner-only.
+            </p>
+          </Q>
+
+          <Q q="Can I add a site record without using the builder?">
+            <p>
+              Yes. On the <strong>Built Sites</strong> page, click{" "}
+              <strong>Add Built Site</strong> to manually record a site name and
+              URL. This is useful for tracking instances you deployed by other
+              means.
+            </p>
+          </Q>
+        </Section>
+      )}
 
       <Section title="Feeds &amp; Mobilizon">
         <Q q="What event feeds are available?">

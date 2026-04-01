@@ -10,6 +10,7 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   mockRequest,
+  setTestEnv,
 } from "#test-utils";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
@@ -239,6 +240,25 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         expect(html).toContain("You need three values from");
       } finally {
         settings.googleWallet.resetHostConfig();
+      }
+    });
+
+    test("hides built sites section when builder is disabled", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).not.toContain('id="built-sites"');
+    });
+
+    test("shows built sites section when builder is enabled", async () => {
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      try {
+        await assertAdminHtml(
+          "/admin/guide",
+          'id="built-sites"',
+          "Add Built Site",
+        );
+      } finally {
+        restore();
       }
     });
 
