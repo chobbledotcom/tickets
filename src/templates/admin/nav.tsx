@@ -79,6 +79,26 @@ export const UsersSubNav = (): JSX.Element => (
   </nav>
 );
 
+/** Sub-navigation for settings-related pages */
+export const SettingsSubNav = (): JSX.Element => (
+  <nav>
+    <ul>
+      <li>
+        <a href="/admin/settings">Settings</a>
+      </li>
+      <li>
+        <a href="/admin/settings-advanced">Advanced</a>
+      </li>
+      <li>
+        <a href="/admin/backup">Backups</a>
+      </li>
+      <li>
+        <a href="/admin/debug">Debug</a>
+      </li>
+    </ul>
+  </nav>
+);
+
 interface BreadcrumbProps {
   href: string;
   label: string;

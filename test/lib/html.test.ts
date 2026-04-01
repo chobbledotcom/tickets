@@ -2704,10 +2704,11 @@ describe("html", () => {
       expect(html).toContain('name="square_sandbox"');
     });
 
-    test("shows link to advanced settings", () => {
+    test("shows settings sub-navigation", () => {
       const html = adminSettingsPage(TEST_SESSION, defaultState);
       expect(html).toContain('href="/admin/settings-advanced"');
-      expect(html).toContain("advanced settings");
+      expect(html).toContain('href="/admin/backup"');
+      expect(html).toContain('href="/admin/debug"');
     });
   });
 

@@ -13,6 +13,7 @@ import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
 import { attendeeRefundRoutes } from "#routes/admin/attendee-refunds.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
+import { backupRoutes } from "#routes/admin/backup.ts";
 import { builderRoutes } from "#routes/admin/builder.ts";
 import { builtSitesRoutes } from "#routes/admin/built-sites.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
@@ -56,6 +57,7 @@ const adminRoutes = {
   ...builderRoutes,
   ...builtSitesRoutes,
   ...updateRoutes,
+  ...backupRoutes,
 };
 
 const innerRouter = createRouter(adminRoutes);

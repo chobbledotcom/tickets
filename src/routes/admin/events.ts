@@ -37,11 +37,11 @@ import { defineResource } from "#lib/rest/resource.ts";
 import { normalizeSlug } from "#lib/slug.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
-  deleteImage,
+  deleteFile,
   generateAttachmentFilename,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
-  tryDeleteImage,
+  tryDeleteFile,
   uploadAttachment,
   uploadImage,
   validateAttachment,
@@ -189,7 +189,7 @@ const processFormFile = async (opts: {
   if (error) return error;
 
   if (opts.existingUrl) {
-    await tryDeleteImage(
+    await tryDeleteFile(
       opts.existingUrl,
       opts.eventId,
       `old ${opts.label} cleanup`,
@@ -549,7 +549,9 @@ const handleAdminEventExport: TypedRouteHandler<
       ? `${sanitizedName}_${dateFilter}_attendees.csv`
       : `${sanitizedName}_attendees.csv`;
     await logActivity(
-      `CSV exported for '${event.name}'${dateFilter ? ` (date: ${dateFilter})` : ""}`,
+      `CSV exported for '${event.name}'${
+        dateFilter ? ` (date: ${dateFilter})` : ""
+      }`,
       event,
     );
     return csvResponse(csv, filename);
@@ -648,13 +650,15 @@ const handleFileDelete =
       orNotFound(getEventWithCount(id), async (event) => {
         const url = getUrl(event);
         if (url) {
-          const [deleteResult] = await Promise.allSettled([deleteImage(url)]);
+          const [deleteResult] = await Promise.allSettled([deleteFile(url)]);
           if (deleteResult.status === "fulfilled") {
             await eventsTable.update(id, clearFields);
             await logActivity(`${label} removed for '${event.name}'`, event);
             return redirect(`/admin/event/${id}`, `${label} removed`, true);
           }
-          const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
+          const detail = `${label} removal failed: ${String(
+            deleteResult.reason,
+          )}`;
           logError({
             code: ErrorCode.STORAGE_DELETE,
             detail,
