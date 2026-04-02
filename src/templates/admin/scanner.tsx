@@ -89,27 +89,36 @@ export const adminScannerPage = (
           <label for="manual-checkin-input">
             Search by name or ticket token
           </label>
-          <input
-            id="manual-checkin-input"
-            name="token"
-            type="text"
-            list="ticket-options"
-            autocomplete="off"
-            placeholder={
-              uncheckedIn.length > 0
-                ? `${uncheckedIn.length} tickets available`
-                : "No tickets to check in"
-            }
-            required
-          />
-          <datalist id="ticket-options">
-            {uncheckedIn.map((t) => (
-              <option
-                value={t.token}
-                label={`${escapeHtml(t.name)} (${t.quantity} ticket${t.quantity === 1 ? "" : "s"})`}
-              ></option>
-            ))}
-          </datalist>
+          <div class="combobox">
+            <input type="hidden" name="token" id="manual-checkin-token" />
+            <input
+              id="manual-checkin-input"
+              type="text"
+              role="combobox"
+              autocomplete="off"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="ticket-options"
+              placeholder={
+                uncheckedIn.length > 0
+                  ? `${uncheckedIn.length} tickets available`
+                  : "No tickets to check in"
+              }
+              required
+            />
+            <ul id="ticket-options" role="listbox" class="combobox-list hidden">
+              {uncheckedIn.map((t) => (
+                <li
+                  role="option"
+                  data-token={t.token}
+                  data-name={escapeHtml(t.name)}
+                  data-quantity={String(t.quantity)}
+                >
+                  {`${escapeHtml(t.name)} (${t.quantity} ticket${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
+                </li>
+              ))}
+            </ul>
+          </div>
           <div id="manual-checkin-status" class="hidden"></div>
           <button type="submit">Check In</button>
         </form>
