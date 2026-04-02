@@ -456,8 +456,11 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
   const colNames = newCols.map(([col]) => col).join(", ");
   const colDefs = newCols.map(([col, type]) => `${col} ${type}`).join(", ");
 
+  // Disable FK enforcement — event_attendees references attendees(id),
+  // so DROP TABLE attendees would fail with FK constraints enabled.
   await getDb().batch(
     [
+      { sql: "PRAGMA foreign_keys = OFF", args: [] },
       { sql: `CREATE TABLE attendees_new (${colDefs})`, args: [] },
       {
         sql: `INSERT INTO attendees_new (${colNames}) SELECT ${colNames} FROM attendees`,
@@ -465,6 +468,7 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
       },
       { sql: "DROP TABLE attendees", args: [] },
       { sql: "ALTER TABLE attendees_new RENAME TO attendees", args: [] },
+      { sql: "PRAGMA foreign_keys = ON", args: [] },
     ],
     "write",
   );
