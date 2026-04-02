@@ -23,7 +23,7 @@ export type { TokenEntry as CheckinEntry };
 export const checkinAdminPage = (
   entries: TokenEntry[],
   checkinPath: string,
-  message: string | null,
+  message: string,
   allowedDomain: string,
   phonePrefix?: string,
 ): string => {
