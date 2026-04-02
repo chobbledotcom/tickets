@@ -1476,6 +1476,18 @@ button.secondary:hover {
     overflow: visible;
     max-width: 100%;
   }
+
+  .debug-footer {
+    display: none;
+  }
+
+  article:has(#add-attendee) {
+    display: none;
+  }
+
+  .actions-col {
+    display: none;
+  }
 }
 
 /* Hide email API key and from address fields when provider is "None" */
