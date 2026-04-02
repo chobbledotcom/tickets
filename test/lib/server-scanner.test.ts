@@ -275,13 +275,14 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("includes manual check-in form with datalist", async () => {
+    test("includes manual check-in form with combobox", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const body = await getScannerBody(event.id);
       expect(body).toContain("Manual Check-in");
       expect(body).toContain("data-manual-checkin");
       expect(body).toContain('id="ticket-options"');
-      expect(body).toContain('list="ticket-options"');
+      expect(body).toContain('role="listbox"');
+      expect(body).toContain('role="combobox"');
     });
 
     test("datalist includes unchecked-in attendees", async () => {
