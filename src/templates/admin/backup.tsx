@@ -10,7 +10,7 @@ import {
 } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { AdminNav, Breadcrumb, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type BackupEntry = {
@@ -153,7 +153,7 @@ export const adminRestoreConfirmPage = (
     <Layout title="Confirm Restore">
       <AdminNav session={session} active="/admin/settings" />
       <SettingsSubNav />
-      <Breadcrumb href="/admin/backup" label="Backup" />
+
       <h1>Confirm Database Restore</h1>
       <Raw html={renderError(error)} />
 
