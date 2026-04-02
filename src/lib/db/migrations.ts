@@ -184,10 +184,9 @@ const SCHEMA: [name: string, table: Table][] = [
         ["price_paid", "INTEGER NOT NULL DEFAULT 0"],
         ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
       ],
-      foreignKeys: [
-        "FOREIGN KEY (event_id) REFERENCES events(id)",
-        "FOREIGN KEY (attendee_id) REFERENCES attendees(id)",
-      ],
+      // FKs omitted — libsql's FK enforcement causes issues during table
+      // recreation migrations. Referential integrity is enforced by application
+      // logic and the indexes below.
       indexes: [
         {
           name: "idx_event_attendees_event_attendee_start",
@@ -456,6 +455,32 @@ const createIndexesForTable = async (
   }
 };
 
+/** Recreate a table from its SCHEMA definition, preserving data for matching columns */
+const recreateTable = async (tableName: string): Promise<void> => {
+  const tableSchema = SCHEMA.find(([name]) => name === tableName)!;
+  const cols = tableSchema[1].columns;
+  const colNames = cols.map(([col]) => col).join(", ");
+  const colDefs = cols.map(([col, type]) => `${col} ${type}`).join(", ");
+  const tmpName = `${tableName}_new`;
+
+  await getDb().batch(
+    [
+      { sql: "PRAGMA foreign_keys = OFF", args: [] },
+      { sql: `CREATE TABLE ${tmpName} (${colDefs})`, args: [] },
+      {
+        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${colNames} FROM ${tableName}`,
+        args: [],
+      },
+      { sql: `DROP TABLE ${tableName}`, args: [] },
+      { sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}`, args: [] },
+      { sql: "PRAGMA foreign_keys = ON", args: [] },
+    ],
+    "write",
+  );
+
+  await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
+};
+
 /**
  * Drop event_id, date, quantity from attendees table.
  * SQLite can't DROP COLUMN when a FK references the column, so we recreate the table.
@@ -470,34 +495,11 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
     );
     return;
   }
-  logDebug(
-    "Migration",
-    "Recreating attendees table (dropping deprecated columns)...",
-  );
-
-  const tableSchema = SCHEMA.find(([name]) => name === "attendees")!;
-  const newCols = tableSchema[1].columns;
-  const colNames = newCols.map(([col]) => col).join(", ");
-  const colDefs = newCols.map(([col, type]) => `${col} ${type}`).join(", ");
-
-  // Disable FK enforcement — event_attendees references attendees(id),
-  // so DROP TABLE attendees would fail with FK constraints enabled.
-  await getDb().batch(
-    [
-      { sql: "PRAGMA foreign_keys = OFF", args: [] },
-      { sql: `CREATE TABLE attendees_new (${colDefs})`, args: [] },
-      {
-        sql: `INSERT INTO attendees_new (${colNames}) SELECT ${colNames} FROM attendees`,
-        args: [],
-      },
-      { sql: "DROP TABLE attendees", args: [] },
-      { sql: "ALTER TABLE attendees_new RENAME TO attendees", args: [] },
-      { sql: "PRAGMA foreign_keys = ON", args: [] },
-    ],
-    "write",
-  );
-
-  await createIndexesForTable("attendees", tableSchema[1].indexes ?? []);
+  logDebug("Migration", "Recreating attendees + event_attendees tables...");
+  await recreateTable("attendees");
+  // Recreate event_attendees too — its old FK references pointed to the
+  // dropped attendees table and would cause constraint errors on queries.
+  await recreateTable("event_attendees");
 };
 
 /** Create missing tables and add missing columns in a single pass */
