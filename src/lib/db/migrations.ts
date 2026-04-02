@@ -455,7 +455,18 @@ const createIndexesForTable = async (
   }
 };
 
-/** Recreate a table from its SCHEMA definition, preserving data for matching columns */
+/**
+ * Recreate a table from its SCHEMA definition, preserving data for matching columns.
+ *
+ * The new table is created WITHOUT foreign keys (only column definitions).
+ * This means any FKs the original table had are removed after recreation.
+ *
+ * IMPORTANT: If other tables have FKs referencing this table and contain data,
+ * those tables must be recreated FIRST (to remove their FK constraints).
+ * Otherwise DROP TABLE will fail with FOREIGN KEY constraint in libsql.
+ * We do NOT use PRAGMA foreign_keys=OFF because it doesn't persist across
+ * HTTP requests in remote libsql (Turso).
+ */
 const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = SCHEMA.find(([name]) => name === tableName)!;
   const cols = tableSchema[1].columns;
@@ -463,8 +474,6 @@ const recreateTable = async (tableName: string): Promise<void> => {
   const colDefs = cols.map(([col, type]) => `${col} ${type}`).join(", ");
   const tmpName = `${tableName}_new`;
 
-  // PRAGMA must be outside the batch — libsql validates FKs per-batch regardless
-  await getDb().execute("PRAGMA foreign_keys = OFF");
   await getDb().batch(
     [
       { sql: `CREATE TABLE ${tmpName} (${colDefs})`, args: [] },
@@ -477,7 +486,6 @@ const recreateTable = async (tableName: string): Promise<void> => {
     ],
     "write",
   );
-  await getDb().execute("PRAGMA foreign_keys = ON");
 
   await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
 };
@@ -496,17 +504,19 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
     );
     return;
   }
-  // Recreate attendees + all tables whose FKs reference attendees(id).
-  // After DROP TABLE + rename, their FK references point to the dropped table
-  // and cause constraint errors when libsql FK enforcement is enabled.
-  logDebug("Migration", "Recreating attendees table...");
-  await recreateTable("attendees");
-  logDebug("Migration", "Recreating event_attendees table...");
-  await recreateTable("event_attendees");
+  // Recreate tables that FK-reference attendees(id) FIRST — this removes
+  // their FK constraints so that DROP TABLE attendees won't violate them.
+  // In remote libsql (Turso), PRAGMA foreign_keys=OFF doesn't persist across
+  // HTTP requests, so we can't rely on it to suppress FK checks.
   logDebug("Migration", "Recreating processed_payments table...");
   await recreateTable("processed_payments");
   logDebug("Migration", "Recreating attendee_answers table...");
   await recreateTable("attendee_answers");
+  // Now safe to recreate attendees — no FK references remain
+  logDebug("Migration", "Recreating attendees table...");
+  await recreateTable("attendees");
+  logDebug("Migration", "Recreating event_attendees table...");
+  await recreateTable("event_attendees");
   logDebug("Migration", "Table recreation complete.");
 };
 
