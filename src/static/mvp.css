@@ -1466,6 +1466,16 @@ button.secondary:hover {
   [data-theme="dark"] .ticket-card-description {
     color: #666;
   }
+
+  nav,
+  main > footer {
+    display: none;
+  }
+
+  .table-scroll {
+    overflow: visible;
+    max-width: 100%;
+  }
 }
 
 /* Hide email API key and from address fields when provider is "None" */
