@@ -106,14 +106,14 @@ const handleAdminLogin = async (
   const user = await getUserByUsername(username);
   if (!user) {
     await recordFailedLogin(clientIp);
-    return errorRedirect("/admin", "Invalid credentials");
+    return errorRedirect("/admin", "Username or password was wrong");
   }
 
   // Verify password (decrypt stored hash, then verify)
   const passwordHash = await verifyUserPassword(user, password);
   if (!passwordHash) {
     await recordFailedLogin(clientIp);
-    return errorRedirect("/admin", "Invalid credentials");
+    return errorRedirect("/admin", "Username or password was wrong");
   }
 
   // Clear failed attempts on successful login
@@ -134,7 +134,7 @@ const handleAdminLogin = async (
     dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
     // KEK mismatch - this shouldn't happen if password verification passed
-    return errorRedirect("/admin", "Invalid credentials");
+    return errorRedirect("/admin", "Username or password was wrong");
   }
 
   return createLoginSession(dataKey, user.id);
