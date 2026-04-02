@@ -8,9 +8,8 @@ import { isReadOnly } from "#lib/env.ts";
 import {
   ConfirmForm,
   CsrfForm,
-  renderError,
+  Flash,
   renderFields,
-  renderSuccess,
 } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import {
@@ -45,7 +44,7 @@ export const adminGroupsPage = (
   String(
     <Layout title="Groups">
       <AdminNav session={session} active="/admin/groups" />
-      <Raw html={renderSuccess(successMessage)} />
+      <Flash success={successMessage} />
       {!isReadOnly() && (
         <p>
           <a href="/admin/groups/new">Add Group</a>
@@ -111,7 +110,7 @@ export const adminGroupNewPage = (
     <Layout title="Add Group">
       <AdminNav session={session} active="/admin/groups" />
       <h1>Add Group</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <CsrfForm action="/admin/groups">
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
         <button type="submit">Create Group</button>
@@ -131,7 +130,7 @@ export const adminGroupEditPage = (
     <Layout title="Edit Group">
       <AdminNav session={session} active="/admin/groups" />
       <h1>Edit Group</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <CsrfForm action={`/admin/groups/${group.id}/edit`}>
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
         <button type="submit">Save Changes</button>
@@ -151,7 +150,7 @@ export const adminGroupDeletePage = (
     <Layout title="Delete Group">
       <AdminNav session={session} active="/admin/groups" />
       <h1>Delete Group</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <ConfirmForm
         action={`/admin/groups/${group.id}/delete`}
         name={group.name}
@@ -245,7 +244,7 @@ export const adminGroupDetailPage = (
   return String(
     <Layout title={group.name}>
       <AdminNav session={session} active="/admin/groups" />
-      <Raw html={renderSuccess(successMessage)} />
+      <Flash success={successMessage} />
       <p>
         {!isReadOnly() && (
           <>

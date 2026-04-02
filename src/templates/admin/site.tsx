@@ -2,7 +2,7 @@
  * Admin site page editor templates
  */
 
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import type { AdminSession } from "#lib/types.ts";
@@ -39,8 +39,7 @@ export const adminSiteHomePage = (
       <AdminNav session={session} active="/admin/site" />
       <SiteSubNav />
 
-      {error && <div class="error">{error}</div>}
-      {success && <div class="success">{success}</div>}
+      <Flash error={error} success={success} />
 
       <h2>Home Page</h2>
 
@@ -96,8 +95,7 @@ export const adminSiteContactPage = (
       <AdminNav session={session} active="/admin/site" />
       <SiteSubNav />
 
-      {error && <div class="error">{error}</div>}
-      {success && <div class="success">{success}</div>}
+      <Flash error={error} success={success} />
 
       <h2>Contact Page</h2>
 

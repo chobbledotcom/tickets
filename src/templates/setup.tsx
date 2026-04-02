@@ -3,7 +3,7 @@
  */
 
 import { COUNTRIES, DEFAULT_COUNTRY } from "#lib/countries.ts";
-import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { setupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -66,7 +66,7 @@ export const setupPage = (error?: string): string =>
     <Layout title="Setup">
       <h1>Initial Setup</h1>
       <p>Welcome! Please configure your ticket reservation system.</p>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <CsrfForm action="/setup/">
         <Raw html={renderFields(setupFields)} />
         <div class="field">
@@ -95,7 +95,7 @@ export const setupCompletePage = (): string =>
   String(
     <Layout title="Setup Complete">
       <h1>Setup Complete!</h1>
-      <div class="success">
+      <div class="success" role="alert">
         <p>Your ticket reservation system has been configured successfully.</p>
       </div>
       <p>

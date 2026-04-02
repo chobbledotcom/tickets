@@ -2,8 +2,7 @@
  * Seed data page template - lets admins populate the database with sample data
  */
 
-import { CsrfForm, renderError, renderSuccess } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { CsrfForm, Flash } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -23,8 +22,7 @@ export const adminSeedsPage = (
         and development.
       </p>
 
-      <Raw html={renderError(error)} />
-      <Raw html={renderSuccess(success)} />
+      <Flash error={error} success={success} />
 
       <CsrfForm action="/admin/seeds">
         <label for="event_count">Number of events</label>

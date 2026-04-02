@@ -2,13 +2,7 @@
  * Admin backup/restore page template
  */
 
-import {
-  ConfirmForm,
-  CsrfForm,
-  renderError,
-  renderSuccess,
-} from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -36,8 +30,7 @@ export const adminBackupPage = (
       <AdminNav session={session} active="/admin/settings" />
       <SettingsSubNav />
       <h1>Database Backup &amp; Restore</h1>
-      <Raw html={renderError(error)} />
-      <Raw html={renderSuccess(success)} />
+      <Flash error={error} success={success} />
 
       {!state.isRemote && (
         <p>
@@ -155,10 +148,10 @@ export const adminRestoreConfirmPage = (
       <SettingsSubNav />
 
       <h1>Confirm Database Restore</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       {schemaMismatch && (
-        <div class="error">
+        <div class="error" role="alert">
           <strong>Schema mismatch:</strong> This backup was created with a
           different database schema version. The restore will apply current
           migrations after importing data, but some data may be incompatible.

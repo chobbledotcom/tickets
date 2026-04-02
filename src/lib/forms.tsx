@@ -280,16 +280,41 @@ export const validateForm = <T = FieldValues>(
 };
 
 /**
+ * Flash message component for error/success notifications.
+ * Renders divs with role="alert" so screen readers announce them.
+ */
+export const Flash = ({
+  error,
+  success,
+}: {
+  error?: string;
+  success?: string;
+}): JSX.Element => (
+  <>
+    {success ? (
+      <div class="success" role="alert">
+        {success}
+      </div>
+    ) : null}
+    {error ? (
+      <div class="error" role="alert">
+        {error}
+      </div>
+    ) : null}
+  </>
+);
+
+/**
  * Render error message if present
  */
 export const renderError = (error?: string): string =>
-  error ? String(<div class="error">{error}</div>) : "";
+  error ? String(<Flash error={error} />) : "";
 
 /**
  * Render success message if present
  */
 export const renderSuccess = (message?: string): string =>
-  message ? String(<div class="success">{message}</div>) : "";
+  message ? String(<Flash success={message} />) : "";
 
 /** Field types that must never be restored from saved form data */
 const SENSITIVE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([
@@ -376,10 +401,10 @@ export const CsrfForm = ({
   <form method="POST" action={appendIframeParam(action)} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && (
-      <Raw html={renderSuccess(_successStore.message)} />
+      <Flash success={_successStore.message} />
     )}
     {rest.id && rest.id === _errorStore.formId && (
-      <Raw html={renderError(_errorStore.message)} />
+      <Flash error={_errorStore.message} />
     )}
     {children}
   </form>

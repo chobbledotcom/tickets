@@ -3,7 +3,7 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Session } from "#lib/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
@@ -52,7 +52,7 @@ export const adminSessionsPage = (
       <AdminNav session={adminSession} active="/admin/users" />
       <UsersSubNav />
 
-      {success && <div class="success">{success}</div>}
+      <Flash success={success} />
 
       <div class="table-scroll">
         <table>

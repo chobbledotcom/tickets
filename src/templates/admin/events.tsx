@@ -13,10 +13,9 @@ import {
   ConfirmForm,
   CsrfForm,
   type FieldValues,
-  renderError,
+  Flash,
   renderField,
   renderFields,
-  renderSuccess,
 } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
@@ -343,13 +342,15 @@ export const adminEventPage = ({
         </ul>
       </nav>
 
-      <Raw html={renderSuccess(successMessage)} />
+      <Flash success={successMessage} />
 
       {!event.active && (
-        <div class="error">This event is deactivated and cannot be booked</div>
+        <div class="error" role="alert">
+          This event is deactivated and cannot be booked
+        </div>
       )}
 
-      {errorMessage && <p class="error">{errorMessage}</p>}
+      <Flash error={errorMessage} />
 
       <article>
         <div class="table-scroll">
@@ -702,7 +703,7 @@ export const adminEventNewPage = (
       <AdminNav session={session} active="/admin/" />
 
       <h1>Add Event</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
         <Raw html={renderFields(fields)} />
         <EventGroupSelect groups={groups} selectedGroupId={0} />
@@ -755,7 +756,7 @@ export const adminEventEditPage = (
   return String(
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <CsrfForm
         action={`/admin/event/${event.id}/edit`}
         enctype="multipart/form-data"
@@ -802,7 +803,7 @@ export const adminDeleteEventPage = (
   String(
     <Layout title={`Delete: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/delete`}
@@ -833,7 +834,7 @@ export const adminDeactivateEventPage = (
   String(
     <Layout title={`Deactivate: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/deactivate`}
@@ -869,7 +870,7 @@ export const adminReactivateEventPage = (
   String(
     <Layout title={`Reactivate: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/reactivate`}
