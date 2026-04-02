@@ -349,10 +349,95 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
   ta.parentNode!.insertBefore(counter, ta.nextSibling);
 }
 
+/* Manual check-in: fetch-based form submission for scanner page autocomplete.
+ * Posts to the scan JSON API without a page reload so the camera keeps running. */
+{
+  const form = document.querySelector<HTMLFormElement>("[data-manual-checkin]");
+  if (form) {
+    const input = form.querySelector<HTMLInputElement>(
+      "#manual-checkin-input",
+    )!;
+    const datalist = document.getElementById(
+      "ticket-options",
+    ) as HTMLDataListElement;
+    const statusEl = document.getElementById("manual-checkin-status")!;
+    const eventId = form.dataset.eventId!;
+    const csrfInput = form.querySelector<HTMLInputElement>(
+      'input[name="csrf_token"]',
+    )!;
+
+    const showCheckinStatus = (
+      message: string,
+      type: "success" | "warning" | "error",
+    ) => {
+      statusEl.textContent = message;
+      statusEl.classList.remove(
+        "hidden",
+        "scanner-status-success",
+        "scanner-status-warning",
+        "scanner-status-error",
+      );
+      statusEl.classList.add("scanner-status", `scanner-status-${type}`);
+    };
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const token = input.value.trim();
+      if (!token) return;
+
+      const submitBtn = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]',
+      )!;
+      submitBtn.disabled = true;
+
+      try {
+        const res = await fetch(`/admin/event/${eventId}/scan`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-csrf-token": csrfInput.value,
+          },
+          body: JSON.stringify({ token }),
+        });
+        const result = await res.json();
+
+        if (result.status === "checked_in") {
+          const qty = Number.isFinite(result.quantity) ? result.quantity : 1;
+          showCheckinStatus(
+            `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})`,
+            "success",
+          );
+          // Remove the checked-in option from the datalist
+          for (const opt of datalist.querySelectorAll("option")) {
+            if (opt.value === token) {
+              opt.remove();
+              break;
+            }
+          }
+          input.value = "";
+        } else if (result.status === "already_checked_in") {
+          showCheckinStatus(`${result.name} already checked in`, "warning");
+        } else if (result.status === "refunded") {
+          showCheckinStatus(`${result.name} has been refunded`, "error");
+        } else if (result.status === "not_found") {
+          showCheckinStatus("Ticket not found", "error");
+        } else {
+          showCheckinStatus(result.message ?? "Error", "error");
+        }
+      } catch {
+        showCheckinStatus("Network error", "error");
+      }
+
+      submitBtn.disabled = false;
+    });
+  }
+}
+
 /* Disable form on submit: prevent double-submission for normal POST forms.
- * Uses requestAnimationFrame so the browser sends the form before disabling. */
+ * Uses requestAnimationFrame so the browser sends the form before disabling.
+ * Skips the manual check-in form which handles its own submission. */
 for (const form of document.querySelectorAll<HTMLFormElement>(
-  'form[method="POST"]',
+  'form[method="POST"]:not([data-manual-checkin])',
 )) {
   form.addEventListener("submit", () => {
     requestAnimationFrame(() => {
