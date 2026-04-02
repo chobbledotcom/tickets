@@ -2239,7 +2239,6 @@ describe("html", () => {
     });
   });
 
-
   describe("adminSessionsPage", () => {
     test("renders session rows", () => {
       const sessions = [
