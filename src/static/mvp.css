@@ -85,8 +85,8 @@ html[data-theme="dark"] {
 [data-theme="dark"] input[type="email"]:focus,
 [data-theme="dark"] select:focus,
 [data-theme="dark"] textarea:focus {
-  border-color: #ffffff;
-  outline: none;
+  border-color: transparent;
+  outline: 2px solid #ffffff;
 }
 [data-theme="dark"] table {
   border-width: 2px;
