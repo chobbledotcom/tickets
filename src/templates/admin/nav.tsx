@@ -108,7 +108,7 @@ interface BreadcrumbProps {
  * Breadcrumb link for sub-pages
  */
 export const Breadcrumb = ({ href, label }: BreadcrumbProps): JSX.Element => (
-  <p>
+  <nav aria-label="Breadcrumb">
     <a href={href}>&larr; {label}</a>
-  </p>
+  </nav>
 );
