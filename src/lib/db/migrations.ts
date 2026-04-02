@@ -26,7 +26,6 @@ type Index = {
 
 type Table = {
   columns: Column[];
-  foreignKeys?: string[];
   indexes?: Index[];
 };
 
@@ -214,7 +213,10 @@ const SCHEMA: [name: string, table: Table][] = [
         ["processed_at", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
       ],
-      foreignKeys: ["FOREIGN KEY (attendee_id) REFERENCES attendees(id)"],
+      // FK declarations removed — libsql's FK enforcement breaks table
+      // recreation migrations (PRAGMA foreign_keys is connection-scoped and
+      // doesn't persist into batch operations on remote databases).
+      // Referential integrity is enforced by application logic.
     },
   ],
 
@@ -226,9 +228,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         ["event_id", "INTEGER"],
         ["message", "TEXT NOT NULL"],
-      ],
-      foreignKeys: [
-        "FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL",
       ],
     },
   ],
@@ -278,9 +277,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         ["last_used", "TEXT NOT NULL DEFAULT ''"],
       ],
-      foreignKeys: [
-        "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-      ],
       indexes: [
         {
           name: "idx_api_keys_key_index",
@@ -310,7 +306,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["text", "TEXT NOT NULL"],
         ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
       ],
-      foreignKeys: ["FOREIGN KEY (question_id) REFERENCES questions(id)"],
       indexes: [{ name: "idx_answers_question_id", columns: ["question_id"] }],
     },
   ],
@@ -323,10 +318,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["event_id", "INTEGER NOT NULL"],
         ["question_id", "INTEGER NOT NULL"],
         ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
-      ],
-      foreignKeys: [
-        "FOREIGN KEY (event_id) REFERENCES events(id)",
-        "FOREIGN KEY (question_id) REFERENCES questions(id)",
       ],
       indexes: [
         { name: "idx_event_questions_event_id", columns: ["event_id"] },
@@ -357,10 +348,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["attendee_id", "INTEGER NOT NULL"],
         ["answer_id", "INTEGER NOT NULL"],
-      ],
-      foreignKeys: [
-        "FOREIGN KEY (attendee_id) REFERENCES attendees(id)",
-        "FOREIGN KEY (answer_id) REFERENCES answers(id)",
       ],
       indexes: [
         {
@@ -463,8 +450,6 @@ const recreateTable = async (tableName: string): Promise<void> => {
   const colDefs = cols.map(([col, type]) => `${col} ${type}`).join(", ");
   const tmpName = `${tableName}_new`;
 
-  // PRAGMA must be outside the batch — libsql validates FKs per-batch regardless
-  await getDb().execute("PRAGMA foreign_keys = OFF");
   await getDb().batch(
     [
       { sql: `CREATE TABLE ${tmpName} (${colDefs})`, args: [] },
@@ -477,7 +462,6 @@ const recreateTable = async (tableName: string): Promise<void> => {
     ],
     "write",
   );
-  await getDb().execute("PRAGMA foreign_keys = ON");
 
   await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
 };
@@ -513,10 +497,7 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
 /** Create missing tables and add missing columns in a single pass */
 const applySchemaChanges = async (): Promise<void> => {
   for (const [name, table] of SCHEMA) {
-    const parts = [
-      ...table.columns.map(([col, type]) => `${col} ${type}`),
-      ...(table.foreignKeys ?? []),
-    ];
+    const parts = table.columns.map(([col, type]) => `${col} ${type}`);
     await runMigration(
       `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`,
     );
