@@ -463,9 +463,10 @@ const recreateTable = async (tableName: string): Promise<void> => {
   const colDefs = cols.map(([col, type]) => `${col} ${type}`).join(", ");
   const tmpName = `${tableName}_new`;
 
+  // PRAGMA must be outside the batch — libsql validates FKs per-batch regardless
+  await getDb().execute("PRAGMA foreign_keys = OFF");
   await getDb().batch(
     [
-      { sql: "PRAGMA foreign_keys = OFF", args: [] },
       { sql: `CREATE TABLE ${tmpName} (${colDefs})`, args: [] },
       {
         sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${colNames} FROM ${tableName}`,
@@ -473,10 +474,10 @@ const recreateTable = async (tableName: string): Promise<void> => {
       },
       { sql: `DROP TABLE ${tableName}`, args: [] },
       { sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}`, args: [] },
-      { sql: "PRAGMA foreign_keys = ON", args: [] },
     ],
     "write",
   );
+  await getDb().execute("PRAGMA foreign_keys = ON");
 
   await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
 };
