@@ -335,7 +335,8 @@ export type LogCategory =
   | "Domain"
   | "Email"
   | "Storage"
-  | "Wallet";
+  | "Wallet"
+  | "Migration";
 
 /**
  * Log a debug message with category prefix

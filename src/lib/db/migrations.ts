@@ -12,6 +12,7 @@
  */
 
 import { getDb } from "#lib/db/client.ts";
+import { logDebug } from "#lib/logger.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -396,12 +397,25 @@ export const SCHEMA_HASH = djb2(JSON.stringify(SCHEMA));
 
 // ─── Helpers ────────────────────────────────────────────────────
 
-/** Run a migration that may fail if already applied */
+/** Run an idempotent migration — swallows expected "already done" errors */
 const runMigration = async (sql: string): Promise<void> => {
   try {
     await getDb().execute(sql);
-  } catch {
-    // Already applied
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Expected when re-running on an already-migrated DB or fresh DB
+    // where old columns/tables never existed:
+    if (
+      msg.includes("already exists") ||
+      msg.includes("duplicate") ||
+      msg.includes("no such column") ||
+      msg.includes("no such table")
+    ) {
+      return;
+    }
+    // Anything else is a real error — log and rethrow
+    logDebug("Migration", `Error: ${msg} — SQL: ${sql.slice(0, 80)}`);
+    throw e;
   }
 };
 
@@ -449,7 +463,17 @@ const createIndexesForTable = async (
  */
 const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
   const cols = await getExistingColumns("attendees");
-  if (!cols.has("event_id")) return;
+  if (!cols.has("event_id")) {
+    logDebug(
+      "Migration",
+      "attendees.event_id already dropped, skipping table recreation",
+    );
+    return;
+  }
+  logDebug(
+    "Migration",
+    "Recreating attendees table (dropping deprecated columns)...",
+  );
 
   const tableSchema = SCHEMA.find(([name]) => name === "attendees")!;
   const newCols = tableSchema[1].columns;
@@ -562,12 +586,15 @@ export const initDb = async (): Promise<void> => {
     return;
   }
 
+  logDebug("Migration", "Step 1: applying schema changes...");
   await applySchemaChanges();
+  logDebug("Migration", "Step 2: syncing indexes...");
   await syncIndexes();
 
   // 4. Backfill event_attendees from existing attendees data (idempotent)
   // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
   // Also copies per-event status columns to event_attendees
+  logDebug("Migration", "Step 3: backfilling event_attendees...");
   await runMigration(
     `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
      SELECT event_id, id,
@@ -579,9 +606,11 @@ export const initDb = async (): Promise<void> => {
   );
 
   // 5. Drop deprecated columns from attendees → now on event_attendees.
+  logDebug("Migration", "Step 4: dropping deprecated attendee columns...");
   await dropDeprecatedAttendeeColumns();
 
   // 6. Update version marker and schema hash
+  logDebug("Migration", "Step 5: updating version marker...");
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
