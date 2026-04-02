@@ -3,12 +3,7 @@
  */
 
 import type { BuiltSite } from "#lib/db/built-sites.ts";
-import {
-  ConfirmForm,
-  CsrfForm,
-  Flash,
-  renderFields,
-} from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";

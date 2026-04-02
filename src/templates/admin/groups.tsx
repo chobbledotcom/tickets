@@ -5,12 +5,7 @@
 import { joinStrings, map, pipe, reduce } from "#fp";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import { isReadOnly } from "#lib/env.ts";
-import {
-  ConfirmForm,
-  CsrfForm,
-  Flash,
-  renderFields,
-} from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import {
   type AdminSession,
