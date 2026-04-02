@@ -4,27 +4,51 @@
  * POST /admin/event/:id/scan - JSON API for processing scanned tokens
  */
 
+import { filter, map, pipe } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   decryptAttendees,
   getAttendeesByTokens,
+  getAttendeesRaw,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { Attendee } from "#lib/types.ts";
+import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   AUTH_JSON,
   getPrivateKey,
+  htmlResponse,
   jsonResponse,
+  orNotFound,
+  requireSessionOr,
   withAuth,
-  withEventPage,
 } from "#routes/utils.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
 /** Handle GET /admin/event/:id/scanner - render scanner page */
-const handleScannerGet = withEventPage(adminScannerPage);
+const handleScannerGet = (
+  request: Request,
+  { id }: { id: number },
+): Promise<Response> =>
+  requireSessionOr(request, (session) =>
+    orNotFound(getEventWithCount(id), async (event) => {
+      const privateKey = await requirePrivateKey(session);
+      const rawAttendees = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(rawAttendees, privateKey);
+      const uncheckedIn = pipe(
+        filter((a: Attendee) => !a.checked_in && !a.refunded),
+        map((a: Attendee) => ({
+          token: a.ticket_token,
+          name: a.name,
+          quantity: a.quantity,
+        })),
+      )(attendees);
+      return htmlResponse(adminScannerPage(event, session, uncheckedIn));
+    }),
+  );
 
 /** Look up attendee by token and decrypt */
 const resolveTokenAttendee = async (

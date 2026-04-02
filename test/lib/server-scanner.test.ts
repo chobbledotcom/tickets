@@ -274,6 +274,72 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const { response } = await adminGet("/admin/event/99999/scanner");
       expect(response.status).toBe(404);
     });
+
+    test("includes manual check-in form with datalist", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const body = await getScannerBody(event.id);
+      expect(body).toContain("Manual Check-in");
+      expect(body).toContain("data-manual-checkin");
+      expect(body).toContain('id="ticket-options"');
+      expect(body).toContain('list="ticket-options"');
+    });
+
+    test("datalist includes unchecked-in attendees", async () => {
+      const { event, token } = await createTestAttendeeWithToken(
+        "Alice Unchecked",
+        "alice-uc@test.com",
+      );
+      const body = await getScannerBody(event.id);
+      expect(body).toContain(token);
+      expect(body).toContain("Alice Unchecked");
+    });
+
+    test("datalist excludes checked-in attendees", async () => {
+      const { event, token, session } = await setupScanTest(
+        "Bob Checked",
+        "bob-checked@test.com",
+      );
+      // Check in the attendee
+      await handleRequest(
+        mockScanRequest(event.id, { token }, session.cookie, session.csrfToken),
+      );
+      const body = await getScannerBody(event.id);
+      expect(body).not.toContain(token);
+    });
+
+    test("datalist excludes refunded attendees", async () => {
+      const { getAttendeesByTokens, markRefunded } = await import(
+        "#lib/db/attendees.ts"
+      );
+      const { event, token } = await createTestAttendeeWithToken(
+        "Carol Refunded",
+        "carol-ref@test.com",
+      );
+      const attendees = await getAttendeesByTokens([token]);
+      await markRefunded(attendees[0]!.id);
+      const body = await getScannerBody(event.id);
+      expect(body).not.toContain(token);
+    });
+
+    test("datalist shows ticket quantity", async () => {
+      const { event } = await createTestAttendeeWithToken(
+        "Dave Multi",
+        "dave-multi@test.com",
+        {},
+        3,
+      );
+      const body = await getScannerBody(event.id);
+      expect(body).toContain("3 tickets");
+    });
+
+    test("datalist shows singular ticket for quantity 1", async () => {
+      const { event } = await createTestAttendeeWithToken(
+        "Eve Single",
+        "eve-single@test.com",
+      );
+      const body = await getScannerBody(event.id);
+      expect(body).toContain("1 ticket)");
+    });
   });
 
   describe("POST /admin/event/:id/scan", () => {
