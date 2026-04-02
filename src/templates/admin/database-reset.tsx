@@ -3,8 +3,7 @@
  * The ResetDatabaseForm component is reused in admin settings.
  */
 
-import { CsrfForm, renderError } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { CsrfForm, Flash } from "#lib/forms.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Confirmation phrase that must be typed to reset the database */
@@ -57,7 +56,7 @@ export const ResetDatabaseForm = ({
 export const demoResetPage = (error?: string): string =>
   String(
     <Layout title="Reset Database">
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <ResetDatabaseForm action="/demo/reset" />
       <p>
         <a href="/admin">Back to login</a>

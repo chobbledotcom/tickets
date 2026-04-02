@@ -5,6 +5,7 @@ import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import { FormParams } from "#lib/form-data.ts";
 import {
   CsrfForm,
+  Flash,
   clearSavedFormData,
   type Field,
   renderError,
@@ -372,6 +373,44 @@ describe("forms", () => {
       const html = renderError("<script>alert(1)</script>");
       expect(html).toContain("&lt;script&gt;");
       expect(html).not.toContain("<script>");
+    });
+  });
+
+  describe("Flash", () => {
+    test("renders nothing when no error or success", () => {
+      const html = String(Flash({}));
+      expect(html).not.toContain('class="error"');
+      expect(html).not.toContain('class="success"');
+    });
+
+    test("renders error message with role alert", () => {
+      const html = String(Flash({ error: "Bad input" }));
+      expect(html).toContain("Bad input");
+      expect(html).toContain('class="error"');
+      expect(html).toContain('role="alert"');
+      expect(html).not.toContain('class="success"');
+    });
+
+    test("renders success message with role alert", () => {
+      const html = String(Flash({ success: "Saved" }));
+      expect(html).toContain("Saved");
+      expect(html).toContain('class="success"');
+      expect(html).toContain('role="alert"');
+      expect(html).not.toContain('class="error"');
+    });
+
+    test("renders both error and success", () => {
+      const html = String(Flash({ error: "Oops", success: "Done" }));
+      expect(html).toContain("Oops");
+      expect(html).toContain("Done");
+      expect(html).toContain('class="error"');
+      expect(html).toContain('class="success"');
+    });
+
+    test("escapes HTML in messages", () => {
+      const html = String(Flash({ error: "<script>xss</script>" }));
+      expect(html).toContain("&lt;script&gt;");
+      expect(html).not.toContain("<script>xss");
     });
   });
 

@@ -2,7 +2,7 @@
  * Admin builder page template — create new Tickets instances
  */
 
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm, Flash } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -106,16 +106,7 @@ export const adminBuilderPage = (
     <Layout title="Site Builder">
       <AdminNav session={session} active="/admin/settings" />
 
-      {error && (
-        <div class="error" role="alert">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div class="success" role="alert">
-          {success}
-        </div>
-      )}
+      <Flash error={error} success={success} />
 
       <h2>Site Builder</h2>
 

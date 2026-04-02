@@ -12,7 +12,7 @@ import type {
 import { settings } from "#lib/db/settings.ts";
 import { isReadOnly } from "#lib/env.ts";
 import type { Field } from "#lib/forms.tsx";
-import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
@@ -499,7 +499,7 @@ export const ticketPage = ({
           </div>
         </>
       )}
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       {allUnavailable || isReadOnly() ? (
         <div class="error" role="alert">

@@ -4,7 +4,7 @@
 
 import { joinStrings, map, pipe } from "#fp";
 import type { EndpointDoc } from "#lib/admin-api-example.ts";
-import { ConfirmForm, CsrfForm } from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
@@ -56,16 +56,7 @@ export const adminApiKeysPage = (
       <AdminNav session={adminSession} active="/admin/users" />
       <UsersSubNav />
 
-      {opts.error && (
-        <div class="error" role="alert">
-          {opts.error}
-        </div>
-      )}
-      {opts.success && (
-        <div class="success" role="alert">
-          {opts.success}
-        </div>
-      )}
+      <Flash error={opts.error} success={opts.success} />
 
       {opts.newKey && (
         <div class="warning">

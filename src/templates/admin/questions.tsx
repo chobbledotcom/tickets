@@ -4,8 +4,7 @@
 
 import { map } from "#fp";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
-import { ConfirmForm, CsrfForm, renderError } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -22,7 +21,7 @@ export const adminQuestionsPage = (
       <Breadcrumb href="/admin" label="Dashboard" />
 
       <h1>Custom Questions</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       <CsrfForm action="/admin/questions" id="new-question">
         <label>
@@ -70,7 +69,7 @@ export const adminQuestionPage = (
       <Breadcrumb href="/admin/questions" label="Questions" />
 
       <h1>{question.text}</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <label>
@@ -158,7 +157,7 @@ export const adminQuestionDeletePage = (
       />
 
       <h1>Delete Question</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
@@ -194,7 +193,7 @@ export const adminAnswerDeletePage = (
       />
 
       <h1>Delete Answer</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
@@ -228,7 +227,7 @@ export const adminEventQuestionsPage = (
       <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
 
       <h1>Questions for {event.name}</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       {allQuestions.length === 0 ? (
         <p>

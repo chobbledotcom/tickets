@@ -7,7 +7,7 @@ import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { ActiveEventStats } from "#lib/db/attendees.ts";
 import { isReadOnly } from "#lib/env.ts";
-import { renderSuccess } from "#lib/forms.tsx";
+import { Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -184,13 +184,7 @@ export const adminDashboardPage = (
     <Layout title="Events">
       <AdminNav session={session} active="/admin/" />
 
-      <Raw html={renderSuccess(successMessage)} />
-
-      {imageError && (
-        <p class="error" role="alert">
-          {imageError}
-        </p>
-      )}
+      <Flash success={successMessage} error={imageError} />
 
       {!isReadOnly() && (
         <p>

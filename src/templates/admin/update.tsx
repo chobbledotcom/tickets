@@ -2,7 +2,7 @@
  * Admin update page template — check for and apply updates
  */
 
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm, Flash } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
 import { GITHUB_RELEASES_URL } from "#lib/update.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -94,16 +94,7 @@ export const adminUpdatePage = (
     <Layout title="Update">
       <AdminNav session={session} active="/admin/settings" />
 
-      {error && (
-        <div class="error" role="alert">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div class="success" role="alert">
-          {success}
-        </div>
-      )}
+      <Flash error={error} success={success} />
 
       <h2>Software Update</h2>
 

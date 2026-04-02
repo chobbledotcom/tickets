@@ -5,7 +5,7 @@
 import {
   ConfirmForm,
   CsrfForm,
-  renderError,
+  Flash,
   renderFields,
 } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -54,12 +54,7 @@ export const adminUsersPage = (
       <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
       </p>
-      <Raw html={renderError(opts.error)} />
-      {opts.success && (
-        <div class="success" role="alert">
-          {opts.success}
-        </div>
-      )}
+      <Flash error={opts.error} success={opts.success} />
 
       {opts.inviteLink && (
         <div class="success" role="alert">
@@ -128,7 +123,7 @@ export const adminUserDeletePage = (
       <AdminNav session={session} active="/admin/users" />
       <Breadcrumb href="/admin/users" label="Users" />
       <h1>Delete User</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/users/${user.id}/delete`}
@@ -161,7 +156,7 @@ export const adminUserNewPage = (
       <AdminNav session={session} active="/admin/users" />
       <Breadcrumb href="/admin/users" label="Users" />
       <h1>Invite User</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <CsrfForm action="/admin/users">
         <Raw html={renderFields(inviteUserFields)} />
         <button type="submit">Create Invite</button>
