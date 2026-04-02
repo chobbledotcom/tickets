@@ -181,11 +181,11 @@ export const homepagePage = (
 
 /** Render event image HTML if image_url is set */
 export const renderEventImage = (
-  event: { image_url: string; name: string },
+  event: { image_url: string },
   className = "event-image",
 ): string =>
   event.image_url
-    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="${escapeHtml(event.name)}" class="${className}" />`
+    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="" class="${className}" />`
     : "";
 
 /** Build OpenGraph meta tags for a public event page */

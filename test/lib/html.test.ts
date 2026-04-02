@@ -3685,27 +3685,24 @@ describe("html", () => {
     () => {
       describe("renderEventImage", () => {
         test("returns empty string when image_url is null", () => {
-          const html = renderEventImage({ image_url: "", name: "Test" });
+          const html = renderEventImage({ image_url: "" });
           expect(html).toBe("");
         });
 
         test("renders img tag with proxy URL when image_url is set", () => {
           const html = renderEventImage({
             image_url: "abc123.jpg",
-            name: "Test Event",
           });
           expect(html).toContain("/image/abc123.jpg");
-          expect(html).toContain('alt="Test Event"');
+          expect(html).toContain('alt=""');
           expect(html).toContain('class="event-image"');
         });
 
-        test("escapes HTML in event name for alt attribute", () => {
+        test("uses empty alt text for decorative image", () => {
           const html = renderEventImage({
             image_url: "img.jpg",
-            name: '<script>alert("xss")</script>',
           });
-          expect(html).not.toContain("<script>");
-          expect(html).toContain("&lt;script&gt;");
+          expect(html).toContain('alt=""');
         });
       });
 

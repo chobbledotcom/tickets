@@ -93,8 +93,8 @@ const renderDatetimeInputs = (
   name: string,
   { date, time }: { date: string; time: string },
 ): string =>
-  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>` +
-  `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
+  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date" aria-label="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>` +
+  `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time" aria-label="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
 
 const DATETIME_PARTIAL_ERROR =
   "Please enter a date when providing a time, or leave both blank";

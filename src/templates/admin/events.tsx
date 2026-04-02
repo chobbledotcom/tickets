@@ -199,7 +199,7 @@ const DateSelector = ({
         `<option value="${basePath}${suffix}?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`,
     ),
   ].join("");
-  return `<select data-nav-select>${options}</select>`;
+  return `<select data-nav-select aria-label="Filter by date">${options}</select>`;
 };
 
 /** Options for rendering the admin event detail page */
