@@ -98,17 +98,3 @@ export const SettingsSubNav = (): JSX.Element => (
     </ul>
   </nav>
 );
-
-interface BreadcrumbProps {
-  href: string;
-  label: string;
-}
-
-/**
- * Breadcrumb link for sub-pages
- */
-export const Breadcrumb = ({ href, label }: BreadcrumbProps): JSX.Element => (
-  <nav aria-label="Breadcrumb">
-    <a href={href}>&larr; {label}</a>
-  </nav>
-);

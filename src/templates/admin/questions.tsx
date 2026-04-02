@@ -7,7 +7,7 @@ import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { ConfirmForm, CsrfForm, renderError } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** List all questions */
@@ -19,7 +19,6 @@ export const adminQuestionsPage = (
   String(
     <Layout title="Custom Questions">
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href="/admin" label="Dashboard" />
 
       <h1>Custom Questions</h1>
       <Raw html={renderError(error)} />
@@ -67,7 +66,6 @@ export const adminQuestionPage = (
   String(
     <Layout title={`Question: ${question.text}`}>
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href="/admin/questions" label="Questions" />
 
       <h1>{question.text}</h1>
       <Raw html={renderError(error)} />
@@ -152,10 +150,6 @@ export const adminQuestionDeletePage = (
   String(
     <Layout title="Delete Question">
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb
-        href={`/admin/questions/${question.id}`}
-        label={question.text}
-      />
 
       <h1>Delete Question</h1>
       <Raw html={renderError(error)} />
@@ -188,10 +182,6 @@ export const adminAnswerDeletePage = (
   String(
     <Layout title="Delete Answer">
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb
-        href={`/admin/questions/${question.id}`}
-        label={question.text}
-      />
 
       <h1>Delete Answer</h1>
       <Raw html={renderError(error)} />
@@ -225,7 +215,6 @@ export const adminEventQuestionsPage = (
   String(
     <Layout title={`Questions: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
 
       <h1>Questions for {event.name}</h1>
       <Raw html={renderError(error)} />

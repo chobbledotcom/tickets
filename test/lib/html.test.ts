@@ -40,7 +40,7 @@ import {
   nearCapacity,
 } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminAnswerDeletePage,
   adminEventQuestionsPage,
@@ -2239,23 +2239,6 @@ describe("html", () => {
     });
   });
 
-  describe("Breadcrumb", () => {
-    test("renders breadcrumb link with label", () => {
-      const html = String(
-        Breadcrumb({ href: "/admin/", label: "Back to Events" }),
-      );
-      expect(html).toContain('href="/admin/"');
-      expect(html).toContain("Back to Events");
-      expect(html).toContain("\u2190");
-    });
-
-    test("renders nav element with aria-label", () => {
-      const html = String(
-        Breadcrumb({ href: "/admin/", label: "Back to Events" }),
-      );
-      expect(html).toContain('<nav aria-label="Breadcrumb"');
-    });
-  });
 
   describe("adminSessionsPage", () => {
     test("renders session rows", () => {

@@ -10,7 +10,7 @@ import {
 } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
-import { AdminNav, Breadcrumb, UsersSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -122,7 +122,7 @@ export const adminUserDeletePage = (
   String(
     <Layout title={`Delete User: ${user.username}`}>
       <AdminNav session={session} active="/admin/users" />
-      <Breadcrumb href="/admin/users" label="Users" />
+
       <h1>Delete User</h1>
       <Raw html={renderError(error)} />
 
@@ -155,7 +155,7 @@ export const adminUserNewPage = (
   String(
     <Layout title="Invite User">
       <AdminNav session={session} active="/admin/users" />
-      <Breadcrumb href="/admin/users" label="Users" />
+
       <h1>Invite User</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/users">

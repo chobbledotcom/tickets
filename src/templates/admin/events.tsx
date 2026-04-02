@@ -31,7 +31,7 @@ import {
 import { formatCountdown } from "#routes/utils.ts";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import { EventGroupSelect } from "#templates/admin/group-select.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
@@ -700,7 +700,7 @@ export const adminEventNewPage = (
   return String(
     <Layout title="Add Event">
       <AdminNav session={session} active="/admin/" />
-      <Breadcrumb href="/admin/" label="Events" />
+
       <h1>Add Event</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
