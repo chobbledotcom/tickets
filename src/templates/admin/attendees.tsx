@@ -68,7 +68,11 @@ export const adminRefundAttendeePage = (
   String(
     <Layout title={`Refund Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
 
       <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
@@ -120,7 +124,11 @@ export const adminRefundAllAttendeesPage = (
   String(
     <Layout title={`Refund All: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
 
       <ConfirmForm
         action={`/admin/event/${event.id}/refund-all`}
@@ -242,7 +250,11 @@ export const adminEditAttendeePage = (
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {success && <div class="success">{success}</div>}
+      {success && (
+        <div class="success" role="alert">
+          {success}
+        </div>
+      )}
 
       <h2>Edit Attendee</h2>
 

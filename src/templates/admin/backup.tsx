@@ -158,7 +158,7 @@ export const adminRestoreConfirmPage = (
       <Raw html={renderError(error)} />
 
       {schemaMismatch && (
-        <div class="error">
+        <div class="error" role="alert">
           <strong>Schema mismatch:</strong> This backup was created with a
           different database schema version. The restore will apply current
           migrations after importing data, but some data may be incompatible.

@@ -56,8 +56,16 @@ export const adminApiKeysPage = (
       <AdminNav session={adminSession} active="/admin/users" />
       <UsersSubNav />
 
-      {opts.error && <div class="error">{opts.error}</div>}
-      {opts.success && <div class="success">{opts.success}</div>}
+      {opts.error && (
+        <div class="error" role="alert">
+          {opts.error}
+        </div>
+      )}
+      {opts.success && (
+        <div class="success" role="alert">
+          {opts.success}
+        </div>
+      )}
 
       {opts.newKey && (
         <div class="warning">

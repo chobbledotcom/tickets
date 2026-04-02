@@ -365,6 +365,7 @@ describe("forms", () => {
       const html = renderError("Something went wrong");
       expect(html).toContain("Something went wrong");
       expect(html).toContain('class="error"');
+      expect(html).toContain('role="alert"');
     });
 
     test("escapes HTML in error message", () => {
@@ -1383,6 +1384,7 @@ describe("forms", () => {
       const html = String(CsrfForm({ action: "/submit", id: "my-form" }));
       expect(html).toContain("Saved");
       expect(html).toContain('class="success"');
+      expect(html).toContain('role="alert"');
       setFormSuccess("", "");
     });
 
@@ -1405,6 +1407,7 @@ describe("forms", () => {
       const html = String(CsrfForm({ action: "/submit", id: "my-form" }));
       expect(html).toContain("Something went wrong");
       expect(html).toContain('class="error"');
+      expect(html).toContain('role="alert"');
       setFormError("", "");
     });
 
@@ -1447,6 +1450,7 @@ describe("forms", () => {
       const html = renderSuccess("Changes saved");
       expect(html).toContain("Changes saved");
       expect(html).toContain('class="success"');
+      expect(html).toContain('role="alert"');
     });
 
     test("escapes HTML in success message", () => {

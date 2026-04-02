@@ -106,8 +106,16 @@ export const adminBuilderPage = (
     <Layout title="Site Builder">
       <AdminNav session={session} active="/admin/settings" />
 
-      {error && <div class="error">{error}</div>}
-      {success && <div class="success">{success}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div class="success" role="alert">
+          {success}
+        </div>
+      )}
 
       <h2>Site Builder</h2>
 

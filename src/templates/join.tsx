@@ -34,7 +34,7 @@ export const joinCompletePage = (): string =>
   String(
     <Layout title="Account Created">
       <h1>Password Set</h1>
-      <div class="success">
+      <div class="success" role="alert">
         <p>Your password has been set successfully.</p>
         <p>
           Please wait for the site owner to activate your account before logging
@@ -51,6 +51,8 @@ export const joinErrorPage = (message: string): string =>
   String(
     <Layout title="Invalid Invite">
       <h1>Invalid Invite</h1>
-      <div class="error">{message}</div>
+      <div class="error" role="alert">
+        {message}
+      </div>
     </Layout>,
   );

@@ -46,7 +46,11 @@ export const checkinAdminPage = (
   return String(
     <Layout title="Check-in">
       <h1>Check-in</h1>
-      {message && <p class="success">{message}</p>}
+      {message && (
+        <p class="success" role="alert">
+          {message}
+        </p>
+      )}
       <CsrfForm action={checkinPath}>
         <input type="hidden" name="check_in" value={nextValue} />
         <button type="submit" class={buttonClass}>

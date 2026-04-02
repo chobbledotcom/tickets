@@ -214,7 +214,7 @@ export const buildOgTags = (
 /** Render a date selector dropdown for daily events */
 const renderDateSelector = (dates: string[]): string =>
   dates.length === 0
-    ? `<div class="error">No dates are currently available for booking.</div>`
+    ? `<div class="error" role="alert">No dates are currently available for booking.</div>`
     : `<label for="date">Select Date</label>
        <select name="date" id="date" required>
          <option value="">— Select a date —</option>
@@ -502,7 +502,7 @@ export const ticketPage = ({
       <Raw html={renderError(error)} />
 
       {allUnavailable || isReadOnly() ? (
-        <div class="error">
+        <div class="error" role="alert">
           {isReadOnly()
             ? "Registration closed."
             : isSingleEvent

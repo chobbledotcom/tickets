@@ -283,13 +283,25 @@ export const validateForm = <T = FieldValues>(
  * Render error message if present
  */
 export const renderError = (error?: string): string =>
-  error ? String(<div class="error">{error}</div>) : "";
+  error
+    ? String(
+        <div class="error" role="alert">
+          {error}
+        </div>,
+      )
+    : "";
 
 /**
  * Render success message if present
  */
 export const renderSuccess = (message?: string): string =>
-  message ? String(<div class="success">{message}</div>) : "";
+  message
+    ? String(
+        <div class="success" role="alert">
+          {message}
+        </div>,
+      )
+    : "";
 
 /** Field types that must never be restored from saved form data */
 const SENSITIVE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([

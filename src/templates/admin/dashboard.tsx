@@ -186,7 +186,11 @@ export const adminDashboardPage = (
 
       <Raw html={renderSuccess(successMessage)} />
 
-      {imageError && <p class="error">{imageError}</p>}
+      {imageError && (
+        <p class="error" role="alert">
+          {imageError}
+        </p>
+      )}
 
       {!isReadOnly() && (
         <p>

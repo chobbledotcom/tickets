@@ -75,7 +75,7 @@ export const successPage = ({
       >
         <h1>{heading}</h1>
         {paid ? (
-          <div class="success">
+          <div class="success" role="alert">
             <p>Thank you for your payment. Your ticket has been confirmed.</p>
           </div>
         ) : null}
@@ -137,7 +137,7 @@ export const paymentErrorPage = (message: string): string =>
   String(
     <Layout title="Payment Error">
       <h1>Payment Error</h1>
-      <div class="error">
+      <div class="error" role="alert">
         <p>{message}</p>
       </div>
       <p>

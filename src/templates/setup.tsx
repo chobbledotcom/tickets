@@ -95,7 +95,7 @@ export const setupCompletePage = (): string =>
   String(
     <Layout title="Setup Complete">
       <h1>Setup Complete!</h1>
-      <div class="success">
+      <div class="success" role="alert">
         <p>Your ticket reservation system has been configured successfully.</p>
       </div>
       <p>

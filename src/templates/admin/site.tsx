@@ -39,8 +39,16 @@ export const adminSiteHomePage = (
       <AdminNav session={session} active="/admin/site" />
       <SiteSubNav />
 
-      {error && <div class="error">{error}</div>}
-      {success && <div class="success">{success}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div class="success" role="alert">
+          {success}
+        </div>
+      )}
 
       <h2>Home Page</h2>
 
@@ -96,8 +104,16 @@ export const adminSiteContactPage = (
       <AdminNav session={session} active="/admin/site" />
       <SiteSubNav />
 
-      {error && <div class="error">{error}</div>}
-      {success && <div class="success">{success}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div class="success" role="alert">
+          {success}
+        </div>
+      )}
 
       <h2>Contact Page</h2>
 

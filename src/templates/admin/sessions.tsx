@@ -52,7 +52,11 @@ export const adminSessionsPage = (
       <AdminNav session={adminSession} active="/admin/users" />
       <UsersSubNav />
 
-      {success && <div class="success">{success}</div>}
+      {success && (
+        <div class="success" role="alert">
+          {success}
+        </div>
+      )}
 
       <div class="table-scroll">
         <table>

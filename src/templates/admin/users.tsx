@@ -55,10 +55,14 @@ export const adminUsersPage = (
         <a href="/admin/guide#user-classes">User roles and permissions</a>
       </p>
       <Raw html={renderError(opts.error)} />
-      {opts.success && <div class="success">{opts.success}</div>}
+      {opts.success && (
+        <div class="success" role="alert">
+          {opts.success}
+        </div>
+      )}
 
       {opts.inviteLink && (
-        <div class="success">
+        <div class="success" role="alert">
           <p>Invite link (share this with the new user):</p>
           <code>{opts.inviteLink}</code>
           <p>

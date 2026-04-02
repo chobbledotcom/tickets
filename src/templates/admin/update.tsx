@@ -94,8 +94,16 @@ export const adminUpdatePage = (
     <Layout title="Update">
       <AdminNav session={session} active="/admin/settings" />
 
-      {error && <div class="error">{error}</div>}
-      {success && <div class="success">{success}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div class="success" role="alert">
+          {success}
+        </div>
+      )}
 
       <h2>Software Update</h2>
 

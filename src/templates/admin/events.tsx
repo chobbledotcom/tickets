@@ -346,10 +346,16 @@ export const adminEventPage = ({
       <Raw html={renderSuccess(successMessage)} />
 
       {!event.active && (
-        <div class="error">This event is deactivated and cannot be booked</div>
+        <div class="error" role="alert">
+          This event is deactivated and cannot be booked
+        </div>
       )}
 
-      {errorMessage && <p class="error">{errorMessage}</p>}
+      {errorMessage && (
+        <p class="error" role="alert">
+          {errorMessage}
+        </p>
+      )}
 
       <article>
         <div class="table-scroll">
@@ -802,7 +808,11 @@ export const adminDeleteEventPage = (
   String(
     <Layout title={`Delete: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
 
       <ConfirmForm
         action={`/admin/event/${event.id}/delete`}
@@ -833,7 +843,11 @@ export const adminDeactivateEventPage = (
   String(
     <Layout title={`Deactivate: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
 
       <ConfirmForm
         action={`/admin/event/${event.id}/deactivate`}
@@ -869,7 +883,11 @@ export const adminReactivateEventPage = (
   String(
     <Layout title={`Reactivate: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      {error && (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      )}
 
       <ConfirmForm
         action={`/admin/event/${event.id}/reactivate`}
