@@ -316,10 +316,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets.example.com",
       });
       try {
-        await assertAdminHtml(
-          "/admin/guide",
-          ".tickets.example.com",
-        );
+        await assertAdminHtml("/admin/guide", ".tickets.example.com");
       } finally {
         restore();
       }

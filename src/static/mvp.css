@@ -605,9 +605,19 @@ textarea {
   resize: vertical;
 }
 
+textarea[name="address"],
+textarea[name="special_instructions"] {
+  aspect-ratio: 4 / 1;
+}
+
 @media (min-width: 769px) {
   textarea {
     aspect-ratio: 16 / 9;
+  }
+
+  textarea[name="address"],
+  textarea[name="special_instructions"] {
+    aspect-ratio: 16 / 3;
   }
 }
 
