@@ -495,11 +495,18 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
     );
     return;
   }
-  logDebug("Migration", "Recreating attendees + event_attendees tables...");
+  // Recreate attendees + all tables whose FKs reference attendees(id).
+  // After DROP TABLE + rename, their FK references point to the dropped table
+  // and cause constraint errors when libsql FK enforcement is enabled.
+  logDebug("Migration", "Recreating attendees table...");
   await recreateTable("attendees");
-  // Recreate event_attendees too — its old FK references pointed to the
-  // dropped attendees table and would cause constraint errors on queries.
+  logDebug("Migration", "Recreating event_attendees table...");
   await recreateTable("event_attendees");
+  logDebug("Migration", "Recreating processed_payments table...");
+  await recreateTable("processed_payments");
+  logDebug("Migration", "Recreating attendee_answers table...");
+  await recreateTable("attendee_answers");
+  logDebug("Migration", "Table recreation complete.");
 };
 
 /** Create missing tables and add missing columns in a single pass */
