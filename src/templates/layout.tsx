@@ -57,8 +57,11 @@ export const Layout = ({
           {headExtra && <Raw html={headExtra} />}
         </head>
         <body class={bodyClass || undefined}>
+          <a href="#main-content" class="skip-nav">
+            Skip to content
+          </a>
           {isDemoMode() && <Raw html={DEMO_BANNER} />}
-          <main>
+          <main id="main-content">
             {headerImage && (
               <img
                 src={getImageProxyUrl(headerImage)}

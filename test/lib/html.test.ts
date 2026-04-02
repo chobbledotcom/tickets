@@ -62,6 +62,7 @@ import {
   generateCalendarCsv,
 } from "#templates/csv.ts";
 import { eventFields } from "#templates/fields.ts";
+import { Layout } from "#templates/layout.tsx";
 import {
   checkoutPopupPage,
   paymentCancelPage,
@@ -136,6 +137,16 @@ describe("asset-paths", () => {
 describe("html", () => {
   afterEach(() => {
     detectIframeMode("https://example.com/");
+  });
+
+  describe("Layout skip navigation", () => {
+    test("renders skip-nav link targeting main-content", () => {
+      const html = String(Layout({ title: "Test", children: "" }));
+      expect(html).toContain('class="skip-nav"');
+      expect(html).toContain('href="#main-content"');
+      expect(html).toContain("Skip to content");
+      expect(html).toContain('id="main-content"');
+    });
   });
 
   describe("adminLoginPage", () => {
