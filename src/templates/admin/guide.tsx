@@ -939,6 +939,29 @@ export const adminGuidePage = (
             ticket name before check-in proceeds.
           </p>
         </Q>
+
+        <Q q="What if someone doesn't have their QR code?">
+          <p>
+            Below the camera on the Scanner page there is a{" "}
+            <strong>Manual Check-in</strong> section. Start typing the
+            attendee's name or ticket token and a dropdown shows matching
+            tickets that haven't been checked in yet. Select the right person
+            and click <strong>Check In</strong>. This is useful for walk-ins or
+            when an attendee can't pull up their ticket on their phone.
+          </p>
+        </Q>
+
+        <Q q="How do I filter attendees by check-in status?">
+          <p>
+            On the event page, above the attendee table, you'll see filter links
+            for <strong>All</strong>, <strong>Checked In</strong>, and{" "}
+            <strong>Checked Out</strong>. Click one to show only attendees
+            matching that status. The filter works alongside the date selector
+            for daily events, so you can view e.g. only un-checked-in attendees
+            for a specific date. The CSV export reflects whichever filter is
+            active.
+          </p>
+        </Q>
       </Section>
 
       <Section id="apple-wallet" title="Apple Wallet">
