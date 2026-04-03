@@ -322,7 +322,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(body).not.toContain(token);
     });
 
-    test("datalist shows ticket quantity", async () => {
+    test("datalist shows attendee quantity", async () => {
       const { event } = await createTestAttendeeWithToken(
         "Dave Multi",
         "dave-multi@test.com",
@@ -330,16 +330,16 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         3,
       );
       const body = await getScannerBody(event.id);
-      expect(body).toContain("3 tickets");
+      expect(body).toContain("3 attendees");
     });
 
-    test("datalist shows singular ticket for quantity 1", async () => {
+    test("datalist shows singular attendee for quantity 1", async () => {
       const { event } = await createTestAttendeeWithToken(
         "Eve Single",
         "eve-single@test.com",
       );
       const body = await getScannerBody(event.id);
-      expect(body).toContain("1 ticket)");
+      expect(body).toContain("1 attendee)");
     });
   });
 

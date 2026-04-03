@@ -103,8 +103,8 @@ export const adminScannerPage = (
               aria-controls="ticket-options"
               placeholder={
                 uncheckedIn.length > 0
-                  ? `${uncheckedIn.length} attendees available`
-                  : "No attendees to check in"
+                  ? `${uncheckedIn.length} tickets available`
+                  : "No tickets to check in"
               }
               required
             />
@@ -116,7 +116,7 @@ export const adminScannerPage = (
                   data-name={escapeHtml(t.name)}
                   data-quantity={String(t.quantity)}
                 >
-                  {`${escapeHtml(t.name)} (${t.quantity} ticket${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
+                  {`${escapeHtml(t.name)} (${t.quantity} attendee${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
                 </li>
               ))}
             </ul>
