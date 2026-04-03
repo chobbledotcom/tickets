@@ -1562,4 +1562,30 @@ button.secondary:hover {
   font-size: smaller;
 }
 
+/* Skip navigation link (SC 2.4.1 Bypass Blocks) */
+.skip-nav:not(:focus-visible) {
+  clip-path: inset(50%);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.skip-nav:focus-visible {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 0.5rem 1rem;
+  background: var(--color-link);
+  color: var(--color-bg);
+  font-size: 1rem;
+  text-decoration: none;
+  z-index: 9999;
+}
+
+#main-content:focus {
+  outline: none;
+}
+
 /* Guide page */
