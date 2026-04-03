@@ -113,7 +113,9 @@ describe("AttendeeTable", () => {
       const html = AttendeeTable(
         makeOpts({ rows, showEvent: true, showDate: true }),
       );
-      const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map((m) => m[1]);
+      const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
+        (m) => m[1],
+      );
       // Empty headers are for Checked In (first) and Actions (last)
       expect(headers).toEqual([
         "",
