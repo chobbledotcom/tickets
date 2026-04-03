@@ -487,24 +487,36 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
       )!;
       submitBtn.disabled = true;
 
-      try {
-        const res = await fetch(`/admin/event/${eventId}/scan`, {
+      const postScan = async (body: Record<string, unknown>) => {
+        const r = await fetch(`/admin/event/${eventId}/scan`, {
           method: "POST",
           headers: {
             "content-type": "application/json",
             "x-csrf-token": csrfInput.value,
           },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify(body),
         });
-        const result = await res.json();
+        return r.json();
+      };
+
+      try {
+        let result = await postScan({ token });
+
+        // Non-transferable event: re-submit with id_verified since the
+        // admin already identified the attendee via the autocomplete list.
+        let idVerified = false;
+        if (result.status === "verify_id") {
+          idVerified = true;
+          result = await postScan({ token, id_verified: true });
+        }
 
         if (result.status === "checked_in") {
           const qty = Number.isFinite(result.quantity) ? result.quantity : 1;
+          const idNote = idVerified ? " — verify their ID" : "";
           showCheckinStatus(
-            `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})`,
+            `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})${idNote}`,
             "success",
           );
-          // Remove the checked-in option from the listbox
           for (const opt of allOptions()) {
             if (opt.dataset.token === token) {
               opt.remove();
