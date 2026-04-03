@@ -17,7 +17,8 @@
     "biome:fix": "deno run -A npm:@biomejs/biome check --write src test scripts",
     "biome:check": "deno run -A npm:@biomejs/biome check src test scripts",
     "precommit": "deno run -A scripts/precommit.ts",
-    "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts"
+    "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",
+    "upgrade": "deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts"
   },
   "imports": {
     "#fp": "./src/fp.ts",
