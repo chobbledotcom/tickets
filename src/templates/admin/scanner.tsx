@@ -32,6 +32,8 @@ export const adminScannerPage = (
       <h1>Scanner</h1>
       <p>
         <a href={`/admin/event/${event.id}`}>&larr; {event.name}</a>
+        {" | "}
+        <a href="/admin/guide#checkin">Scanner help</a>
       </p>
 
       <article>
