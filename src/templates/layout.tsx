@@ -61,7 +61,7 @@ export const Layout = ({
             Skip to content
           </a>
           {isDemoMode() && <Raw html={DEMO_BANNER} />}
-          <main id="main-content">
+          <main id="main-content" tabindex="-1">
             {headerImage && (
               <img
                 src={getImageProxyUrl(headerImage)}
