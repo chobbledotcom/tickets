@@ -46,54 +46,13 @@ function parseArgs(): { dryRun: boolean; minAgeDays: number } {
 }
 
 /** Extract the base version from a specifier like ^0.17.0 or ~1.2.3 or 1.2.3 */
-function parseVersionRange(spec: string): {
+function parseVersionSpec(spec: string): {
   prefix: string;
-  major: number;
-  minor: number;
-  patch: number;
+  version: string;
 } | null {
-  const match = spec.match(/^([~^]?)(\d+)\.(\d+)\.(\d+)$/);
+  const match = spec.match(/^([~^]?)(\d+\.\d+\.\d+)$/);
   if (!match) return null;
-  return {
-    prefix: match[1],
-    major: parseInt(match[2], 10),
-    minor: parseInt(match[3], 10),
-    patch: parseInt(match[4], 10),
-  };
-}
-
-/** Check if a version satisfies a ^/~ range */
-function satisfiesRange(
-  version: string,
-  range: { prefix: string; major: number; minor: number; patch: number },
-): boolean {
-  const v = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
-  if (!v) return false;
-  const [, majStr, minStr, patStr] = v;
-  const maj = parseInt(majStr, 10);
-  const min = parseInt(minStr, 10);
-  const pat = parseInt(patStr, 10);
-
-  // Must be >= the range base
-  if (
-    maj < range.major ||
-    (maj === range.major && min < range.minor) ||
-    (maj === range.major && min === range.minor && pat < range.patch)
-  ) {
-    return false;
-  }
-
-  if (range.prefix === "^") {
-    // ^major.minor.patch: allow changes that don't modify the leftmost non-zero
-    if (range.major !== 0) return maj === range.major;
-    if (range.minor !== 0) return maj === 0 && min === range.minor;
-    return maj === 0 && min === 0 && pat === range.patch;
-  }
-  if (range.prefix === "~") {
-    return maj === range.major && min === range.minor;
-  }
-  // Exact version (no prefix) — only match exact
-  return maj === range.major && min === range.minor && pat === range.patch;
+  return { prefix: match[1], version: match[2] };
 }
 
 function compareVersions(a: string, b: string): number {
@@ -178,12 +137,12 @@ async function checkUpgrade(
       return result;
     }
 
-    const range = parseVersionRange(versionRange);
-    if (!range) {
-      result.error = `can't parse version range: ${versionRange}`;
+    const parsed = parseVersionSpec(versionRange);
+    if (!parsed) {
+      result.error = `can't parse version spec: ${versionRange}`;
       return result;
     }
-    result.currentVersion = `${range.major}.${range.minor}.${range.patch}`;
+    result.currentVersion = parsed.version;
 
     let allVersions: VersionInfo[];
     if (result.registry === "npm") {
@@ -193,24 +152,24 @@ async function checkUpgrade(
       allVersions = await fetchJsrVersions(scope, name);
     }
 
-    // Find versions that satisfy the range
-    const compatible = allVersions
-      .filter((v) => satisfiesRange(v.version, range))
-      .sort((a, b) => compareVersions(b.version, a.version)); // descending
+    // Sort all stable versions descending — no semver range filtering,
+    // we want the latest version overall (like `deno outdated --update --latest`)
+    const sorted = allVersions
+      .sort((a, b) => compareVersions(b.version, a.version));
 
-    if (compatible.length === 0) {
-      result.error = "no compatible versions found";
+    if (sorted.length === 0) {
+      result.error = "no versions found";
       return result;
     }
 
     // Latest version overall
-    const latest = compatible[0];
+    const latest = sorted[0];
 
     // Latest version that's old enough
-    const safe = compatible.find((v) => v.publishedAt <= cutoffDate);
+    const safe = sorted.find((v) => v.publishedAt <= cutoffDate);
 
-    if (!safe || safe.version === result.currentVersion) {
-      // Already at the latest safe version
+    if (!safe || compareVersions(safe.version, result.currentVersion) <= 0) {
+      // Already at or ahead of the latest safe version
       return result;
     }
 
@@ -296,15 +255,10 @@ async function main() {
   if (upgrades.length > 0 && !dryRun) {
     let denoJsonText = await Deno.readTextFile(DENO_JSON_PATH);
     for (const r of upgrades) {
-      // Replace the version in the specifier string
+      // Replace the full specifier, updating to ^newVersion
       const oldSpec = r.currentSpec;
-      const range = parseVersionRange(
-        oldSpec.slice(oldSpec.lastIndexOf("@") + 1),
-      )!;
-      const newSpec = oldSpec.replace(
-        `${range.prefix}${range.major}.${range.minor}.${range.patch}`,
-        `${range.prefix}${r.newVersion}`,
-      );
+      const versionPart = oldSpec.slice(oldSpec.lastIndexOf("@") + 1);
+      const newSpec = oldSpec.replace(versionPart, `^${r.newVersion}`);
       denoJsonText = denoJsonText.replace(
         JSON.stringify(oldSpec),
         JSON.stringify(newSpec),
