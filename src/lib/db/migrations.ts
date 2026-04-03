@@ -442,7 +442,18 @@ const createIndexesForTable = async (
   }
 };
 
-/** Recreate a table from its SCHEMA definition, preserving data for matching columns */
+/**
+ * Recreate a table from its SCHEMA definition, preserving data for matching columns.
+ *
+ * The new table is created WITHOUT foreign keys (only column definitions).
+ * This means any FKs the original table had are removed after recreation.
+ *
+ * IMPORTANT: If other tables have FKs referencing this table and contain data,
+ * those tables must be recreated FIRST (to remove their FK constraints).
+ * Otherwise DROP TABLE will fail with FOREIGN KEY constraint in libsql.
+ * We do NOT use PRAGMA foreign_keys=OFF because it doesn't persist across
+ * HTTP requests in remote libsql (Turso).
+ */
 const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = SCHEMA.find(([name]) => name === tableName)!;
   const cols = tableSchema[1].columns;
