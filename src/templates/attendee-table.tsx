@@ -293,7 +293,7 @@ const AttendeeRow = ({
   return String(
     <tr>
       {showActions && (
-        <td>
+        <td class="actions-col">
           <Raw html={StatusCell({ row, opts })} />
         </td>
       )}
@@ -340,7 +340,7 @@ const AttendeeRow = ({
       </td>
       <td>{new Date(a.created).toLocaleString()}</td>
       {showActions && (
-        <td>
+        <td class="actions-col">
           <Raw html={ActionsCell({ row, returnUrl: opts.returnUrl })} />
         </td>
       )}
@@ -396,7 +396,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
     <table>
       <thead>
         <tr>
-          {showActions && <th></th>}
+          {showActions && <th class="actions-col"></th>}
           {vis.showEvent && <th>Event</th>}
           {vis.showDate && <th>Date</th>}
           <th>Name</th>
@@ -408,7 +408,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           <th>Qty</th>
           <th>Ticket</th>
           <th>Registered</th>
-          {showActions && <th></th>}
+          {showActions && <th class="actions-col"></th>}
         </tr>
       </thead>
       <tbody>
