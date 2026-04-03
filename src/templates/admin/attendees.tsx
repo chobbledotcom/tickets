@@ -404,7 +404,7 @@ export const adminEditAttendeePage = (
 
       {/* Available dates JSON for client-side date picker filtering (read by admin.ts) */}
       <script type="application/json" id="available-dates-data">
-        {JSON.stringify(availableDatesByEvent)}
+        <Raw html={JSON.stringify(availableDatesByEvent)} />
       </script>
     </Layout>,
   );
