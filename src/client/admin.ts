@@ -498,7 +498,38 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
         });
         const result = await res.json();
 
-        if (result.status === "checked_in") {
+        if (result.status === "verify_id") {
+          // Non-transferable event: re-submit with id_verified since the
+          // admin already identified the attendee via the autocomplete list.
+          const res2 = await fetch(`/admin/event/${eventId}/scan`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-csrf-token": csrfInput.value,
+            },
+            body: JSON.stringify({ token, id_verified: true }),
+          });
+          const verified = await res2.json();
+          if (verified.status === "checked_in") {
+            const qty = Number.isFinite(verified.quantity)
+              ? verified.quantity
+              : 1;
+            showCheckinStatus(
+              `${verified.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})`,
+              "success",
+            );
+            for (const opt of allOptions()) {
+              if (opt.dataset.token === token) {
+                opt.remove();
+                break;
+              }
+            }
+            tokenInput.value = "";
+            input.value = "";
+          } else {
+            showCheckinStatus(verified.message ?? "Error", "error");
+          }
+        } else if (result.status === "checked_in") {
           const qty = Number.isFinite(result.quantity) ? result.quantity : 1;
           showCheckinStatus(
             `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})`,
