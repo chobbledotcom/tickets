@@ -116,7 +116,7 @@ export const adminScannerPage = (
                   data-name={escapeHtml(t.name)}
                   data-quantity={String(t.quantity)}
                 >
-                  {`${escapeHtml(t.name)} (${t.quantity} ticket${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
+                  {`${escapeHtml(t.name)} (${t.quantity} attendee${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
                 </li>
               ))}
             </ul>

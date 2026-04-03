@@ -69,7 +69,8 @@ function compareVersions(a: string, b: string): number {
 
 async function fetchNpmVersions(pkg: string): Promise<VersionInfo[]> {
   const resp = await fetch(`https://registry.npmjs.org/${pkg}`);
-  if (!resp.ok) throw new Error(`npm registry returned ${resp.status} for ${pkg}`);
+  if (!resp.ok)
+    throw new Error(`npm registry returned ${resp.status} for ${pkg}`);
   const data = await resp.json();
   const time = data.time as Record<string, string>;
   const versions: VersionInfo[] = [];
@@ -83,16 +84,28 @@ async function fetchNpmVersions(pkg: string): Promise<VersionInfo[]> {
   return versions;
 }
 
-async function fetchJsrVersions(scope: string, name: string): Promise<VersionInfo[]> {
-  const resp = await fetch(`https://jsr.io/api/scopes/${scope}/packages/${name}/versions`);
-  if (!resp.ok) throw new Error(`JSR API returned ${resp.status} for @${scope}/${name}`);
+async function fetchJsrVersions(
+  scope: string,
+  name: string,
+): Promise<VersionInfo[]> {
+  const resp = await fetch(
+    `https://jsr.io/api/scopes/${scope}/packages/${name}/versions`,
+  );
+  if (!resp.ok)
+    throw new Error(`JSR API returned ${resp.status} for @${scope}/${name}`);
   const raw = await resp.json();
-  const data = (Array.isArray(raw) ? raw : raw.items ?? []) as Array<{ version: string; createdAt: string }>;
+  const data = (Array.isArray(raw) ? raw : (raw.items ?? [])) as Array<{
+    version: string;
+    createdAt: string;
+  }>;
   const versions: VersionInfo[] = [];
   for (const entry of data) {
     if (/[-+]/.test(entry.version)) continue;
     if (!/^\d+\.\d+\.\d+$/.test(entry.version)) continue;
-    versions.push({ version: entry.version, publishedAt: new Date(entry.createdAt) });
+    versions.push({
+      version: entry.version,
+      publishedAt: new Date(entry.createdAt),
+    });
   }
   return versions;
 }
@@ -158,8 +171,9 @@ async function checkUpgrade(
 
     // Sort all stable versions descending — no semver range filtering,
     // we want the latest version overall (like `deno outdated --update --latest`)
-    const sorted = allVersions
-      .sort((a, b) => compareVersions(b.version, a.version));
+    const sorted = allVersions.sort((a, b) =>
+      compareVersions(b.version, a.version),
+    );
 
     if (sorted.length === 0) {
       result.error = "no versions found";
@@ -218,7 +232,9 @@ async function main() {
 
   const upgrades = results.filter((r) => r.newVersion !== null);
   const errors = results.filter((r) => r.error !== null);
-  const upToDate = results.filter((r) => r.newVersion === null && r.error === null);
+  const upToDate = results.filter(
+    (r) => r.newVersion === null && r.error === null,
+  );
 
   // Print results
   if (upToDate.length > 0) {
