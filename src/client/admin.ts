@@ -504,14 +504,17 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
 
         // Non-transferable event: re-submit with id_verified since the
         // admin already identified the attendee via the autocomplete list.
+        let idVerified = false;
         if (result.status === "verify_id") {
+          idVerified = true;
           result = await postScan({ token, id_verified: true });
         }
 
         if (result.status === "checked_in") {
           const qty = Number.isFinite(result.quantity) ? result.quantity : 1;
+          const idNote = idVerified ? " — verify their ID" : "";
           showCheckinStatus(
-            `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})`,
+            `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})${idNote}`,
             "success",
           );
           for (const opt of allOptions()) {
