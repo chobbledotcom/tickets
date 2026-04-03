@@ -508,7 +508,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       expectRedirectWithFlash(
         "/admin",
-        expect.stringContaining("Invalid credentials"),
+        expect.stringContaining("Username or password was wrong"),
         false,
       )(response);
     });
@@ -522,7 +522,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       expectRedirectWithFlash(
         "/admin",
-        expect.stringContaining("Invalid credentials"),
+        expect.stringContaining("Username or password was wrong"),
         false,
       )(response);
     });

@@ -12,7 +12,7 @@ import type {
 import { settings } from "#lib/db/settings.ts";
 import { isReadOnly } from "#lib/env.ts";
 import type { Field } from "#lib/forms.tsx";
-import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
@@ -181,11 +181,11 @@ export const homepagePage = (
 
 /** Render event image HTML if image_url is set */
 export const renderEventImage = (
-  event: { image_url: string; name: string },
+  event: { image_url: string },
   className = "event-image",
 ): string =>
   event.image_url
-    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="${escapeHtml(event.name)}" class="${className}" />`
+    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="" class="${className}" />`
     : "";
 
 /** Build OpenGraph meta tags for a public event page */
@@ -214,7 +214,7 @@ export const buildOgTags = (
 /** Render a date selector dropdown for daily events */
 const renderDateSelector = (dates: string[]): string =>
   dates.length === 0
-    ? `<div class="error">No dates are currently available for booking.</div>`
+    ? `<div class="error" role="alert">No dates are currently available for booking.</div>`
     : `<label for="date">Select Date</label>
        <select name="date" id="date" required>
          <option value="">— Select a date —</option>
@@ -499,10 +499,10 @@ export const ticketPage = ({
           </div>
         </>
       )}
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       {allUnavailable || isReadOnly() ? (
-        <div class="error">
+        <div class="error" role="alert">
           {isReadOnly()
             ? "Registration closed."
             : isSingleEvent

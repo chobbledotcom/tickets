@@ -43,7 +43,7 @@
     "@internationalized/date": "npm:@internationalized/date@3.8.0",
     "@bunny.net/storage-sdk": "npm:@bunny.net/storage-sdk@0.3.0",
     "jsqr": "npm:jsqr@1.4.0",
-    "qrcode": "npm:qrcode@1.5.0",
+    "uqr": "npm:uqr@0.1.0",
     "@iframe-resizer/parent": "npm:@iframe-resizer/parent@5",
     "@iframe-resizer/child": "npm:@iframe-resizer/child@5",
     "@iframe-resizer/core": "npm:@iframe-resizer/core@5",

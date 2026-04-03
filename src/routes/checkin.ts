@@ -56,7 +56,7 @@ const renderAdminView = async (
   rawAttendees: Attendee[],
   session: AuthSession,
   tokens: string[],
-  message: string | null,
+  message: string,
 ): Promise<Response> => {
   const decrypted = await decryptWithSession(rawAttendees, session);
   const entries = await resolveEntries(decrypted);

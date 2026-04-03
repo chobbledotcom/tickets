@@ -40,7 +40,7 @@ import {
   nearCapacity,
 } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminAnswerDeletePage,
   adminEventQuestionsPage,
@@ -62,6 +62,7 @@ import {
   generateCalendarCsv,
 } from "#templates/csv.ts";
 import { eventFields } from "#templates/fields.ts";
+import { Layout } from "#templates/layout.tsx";
 import {
   checkoutPopupPage,
   paymentCancelPage,
@@ -136,6 +137,17 @@ describe("asset-paths", () => {
 describe("html", () => {
   afterEach(() => {
     detectIframeMode("https://example.com/");
+  });
+
+  describe("Layout skip navigation", () => {
+    test("renders skip-nav link targeting main-content", () => {
+      const html = String(Layout({ title: "Test", children: "" }));
+      expect(html).toContain('class="skip-nav"');
+      expect(html).toContain('href="#main-content"');
+      expect(html).toContain("Skip to content");
+      expect(html).toContain('id="main-content"');
+      expect(html).toContain('tabindex="-1"');
+    });
   });
 
   describe("adminLoginPage", () => {
@@ -2239,17 +2251,6 @@ describe("html", () => {
     });
   });
 
-  describe("Breadcrumb", () => {
-    test("renders breadcrumb link with label", () => {
-      const html = String(
-        Breadcrumb({ href: "/admin/", label: "Back to Events" }),
-      );
-      expect(html).toContain('href="/admin/"');
-      expect(html).toContain("Back to Events");
-      expect(html).toContain("\u2190");
-    });
-  });
-
   describe("adminSessionsPage", () => {
     test("renders session rows", () => {
       const sessions = [
@@ -3685,27 +3686,24 @@ describe("html", () => {
     () => {
       describe("renderEventImage", () => {
         test("returns empty string when image_url is null", () => {
-          const html = renderEventImage({ image_url: "", name: "Test" });
+          const html = renderEventImage({ image_url: "" });
           expect(html).toBe("");
         });
 
         test("renders img tag with proxy URL when image_url is set", () => {
           const html = renderEventImage({
             image_url: "abc123.jpg",
-            name: "Test Event",
           });
           expect(html).toContain("/image/abc123.jpg");
-          expect(html).toContain('alt="Test Event"');
+          expect(html).toContain('alt=""');
           expect(html).toContain('class="event-image"');
         });
 
-        test("escapes HTML in event name for alt attribute", () => {
+        test("uses empty alt text for decorative image", () => {
           const html = renderEventImage({
             image_url: "img.jpg",
-            name: '<script>alert("xss")</script>',
           });
-          expect(html).not.toContain("<script>");
-          expect(html).toContain("&lt;script&gt;");
+          expect(html).toContain('alt=""');
         });
       });
 

@@ -291,5 +291,35 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         settings.appleWallet.resetHostConfig();
       }
     });
+
+    test("contains host subdomain section", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Host Subdomain",
+        "permanent and cannot be changed",
+        "host subdomain and custom domain",
+      );
+    });
+
+    test("contains host subdomain in advanced settings list", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Host subdomain",
+        "register a pretty",
+      );
+    });
+
+    test("shows subdomain suffix when Bunny DNS is configured", async () => {
+      const restore = setTestEnv({
+        BUNNY_API_KEY: "test-key",
+        BUNNY_DNS_ZONE_ID: "test-zone",
+        BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets.example.com",
+      });
+      try {
+        await assertAdminHtml("/admin/guide", ".tickets.example.com");
+      } finally {
+        restore();
+      }
+    });
   });
 });

@@ -2,15 +2,10 @@
  * Admin user management page template
  */
 
-import {
-  ConfirmForm,
-  CsrfForm,
-  renderError,
-  renderFields,
-} from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
-import { AdminNav, Breadcrumb, UsersSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -54,11 +49,10 @@ export const adminUsersPage = (
       <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
       </p>
-      <Raw html={renderError(opts.error)} />
-      {opts.success && <div class="success">{opts.success}</div>}
+      <Flash error={opts.error} success={opts.success} />
 
       {opts.inviteLink && (
-        <div class="success">
+        <div class="success" role="alert">
           <p>Invite link (share this with the new user):</p>
           <code>{opts.inviteLink}</code>
           <p>
@@ -122,9 +116,9 @@ export const adminUserDeletePage = (
   String(
     <Layout title={`Delete User: ${user.username}`}>
       <AdminNav session={session} active="/admin/users" />
-      <Breadcrumb href="/admin/users" label="Users" />
+
       <h1>Delete User</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/users/${user.id}/delete`}
@@ -155,9 +149,9 @@ export const adminUserNewPage = (
   String(
     <Layout title="Invite User">
       <AdminNav session={session} active="/admin/users" />
-      <Breadcrumb href="/admin/users" label="Users" />
+
       <h1>Invite User</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <CsrfForm action="/admin/users">
         <Raw html={renderFields(inviteUserFields)} />
         <button type="submit">Create Invite</button>
