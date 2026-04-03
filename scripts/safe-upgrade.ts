@@ -45,14 +45,17 @@ function parseArgs(): { dryRun: boolean; minAgeDays: number } {
   return { dryRun, minAgeDays };
 }
 
-/** Extract the base version from a specifier like ^0.17.0 or ~1.2.3 or 1.2.3 */
+/** Extract the base version from a specifier like ^0.17.0, ^5, ~1.2, or 1 */
 function parseVersionSpec(spec: string): {
   prefix: string;
   version: string;
 } | null {
-  const match = spec.match(/^([~^]?)(\d+\.\d+\.\d+)$/);
+  const match = spec.match(/^([~^]?)(\d+)(?:\.(\d+))?(?:\.(\d+))?$/);
   if (!match) return null;
-  return { prefix: match[1], version: match[2] };
+  const major = match[2];
+  const minor = match[3] ?? "0";
+  const patch = match[4] ?? "0";
+  return { prefix: match[1], version: `${major}.${minor}.${patch}` };
 }
 
 function compareVersions(a: string, b: string): number {
@@ -83,7 +86,8 @@ async function fetchNpmVersions(pkg: string): Promise<VersionInfo[]> {
 async function fetchJsrVersions(scope: string, name: string): Promise<VersionInfo[]> {
   const resp = await fetch(`https://jsr.io/api/scopes/${scope}/packages/${name}/versions`);
   if (!resp.ok) throw new Error(`JSR API returned ${resp.status} for @${scope}/${name}`);
-  const data = await resp.json() as Array<{ version: string; createdAt: string }>;
+  const raw = await resp.json();
+  const data = (Array.isArray(raw) ? raw : raw.items ?? []) as Array<{ version: string; createdAt: string }>;
   const versions: VersionInfo[] = [];
   for (const entry of data) {
     if (/[-+]/.test(entry.version)) continue;
