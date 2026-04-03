@@ -103,8 +103,8 @@ export const adminScannerPage = (
               aria-controls="ticket-options"
               placeholder={
                 uncheckedIn.length > 0
-                  ? `${uncheckedIn.length} tickets available`
-                  : "No tickets to check in"
+                  ? `${uncheckedIn.length} attendees available`
+                  : "No attendees to check in"
               }
               required
             />
