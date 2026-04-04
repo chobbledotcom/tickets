@@ -327,6 +327,22 @@ export const adminGuidePage = (
           </p>
         </Q>
 
+        <Q q="How do I delete an attendee?">
+          <p>
+            Open the event's attendee list and click <strong>Delete</strong>{" "}
+            next to the attendee. You'll see a confirmation page showing their
+            name, email, quantity, and registration date. Type the attendee's
+            exact name to confirm, then click <strong>Delete Attendee</strong>.
+            This permanently removes the attendee and any associated payment
+            records.
+          </p>
+          <p>
+            If the attendee has paid, <strong>refund them first</strong> before
+            deleting &mdash; once deleted, there is no payment record to refund
+            against. See the <strong>Refunds</strong> section below.
+          </p>
+        </Q>
+
         <Q q="How do I add terms and conditions?">
           <p>
             In <strong>Settings</strong>, enter your terms in the "Terms and
