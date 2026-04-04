@@ -64,10 +64,10 @@ const DataControllerAgreement = (): JSX.Element => (
 export const setupPage = (error?: string): string =>
   String(
     <Layout title="Setup">
-      <h1>Initial Setup</h1>
-      <p>Welcome! Please configure your ticket reservation system.</p>
-      <Flash error={error} />
       <CsrfForm action="/setup/">
+        <h1>Initial Setup</h1>
+        <p>Welcome! Please configure your ticket reservation system.</p>
+        <Flash error={error} />
         <Raw html={renderFields(setupFields)} />
         <div class="field">
           <label>

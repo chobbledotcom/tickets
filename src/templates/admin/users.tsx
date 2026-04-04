@@ -117,15 +117,14 @@ export const adminUserDeletePage = (
     <Layout title={`Delete User: ${user.username}`}>
       <AdminNav session={session} active="/admin/users" />
 
-      <h1>Delete User</h1>
-      <Flash error={error} />
-
       <ConfirmForm
         action={`/admin/users/${user.id}/delete`}
         name={user.username}
         label="Username"
         buttonText="Delete User"
       >
+        <h1>Delete User</h1>
+        <Flash error={error} />
         <p>
           <strong>Warning:</strong> This will permanently delete the user{" "}
           <strong>{user.username}</strong> ({user.adminLevel}) and all their
@@ -150,9 +149,9 @@ export const adminUserNewPage = (
     <Layout title="Invite User">
       <AdminNav session={session} active="/admin/users" />
 
-      <h1>Invite User</h1>
-      <Flash error={error} />
       <CsrfForm action="/admin/users">
+        <h1>Invite User</h1>
+        <Flash error={error} />
         <Raw html={renderFields(inviteUserFields)} />
         <button type="submit">Create Invite</button>
       </CsrfForm>

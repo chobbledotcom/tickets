@@ -104,9 +104,9 @@ export const adminGroupNewPage = (
   String(
     <Layout title="Add Group">
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Add Group</h1>
-      <Flash error={error} />
       <CsrfForm action="/admin/groups">
+        <h1>Add Group</h1>
+        <Flash error={error} />
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
         <button type="submit">Create Group</button>
       </CsrfForm>
@@ -124,9 +124,9 @@ export const adminGroupEditPage = (
   String(
     <Layout title="Edit Group">
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Edit Group</h1>
-      <Flash error={error} />
       <CsrfForm action={`/admin/groups/${group.id}/edit`}>
+        <h1>Edit Group</h1>
+        <Flash error={error} />
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
         <button type="submit">Save Changes</button>
       </CsrfForm>
@@ -144,8 +144,6 @@ export const adminGroupDeletePage = (
   String(
     <Layout title="Delete Group">
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Delete Group</h1>
-      <Flash error={error} />
       <ConfirmForm
         action={`/admin/groups/${group.id}/delete`}
         name={group.name}
@@ -153,6 +151,8 @@ export const adminGroupDeletePage = (
         buttonText="Delete Group"
         danger={false}
       >
+        <h1>Delete Group</h1>
+        <Flash error={error} />
         <p>
           Are you sure you want to delete the group{" "}
           <strong>{group.name}</strong> ({group.slug})?

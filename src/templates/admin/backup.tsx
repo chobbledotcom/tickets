@@ -147,17 +147,6 @@ export const adminRestoreConfirmPage = (
       <AdminNav session={session} active="/admin/settings" />
       <SettingsSubNav />
 
-      <h1>Confirm Database Restore</h1>
-      <Flash error={error} />
-
-      {schemaMismatch && (
-        <div class="error" role="alert">
-          <strong>Schema mismatch:</strong> This backup was created with a
-          different database schema version. The restore will apply current
-          migrations after importing data, but some data may be incompatible.
-        </div>
-      )}
-
       <ConfirmForm
         action="/admin/backup/restore/confirm"
         id="backup-restore-confirm"
@@ -166,6 +155,16 @@ export const adminRestoreConfirmPage = (
         buttonText="Restore Database"
         hiddenFields={{ backup_filename: filename }}
       >
+        <h1>Confirm Database Restore</h1>
+        <Flash error={error} />
+
+        {schemaMismatch && (
+          <div class="error" role="alert">
+            <strong>Schema mismatch:</strong> This backup was created with a
+            different database schema version. The restore will apply current
+            migrations after importing data, but some data may be incompatible.
+          </div>
+        )}
         <p>
           You are about to restore from an uploaded backup containing{" "}
           <strong>{lineCount}</strong> SQL statements. This will:

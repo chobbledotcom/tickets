@@ -446,28 +446,25 @@ export const ConfirmForm = ({
   hiddenFields?: Record<string, string>;
   children?: Child;
 }): JSX.Element => (
-  <>
-    <div class="prose">{children}</div>
-
-    <CsrfForm action={action} id={id}>
-      {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
-      {hiddenFields &&
-        Object.entries(hiddenFields).map(([fieldName, value]) => (
-          <input type="hidden" name={fieldName} value={value} />
-        ))}
-      <label>
-        {label}
-        <input
-          type="text"
-          name="confirm_identifier"
-          placeholder={name}
-          autocomplete="off"
-          required
-        />
-      </label>
-      <button type="submit" class={danger ? "danger" : undefined}>
-        {buttonText}
-      </button>
-    </CsrfForm>
-  </>
+  <CsrfForm action={action} id={id}>
+    {children && <div class="prose">{children}</div>}
+    {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
+    {hiddenFields &&
+      Object.entries(hiddenFields).map(([fieldName, value]) => (
+        <input type="hidden" name={fieldName} value={value} />
+      ))}
+    <label>
+      {label}
+      <input
+        type="text"
+        name="confirm_identifier"
+        placeholder={name}
+        autocomplete="off"
+        required
+      />
+    </label>
+    <button type="submit" class={danger ? "danger" : undefined}>
+      {buttonText}
+    </button>
+  </CsrfForm>
 );

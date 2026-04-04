@@ -16,15 +16,13 @@ export const adminSeedsPage = (
   String(
     <Layout title="Seed Data">
       <AdminNav session={session} active="" />
-      <h1>Seed Data</h1>
-      <p>
-        Create sample events and attendees from demo data. Useful for testing
-        and development.
-      </p>
-
-      <Flash error={error} success={success} />
-
       <CsrfForm action="/admin/seeds">
+        <h1>Seed Data</h1>
+        <p>
+          Create sample events and attendees from demo data. Useful for testing
+          and development.
+        </p>
+        <Flash error={error} success={success} />
         <label for="event_count">Number of events</label>
         <input
           type="number"

@@ -77,9 +77,9 @@ export const adminHolidayNewPage = (
   String(
     <Layout title="Add Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <h1>Add Holiday</h1>
-      <Flash error={error} />
       <CsrfForm action="/admin/holidays">
+        <h1>Add Holiday</h1>
+        <Flash error={error} />
         <Raw html={renderFields(holidayFields)} />
         <button type="submit">Create Holiday</button>
       </CsrfForm>
@@ -97,9 +97,9 @@ export const adminHolidayEditPage = (
   String(
     <Layout title="Edit Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <h1>Edit Holiday</h1>
-      <Flash error={error} />
       <CsrfForm action={`/admin/holidays/${holiday.id}/edit`}>
+        <h1>Edit Holiday</h1>
+        <Flash error={error} />
         <Raw
           html={renderFields(holidayFields, holidayToFieldValues(holiday))}
         />
@@ -119,8 +119,6 @@ export const adminHolidayDeletePage = (
   String(
     <Layout title="Delete Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <h1>Delete Holiday</h1>
-      <Flash error={error} />
       <ConfirmForm
         action={`/admin/holidays/${holiday.id}/delete`}
         name={holiday.name}
@@ -128,6 +126,8 @@ export const adminHolidayDeletePage = (
         buttonText="Delete Holiday"
         danger={false}
       >
+        <h1>Delete Holiday</h1>
+        <Flash error={error} />
         <p>
           Are you sure you want to delete the holiday{" "}
           <strong>{holiday.name}</strong> ({holiday.start_date} to{" "}
