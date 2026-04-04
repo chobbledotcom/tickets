@@ -195,7 +195,7 @@ describeWithEnv(
           {
             zoneName: "",
             zoneKey: "",
-            localPath: "/tmp/nonexistent-dir-" + crypto.randomUUID(),
+            localPath: `/tmp/nonexistent-dir-${crypto.randomUUID()}`,
           },
           async () => {
             const files = await listFiles("backup-");

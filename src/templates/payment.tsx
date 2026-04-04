@@ -48,17 +48,25 @@ export const successPage = ({
   thankYouUrl = "",
   paid = false,
   fromEmail = "",
+  purchaseOnly = false,
 }: {
   ticketUrl: string | null;
   thankYouUrl?: string;
   paid?: boolean;
   fromEmail?: string;
+  purchaseOnly?: boolean;
 }): string => {
   const inIframe = getIframeMode();
-  const title = paid ? "Payment Successful" : "Ticket Reserved";
+  const title = paid
+    ? "Payment Successful"
+    : purchaseOnly
+      ? "Purchase Complete"
+      : "Ticket Reserved";
   const heading = paid
     ? "Payment Successful!"
-    : "Ticket reserved successfully.";
+    : purchaseOnly
+      ? "Purchase complete."
+      : "Ticket reserved successfully.";
   return String(
     <Layout
       title={title}

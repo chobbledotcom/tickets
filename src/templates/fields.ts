@@ -62,6 +62,7 @@ export type EventFormValues = {
   can_pay_more: string;
   max_price: string;
   hidden: string;
+  purchase_only: string;
 };
 
 /** Typed values from event edit form (includes slug) */
@@ -466,6 +467,13 @@ export const eventFields: Field[] = [
     type: "checkbox-group",
     hint: "Hide from the public events page and search engines. The event is still bookable via its direct link.",
     options: [{ value: "1", label: "Hide from public events list" }],
+  },
+  {
+    name: "purchase_only",
+    label: "Purchase Only",
+    type: "checkbox-group",
+    hint: "For raffles, fundraisers, donations, or other non-attendance items. Hides QR codes, check-in, and wallet passes. Shows \u2018Buy now\u2019 instead of \u2018Reserve\u2019.",
+    options: [{ value: "1", label: "No attendance required" }],
   },
 ];
 

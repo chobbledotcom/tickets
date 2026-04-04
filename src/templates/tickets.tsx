@@ -63,16 +63,19 @@ const renderTicketCard = (
       ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
       : "";
 
-  const nonTransferableHtml = event.non_transferable
-    ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
-    : "";
+  const nonTransferableHtml =
+    event.non_transferable && !event.purchase_only
+      ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
+      : "";
 
-  const walletLinks = [
-    appleWalletEnabled ? renderAppleWalletLink(token) : "",
-    googleWalletEnabled ? renderGoogleWalletLink(token) : "",
-  ]
-    .filter(Boolean)
-    .join(" / ");
+  const walletLinks = event.purchase_only
+    ? ""
+    : [
+        appleWalletEnabled ? renderAppleWalletLink(token) : "",
+        googleWalletEnabled ? renderGoogleWalletLink(token) : "",
+      ]
+        .filter(Boolean)
+        .join(" / ");
   const walletHtml = walletLinks
     ? `<div class="ticket-card-wallet">Add to: ${walletLinks}</div>`
     : "";
@@ -93,8 +96,12 @@ const renderTicketCard = (
       <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
       ${priceHtml}
       ${attachmentHtml}
-      <div class="ticket-card-qr"><img src="/t/${escapeHtml(token)}/svg" alt="QR code" /></div>
-      <div class="ticket-card-token">${escapeHtml(token)}</div>
+      ${
+        event.purchase_only
+          ? ""
+          : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(token)}/svg" alt="QR code" /></div>
+      <div class="ticket-card-token">${escapeHtml(token)}</div>`
+      }
       ${walletHtml}
     </div>
   `;
@@ -116,9 +123,13 @@ export const ticketViewPage = (
     (c: string[]) => c.join(""),
   )(cards);
 
+  const allPurchaseOnly = cards.every((c) => c.entry.event.purchase_only);
+  const heading = allPurchaseOnly ? "Your Purchase" : ticketCount(cards.length);
+  const title = allPurchaseOnly ? "Your Purchase" : "Your Tickets";
+
   return String(
-    <Layout title="Your Tickets">
-      <h1>{ticketCount(cards.length)}</h1>
+    <Layout title={title}>
+      <h1>{heading}</h1>
       <div class="ticket-slider">
         <Raw html={cardHtml} />
       </div>

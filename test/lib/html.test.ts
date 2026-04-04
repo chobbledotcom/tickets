@@ -780,6 +780,16 @@ describe("html", () => {
       expect(html).not.toContain("Reserve Tickets"); // Not plural
     });
 
+    test("shows Buy now button for purchase_only event", () => {
+      const poEvent = testEventWithCount({
+        attendee_count: 50,
+        purchase_only: true,
+      });
+      const html = renderTicket(poEvent);
+      expect(html).toContain("Buy now");
+      expect(html).not.toContain("Reserve Ticket");
+    });
+
     test("shows phone field for phone-only events", () => {
       const phoneEvent = testEventWithCount({
         attendee_count: 50,
@@ -1150,6 +1160,26 @@ describe("html", () => {
     test("does not show email notice when fromEmail is empty", () => {
       const html = successPage({ ticketUrl: "/t/abc123", paid: true });
       expect(html).not.toContain("Junk/Spam");
+    });
+
+    test("renders purchase complete message for purchaseOnly", () => {
+      const html = successPage({
+        ticketUrl: "/t/abc123",
+        purchaseOnly: true,
+      });
+      expect(html).toContain("Purchase Complete");
+      expect(html).toContain("Purchase complete.");
+      expect(html).not.toContain("Ticket Reserved");
+    });
+
+    test("renders payment successful for paid purchaseOnly events", () => {
+      const html = successPage({
+        ticketUrl: "/t/abc123",
+        paid: true,
+        purchaseOnly: true,
+      });
+      expect(html).toContain("Payment Successful");
+      expect(html).not.toContain("Purchase Complete");
     });
   });
 
@@ -3677,6 +3707,92 @@ describe("html", () => {
       expect(html).toContain("/t/AABB0011CCDDEEF1/svg");
       expect(html).toContain("/t/AABB0011CCDDEEF2/svg");
       expect(html).toContain("2 Tickets");
+    });
+
+    test("hides QR code and token for purchase_only events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({ purchase_only: true }),
+            attendee: testAttendee(),
+          },
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards);
+      expect(html).not.toContain("ticket-card-qr");
+      expect(html).not.toContain("ticket-card-token");
+      expect(html).not.toContain("/svg");
+    });
+
+    test("hides wallet links for purchase_only events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({ purchase_only: true }),
+            attendee: testAttendee(),
+          },
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards, true, true);
+      expect(html).not.toContain("wallet-link");
+      expect(html).not.toContain("Apple Wallet");
+      expect(html).not.toContain("Google Wallet");
+    });
+
+    test("hides non-transferable notice for purchase_only events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({
+              purchase_only: true,
+              non_transferable: true,
+            }),
+            attendee: testAttendee(),
+          },
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards);
+      expect(html).not.toContain("Non-transferable");
+    });
+
+    test("shows Your Purchase heading for purchase_only events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({ purchase_only: true }),
+            attendee: testAttendee(),
+          },
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards);
+      expect(html).toContain("Your Purchase");
+      expect(html).not.toContain("Ticket");
+    });
+
+    test("shows ticket count heading for mixed events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({ id: 1, purchase_only: true }),
+            attendee: testAttendee({ id: 1 }),
+          },
+          token: "AABB0011CCDDEEF1",
+        },
+        {
+          entry: {
+            event: testEventWithCount({ id: 2, purchase_only: false }),
+            attendee: testAttendee({ id: 2 }),
+          },
+          token: "AABB0011CCDDEEF2",
+        },
+      ];
+      const html = ticketViewPage(cards);
+      expect(html).toContain("2 Tickets");
+      expect(html).not.toContain("Your Purchase");
     });
   });
 

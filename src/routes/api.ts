@@ -62,6 +62,7 @@ export type PublicEvent = {
   canPayMore: boolean;
   maxPrice: number;
   nonTransferable: boolean;
+  purchaseOnly: boolean;
   fields: string;
   eventType: string;
   isSoldOut: boolean;
@@ -92,6 +93,7 @@ export const toPublicEvent = (
     canPayMore: event.can_pay_more,
     maxPrice: event.max_price,
     nonTransferable: event.non_transferable,
+    purchaseOnly: event.purchase_only,
     fields: event.fields,
     eventType: event.event_type,
     isSoldOut,

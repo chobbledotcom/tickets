@@ -19,7 +19,7 @@ export type SvgTicketData = Pick<
   | "attendeeDate"
   | "quantity"
   | "checkinUrl"
-> & { pricePaid: string; currency: string };
+> & { pricePaid: string; currency: string; purchaseOnly?: boolean };
 
 /** SVG dimensions */
 const WIDTH = 400;
@@ -77,18 +77,8 @@ export const buildInfoLines = (data: SvgTicketData): string[] => {
 export const generateSvgTicket = async (
   data: SvgTicketData,
 ): Promise<string> => {
-  const qrSvg = await generateQrSvg(data.checkinUrl);
-  const qrViewBox = extractViewBox(qrSvg);
-  const qrContent = extractSvgContent(qrSvg);
-  const scale = QR_SIZE / qrViewBox.width;
-
   const infoLines = buildInfoLines(data);
   const infoHeight = infoLines.length * LINE_HEIGHT;
-
-  const qrY = HEADER_Y + infoHeight + 16;
-  const totalHeight = qrY + QR_SIZE + MARGIN;
-  const qrX = (WIDTH - QR_SIZE) / 2;
-
   const escapedName = escapeHtml(data.eventName);
   const linesSvg = infoLines
     .map(
@@ -96,6 +86,25 @@ export const generateSvgTicket = async (
         `<text x="${MARGIN}" y="${HEADER_Y + (i + 1) * LINE_HEIGHT}" font-family="sans-serif" font-size="13" fill="#555">${escapeHtml(line)}</text>`,
     )
     .join("\n    ");
+
+  if (data.purchaseOnly) {
+    const totalHeight = HEADER_Y + infoHeight + MARGIN;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}" viewBox="0 0 ${WIDTH} ${totalHeight}">
+  <rect width="${WIDTH}" height="${totalHeight}" rx="8" fill="#fff" stroke="#ddd" stroke-width="1"/>
+  <text x="${MARGIN}" y="${HEADER_Y}" font-family="sans-serif" font-size="18" font-weight="bold" fill="#333">${escapedName}</text>
+    ${linesSvg}
+</svg>`;
+  }
+
+  const qrSvg = await generateQrSvg(data.checkinUrl);
+  const qrViewBox = extractViewBox(qrSvg);
+  const qrContent = extractSvgContent(qrSvg);
+  const scale = QR_SIZE / qrViewBox.width;
+
+  const qrY = HEADER_Y + infoHeight + 16;
+  const totalHeight = qrY + QR_SIZE + MARGIN;
+  const qrX = (WIDTH - QR_SIZE) / 2;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}" viewBox="0 0 ${WIDTH} ${totalHeight}">

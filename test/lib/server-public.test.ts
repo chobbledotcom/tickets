@@ -178,6 +178,18 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
     });
 
+    test("shows Buy now link for purchase_only events", async () => {
+      await settings.update.showPublicSite(true);
+      await createTestEvent({
+        name: "Raffle",
+        maxAttendees: 100,
+        purchaseOnly: true,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      const html = await expectHtmlResponse(response, 200, "Raffle", "Buy now");
+      expect(html).not.toContain("Book now");
+    });
+
     test("does not show inactive events", async () => {
       await settings.update.showPublicSite(true);
       const event = await createTestEvent({
@@ -1326,6 +1338,21 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "john@example.com",
       });
       expectRedirect(response, "https://example.com/thanks");
+    });
+
+    test("redirects with po=1 param for purchase_only event", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        purchaseOnly: true,
+        thankYouUrl: "",
+      });
+      const response = await submitTicketForm(event.slug, {
+        name: "Jane Doe",
+        email: "jane@example.com",
+      });
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location") || "";
+      expect(location).toContain("po=1");
     });
 
     test("rejects when event is full", async () => {

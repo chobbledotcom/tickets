@@ -29,7 +29,8 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
   const fromEmail = tokens.length > 0 ? await getFromEmailIfConfigured() : "";
 
-  return htmlResponse(successPage({ ticketUrl, fromEmail }));
+  const purchaseOnly = url.searchParams.get("po") === "1";
+  return htmlResponse(successPage({ ticketUrl, fromEmail, purchaseOnly }));
 };
 
 /** Handle ticket request: try events by slugs, fall back to group for single slugs */
