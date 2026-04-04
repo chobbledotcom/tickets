@@ -702,9 +702,9 @@ export const adminEventNewPage = (
     <Layout title="Add Event">
       <AdminNav session={session} active="/admin/" />
 
-      <h1>Add Event</h1>
-      <Flash error={error} />
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
+        <h1>Add Event</h1>
+        <Flash error={error} />
         <Raw html={renderFields(fields)} />
         <EventGroupSelect groups={groups} selectedGroupId={0} />
         <button type="submit">Create Event</button>

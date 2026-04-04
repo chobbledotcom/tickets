@@ -45,9 +45,9 @@ export const checkinAdminPage = (
 
   return String(
     <Layout title="Check-in">
-      <h1>Check-in</h1>
-      <Flash success={message} />
       <CsrfForm action={checkinPath}>
+        <h1>Check-in</h1>
+        <Flash success={message} />
         <input type="hidden" name="check_in" value={nextValue} />
         <button type="submit" class={buttonClass}>
           {buttonLabel}

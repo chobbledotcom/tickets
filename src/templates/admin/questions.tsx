@@ -150,15 +150,14 @@ export const adminQuestionDeletePage = (
     <Layout title="Delete Question">
       <AdminNav session={session} active="/admin/questions" />
 
-      <h1>Delete Question</h1>
-      <Flash error={error} />
-
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
         name={question.text}
         label="Question text"
         buttonText="Delete Question"
       >
+        <h1>Delete Question</h1>
+        <Flash error={error} />
         <p>
           This will permanently delete the question, all its answers, and all
           attendee responses.
@@ -182,15 +181,14 @@ export const adminAnswerDeletePage = (
     <Layout title="Delete Answer">
       <AdminNav session={session} active="/admin/questions" />
 
-      <h1>Delete Answer</h1>
-      <Flash error={error} />
-
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
         name={answer.text}
         label="Answer text"
         buttonText="Delete Answer"
       >
+        <h1>Delete Answer</h1>
+        <Flash error={error} />
         <p>
           This will permanently delete the answer "{answer.text}" from the
           question "{question.text}" and remove all attendee responses for it.
