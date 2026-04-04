@@ -141,6 +141,22 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(group.terms_and_conditions).toBe("Group terms");
     });
 
+    test("creates group with hidden flag", async () => {
+      const group = await createTestGroup({
+        name: "Hidden Group",
+        hidden: true,
+      });
+      expect(group.name).toBe("Hidden Group");
+      expect(group.hidden).toBe(true);
+    });
+
+    test("creates group without hidden flag by default", async () => {
+      const group = await createTestGroup({
+        name: "Visible Group",
+      });
+      expect(group.hidden).toBe(false);
+    });
+
     test("creates group and allows slug to be set via edit", async () => {
       const group = await createTestGroup({
         name: "New Group",
@@ -169,6 +185,17 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "editable",
         "Original terms",
       );
+    });
+
+    test("shows hidden checkbox checked for hidden group", async () => {
+      const group = await createTestGroup({
+        name: "Hidden Editable",
+        slug: "hidden-editable",
+        hidden: true,
+      });
+      const { response } = await adminGet(`/admin/groups/${group.id}/edit`);
+      const html = await expectHtmlResponse(response, 200, "Edit Group");
+      expect(html).toContain("checked");
     });
 
     test("returns 404 for non-existent group", async () => {
@@ -214,6 +241,18 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(updated.name).toBe("After");
       expect(updated.slug).toBe("after");
       expect(updated.terms_and_conditions).toBe("Updated terms");
+    });
+
+    test("updates group hidden flag", async () => {
+      const group = await createTestGroup({
+        name: "Toggle Hidden",
+        slug: "toggle-hidden",
+      });
+      expect(group.hidden).toBe(false);
+      const updated = await updateTestGroup(group.id, { hidden: true });
+      expect(updated.hidden).toBe(true);
+      const unhidden = await updateTestGroup(group.id, { hidden: false });
+      expect(unhidden.hidden).toBe(false);
     });
 
     test("rejects slug collision with another group", async () => {
@@ -420,6 +459,31 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Embed Iframe",
         "iframe",
       );
+    });
+
+    test("shows hidden status on detail page when group is hidden", async () => {
+      const group = await createTestGroup({
+        name: "Hidden Detail",
+        slug: "hidden-detail",
+        hidden: true,
+      });
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Hidden",
+        "not shown in public events list",
+      );
+    });
+
+    test("does not show hidden status when group is visible", async () => {
+      const group = await createTestGroup({
+        name: "Visible Detail",
+        slug: "visible-detail",
+      });
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      const html = await response.text();
+      expect(html).not.toContain("not shown in public events list");
     });
 
     test("shows empty events message when group has no events", async () => {

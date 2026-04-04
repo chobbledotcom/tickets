@@ -1905,6 +1905,7 @@ export const createTestGroup = async (
     name: overrides.name ?? "Test Group",
     termsAndConditions: overrides.termsAndConditions ?? "",
     maxAttendees: overrides.maxAttendees ?? 0,
+    hidden: overrides.hidden ?? false,
   };
 
   const group = await authenticatedFormRequest(
@@ -1913,6 +1914,7 @@ export const createTestGroup = async (
       name: input.name,
       terms_and_conditions: input.termsAndConditions,
       max_attendees: String(input.maxAttendees),
+      ...(input.hidden ? { hidden: "1" } : {}),
     },
     async () => {
       const { getAllGroups } = await import("#lib/db/groups.ts");
@@ -1928,6 +1930,7 @@ export const createTestGroup = async (
       slug: overrides.slug,
       termsAndConditions: group.terms_and_conditions,
       maxAttendees: group.max_attendees,
+      hidden: group.hidden,
     });
   }
 
@@ -1944,6 +1947,7 @@ export const updateTestGroup = async (
   const { groupsTable } = await import("#lib/db/groups.ts");
   const existing = (await groupsTable.findById(groupId)) as Group;
 
+  const hidden = updates.hidden ?? existing.hidden;
   return authenticatedFormRequest(
     `/admin/groups/${groupId}/edit`,
     {
@@ -1952,6 +1956,7 @@ export const updateTestGroup = async (
       terms_and_conditions:
         updates.termsAndConditions ?? existing.terms_and_conditions,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
+      ...(hidden ? { hidden: "1" } : {}),
     },
     async () => {
       const updated = await groupsTable.findById(groupId);

@@ -242,6 +242,86 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(response.headers.has("x-robots-noindex")).toBe(false);
     });
 
+    test("shows groups with active events on events page", async () => {
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "Summer Festival",
+        slug: "summer-festival",
+      });
+      await createTestEvent({
+        name: "Festival Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      await expectHtmlResponse(
+        response,
+        200,
+        "Summer Festival",
+        `href="/ticket/${group.slug}"`,
+        "Book now",
+      );
+    });
+
+    test("does not show hidden groups on events page", async () => {
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "Secret Group",
+        slug: "secret-group",
+        hidden: true,
+      });
+      await createTestEvent({
+        name: "Secret Group Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      const html = await response.text();
+      expect(html).not.toContain("Secret Group");
+    });
+
+    test("hidden group is still accessible via direct ticket URL", async () => {
+      const group = await createTestGroup({
+        name: "Hidden Group",
+        slug: "hidden-group",
+        hidden: true,
+      });
+      await createTestEvent({
+        name: "Hidden Group Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      await expectHtmlResponse(response, 200, "Hidden Group Event");
+    });
+
+    test("grouped events do not appear individually on events page", async () => {
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "My Group",
+        slug: "my-group",
+      });
+      await createTestEvent({
+        name: "Grouped Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      await createTestEvent({
+        name: "Ungrouped Event",
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "My Group",
+        "Ungrouped Event",
+      );
+      expect(html).not.toContain("Grouped Event");
+    });
+
     test("shows sold out for events at capacity", async () => {
       await settings.update.showPublicSite(true);
       const event = await createTestEvent({

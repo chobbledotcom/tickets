@@ -214,6 +214,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["name", "TEXT NOT NULL"],
         ["terms_and_conditions", "TEXT NOT NULL DEFAULT ''"],
         ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
+        ["hidden", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {

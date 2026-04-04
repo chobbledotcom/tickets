@@ -2,9 +2,10 @@
  * Public pages - home, events, terms, contact
  */
 
+import { getAllGroups } from "#lib/db/groups.ts";
 import { settings } from "#lib/db/settings.ts";
 import { loadSortedEvents } from "#lib/sort-events.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { EventWithCount, Group } from "#lib/types.ts";
 import {
   htmlResponse,
   isRegistrationClosed,
@@ -22,10 +23,14 @@ import {
 /** Active+visible filter for public event listings */
 const isPublicEvent = (e: EventWithCount): boolean => e.active && !e.hidden;
 
-/** Load active events for the homepage, sorted and with registration status */
-const loadHomepageEvents = async (): Promise<TicketEvent[]> => {
-  const { events } = await loadSortedEvents(isPublicEvent);
-  return events.map((e) => buildTicketEvent(e, isRegistrationClosed(e)));
+/** Filter for ungrouped public events (grouped events are shown via their group) */
+const isUngroupedPublicEvent = (e: EventWithCount): boolean =>
+  isPublicEvent(e) && e.group_id === 0;
+
+/** Load non-hidden groups (for public listing) */
+const loadPublicGroups = async (): Promise<Group[]> => {
+  const groups = await getAllGroups();
+  return groups.filter((g) => !g.hidden);
 };
 
 /** Guard: redirect to admin login if public site is disabled */
@@ -51,8 +56,16 @@ export const handleHome = (): Response =>
 /** Handle GET /events - public events listing */
 export const handlePublicEvents = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const events = await loadHomepageEvents();
-    return htmlResponse(homepagePage(events, settings.websiteTitle));
+    const [groups, { events }] = await Promise.all([
+      loadPublicGroups(),
+      loadSortedEvents(isUngroupedPublicEvent),
+    ]);
+    const ticketEvents = events.map((e) =>
+      buildTicketEvent(e, isRegistrationClosed(e)),
+    );
+    return htmlResponse(
+      homepagePage(ticketEvents, settings.websiteTitle, groups),
+    );
   });
 
 /** Handle GET /terms - public terms and conditions page (404 when empty) */

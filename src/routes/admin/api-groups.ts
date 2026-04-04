@@ -24,6 +24,7 @@ export type CreateGroupBody = {
   name: string;
   max_attendees?: number;
   terms_and_conditions?: string;
+  hidden?: boolean;
 };
 
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
@@ -71,6 +72,7 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
             : "",
         maxAttendees:
           typeof body.max_attendees === "number" ? body.max_attendees : 0,
+        hidden: body.hidden === true,
       },
     };
   },
@@ -100,6 +102,8 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
           typeof body.max_attendees === "number"
             ? body.max_attendees
             : existing.max_attendees,
+        hidden:
+          typeof body.hidden === "boolean" ? body.hidden : existing.hidden,
       },
     };
   },
