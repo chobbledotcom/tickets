@@ -186,10 +186,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event with another attendee (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event.id }],
       });
 
       await withMocks(
@@ -701,10 +701,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Create attendee as if payment was already processed (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "John",
         email: "john@example.com",
         paymentId: "pi_test_123",
+        bookings: [{ eventId: event.id }],
       });
 
       await withMocks(
@@ -802,10 +802,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event.id }],
       });
 
       // Try to register - should fail before Stripe session is created
@@ -926,21 +926,16 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
-        // Ticket should have multiple tokens joined by + (URL-encoded as %2B)
-        expectRedirect(
-          redirectResponse,
-          /^\/payment\/success\?tokens=.+%2B.+$/,
-        );
+        // With multi-event attendees, one token covers all events
+        expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
 
         const response = await followRedirect(redirectResponse, handleRequest);
-        const html = await expectHtmlResponse(
+        await expectHtmlResponse(
           response,
           200,
           "Thank you for your order",
-          "Click here to view your tickets",
+          "Click here to view your ticket",
         );
-        // Multi-slug ticket should NOT have thank_you_url (different events)
-        expect(html).not.toContain("redirected");
 
         // Verify attendees created for both events
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1075,10 +1070,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event.id }],
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
@@ -1129,10 +1124,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill event2
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event2.id }],
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
@@ -1468,11 +1463,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Create attendee directly (simulates post-payment state)
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Email Test",
         email: "buyer@example.com",
         paymentId: "pi_email_notice",
-        pricePaid: 500,
+        bookings: [{ eventId: event.id, pricePaid: 500 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
@@ -1485,7 +1479,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       try {
         const response = await handleRequest(
           mockRequest(
-            `/payment/success?tokens=${encodeURIComponent(result.attendee.ticket_token)}`,
+            `/payment/success?tokens=${encodeURIComponent(result.attendees[0]!.ticket_token)}`,
           ),
         );
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");

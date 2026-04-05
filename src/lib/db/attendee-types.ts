@@ -40,32 +40,70 @@ export type BuildAttendeeInput = ContactInfo & {
 
 /** Result of atomic attendee creation */
 export type CreateAttendeeResult =
-  | { success: true; attendee: Attendee }
+  | { success: true; attendees: Attendee[] }
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
 
-/** Input for creating an attendee atomically */
-export type AttendeeInput = ContactFields & {
+/** A single event booking within a multi-event attendee creation */
+export type EventBooking = {
   eventId: number;
-  paymentId?: string;
   quantity?: number;
   pricePaid?: number;
   date?: string | null;
 };
 
+/** Input for creating an attendee atomically (one or more events) */
+export type AttendeeInput = ContactFields & {
+  paymentId?: string;
+  bookings: EventBooking[];
+};
+
+/** Row from event_attendees — per-event booking data */
+export type EventAttendeeRow = {
+  event_id: number;
+  start_at: string | null;
+  end_at: string | null;
+  quantity: number;
+  checked_in: number;
+  refunded: number;
+  price_paid: number;
+  attachment_downloads: number;
+};
+
+/** An attendee with all their event bookings (for token resolution) */
+export type AttendeeWithBookings = {
+  /** Base attendee fields (PII, token, created — shared across events) */
+  id: number;
+  created: string;
+  ticket_token: string;
+  ticket_token_index: string;
+  pii_blob: string;
+  /** Per-event bookings, sorted by start_at then event_id */
+  bookings: EventAttendeeRow[];
+};
+
 /** Item for batch availability check */
 export type BatchAvailabilityItem = { eventId: number; quantity: number };
 
-/** Input for updating an attendee */
-export type UpdateAttendeeInput = {
+/** Input for updating attendee PII (shared across events) */
+export type UpdateAttendeePIIInput = {
   name: string;
   email: string;
   phone: string;
   address: string;
   special_instructions: string;
-  event_id: number;
-  quantity: number;
   /** Decrypted payment_id for PII blob rebuild (from existing attendee) */
   payment_id: string;
   /** Decrypted ticket_token for PII blob rebuild (from existing attendee) */
   ticket_token: string;
 };
+
+/** Input for updating a single event link */
+export type UpdateEventLinkInput = {
+  quantity: number;
+  date: string | null;
+};
+
+/** Result of updating an event link */
+export type UpdateEventLinkResult =
+  | { success: true }
+  | { success: false; reason: "capacity_exceeded" };

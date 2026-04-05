@@ -363,10 +363,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 1,
       });
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "Attendee",
         email: "a@test.com",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       const response = await handleRequest(mockRequest("/events"));
       const html = await expectHtmlResponse(response, 200, "Sold Out");
@@ -1575,10 +1574,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       // Fill up event2
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "John",
         email: "john@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
       const response = await handleRequest(
@@ -1599,10 +1597,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         description: "Sold out desc",
       });
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "Jane",
         email: "jane@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
       const response = await handleRequest(
@@ -1910,7 +1907,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         response,
         200,
         'href="/t/abc123+def456"',
-        "Click here to view your tickets",
+        "Click here to view your ticket",
       );
     });
 
@@ -2117,23 +2114,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-      // Mock atomic create to fail on second call (simulates race condition)
+      // Mock atomic create to fail (simulates race condition / capacity exceeded)
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const origCreate = attendeesApi.createAttendeeAtomic;
-      let callCount = 0;
-      const mockCreate = stub(
-        attendeesApi,
-        "createAttendeeAtomic",
-        (...args: Parameters<typeof origCreate>) => {
-          callCount++;
-          if (callCount === 2) {
-            return Promise.resolve({
-              success: false as const,
-              reason: "capacity_exceeded" as const,
-            });
-          }
-          return origCreate(...args);
-        },
+      const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
+        Promise.resolve({
+          success: false as const,
+          reason: "capacity_exceeded" as const,
+        }),
       );
 
       try {
@@ -2275,10 +2262,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // Fill up event1 to make it sold out
       await createAttendeeAtomic({
-        eventId: event1.id,
         name: "First",
         email: "first@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event1.id, quantity: 1 }],
       });
 
       // GET the ticket page (sold-out event will show Sold Out label)
@@ -2367,10 +2353,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // Fill event1
       await createAttendeeAtomic({
-        eventId: event1.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event1.id }],
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2498,20 +2484,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-      // Mock attendeesApi to fail on second event (capacity exceeded)
+      // Mock attendeesApi to fail (capacity exceeded)
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const originalFn = attendeesApi.createAttendeeAtomic;
-      let callCount = 0;
-      attendeesApi.createAttendeeAtomic = (input) => {
-        callCount++;
-        if (callCount === 2) {
-          return Promise.resolve({
-            success: false as const,
-            reason: "capacity_exceeded" as const,
-          });
-        }
-        return originalFn(input);
-      };
+      attendeesApi.createAttendeeAtomic = () =>
+        Promise.resolve({
+          success: false as const,
+          reason: "capacity_exceeded" as const,
+        });
 
       try {
         const response = await handleRequest(
@@ -2697,10 +2677,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // Fill event1 to capacity
       await createAttendeeAtomic({
-        eventId: event1.id,
         name: "First",
         email: "first@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event1.id, quantity: 1 }],
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -4594,13 +4573,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       expectReservedRedirectWithTokens(response);
 
-      // Verify answers were saved for both attendees
+      // With multi-event attendees, both events share one attendee.
+      // The shared question's answer is saved once on the attendee.
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
-      const att2 = await getAttendeesRaw(event2.id);
-      const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
-      expect(batch.get(att1[0]!.id)).toEqual([answer1.id]);
-      expect(batch.get(att2[0]!.id)).toEqual([answer1.id]);
+      const attendeeId = att1[0]!.id;
+      const batch = await getAttendeeAnswersBatch([attendeeId]);
+      expect(batch.get(attendeeId)).toEqual([answer1.id]);
     });
 
     test("saves event-specific answers only for each attendee", async () => {
@@ -4643,13 +4622,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       expectReservedRedirectWithTokens(response);
 
-      // Verify each attendee only has answers for their event's questions
+      // With multi-event attendees, one attendee is linked to both events.
+      // Both events' answers are stored on the same attendee.
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
-      const att2 = await getAttendeesRaw(event2.id);
-      const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
-      expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
-      expect(batch.get(att2[0]!.id)).toEqual([a2.id]);
+      const attendeeId = att1[0]!.id;
+      const batch = await getAttendeeAnswersBatch([attendeeId]);
+      const answers = batch.get(attendeeId) ?? [];
+      expect(answers).toContain(a1.id);
+      expect(answers).toContain(a2.id);
     });
 
     test("skips non-selected events in event answer map", async () => {

@@ -1091,14 +1091,13 @@ describe("html", () => {
       const html = successPage({ ticketUrl: "/t/abc123+def456", paid: true });
       expect(html).toContain('href="/t/abc123+def456"');
       expect(html).toContain('target="_blank"');
-      expect(html).toContain("Click here to view your tickets");
+      expect(html).toContain("Click here to view your ticket");
     });
 
     test("renders ticket link with singular text for single ticket", () => {
       const html = successPage({ ticketUrl: "/t/abc123", paid: true });
       expect(html).toContain('href="/t/abc123"');
       expect(html).toContain("Click here to view your ticket");
-      expect(html).not.toContain("Click here to view your tickets");
     });
 
     test("renders both ticket link and redirect when both provided", () => {

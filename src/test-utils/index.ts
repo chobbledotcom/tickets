@@ -1639,9 +1639,6 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   date: null,
   attachment_downloads: 0,
   pii_blob: "",
-  checked_in_v2: 0,
-  refunded_v2: 0,
-  price_paid_v2: 0,
   ...overrides,
 });
 
@@ -2168,23 +2165,22 @@ export const createTestAttendeeDirect = async (
   const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
 
   const result = await createAttendeeAtomic({
-    eventId,
     name,
     email,
     phone,
     address,
     special_instructions,
-    quantity,
+    bookings: [{ eventId, quantity }],
   });
 
   if (!result.success) {
     throw new Error(`Failed to create attendee: ${result.reason}`);
   }
 
-  // The token in result.attendee is plaintext, just like production!
+  // The token in result.attendees[0] is plaintext, just like production!
   return {
-    attendee: result.attendee,
-    token: result.attendee.ticket_token,
+    attendee: result.attendees[0]!,
+    token: result.attendees[0]!.ticket_token,
   };
 };
 
@@ -2276,15 +2272,13 @@ export const createPaidTestAttendee = async (
 ): Promise<Attendee> => {
   const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
   const result = await createAttendeeAtomic({
-    eventId,
     name,
     email,
     paymentId,
-    quantity,
-    pricePaid,
+    bookings: [{ eventId, quantity, pricePaid }],
   });
   // success is guaranteed when event capacity is available
-  return (result as { success: true; attendee: Attendee }).attendee;
+  return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
 };
 
 import type { PaymentProviderType, SessionMetadata } from "#lib/payments.ts";
@@ -2551,12 +2545,12 @@ export const createDailyTestAttendee = async (
     ...eventOverrides,
   });
   const result = await createAttendeeAtomic({
-    eventId: event.id,
     name,
     email,
-    date,
+    bookings: [{ eventId: event.id, date }],
   });
-  const { attendee } = result as Extract<typeof result, { success: true }>;
+  const { attendees } = result as Extract<typeof result, { success: true }>;
+  const attendee = attendees[0]!;
   return { event, attendee, token: attendee.ticket_token };
 };
 

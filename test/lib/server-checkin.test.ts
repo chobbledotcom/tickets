@@ -125,6 +125,20 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("returns 404 for orphaned attendee with no event links", async () => {
+      const { event, token } = await setupCheckinTest(
+        "Orphan",
+        "orphan@test.com",
+      );
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "DELETE FROM event_attendees WHERE event_id = ?",
+        args: [event.id],
+      });
+      const { response } = await adminGet(`/checkin/${token}`);
+      expect(response.status).toBe(404);
+    });
+
     test("shows event name and quantity in admin view", async () => {
       const { event, token, session } = await setupCheckinTest(
         "Dave",
@@ -206,14 +220,14 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     test("renders empty email and phone for attendee without contact details", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "NoContact",
         email: "",
+        bookings: [{ eventId: event.id }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
       const { response } = await adminGet(
-        `/checkin/${result.attendee.ticket_token}`,
+        `/checkin/${result.attendees[0]!.ticket_token}`,
       );
       const body = await response.text();
       expect(body).toContain("NoContact");
@@ -322,13 +336,13 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const { getAttendeesByTokens, markRefunded } = await import(
         "#lib/db/attendees.ts"
       );
-      const { token, session } = await setupCheckinTest(
+      const { event, token, session } = await setupCheckinTest(
         "Refund",
         "refund@test.com",
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id);
+      await markRefunded(attendees[0]!.id, event.id);
 
       const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
@@ -341,13 +355,13 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const { getAttendeesByTokens, markRefunded } = await import(
         "#lib/db/attendees.ts"
       );
-      const { token, session } = await setupCheckinTest(
+      const { event, token, session } = await setupCheckinTest(
         "Refund2",
         "refund2@test.com",
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id);
+      await markRefunded(attendees[0]!.id, event.id);
 
       const response = await postCheckin(token, session, "false");
       expect(response.status).toBe(302);

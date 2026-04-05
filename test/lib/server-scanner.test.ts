@@ -187,7 +187,8 @@ const orphanAttendee = async (token: string) => {
   const tokenIndex = await computeTicketTokenIndex(token);
   await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
   await getDb().execute({
-    sql: "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
+    sql: `UPDATE event_attendees SET event_id = 99999
+          WHERE attendee_id = (SELECT id FROM attendees WHERE ticket_token_index = ?)`,
     args: [tokenIndex],
   });
   return { getDb };
@@ -317,7 +318,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         "carol-ref@test.com",
       );
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id);
+      await markRefunded(attendees[0]!.id, event.id);
       const body = await getScannerBody(event.id);
       expect(body).not.toContain(token);
     });
@@ -381,7 +382,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id);
+      await markRefunded(attendees[0]!.id, event.id);
 
       const result = await scanAndGetJson(
         event.id,
@@ -549,7 +550,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
     });
 
-    test("force check-in with deleted event falls back to getEventName", async () => {
+    test("force check-in with deleted event returns not_found", async () => {
       const { token } = await createTestAttendeeWithToken(
         "Eve",
         "eve@test.com",
@@ -557,20 +558,20 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const eventB = await createTestEvent({ maxAttendees: 10 });
 
       // Point attendee at a non-existent event to simulate orphan
-      // Keep foreign keys off for the full request since logActivity also references event_id
       const { getDb } = await orphanAttendee(token);
 
-      // Force check-in from event B — event 99999 doesn't exist, so event is null
-      // and eventName falls back to getEventName which returns "Unknown event"
-      const result = await crossEventScanAndGetJson(eventB.id, {
+      // Force check-in from event B — event 99999 doesn't exist,
+      // so no entries can be resolved and check-in returns not_found
+      const { response } = await setupLoginAndScan({
+        eventId: eventB.id,
         token,
         force: true,
       });
+      await assertJson(Promise.resolve(response), 404, (json) => {
+        expect(json.status).toBe("not_found");
+      });
 
       await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
-
-      expect(result.status).toBe("checked_in");
-      expect(result.name).toBe("Eve");
     });
 
     test("logs activity when checking in via scanner", async () => {

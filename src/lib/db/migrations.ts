@@ -12,6 +12,7 @@
  */
 
 import { getDb } from "#lib/db/client.ts";
+import { logDebug } from "#lib/logger.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -25,13 +26,12 @@ type Index = {
 
 type Table = {
   columns: Column[];
-  foreignKeys?: string[];
   indexes?: Index[];
 };
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "add built_sites table";
+export const LATEST_UPDATE = "multi-event attendees with per-event status";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -145,33 +145,61 @@ const SCHEMA: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["event_id", "INTEGER NOT NULL"],
         ["name", "TEXT NOT NULL"],
         ["email", "TEXT NOT NULL"],
         ["created", "TEXT NOT NULL"],
         ["payment_id", "TEXT"],
-        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
         ["phone", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token", "TEXT NOT NULL DEFAULT ''"],
         ["price_paid", "TEXT"],
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
-        ["date", "TEXT DEFAULT NULL"],
         ["address", "TEXT NOT NULL DEFAULT ''"],
         ["special_instructions", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
         ["refunded", "TEXT NOT NULL DEFAULT ''"],
-        ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
-        ["checked_in_v2", "INTEGER NOT NULL DEFAULT 0"],
-        ["refunded_v2", "INTEGER NOT NULL DEFAULT 0"],
-        ["price_paid_v2", "INTEGER NOT NULL DEFAULT 0"],
       ],
-      foreignKeys: ["FOREIGN KEY (event_id) REFERENCES events(id)"],
       indexes: [
         {
           name: "idx_attendees_ticket_token_index",
           columns: ["ticket_token_index"],
           unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
+    "event_attendees",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["event_id", "INTEGER NOT NULL"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["start_at", "TEXT DEFAULT NULL"],
+        ["end_at", "TEXT DEFAULT NULL"],
+        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+        ["checked_in", "INTEGER NOT NULL DEFAULT 0"],
+        ["refunded", "INTEGER NOT NULL DEFAULT 0"],
+        ["price_paid", "INTEGER NOT NULL DEFAULT 0"],
+        ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      // FKs omitted — libsql's FK enforcement causes issues during table
+      // recreation migrations. Referential integrity is enforced by application
+      // logic and the indexes below.
+      indexes: [
+        {
+          name: "idx_event_attendees_event_attendee_start",
+          columns: ["event_id", "attendee_id", "start_at"],
+          unique: true,
+        },
+        {
+          name: "idx_event_attendees_attendee_event",
+          columns: ["attendee_id", "event_id"],
+        },
+        {
+          name: "idx_event_attendees_event_start_end",
+          columns: ["event_id", "start_at", "end_at"],
         },
       ],
     },
@@ -186,7 +214,10 @@ const SCHEMA: [name: string, table: Table][] = [
         ["processed_at", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
       ],
-      foreignKeys: ["FOREIGN KEY (attendee_id) REFERENCES attendees(id)"],
+      // FK declarations removed — libsql's FK enforcement breaks table
+      // recreation migrations (PRAGMA foreign_keys is connection-scoped and
+      // doesn't persist into batch operations on remote databases).
+      // Referential integrity is enforced by application logic.
     },
   ],
 
@@ -198,9 +229,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         ["event_id", "INTEGER"],
         ["message", "TEXT NOT NULL"],
-      ],
-      foreignKeys: [
-        "FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL",
       ],
     },
   ],
@@ -252,9 +280,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         ["last_used", "TEXT NOT NULL DEFAULT ''"],
       ],
-      foreignKeys: [
-        "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-      ],
       indexes: [
         {
           name: "idx_api_keys_key_index",
@@ -284,7 +309,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["text", "TEXT NOT NULL"],
         ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
       ],
-      foreignKeys: ["FOREIGN KEY (question_id) REFERENCES questions(id)"],
       indexes: [{ name: "idx_answers_question_id", columns: ["question_id"] }],
     },
   ],
@@ -297,10 +321,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["event_id", "INTEGER NOT NULL"],
         ["question_id", "INTEGER NOT NULL"],
         ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
-      ],
-      foreignKeys: [
-        "FOREIGN KEY (event_id) REFERENCES events(id)",
-        "FOREIGN KEY (question_id) REFERENCES questions(id)",
       ],
       indexes: [
         { name: "idx_event_questions_event_id", columns: ["event_id"] },
@@ -331,10 +351,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["attendee_id", "INTEGER NOT NULL"],
         ["answer_id", "INTEGER NOT NULL"],
-      ],
-      foreignKeys: [
-        "FOREIGN KEY (attendee_id) REFERENCES attendees(id)",
-        "FOREIGN KEY (answer_id) REFERENCES answers(id)",
       ],
       indexes: [
         {
@@ -370,12 +386,25 @@ export const SCHEMA_HASH = djb2(JSON.stringify(SCHEMA));
 
 // ─── Helpers ────────────────────────────────────────────────────
 
-/** Run a migration that may fail if already applied */
+/** Run an idempotent migration — swallows expected "already done" errors */
 const runMigration = async (sql: string): Promise<void> => {
   try {
     await getDb().execute(sql);
-  } catch {
-    // Already applied
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Expected when re-running on an already-migrated DB or fresh DB
+    // where old columns/tables never existed:
+    if (
+      msg.includes("already exists") ||
+      msg.includes("duplicate") ||
+      msg.includes("no such column") ||
+      msg.includes("no such table")
+    ) {
+      return;
+    }
+    // Anything else is a real error — log and rethrow
+    logDebug("Migration", `Error: ${msg} — SQL: ${sql.slice(0, 80)}`);
+    throw e;
   }
 };
 
@@ -403,31 +432,94 @@ const isDbUpToDate = async (): Promise<boolean> => {
   }
 };
 
-// ─── Main migration ─────────────────────────────────────────────
+/** Create indexes for a named table from SCHEMA */
+const createIndexesForTable = async (
+  tableName: string,
+  indexes: Index[],
+): Promise<void> => {
+  for (const idx of indexes) {
+    const unique = idx.unique ? "UNIQUE " : "";
+    await runMigration(
+      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(", ")})`,
+    );
+  }
+};
 
 /**
- * Initialize database tables — idempotent, safe to call on every startup.
+ * Recreate a table from its SCHEMA definition, preserving data for matching columns.
  *
- * 1. Create tables that don't exist
- * 2. Add any missing columns to existing tables
- * 3. Create any missing indexes
+ * The new table is created WITHOUT foreign keys (only column definitions).
+ * This means any FKs the original table had are removed after recreation.
+ *
+ * IMPORTANT: If other tables have FKs referencing this table and contain data,
+ * those tables must be recreated FIRST (to remove their FK constraints).
+ * Otherwise DROP TABLE will fail with FOREIGN KEY constraint in libsql.
+ * We do NOT use PRAGMA foreign_keys=OFF because it doesn't persist across
+ * HTTP requests in remote libsql (Turso).
  */
-export const initDb = async (): Promise<void> => {
-  if (await isDbUpToDate()) return;
+const recreateTable = async (tableName: string): Promise<void> => {
+  const tableSchema = SCHEMA.find(([name]) => name === tableName)!;
+  const cols = tableSchema[1].columns;
+  const colNames = cols.map(([col]) => col).join(", ");
+  const colDefs = cols.map(([col, type]) => `${col} ${type}`).join(", ");
+  const tmpName = `${tableName}_new`;
 
-  // 1. Create tables
+  await getDb().batch(
+    [
+      { sql: `CREATE TABLE ${tmpName} (${colDefs})`, args: [] },
+      {
+        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${colNames} FROM ${tableName}`,
+        args: [],
+      },
+      { sql: `DROP TABLE ${tableName}`, args: [] },
+      { sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}`, args: [] },
+    ],
+    "write",
+  );
+
+  await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
+};
+
+/**
+ * Drop event_id, date, quantity from attendees table.
+ * SQLite can't DROP COLUMN when a FK references the column, so we recreate the table.
+ * Only runs if the old columns still exist (idempotent).
+ */
+const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
+  const cols = await getExistingColumns("attendees");
+  if (!cols.has("event_id")) {
+    logDebug(
+      "Migration",
+      "attendees.event_id already dropped, skipping table recreation",
+    );
+    return;
+  }
+  // Recreate tables that reference attendees(id) FIRST — the live DB's
+  // original tables have FK declarations baked in from their CREATE TABLE.
+  // libsql won't let us DROP attendees while those FKs exist. Recreating
+  // them first replaces the FK-bearing originals with clean versions.
+  logDebug("Migration", "Recreating event_attendees (removing FKs)...");
+  await recreateTable("event_attendees");
+  logDebug("Migration", "Recreating processed_payments (removing FKs)...");
+  await recreateTable("processed_payments");
+  logDebug("Migration", "Recreating attendee_answers (removing FKs)...");
+  await recreateTable("attendee_answers");
+  // Now safe to recreate attendees — no other table references it via FK
+  logDebug(
+    "Migration",
+    "Recreating attendees (dropping deprecated columns)...",
+  );
+  await recreateTable("attendees");
+  logDebug("Migration", "Table recreation complete.");
+};
+
+/** Create missing tables and add missing columns in a single pass */
+const applySchemaChanges = async (): Promise<void> => {
   for (const [name, table] of SCHEMA) {
-    const parts = [
-      ...table.columns.map(([col, type]) => `${col} ${type}`),
-      ...(table.foreignKeys ?? []),
-    ];
+    const parts = table.columns.map(([col, type]) => `${col} ${type}`);
     await runMigration(
       `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`,
     );
-  }
-
-  // 2. Add missing columns
-  for (const [name, table] of SCHEMA) {
     const existing = await getExistingColumns(name);
     for (const [col, type] of table.columns) {
       if (!existing.has(col)) {
@@ -435,22 +527,16 @@ export const initDb = async (): Promise<void> => {
       }
     }
   }
+};
 
-  // 3. Create indexes
+/** Create missing indexes and drop legacy ones */
+const syncIndexes = async (): Promise<void> => {
   const declaredIndexNames = new Set<string>();
   for (const [name, table] of SCHEMA) {
-    for (const idx of table.indexes ?? []) {
-      declaredIndexNames.add(idx.name);
-      const unique = idx.unique ? "UNIQUE " : "";
-      await runMigration(
-        `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${name}(${idx.columns.join(
-          ", ",
-        )})`,
-      );
-    }
+    const indexes = table.indexes ?? [];
+    for (const idx of indexes) declaredIndexNames.add(idx.name);
+    await createIndexesForTable(name, indexes);
   }
-
-  // 3b. Drop legacy indexes not in current schema (prefix-matched to our naming convention)
   const allIndexes = await getDb().execute(
     "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'",
   );
@@ -460,8 +546,81 @@ export const initDb = async (): Promise<void> => {
       await runMigration(`DROP INDEX IF EXISTS ${indexName}`);
     }
   }
+};
 
-  // 4. Update version marker and schema hash
+const MIGRATION_LOCK_KEY = "migration_lock";
+
+/**
+ * Acquire an advisory migration lock via the settings table.
+ * Returns true if acquired, false if another process holds it.
+ * The lock has no TTL — if a migration crashes, the lock persists
+ * and requires manual clearing (the DB may need investigation).
+ */
+const acquireMigrationLock = async (): Promise<boolean> => {
+  const result = await getDb()
+    .execute({
+      sql: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
+      args: [MIGRATION_LOCK_KEY, new Date().toISOString()],
+    })
+    .catch(() => null); // settings table may not exist yet on first run
+  return result === null || result.rowsAffected === 1;
+};
+
+/** Release the migration lock */
+const releaseMigrationLock = async (): Promise<void> => {
+  await runMigration(
+    `DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
+  );
+};
+
+// ─── Main migration ─────────────────────────────────────────────
+
+/**
+ * Initialize database tables — idempotent, safe to call on every startup.
+ * Uses an advisory lock to prevent concurrent migrations.
+ */
+export const initDb = async (): Promise<void> => {
+  if (await isDbUpToDate()) return;
+
+  const acquired = await acquireMigrationLock();
+  if (!acquired) {
+    throw new Error(
+      "Database migration is already in progress (migration_lock held). " +
+        "If a previous migration crashed, manually DELETE FROM settings WHERE key = 'migration_lock'.",
+    );
+  }
+
+  // Re-check after acquiring lock (another process may have finished)
+  if (await isDbUpToDate()) {
+    await releaseMigrationLock();
+    return;
+  }
+
+  logDebug("Migration", "Step 1: applying schema changes...");
+  await applySchemaChanges();
+  logDebug("Migration", "Step 2: syncing indexes...");
+  await syncIndexes();
+
+  // 4. Backfill event_attendees from existing attendees data (idempotent)
+  // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
+  // Also copies per-event status columns to event_attendees
+  logDebug("Migration", "Step 3: backfilling event_attendees...");
+  await runMigration(
+    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
+     SELECT event_id, id,
+       CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
+       CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
+       quantity, checked_in_v2, refunded_v2, price_paid_v2, attachment_downloads
+     FROM attendees
+     WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
+  );
+
+  // 5. Drop deprecated columns from attendees → now on event_attendees.
+  logDebug("Migration", "Step 4: dropping deprecated attendee columns...");
+  await dropDeprecatedAttendeeColumns();
+
+  // 6. Update version marker and schema hash
+  logDebug("Migration", "Step 5: updating version marker...");
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
@@ -470,6 +629,10 @@ export const initDb = async (): Promise<void> => {
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
     args: [SCHEMA_HASH],
   });
+
+  // Release lock only on success — if migration crashes, lock persists
+  // and requires manual investigation + clearing
+  await releaseMigrationLock();
 };
 
 // ─── Reset ──────────────────────────────────────────────────────

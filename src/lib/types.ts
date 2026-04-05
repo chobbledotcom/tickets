@@ -117,9 +117,6 @@ export interface Attendee extends ContactInfo {
   date: string | null;
   attachment_downloads: number;
   pii_blob: string;
-  checked_in_v2: number;
-  refunded_v2: number;
-  price_paid_v2: number;
 }
 
 /** Short keys used in the PII blob JSON to minimize encrypted payload size */

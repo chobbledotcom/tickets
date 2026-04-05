@@ -3,22 +3,28 @@
  */
 
 import { compact, filter, uniqueBy } from "#fp";
+import { getAvailableDates } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
+  ATTENDEE_LEFT_JOIN_SELECT,
+  addEventLink,
   createAttendeeAtomic,
   decryptAttendeeOrNull,
   deleteAttendee,
-  hasAvailableSpots,
+  type EventAttendeeRow,
   markRefunded,
-  updateAttendee,
+  unlinkAttendeeFromEvent,
+  updateAttendeePII,
   updateCheckedIn,
+  updateEventLink,
 } from "#lib/db/attendees.ts";
-import { queryOne } from "#lib/db/client.ts";
+import { queryAll, queryOne } from "#lib/db/client.ts";
 import {
   getAllEvents,
   getEventWithAttendeeRaw,
   getEventWithCount,
 } from "#lib/db/events.ts";
+import { getActiveHolidays } from "#lib/db/holidays.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import {
   getAttendeeAnswersBatch,
@@ -247,7 +253,7 @@ const handleAttendeeCheckin = attendeeFormAction(
     const wasCheckedIn = data.attendee.checked_in;
     const nowCheckedIn = !wasCheckedIn;
 
-    await updateCheckedIn(attendeeId, nowCheckedIn);
+    await updateCheckedIn(attendeeId, eventId, nowCheckedIn);
 
     const action = nowCheckedIn ? "checked in" : "checked out";
     await logActivity(`Attendee ${action} for '${data.event.name}'`, eventId);
@@ -296,14 +302,12 @@ const handleAddAttendee = (
     } = validation.values;
 
     const result = await createAttendeeAtomic({
-      eventId,
       name,
       email: email || "",
-      quantity,
       phone: phone || "",
       address: address || "",
       special_instructions: special_instructions || "",
-      date: isDaily ? date : null,
+      bookings: [{ eventId, quantity, date: isDaily ? date : null }],
     });
 
     if (!result.success) {
@@ -338,32 +342,83 @@ const getEventsForSelector = async (
 };
 
 /** Load attendee with all events for edit page */
+/** A resolved event link for display in the edit page */
+type EventLinkData = {
+  event: EventWithCount;
+  booking: EventAttendeeRow;
+  date: string | null;
+};
+
 const loadAttendeeForEdit = async (
   session: AuthSession,
   attendeeId: number,
 ): Promise<{
   attendee: Attendee;
   event: EventWithCount;
+  eventLinks: EventLinkData[];
   allEvents: EventWithCount[];
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
+  /** Available dates per daily event (for date picker) */
+  availableDatesByEvent: Record<number, string[]>;
 } | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>(
-    "SELECT * FROM attendees WHERE id = ?",
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+     FROM attendees a
+     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id = ?`,
     [attendeeId],
   );
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
-  const event = (await getEventWithCount(attendee.event_id))!;
-  const [allEvents, questions, answersMap] = await Promise.all([
-    getEventsForSelector(event.id),
-    getQuestionsForEvent(event.id),
-    getAttendeeAnswersBatch([attendeeId]),
-  ]);
+
+  // Load all event bookings for this attendee
+  const bookingRows = await queryAll<EventAttendeeRow>(
+    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+     FROM event_attendees WHERE attendee_id = ?
+     ORDER BY start_at, event_id`,
+    [attendeeId],
+  );
+
+  // Resolve events for each booking
+  const eventLinks: EventLinkData[] = [];
+  for (const booking of bookingRows) {
+    const event = await getEventWithCount(booking.event_id);
+    if (event) {
+      eventLinks.push({
+        event,
+        booking,
+        date: booking.start_at ? booking.start_at.slice(0, 10) : null,
+      });
+    }
+  }
+
+  // Attendees always have at least one event link (enforced by createAttendeeAtomic)
+  const firstEvent = eventLinks[0]!.event;
+  const allEvents = await getEventsForSelector(firstEvent.id);
+  const questions = await getQuestionsForEvent(firstEvent.id);
+  const answersMap = await getAttendeeAnswersBatch([attendeeId]);
+  const holidays = await getActiveHolidays();
   const selectedAnswerIds = answersMap.get(attendeeId) ?? [];
 
-  return { attendee, event, allEvents, questions, selectedAnswerIds };
+  // Build available dates for each daily event
+  const availableDatesByEvent: Record<number, string[]> = {};
+  for (const evt of allEvents) {
+    if (evt.event_type === "daily") {
+      availableDatesByEvent[evt.id] = getAvailableDates(evt, holidays);
+    }
+  }
+
+  return {
+    attendee,
+    event: firstEvent,
+    eventLinks,
+    allEvents,
+    questions,
+    selectedAnswerIds,
+    availableDatesByEvent,
+  };
 };
 
 type EditAttendeeData = NonNullable<
@@ -438,33 +493,13 @@ async function editAttendeeHandler(
   const phone = form.getString("phone");
   const address = form.getString("address");
   const special_instructions = form.getString("special_instructions");
-  const event_id = Number(form.get("event_id")) || 0;
 
   if (!name.trim()) return editError("Name is required");
-  if (!event_id) return editError("Event is required");
-
-  const targetEvent =
-    event_id === data.event.id ? data.event : await getEventWithCount(event_id);
-  if (!targetEvent) return editError("Event not found");
 
   const quantity = parseQuantity(
     form.get("quantity") || "1",
-    targetEvent.max_quantity,
+    data.event.max_quantity,
   );
-
-  // Check capacity when quantity increases or event changes
-  const quantityDelta = quantity - data.attendee.quantity;
-  const eventChanged = event_id !== data.attendee.event_id;
-  if (quantityDelta > 0 || eventChanged) {
-    // For event change, check full quantity against new event; for same event, check only the delta
-    const spotsNeeded = eventChanged ? quantity : quantityDelta;
-    const available = await hasAvailableSpots(
-      event_id,
-      spotsNeeded,
-      data.attendee.date,
-    );
-    if (!available) return editError("Not enough spots available");
-  }
 
   // Parse question answers
   const answerIds: number[] = [];
@@ -478,27 +513,35 @@ async function editAttendeeHandler(
     }
   }
 
-  await updateAttendee(attendeeId, {
+  // Update PII (shared across events)
+  await updateAttendeePII(attendeeId, {
     name,
     email,
     phone,
     address,
     special_instructions,
-    event_id,
-    quantity,
     payment_id: data.attendee.payment_id,
     ticket_token: data.attendee.ticket_token,
   });
+
+  // Update event link with atomic capacity guard
+  const linkResult = await updateEventLink(attendeeId, data.attendee.event_id, {
+    quantity,
+    date: data.attendee.date,
+  });
+  if (!linkResult.success) {
+    return editError("Not enough spots available");
+  }
 
   // Update answers (atomic delete + insert)
   if (data.questions.length > 0) {
     await saveAttendeeAnswers([attendeeId], answerIds);
   }
 
-  await logActivity(`Attendee '${name}' updated`, event_id);
+  await logActivity(`Attendee '${name}' updated`, data.event.id);
 
   return redirect(
-    `/admin/event/${event_id}#attendees`,
+    `/admin/event/${data.event.id}#attendees`,
     `Updated ${name}`,
     true,
     { form },
@@ -558,7 +601,7 @@ async function refreshPaymentHandler(
 
   const isRefunded = await provider.isPaymentRefunded(data.attendee.payment_id);
   if (isRefunded && !data.attendee.refunded) {
-    await markRefunded(attendeeId);
+    await markRefunded(attendeeId, data.event.id);
     await logActivity(
       `Payment marked as refunded for attendee '${data.attendee.name}'`,
       data.event.id,
@@ -578,11 +621,137 @@ async function refreshPaymentHandler(
 }
 const handleRefreshPayment = editAttendeePost(refreshPaymentHandler);
 
+/* jscpd:ignore-start — route handlers share structural patterns (withAuth, errorRedirect) */
+/** Handle POST /admin/attendees/:attendeeId/link — add event link */
+const handleAddEventLink = (
+  request: Request,
+  { attendeeId }: { attendeeId: number },
+): Promise<Response> =>
+  withAuth(request, AUTH_FORM, async (_session, form) => {
+    const eventId = Number(form.get("event_id")) || 0;
+    if (!eventId) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Event is required",
+      );
+    }
+
+    const targetEvent = await getEventWithCount(eventId);
+    if (!targetEvent) {
+      return errorRedirect(`/admin/attendees/${attendeeId}`, "Event not found");
+    }
+
+    const quantity = parseQuantity(
+      form.get("quantity") || "1",
+      targetEvent.max_quantity,
+    );
+
+    // Date for daily events
+    const date =
+      targetEvent.event_type === "daily"
+        ? form.getString("date") || null
+        : null;
+
+    const result = await addEventLink(attendeeId, {
+      eventId,
+      quantity,
+      date,
+    });
+
+    if (!result.success) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Not enough spots available",
+      );
+    }
+
+    await logActivity(`Attendee linked to '${targetEvent.name}'`, eventId);
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      `Added to ${targetEvent.name}`,
+      true,
+    );
+  });
+
+/** Handle POST /admin/attendees/:attendeeId/unlink/:eventId — remove event link */
+const handleUnlinkEvent = (
+  request: Request,
+  { attendeeId, eventId }: { attendeeId: number; eventId: number },
+): Promise<Response> =>
+  withAuth(request, AUTH_FORM, async () => {
+    // Don't allow removing the last event link — would orphan the attendee
+    const linkCount = await queryOne<{ count: number }>(
+      "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
+      [attendeeId],
+    );
+    if (linkCount && linkCount.count <= 1) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Cannot remove the last event — delete the attendee instead",
+      );
+    }
+
+    const event = await getEventWithCount(eventId);
+    const eventName = event!.name;
+
+    await unlinkAttendeeFromEvent(attendeeId, eventId);
+    await logActivity(`Attendee unlinked from '${eventName}'`, eventId);
+
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      `Removed from ${eventName}`,
+      true,
+    );
+  });
+
+/** Handle POST /admin/attendees/:attendeeId/event/:eventId — update per-event link */
+const handleUpdateEventLink = (
+  request: Request,
+  { attendeeId, eventId }: { attendeeId: number; eventId: number },
+): Promise<Response> =>
+  withAuth(request, AUTH_FORM, async (_session, form) => {
+    const event = await getEventWithCount(eventId);
+    if (!event) {
+      return errorRedirect(`/admin/attendees/${attendeeId}`, "Event not found");
+    }
+
+    const quantity = parseQuantity(
+      form.get("quantity") || "1",
+      event.max_quantity,
+    );
+
+    const date =
+      event.event_type === "daily" ? form.getString("date") || null : null;
+
+    const result = await updateEventLink(attendeeId, eventId, {
+      quantity,
+      date,
+    });
+
+    if (!result.success) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Not enough spots available",
+      );
+    }
+
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      `Updated ${event.name}`,
+      true,
+    );
+  });
+
+/* jscpd:ignore-end */
+
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
   "GET /admin/attendees/:attendeeId": handleEditAttendeeGet,
   "POST /admin/attendees/:attendeeId": handleEditAttendeePost,
   "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
+  "POST /admin/attendees/:attendeeId/link": handleAddEventLink,
+  "POST /admin/attendees/:attendeeId/unlink/:eventId": handleUnlinkEvent,
+  "POST /admin/attendees/:attendeeId/event/:eventId": handleUpdateEventLink,
   "GET /admin/event/:eventId/attendee/:attendeeId/delete":
     handleAdminAttendeeDeleteGet,
   "POST /admin/event/:eventId/attendee": handleAddAttendee,

@@ -437,7 +437,7 @@ export const listFiles = async (prefix: string): Promise<string[]> => {
   const items = (await response.json()) as Array<Record<string, unknown>>;
   const files: string[] = [];
   for (const item of items) {
-    const name = String(item["ObjectName"] ?? "");
+    const name = String(item.ObjectName ?? "");
     if (name.startsWith(prefix)) files.push(name);
   }
   return files.sort();

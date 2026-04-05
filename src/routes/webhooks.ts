@@ -14,13 +14,12 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { map, unique } from "#fp";
+import { unique } from "#fp";
 import { calculateBookingFee } from "#lib/booking-fee.ts";
 import { getBookingFee, getEffectiveDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
-  deleteAttendee,
   getAttendeesByTokens,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
@@ -38,8 +37,9 @@ import {
   getActivePaymentProvider,
   type ValidatedPaymentSession,
 } from "#lib/payments.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { ensureAllBookings } from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
@@ -214,15 +214,6 @@ const validationFailure = async (
     status: validation.status,
     refunded,
   };
-};
-
-/** Rollback created attendees (booking failure recovery) */
-const rollbackAttendees = async (
-  attendees: { attendee: Attendee }[],
-): Promise<void> => {
-  for (const { attendee } of attendees) {
-    await deleteAttendee(attendee.id);
-  }
 };
 
 const validateEventForPayment = async (
@@ -486,70 +477,65 @@ const processPaymentSession = async (
     }
   }
 
-  // Create attendees
-  const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
-  let failedEvent: EventWithCount | null = null;
-  let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
+  // Create one attendee with all event bookings in a single atomic operation
+  const bookings = validatedItems.map(({ item, event }) => ({
+    eventId: item.e,
+    quantity: item.q,
+    pricePaid: item.p,
+    date: event.event_type === "daily" ? intent.date : null,
+  }));
 
-  for (const { item, event } of validatedItems) {
-    const pricePaid = item.p;
+  const result = await createAttendeeAtomic({
+    name: intent.name,
+    email: intent.email,
+    paymentId: session.paymentReference,
+    phone: intent.phone,
+    address: intent.address,
+    special_instructions: intent.special_instructions,
+    bookings,
+  });
 
-    const result = await createAttendeeAtomic({
-      eventId: item.e,
-      name: intent.name,
-      email: intent.email,
-      paymentId: session.paymentReference,
-      quantity: item.q,
-      phone: intent.phone,
-      address: intent.address,
-      special_instructions: intent.special_instructions,
-      pricePaid,
-      date: event.event_type === "daily" ? intent.date : null,
-    });
-
-    if (!result.success) {
-      failedEvent = event;
-      failureReason = result.reason;
-      break;
-    }
-
-    createdAttendees.push({ attendee: result.attendee, event });
+  // For paid bookings, require all-or-nothing: partial success = rollback + refund
+  const bookingCheck = await ensureAllBookings(result, bookings.length);
+  if (!bookingCheck.ok) {
+    const error = formatPostPaymentError(
+      bookingCheck.reason,
+      validatedItems[0]!.event.name,
+    );
+    return {
+      success: false,
+      error,
+      refunded: await refundAndLog(session, error, validatedItems[0]!.event.id),
+    };
   }
+  const { attendees } = result as Extract<typeof result, { success: true }>;
 
-  // If any creation failed, rollback already-created attendees and refund
-  if (failedEvent && failureReason) {
-    await rollbackAttendees(createdAttendees);
-    const error = formatPostPaymentError(failureReason, failedEvent.name);
-    const refunded = await refundAndLog(session, error, failedEvent.id);
-    return { success: false, error, refunded };
-  }
+  // Build entries: pair each attendee result with its event
+  const createdEntries = attendees.map((attendee, i) => ({
+    attendee,
+    event: validatedItems[i]!.event,
+  }));
 
   if (intent.eventAnswerIds) {
-    await saveEventAnswers(createdAttendees, intent.eventAnswerIds);
+    await saveEventAnswers(createdEntries, intent.eventAnswerIds);
   }
 
-  // Phase 3: Finalize with first attendee ID (for idempotency tracking)
-  // createdAttendees is guaranteed non-empty: the loop always runs (intent.items
-  // is validated non-empty) and if any creation fails we return early above.
-  const firstAttendee = createdAttendees[0]!;
-
-  const ticketTokens: string[] = map(
-    ({ attendee }: { attendee: Attendee }) => attendee.ticket_token,
-  )(createdAttendees);
+  const firstAttendee = createdEntries[0]!;
+  const ticketToken = firstAttendee.attendee.ticket_token;
 
   await finalizeSession(
     sessionId,
     firstAttendee.attendee.id,
-    options?.storeTokens === false ? [] : ticketTokens,
+    options?.storeTokens === false ? [] : [ticketToken],
   );
 
-  await logAndNotifyRegistration(createdAttendees);
+  await logAndNotifyRegistration(createdEntries);
 
   return {
     success: true,
     attendee: firstAttendee.attendee,
     event: firstAttendee.event,
-    ticketTokens,
+    ticketTokens: [ticketToken],
   };
 };
 
@@ -627,10 +613,13 @@ const renderSuccessFromTokens = async (
   const eventIds: number[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
-    const attendee = attendeeResults[i];
-    if (attendee) {
+    const awb = attendeeResults[i];
+    if (awb) {
       verifiedTokens.push(tokens[i]!);
-      eventIds.push(attendee.event_id);
+      // Collect all event IDs from all bookings
+      for (const booking of awb.bookings) {
+        eventIds.push(booking.event_id);
+      }
     }
   }
 
@@ -645,7 +634,7 @@ const renderSuccessFromTokens = async (
   let thankYouUrl = "";
   if (uniqueEventIds.length === 1) {
     const event = await getEvent(uniqueEventIds[0]!);
-    if (event) thankYouUrl = event.thank_you_url;
+    if (event) thankYouUrl = event.thank_you_url.trim();
   }
 
   const fromEmail = await getFromEmailIfConfigured();

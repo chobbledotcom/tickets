@@ -456,10 +456,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Fill the event
       await createAttendeeAtomic({
-        eventId: event.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
+        bookings: [{ eventId: event.id }],
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -942,7 +942,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(3);
-        expect(attendees[0]!.price_paid_v2).toBe(1500);
+        expect(
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
+        ).toBe(1500);
       } finally {
         mockRetrieve.restore();
       }
@@ -984,7 +986,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]!.price_paid_v2).toBe(2000);
+        expect(
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
+        ).toBe(2000);
       } finally {
         mockRetrieve.restore();
       }
@@ -1149,14 +1153,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
       // Create attendee directly (not via public form which redirects to Stripe for paid events)
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Already Done",
         email: "already@example.com",
         paymentId: "pi_already_done",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create test attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const {
         reserveSession: reserveSessionFn,
@@ -1295,11 +1298,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 500,
       });
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "First",
         email: "first@example.com",
         paymentId: "pi_first",
-        quantity: 1,
+        bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -1600,10 +1602,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Fill event2 to capacity
       await createAttendeeAtomic({
-        eventId: event2.id,
         name: "Existing",
         email: "existing@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -1670,11 +1671,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 500,
       });
       const attResult = await createAttendeeAtomic({
-        eventId: event.id,
         name: "WH Del",
         email: "whdel@example.com",
         paymentId: "pi_del",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!attResult.success) throw new Error("Failed to create attendee");
 
@@ -1684,7 +1684,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         finalizeSession: finalizeSessionFn,
       } = await import("#lib/db/processed-payments.ts");
       await reserveSessionFn("cs_del_event_wh");
-      await finalizeSessionFn("cs_del_event_wh", attResult.attendee.id);
+      await finalizeSessionFn("cs_del_event_wh", attResult.attendees[0]!.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       // Use a non-existent event_id in metadata to trigger "Event not found" in alreadyProcessedResult
@@ -2010,7 +2010,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        expect(attendees[0]!.price_paid_v2).toBe(0);
+        expect(
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
+        ).toBe(0);
       } finally {
         mockRetrieve.restore();
       }
@@ -2052,7 +2054,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        expect(attendees[0]!.price_paid_v2).toBe(0);
+        expect(
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
+        ).toBe(0);
       } finally {
         mockRetrieve.restore();
       }
@@ -2386,7 +2390,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]!.price_paid_v2).toBe(2500);
+        expect(
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
+        ).toBe(2500);
       } finally {
         mockVerify.restore();
       }
@@ -3336,7 +3342,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]!.price_paid_v2).toBe(2500);
+        expect(
+          (attendees[0] as unknown as Record<string, unknown>).price_paid,
+        ).toBe(2500);
       } finally {
         mockVerify.restore();
       }
@@ -3405,9 +3413,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
-        expect(attendees1[0]!.price_paid_v2).toBe(2000);
+        expect(
+          (attendees1[0] as unknown as Record<string, unknown>).price_paid,
+        ).toBe(2000);
         expect(attendees2.length).toBe(1);
-        expect(attendees2[0]!.price_paid_v2).toBe(1000);
+        expect(
+          (attendees2[0] as unknown as Record<string, unknown>).price_paid,
+        ).toBe(1000);
       } finally {
         mockVerify.restore();
       }
@@ -4047,10 +4059,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(att1.length).toBe(1);
         expect(att2.length).toBe(1);
 
-        // Verify answers saved only for event1's attendee (question belongs to event1 only)
-        const batch = await getAttendeeAnswersBatch([att1[0]!.id, att2[0]!.id]);
-        expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
-        expect(batch.get(att2[0]!.id)).toBeUndefined();
+        // With multi-event attendees, one attendee is linked to both events.
+        // Answers are stored on the shared attendee ID.
+        const attendeeId = att1[0]!.id;
+        expect(attendeeId).toBe(att2[0]!.id); // same attendee
+        const batch = await getAttendeeAnswersBatch([attendeeId]);
+        expect(batch.get(attendeeId)).toEqual([a1.id]);
       } finally {
         mockVerify.restore();
       }

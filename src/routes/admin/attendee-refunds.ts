@@ -103,7 +103,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
       return refundError(eventId, attendeeId, REFUND_FAILED_ERROR);
     }
 
-    await markRefunded(data.attendee.id);
+    await markRefunded(data.attendee.id, eventId);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       eventId,
@@ -165,7 +165,7 @@ const processRefundAll = async (
       group.map(async (attendee) => {
         const refunded = await provider.refundPayment(attendee.payment_id);
         if (refunded) {
-          await markRefunded(attendee.id);
+          await markRefunded(attendee.id, event.id);
           return true;
         }
         logError({

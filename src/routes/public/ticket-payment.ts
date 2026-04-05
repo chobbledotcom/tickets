@@ -5,9 +5,11 @@
 import { compact } from "#fp";
 import { isPaymentsEnabled } from "#lib/config.ts";
 import { getAvailableDates } from "#lib/dates.ts";
+import type { CreateAttendeeResult } from "#lib/db/attendee-types.ts";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
+  deleteAttendee,
 } from "#lib/db/attendees.ts";
 import { getEventsBySlugsBatch } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
@@ -31,7 +33,12 @@ import {
 } from "#routes/utils.ts";
 import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
 import { eventsWithQuantity, formatAtomicError } from "./ticket-form.ts";
-import type { AsyncHandler, TicketCtx, TicketSharedContext } from "./types.ts";
+import type {
+  AsyncHandler,
+  EventQty,
+  TicketCtx,
+  TicketSharedContext,
+} from "./types.ts";
 
 /** Try to redirect to checkout, or return error using provided handler.
  * When in iframe mode, returns a popup page instead of redirect since Stripe cannot run in iframes. */
@@ -114,10 +121,7 @@ export const checkAvailability = (
   date?: string | null,
 ): Promise<boolean> =>
   checkBatchAvailability(
-    eventsWithQuantity(events, quantities).map(({ event, qty }) => ({
-      eventId: event.id,
-      quantity: qty,
-    })),
+    buildBookings(eventsWithQuantity(events, quantities), date ?? null),
     date,
   );
 
@@ -161,36 +165,75 @@ export const handlePaymentFlow = (
   );
 
 /** Handle free ticket registration */
+/** Build booking objects from selected events */
+const buildBookings = (
+  selected: EventQty[],
+  date: string | null,
+): { eventId: number; quantity: number; date: string | null }[] =>
+  selected.map(({ event, qty }) => ({
+    eventId: event.id,
+    quantity: qty,
+    date: event.event_type === "daily" ? date : null,
+  }));
+
+/**
+ * Check if a multi-booking result is incomplete (some events failed capacity).
+ * If so, rolls back any partially-created attendee. Returns the failure reason.
+ */
+export const ensureAllBookings = async (
+  result: CreateAttendeeResult,
+  expectedCount: number,
+): Promise<
+  { ok: true } | { ok: false; reason: "capacity_exceeded" | "encryption_error" }
+> => {
+  if (result.success && result.attendees.length >= expectedCount) {
+    return { ok: true };
+  }
+  if (result.success && result.attendees.length > 0) {
+    await deleteAttendee(result.attendees[0]!.id);
+  }
+  return {
+    ok: false,
+    reason: result.success ? "capacity_exceeded" : result.reason,
+  };
+};
+
 export const processFreeReservation = async (
   events: TicketEvent[],
   quantities: Map<number, number>,
   contact: ContactInfo,
   date: string | null,
 ): Promise<
-  | { success: true; tokens: string[]; entries: EmailEntry[] }
+  | { success: true; token: string; entries: EmailEntry[] }
   | { success: false; error: string }
 > => {
-  const entries: EmailEntry[] = [];
-  for (const { event, qty } of eventsWithQuantity(events, quantities)) {
-    const eventDate = event.event_type === "daily" ? date : null;
-    const result = await createAttendeeAtomic({
-      eventId: event.id,
-      ...contact,
-      quantity: qty,
-      date: eventDate,
-    });
-    if (!result.success) {
-      return {
-        success: false,
-        error: formatAtomicError(result.reason, event.name),
-      };
-    }
-    entries.push({ event, attendee: result.attendee });
+  const selected = eventsWithQuantity(events, quantities);
+  const bookings = buildBookings(selected, date);
+  const result = await createAttendeeAtomic({ ...contact, bookings });
+
+  const check = await ensureAllBookings(result, bookings.length);
+  if (!check.ok) {
+    return {
+      success: false,
+      error: formatAtomicError(check.reason, selected[0]!.event.name),
+    };
   }
+  // ensureAllBookings guarantees result.success after ok check
+  const { attendees } = result as Extract<
+    CreateAttendeeResult,
+    { success: true }
+  >;
+
+  // Build entries: pair each attendee result with its event
+  const entries: EmailEntry[] = attendees.map((attendee, i) => ({
+    event: selected[i]!.event,
+    attendee,
+  }));
+
   await logAndNotifyRegistration(entries);
   return {
     success: true,
-    tokens: entries.map((entry) => entry.attendee.ticket_token),
+    token: attendees[0]!.ticket_token,
     entries,
   };
 };

@@ -7,6 +7,7 @@
 import { filter, map, pipe } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
+  type AttendeeWithBookings,
   decryptAttendees,
   getAttendeesByTokens,
   getAttendeesRaw,
@@ -17,6 +18,11 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 import type { Attendee } from "#lib/types.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
+import {
+  decryptTokenEntries,
+  resolveEntries,
+  type TokenEntry,
+} from "#routes/token-utils.ts";
 import {
   AUTH_JSON,
   getPrivateKey,
@@ -48,23 +54,13 @@ const handleScannerGet: IdRouteHandler = (request, { id }) =>
     }),
   );
 
-/** Look up attendee by token and decrypt */
-const resolveTokenAttendee = async (
-  token: string,
+/** Resolve an AttendeeWithBookings to decrypted entries */
+const resolveTokenEntries = async (
+  awb: AttendeeWithBookings,
   privateKey: CryptoKey,
-): Promise<Attendee | null> => {
-  const attendees = await getAttendeesByTokens([token]);
-  const raw = attendees[0];
-  if (!raw) return null;
-
-  // decryptAttendees maps 1:1 over input, so index 0 is always present
-  return (await decryptAttendees([raw], privateKey))[0]!;
-};
-
-/** Get event name by ID (for cross-event responses) */
-const getEventName = async (eventId: number): Promise<string> => {
-  const event = await getEventWithCount(eventId);
-  return event?.name ?? "Unknown event";
+): Promise<TokenEntry[]> => {
+  const entries = await resolveEntries([awb]);
+  return entries.length === 0 ? [] : decryptTokenEntries(entries, privateKey);
 };
 
 /**
@@ -94,60 +90,84 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
       );
     }
 
-    const attendee = await resolveTokenAttendee(token, privateKey);
-    if (!attendee) {
+    const results = await getAttendeesByTokens([token]);
+    const awb = results[0];
+    if (!awb) {
+      return jsonResponse({ status: "not_found" }, 404);
+    }
+
+    const allEntries = await resolveTokenEntries(awb, privateKey);
+
+    // Find the entry matching the scanned event
+    const matchingEntry = allEntries.find((e) => e.event.id === id);
+
+    // Decrypt name from first available entry, or from raw attendee if all events deleted
+    // Get name from resolved entries, or decrypt directly if all events were deleted
+    const attendeeName =
+      allEntries[0]?.attendee.name ??
+      (
+        await decryptAttendees(
+          [{ pii_blob: awb.pii_blob } as Attendee],
+          privateKey,
+        )
+      )[0]!.name;
+
+    // Wrong event — attendee not registered for the scanned event
+    if (!matchingEntry && !force) {
+      const eventNames =
+        allEntries.length > 0
+          ? allEntries.map((e) => e.event.name).join(", ")
+          : "Unknown event";
+      return jsonResponse({
+        status: "wrong_event",
+        name: attendeeName,
+        eventName: eventNames,
+      });
+    }
+
+    // When force=true, use the first entry if no match (cross-event check-in)
+    const entry = matchingEntry ?? allEntries[0];
+    if (!entry) {
       return jsonResponse({ status: "not_found" }, 404);
     }
 
     // Refunded - cannot check in
-    if (attendee.refunded) {
+    if (entry.attendee.refunded) {
       return jsonResponse({
         status: "refunded",
-        name: attendee.name,
-      });
-    }
-
-    // Wrong event - let client prompt for confirmation
-    if (attendee.event_id !== id && !force) {
-      const eventName = await getEventName(attendee.event_id);
-      return jsonResponse({
-        status: "wrong_event",
-        name: attendee.name,
-        eventName,
+        name: attendeeName,
       });
     }
 
     // Already checked in
-    if (attendee.checked_in) {
+    if (entry.attendee.checked_in) {
       return jsonResponse({
         status: "already_checked_in",
-        name: attendee.name,
-        quantity: attendee.quantity,
+        name: attendeeName,
+        quantity: entry.attendee.quantity,
       });
     }
 
     // Non-transferable event - require ID verification before check-in
-    const event = await getEventWithCount(force ? attendee.event_id : id);
-    if (event?.non_transferable && !idVerified) {
+    if (entry.event.non_transferable && !idVerified) {
       return jsonResponse({
         status: "verify_id",
-        name: attendee.name,
-        quantity: attendee.quantity,
+        name: attendeeName,
+        quantity: entry.attendee.quantity,
       });
     }
 
-    // Check them in
-    await updateCheckedIn(attendee.id, true);
-    const eventName = event?.name ?? (await getEventName(attendee.event_id));
+    // Check them in for the specific event
+    await updateCheckedIn(entry.attendee.id, entry.event.id, true);
     await logActivity(
-      `Attendee checked in via scanner for '${eventName}'`,
-      attendee.event_id,
+      `Attendee checked in via scanner for '${entry.event.name}'`,
+      entry.event.id,
     );
 
     return jsonResponse({
       status: "checked_in",
-      name: attendee.name,
-      quantity: attendee.quantity,
+      name: attendeeName,
+      quantity: entry.attendee.quantity,
     });
   });
 

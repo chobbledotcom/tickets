@@ -103,24 +103,27 @@ const trackedBatch = async (
   return results;
 };
 
-/**
- * Execute multiple read queries in a single round-trip using Turso batch API.
- * Significantly reduces latency for remote databases.
- */
-export const queryBatch = (
-  statements: Array<{ sql: string; args: InValue[] }>,
-): Promise<ResultSet[]> => trackedBatch(statements, "read");
+/** Create a batch executor for a given transaction mode */
+const batchFor =
+  (mode: TransactionMode) =>
+  (statements: Array<{ sql: string; args: InValue[] }>): Promise<ResultSet[]> =>
+    trackedBatch(statements, mode);
+
+/** Execute multiple read queries in a single round-trip using Turso batch API. */
+export const queryBatch = batchFor("read");
 
 /**
- * Execute multiple write statements in a single round-trip using Turso batch API.
- * Statements are executed in order within a single transaction, making this
- * ideal for cascading deletes and multi-step writes.
- * Reduces N sequential HTTP round-trips to 1.
+ * Execute multiple write statements and return their ResultSets.
+ * Statements run in order within a single transaction (Turso batch API).
+ * Ideal for cascading deletes and multi-step writes.
  */
+export const executeBatchWithResults = batchFor("write");
+
+/** Execute multiple write statements, discarding results. */
 export const executeBatch = async (
   statements: Array<{ sql: string; args: InValue[] }>,
 ): Promise<void> => {
-  await trackedBatch(statements, "write");
+  await executeBatchWithResults(statements);
 };
 
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */

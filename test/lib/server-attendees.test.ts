@@ -971,16 +971,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John Doe",
         email: "john@example.com",
         phone: "555-1234",
         address: "123 Main St",
         special_instructions: "VIP guest",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -1020,7 +1019,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("shows event selector with current event selected", async () => {
+    test("shows current event in registrations table", async () => {
       const event = await createTestEvent({
         name: "Current Event",
         maxAttendees: 100,
@@ -1039,11 +1038,88 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         response,
         200,
         "Current Event",
-        `<option value="${event.id}" selected>`,
+        "Event Registrations",
       );
     });
 
-    test("includes active events in selector", async () => {
+    test("edit page shows event registrations and add-to-event sections", async () => {
+      const event = await createTestEvent({
+        name: "Edit Page Event",
+        maxAttendees: 100,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Edit User",
+        "edit@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Event Registrations",
+        "Add to Event",
+        "Save Contact Info",
+      );
+      // Event link table shows the event
+      expect(html).toContain("Edit Page Event");
+      // Add-to-event section has event selector
+      expect(html).toContain("add_event_id");
+    });
+
+    test("edit page shows checked-in badge for checked-in attendee", async () => {
+      const event = await createTestEvent({
+        name: "Checkin Badge Event",
+        maxAttendees: 100,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Badge User",
+        "badge@example.com",
+      );
+      const { updateCheckedIn } = await import("#lib/db/attendees.ts");
+      await updateCheckedIn(attendee.id, event.id, true);
+      const { invalidateEventsCache } = await import("#lib/db/events.ts");
+      invalidateEventsCache();
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(response, 200, "Checked in");
+    });
+
+    test("edit page loads available dates for daily events", async () => {
+      const event = await createTestEvent({
+        name: "Daily Dates Event",
+        maxAttendees: 100,
+        eventType: "daily",
+      });
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        name: "Daily User",
+        email: "daily@example.com",
+        bookings: [{ eventId: event.id, date: "2026-04-07" }],
+      });
+      if (!result.success) throw new Error("Failed");
+      const attendeeId = result.attendees[0]!.id;
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Daily Dates Event",
+        "available-dates-data",
+      );
+      expect(html).toContain("2026-");
+    });
+
+    test("includes active events in add-to-event selector", async () => {
       const event1 = await createTestEvent({
         name: "Event 1",
         maxAttendees: 100,
@@ -1200,33 +1276,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expectFlash(response, expect.stringContaining("Name is required"), false);
     });
 
-    test("rejects missing event_id", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: "0",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Event is required"),
-        false,
-      );
-    });
-
     test("updates attendee with new data", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
@@ -1299,43 +1348,32 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expectFlash(response, expect.stringContaining("John Doe"));
     });
 
-    test("allows moving attendee to different event", async () => {
-      const event1 = await createTestEvent({
+    test("updates attendee PII via edit form", async () => {
+      const event = await createTestEvent({
         name: "Event 1",
         maxAttendees: 100,
       });
-      const event2 = await createTestEvent({
-        name: "Event 2",
-        maxAttendees: 100,
-      });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        event.id,
+        event.slug,
         "John Doe",
         "john@example.com",
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "John Doe",
-          email: "john@example.com",
+          name: "Jane Smith",
+          email: "jane@example.com",
           phone: "",
           address: "",
           special_instructions: "",
-          event_id: String(event2.id),
         },
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/event/${event2.id}#attendees`,
-        "Updated John Doe",
+        `/admin/event/${event.id}#attendees`,
+        "Updated Jane Smith",
       )(response);
-
-      // Verify attendee was moved to event2 by checking the raw attendee data
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const updated = await getAttendeeRaw(attendee.id);
-      expect(updated).not.toBeNull();
-      expect(updated!.event_id).toBe(event2.id);
     });
 
     test("event page shows edit success message", async () => {
@@ -1369,7 +1407,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("shows current event and active events in selector", async () => {
+    test("shows current event in registrations and active events in add-to-event", async () => {
       const event1 = await createTestEvent({
         name: "Event 1",
         maxAttendees: 100,
@@ -1382,13 +1420,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event1.id,
         name: "John Doe",
         email: "john@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event1.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -1399,7 +1436,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         200,
         "Event 1",
         "Event 2",
-        `<option value="${event1.id}" selected>`,
+        "Add to Event",
       );
     });
 
@@ -1407,13 +1444,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John Doe",
         email: "",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -1422,47 +1458,51 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, 'type="email"', 'name="email"');
     });
 
-    test("shows inactive event label in selector", async () => {
+    test("shows inactive event in registrations table", async () => {
       const inactiveEvent = await createTestEvent({
         name: "Inactive Event",
         maxAttendees: 100,
       });
 
-      // Manually set event to inactive
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        name: "John Doe",
+        email: "john@example.com",
+        bookings: [{ eventId: inactiveEvent.id, quantity: 1 }],
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendees[0]!;
+
+      // Manually set event to inactive after creating attendee
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
         sql: "UPDATE events SET active = 0 WHERE id = ?",
         args: [inactiveEvent.id],
       });
 
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        eventId: inactiveEvent.id,
-        name: "John Doe",
-        email: "john@example.com",
-        quantity: 1,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
-
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
-      await expectHtmlResponse(response, 200, "Inactive Event", "(inactive)");
+      // Event still shows in registrations table even when inactive
+      await expectHtmlResponse(
+        response,
+        200,
+        "Inactive Event",
+        "Event Registrations",
+      );
     });
 
     test("updates attendee with empty email", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John Doe",
         email: "john@example.com",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
@@ -1482,16 +1522,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "John Doe",
         email: "john@example.com",
         phone: "555-1234",
         address: "123 Main St",
         special_instructions: "VIP",
-        quantity: 1,
+        bookings: [{ eventId: event.id, quantity: 1 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendee;
+      const attendee = result.attendees[0]!;
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
@@ -1646,33 +1685,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
       expect(updated!.quantity).toBe(1);
-    });
-
-    test("rejects non-existent event_id on quantity update", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: "9999",
-          quantity: "2",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Event not found"), false);
     });
 
     test("treats invalid quantity as 1", async () => {
@@ -1840,12 +1852,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Create attendee with price_paid using createAttendeeAtomic
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Jane Paid",
         email: "jane@example.com",
-        quantity: 1,
-        pricePaid: 1000,
         paymentId: "pi_test",
+        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
 
       if (!result.success) {
@@ -1853,7 +1863,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       }
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${result.attendee.id}/resend-notification`,
+        `/admin/event/${event.id}/attendee/${result.attendees[0]!.id}/resend-notification`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -1982,16 +1992,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Paid User",
         email: "paid@example.com",
-        quantity: 1,
-        pricePaid: 1000,
         paymentId: "pi_test_123",
+        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const response = await awaitTestRequest(
-        `/admin/attendees/${result.attendee.id}`,
+        `/admin/attendees/${result.attendees[0]!.id}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -2013,17 +2021,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "#lib/db/attendees.ts"
       );
       const result = await createAttendeeAtomic({
-        eventId: event.id,
         name: "Refunded User",
         email: "refunded@example.com",
-        quantity: 1,
-        pricePaid: 1000,
         paymentId: "pi_refunded_123",
+        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      await markRefunded(result.attendee.id);
+      await markRefunded(result.attendees[0]!.id, event.id);
       const response = await awaitTestRequest(
-        `/admin/attendees/${result.attendee.id}`,
+        `/admin/attendees/${result.attendees[0]!.id}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Refunded");
@@ -2382,6 +2388,346 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const answers = await getAttendeeAnswersBatch([attendee.id]);
       const attendeeAnswers = answers.get(attendee.id) ?? [];
       expect(attendeeAnswers.length).toBe(0);
+    });
+  });
+
+  describe("event link management", () => {
+    test("POST /admin/attendees/:id/link adds event link", async () => {
+      const event1 = await createTestEvent({
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "Link User",
+        "link@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/link`,
+        { event_id: String(event2.id), quantity: "2" },
+      );
+      expect(response.status).toBe(302);
+
+      // Verify attendee is linked to both events
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const att1 = await getAttendeesRaw(event1.id);
+      const att2 = await getAttendeesRaw(event2.id);
+      expect(att1.length).toBe(1);
+      expect(att2.length).toBe(1);
+      expect(att2[0]!.quantity).toBe(2);
+    });
+
+    test("POST /admin/attendees/:id/link rejects missing event_id", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "No Event",
+        "noevent@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/link`,
+        { event_id: "0", quantity: "1" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Event is required"),
+        false,
+      );
+    });
+
+    test("POST /admin/attendees/:id/link rejects when capacity exceeded", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 1 });
+      const attendee = await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "Cap",
+        "cap@test.com",
+      );
+      // Fill event2
+      await createTestAttendee(
+        event2.id,
+        event2.slug,
+        "Filler",
+        "filler@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/link`,
+        { event_id: String(event2.id), quantity: "1" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Not enough spots"), false);
+    });
+
+    test("POST /admin/attendees/:id/link rejects non-existent event", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Bad",
+        "bad@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/link`,
+        { event_id: "99999", quantity: "1" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Event not found"), false);
+    });
+
+    test("POST /admin/attendees/:id/unlink/:eventId removes event link", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const { createAttendeeAtomic: create } = await import(
+        "#lib/db/attendees.ts"
+      );
+      const result = await create({
+        name: "Unlink",
+        email: "unlink@test.com",
+        bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+      });
+      if (!result.success) throw new Error("Failed to create");
+      const attendeeId = result.attendees[0]!.id;
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}/unlink/${event1.id}`,
+      );
+      expect(response.status).toBe(302);
+
+      // Attendee still linked to event2
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      expect((await getAttendeesRaw(event1.id)).length).toBe(0);
+      expect((await getAttendeesRaw(event2.id)).length).toBe(1);
+    });
+
+    test("POST /admin/attendees/:id/unlink/:eventId blocks removing last event", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "LastLink",
+        "lastlink@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/unlink/${event.id}`,
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("delete the attendee instead"),
+        false,
+      );
+    });
+
+    test("POST /admin/attendees/:id/event/:eventId updates quantity", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        maxQuantity: 10,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Qty",
+        "qty@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        { quantity: "5" },
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const raw = await getAttendeesRaw(event.id);
+      expect(raw[0]!.quantity).toBe(5);
+    });
+
+    test("POST /admin/attendees/:id/event/:eventId rejects over-capacity", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 3,
+        maxQuantity: 10,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Over",
+        "over@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        { quantity: "5" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Not enough spots"), false);
+    });
+
+    test("POST /admin/attendees/:id/event/:eventId rejects non-existent event", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Missing",
+        "missing@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/event/99999`,
+        { quantity: "1" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Event not found"), false);
+    });
+
+    test("POST /admin/attendees/:id/link defaults missing quantity to 1", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "Default Qty",
+        "dq@test.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/link`,
+        { event_id: String(event2.id) },
+      );
+      expect(response.status).toBe(302);
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const raw = await getAttendeesRaw(event2.id);
+      expect(raw[0]!.quantity).toBe(1);
+    });
+
+    test("POST /admin/attendees/:id/link handles daily event without date", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({
+        maxAttendees: 50,
+        eventType: "daily",
+      });
+      const attendee = await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "No Date",
+        "nodate@test.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/link`,
+        { event_id: String(event2.id), date: "" },
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("POST /admin/attendees/:id/link handles daily event with date", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({
+        maxAttendees: 50,
+        eventType: "daily",
+      });
+      const attendee = await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "Daily Link",
+        "dl@test.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/link`,
+        { event_id: String(event2.id), date: "2026-04-07" },
+      );
+      expect(response.status).toBe(302);
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const raw = await getAttendeesRaw(event2.id);
+      expect(raw[0]!.date).toBe("2026-04-07");
+    });
+
+    test("POST /admin/attendees/:id/event/:eventId defaults missing quantity to 1", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Upd Qty",
+        "uq@test.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/event/${event.id}`,
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("POST /admin/attendees/:id/event/:eventId handles standard event (no date)", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Std Upd",
+        "su@test.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        { quantity: "2", date: "" },
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("POST /admin/attendees/:id/event/:eventId handles daily event without date", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        eventType: "daily",
+      });
+      const { createAttendeeAtomic: create } = await import(
+        "#lib/db/attendees.ts"
+      );
+      const result = await create({
+        name: "Daily NoDate",
+        email: "dnd@test.com",
+        bookings: [{ eventId: event.id, date: "2026-04-07" }],
+      });
+      if (!result.success) throw new Error("Failed");
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${result.attendees[0]!.id}/event/${event.id}`,
+        { quantity: "1", date: "" },
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("POST /admin/attendees/:id/event/:eventId handles daily event date", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        eventType: "daily",
+      });
+      const { createAttendeeAtomic: create } = await import(
+        "#lib/db/attendees.ts"
+      );
+      const result = await create({
+        name: "Daily Upd",
+        email: "du@test.com",
+        bookings: [{ eventId: event.id, date: "2026-04-07" }],
+      });
+      if (!result.success) throw new Error("Failed");
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${result.attendees[0]!.id}/event/${event.id}`,
+        { quantity: "1", date: "2026-04-08" },
+      );
+      expect(response.status).toBe(302);
     });
   });
 });
