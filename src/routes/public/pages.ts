@@ -22,10 +22,6 @@ import {
 /** Active+visible filter for public event listings */
 const isPublicEvent = (e: EventWithCount): boolean => e.active && !e.hidden;
 
-/** Filter for ungrouped public events (grouped events are shown via their group) */
-const isUngroupedPublicEvent = (e: EventWithCount): boolean =>
-  isPublicEvent(e) && e.group_id === 0;
-
 /** Load non-hidden groups (for public listing) */
 const loadPublicGroups = async (): Promise<Group[]> => {
   const groups = await getAllGroups();
@@ -57,7 +53,7 @@ export const handlePublicEvents = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
     const [groups, { events }] = await Promise.all([
       loadPublicGroups(),
-      loadSortedEvents(isUngroupedPublicEvent),
+      loadSortedEvents(isPublicEvent),
     ]);
     const ticketEvents = events.map((e) =>
       buildTicketEvent(e, isRegistrationClosed(e)),
