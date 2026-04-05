@@ -108,9 +108,9 @@ export const extractTokenSegment = (
   return match?.[1] ?? null;
 };
 
-/** Parse +-separated tokens from a combined string */
+/** Parse +-separated tokens from a combined string, removing duplicates */
 export const parseTokens = (tokensStr: string): string[] =>
-  tokensStr.split("+").filter((s) => s.length > 0);
+  unique(tokensStr.split("+").filter((s) => s.length > 0));
 
 /** Build an Attendee object from base attendee data + one booking's per-event data */
 const buildAttendeeView = (
