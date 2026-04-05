@@ -87,32 +87,24 @@ export const generateSvgTicket = async (
     )
     .join("\n    ");
 
-  if (data.purchaseOnly) {
-    const totalHeight = HEADER_Y + infoHeight + MARGIN;
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}" viewBox="0 0 ${WIDTH} ${totalHeight}">
-  <rect width="${WIDTH}" height="${totalHeight}" rx="8" fill="#fff" stroke="#ddd" stroke-width="1"/>
-  <text x="${MARGIN}" y="${HEADER_Y}" font-family="sans-serif" font-size="18" font-weight="bold" fill="#333">${escapedName}</text>
-    ${linesSvg}
-</svg>`;
+  let qrSection = "";
+  let totalHeight = HEADER_Y + infoHeight + MARGIN;
+
+  if (!data.purchaseOnly) {
+    const qrSvg = await generateQrSvg(data.checkinUrl);
+    const qrViewBox = extractViewBox(qrSvg);
+    const qrContent = extractSvgContent(qrSvg);
+    const scale = QR_SIZE / qrViewBox.width;
+    const qrY = HEADER_Y + infoHeight + 16;
+    const qrX = (WIDTH - QR_SIZE) / 2;
+    totalHeight = qrY + QR_SIZE + MARGIN;
+    qrSection = `\n  <g transform="translate(${qrX}, ${qrY}) scale(${scale})">\n    ${qrContent}\n  </g>`;
   }
-
-  const qrSvg = await generateQrSvg(data.checkinUrl);
-  const qrViewBox = extractViewBox(qrSvg);
-  const qrContent = extractSvgContent(qrSvg);
-  const scale = QR_SIZE / qrViewBox.width;
-
-  const qrY = HEADER_Y + infoHeight + 16;
-  const totalHeight = qrY + QR_SIZE + MARGIN;
-  const qrX = (WIDTH - QR_SIZE) / 2;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${totalHeight}" viewBox="0 0 ${WIDTH} ${totalHeight}">
   <rect width="${WIDTH}" height="${totalHeight}" rx="8" fill="#fff" stroke="#ddd" stroke-width="1"/>
   <text x="${MARGIN}" y="${HEADER_Y}" font-family="sans-serif" font-size="18" font-weight="bold" fill="#333">${escapedName}</text>
-    ${linesSvg}
-  <g transform="translate(${qrX}, ${qrY}) scale(${scale})">
-    ${qrContent}
-  </g>
+    ${linesSvg}${qrSection}
 </svg>`;
 };
