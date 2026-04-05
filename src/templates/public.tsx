@@ -462,12 +462,7 @@ export const ticketPage = ({
   const title = singleEvent ? singleEvent.name : "Reserve Tickets";
   const headExtra =
     singleEvent && baseUrl ? buildOgTags(singleEvent, baseUrl) : undefined;
-  const allPurchaseOnly = events.every((e) => e.event.purchase_only);
-  const buttonText = allPurchaseOnly
-    ? "Buy now"
-    : isSingleEvent && hideQuantity
-      ? "Reserve Ticket"
-      : "Reserve Tickets";
+  const buttonText = "Continue";
 
   return String(
     <Layout

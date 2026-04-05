@@ -717,7 +717,7 @@ describe("html", () => {
       expect(html).toContain('action="/ticket/ab12c"');
       expect(html).toContain('name="name"');
       expect(html).toContain('name="email"');
-      expect(html).toContain("Reserve Ticket");
+      expect(html).toContain("Continue");
     });
 
     test("includes CSRF token in form", () => {
@@ -756,7 +756,7 @@ describe("html", () => {
       expect(html).toContain(`name="quantity_${multiQtyEvent.id}"`);
       expect(html).toContain('<option value="1">1</option>');
       expect(html).toContain('<option value="5">5</option>');
-      expect(html).toContain("Reserve Tickets"); // Plural
+      expect(html).toContain("Continue");
     });
 
     test("limits quantity selector to remaining spots", () => {
@@ -776,18 +776,16 @@ describe("html", () => {
       expect(html).toContain(
         `type="hidden" name="quantity_${event.id}" value="1"`,
       );
-      expect(html).toContain("Reserve Ticket"); // Singular
-      expect(html).not.toContain("Reserve Tickets"); // Not plural
+      expect(html).toContain("Continue");
     });
 
-    test("shows Buy now button for purchase_only event", () => {
+    test("shows Continue button for purchase_only event", () => {
       const poEvent = testEventWithCount({
         attendee_count: 50,
         purchase_only: true,
       });
       const html = renderTicket(poEvent);
-      expect(html).toContain("Buy now");
-      expect(html).not.toContain("Reserve Ticket");
+      expect(html).toContain("Continue");
     });
 
     test("shows phone field for phone-only events", () => {
@@ -1047,21 +1045,20 @@ describe("html", () => {
   });
 
   describe("successPage", () => {
-    test("renders payment success message when paid", () => {
+    test("renders order success message when paid", () => {
       const html = successPage({
         ticketUrl: null,
         thankYouUrl: "https://example.com/thanks",
         paid: true,
       });
-      expect(html).toContain("Payment Successful");
+      expect(html).toContain("Thank you for your order");
       expect(html).toContain("https://example.com/thanks");
     });
 
-    test("renders reservation success message when not paid", () => {
+    test("renders order success message when not paid", () => {
       const html = successPage({ ticketUrl: "/t/abc123" });
-      expect(html).toContain("Ticket Reserved");
-      expect(html).toContain("Ticket reserved successfully.");
-      expect(html).not.toContain("Payment Successful");
+      expect(html).toContain("Order Successful");
+      expect(html).toContain("Thank you for your order");
     });
 
     test("includes meta refresh redirect", () => {
@@ -1162,25 +1159,6 @@ describe("html", () => {
       expect(html).not.toContain("Junk/Spam");
     });
 
-    test("renders purchase complete message for purchaseOnly", () => {
-      const html = successPage({
-        ticketUrl: "/t/abc123",
-        purchaseOnly: true,
-      });
-      expect(html).toContain("Purchase Complete");
-      expect(html).toContain("Purchase complete.");
-      expect(html).not.toContain("Ticket Reserved");
-    });
-
-    test("renders payment successful for paid purchaseOnly events", () => {
-      const html = successPage({
-        ticketUrl: "/t/abc123",
-        paid: true,
-        purchaseOnly: true,
-      });
-      expect(html).toContain("Payment Successful");
-      expect(html).not.toContain("Purchase Complete");
-    });
   });
 
   describe("paymentCancelPage", () => {
@@ -4428,7 +4406,7 @@ describeWithEnv(
         dates: [],
       });
       expect(html).toContain("Registration closed.");
-      expect(html).not.toContain("Reserve Ticket");
+      expect(html).not.toContain("Continue");
     });
   },
 );

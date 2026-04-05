@@ -8,7 +8,6 @@ import { computeGroupSlugIndex, getGroupBySlugIndex } from "#lib/db/groups.ts";
 import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { lookupAttendees, resolveEntries } from "#routes/token-utils.ts";
 import { htmlResponse, notFoundResponse } from "#routes/utils.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleGroupTicketBySlug } from "./groups.ts";
@@ -30,15 +29,7 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
   const fromEmail = tokens.length > 0 ? await getFromEmailIfConfigured() : "";
 
-  let purchaseOnly = false;
-  if (tokens.length > 0) {
-    const result = await lookupAttendees(tokens);
-    if (result.ok) {
-      const entries = await resolveEntries(result.attendees);
-      purchaseOnly = entries.every((e) => e.event.purchase_only);
-    }
-  }
-  return htmlResponse(successPage({ ticketUrl, fromEmail, purchaseOnly }));
+  return htmlResponse(successPage({ ticketUrl, fromEmail }));
 };
 
 /** Handle ticket request: try events by slugs, fall back to group for single slugs */

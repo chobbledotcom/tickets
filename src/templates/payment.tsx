@@ -48,28 +48,16 @@ export const successPage = ({
   thankYouUrl = "",
   paid = false,
   fromEmail = "",
-  purchaseOnly = false,
 }: {
   ticketUrl: string | null;
   thankYouUrl?: string;
   paid?: boolean;
   fromEmail?: string;
-  purchaseOnly?: boolean;
 }): string => {
   const inIframe = getIframeMode();
-  const title = paid
-    ? "Payment Successful"
-    : purchaseOnly
-      ? "Purchase Complete"
-      : "Ticket Reserved";
-  const heading = paid
-    ? "Payment Successful!"
-    : purchaseOnly
-      ? "Purchase complete."
-      : "Ticket reserved successfully.";
   return String(
     <Layout
-      title={title}
+      title="Order Successful"
       headExtra={
         thankYouUrl
           ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">`
@@ -81,12 +69,7 @@ export const successPage = ({
         data-payment-result={paid ? "success" : undefined}
         data-scroll-into-view={inIframe || undefined}
       >
-        <h1>{heading}</h1>
-        {paid ? (
-          <div class="success" role="alert">
-            <p>Thank you for your payment. Your ticket has been confirmed.</p>
-          </div>
-        ) : null}
+        <h1>Thank you for your order.</h1>
         {fromEmail ? (
           <p>
             <small>

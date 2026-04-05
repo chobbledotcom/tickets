@@ -665,7 +665,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           await expectHtmlResponse(
             response,
             200,
-            "Payment Successful",
+            "Thank you for your order",
             "https://example.com/thanks",
             "Click here to view your ticket",
             'target="_blank"',
@@ -936,7 +936,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const html = await expectHtmlResponse(
           response,
           200,
-          "Payment Successful",
+          "Thank you for your order",
           "Click here to view your tickets",
         );
         // Multi-slug ticket should NOT have thank_you_url (different events)
@@ -1258,7 +1258,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        expect(html).toContain("Payment Successful");
+        expect(html).toContain("Thank you for your order");
 
         // Should still only have one attendee
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1315,7 +1315,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        expect(html).toContain("Payment Successful");
+        expect(html).toContain("Thank you for your order");
         // Single-item cart replay also shows thank_you_url
         expect(html).toContain("redirected");
       } finally {
@@ -1371,7 +1371,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        expect(html).toContain("Payment Successful");
+        expect(html).toContain("Thank you for your order");
       } finally {
         mockRetrieve.restore();
       }
