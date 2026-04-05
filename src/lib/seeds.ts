@@ -12,15 +12,10 @@ import { executeBatch, queryAll } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
-  DEMO_ADDRESSES,
-  DEMO_EMAILS,
   DEMO_EVENT_DESCRIPTIONS,
   DEMO_EVENT_LOCATIONS,
   DEMO_EVENT_NAMES,
-  DEMO_PHONES,
-  DEMO_SPECIAL_INSTRUCTIONS,
   randomChoice,
-  randomName,
 } from "#lib/demo.ts";
 import { nowIso } from "#lib/now.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#lib/slug.ts";
@@ -141,50 +136,18 @@ const prepareAttendee = async (
   const created = nowIso();
   const pricePaid = String(unitPrice * quantity);
 
-  // Encrypt contact fields, ticket metadata, and compute token index in parallel
-  const [
-    encContact,
-    encPaymentId,
-    encPricePaid,
-    encCheckedIn,
-    encRefunded,
-    encTicketToken,
-    ticketTokenIndex,
-  ] = await Promise.all([
-    Promise.all([
-      encPII(randomName()),
-      encPII(randomChoice(DEMO_EMAILS)),
-      encPII(randomChoice(DEMO_PHONES)),
-      encPII(randomChoice(DEMO_ADDRESSES)),
-      encPII(randomChoice(DEMO_SPECIAL_INSTRUCTIONS)),
-    ]),
-    unitPrice > 0 ? encPII(`pi_seed_${eventId}_${Date.now()}`) : encPII(""),
+  // Encrypt status fields and compute token index in parallel
+  const [encPricePaid, encCheckedIn, ticketTokenIndex] = await Promise.all([
     encrypt(pricePaid),
     encPII("false"),
-    encPII("false"),
-    encPII(ticketToken),
     computeTicketTokenIndex(ticketToken),
   ]);
 
-  const [encName, encEmail, encPhone, encAddress, encSpecial] = encContact;
   return [
     {
-      sql: `INSERT INTO attendees (name, email, phone, address, special_instructions, created, payment_id, price_paid, checked_in, refunded, ticket_token, ticket_token_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        encName,
-        encEmail,
-        encPhone,
-        encAddress,
-        encSpecial,
-        created,
-        encPaymentId,
-        encPricePaid,
-        encCheckedIn,
-        encRefunded,
-        encTicketToken,
-        ticketTokenIndex,
-      ],
+      sql: `INSERT INTO attendees (created, price_paid, checked_in, ticket_token_index)
+            VALUES (?, ?, ?, ?)`,
+      args: [created, encPricePaid, encCheckedIn, ticketTokenIndex],
     },
     {
       sql: "INSERT INTO event_attendees (event_id, attendee_id, quantity) VALUES (?, last_insert_rowid(), ?)",

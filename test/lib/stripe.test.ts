@@ -2243,9 +2243,7 @@ describeWithEnv(
         );
         expect(result).not.toBeNull();
         expect(result).toHaveProperty("error");
-        expect((result as { error: string }).error).toMatch(
-          /too many events/i,
-        );
+        expect((result as { error: string }).error).toMatch(/too many events/i);
       });
 
       test("returns null for non-PaymentUserError exceptions", async () => {
