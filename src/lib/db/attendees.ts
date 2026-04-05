@@ -664,13 +664,17 @@ export const attendeesApi = {
     // last_insert_rowid() updates after each INSERT in a batch, so the 2nd+
     // booking would get the event_attendees row ID instead of the attendee ID.
     const attendeeIdExpr =
-      `(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)`;
+      "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
     const bookingStatements = bookings.map((booking) => {
-      const { sql, args } = buildCapacityCheckedInsert(
-        booking,
-        attendeeIdExpr,
-      );
-      return { sql, args: [args[0], enc.ticketTokenIndex, ...args.slice(1)] };
+      const { sql, args } = buildCapacityCheckedInsert(booking, attendeeIdExpr);
+      // Splice ticketTokenIndex after the first arg (eventId) to bind
+      // the ? in the attendeeIdExpr subquery
+      const combined: InValue[] = [
+        args[0]!,
+        enc.ticketTokenIndex,
+        ...args.slice(1),
+      ];
+      return { sql, args: combined };
     });
 
     // Single ACID transaction: attendee first, then capacity-checked event links.
