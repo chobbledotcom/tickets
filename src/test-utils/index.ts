@@ -1890,6 +1890,7 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   name: "Test Group",
   slug: "test-group",
   slug_index: "test-group-index",
+  description: "",
   terms_and_conditions: "",
   max_attendees: 0,
   hidden: false,
@@ -1906,6 +1907,7 @@ export const createTestGroup = async (
 ): Promise<Group> => {
   const input = {
     name: overrides.name ?? "Test Group",
+    description: overrides.description ?? "",
     termsAndConditions: overrides.termsAndConditions ?? "",
     maxAttendees: overrides.maxAttendees ?? 0,
     hidden: overrides.hidden ?? false,
@@ -1915,6 +1917,7 @@ export const createTestGroup = async (
     "/admin/groups",
     {
       name: input.name,
+      description: input.description,
       terms_and_conditions: input.termsAndConditions,
       max_attendees: String(input.maxAttendees),
       ...(input.hidden ? { hidden: "1" } : {}),
@@ -1931,6 +1934,7 @@ export const createTestGroup = async (
     return updateTestGroup(group.id, {
       name: group.name,
       slug: overrides.slug,
+      description: group.description,
       termsAndConditions: group.terms_and_conditions,
       maxAttendees: group.max_attendees,
       hidden: group.hidden,
@@ -1956,6 +1960,7 @@ export const updateTestGroup = async (
     {
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
+      description: updates.description ?? existing.description,
       terms_and_conditions:
         updates.termsAndConditions ?? existing.terms_and_conditions,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),

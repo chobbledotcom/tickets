@@ -275,6 +275,27 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
     });
 
+    test("shows group description on events page", async () => {
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "Described Festival",
+        slug: "described-festival",
+        description: "A wonderful summer celebration",
+      });
+      await createTestEvent({
+        name: "Described Festival Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      await expectHtmlResponse(
+        response,
+        200,
+        "Described Festival",
+        "A wonderful summer celebration",
+      );
+    });
+
     test("does not show hidden groups on events page", async () => {
       await settings.update.showPublicSite(true);
       const group = await createTestGroup({

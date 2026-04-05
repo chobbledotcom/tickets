@@ -95,6 +95,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         200,
         "Add Group",
         "Group Name",
+        "Description (optional)",
         "Terms and Conditions",
       );
       expect(html).not.toContain('name="slug"');
@@ -141,6 +142,20 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(group.terms_and_conditions).toBe("Group terms");
     });
 
+    test("creates group with description", async () => {
+      const group = await createTestGroup({
+        name: "Described Group",
+        description: "A fun group of events",
+      });
+      expect(group.name).toBe("Described Group");
+      expect(group.description).toBe("A fun group of events");
+    });
+
+    test("creates group without description defaults to empty string", async () => {
+      const group = await createTestGroup({ name: "No Desc Group" });
+      expect(group.description).toBe("");
+    });
+
     test("creates group with hidden flag", async () => {
       const group = await createTestGroup({
         name: "Hidden Group",
@@ -174,6 +189,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const group = await createTestGroup({
         name: "Editable",
         slug: "editable",
+        description: "Editable description",
         termsAndConditions: "Original terms",
       });
       const { response } = await adminGet(`/admin/groups/${group.id}/edit`);
@@ -183,6 +199,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Edit Group",
         "Editable",
         "editable",
+        "Editable description",
         "Original terms",
       );
     });
@@ -241,6 +258,20 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(updated.name).toBe("After");
       expect(updated.slug).toBe("after");
       expect(updated.terms_and_conditions).toBe("Updated terms");
+    });
+
+    test("updates group description", async () => {
+      const group = await createTestGroup({
+        name: "Desc Edit",
+        slug: "desc-edit",
+        description: "Original description",
+      });
+      expect(group.description).toBe("Original description");
+      const updated = await updateTestGroup(group.id, {
+        description: "Updated description",
+      });
+      expect(updated.description).toBe("Updated description");
+      expect(updated.name).toBe("Desc Edit");
     });
 
     test("updates group hidden flag", async () => {

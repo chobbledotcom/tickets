@@ -406,6 +406,12 @@ export const col = {
     decrypt: ColumnTransform<T>,
   ): ColumnDef<T> => ({ write: encrypt, read: decrypt }),
 
+  /** Encrypted text column with empty-string default */
+  encryptedText: (
+    encrypt: ColumnTransform<string>,
+    decrypt: ColumnTransform<string>,
+  ): ColumnDef<string> => ({ default: () => "", write: encrypt, read: decrypt }),
+
   /** Wrap an existing encrypted column def to pass through null values */
   encryptedNullable: <T>(def: ColumnDef<T>): ColumnDef<T | null> => ({
     write: def.write ? wrapNullable(def.write) : undefined,

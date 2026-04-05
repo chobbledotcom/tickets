@@ -59,6 +59,7 @@ export const generateUniqueGroupSlug = () =>
 /** Shared fields from group form values */
 const sharedGroupFields = (values: GroupCreateFormValues) => ({
   name: values.name,
+  description: values.description,
   termsAndConditions: values.terms_and_conditions,
   maxAttendees: values.max_attendees ?? 0,
   hidden: values.hidden === "1",

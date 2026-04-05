@@ -194,6 +194,7 @@ export interface Group {
   slug: string;
   slug_index: string;
   name: string;
+  description: string;
   terms_and_conditions: string;
   max_attendees: number;
   hidden: boolean;
