@@ -131,7 +131,7 @@ const renderEventListing = (info: TicketEvent): string => {
 /** Render a single group listing for the events page (same style as events) */
 const renderGroupListing = (group: Group): string => {
   const descriptionHtml = group.description
-    ? `<p>${renderMarkdownInline(group.description)}</p>`
+    ? renderMarkdownInline(group.description)
     : "";
   const linkHtml = isReadOnly()
     ? "<p><strong>Registration Closed</strong></p>"

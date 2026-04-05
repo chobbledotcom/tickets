@@ -595,7 +595,7 @@ const groupDescriptionField: Field = {
   label: "Description (optional)",
   type: "textarea",
   placeholder: "A short description of the group",
-  hint: "Shown on the ticket page.",
+  hint: "Shown on the public page.",
   hintHtml: FORMATTING_HINT,
   maxlength: MAX_TEXTAREA_LENGTH,
   validate: validateDescription,
