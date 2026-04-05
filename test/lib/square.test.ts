@@ -568,7 +568,6 @@ describe("square", () => {
         },
       );
     });
-
   });
 
   describe("createPaymentLink", () => {

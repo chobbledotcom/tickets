@@ -1,7 +1,7 @@
+import { createClient, type ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { createClient, type ResultSet } from "@libsql/client";
 import { FakeTime } from "@std/testing/time";
 import { decryptWithKey } from "#lib/crypto/encryption.ts";
 import { deriveKEK, importPrivateKey, unwrapKey } from "#lib/crypto/keys.ts";
@@ -3538,7 +3538,7 @@ describe("event_attendees migration from legacy schema", () => {
 
   /** SQL statements that create the complete legacy schema (as on main) */
   const LEGACY_SCHEMA_SQL = [
-    `CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+    "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
     `CREATE TABLE events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created TEXT NOT NULL,
@@ -3569,7 +3569,7 @@ describe("event_attendees migration from legacy schema", () => {
       hidden INTEGER NOT NULL DEFAULT 0,
       max_price INTEGER NOT NULL DEFAULT 0
     )`,
-    `CREATE UNIQUE INDEX idx_events_slug_index ON events(slug_index)`,
+    "CREATE UNIQUE INDEX idx_events_slug_index ON events(slug_index)",
     `CREATE TABLE users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username_hash TEXT NOT NULL,
@@ -3580,7 +3580,7 @@ describe("event_attendees migration from legacy schema", () => {
       invite_code_hash TEXT,
       invite_expiry TEXT
     )`,
-    `CREATE UNIQUE INDEX idx_users_username_index ON users(username_index)`,
+    "CREATE UNIQUE INDEX idx_users_username_index ON users(username_index)",
     `CREATE TABLE sessions (
       token TEXT PRIMARY KEY,
       csrf_token TEXT NOT NULL,
@@ -3617,7 +3617,7 @@ describe("event_attendees migration from legacy schema", () => {
       price_paid_v2 INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (event_id) REFERENCES events(id)
     )`,
-    `CREATE UNIQUE INDEX idx_attendees_ticket_token_index ON attendees(ticket_token_index)`,
+    "CREATE UNIQUE INDEX idx_attendees_ticket_token_index ON attendees(ticket_token_index)",
     `CREATE TABLE processed_payments (
       payment_session_id TEXT PRIMARY KEY,
       attendee_id INTEGER,
@@ -3640,7 +3640,7 @@ describe("event_attendees migration from legacy schema", () => {
       terms_and_conditions TEXT NOT NULL DEFAULT '',
       max_attendees INTEGER NOT NULL DEFAULT 0
     )`,
-    `CREATE UNIQUE INDEX idx_groups_slug_index ON groups(slug_index)`,
+    "CREATE UNIQUE INDEX idx_groups_slug_index ON groups(slug_index)",
     `CREATE TABLE holidays (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -3657,7 +3657,7 @@ describe("event_attendees migration from legacy schema", () => {
       last_used TEXT NOT NULL DEFAULT '',
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
-    `CREATE UNIQUE INDEX idx_api_keys_key_index ON api_keys(key_index)`,
+    "CREATE UNIQUE INDEX idx_api_keys_key_index ON api_keys(key_index)",
     `CREATE TABLE questions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       text TEXT NOT NULL
@@ -3669,7 +3669,7 @@ describe("event_attendees migration from legacy schema", () => {
       sort_order INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (question_id) REFERENCES questions(id)
     )`,
-    `CREATE INDEX idx_answers_question_id ON answers(question_id)`,
+    "CREATE INDEX idx_answers_question_id ON answers(question_id)",
     `CREATE TABLE event_questions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id INTEGER NOT NULL,
@@ -3678,8 +3678,8 @@ describe("event_attendees migration from legacy schema", () => {
       FOREIGN KEY (event_id) REFERENCES events(id),
       FOREIGN KEY (question_id) REFERENCES questions(id)
     )`,
-    `CREATE INDEX idx_event_questions_event_id ON event_questions(event_id)`,
-    `CREATE UNIQUE INDEX idx_event_questions_unique ON event_questions(event_id, question_id)`,
+    "CREATE INDEX idx_event_questions_event_id ON event_questions(event_id)",
+    "CREATE UNIQUE INDEX idx_event_questions_unique ON event_questions(event_id, question_id)",
     `CREATE TABLE built_sites (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       site_data TEXT NOT NULL,
@@ -3692,9 +3692,9 @@ describe("event_attendees migration from legacy schema", () => {
       FOREIGN KEY (attendee_id) REFERENCES attendees(id),
       FOREIGN KEY (answer_id) REFERENCES answers(id)
     )`,
-    `CREATE INDEX idx_attendee_answers_attendee_id ON attendee_answers(attendee_id)`,
-    `CREATE INDEX idx_attendee_answers_answer_id ON attendee_answers(answer_id)`,
-    `CREATE UNIQUE INDEX idx_attendee_answers_unique ON attendee_answers(attendee_id, answer_id)`,
+    "CREATE INDEX idx_attendee_answers_attendee_id ON attendee_answers(attendee_id)",
+    "CREATE INDEX idx_attendee_answers_answer_id ON attendee_answers(answer_id)",
+    "CREATE UNIQUE INDEX idx_attendee_answers_unique ON attendee_answers(attendee_id, answer_id)",
   ];
 
   /** Create the legacy schema and return the client */
@@ -3717,7 +3717,9 @@ describe("event_attendees migration from legacy schema", () => {
    * In the in-memory client, PRAGMA carries over (single connection),
    * so without this stub the migration would succeed and hide the bug.
    */
-  const stubPragmaForeignKeysOff = (client: ReturnType<typeof createClient>) => {
+  const stubPragmaForeignKeysOff = (
+    client: ReturnType<typeof createClient>,
+  ) => {
     const origExecute = client.execute.bind(client);
     return stub(client, "execute", (stmt: unknown) => {
       const sql =
