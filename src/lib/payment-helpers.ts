@@ -155,6 +155,21 @@ export const toCheckoutResult = (
   return { sessionId, checkoutUrl: url };
 };
 
+/**
+ * Wrap a checkout operation, converting PaymentUserError to { error } result
+ * and swallowing unexpected errors as null. Used by both provider adapters.
+ */
+export const withCheckoutError = async (
+  op: () => Promise<CheckoutSessionResult>,
+): Promise<CheckoutSessionResult> => {
+  try {
+    return await op();
+  } catch (err) {
+    if (err instanceof PaymentUserError) return { error: err.message };
+    return null;
+  }
+};
+
 /** Stripe metadata constraint: each value max 500 characters */
 export const STRIPE_METADATA_MAX_VALUE_LENGTH = 500;
 

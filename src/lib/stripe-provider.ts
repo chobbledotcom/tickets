@@ -8,12 +8,11 @@
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
-  PaymentUserError,
   toCheckoutResult,
+  withCheckoutError,
 } from "#lib/payment-helpers.ts";
 import {
   type CheckoutIntent,
-  type CheckoutSessionResult,
   isPaymentStatus,
   type PaymentProvider,
   type ValidatedPaymentSession,
@@ -29,35 +28,17 @@ import {
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
 
-/** Convert a Stripe checkout session to a CheckoutResult */
-const stripeCheckoutResult = (
-  session: { id?: string; url?: string | null } | null,
-) => toCheckoutResult(session?.id, session?.url, "Stripe");
-
-/** Wrap a checkout operation, converting PaymentUserError to { error } result */
-const withUserError = async (
-  op: () => Promise<CheckoutSessionResult>,
-): Promise<CheckoutSessionResult> => {
-  try {
-    return await op();
-  } catch (err) {
-    if (err instanceof PaymentUserError) return { error: err.message };
-    return null;
-  }
-};
-
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   type: "stripe",
 
   checkoutCompletedEventType: "checkout.session.completed",
 
-  createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
-    return withUserError(async () => {
+  createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
+    withCheckoutError(async () => {
       const session = await createCheckoutSession(intent, baseUrl);
-      return stripeCheckoutResult(session);
-    });
-  },
+      return toCheckoutResult(session?.id, session?.url, "Stripe");
+    }),
 
   async retrieveSession(
     sessionId: string,

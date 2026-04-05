@@ -16,8 +16,8 @@ import { logDebug } from "#lib/logger.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
-  PaymentUserError,
   toCheckoutResult,
+  withCheckoutError,
 } from "#lib/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -35,27 +35,17 @@ import {
   verifyWebhookSignature,
 } from "#lib/square.ts";
 
-/** Wrap a checkout operation, converting PaymentUserError to { error } result */
-const withUserError = async <T extends { orderId: string; url: string }>(
-  op: () => Promise<T | null>,
-): Promise<CheckoutSessionResult> => {
-  try {
-    const result = await op();
-    return toCheckoutResult(result?.orderId, result?.url, "Square");
-  } catch (err) {
-    if (err instanceof PaymentUserError) return { error: err.message };
-    return null;
-  }
-};
-
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
   type: "square",
 
   checkoutCompletedEventType: "payment.updated",
 
-  createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
-    return withUserError(() => createPaymentLink(intent, baseUrl));
+  async createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
+    return withCheckoutError(async () => {
+      const link = await createPaymentLink(intent, baseUrl);
+      return toCheckoutResult(link?.orderId, link?.url, "Square");
+    });
   },
 
   async retrieveSession(
