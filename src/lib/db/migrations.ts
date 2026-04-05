@@ -31,7 +31,8 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "drop PII columns from attendees (now in pii_blob)";
+export const LATEST_UPDATE =
+  "drop PII columns from attendees (now in pii_blob)";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
