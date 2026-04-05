@@ -679,20 +679,24 @@ const handleUnlinkEvent = (
   { attendeeId, eventId }: { attendeeId: number; eventId: number },
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, async () => {
+    // Don't allow removing the last event link — would orphan the attendee
+    const linkCount = await queryOne<{ count: number }>(
+      "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
+      [attendeeId],
+    );
+    if (linkCount && linkCount.count <= 1) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Cannot remove the last event — delete the attendee instead",
+      );
+    }
+
     const event = await getEventWithCount(eventId);
     const eventName = event!.name;
 
-    const { attendeeDeleted } = await unlinkAttendeeFromEvent(
-      attendeeId,
-      eventId,
-    );
-
+    await unlinkAttendeeFromEvent(attendeeId, eventId);
     await logActivity(`Attendee unlinked from '${eventName}'`, eventId);
 
-    if (attendeeDeleted) {
-      // Attendee had no other events — redirect to the event page
-      return redirect(`/admin/event/${eventId}`, "Attendee removed", true);
-    }
     return redirect(
       `/admin/attendees/${attendeeId}`,
       `Removed from ${eventName}`,

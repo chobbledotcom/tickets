@@ -2511,22 +2511,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect((await getAttendeesRaw(event2.id)).length).toBe(1);
     });
 
-    test("POST /admin/attendees/:id/unlink/:eventId deletes orphaned attendee", async () => {
+    test("POST /admin/attendees/:id/unlink/:eventId blocks removing last event", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
-        "Orphan",
-        "orphan@test.com",
+        "LastLink",
+        "lastlink@test.com",
       );
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/unlink/${event.id}`,
       );
-      // Redirects to event page when attendee is fully deleted
       expect(response.status).toBe(302);
-      const location = response.headers.get("location") ?? "";
-      expect(location).toContain(`/admin/event/${event.id}`);
+      expectFlash(
+        response,
+        expect.stringContaining("delete the attendee instead"),
+        false,
+      );
     });
 
     test("POST /admin/attendees/:id/event/:eventId updates quantity", async () => {
