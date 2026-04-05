@@ -8,6 +8,7 @@ import {
   questionsTable,
   setEventQuestions,
 } from "#lib/db/questions.ts";
+import { setSuppressDebugLogs } from "#lib/logger.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -3195,6 +3196,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const debugLogs: string[] = [];
       const origDebug = console.debug;
+      setSuppressDebugLogs(false);
       console.debug = (...args: unknown[]) => {
         debugLogs.push(args.join(" "));
       };
@@ -3225,6 +3227,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
       } finally {
         console.debug = origDebug;
+        setSuppressDebugLogs(null);
         mockVerify.restore();
         mockRefund.restore();
       }

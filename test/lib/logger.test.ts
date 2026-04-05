@@ -17,6 +17,7 @@ import {
   logRequest,
   redactPath,
   runWithRequestId,
+  setSuppressDebugLogs,
   setSuppressRequestLogs,
 } from "#lib/logger.ts";
 import { flushPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
@@ -510,11 +511,13 @@ describe("logger", () => {
     let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
 
     beforeEach(() => {
+      setSuppressDebugLogs(false);
       debugSpy = spy(console, "debug");
     });
 
     afterEach(() => {
       debugSpy.restore();
+      setSuppressDebugLogs(null);
     });
 
     test("logs with Setup category", () => {
@@ -545,6 +548,22 @@ describe("logger", () => {
         .slice(before)
         .some((c) => c.args[0] === "[Stripe] Creating checkout session");
       expect(found).toBe(true);
+    });
+
+    test("suppresses output when setSuppressDebugLogs(true)", () => {
+      setSuppressDebugLogs(true);
+      const before = debugSpy.calls.length;
+      logDebug("Migration", "Step 1: applying schema changes...");
+      expect(debugSpy.calls.length).toBe(before);
+      setSuppressDebugLogs(null);
+    });
+
+    test("logs output when setSuppressDebugLogs(false)", () => {
+      setSuppressDebugLogs(false);
+      const before = debugSpy.calls.length;
+      logDebug("Migration", "Step 1: applying schema changes...");
+      expect(debugSpy.calls.length).toBeGreaterThan(before);
+      setSuppressDebugLogs(null);
     });
   });
 
