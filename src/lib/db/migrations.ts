@@ -11,8 +11,14 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
+import {
+  backupFilename,
+  backupTimestamp,
+  createBackupZip,
+} from "#lib/db/backup.ts";
 import { getDb } from "#lib/db/client.ts";
 import { logDebug } from "#lib/logger.ts";
+import { isStorageEnabled, uploadRaw } from "#lib/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -548,6 +554,21 @@ const syncIndexes = async (): Promise<void> => {
   }
 };
 
+/**
+ * Check if the database has existing data (i.e. not a brand-new setup).
+ * Returns true if the settings table exists and has a previous version marker.
+ */
+const hasExistingData = async (): Promise<boolean> => {
+  try {
+    const result = await getDb().execute(
+      "SELECT 1 FROM settings WHERE key = 'latest_db_update' LIMIT 1",
+    );
+    return result.rows.length > 0;
+  } catch {
+    return false;
+  }
+};
+
 const MIGRATION_LOCK_KEY = "migration_lock";
 
 /**
@@ -594,6 +615,25 @@ export const initDb = async (): Promise<void> => {
   if (await isDbUpToDate()) {
     await releaseMigrationLock();
     return;
+  }
+
+  // Back up before migrating — but only if this is an existing database
+  // (has a previous version marker) and storage is configured
+  if (isStorageEnabled() && (await hasExistingData())) {
+    logDebug("Migration", "Creating pre-migration backup...");
+    try {
+      const timestamp = backupTimestamp();
+      const zipData = await createBackupZip();
+      const filename = backupFilename(timestamp);
+      await uploadRaw(zipData, filename);
+      logDebug("Migration", `Pre-migration backup saved: ${filename}`);
+    } catch (e) {
+      // Log but don't block the migration — the backup is a safety net
+      logDebug(
+        "Migration",
+        `Pre-migration backup failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   logDebug("Migration", "Step 1: applying schema changes...");
