@@ -87,6 +87,17 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(body).toContain("Quantity: 1");
   });
 
+  test("deduplicates repeated tokens in URL", async () => {
+    const { event, token } = await createTestAttendeeWithToken(
+      "Eve",
+      "eve@test.com",
+    );
+
+    const body = await fetchTicketBody(`${token}+${token}`);
+    expect(body).toContain(event.name);
+    expect(body).toContain("1 Ticket");
+  });
+
   test("skips invalid tokens among valid ones", async () => {
     const { event, token } = await createTestAttendeeWithToken(
       "Dave",
