@@ -43,17 +43,23 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
   },
 );
 
+/** Accept an event ID as a number or an object with `.id` */
+type EventRef = number | { id: number };
+
+/** Extract event ID from an EventRef */
+const toEventId = (event?: EventRef | null): number | null =>
+  event == null ? null : typeof event === "number" ? event : event.id;
+
 /**
  * Log an activity
  */
 export const logActivity = (
   message: string,
-  event?: number | { id: number } | null,
+  event?: EventRef | null,
 ): Promise<ActivityLogEntry> =>
   activityLogTable.insert({
     message,
-    eventId:
-      (typeof event === "object" && event !== null ? event.id : event) ?? null,
+    eventId: toEventId(event),
   });
 
 /** Query activity log with optional event filter, decrypts messages */

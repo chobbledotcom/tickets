@@ -182,6 +182,13 @@ export const bracket =
   };
 
 /**
+ * Narrow an unknown value to string, defaulting to "" if not a string.
+ * Replaces `typeof x === "string" ? x : ""` at type boundaries.
+ */
+export const asString = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+
+/**
  * Join an array of strings into a single string (curried reduce shorthand).
  * Replaces the common pattern: reduce((acc: string, s: string) => acc + s, "")
  */

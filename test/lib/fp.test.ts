@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  asString,
   bracket,
   chunk,
   collectionCache,
@@ -101,6 +102,21 @@ const expectRefetched = async (tc: ReturnType<typeof trackedCollection>) => {
 };
 
 describe("fp", () => {
+  describe("asString", () => {
+    test("returns string values unchanged", () => {
+      expect(asString("hello")).toBe("hello");
+      expect(asString("")).toBe("");
+    });
+
+    test("returns empty string for non-string values", () => {
+      expect(asString(42)).toBe("");
+      expect(asString(null)).toBe("");
+      expect(asString(undefined)).toBe("");
+      expect(asString(true)).toBe("");
+      expect(asString({ id: 1 })).toBe("");
+    });
+  });
+
   describe("pipe", () => {
     test("composes functions left-to-right", () => {
       const addOne = (x: number) => x + 1;

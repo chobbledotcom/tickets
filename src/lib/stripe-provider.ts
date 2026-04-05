@@ -5,6 +5,7 @@
  * provider-agnostic PaymentProvider contract.
  */
 
+import { asString } from "#fp";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
@@ -60,8 +61,7 @@ export const stripePaymentProvider: PaymentProvider = {
       paymentStatus: isPaymentStatus(payment_status)
         ? payment_status
         : "unpaid",
-      paymentReference:
-        typeof payment_intent === "string" ? payment_intent : "",
+      paymentReference: payment_intent ?? "",
       amountTotal: amount_total,
       metadata: extractSessionMetadata(metadata),
     };
@@ -90,12 +90,7 @@ export const stripePaymentProvider: PaymentProvider = {
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
     const intent = await retrievePaymentIntent(paymentReference);
-    if (!intent) return false;
-    const charge = intent.latest_charge;
-    if (typeof charge === "object" && charge !== null) {
-      return (charge as { refunded: boolean }).refunded;
-    }
-    return false;
+    return intent?.latest_charge?.refunded ?? false;
   },
 
   setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {
@@ -109,28 +104,31 @@ export const stripePaymentProvider: PaymentProvider = {
       | Record<string, string | undefined>
       | undefined;
 
+    const id = asString(obj.id);
+    const paymentStatus = asString(obj.payment_status);
+    const amountTotal = obj.amount_total;
+
     // Stripe includes the full session in the event — extract directly
     if (
-      typeof obj.id === "string" &&
-      typeof obj.payment_status === "string" &&
-      typeof obj.amount_total === "number" &&
+      id &&
+      paymentStatus &&
+      typeof amountTotal === "number" &&
       hasRequiredSessionMetadata(metadata)
     ) {
       return Promise.resolve({
-        id: obj.id,
-        paymentStatus: isPaymentStatus(obj.payment_status)
-          ? obj.payment_status
+        id,
+        paymentStatus: isPaymentStatus(paymentStatus)
+          ? paymentStatus
           : "unpaid",
-        paymentReference:
-          typeof obj.payment_intent === "string" ? obj.payment_intent : "",
-        amountTotal: obj.amount_total,
+        paymentReference: asString(obj.payment_intent),
+        amountTotal,
         metadata: extractSessionMetadata(metadata),
       });
     }
 
     // Fallback: retrieve session by ID from event data
-    if (typeof obj.id === "string") {
-      return this.retrieveSession(obj.id);
+    if (id) {
+      return this.retrieveSession(id);
     }
 
     return Promise.resolve(null);
