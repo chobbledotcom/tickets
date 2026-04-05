@@ -22,6 +22,7 @@ import { deleteGroup, generateUniqueGroupSlug } from "#routes/admin/groups.ts";
 /** JSON body accepted by POST /api/admin/groups */
 export type CreateGroupBody = {
   name: string;
+  description?: string;
   max_attendees?: number;
   terms_and_conditions?: string;
   hidden?: boolean;
@@ -66,6 +67,8 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
         name,
         slug,
         slugIndex,
+        description:
+          typeof body.description === "string" ? body.description : "",
         termsAndConditions:
           typeof body.terms_and_conditions === "string"
             ? body.terms_and_conditions
@@ -94,6 +97,10 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
         name: parsed.name,
         slug,
         slugIndex,
+        description:
+          body.description != null
+            ? String(body.description)
+            : existing.description,
         termsAndConditions:
           body.terms_and_conditions != null
             ? String(body.terms_and_conditions)

@@ -111,6 +111,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           method: "POST",
           body: {
             name: "Full Group",
+            description: "Full group description",
             max_attendees: 50,
             terms_and_conditions: "Some terms",
           },
@@ -118,8 +119,22 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         201,
         (body) => {
           expect(body.group.name).toBe("Full Group");
+          expect(body.group.description).toBe("Full group description");
           expect(body.group.max_attendees).toBe(50);
           expect(body.group.terms_and_conditions).toBe("Some terms");
+        },
+      );
+    });
+
+    test("creates group without description defaults to empty string", async () => {
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          method: "POST",
+          body: { name: "No Desc" },
+        }),
+        201,
+        (body) => {
+          expect(body.group.description).toBe("");
         },
       );
     });
@@ -236,6 +251,44 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.group.max_attendees).toBe(100);
           expect(body.group.terms_and_conditions).toBe("Updated terms");
           expect(body.group.name).toBe("Update Fields");
+        },
+      );
+    });
+
+    test("updates description", async () => {
+      const group = await createTestGroup({ name: "Desc Group" });
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          method: "PUT",
+          body: { description: "New description" },
+        }),
+        200,
+        (body) => {
+          expect(body.group.description).toBe("New description");
+          expect(body.group.name).toBe("Desc Group");
+        },
+      );
+    });
+
+    test("preserves description when not provided in update", async () => {
+      const created = await assertJson(
+        apiRequest("/api/admin/groups", {
+          method: "POST",
+          body: { name: "Keep Desc", description: "Keep this" },
+        }),
+        201,
+      );
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${created.group.id}`, {
+          method: "PUT",
+          body: { name: "Renamed" },
+        }),
+        200,
+        (body) => {
+          expect(body.group.name).toBe("Renamed");
+          expect(body.group.description).toBe("Keep this");
         },
       );
     });
