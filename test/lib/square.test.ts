@@ -7,7 +7,6 @@ import type { WebhookEvent } from "#lib/payments.ts";
 import {
   type CreatePaymentLinkInput,
   constructTestWebhookEvent,
-  enforceMetadataLimits,
   getSquareClient,
   type RefundPaymentInput,
   resetSquareClient,
@@ -298,62 +297,6 @@ describe("square", () => {
           );
         },
       );
-    });
-  });
-
-  describe("enforceMetadataLimits", () => {
-    test("returns metadata unchanged when all values within limit", () => {
-      const metadata = {
-        items: '[{"e":1,"q":2,"p":0}]',
-        name: "John",
-        email: "john@example.com",
-      };
-      expect(enforceMetadataLimits(metadata)).toEqual(metadata);
-    });
-
-    test("truncates name to 255 characters", () => {
-      const longName = "A".repeat(300);
-      const metadata = {
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: longName,
-        email: "john@example.com",
-      };
-      const result = enforceMetadataLimits(metadata);
-      expect(result).not.toBeNull();
-      expect(result!.name).toBe("A".repeat(255));
-      expect(result!.name!.length).toBe(255);
-      expect(result!.items).toBe('[{"e":1,"q":1,"p":0}]');
-    });
-
-    test("returns null when non-truncatable value exceeds limit", () => {
-      const longItems = `[${"{e:1,q:1},".repeat(50)}]`;
-      const metadata = {
-        name: "John",
-        email: "john@example.com",
-        items: longItems,
-      };
-      expect(enforceMetadataLimits(metadata)).toBeNull();
-    });
-
-    test("returns null when email exceeds limit", () => {
-      const longEmail = `${"a".repeat(300)}@example.com`;
-      const metadata = {
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: "John",
-        email: longEmail,
-      };
-      expect(enforceMetadataLimits(metadata)).toBeNull();
-    });
-
-    test("passes through metadata with exactly 255-char values", () => {
-      const exactName = "A".repeat(255);
-      const metadata = {
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: exactName,
-        email: "john@example.com",
-      };
-      const result = enforceMetadataLimits(metadata);
-      expect(result).toEqual(metadata);
     });
   });
 
@@ -674,7 +617,7 @@ describe("square", () => {
       );
     });
 
-    test("returns null when non-truncatable metadata exceeds limit", async () => {
+    test("throws PaymentUserError when non-truncatable metadata exceeds limit", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_loc_456");
       const { client } = createMockClient();
@@ -704,11 +647,9 @@ describe("square", () => {
             ],
           };
 
-          const result = await squareApi.createPaymentLink(
-            intent,
-            "http://localhost",
-          );
-          expect(result).toBeNull();
+          await expect(
+            squareApi.createPaymentLink(intent, "http://localhost"),
+          ).rejects.toThrow(PaymentUserError);
         },
       );
     });
@@ -902,7 +843,7 @@ describe("square", () => {
       );
     });
 
-    test("returns null when items metadata exceeds Square limit", async () => {
+    test("throws PaymentUserError when items metadata exceeds Square limit", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_multi_loc");
       const { client, checkoutCreate } = createMockClient();
@@ -929,13 +870,10 @@ describe("square", () => {
             items,
           };
 
-          const result = await squareApi.createPaymentLink(
-            intent,
-            "https://tickets.example.com",
-          );
+          await expect(
+            squareApi.createPaymentLink(intent, "https://tickets.example.com"),
+          ).rejects.toThrow(PaymentUserError);
 
-          // Should return null because items JSON exceeds 255 chars
-          expect(result).toBeNull();
           // SDK should never have been called
           expect(checkoutCreate.calls.length).toBe(0);
         },

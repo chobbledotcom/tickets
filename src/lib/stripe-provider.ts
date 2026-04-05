@@ -8,10 +8,12 @@
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
+  PaymentUserError,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
 import {
   type CheckoutIntent,
+  type CheckoutSessionResult,
   isPaymentStatus,
   type PaymentProvider,
   type ValidatedPaymentSession,
@@ -32,15 +34,29 @@ const stripeCheckoutResult = (
   session: { id?: string; url?: string | null } | null,
 ) => toCheckoutResult(session?.id, session?.url, "Stripe");
 
+/** Wrap a checkout operation, converting PaymentUserError to { error } result */
+const withUserError = async (
+  op: () => Promise<CheckoutSessionResult>,
+): Promise<CheckoutSessionResult> => {
+  try {
+    return await op();
+  } catch (err) {
+    if (err instanceof PaymentUserError) return { error: err.message };
+    return null;
+  }
+};
+
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   type: "stripe",
 
   checkoutCompletedEventType: "checkout.session.completed",
 
-  async createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
-    const session = await createCheckoutSession(intent, baseUrl);
-    return stripeCheckoutResult(session);
+  createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
+    return withUserError(async () => {
+      const session = await createCheckoutSession(intent, baseUrl);
+      return stripeCheckoutResult(session);
+    });
   },
 
   async retrieveSession(
