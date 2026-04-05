@@ -9,10 +9,8 @@
 import { getEncryptionKeyString } from "#lib/crypto/encryption.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
-  backupFilename,
-  backupTimestamp,
   countZipStatements,
-  createBackupZip,
+  createAndUploadBackup,
   dbName,
   isRemoteDatabase,
   readManifest,
@@ -97,10 +95,7 @@ const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> = (
   request,
 ) =>
   withAuth(request, OWNER_FORM, async () => {
-    const timestamp = backupTimestamp();
-    const zipData = await createBackupZip();
-    const filename = backupFilename(timestamp);
-    await uploadRaw(zipData, filename);
+    await createAndUploadBackup();
 
     await logActivity("Database backup created");
     return redirect("/admin/backup", "Backup created successfully", true);

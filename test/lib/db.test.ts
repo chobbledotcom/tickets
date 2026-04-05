@@ -206,6 +206,99 @@ describeWithEnv("db", { db: true }, () => {
     });
   });
 
+  describe("pre-migration backup", () => {
+    test("creates backup before migrating existing database when storage is enabled", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        // Force re-run by invalidating schema hash
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await initDb();
+
+        // A backup zip should have been written to the temp directory
+        const files = [...Deno.readDirSync(tmpDir)]
+          .map((e) => e.name)
+          .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
+        expect(files.length).toBe(1);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("skips backup on brand-new database", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        // Reset database completely and reinitialize
+        await resetDatabase();
+        invalidateTestDbCache();
+        await initDb();
+
+        // No backup should have been created — there was no existing data
+        const files = [...Deno.readDirSync(tmpDir)]
+          .map((e) => e.name)
+          .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
+        expect(files.length).toBe(0);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("skips backup when storage is not enabled", async () => {
+      const restore = setTestEnv({
+        LOCAL_STORAGE_PATH: undefined,
+        STORAGE_ZONE_NAME: undefined,
+        STORAGE_ZONE_KEY: undefined,
+      });
+      try {
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await initDb();
+
+        // Migration completes — no backup attempted (no storage configured)
+        const result = await getDb().execute(
+          "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+        );
+        expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+      } finally {
+        restore();
+      }
+    });
+
+    test("blocks migration when backup fails", async () => {
+      // Use Bunny CDN storage (no LOCAL_STORAGE_PATH) with dummy credentials
+      // so uploadRaw hits the network and fails
+      const restore = setTestEnv({
+        STORAGE_ZONE_NAME: "fake-zone",
+        STORAGE_ZONE_KEY: "fake-key",
+        LOCAL_STORAGE_PATH: undefined,
+      });
+      try {
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await expect(initDb()).rejects.toThrow();
+
+        // Schema hash should still be stale — migration did not proceed
+        const result = await getDb().execute(
+          "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+        );
+        expect(result.rows[0]?.value).toBe("stale");
+      } finally {
+        restore();
+        // Clean up the migration lock so subsequent tests aren't blocked
+        await getDb().execute(
+          "DELETE FROM settings WHERE key = 'migration_lock'",
+        );
+      }
+    });
+  });
+
   describe("resetDatabase", () => {
     test("drops all tables", async () => {
       // Create some data first

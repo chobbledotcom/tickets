@@ -11,8 +11,10 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
+import { createAndUploadBackup } from "#lib/db/backup.ts";
 import { getDb } from "#lib/db/client.ts";
 import { logDebug } from "#lib/logger.ts";
+import { isStorageEnabled } from "#lib/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -407,21 +409,24 @@ const getExistingColumns = async (table: string): Promise<Set<string>> => {
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
-/** Check if database is already up to date (version + schema hash) */
-const isDbUpToDate = async (): Promise<boolean> => {
+type DbState = "up_to_date" | "needs_migration" | "new";
+
+/** Check database state: up-to-date, existing but needs migration, or brand new */
+const getDbState = async (): Promise<DbState> => {
   try {
     const result = await getDb().execute(
       "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
     );
+    if (result.rows.length === 0) return "new";
     const values = new Map(
       result.rows.map((r) => [r.key as string, r.value as string]),
     );
-    return (
-      values.get("latest_db_update") === LATEST_UPDATE &&
+    return values.get("latest_db_update") === LATEST_UPDATE &&
       values.get("db_schema_hash") === SCHEMA_HASH
-    );
+      ? "up_to_date"
+      : "needs_migration";
   } catch {
-    return false;
+    return "new";
   }
 };
 
@@ -580,7 +585,8 @@ const releaseMigrationLock = async (): Promise<void> => {
  * Uses an advisory lock to prevent concurrent migrations.
  */
 export const initDb = async (): Promise<void> => {
-  if (await isDbUpToDate()) return;
+  let state = await getDbState();
+  if (state === "up_to_date") return;
 
   const acquired = await acquireMigrationLock();
   if (!acquired) {
@@ -591,9 +597,17 @@ export const initDb = async (): Promise<void> => {
   }
 
   // Re-check after acquiring lock (another process may have finished)
-  if (await isDbUpToDate()) {
+  state = await getDbState();
+  if (state === "up_to_date") {
     await releaseMigrationLock();
     return;
+  }
+
+  // Back up before migrating — but only for existing databases, not fresh installs
+  if (state === "needs_migration" && isStorageEnabled()) {
+    logDebug("Migration", "Creating pre-migration backup...");
+    const filename = await createAndUploadBackup();
+    logDebug("Migration", `Pre-migration backup saved: ${filename}`);
   }
 
   logDebug("Migration", "Step 1: applying schema changes...");
