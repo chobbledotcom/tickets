@@ -73,18 +73,15 @@ export type EventEditFormValues = EventFormValues & {
 /** Typed values from group create form validation (no slug - auto-generated) */
 export type GroupCreateFormValues = {
   name: string;
+  description: string;
   terms_and_conditions: string;
   max_attendees: number | null;
   hidden: string;
 };
 
 /** Typed values from group edit form validation (includes slug) */
-export type GroupFormValues = {
-  name: string;
+export type GroupFormValues = GroupCreateFormValues & {
   slug: string;
-  terms_and_conditions: string;
-  max_attendees: number | null;
-  hidden: string;
 };
 
 /** Typed values from ticket form (field presence varies by event config) */
@@ -587,6 +584,18 @@ const groupHiddenField: Field = {
   options: [{ value: "1", label: "Hide from public events list" }],
 };
 
+/** Group description field */
+const groupDescriptionField: Field = {
+  name: "description",
+  label: "Description (optional)",
+  type: "textarea",
+  placeholder: "A short description of the group",
+  hint: "Shown on the public page.",
+  hintHtml: FORMATTING_HINT,
+  maxlength: MAX_TEXTAREA_LENGTH,
+  validate: validateDescription,
+};
+
 /** Group form fields for creation (no slug - auto-generated) */
 export const groupCreateFields: Field[] = [
   {
@@ -596,6 +605,7 @@ export const groupCreateFields: Field[] = [
     required: true,
     placeholder: "Summer Fete",
   },
+  groupDescriptionField,
   groupMaxAttendeesField,
   {
     name: "terms_and_conditions",
@@ -618,6 +628,7 @@ export const groupFields: Field[] = [
   slugField,
   groupCreateFields[1]!,
   groupCreateFields[2]!,
+  groupCreateFields[3]!,
   groupHiddenField,
 ];
 

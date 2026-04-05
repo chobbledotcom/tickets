@@ -130,11 +130,14 @@ const renderEventListing = (info: TicketEvent): string => {
 
 /** Render a single group listing for the events page (same style as events) */
 const renderGroupListing = (group: Group): string => {
+  const descriptionHtml = group.description
+    ? renderMarkdownInline(group.description)
+    : "";
   const linkHtml = isReadOnly()
     ? "<p><strong>Registration Closed</strong></p>"
     : `<p><a href="/ticket/${escapeHtml(group.slug)}"><strong>Book now</strong></a></p>`;
 
-  return `<div class="prose"><h2>${escapeHtml(group.name)}</h2></div>${linkHtml}`;
+  return `<div class="prose"><h2>${escapeHtml(group.name)}</h2>${descriptionHtml}</div>${linkHtml}`;
 };
 
 /**

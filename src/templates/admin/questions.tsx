@@ -20,6 +20,9 @@ export const adminQuestionsPage = (
       <AdminNav session={session} active="/admin/questions" />
 
       <h1>Custom Questions</h1>
+      <p>
+        <a href="/admin/guide#questions">Questions guide</a>
+      </p>
       <Flash error={error} />
 
       <CsrfForm action="/admin/questions" id="new-question">

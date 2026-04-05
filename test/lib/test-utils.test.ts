@@ -1162,6 +1162,7 @@ describe("test-compat", () => {
       const group = await createTestGroup();
       expect(group.name).toBe("Test Group");
       expect(group.slug.length).toBe(5);
+      expect(group.description).toBe("");
       expect(group.terms_and_conditions).toBe("");
     });
 

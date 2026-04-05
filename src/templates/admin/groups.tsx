@@ -89,10 +89,18 @@ export const groupToFieldValues = (
 ): Record<string, string | number | null> => {
   const name = group?.name ?? "";
   const slug = group?.slug ?? "";
+  const description = group?.description ?? "";
   const terms = group?.terms_and_conditions ?? "";
   const max_attendees = group?.max_attendees || null;
   const hidden = group?.hidden ? "1" : "";
-  return { name, slug, terms_and_conditions: terms, max_attendees, hidden };
+  return {
+    name,
+    slug,
+    description,
+    terms_and_conditions: terms,
+    max_attendees,
+    hidden,
+  };
 };
 
 /**

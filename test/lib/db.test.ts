@@ -1737,6 +1737,18 @@ describeWithEnv("db", { db: true }, () => {
       expect(await def.read?.("enc:hello")).toBe("hello");
     });
 
+    test("col.encryptedText passes through empty strings without encrypting", async () => {
+      const { col } = await import("#lib/db/table.ts");
+      const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
+      const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
+      const def = col.encryptedText(encrypt, decrypt);
+      expect(def.default?.()).toBe("");
+      expect(await def.write?.("")).toBe("");
+      expect(await def.read?.("")).toBe("");
+      expect(await def.write?.("hello")).toBe("enc:hello");
+      expect(await def.read?.("enc:hello")).toBe("hello");
+    });
+
     test("col.encryptedNullable wrapping simple column has no transforms", async () => {
       const { col } = await import("#lib/db/table.ts");
       const def = col.encryptedNullable(col.simple());
