@@ -40,10 +40,6 @@ type StripeCache = { client: Stripe; secretKey: string };
 /** Nullable checkout session result */
 type CheckoutResult = Stripe.Checkout.Session | null;
 
-/** Narrow a Stripe expandable field (string ID or expanded object) to its string ID */
-const expandableId = (field: string | { id: string } | null | undefined): string | null =>
-  typeof field === "string" ? field : (field?.id ?? null);
-
 /**
  * Narrowed checkout session — only the fields our provider needs.
  * Collapses Stripe's `string | PaymentIntent | null` unions down to `string | null`.
@@ -61,7 +57,11 @@ const narrowCheckoutSession = (
 ): StripeCheckoutFields => ({
   id: session.id,
   payment_status: session.payment_status,
-  payment_intent: expandableId(session.payment_intent),
+  // We never expand payment_intent, so Stripe always returns the string ID
+  payment_intent:
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : null,
   metadata: session.metadata,
   amount_total: session.amount_total,
 });
