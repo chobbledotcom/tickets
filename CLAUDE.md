@@ -76,6 +76,28 @@ const result = reduce((acc, item) => {
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 
+### Running Individual Test Files
+
+**Do NOT use `deno task test -- --filter`** to debug a specific test — it still loads the entire test suite and is very slow.
+
+Instead, run `deno test` directly on the specific file:
+
+```bash
+deno test --no-check --allow-all test/lib/dates.test.ts
+```
+
+To filter to a specific test case within that file, add `--filter`:
+
+```bash
+deno test --no-check --allow-all test/lib/dates.test.ts --filter "formats date"
+```
+
+For tests that depend on stripe-mock (anything importing Stripe), ensure stripe-mock is running first by running `deno task test` once, or start it manually from `.bin/stripe-mock -http-port 12111`. Then set the env vars:
+
+```bash
+STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/lib/stripe-mock.test.ts
+```
+
 ## Environment Variables
 
 Environment variables are configured as **Bunny native secrets** in the Bunny Edge Scripting dashboard. They are read at runtime via `process.env`.
