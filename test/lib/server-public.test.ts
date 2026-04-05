@@ -178,6 +178,18 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
     });
 
+    test("shows Buy now link for purchase_only events", async () => {
+      await settings.update.showPublicSite(true);
+      await createTestEvent({
+        name: "Raffle",
+        maxAttendees: 100,
+        purchaseOnly: true,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      const html = await expectHtmlResponse(response, 200, "Raffle", "Buy now");
+      expect(html).not.toContain("Book now");
+    });
+
     test("does not show inactive events", async () => {
       await settings.update.showPublicSite(true);
       const event = await createTestEvent({
@@ -240,6 +252,108 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       expect(response.headers.has("x-robots-noindex")).toBe(false);
+    });
+
+    test("shows groups with active events on events page", async () => {
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "Summer Festival",
+        slug: "summer-festival",
+      });
+      await createTestEvent({
+        name: "Festival Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      await expectHtmlResponse(
+        response,
+        200,
+        "Summer Festival",
+        `href="/ticket/${group.slug}"`,
+        "Book now",
+      );
+    });
+
+    test("shows group description on events page", async () => {
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "Described Festival",
+        slug: "described-festival",
+        description: "A wonderful summer celebration",
+      });
+      await createTestEvent({
+        name: "Described Festival Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      await expectHtmlResponse(
+        response,
+        200,
+        "Described Festival",
+        "A wonderful summer celebration",
+      );
+    });
+
+    test("does not show hidden groups on events page", async () => {
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "Secret Group",
+        slug: "secret-group",
+        hidden: true,
+      });
+      await createTestEvent({
+        name: "Visible Event In Hidden Group",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      const html = await response.text();
+      expect(html).not.toContain("Secret Group");
+      expect(html).toContain("Visible Event In Hidden Group");
+    });
+
+    test("hidden group is still accessible via direct ticket URL", async () => {
+      const group = await createTestGroup({
+        name: "Hidden Group",
+        slug: "hidden-group",
+        hidden: true,
+      });
+      await createTestEvent({
+        name: "Hidden Group Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      await expectHtmlResponse(response, 200, "Hidden Group Event");
+    });
+
+    test("grouped events also appear individually on events page", async () => {
+      await settings.update.showPublicSite(true);
+      const group = await createTestGroup({
+        name: "My Group",
+        slug: "my-group",
+      });
+      await createTestEvent({
+        name: "Grouped Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      await createTestEvent({
+        name: "Ungrouped Event",
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(mockRequest("/events"));
+      await expectHtmlResponse(
+        response,
+        200,
+        "My Group",
+        "Ungrouped Event",
+        "Grouped Event",
+      );
     });
 
     test("shows sold out for events at capacity", async () => {
@@ -679,7 +793,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Reserve Ticket",
+        "Continue",
         `action="/ticket/${event.slug}"`,
       );
     });
@@ -792,7 +906,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, 'class="iframe"');
       expect(html).not.toContain("<h1>");
       expect(html).not.toContain("A <b>great</b> event");
-      expect(html).toContain("Reserve Ticket");
+      expect(html).toContain("Continue");
     });
 
     test("shows header and description without iframe param", async () => {
@@ -947,7 +1061,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Reserve Tickets",
+        "Continue",
         "Select Tickets",
         "Group Event 1",
         "Group Event 2",
@@ -1327,6 +1441,26 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectRedirect(response, "https://example.com/thanks");
     });
 
+    test("shows order success for purchase_only event", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        purchaseOnly: true,
+        thankYouUrl: "",
+      });
+      const response = await submitTicketForm(event.slug, {
+        name: "Jane Doe",
+        email: "jane@example.com",
+      });
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location") || "";
+      expect(location).toContain("/ticket/reserved?tokens=");
+
+      // Follow the redirect and check the success page
+      const successResponse = await handleRequest(mockRequest(location));
+      const html = await successResponse.text();
+      expect(html).toContain("Thank you for your order");
+    });
+
     test("rejects when event is full", async () => {
       const event = await createTestEvent({
         maxAttendees: 1,
@@ -1384,7 +1518,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Reserve Tickets",
+        "Continue",
         "Multi Event 1",
         "Multi Event 2",
         "Select Tickets",
@@ -1757,7 +1891,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("GET /ticket/reserved", () => {
     test("shows reservation success page", async () => {
       const response = await handleRequest(mockRequest("/ticket/reserved"));
-      const html = await expectHtmlResponse(response, 200, "success");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Thank you for your order",
+      );
       expect(html).not.toContain("view your ticket");
     });
 
@@ -1815,7 +1953,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/ticket/reserved?tokens=abc123"),
       );
-      const html = await expectHtmlResponse(response, 200, "success");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Thank you for your order",
+      );
       expect(html).not.toContain("Junk/Spam");
     });
   });
@@ -2899,7 +3041,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         200,
         "Registration closed.",
       );
-      expect(html).not.toContain("Reserve Ticket");
+      expect(html).not.toContain("Continue");
     });
 
     test("shows form when closes_at is in the future", async () => {
@@ -2914,7 +3056,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("Registration closed.");
-      expect(html).toContain("Reserve Ticket");
+      expect(html).toContain("Continue");
     });
 
     test("shows form when closes_at is null", async () => {
@@ -2926,7 +3068,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("Registration closed.");
-      expect(html).toContain("Reserve Ticket");
+      expect(html).toContain("Continue");
     });
 
     test("shows 'registration closed while you were submitting' on POST when closes_at is past", async () => {

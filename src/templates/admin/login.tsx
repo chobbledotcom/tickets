@@ -3,7 +3,7 @@
  */
 
 import { isDemoMode } from "#lib/demo.ts";
-import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { loginFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -14,7 +14,7 @@ import { Layout } from "#templates/layout.tsx";
 export const adminLoginPage = (error?: string): string =>
   String(
     <Layout title="Login">
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
       <CsrfForm action="/admin/login">
         <Raw html={renderFields(loginFields)} />
         <button type="submit">Login</button>

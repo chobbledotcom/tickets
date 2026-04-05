@@ -93,8 +93,8 @@ const renderDatetimeInputs = (
   name: string,
   { date, time }: { date: string; time: string },
 ): string =>
-  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>` +
-  `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
+  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date" aria-label="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>` +
+  `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time" aria-label="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
 
 const DATETIME_PARTIAL_ERROR =
   "Please enter a date when providing a time, or leave both blank";
@@ -280,16 +280,41 @@ export const validateForm = <T = FieldValues>(
 };
 
 /**
+ * Flash message component for error/success notifications.
+ * Renders divs with role="alert" so screen readers announce them.
+ */
+export const Flash = ({
+  error,
+  success,
+}: {
+  error?: string;
+  success?: string;
+}): JSX.Element => (
+  <>
+    {success ? (
+      <div class="success" role="alert">
+        {success}
+      </div>
+    ) : null}
+    {error ? (
+      <div class="error" role="alert">
+        {error}
+      </div>
+    ) : null}
+  </>
+);
+
+/**
  * Render error message if present
  */
 export const renderError = (error?: string): string =>
-  error ? String(<div class="error">{error}</div>) : "";
+  error ? String(<Flash error={error} />) : "";
 
 /**
  * Render success message if present
  */
 export const renderSuccess = (message?: string): string =>
-  message ? String(<div class="success">{message}</div>) : "";
+  message ? String(<Flash success={message} />) : "";
 
 /** Field types that must never be restored from saved form data */
 const SENSITIVE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([
@@ -376,10 +401,10 @@ export const CsrfForm = ({
   <form method="POST" action={appendIframeParam(action)} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && (
-      <Raw html={renderSuccess(_successStore.message)} />
+      <Flash success={_successStore.message} />
     )}
     {rest.id && rest.id === _errorStore.formId && (
-      <Raw html={renderError(_errorStore.message)} />
+      <Flash error={_errorStore.message} />
     )}
     {children}
   </form>
@@ -421,28 +446,25 @@ export const ConfirmForm = ({
   hiddenFields?: Record<string, string>;
   children?: Child;
 }): JSX.Element => (
-  <>
-    <div class="prose">{children}</div>
-
-    <CsrfForm action={action} id={id}>
-      {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
-      {hiddenFields &&
-        Object.entries(hiddenFields).map(([fieldName, value]) => (
-          <input type="hidden" name={fieldName} value={value} />
-        ))}
-      <label>
-        {label}
-        <input
-          type="text"
-          name="confirm_identifier"
-          placeholder={name}
-          autocomplete="off"
-          required
-        />
-      </label>
-      <button type="submit" class={danger ? "danger" : undefined}>
-        {buttonText}
-      </button>
-    </CsrfForm>
-  </>
+  <CsrfForm action={action} id={id}>
+    {children && <div class="prose">{children}</div>}
+    {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
+    {hiddenFields &&
+      Object.entries(hiddenFields).map(([fieldName, value]) => (
+        <input type="hidden" name={fieldName} value={value} />
+      ))}
+    <label>
+      {label}
+      <input
+        type="text"
+        name="confirm_identifier"
+        placeholder={name}
+        autocomplete="off"
+        required
+      />
+    </label>
+    <button type="submit" class={danger ? "danger" : undefined}>
+      {buttonText}
+    </button>
+  </CsrfForm>
 );

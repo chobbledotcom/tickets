@@ -5,13 +5,7 @@
 import { joinStrings, map, pipe, reduce } from "#fp";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import { isReadOnly } from "#lib/env.ts";
-import {
-  ConfirmForm,
-  CsrfForm,
-  renderError,
-  renderFields,
-  renderSuccess,
-} from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import {
   type AdminSession,
@@ -45,7 +39,7 @@ export const adminGroupsPage = (
   String(
     <Layout title="Groups">
       <AdminNav session={session} active="/admin/groups" />
-      <Raw html={renderSuccess(successMessage)} />
+      <Flash success={successMessage} />
       {!isReadOnly() && (
         <p>
           <a href="/admin/groups/new">Add Group</a>
@@ -95,9 +89,18 @@ export const groupToFieldValues = (
 ): Record<string, string | number | null> => {
   const name = group?.name ?? "";
   const slug = group?.slug ?? "";
+  const description = group?.description ?? "";
   const terms = group?.terms_and_conditions ?? "";
   const max_attendees = group?.max_attendees || null;
-  return { name, slug, terms_and_conditions: terms, max_attendees };
+  const hidden = group?.hidden ? "1" : "";
+  return {
+    name,
+    slug,
+    description,
+    terms_and_conditions: terms,
+    max_attendees,
+    hidden,
+  };
 };
 
 /**
@@ -110,9 +113,9 @@ export const adminGroupNewPage = (
   String(
     <Layout title="Add Group">
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Add Group</h1>
-      <Raw html={renderError(error)} />
       <CsrfForm action="/admin/groups">
+        <h1>Add Group</h1>
+        <Flash error={error} />
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
         <button type="submit">Create Group</button>
       </CsrfForm>
@@ -130,9 +133,9 @@ export const adminGroupEditPage = (
   String(
     <Layout title="Edit Group">
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Edit Group</h1>
-      <Raw html={renderError(error)} />
       <CsrfForm action={`/admin/groups/${group.id}/edit`}>
+        <h1>Edit Group</h1>
+        <Flash error={error} />
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
         <button type="submit">Save Changes</button>
       </CsrfForm>
@@ -150,8 +153,6 @@ export const adminGroupDeletePage = (
   String(
     <Layout title="Delete Group">
       <AdminNav session={session} active="/admin/groups" />
-      <h1>Delete Group</h1>
-      <Raw html={renderError(error)} />
       <ConfirmForm
         action={`/admin/groups/${group.id}/delete`}
         name={group.name}
@@ -159,6 +160,8 @@ export const adminGroupDeletePage = (
         buttonText="Delete Group"
         danger={false}
       >
+        <h1>Delete Group</h1>
+        <Flash error={error} />
         <p>
           Are you sure you want to delete the group{" "}
           <strong>{group.name}</strong> ({group.slug})?
@@ -245,7 +248,7 @@ export const adminGroupDetailPage = (
   return String(
     <Layout title={group.name}>
       <AdminNav session={session} active="/admin/groups" />
-      <Raw html={renderSuccess(successMessage)} />
+      <Flash success={successMessage} />
       <p>
         {!isReadOnly() && (
           <>
@@ -302,6 +305,12 @@ export const adminGroupDetailPage = (
                   />
                 </td>
               </tr>
+              {group.hidden && (
+                <tr>
+                  <th>Hidden</th>
+                  <td>Yes &mdash; not shown in public events list</td>
+                </tr>
+              )}
               <Raw html={renderDetailRows(sharedRows)} />
             </tbody>
           </table>

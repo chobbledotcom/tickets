@@ -2,13 +2,7 @@
  * Admin holiday management page templates
  */
 
-import {
-  ConfirmForm,
-  CsrfForm,
-  renderError,
-  renderFields,
-  renderSuccess,
-} from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -26,7 +20,7 @@ export const adminHolidaysPage = (
   String(
     <Layout title="Holidays">
       <AdminNav session={session} active="/admin/holidays" />
-      <Raw html={renderSuccess(successMessage)} />
+      <Flash success={successMessage} />
       <p>
         <a href="/admin/holidays/new">Add Holiday</a>
       </p>
@@ -83,9 +77,9 @@ export const adminHolidayNewPage = (
   String(
     <Layout title="Add Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <h1>Add Holiday</h1>
-      <Raw html={renderError(error)} />
       <CsrfForm action="/admin/holidays">
+        <h1>Add Holiday</h1>
+        <Flash error={error} />
         <Raw html={renderFields(holidayFields)} />
         <button type="submit">Create Holiday</button>
       </CsrfForm>
@@ -103,9 +97,9 @@ export const adminHolidayEditPage = (
   String(
     <Layout title="Edit Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <h1>Edit Holiday</h1>
-      <Raw html={renderError(error)} />
       <CsrfForm action={`/admin/holidays/${holiday.id}/edit`}>
+        <h1>Edit Holiday</h1>
+        <Flash error={error} />
         <Raw
           html={renderFields(holidayFields, holidayToFieldValues(holiday))}
         />
@@ -125,8 +119,6 @@ export const adminHolidayDeletePage = (
   String(
     <Layout title="Delete Holiday">
       <AdminNav session={session} active="/admin/holidays" />
-      <h1>Delete Holiday</h1>
-      <Raw html={renderError(error)} />
       <ConfirmForm
         action={`/admin/holidays/${holiday.id}/delete`}
         name={holiday.name}
@@ -134,6 +126,8 @@ export const adminHolidayDeletePage = (
         buttonText="Delete Holiday"
         danger={false}
       >
+        <h1>Delete Holiday</h1>
+        <Flash error={error} />
         <p>
           Are you sure you want to delete the holiday{" "}
           <strong>{holiday.name}</strong> ({holiday.start_date} to{" "}

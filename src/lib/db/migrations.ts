@@ -80,6 +80,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["non_transferable", "INTEGER NOT NULL DEFAULT 0"],
         ["can_pay_more", "INTEGER NOT NULL DEFAULT 0"],
         ["hidden", "INTEGER NOT NULL DEFAULT 0"],
+        ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
@@ -240,8 +241,10 @@ const SCHEMA: [name: string, table: Table][] = [
         ["slug", "TEXT NOT NULL"],
         ["slug_index", "TEXT NOT NULL"],
         ["name", "TEXT NOT NULL"],
+        ["description", "TEXT NOT NULL DEFAULT ''"],
         ["terms_and_conditions", "TEXT NOT NULL DEFAULT ''"],
         ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
+        ["hidden", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {

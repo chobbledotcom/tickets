@@ -3,13 +3,7 @@
  */
 
 import type { BuiltSite } from "#lib/db/built-sites.ts";
-import {
-  ConfirmForm,
-  CsrfForm,
-  renderError,
-  renderFields,
-  renderSuccess,
-} from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -27,7 +21,7 @@ export const adminBuiltSitesPage = (
   String(
     <Layout title="Built Sites">
       <AdminNav session={session} active="/admin/built-sites" />
-      <Raw html={renderSuccess(successMessage)} />
+      <Flash success={successMessage} />
       <p>
         <a href="/admin/built-sites/new">Add Built Site</a>
       </p>
@@ -85,9 +79,9 @@ export const adminBuiltSiteNewPage = (
   String(
     <Layout title="Add Built Site">
       <AdminNav session={session} active="/admin/built-sites" />
-      <h1>Add Built Site</h1>
-      <Raw html={renderError(error)} />
       <CsrfForm action="/admin/built-sites">
+        <h1>Add Built Site</h1>
+        <Flash error={error} />
         <Raw html={renderFields(builtSiteFields)} />
         <button type="submit">Create Built Site</button>
       </CsrfForm>
@@ -105,9 +99,9 @@ export const adminBuiltSiteEditPage = (
   String(
     <Layout title="Edit Built Site">
       <AdminNav session={session} active="/admin/built-sites" />
-      <h1>Edit Built Site</h1>
-      <Raw html={renderError(error)} />
       <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
+        <h1>Edit Built Site</h1>
+        <Flash error={error} />
         <Raw
           html={renderFields(builtSiteFields, builtSiteToFieldValues(site))}
         />
@@ -127,8 +121,6 @@ export const adminBuiltSiteDeletePage = (
   String(
     <Layout title="Delete Built Site">
       <AdminNav session={session} active="/admin/built-sites" />
-      <h1>Delete Built Site</h1>
-      <Raw html={renderError(error)} />
       <ConfirmForm
         action={`/admin/built-sites/${site.id}/delete`}
         name={site.name}
@@ -136,6 +128,8 @@ export const adminBuiltSiteDeletePage = (
         buttonText="Delete Built Site"
         danger={false}
       >
+        <h1>Delete Built Site</h1>
+        <Flash error={error} />
         <p>
           Are you sure you want to delete the built site{" "}
           <strong>{site.name}</strong>?

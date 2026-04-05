@@ -4,15 +4,19 @@
  * POST /admin/event/:id/scan - JSON API for processing scanned tokens
  */
 
+import { filter, map, pipe } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   type AttendeeWithBookings,
   decryptAttendees,
   getAttendeesByTokens,
+  getAttendeesRaw,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
+import { getEventWithCount } from "#lib/db/events.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { Attendee } from "#lib/types.ts";
+import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   decryptTokenEntries,
@@ -22,14 +26,33 @@ import {
 import {
   AUTH_JSON,
   getPrivateKey,
+  htmlResponse,
+  type IdRouteHandler,
   jsonResponse,
+  orNotFound,
+  requireSessionOr,
   withAuth,
-  withEventPage,
 } from "#routes/utils.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
 /** Handle GET /admin/event/:id/scanner - render scanner page */
-const handleScannerGet = withEventPage(adminScannerPage);
+const handleScannerGet: IdRouteHandler = (request, { id }) =>
+  requireSessionOr(request, (session) =>
+    orNotFound(getEventWithCount(id), async (event) => {
+      const privateKey = await requirePrivateKey(session);
+      const rawAttendees = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(rawAttendees, privateKey);
+      const uncheckedIn = pipe(
+        filter((a: Attendee) => !a.checked_in && !a.refunded),
+        map((a: Attendee) => ({
+          token: a.ticket_token,
+          name: a.name,
+          quantity: a.quantity,
+        })),
+      )(attendees);
+      return htmlResponse(adminScannerPage(event, session, uncheckedIn));
+    }),
+  );
 
 /** Resolve an AttendeeWithBookings to decrypted entries */
 const resolveTokenEntries = async (
@@ -45,10 +68,7 @@ const resolveTokenEntries = async (
  * Scanner is intentionally one-way (check-in only, no check-out) to prevent
  * accidental check-outs from double-scans during rapid door check-in.
  */
-const handleScanPost = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
+const handleScanPost: IdRouteHandler = (request, { id }) =>
   withAuth(request, AUTH_JSON, async (session, body) => {
     if (typeof body.token !== "string") {
       return jsonResponse({ status: "error", message: "Missing token" }, 400);

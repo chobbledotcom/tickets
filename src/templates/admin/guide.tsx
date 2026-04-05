@@ -989,6 +989,29 @@ export const adminGuidePage = (
             ticket name before check-in proceeds.
           </p>
         </Q>
+
+        <Q q="What if someone doesn't have their QR code?">
+          <p>
+            Below the camera on the Scanner page there is a{" "}
+            <strong>Manual Check-in</strong> section. Start typing the
+            attendee's name or ticket token and a dropdown shows matching
+            tickets that haven't been checked in yet. Select the right person
+            and click <strong>Check In</strong>. This is useful for walk-ins or
+            when an attendee can't pull up their ticket on their phone.
+          </p>
+        </Q>
+
+        <Q q="How do I filter attendees by check-in status?">
+          <p>
+            On the event page, above the attendee table, you'll see filter links
+            for <strong>All</strong>, <strong>Checked In</strong>, and{" "}
+            <strong>Checked Out</strong>. Click one to show only attendees
+            matching that status. The filter works alongside the date selector
+            for daily events, so you can view e.g. only un-checked-in attendees
+            for a specific date. The CSV export reflects whichever filter is
+            active.
+          </p>
+        </Q>
       </Section>
 
       <Section id="apple-wallet" title="Apple Wallet">
@@ -1615,6 +1638,10 @@ export const adminGuidePage = (
               your site (Bunny CDN only)
             </li>
             <li>
+              <strong>Backups</strong> &mdash; create, download, and restore
+              full database backups (requires CDN storage)
+            </li>
+            <li>
               <strong>Software updates</strong> &mdash; check for and install
               new versions
             </li>
@@ -1858,6 +1885,59 @@ export const adminGuidePage = (
             The <a href="/admin/api-keys/docs">API documentation page</a> has a
             complete reference for both public and admin API endpoints, with
             example request and response payloads for each.
+          </p>
+        </Q>
+      </Section>
+
+      <Section id="backups" title="Backups">
+        <Q q="What is the backup feature?">
+          <p>
+            The <strong>Backups</strong> page (owners only, under{" "}
+            <a href="/admin/backup">Settings &rarr; Backups</a>) lets you create
+            and restore full database backups. Each backup is a .zip archive
+            containing SQL statements for every table. Backups are stored on
+            your configured CDN storage (Bunny CDN).
+          </p>
+        </Q>
+
+        <Q q="How do I create a backup?">
+          <p>
+            Go to <a href="/admin/backup">Backups</a> and click{" "}
+            <strong>Create Backup Now</strong>. The system exports all database
+            tables into a .zip file and uploads it to your storage. Previous
+            backups are listed with their timestamps and can be downloaded at
+            any time.
+          </p>
+        </Q>
+
+        <Q q="How do I restore from a backup?">
+          <p>
+            On the Backups page, upload a .zip backup file using the restore
+            form. You'll see a summary of how many SQL statements it contains
+            and whether the schema version matches. Type the full confirmation
+            phrase to proceed. <strong>Warning:</strong> restoring drops all
+            existing tables and replaces them with the backup contents. This
+            cannot be undone.
+          </p>
+        </Q>
+
+        <Q q="What is the encryption key shown on the backup page?">
+          <p>
+            The encryption key is needed if you ever restore a backup to a{" "}
+            <strong>different</strong> site. All personal data in the database
+            is encrypted at the field level, so you need the same encryption key
+            to read it. Store this key securely &mdash; it cannot be recovered
+            if lost.
+          </p>
+        </Q>
+
+        <Q q="Do backups require any special configuration?">
+          <p>
+            Yes. Backups require CDN storage to be configured (
+            <code>STORAGE_ZONE_NAME</code> and <code>STORAGE_ZONE_KEY</code>).
+            The feature is designed for remote databases (<code>libsql://</code>
+            ). If storage is not configured, the backup page will show a message
+            explaining this.
           </p>
         </Q>
       </Section>

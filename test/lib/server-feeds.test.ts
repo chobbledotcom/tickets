@@ -173,6 +173,19 @@ describeWithEnv("feeds", { db: true }, () => {
       expect(body).not.toContain("BEGIN:VEVENT");
     });
 
+    test("excludes purchase_only events", async () => {
+      await settings.update.showPublicSite(true);
+      await createTestEvent({
+        name: "Raffle Tickets",
+        maxAttendees: 100,
+        purchaseOnly: true,
+      });
+      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const body = await response.text();
+      expect(body).not.toContain("Raffle Tickets");
+      expect(body).not.toContain("BEGIN:VEVENT");
+    });
+
     test("escapes special characters in event fields", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
@@ -330,6 +343,19 @@ describeWithEnv("feeds", { db: true }, () => {
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).not.toContain("Secret Event");
+      expect(body).not.toContain("<item>");
+    });
+
+    test("excludes purchase_only events", async () => {
+      await settings.update.showPublicSite(true);
+      await createTestEvent({
+        name: "Raffle Tickets",
+        maxAttendees: 100,
+        purchaseOnly: true,
+      });
+      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const body = await response.text();
+      expect(body).not.toContain("Raffle Tickets");
       expect(body).not.toContain("<item>");
     });
 

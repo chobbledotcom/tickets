@@ -41,6 +41,7 @@ export const API_EXAMPLE_EVENT: EventWithCount = {
   can_pay_more: false,
   max_price: EXAMPLE_EVENT.unit_price,
   hidden: false,
+  purchase_only: false,
   attendee_count: 3,
 };
 

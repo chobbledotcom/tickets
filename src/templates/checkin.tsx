@@ -5,7 +5,7 @@
  */
 
 import { map, pipe } from "#fp";
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import {
@@ -23,7 +23,7 @@ export type { TokenEntry as CheckinEntry };
 export const checkinAdminPage = (
   entries: TokenEntry[],
   checkinPath: string,
-  message: string | null,
+  message: string,
   allowedDomain: string,
   phonePrefix?: string,
 ): string => {
@@ -45,9 +45,9 @@ export const checkinAdminPage = (
 
   return String(
     <Layout title="Check-in">
-      <h1>Check-in</h1>
-      {message && <p class="success">{message}</p>}
       <CsrfForm action={checkinPath}>
+        <h1>Check-in</h1>
+        <Flash success={message} />
         <input type="hidden" name="check_in" value={nextValue} />
         <button type="submit" class={buttonClass}>
           {buttonLabel}

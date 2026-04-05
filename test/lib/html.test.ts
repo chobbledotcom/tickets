@@ -40,7 +40,7 @@ import {
   nearCapacity,
 } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminAnswerDeletePage,
   adminEventQuestionsPage,
@@ -62,6 +62,7 @@ import {
   generateCalendarCsv,
 } from "#templates/csv.ts";
 import { eventFields } from "#templates/fields.ts";
+import { Layout } from "#templates/layout.tsx";
 import {
   checkoutPopupPage,
   paymentCancelPage,
@@ -136,6 +137,17 @@ describe("asset-paths", () => {
 describe("html", () => {
   afterEach(() => {
     detectIframeMode("https://example.com/");
+  });
+
+  describe("Layout skip navigation", () => {
+    test("renders skip-nav link targeting main-content", () => {
+      const html = String(Layout({ title: "Test", children: "" }));
+      expect(html).toContain('class="skip-nav"');
+      expect(html).toContain('href="#main-content"');
+      expect(html).toContain("Skip to content");
+      expect(html).toContain('id="main-content"');
+      expect(html).toContain('tabindex="-1"');
+    });
   });
 
   describe("adminLoginPage", () => {
@@ -705,7 +717,7 @@ describe("html", () => {
       expect(html).toContain('action="/ticket/ab12c"');
       expect(html).toContain('name="name"');
       expect(html).toContain('name="email"');
-      expect(html).toContain("Reserve Ticket");
+      expect(html).toContain("Continue");
     });
 
     test("includes CSRF token in form", () => {
@@ -744,7 +756,7 @@ describe("html", () => {
       expect(html).toContain(`name="quantity_${multiQtyEvent.id}"`);
       expect(html).toContain('<option value="1">1</option>');
       expect(html).toContain('<option value="5">5</option>');
-      expect(html).toContain("Reserve Tickets"); // Plural
+      expect(html).toContain("Continue");
     });
 
     test("limits quantity selector to remaining spots", () => {
@@ -764,8 +776,16 @@ describe("html", () => {
       expect(html).toContain(
         `type="hidden" name="quantity_${event.id}" value="1"`,
       );
-      expect(html).toContain("Reserve Ticket"); // Singular
-      expect(html).not.toContain("Reserve Tickets"); // Not plural
+      expect(html).toContain("Continue");
+    });
+
+    test("shows Continue button for purchase_only event", () => {
+      const poEvent = testEventWithCount({
+        attendee_count: 50,
+        purchase_only: true,
+      });
+      const html = renderTicket(poEvent);
+      expect(html).toContain("Continue");
     });
 
     test("shows phone field for phone-only events", () => {
@@ -1025,21 +1045,20 @@ describe("html", () => {
   });
 
   describe("successPage", () => {
-    test("renders payment success message when paid", () => {
+    test("renders order success message when paid", () => {
       const html = successPage({
         ticketUrl: null,
         thankYouUrl: "https://example.com/thanks",
         paid: true,
       });
-      expect(html).toContain("Payment Successful");
+      expect(html).toContain("Thank you for your order");
       expect(html).toContain("https://example.com/thanks");
     });
 
-    test("renders reservation success message when not paid", () => {
+    test("renders order success message when not paid", () => {
       const html = successPage({ ticketUrl: "/t/abc123" });
-      expect(html).toContain("Ticket Reserved");
-      expect(html).toContain("Ticket reserved successfully.");
-      expect(html).not.toContain("Payment Successful");
+      expect(html).toContain("Order Successful");
+      expect(html).toContain("Thank you for your order");
     });
 
     test("includes meta refresh redirect", () => {
@@ -1139,6 +1158,7 @@ describe("html", () => {
       const html = successPage({ ticketUrl: "/t/abc123", paid: true });
       expect(html).not.toContain("Junk/Spam");
     });
+
   });
 
   describe("paymentCancelPage", () => {
@@ -2236,17 +2256,6 @@ describe("html", () => {
       expect(formatAddressInline("123 Main St\n\n\nSpringfield")).toBe(
         "123 Main St, Springfield",
       );
-    });
-  });
-
-  describe("Breadcrumb", () => {
-    test("renders breadcrumb link with label", () => {
-      const html = String(
-        Breadcrumb({ href: "/admin/", label: "Back to Events" }),
-      );
-      expect(html).toContain('href="/admin/"');
-      expect(html).toContain("Back to Events");
-      expect(html).toContain("\u2190");
     });
   });
 
@@ -3677,6 +3686,92 @@ describe("html", () => {
       expect(html).toContain("/t/AABB0011CCDDEEF2/svg");
       expect(html).toContain("2 Tickets");
     });
+
+    test("hides QR code and token for purchase_only events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({ purchase_only: true }),
+            attendee: testAttendee(),
+          },
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards);
+      expect(html).not.toContain("ticket-card-qr");
+      expect(html).not.toContain("ticket-card-token");
+      expect(html).not.toContain("/svg");
+    });
+
+    test("hides wallet links for purchase_only events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({ purchase_only: true }),
+            attendee: testAttendee(),
+          },
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards, true, true);
+      expect(html).not.toContain("wallet-link");
+      expect(html).not.toContain("Apple Wallet");
+      expect(html).not.toContain("Google Wallet");
+    });
+
+    test("hides non-transferable notice for purchase_only events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({
+              purchase_only: true,
+              non_transferable: true,
+            }),
+            attendee: testAttendee(),
+          },
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards);
+      expect(html).not.toContain("Non-transferable");
+    });
+
+    test("shows Your Purchase heading for purchase_only events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({ purchase_only: true }),
+            attendee: testAttendee(),
+          },
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards);
+      expect(html).toContain("Your Purchase");
+      expect(html).not.toContain("Ticket");
+    });
+
+    test("shows ticket count heading for mixed events", () => {
+      const cards = [
+        {
+          entry: {
+            event: testEventWithCount({ id: 1, purchase_only: true }),
+            attendee: testAttendee({ id: 1 }),
+          },
+          token: "AABB0011CCDDEEF1",
+        },
+        {
+          entry: {
+            event: testEventWithCount({ id: 2, purchase_only: false }),
+            attendee: testAttendee({ id: 2 }),
+          },
+          token: "AABB0011CCDDEEF2",
+        },
+      ];
+      const html = ticketViewPage(cards);
+      expect(html).toContain("2 Tickets");
+      expect(html).not.toContain("Your Purchase");
+    });
   });
 
   describeWithEnv(
@@ -3685,27 +3780,24 @@ describe("html", () => {
     () => {
       describe("renderEventImage", () => {
         test("returns empty string when image_url is null", () => {
-          const html = renderEventImage({ image_url: "", name: "Test" });
+          const html = renderEventImage({ image_url: "" });
           expect(html).toBe("");
         });
 
         test("renders img tag with proxy URL when image_url is set", () => {
           const html = renderEventImage({
             image_url: "abc123.jpg",
-            name: "Test Event",
           });
           expect(html).toContain("/image/abc123.jpg");
-          expect(html).toContain('alt="Test Event"');
+          expect(html).toContain('alt=""');
           expect(html).toContain('class="event-image"');
         });
 
-        test("escapes HTML in event name for alt attribute", () => {
+        test("uses empty alt text for decorative image", () => {
           const html = renderEventImage({
             image_url: "img.jpg",
-            name: '<script>alert("xss")</script>',
           });
-          expect(html).not.toContain("<script>");
-          expect(html).toContain("&lt;script&gt;");
+          expect(html).toContain('alt=""');
         });
       });
 
@@ -4314,7 +4406,7 @@ describeWithEnv(
         dates: [],
       });
       expect(html).toContain("Registration closed.");
-      expect(html).not.toContain("Reserve Ticket");
+      expect(html).not.toContain("Continue");
     });
   },
 );

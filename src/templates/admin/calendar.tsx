@@ -53,7 +53,7 @@ const CalendarDateSelector = ({
   const splitIndex = dates.findIndex((d) => d.value >= today);
   const insertAt = splitIndex === -1 ? dateOptions.length : splitIndex;
   dateOptions.splice(insertAt, 0, selectOption);
-  return `<select data-nav-select>${dateOptions.join("")}</select>`;
+  return `<select data-nav-select aria-label="Select a date">${dateOptions.join("")}</select>`;
 };
 
 /**

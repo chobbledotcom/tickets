@@ -22,8 +22,10 @@ import { deleteGroup, generateUniqueGroupSlug } from "#routes/admin/groups.ts";
 /** JSON body accepted by POST /api/admin/groups */
 export type CreateGroupBody = {
   name: string;
+  description?: string;
   max_attendees?: number;
   terms_and_conditions?: string;
+  hidden?: boolean;
 };
 
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
@@ -65,12 +67,15 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
         name,
         slug,
         slugIndex,
+        description:
+          typeof body.description === "string" ? body.description : "",
         termsAndConditions:
           typeof body.terms_and_conditions === "string"
             ? body.terms_and_conditions
             : "",
         maxAttendees:
           typeof body.max_attendees === "number" ? body.max_attendees : 0,
+        hidden: body.hidden === true,
       },
     };
   },
@@ -92,6 +97,10 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
         name: parsed.name,
         slug,
         slugIndex,
+        description:
+          body.description != null
+            ? String(body.description)
+            : existing.description,
         termsAndConditions:
           body.terms_and_conditions != null
             ? String(body.terms_and_conditions)
@@ -100,6 +109,8 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
           typeof body.max_attendees === "number"
             ? body.max_attendees
             : existing.max_attendees,
+        hidden:
+          typeof body.hidden === "boolean" ? body.hidden : existing.hidden,
       },
     };
   },

@@ -1063,6 +1063,7 @@ export const createTestEvent = (
       can_pay_more: input.canPayMore ? "1" : "",
       max_price: priceFormValue(input.maxPrice),
       hidden: input.hidden ? "1" : "",
+      purchase_only: input.purchaseOnly ? "1" : "",
     },
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
@@ -1605,6 +1606,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   can_pay_more: false,
   max_price: 0,
   hidden: false,
+  purchase_only: false,
   ...overrides,
 });
 
@@ -1885,8 +1887,10 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   name: "Test Group",
   slug: "test-group",
   slug_index: "test-group-index",
+  description: "",
   terms_and_conditions: "",
   max_attendees: 0,
+  hidden: false,
   ...overrides,
 });
 
@@ -1900,16 +1904,20 @@ export const createTestGroup = async (
 ): Promise<Group> => {
   const input = {
     name: overrides.name ?? "Test Group",
+    description: overrides.description ?? "",
     termsAndConditions: overrides.termsAndConditions ?? "",
     maxAttendees: overrides.maxAttendees ?? 0,
+    hidden: overrides.hidden ?? false,
   };
 
   const group = await authenticatedFormRequest(
     "/admin/groups",
     {
       name: input.name,
+      description: input.description,
       terms_and_conditions: input.termsAndConditions,
       max_attendees: String(input.maxAttendees),
+      ...(input.hidden ? { hidden: "1" } : {}),
     },
     async () => {
       const { getAllGroups } = await import("#lib/db/groups.ts");
@@ -1923,8 +1931,10 @@ export const createTestGroup = async (
     return updateTestGroup(group.id, {
       name: group.name,
       slug: overrides.slug,
+      description: group.description,
       termsAndConditions: group.terms_and_conditions,
       maxAttendees: group.max_attendees,
+      hidden: group.hidden,
     });
   }
 
@@ -1941,14 +1951,17 @@ export const updateTestGroup = async (
   const { groupsTable } = await import("#lib/db/groups.ts");
   const existing = (await groupsTable.findById(groupId)) as Group;
 
+  const hidden = updates.hidden ?? existing.hidden;
   return authenticatedFormRequest(
     `/admin/groups/${groupId}/edit`,
     {
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
+      description: updates.description ?? existing.description,
       terms_and_conditions:
         updates.termsAndConditions ?? existing.terms_and_conditions,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
+      ...(hidden ? { hidden: "1" } : {}),
     },
     async () => {
       const updated = await groupsTable.findById(groupId);
@@ -2555,6 +2568,7 @@ export const makeTestEvent = (
   can_pay_more: false,
   date: "",
   location: "",
+  purchase_only: false,
   ...overrides,
 });
 

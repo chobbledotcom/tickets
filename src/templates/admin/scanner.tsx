@@ -6,14 +6,22 @@ import { SCANNER_JS_PATH } from "#lib/asset-paths.ts";
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
+
+/** Ticket option for the manual check-in autocomplete */
+export interface TicketOption {
+  token: string;
+  name: string;
+  quantity: number;
+}
 
 /**
- * Scanner page - camera feed with auto check-in
+ * Scanner page - camera feed with auto check-in + manual autocomplete
  */
 export const adminScannerPage = (
   event: EventWithCount,
   session: AdminSession,
+  uncheckedIn: TicketOption[] = [],
 ): string =>
   String(
     <Layout
@@ -24,6 +32,8 @@ export const adminScannerPage = (
       <h1>Scanner</h1>
       <p>
         <a href={`/admin/event/${event.id}`}>&larr; {event.name}</a>
+        {" | "}
+        <a href="/admin/guide#checkin">Scanner help</a>
       </p>
 
       <article>
@@ -62,6 +72,58 @@ export const adminScannerPage = (
         <button id="scanner-start" type="button">
           Start Camera
         </button>
+      </article>
+
+      <article>
+        <h2>Manual Check-in</h2>
+        <form
+          id="manual-checkin"
+          method="POST"
+          action={`/admin/event/${event.id}/scan`}
+          data-manual-checkin
+          data-event-id={String(event.id)}
+        >
+          <input
+            type="hidden"
+            name="csrf_token"
+            value={getCurrentCsrfToken()}
+          />
+          <label for="manual-checkin-input">
+            Search by name or ticket token
+          </label>
+          <div class="combobox">
+            <input type="hidden" name="token" id="manual-checkin-token" />
+            <input
+              id="manual-checkin-input"
+              type="text"
+              role="combobox"
+              autocomplete="off"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="ticket-options"
+              placeholder={
+                uncheckedIn.length > 0
+                  ? `${uncheckedIn.length} tickets available`
+                  : "No tickets to check in"
+              }
+              required
+            />
+            <ul id="ticket-options" role="listbox" class="combobox-list hidden">
+              {uncheckedIn.map((t) => (
+                <li
+                  role="option"
+                  data-token={t.token}
+                  data-name={escapeHtml(t.name)}
+                  data-quantity={String(t.quantity)}
+                >
+                  {`${escapeHtml(t.name)} (${t.quantity} attendee${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div id="manual-checkin-status" class="hidden"></div>
+          <button type="submit">Check In</button>
+        </form>
       </article>
     </Layout>,
   );

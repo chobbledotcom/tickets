@@ -4,10 +4,9 @@
 
 import { map } from "#fp";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
-import { ConfirmForm, CsrfForm, renderError } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** List all questions */
@@ -19,10 +18,9 @@ export const adminQuestionsPage = (
   String(
     <Layout title="Custom Questions">
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href="/admin" label="Dashboard" />
 
       <h1>Custom Questions</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       <CsrfForm action="/admin/questions" id="new-question">
         <label>
@@ -67,10 +65,9 @@ export const adminQuestionPage = (
   String(
     <Layout title={`Question: ${question.text}`}>
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb href="/admin/questions" label="Questions" />
 
       <h1>{question.text}</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <label>
@@ -152,13 +149,6 @@ export const adminQuestionDeletePage = (
   String(
     <Layout title="Delete Question">
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb
-        href={`/admin/questions/${question.id}`}
-        label={question.text}
-      />
-
-      <h1>Delete Question</h1>
-      <Raw html={renderError(error)} />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
@@ -166,6 +156,8 @@ export const adminQuestionDeletePage = (
         label="Question text"
         buttonText="Delete Question"
       >
+        <h1>Delete Question</h1>
+        <Flash error={error} />
         <p>
           This will permanently delete the question, all its answers, and all
           attendee responses.
@@ -188,13 +180,6 @@ export const adminAnswerDeletePage = (
   String(
     <Layout title="Delete Answer">
       <AdminNav session={session} active="/admin/questions" />
-      <Breadcrumb
-        href={`/admin/questions/${question.id}`}
-        label={question.text}
-      />
-
-      <h1>Delete Answer</h1>
-      <Raw html={renderError(error)} />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
@@ -202,6 +187,8 @@ export const adminAnswerDeletePage = (
         label="Answer text"
         buttonText="Delete Answer"
       >
+        <h1>Delete Answer</h1>
+        <Flash error={error} />
         <p>
           This will permanently delete the answer "{answer.text}" from the
           question "{question.text}" and remove all attendee responses for it.
@@ -225,10 +212,9 @@ export const adminEventQuestionsPage = (
   String(
     <Layout title={`Questions: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
 
       <h1>Questions for {event.name}</h1>
-      <Raw html={renderError(error)} />
+      <Flash error={error} />
 
       {allQuestions.length === 0 ? (
         <p>

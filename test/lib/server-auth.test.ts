@@ -13,6 +13,7 @@ import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
+  followRedirectWithFlash,
   loginAsAdmin,
   mockAdminLoginRequest,
   mockFormRequest,
@@ -83,7 +84,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Invalid credentials"),
+        expect.stringContaining("Username or password was wrong"),
         false,
       );
     });
@@ -175,7 +176,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Invalid credentials"),
+        expect.stringContaining("Username or password was wrong"),
         false,
       );
     });
@@ -197,7 +198,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Invalid credentials"),
+        expect.stringContaining("Username or password was wrong"),
         false,
       );
     });
@@ -472,7 +473,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Invalid credentials"),
+        expect.stringContaining("Username or password was wrong"),
         false,
       );
     });
@@ -606,6 +607,45 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(html).toContain("username");
       expect(html).toContain("password");
       expect(html.length).toBeGreaterThan(200); // Substantial content
+    });
+  });
+
+  describe("login error display", () => {
+    test("displays error from flash cookie on login page", async () => {
+      const response = await handleRequest(
+        mockRequest(`/admin?flash=${FLASH_TEST_ID}`, {
+          headers: {
+            cookie: flashCookieHeader("Username or password was wrong", false),
+          },
+        }),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Login",
+        "Username or password was wrong",
+      );
+    });
+
+    test("shows error after failed login attempt", async () => {
+      const postResponse = await handleRequest(
+        await mockAdminLoginRequest({
+          username: "testadmin",
+          password: "wrong",
+        }),
+      );
+      expect(postResponse.status).toBe(302);
+
+      const getResponse = await followRedirectWithFlash(
+        postResponse,
+        handleRequest,
+      );
+      await expectHtmlResponse(
+        getResponse,
+        200,
+        "Login",
+        "Username or password was wrong",
+      );
     });
   });
 });

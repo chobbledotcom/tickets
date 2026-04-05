@@ -78,15 +78,16 @@ html[data-theme="dark"] {
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
   border-width: 2px;
-  transition: border-color 0.3s ease;
+  transition: border-color 0.3s ease, outline .2s ease-in-out;
+  outline: 1px solid transparent;
 }
 [data-theme="dark"] input[type="text"]:focus,
 [data-theme="dark"] input[type="password"]:focus,
 [data-theme="dark"] input[type="email"]:focus,
 [data-theme="dark"] select:focus,
 [data-theme="dark"] textarea:focus {
-  border-color: #ffffff;
-  outline: none;
+  border-color: transparent;
+  outline: 2px solid #ffffff;
 }
 [data-theme="dark"] table {
   border-width: 2px;
@@ -438,6 +439,7 @@ input[type="submit"] {
   font-weight: bold;
   line-height: var(--line-height);
   padding: 0.2rem var(--space-m);
+  width: fit-content;
 }
 
 button,
@@ -537,10 +539,6 @@ form > * {
   margin: 0;
 }
 
-form > button {
-  width: fit-content;
-}
-
 form header {
   padding: var(--space-m) 0;
 }
@@ -605,9 +603,19 @@ textarea {
   resize: vertical;
 }
 
+textarea[name="address"],
+textarea[name="special_instructions"] {
+  aspect-ratio: 4 / 1;
+}
+
 @media (min-width: 769px) {
   textarea {
     aspect-ratio: 16 / 9;
+  }
+
+  textarea[name="address"],
+  textarea[name="special_instructions"] {
+    aspect-ratio: 16 / 3;
   }
 }
 
@@ -1238,6 +1246,63 @@ button.secondary:hover {
   display: block;
 }
 
+/* Custom combobox */
+.combobox {
+  position: relative;
+}
+
+.combobox-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--color-bg);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow) var(--color-shadow);
+}
+
+.combobox-list [role="option"] {
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.combobox-list [role="option"]:hover,
+.combobox-list [role="option"].combobox-active {
+  background: var(--color-bg-secondary);
+}
+
+/* Manual check-in status */
+.checkin-status {
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  font-weight: bold;
+  text-align: center;
+}
+
+.checkin-status-success {
+  background: rgba(212, 237, 218, 0.95);
+  color: #155724;
+  border: 2px solid #c3e6cb;
+}
+
+.checkin-status-warning {
+  background: rgba(255, 243, 205, 0.95);
+  color: #856404;
+  border: 2px solid #ffeeba;
+}
+
+.checkin-status-error {
+  background: rgba(248, 215, 218, 0.95);
+  color: #721c24;
+  border: 2px solid #f5c6cb;
+}
+
 /* Inactive dashboard row */
 .inactive-row {
   opacity: 0.5;
@@ -1456,6 +1521,28 @@ button.secondary:hover {
   [data-theme="dark"] .ticket-card-description {
     color: #666;
   }
+
+  nav,
+  main > footer {
+    display: none;
+  }
+
+  .table-scroll {
+    overflow: visible;
+    max-width: 100%;
+  }
+
+  .debug-footer {
+    display: none;
+  }
+
+  article:has(#add-attendee) {
+    display: none;
+  }
+
+  .actions-col {
+    display: none;
+  }
 }
 
 /* Hide email API key and from address fields when provider is "None" */
@@ -1474,6 +1561,32 @@ button.secondary:hover {
 /* Answers cell in attendee table */
 .answers-cell {
   font-size: smaller;
+}
+
+/* Skip navigation link (SC 2.4.1 Bypass Blocks) */
+.skip-nav:not(:focus-visible) {
+  clip-path: inset(50%);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.skip-nav:focus-visible {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 0.5rem 1rem;
+  background: var(--color-link);
+  color: var(--color-bg);
+  font-size: 1rem;
+  text-decoration: none;
+  z-index: 9999;
+}
+
+#main-content:focus {
+  outline: none;
 }
 
 /* Guide page */

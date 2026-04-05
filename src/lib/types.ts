@@ -100,6 +100,7 @@ export interface Event {
   can_pay_more: boolean;
   max_price: number;
   hidden: boolean;
+  purchase_only: boolean;
 }
 
 export interface Attendee extends ContactInfo {
@@ -190,8 +191,10 @@ export interface Group {
   slug: string;
   slug_index: string;
   name: string;
+  description: string;
   terms_and_conditions: string;
   max_attendees: number;
+  hidden: boolean;
 }
 
 export interface EventWithCount extends Event {

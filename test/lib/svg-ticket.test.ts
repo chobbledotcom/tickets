@@ -157,5 +157,27 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       );
       expect(svg).toContain("June");
     });
+
+    test("omits QR code when purchaseOnly is true", async () => {
+      const svg = await generateSvgTicket(
+        makeTicketData({ purchaseOnly: true }),
+      );
+      expect(svg).toContain("Summer Concert");
+      expect(svg).not.toContain("<path");
+      expect(svg).not.toContain("checkin");
+    });
+
+    test("includes event name and info lines when purchaseOnly is true", async () => {
+      const svg = await generateSvgTicket(
+        makeTicketData({
+          purchaseOnly: true,
+          eventLocation: "Online",
+          pricePaid: "1000",
+        }),
+      );
+      expect(svg).toContain("Summer Concert");
+      expect(svg).toContain("Online");
+      expect(svg).toContain("Price:");
+    });
   });
 });

@@ -6,7 +6,7 @@ import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
 import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
-import { ConfirmForm, CsrfForm } from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -69,7 +69,7 @@ export const adminRefundAttendeePage = (
   String(
     <Layout title={`Refund Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
@@ -121,7 +121,7 @@ export const adminRefundAllAttendeesPage = (
   String(
     <Layout title={`Refund All: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {error && <div class="error">{error}</div>}
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/refund-all`}
@@ -230,7 +230,7 @@ export const adminEditAttendeePage = (
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      {success && <div class="success">{success}</div>}
+      <Flash success={success} />
 
       <h2>Edit Attendee</h2>
 

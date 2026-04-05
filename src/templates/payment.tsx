@@ -55,13 +55,9 @@ export const successPage = ({
   fromEmail?: string;
 }): string => {
   const inIframe = getIframeMode();
-  const title = paid ? "Payment Successful" : "Ticket Reserved";
-  const heading = paid
-    ? "Payment Successful!"
-    : "Ticket reserved successfully.";
   return String(
     <Layout
-      title={title}
+      title="Order Successful"
       headExtra={
         thankYouUrl
           ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">`
@@ -73,12 +69,7 @@ export const successPage = ({
         data-payment-result={paid ? "success" : undefined}
         data-scroll-into-view={inIframe || undefined}
       >
-        <h1>{heading}</h1>
-        {paid ? (
-          <div class="success">
-            <p>Thank you for your payment. Your ticket has been confirmed.</p>
-          </div>
-        ) : null}
+        <h1>Thank you for your order.</h1>
         {fromEmail ? (
           <p>
             <small>
@@ -137,7 +128,7 @@ export const paymentErrorPage = (message: string): string =>
   String(
     <Layout title="Payment Error">
       <h1>Payment Error</h1>
-      <div class="error">
+      <div class="error" role="alert">
         <p>{message}</p>
       </div>
       <p>
