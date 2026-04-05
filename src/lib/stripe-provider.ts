@@ -9,6 +9,7 @@ import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   toCheckoutResult,
+  withCheckoutError,
 } from "#lib/payment-helpers.ts";
 import {
   type CheckoutIntent,
@@ -27,21 +28,17 @@ import {
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
 
-/** Convert a Stripe checkout session to a CheckoutResult */
-const stripeCheckoutResult = (
-  session: { id?: string; url?: string | null } | null,
-) => toCheckoutResult(session?.id, session?.url, "Stripe");
-
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   type: "stripe",
 
   checkoutCompletedEventType: "checkout.session.completed",
 
-  async createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
-    const session = await createCheckoutSession(intent, baseUrl);
-    return stripeCheckoutResult(session);
-  },
+  createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
+    withCheckoutError(async () => {
+      const session = await createCheckoutSession(intent, baseUrl);
+      return toCheckoutResult(session?.id, session?.url, "Stripe");
+    }),
 
   async retrieveSession(
     sessionId: string,

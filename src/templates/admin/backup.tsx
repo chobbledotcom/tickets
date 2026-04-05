@@ -30,6 +30,9 @@ export const adminBackupPage = (
       <AdminNav session={session} active="/admin/settings" />
       <SettingsSubNav />
       <h1>Database Backup &amp; Restore</h1>
+      <p>
+        <a href="/admin/guide#backups">Backup guide</a>
+      </p>
       <Flash error={error} success={success} />
 
       {!state.isRemote && (
