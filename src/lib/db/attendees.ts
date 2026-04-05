@@ -660,10 +660,21 @@ export const attendeesApi = {
       return { success: false, reason: "encryption_error" };
     }
 
-    // Build capacity-checked INSERT for each booking
+    // Use a subquery to look up the attendee ID instead of last_insert_rowid().
+    // last_insert_rowid() updates after each INSERT in a batch, so the 2nd+
+    // booking would get the event_attendees row ID instead of the attendee ID.
+    const attendeeIdExpr =
+      "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
     const bookingStatements = bookings.map((booking) => {
-      const { sql, args } = buildCapacityCheckedInsert(booking);
-      return { sql, args };
+      const { sql, args } = buildCapacityCheckedInsert(booking, attendeeIdExpr);
+      // Splice ticketTokenIndex after the first arg (eventId) to bind
+      // the ? in the attendeeIdExpr subquery
+      const combined: InValue[] = [
+        args[0]!,
+        enc.ticketTokenIndex,
+        ...args.slice(1),
+      ];
+      return { sql, args: combined };
     });
 
     // Single ACID transaction: attendee first, then capacity-checked event links.
