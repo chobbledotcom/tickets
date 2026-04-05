@@ -18,7 +18,9 @@ import {
 import {
   buildItemsMetadata,
   createWithClient,
+  enforceMetadataLimits,
   errorMessage,
+  STRIPE_METADATA_MAX_VALUE_LENGTH,
 } from "#lib/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -290,7 +292,10 @@ export const stripeApi: {
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
-      metadata: buildItemsMetadata(intent),
+      metadata: enforceMetadataLimits(
+        buildItemsMetadata(intent),
+        STRIPE_METADATA_MAX_VALUE_LENGTH,
+      ),
     };
 
     logDebug("Stripe", "Calling Stripe API checkout.sessions.create");

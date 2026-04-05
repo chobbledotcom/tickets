@@ -2217,6 +2217,73 @@ describeWithEnv(
       });
     });
 
+    describe("metadata size limits", () => {
+      test("returns error when items metadata exceeds Stripe limit", async () => {
+        await settings.update.stripe.secretKey("sk_test_mock");
+        // Generate enough items to exceed 500-char serialized metadata
+        const items = Array.from({ length: 40 }, (_, i) => ({
+          eventId: i + 1,
+          quantity: 1,
+          unitPrice: 1000,
+          slug: `event-${i + 1}`,
+          name: `Event ${i + 1}`,
+        }));
+        const intent = {
+          name: "Alice",
+          email: "alice@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          date: null,
+          items,
+        };
+        const result = await stripePaymentProvider.createCheckoutSession(
+          intent,
+          "http://localhost:3000",
+        );
+        expect(result).not.toBeNull();
+        expect(result).toHaveProperty("error");
+        expect((result as { error: string }).error).toMatch(
+          /too many events/i,
+        );
+      });
+
+      test("returns null for non-PaymentUserError exceptions", async () => {
+        await settings.update.stripe.secretKey("sk_test_mock");
+        // Stub stripeApi.createCheckoutSession to throw a generic error
+        // that propagates through to withUserError's catch
+        const origFn = stripeApi.createCheckoutSession;
+        stripeApi.createCheckoutSession = () =>
+          Promise.reject(new TypeError("unexpected"));
+        try {
+          const intent = {
+            name: "John",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            date: null,
+            items: [
+              {
+                eventId: 1,
+                quantity: 1,
+                unitPrice: 1000,
+                slug: "evt",
+                name: "Evt",
+              },
+            ],
+          };
+          const result = await stripePaymentProvider.createCheckoutSession(
+            intent,
+            "http://localhost:3000",
+          );
+          expect(result).toBeNull();
+        } finally {
+          stripeApi.createCheckoutSession = origFn;
+        }
+      });
+    });
+
     describe("resolveWebhookSession", () => {
       test("extracts session directly from event with complete metadata", async () => {
         const result = await stripePaymentProvider.resolveWebhookSession({

@@ -23,8 +23,10 @@ import {
 import {
   buildItemsMetadata,
   createWithClient,
+  enforceMetadataLimits,
   errorMessage,
   PaymentUserError,
+  SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#lib/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -39,7 +41,6 @@ import { normalizePhone } from "#lib/phone.ts";
  * - Key max 60 characters
  * - Value max 255 characters
  */
-const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
 /** Raw tender from Square REST API (snake_case) or camelCase from our client */
 type SquareRawTender = {
@@ -139,35 +140,11 @@ const rethrowAsUserError = (err: unknown): never => {
   throw err;
 };
 
-/**
- * Enforce Square metadata value length limits.
- * Truncates `name` (display-only, safe to shorten).
- * Returns null if any non-truncatable value (like `items` JSON) exceeds the limit,
- * since truncating structured data would cause downstream parse failures.
- */
-export const enforceMetadataLimits = (
+/** Enforce Square metadata value length limits using the shared helper */
+const enforceSquareMetadataLimits = (
   metadata: Record<string, string>,
-): Record<string, string> | null => {
-  for (const [key, value] of Object.entries(metadata)) {
-    if (value.length <= SQUARE_METADATA_MAX_VALUE_LENGTH) continue;
-    if (key === "name") continue; // handled below
-    logError({
-      code: ErrorCode.SQUARE_CHECKOUT,
-      detail: `Metadata value for "${key}" exceeds ${SQUARE_METADATA_MAX_VALUE_LENGTH} chars (${value.length})`,
-    });
-    return null;
-  }
-
-  const name = metadata.name;
-  if (name && name.length > SQUARE_METADATA_MAX_VALUE_LENGTH) {
-    return {
-      ...metadata,
-      name: name.slice(0, SQUARE_METADATA_MAX_VALUE_LENGTH),
-    };
-  }
-
-  return metadata;
-};
+): Record<string, string> =>
+  enforceMetadataLimits(metadata, SQUARE_METADATA_MAX_VALUE_LENGTH);
 
 /** Square API version for all requests */
 const SQUARE_API_VERSION = "2025-01-23";
@@ -587,8 +564,7 @@ const preparePaymentLink = (
 
   logDebug("Square", `Creating ${label}`);
 
-  const metadata = enforceMetadataLimits(rawMetadata);
-  if (!metadata) return null;
+  const metadata = enforceSquareMetadataLimits(rawMetadata);
 
   return { config, metadata };
 };
