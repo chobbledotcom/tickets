@@ -217,9 +217,7 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
       }
 
       const tokens = encodeURIComponent(result.tokens.join("+"));
-      const allPurchaseOnly = ctx.events.every((e) => e.event.purchase_only);
-      const poParam = allPurchaseOnly ? "&po=1" : "";
-      return redirectResponse(`/ticket/reserved?tokens=${tokens}${poParam}`);
+      return redirectResponse(`/ticket/reserved?tokens=${tokens}`);
     },
   );
 

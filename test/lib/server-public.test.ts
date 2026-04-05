@@ -1340,7 +1340,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectRedirect(response, "https://example.com/thanks");
     });
 
-    test("redirects with po=1 param for purchase_only event", async () => {
+    test("shows purchase complete for purchase_only event", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         purchaseOnly: true,
@@ -1352,7 +1352,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       expect(response.status).toBe(302);
       const location = response.headers.get("location") || "";
-      expect(location).toContain("po=1");
+      expect(location).toContain("/ticket/reserved?tokens=");
+
+      // Follow the redirect and check the success page
+      const successResponse = await handleRequest(mockRequest(location));
+      const html = await successResponse.text();
+      expect(html).toContain("Purchase Complete");
+      expect(html).not.toContain("Ticket Reserved");
     });
 
     test("rejects when event is full", async () => {
