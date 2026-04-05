@@ -58,9 +58,7 @@ const narrowCheckoutSession = (
   id: session.id,
   payment_status: session.payment_status,
   payment_intent:
-    typeof session.payment_intent === "string"
-      ? session.payment_intent
-      : null,
+    typeof session.payment_intent === "string" ? session.payment_intent : null,
   metadata: session.metadata,
   amount_total: session.amount_total,
 });
