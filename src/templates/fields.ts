@@ -74,7 +74,7 @@ export type GroupCreateFormValues = {
   name: string;
   terms_and_conditions: string;
   max_attendees: number | null;
-  hidden: boolean;
+  hidden: string;
 };
 
 /** Typed values from group edit form validation (includes slug) */
@@ -83,7 +83,7 @@ export type GroupFormValues = {
   slug: string;
   terms_and_conditions: string;
   max_attendees: number | null;
-  hidden: boolean;
+  hidden: string;
 };
 
 /** Typed values from ticket form (field presence varies by event config) */

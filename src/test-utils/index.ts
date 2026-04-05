@@ -1890,6 +1890,7 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   slug_index: "test-group-index",
   terms_and_conditions: "",
   max_attendees: 0,
+  hidden: false,
   ...overrides,
 });
 
