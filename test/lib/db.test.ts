@@ -1230,6 +1230,55 @@ describeWithEnv("db", { db: true }, () => {
       }
     });
 
+    test("createAttendeeAtomic links all bookings to correct attendee for multi-event group purchase", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+
+      // Create a prior attendee with TWO bookings so the event_attendees
+      // auto-increment gets ahead of attendees — this prevents the bug from
+      // being masked by coincidental IDs (attendees.id == event_attendees.id)
+      const event3 = await createTestEvent({ maxAttendees: 50 });
+      await createAttendeeAtomic({
+        name: "Prior",
+        email: "prior@example.com",
+        bookings: [{ eventId: event1.id }, { eventId: event3.id }],
+      });
+
+      const result = await createAttendeeAtomic({
+        name: "Group Buyer",
+        email: "group@example.com",
+        paymentId: "pi_group_test",
+        bookings: [
+          { eventId: event1.id, quantity: 1, pricePaid: 1000 },
+          { eventId: event2.id, quantity: 1, pricePaid: 1500 },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      // Both bookings should be reported as successful
+      expect(result.attendees.length).toBe(2);
+      const attendeeId = result.attendees[0]!.id;
+
+      // Verify all event_attendees rows for this attendee point to the correct attendee_id
+      const rows = await getDb().execute({
+        sql: "SELECT attendee_id, event_id FROM event_attendees WHERE attendee_id = ? ORDER BY event_id",
+        args: [attendeeId],
+      });
+      expect(rows.rows.length).toBe(2);
+
+      // Look up the attendee by token — this is the path the ticket page uses
+      const token = result.attendees[0]!.ticket_token;
+      const lookupResults = await getAttendeesByTokens([token]);
+      const awb = lookupResults[0];
+      expect(awb).toBeDefined();
+
+      // The attendee should have bookings for BOTH events
+      const bookingEventIds = awb!.bookings.map((b) => b.event_id).sort();
+      expect(bookingEventIds).toEqual([event1.id, event2.id].sort());
+    });
+
     test("createAttendeeAtomic fails when capacity exceeded", async () => {
       const event = await createTestEvent({
         maxAttendees: 1,
