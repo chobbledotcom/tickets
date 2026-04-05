@@ -31,7 +31,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "multi-event attendees with per-event status";
+export const LATEST_UPDATE = "drop PII columns from attendees (now in pii_blob)";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -145,18 +145,10 @@ const SCHEMA: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["name", "TEXT NOT NULL"],
-        ["email", "TEXT NOT NULL"],
         ["created", "TEXT NOT NULL"],
-        ["payment_id", "TEXT"],
-        ["phone", "TEXT NOT NULL DEFAULT ''"],
-        ["ticket_token", "TEXT NOT NULL DEFAULT ''"],
         ["price_paid", "TEXT"],
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
-        ["address", "TEXT NOT NULL DEFAULT ''"],
-        ["special_instructions", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
-        ["refunded", "TEXT NOT NULL DEFAULT ''"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
@@ -464,11 +456,18 @@ const recreateTable = async (tableName: string): Promise<void> => {
   const colDefs = cols.map(([col, type]) => `${col} ${type}`).join(", ");
   const tmpName = `${tableName}_new`;
 
+  const selectExprs = cols
+    .map(([col, type]) => {
+      const defaultMatch = type.match(/DEFAULT\s+'([^']*)'/i);
+      return defaultMatch ? `COALESCE(${col}, '${defaultMatch[1]}')` : col;
+    })
+    .join(", ");
+
   await getDb().batch(
     [
       { sql: `CREATE TABLE ${tmpName} (${colDefs})`, args: [] },
       {
-        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${colNames} FROM ${tableName}`,
+        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
         args: [],
       },
       { sql: `DROP TABLE ${tableName}`, args: [] },

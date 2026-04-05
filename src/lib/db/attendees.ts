@@ -141,8 +141,7 @@ const decryptAttendeeFields = async (
 
 /**
  * Attendee columns for JOIN queries — only the columns actually used at runtime.
- * Legacy per-field encrypted columns (name, email, phone, etc.) are omitted since
- * all PII is read from pii_blob and status from the _v2 columns.
+ * All PII is read from the encrypted pii_blob; per-event status lives on event_attendees.
  */
 const ATTENDEE_COLS = "a.id, a.created, a.ticket_token_index, a.pii_blob";
 
@@ -672,8 +671,8 @@ export const attendeesApi = {
     const batchResults = await executeBatchWithResults([
       // Step 1: Create attendee record (unconditional)
       {
-        sql: `INSERT INTO attendees (name, email, created, ticket_token_index, pii_blob)
-              VALUES ('', '', ?, ?, ?)`,
+        sql: `INSERT INTO attendees (created, ticket_token_index, pii_blob)
+              VALUES (?, ?, ?)`,
         args: [enc.created, enc.ticketTokenIndex, enc.encryptedPiiBlob],
       },
       // Steps 2..N+1: One capacity-checked INSERT per booking
