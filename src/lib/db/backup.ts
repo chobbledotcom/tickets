@@ -21,6 +21,7 @@ import {
   SCHEMA_TABLE_NAMES,
 } from "#lib/db/migrations.ts";
 import { getEnv } from "#lib/env.ts";
+import { uploadRaw } from "#lib/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -171,6 +172,15 @@ export const createBackupZip = async (): Promise<Uint8Array> => {
     files[`${table}.sql`] = encoder.encode(sql);
   }
   return zipSync(files);
+};
+
+/** Create a backup zip and upload it to storage. Returns the filename. */
+export const createAndUploadBackup = async (): Promise<string> => {
+  const timestamp = backupTimestamp();
+  const zipData = await createBackupZip();
+  const filename = backupFilename(timestamp);
+  await uploadRaw(zipData, filename);
+  return filename;
 };
 
 // ─── Restore ────────────────────────────────────────────────────

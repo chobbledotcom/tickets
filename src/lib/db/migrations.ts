@@ -11,14 +11,10 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
-import {
-  backupFilename,
-  backupTimestamp,
-  createBackupZip,
-} from "#lib/db/backup.ts";
+import { createAndUploadBackup } from "#lib/db/backup.ts";
 import { getDb } from "#lib/db/client.ts";
 import { logDebug } from "#lib/logger.ts";
-import { isStorageEnabled, uploadRaw } from "#lib/storage.ts";
+import { isStorageEnabled } from "#lib/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -621,10 +617,7 @@ export const initDb = async (): Promise<void> => {
   // (has a previous version marker) and storage is configured
   if (isStorageEnabled() && (await hasExistingData())) {
     logDebug("Migration", "Creating pre-migration backup...");
-    const timestamp = backupTimestamp();
-    const zipData = await createBackupZip();
-    const filename = backupFilename(timestamp);
-    await uploadRaw(zipData, filename);
+    const filename = await createAndUploadBackup();
     logDebug("Migration", `Pre-migration backup saved: ${filename}`);
   }
 
