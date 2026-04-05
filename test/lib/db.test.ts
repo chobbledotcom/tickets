@@ -183,12 +183,12 @@ describeWithEnv("db", { db: true }, () => {
     test("initDb drops legacy indexes not in declarative schema", async () => {
       // Create a legacy index that the declarative schema doesn't declare
       await getDb().execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token ON attendees(ticket_token)",
+        "CREATE INDEX IF NOT EXISTS idx_attendees_legacy_created ON attendees(created)",
       );
 
       // Verify the legacy index exists
       const before = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_attendees_ticket_token'",
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_attendees_legacy_created'",
       );
       expect(before.rows.length).toBe(1);
 
@@ -200,7 +200,7 @@ describeWithEnv("db", { db: true }, () => {
 
       // Legacy index should be dropped
       const after = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_attendees_ticket_token'",
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_attendees_legacy_created'",
       );
       expect(after.rows.length).toBe(0);
     });
@@ -3786,7 +3786,7 @@ describe("event_attendees migration from legacy schema", () => {
     expect(colNames).not.toContain("date");
     expect(colNames).not.toContain("quantity");
     expect(colNames).toContain("id");
-    expect(colNames).toContain("name");
+    expect(colNames).toContain("pii_blob");
 
     // Verify processed_payments data survived the migration
     const payments = await client.execute("SELECT * FROM processed_payments");

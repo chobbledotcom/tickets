@@ -137,25 +137,17 @@ const prepareAttendee = async (
   const pricePaid = String(unitPrice * quantity);
 
   // Encrypt status fields and compute token index in parallel
-  const [encPricePaid, encCheckedIn, encRefunded, ticketTokenIndex] =
-    await Promise.all([
-      encrypt(pricePaid),
-      encPII("false"),
-      encPII("false"),
-      computeTicketTokenIndex(ticketToken),
-    ]);
+  const [encPricePaid, encCheckedIn, ticketTokenIndex] = await Promise.all([
+    encrypt(pricePaid),
+    encPII("false"),
+    computeTicketTokenIndex(ticketToken),
+  ]);
 
   return [
     {
-      sql: `INSERT INTO attendees (created, price_paid, checked_in, refunded, ticket_token_index)
-            VALUES (?, ?, ?, ?, ?)`,
-      args: [
-        created,
-        encPricePaid,
-        encCheckedIn,
-        encRefunded,
-        ticketTokenIndex,
-      ],
+      sql: `INSERT INTO attendees (created, price_paid, checked_in, ticket_token_index)
+            VALUES (?, ?, ?, ?)`,
+      args: [created, encPricePaid, encCheckedIn, ticketTokenIndex],
     },
     {
       sql: "INSERT INTO event_attendees (event_id, attendee_id, quantity) VALUES (?, last_insert_rowid(), ?)",
