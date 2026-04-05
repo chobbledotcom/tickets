@@ -17,7 +17,6 @@ import {
   homepagePage,
   type PublicPageType,
   publicSitePage,
-  type TicketEvent,
 } from "#templates/public.tsx";
 
 /** Active+visible filter for public event listings */

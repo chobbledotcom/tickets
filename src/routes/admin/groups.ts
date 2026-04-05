@@ -56,19 +56,20 @@ import {
 export const generateUniqueGroupSlug = () =>
   generateUniqueSlug(computeGroupSlugIndex, isGroupSlugTaken);
 
+/** Shared fields from group form values */
+const sharedGroupFields = (values: GroupCreateFormValues) => ({
+  name: values.name,
+  termsAndConditions: values.terms_and_conditions,
+  maxAttendees: values.max_attendees ?? 0,
+  hidden: values.hidden === "1",
+});
+
 /** Extract group input from create form values (auto-generates slug) */
 const extractGroupCreateInput = async (
   values: GroupCreateFormValues,
 ): Promise<GroupInput> => {
   const { slug, slugIndex } = await generateUniqueGroupSlug();
-  return {
-    name: values.name,
-    slug,
-    slugIndex,
-    termsAndConditions: values.terms_and_conditions,
-    maxAttendees: values.max_attendees ?? 0,
-    hidden: values.hidden === "1",
-  };
+  return { ...sharedGroupFields(values), slug, slugIndex };
 };
 
 /** Extract group input from edit form values (uses provided slug) */
@@ -77,12 +78,9 @@ const extractGroupEditInput = async (
 ): Promise<GroupInput> => {
   const slug = normalizeSlug(values.slug);
   return {
-    name: values.name,
+    ...sharedGroupFields(values),
     slug,
     slugIndex: await computeGroupSlugIndex(slug),
-    termsAndConditions: values.terms_and_conditions,
-    maxAttendees: values.max_attendees ?? 0,
-    hidden: values.hidden === "1",
   };
 };
 
