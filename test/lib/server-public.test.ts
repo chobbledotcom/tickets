@@ -283,13 +283,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         hidden: true,
       });
       await createTestEvent({
-        name: "Secret Group Event",
+        name: "Visible Event In Hidden Group",
         groupId: group.id,
         maxAttendees: 50,
       });
       const response = await handleRequest(mockRequest("/events"));
       const html = await response.text();
       expect(html).not.toContain("Secret Group");
+      expect(html).toContain("Visible Event In Hidden Group");
     });
 
     test("hidden group is still accessible via direct ticket URL", async () => {
@@ -309,7 +310,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Hidden Group Event");
     });
 
-    test("grouped events do not appear individually on events page", async () => {
+    test("grouped events also appear individually on events page", async () => {
       await settings.update.showPublicSite(true);
       const group = await createTestGroup({
         name: "My Group",
@@ -325,13 +326,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 50,
       });
       const response = await handleRequest(mockRequest("/events"));
-      const html = await expectHtmlResponse(
+      await expectHtmlResponse(
         response,
         200,
         "My Group",
         "Ungrouped Event",
+        "Grouped Event",
       );
-      expect(html).not.toContain("Grouped Event");
     });
 
     test("shows sold out for events at capacity", async () => {
