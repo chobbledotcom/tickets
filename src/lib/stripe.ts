@@ -57,7 +57,6 @@ const narrowCheckoutSession = (
 ): StripeCheckoutFields => ({
   id: session.id,
   payment_status: session.payment_status,
-  // We never expand payment_intent, so Stripe always returns the string ID
   payment_intent:
     typeof session.payment_intent === "string"
       ? session.payment_intent
@@ -80,8 +79,10 @@ const narrowPaymentIntent = (
 ): StripePaymentIntentFields => ({
   id: intent.id,
   latest_charge:
-    intent.latest_charge && typeof intent.latest_charge === "object"
-      ? { refunded: (intent.latest_charge as Stripe.Charge).refunded }
+    intent.latest_charge &&
+    typeof intent.latest_charge === "object" &&
+    "refunded" in intent.latest_charge
+      ? { refunded: intent.latest_charge.refunded }
       : null,
 });
 
