@@ -409,21 +409,24 @@ const getExistingColumns = async (table: string): Promise<Set<string>> => {
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
-/** Check if database is already up to date (version + schema hash) */
-const isDbUpToDate = async (): Promise<boolean> => {
+type DbState = "up_to_date" | "needs_migration" | "new";
+
+/** Check database state: up-to-date, existing but needs migration, or brand new */
+const getDbState = async (): Promise<DbState> => {
   try {
     const result = await getDb().execute(
       "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
     );
+    if (result.rows.length === 0) return "new";
     const values = new Map(
       result.rows.map((r) => [r.key as string, r.value as string]),
     );
-    return (
-      values.get("latest_db_update") === LATEST_UPDATE &&
+    return values.get("latest_db_update") === LATEST_UPDATE &&
       values.get("db_schema_hash") === SCHEMA_HASH
-    );
+      ? "up_to_date"
+      : "needs_migration";
   } catch {
-    return false;
+    return "new";
   }
 };
 
@@ -550,21 +553,6 @@ const syncIndexes = async (): Promise<void> => {
   }
 };
 
-/**
- * Check if the database has existing data (i.e. not a brand-new setup).
- * Returns true if the settings table exists and has a previous version marker.
- */
-const hasExistingData = async (): Promise<boolean> => {
-  try {
-    const result = await getDb().execute(
-      "SELECT 1 FROM settings WHERE key = 'latest_db_update' LIMIT 1",
-    );
-    return result.rows.length > 0;
-  } catch {
-    return false;
-  }
-};
-
 const MIGRATION_LOCK_KEY = "migration_lock";
 
 /**
@@ -597,7 +585,8 @@ const releaseMigrationLock = async (): Promise<void> => {
  * Uses an advisory lock to prevent concurrent migrations.
  */
 export const initDb = async (): Promise<void> => {
-  if (await isDbUpToDate()) return;
+  let state = await getDbState();
+  if (state === "up_to_date") return;
 
   const acquired = await acquireMigrationLock();
   if (!acquired) {
@@ -608,14 +597,14 @@ export const initDb = async (): Promise<void> => {
   }
 
   // Re-check after acquiring lock (another process may have finished)
-  if (await isDbUpToDate()) {
+  state = await getDbState();
+  if (state === "up_to_date") {
     await releaseMigrationLock();
     return;
   }
 
-  // Back up before migrating — but only if this is an existing database
-  // (has a previous version marker) and storage is configured
-  if (isStorageEnabled() && (await hasExistingData())) {
+  // Back up before migrating — but only for existing databases, not fresh installs
+  if (state === "needs_migration" && isStorageEnabled()) {
     logDebug("Migration", "Creating pre-migration backup...");
     const filename = await createAndUploadBackup();
     logDebug("Migration", `Pre-migration backup saved: ${filename}`);
