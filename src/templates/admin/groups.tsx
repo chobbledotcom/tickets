@@ -91,7 +91,8 @@ export const groupToFieldValues = (
   const slug = group?.slug ?? "";
   const terms = group?.terms_and_conditions ?? "";
   const max_attendees = group?.max_attendees || null;
-  return { name, slug, terms_and_conditions: terms, max_attendees };
+  const hidden = group?.hidden ? "1" : "";
+  return { name, slug, terms_and_conditions: terms, max_attendees, hidden };
 };
 
 /**
@@ -296,6 +297,12 @@ export const adminGroupDetailPage = (
                   />
                 </td>
               </tr>
+              {group.hidden && (
+                <tr>
+                  <th>Hidden</th>
+                  <td>Yes &mdash; not shown in public events list</td>
+                </tr>
+              )}
               <Raw html={renderDetailRows(sharedRows)} />
             </tbody>
           </table>

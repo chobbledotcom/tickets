@@ -25,6 +25,7 @@ export type GroupInput = {
   name: string;
   termsAndConditions: string;
   maxAttendees: number;
+  hidden: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -37,6 +38,7 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   terms_and_conditions: { default: () => "", write: encrypt, read: decrypt },
   max_attendees: col.simple<number>(),
+  hidden: col.boolean(false),
 });
 
 /** Execute a query and decrypt the resulting group rows */

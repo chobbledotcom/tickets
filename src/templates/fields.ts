@@ -75,6 +75,7 @@ export type GroupCreateFormValues = {
   name: string;
   terms_and_conditions: string;
   max_attendees: number | null;
+  hidden: string;
 };
 
 /** Typed values from group edit form validation (includes slug) */
@@ -83,6 +84,7 @@ export type GroupFormValues = {
   slug: string;
   terms_and_conditions: string;
   max_attendees: number | null;
+  hidden: string;
 };
 
 /** Typed values from ticket form (field presence varies by event config) */
@@ -576,6 +578,15 @@ const groupMaxAttendeesField: Field = {
   hint: "Limits total attendees across all events in this group. Leave blank for no limit. Works best when all events in the group are the same type (daily or standard).",
 };
 
+/** Hidden group field (same as event hidden field) */
+const groupHiddenField: Field = {
+  name: "hidden",
+  label: "Hidden Group",
+  type: "checkbox-group",
+  hint: "Hide from the public events page and search engines. The group is still bookable via its direct link.",
+  options: [{ value: "1", label: "Hide from public events list" }],
+};
+
 /** Group form fields for creation (no slug - auto-generated) */
 export const groupCreateFields: Field[] = [
   {
@@ -598,6 +609,7 @@ export const groupCreateFields: Field[] = [
         ? `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer`
         : null,
   },
+  groupHiddenField,
 ];
 
 /** Group form field definitions (edit - includes slug) */
@@ -606,6 +618,7 @@ export const groupFields: Field[] = [
   slugField,
   groupCreateFields[1]!,
   groupCreateFields[2]!,
+  groupHiddenField,
 ];
 
 /** Name field shown on all ticket forms */

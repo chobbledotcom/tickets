@@ -196,6 +196,7 @@ export interface Group {
   name: string;
   terms_and_conditions: string;
   max_attendees: number;
+  hidden: boolean;
 }
 
 export interface EventWithCount extends Event {

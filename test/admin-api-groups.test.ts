@@ -124,6 +124,33 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
     });
 
+    test("creates group with hidden flag", async () => {
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          method: "POST",
+          body: { name: "Hidden Group", hidden: true },
+        }),
+        201,
+        (body) => {
+          expect(body.group.name).toBe("Hidden Group");
+          expect(body.group.hidden).toBe(true);
+        },
+      );
+    });
+
+    test("creates group without hidden flag by default", async () => {
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          method: "POST",
+          body: { name: "Visible Group" },
+        }),
+        201,
+        (body) => {
+          expect(body.group.hidden).toBe(false);
+        },
+      );
+    });
+
     test("returns error when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
@@ -209,6 +236,32 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.group.max_attendees).toBe(100);
           expect(body.group.terms_and_conditions).toBe("Updated terms");
           expect(body.group.name).toBe("Update Fields");
+        },
+      );
+    });
+
+    test("updates hidden flag", async () => {
+      const group = await createTestGroup({ name: "Toggle Group" });
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          method: "PUT",
+          body: { hidden: true },
+        }),
+        200,
+        (body) => {
+          expect(body.group.hidden).toBe(true);
+        },
+      );
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          method: "PUT",
+          body: { hidden: false },
+        }),
+        200,
+        (body) => {
+          expect(body.group.hidden).toBe(false);
         },
       );
     });
