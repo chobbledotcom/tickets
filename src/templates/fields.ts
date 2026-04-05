@@ -80,13 +80,8 @@ export type GroupCreateFormValues = {
 };
 
 /** Typed values from group edit form validation (includes slug) */
-export type GroupFormValues = {
-  name: string;
+export type GroupFormValues = GroupCreateFormValues & {
   slug: string;
-  description: string;
-  terms_and_conditions: string;
-  max_attendees: number | null;
-  hidden: string;
 };
 
 /** Typed values from ticket form (field presence varies by event config) */
