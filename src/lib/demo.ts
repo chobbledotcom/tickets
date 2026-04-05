@@ -499,6 +499,16 @@ export const DEMO_GROUP_NAMES = [
   "Sports & Fitness",
 ] as const;
 
+/** Demo group descriptions */
+export const DEMO_GROUP_DESCRIPTIONS = [
+  "A collection of summer activities for the whole family",
+  "Warm up with our winter programme of events",
+  "Community-led activities open to all",
+  "Fun activities for young people aged 11-18",
+  "Help us raise money for local causes",
+  "Stay active with our sports and fitness events",
+] as const;
+
 /** Demo holiday names */
 export const DEMO_HOLIDAY_NAMES = [
   "Bank Holiday",
@@ -554,9 +564,10 @@ export const EVENT_DEMO_FIELDS: DemoFieldMap = {
   location: DEMO_EVENT_LOCATIONS,
 };
 
-/** Group name field */
+/** Group name and description fields */
 export const GROUP_DEMO_FIELDS: DemoFieldMap = {
   name: DEMO_GROUP_NAMES,
+  description: DEMO_GROUP_DESCRIPTIONS,
 };
 
 /** Holiday name field */

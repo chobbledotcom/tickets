@@ -20,6 +20,7 @@ import { getImageProxyUrl } from "#lib/storage.ts";
 import {
   type EventFields,
   type EventWithCount,
+  type Group,
   isPaidEvent,
 } from "#lib/types.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
@@ -117,13 +118,26 @@ const renderEventListing = (info: TicketEvent): string => {
   const descriptionHtml = event.description
     ? `<p>${renderMarkdownInline(event.description)}</p>`
     : "";
+  const bookLabel = event.purchase_only ? "Buy now" : "Book now";
   const linkHtml = isSoldOut
     ? "<p><strong>Sold Out</strong></p>"
     : isClosed || isReadOnly()
       ? "<p><strong>Registration Closed</strong></p>"
-      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>Book now</strong></a></p>`;
+      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>${bookLabel}</strong></a></p>`;
 
   return `<div class="prose"><h2>${escapeHtml(event.name)}</h2>${descriptionHtml}</div>${detailsHtml}${linkHtml}`;
+};
+
+/** Render a single group listing for the events page (same style as events) */
+const renderGroupListing = (group: Group): string => {
+  const descriptionHtml = group.description
+    ? renderMarkdownInline(group.description)
+    : "";
+  const linkHtml = isReadOnly()
+    ? "<p><strong>Registration Closed</strong></p>"
+    : `<p><a href="/ticket/${escapeHtml(group.slug)}"><strong>Book now</strong></a></p>`;
+
+  return `<div class="prose"><h2>${escapeHtml(group.name)}</h2>${descriptionHtml}</div>${linkHtml}`;
 };
 
 /**
@@ -140,10 +154,11 @@ export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
 export const homepagePage = (
   events: TicketEvent[],
   websiteTitle?: string | null,
+  groups: Group[] = [],
 ): string => {
   const title = websiteTitle ? `Events - ${websiteTitle}` : "Events";
 
-  if (events.length === 0) {
+  if (events.length === 0 && groups.length === 0) {
     return String(
       <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
@@ -160,6 +175,10 @@ export const homepagePage = (
     );
   }
 
+  const groupListings = pipe(map(renderGroupListing), (rows: string[]) =>
+    rows.join(""),
+  )(groups);
+
   const eventListings = pipe(map(renderEventListing), (rows: string[]) =>
     rows.join(""),
   )(events);
@@ -169,6 +188,7 @@ export const homepagePage = (
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
       <h2>All bookable events</h2>
+      <Raw html={groupListings} />
       <Raw html={eventListings} />
       <footer class="homepage-footer">
         <p>
@@ -461,8 +481,7 @@ export const ticketPage = ({
   const title = singleEvent ? singleEvent.name : "Reserve Tickets";
   const headExtra =
     singleEvent && baseUrl ? buildOgTags(singleEvent, baseUrl) : undefined;
-  const buttonText =
-    isSingleEvent && hideQuantity ? "Reserve Ticket" : "Reserve Tickets";
+  const buttonText = "Continue";
 
   return String(
     <Layout

@@ -133,6 +133,7 @@ const extractCommonFields = (values: EventFormValues) => {
     canPayMore: values.can_pay_more === "1",
     maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
     hidden: values.hidden === "1",
+    purchaseOnly: values.purchase_only === "1",
   };
 };
 

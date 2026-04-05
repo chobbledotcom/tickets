@@ -303,9 +303,11 @@ export const adminEventPage = ({
           <li>
             <a href={`/admin/event/${event.id}/log`}>Log</a>
           </li>
-          <li>
-            <a href={`/admin/event/${event.id}/scanner`}>Scanner</a>
-          </li>
+          {!event.purchase_only && (
+            <li>
+              <a href={`/admin/event/${event.id}/scanner`}>Scanner</a>
+            </li>
+          )}
           <li>
             <a href={`/admin/event/${event.id}/questions`}>Questions</a>
           </li>

@@ -89,9 +89,18 @@ export const groupToFieldValues = (
 ): Record<string, string | number | null> => {
   const name = group?.name ?? "";
   const slug = group?.slug ?? "";
+  const description = group?.description ?? "";
   const terms = group?.terms_and_conditions ?? "";
   const max_attendees = group?.max_attendees || null;
-  return { name, slug, terms_and_conditions: terms, max_attendees };
+  const hidden = group?.hidden ? "1" : "";
+  return {
+    name,
+    slug,
+    description,
+    terms_and_conditions: terms,
+    max_attendees,
+    hidden,
+  };
 };
 
 /**
@@ -296,6 +305,12 @@ export const adminGroupDetailPage = (
                   />
                 </td>
               </tr>
+              {group.hidden && (
+                <tr>
+                  <th>Hidden</th>
+                  <td>Yes &mdash; not shown in public events list</td>
+                </tr>
+              )}
               <Raw html={renderDetailRows(sharedRows)} />
             </tbody>
           </table>

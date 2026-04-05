@@ -45,7 +45,8 @@ type FeedData = { events: EventWithCount[]; domain: string; title: string };
 /** Load feed data: active open events with domain and title */
 const loadFeedData = async (): Promise<FeedData> => {
   const { events } = await loadSortedEvents(
-    (e) => e.active && !e.hidden && !isRegistrationClosed(e),
+    (e) =>
+      e.active && !e.hidden && !e.purchase_only && !isRegistrationClosed(e),
   );
   return {
     events,

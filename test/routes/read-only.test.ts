@@ -165,6 +165,38 @@ describeWithEnv(
       expect(res.headers.get("location")).not.toBe("/read-only");
     });
 
+    test("groups on events page show Registration Closed in read-only mode", async () => {
+      const { settings } = await import("#lib/db/settings.ts");
+      const { groupsTable, computeGroupSlugIndex } = await import(
+        "#lib/db/groups.ts"
+      );
+      const { eventsTable, computeSlugIndex } = await import(
+        "#lib/db/events.ts"
+      );
+      await settings.update.showPublicSite(true);
+      const slugIndex = await computeGroupSlugIndex("ro-group");
+      const group = await groupsTable.insert({
+        name: "Read Only Group",
+        slug: "ro-group",
+        slugIndex,
+        termsAndConditions: "",
+        maxAttendees: 0,
+        hidden: false,
+      });
+      await eventsTable.insert({
+        name: "RO Event",
+        slug: "ro-event",
+        slugIndex: await computeSlugIndex("ro-event"),
+        maxAttendees: 50,
+        maxPrice: 0,
+        groupId: group.id,
+      });
+      const res = await handleRequest(mockRequest("/events"));
+      const html = await res.text();
+      expect(html).toContain("Read Only Group");
+      expect(html).toContain("Registration Closed");
+    });
+
     test("GET /ticket/my-event is allowed (view form)", async () => {
       const res = await handleRequest(mockRequest("/ticket/my-event"));
       // 404 (no such event) is fine — not blocked by read-only

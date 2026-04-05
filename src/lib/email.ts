@@ -19,6 +19,7 @@ import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
 export type EmailEvent = WebhookEvent & {
   date: string;
   location: string;
+  purchase_only: boolean;
 };
 
 /** Attendee + event pair for email rendering */
@@ -274,6 +275,7 @@ export const buildSvgTicketData = (
   pricePaid: entry.attendee.price_paid,
   currency,
   checkinUrl: `https://${getEffectiveDomain()}/checkin/${entry.attendee.ticket_token}`,
+  purchaseOnly: entry.event.purchase_only,
 });
 
 /** Generate SVG ticket attachments for all entries */

@@ -208,13 +208,9 @@ describe("e2e: full booking flow", () => {
     expect(mediumMatch).toBeTruthy();
     formData[mediumMatch![1]!] = mediumMatch![2]!;
 
-    // Group bookings use "Reserve Tickets" (plural), single events use "Reserve Ticket"
-    const reserveButton = browser.containsText("Reserve Tickets")
-      ? "Reserve Tickets"
-      : "Reserve Ticket";
-    await browser.submitForm(formData, reserveButton);
+    await browser.submitForm(formData, "Continue");
     // Should be on the success page
-    expect(browser.containsText("reserved successfully")).toBe(true);
+    expect(browser.containsText("Thank you for your order")).toBe(true);
 
     // 10. Click to view the ticket
     await browser.clickLink("Click here to view your ticket");
