@@ -4,10 +4,13 @@ import { ErrorCode } from "#lib/logger.ts";
 import {
   buildMetadata,
   createWithClient,
+  enforceMetadataLimits,
   errorMessage,
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   PaymentUserError,
+  SQUARE_METADATA_MAX_VALUE_LENGTH,
+  STRIPE_METADATA_MAX_VALUE_LENGTH,
   safeAsync,
   singleEventAnswerIds,
   toBookingItems,
@@ -372,6 +375,88 @@ describe("payment-helpers", () => {
         toCheckoutResult("", "https://pay.example.com", "Stripe"),
       ).toBeNull();
       expect(toCheckoutResult("sess_1", "", "Payment")).toBeNull();
+    });
+  });
+
+  describe("enforceMetadataLimits", () => {
+    test("returns metadata unchanged when all values within limit", () => {
+      const metadata = {
+        items: '[{"e":1,"q":2,"p":0}]',
+        name: "John",
+        email: "john@example.com",
+      };
+      expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
+    });
+
+    test("returns metadata unchanged when items exactly at limit", () => {
+      const items = "X".repeat(255);
+      const metadata = { items, name: "John", email: "j@x.com" };
+      expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
+    });
+
+    test("throws PaymentUserError when items JSON exceeds limit", () => {
+      const longItems = JSON.stringify(
+        Array.from({ length: 30 }, (_, i) => ({ e: i, q: 1, p: 100 })),
+      );
+      const metadata = {
+        name: "John",
+        email: "john@example.com",
+        items: longItems,
+      };
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        PaymentUserError,
+      );
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        /too many events/i,
+      );
+    });
+
+    test("throws PaymentUserError when answer_ids exceeds limit", () => {
+      const longAnswerIds = JSON.stringify(
+        Object.fromEntries(
+          Array.from({ length: 20 }, (_, i) => [
+            String(i),
+            Array.from({ length: 10 }, (_, j) => j),
+          ]),
+        ),
+      );
+      const metadata = {
+        name: "John",
+        email: "john@example.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        answer_ids: longAnswerIds,
+      };
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        PaymentUserError,
+      );
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        /too many options/i,
+      );
+    });
+
+    test("items within Stripe limit (500) but over Square limit (255)", () => {
+      const items = JSON.stringify(
+        Array.from({ length: 15 }, (_, i) => ({ e: i, q: 1, p: 100 })),
+      );
+      const metadata = { name: "John", email: "j@x.com", items };
+      expect(enforceMetadataLimits(metadata, 500).items).toBe(items);
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        PaymentUserError,
+      );
+    });
+
+    test("passes through when answer_ids is absent", () => {
+      const metadata = {
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+        email: "j@x.com",
+      };
+      expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
+    });
+
+    test("exports correct provider constants", () => {
+      expect(STRIPE_METADATA_MAX_VALUE_LENGTH).toBe(500);
+      expect(SQUARE_METADATA_MAX_VALUE_LENGTH).toBe(255);
     });
   });
 });

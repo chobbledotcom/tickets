@@ -156,6 +156,56 @@ export const toCheckoutResult = (
 };
 
 /**
+ * Wrap a checkout operation, converting PaymentUserError to { error } result
+ * and swallowing unexpected errors as null. Used by both provider adapters.
+ */
+export const withCheckoutError = async (
+  op: () => Promise<CheckoutSessionResult>,
+): Promise<CheckoutSessionResult> => {
+  try {
+    return await op();
+  } catch (err) {
+    if (err instanceof PaymentUserError) return { error: err.message };
+    return null;
+  }
+};
+
+/** Stripe metadata constraint: each value max 500 characters */
+export const STRIPE_METADATA_MAX_VALUE_LENGTH = 500;
+
+/** Square metadata constraint: each value max 255 characters */
+export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
+
+/**
+ * Enforce metadata value length limits for a payment provider.
+ *
+ * Only items and answer_ids can realistically exceed provider limits —
+ * they grow with the number of events/options selected. All other fields
+ * (name, email, address, etc.) are already constrained by form validation
+ * to lengths well below the smallest provider limit (255).
+ */
+export const enforceMetadataLimits = (
+  metadata: Record<string, string>,
+  maxValueLength: number,
+): Record<string, string> => {
+  const items = metadata.items;
+  if (items && items.length > maxValueLength) {
+    throw new PaymentUserError(
+      "Too many events selected for a single checkout. Please book in smaller batches.",
+    );
+  }
+
+  const answerIds = metadata.answer_ids;
+  if (answerIds && answerIds.length > maxValueLength) {
+    throw new PaymentUserError(
+      "Too many options selected for a single checkout. Please book in smaller batches.",
+    );
+  }
+
+  return metadata;
+};
+
+/**
  * Validate that session metadata contains required fields (name + items).
  */
 export const hasRequiredSessionMetadata = (
