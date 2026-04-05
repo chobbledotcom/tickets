@@ -2,7 +2,7 @@
  * Events table operations
  */
 
-import type { InValue, ResultSet } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { filter as fpFilter } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
@@ -214,46 +214,25 @@ export const isSlugTaken = async (
  * Reduces 3 sequential HTTP round-trips to 1.
  */
 export const deleteEvent = async (eventId: number): Promise<void> => {
-  // Collect attendee IDs before deleting event_attendees (FK enforcement is on in libsql).
-  const attendeeIds = (
-    await queryAll<{ attendee_id: number }>(
-      "SELECT attendee_id FROM event_attendees WHERE event_id = ?",
-      [eventId],
-    )
-  ).map((r) => r.attendee_id);
-
-  // Remove event links first
-  const deletes: Array<{ sql: string; args: InValue[] }> = [
+  await executeBatch([
+    // Remove event links first
     { sql: "DELETE FROM event_attendees WHERE event_id = ?", args: [eventId] },
-  ];
-
-  if (attendeeIds.length > 0) {
-    const ph = inPlaceholders(attendeeIds);
-    // Only delete attendees that have zero remaining event links (orphans).
-    // Attendees linked to other events are preserved.
-    deletes.push(
-      {
-        sql: `DELETE FROM processed_payments WHERE attendee_id IN (${ph})
-              AND attendee_id NOT IN (SELECT attendee_id FROM event_attendees)`,
-        args: attendeeIds,
-      },
-      {
-        sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${ph})
-              AND attendee_id NOT IN (SELECT attendee_id FROM event_attendees)`,
-        args: attendeeIds,
-      },
-      {
-        sql: `DELETE FROM attendees WHERE id IN (${ph})
-              AND id NOT IN (SELECT attendee_id FROM event_attendees)`,
-        args: attendeeIds,
-      },
-    );
-  }
-  deletes.push(
+    // Delete orphaned attendees (no remaining event links) and their dependent data
+    {
+      sql: "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
+      args: [],
+    },
+    {
+      sql: "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
+      args: [],
+    },
+    {
+      sql: "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM event_attendees)",
+      args: [],
+    },
     { sql: "DELETE FROM activity_log WHERE event_id = ?", args: [eventId] },
     { sql: "DELETE FROM events WHERE id = ?", args: [eventId] },
-  );
-  await executeBatch(deletes);
+  ]);
   invalidateEventsCache();
 };
 
