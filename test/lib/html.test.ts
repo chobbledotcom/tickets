@@ -1091,13 +1091,13 @@ describe("html", () => {
       const html = successPage({ ticketUrl: "/t/abc123+def456", paid: true });
       expect(html).toContain('href="/t/abc123+def456"');
       expect(html).toContain('target="_blank"');
-      expect(html).toContain("Click here to view your tickets");
+      expect(html).toContain("Click here to view your ticket");
     });
 
     test("renders ticket link with singular text for single ticket", () => {
       const html = successPage({ ticketUrl: "/t/abc123", paid: true });
       expect(html).toContain('href="/t/abc123"');
-      expect(html).toContain("Click here to view your tickets");
+      expect(html).toContain("Click here to view your ticket");
     });
 
     test("renders both ticket link and redirect when both provided", () => {
@@ -1107,14 +1107,14 @@ describe("html", () => {
         paid: true,
       });
       expect(html).toContain('href="/t/abc123"');
-      expect(html).toContain("Click here to view your tickets");
+      expect(html).toContain("Click here to view your ticket");
       expect(html).toContain("https://example.com/thanks");
       expect(html).toContain('http-equiv="refresh"');
     });
 
     test("does not render ticket link when ticketUrl is null", () => {
       const html = successPage({ ticketUrl: null, paid: true });
-      expect(html).not.toContain("view your tickets");
+      expect(html).not.toContain("view your ticket");
     });
 
     test("includes iframe-resizer child script in iframe mode", () => {

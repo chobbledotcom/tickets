@@ -1896,7 +1896,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         200,
         "Thank you for your order",
       );
-      expect(html).not.toContain("view your tickets");
+      expect(html).not.toContain("view your ticket");
     });
 
     test("shows ticket link when tokens are provided", async () => {
@@ -1907,7 +1907,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         response,
         200,
         'href="/t/abc123+def456"',
-        "Click here to view your tickets",
+        "Click here to view your ticket",
       );
     });
 

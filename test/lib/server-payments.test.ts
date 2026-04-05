@@ -667,7 +667,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
             200,
             "Thank you for your order",
             "https://example.com/thanks",
-            "Click here to view your tickets",
+            "Click here to view your ticket",
             'target="_blank"',
           );
 
@@ -934,7 +934,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           response,
           200,
           "Thank you for your order",
-          "Click here to view your tickets",
+          "Click here to view your ticket",
         );
 
         // Verify attendees created for both events
@@ -1207,7 +1207,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           response,
           200,
           "https://example.com/single-thanks",
-          "Click here to view your tickets",
+          "Click here to view your ticket",
         );
       } finally {
         mockRetrieve.restore();
@@ -1440,7 +1440,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const html = await response.text();
 
         // Should have ticket link with verified token
-        expect(html).toContain("Click here to view your tickets");
+        expect(html).toContain("Click here to view your ticket");
         expect(html).toContain('target="_blank"');
         expect(html).toContain("/t/");
 
