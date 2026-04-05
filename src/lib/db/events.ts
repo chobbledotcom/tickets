@@ -64,6 +64,7 @@ export type EventInput = {
   canPayMore?: boolean;
   maxPrice: number;
   hidden?: boolean;
+  purchaseOnly?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -162,6 +163,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   can_pay_more: col.boolean(false),
   max_price: col.withDefault(() => 0),
   hidden: col.boolean(false),
+  purchase_only: col.boolean(false),
 });
 
 export const eventsTable = withCacheInvalidation(rawEventsTable, () =>

@@ -1063,6 +1063,7 @@ export const createTestEvent = (
       can_pay_more: input.canPayMore ? "1" : "",
       max_price: priceFormValue(input.maxPrice),
       hidden: input.hidden ? "1" : "",
+      purchase_only: input.purchaseOnly ? "1" : "",
     },
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
@@ -1605,6 +1606,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   can_pay_more: false,
   max_price: 0,
   hidden: false,
+  purchase_only: false,
   ...overrides,
 });
 
@@ -2561,6 +2563,7 @@ export const makeTestEvent = (
   can_pay_more: false,
   date: "",
   location: "",
+  purchase_only: false,
   ...overrides,
 });
 

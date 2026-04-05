@@ -80,6 +80,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["non_transferable", "INTEGER NOT NULL DEFAULT 0"],
         ["can_pay_more", "INTEGER NOT NULL DEFAULT 0"],
         ["hidden", "INTEGER NOT NULL DEFAULT 0"],
+        ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [

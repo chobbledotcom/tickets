@@ -803,6 +803,7 @@ const PREVIEW_BOOKINGS = [
       can_pay_more: false,
       date: "2026-07-15T19:00:00Z",
       location: "Town Hall",
+      purchase_only: false,
     },
     attendee: {
       id: 1,
@@ -830,6 +831,7 @@ const PREVIEW_BOOKINGS = [
       can_pay_more: false,
       date: "",
       location: "",
+      purchase_only: false,
     },
     attendee: {
       id: 2,

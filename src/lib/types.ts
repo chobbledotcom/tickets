@@ -100,6 +100,7 @@ export interface Event {
   can_pay_more: boolean;
   max_price: number;
   hidden: boolean;
+  purchase_only: boolean;
 }
 
 export interface Attendee extends ContactInfo {

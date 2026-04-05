@@ -117,11 +117,12 @@ const renderEventListing = (info: TicketEvent): string => {
   const descriptionHtml = event.description
     ? `<p>${renderMarkdownInline(event.description)}</p>`
     : "";
+  const bookLabel = event.purchase_only ? "Buy now" : "Book now";
   const linkHtml = isSoldOut
     ? "<p><strong>Sold Out</strong></p>"
     : isClosed || isReadOnly()
       ? "<p><strong>Registration Closed</strong></p>"
-      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>Book now</strong></a></p>`;
+      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>${bookLabel}</strong></a></p>`;
 
   return `<div class="prose"><h2>${escapeHtml(event.name)}</h2>${descriptionHtml}</div>${detailsHtml}${linkHtml}`;
 };
@@ -461,8 +462,7 @@ export const ticketPage = ({
   const title = singleEvent ? singleEvent.name : "Reserve Tickets";
   const headExtra =
     singleEvent && baseUrl ? buildOgTags(singleEvent, baseUrl) : undefined;
-  const buttonText =
-    isSingleEvent && hideQuantity ? "Reserve Ticket" : "Reserve Tickets";
+  const buttonText = "Continue";
 
   return String(
     <Layout
