@@ -103,6 +103,10 @@ export const adminCalendarPage = (
     <Layout title="Calendar">
       <AdminNav session={session} active="/admin/calendar" />
 
+      <p>
+        <a href="/admin/guide#calendar">Calendar guide</a>
+      </p>
+
       <article>
         <h2 id="attendees">Attendees by Date</h2>
         <Raw

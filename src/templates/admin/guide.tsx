@@ -353,7 +353,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Booking Questions">
+      <Section id="questions" title="Booking Questions">
         <Q q="What are custom booking questions?">
           <p>
             Custom booking questions let you ask attendees a multiple-choice
@@ -781,7 +781,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Refunds">
+      <Section id="refunds" title="Refunds">
         <Q q="When do automatic refunds happen?">
           <p>
             Automatic refunds happen in two scenarios. First, when an event
@@ -1115,9 +1115,10 @@ export const adminGuidePage = (
             <strong>Owners</strong> have full access: events, calendar, groups,
             questions, holidays, users, site pages, settings, API keys,
             sessions, and the activity log. <strong>Managers</strong> can manage
-            events, view the calendar, manage groups, and view the activity log.
-            They cannot change settings, manage users, manage questions or
-            holidays, create API keys, edit site pages, or view sessions.
+            events, view the calendar, manage groups, issue refunds, and view
+            the activity log. They cannot change settings, manage users, manage
+            questions or holidays, create API keys, edit site pages, or view
+            sessions.
           </p>
         </Q>
 
@@ -1237,7 +1238,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Calendar">
+      <Section id="calendar" title="Calendar">
         <Q q="What is the calendar page?">
           <p>
             The <strong>Calendar</strong> page lets you pick a date and see
