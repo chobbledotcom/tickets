@@ -333,8 +333,9 @@ describe("code quality", () => {
       "lib/limits.ts:readLimit",
       // Settings cache TTL constant used by tests to verify caching behavior
       "lib/db/settings.ts:SETTINGS_CACHE_TTL_MS",
-      // Set request log suppression directly to avoid env var races between parallel tests
+      // Set log suppression directly to avoid env var races between parallel tests
       "lib/logger.ts:setSuppressRequestLogs",
+      "lib/logger.ts:setSuppressDebugLogs",
       // Rethrow errors in tests without env var races
       "routes/index.ts:setRethrowErrorsForTest",
       // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)

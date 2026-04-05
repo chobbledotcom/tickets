@@ -39,7 +39,7 @@ import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
-import { setSuppressRequestLogs } from "#lib/logger.ts";
+import { setSuppressDebugLogs, setSuppressRequestLogs } from "#lib/logger.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
@@ -72,6 +72,7 @@ export const setupTestEncryptionKey = (): void => {
   setSkipLoginDelayForTest(true);
   setRsaKeySizeForTest(1024);
   setSuppressRequestLogs(true);
+  setSuppressDebugLogs(true);
   setRethrowErrorsForTest(true);
 };
 
@@ -86,6 +87,7 @@ export const clearTestEncryptionKey = (): void => {
   setSkipLoginDelayForTest(false);
   setRsaKeySizeForTest(null);
   setSuppressRequestLogs(null);
+  setSuppressDebugLogs(null);
   setRethrowErrorsForTest(null);
 };
 

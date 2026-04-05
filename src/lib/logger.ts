@@ -41,6 +41,26 @@ const shouldSuppressRequestLogs = (): boolean => {
   return !!Deno.env.get("TEST_SUPPRESS_REQUEST_LOGS");
 };
 
+/**
+ * Module-level override for debug log suppression.
+ * Bypasses Deno.env to avoid races between parallel test workers.
+ */
+const [getSuppressDebugOverride, setSuppressDebugOverride] = lazyRef<
+  boolean | null
+>(() => null);
+
+/** Set module-level debug log suppression (avoids env race in parallel tests). */
+export const setSuppressDebugLogs = (value: boolean | null): void => {
+  setSuppressDebugOverride(value);
+};
+
+/** Check if debug logs should be suppressed */
+const shouldSuppressDebugLogs = (): boolean => {
+  const override = getSuppressDebugOverride();
+  if (override !== null) return override;
+  return !!Deno.env.get("TEST_SUPPRESS_DEBUG_LOGS");
+};
+
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
   const buf = crypto.getRandomValues(new Uint8Array(2));
@@ -343,5 +363,6 @@ export type LogCategory =
  * For detailed debugging during development
  */
 export const logDebug = (category: LogCategory, message: string): void => {
+  if (shouldSuppressDebugLogs()) return;
   console.debug(`${getLogPrefix()}[${category}] ${message}`);
 };
