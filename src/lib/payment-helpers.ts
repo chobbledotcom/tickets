@@ -161,52 +161,33 @@ export const STRIPE_METADATA_MAX_VALUE_LENGTH = 500;
 /** Square metadata constraint: each value max 255 characters */
 export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
-/** Check if a metadata key holds structured JSON that cannot be truncated */
-const isStructuredField = (key: string): boolean =>
-  key === "items" || key === "answer_ids";
-
-/** Check if a metadata key holds display-only or free-text that is safe to truncate */
-const isTruncatableField = (key: string): boolean =>
-  key === "name" || key === "address" || key === "special_instructions";
-
 /**
  * Enforce metadata value length limits for a payment provider.
  *
- * - Structured fields (items, answer_ids): throws PaymentUserError since
- *   truncating JSON would corrupt the data and lose attendee rows.
- * - Truncatable text fields (name, address, special_instructions): silently
- *   truncated since they are display-only or free-text.
- * - Other fields (_origin, email, phone, date): expected to be short;
- *   throws PaymentUserError if they somehow exceed the limit.
+ * Only items and answer_ids can realistically exceed provider limits —
+ * they grow with the number of events/options selected. All other fields
+ * (name, email, address, etc.) are already constrained by form validation
+ * to lengths well below the smallest provider limit (255).
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
   maxValueLength: number,
 ): Record<string, string> => {
-  let result: Record<string, string> | null = null;
-
-  for (const [key, value] of Object.entries(metadata)) {
-    if (value.length <= maxValueLength) continue;
-
-    if (isStructuredField(key)) {
-      throw new PaymentUserError(
-        "Too many events or options selected for a single checkout. Please book in smaller batches.",
-      );
-    }
-
-    if (isTruncatableField(key)) {
-      result ??= { ...metadata };
-      result[key] = value.slice(0, maxValueLength);
-      continue;
-    }
-
-    // Non-truncatable, non-structured field (email, phone, date, _origin)
+  const items = metadata.items;
+  if (items && items.length > maxValueLength) {
     throw new PaymentUserError(
-      "A booking field is too long. Please shorten your entries and try again.",
+      "Too many events selected for a single checkout. Please book in smaller batches.",
     );
   }
 
-  return result ?? metadata;
+  const answerIds = metadata.answer_ids;
+  if (answerIds && answerIds.length > maxValueLength) {
+    throw new PaymentUserError(
+      "Too many options selected for a single checkout. Please book in smaller batches.",
+    );
+  }
+
+  return metadata;
 };
 
 /**

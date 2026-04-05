@@ -388,48 +388,10 @@ describe("payment-helpers", () => {
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
 
-    test("passes through metadata with exactly max-length values", () => {
-      const exactName = "A".repeat(255);
-      const metadata = {
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: exactName,
-        email: "john@example.com",
-      };
+    test("returns metadata unchanged when items exactly at limit", () => {
+      const items = "X".repeat(255);
+      const metadata = { items, name: "John", email: "j@x.com" };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
-    });
-
-    test("truncates name when it exceeds limit", () => {
-      const longName = "A".repeat(300);
-      const metadata = {
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: longName,
-        email: "john@example.com",
-      };
-      const result = enforceMetadataLimits(metadata, 255);
-      expect(result.name).toBe("A".repeat(255));
-      expect(result.items).toBe('[{"e":1,"q":1,"p":0}]');
-    });
-
-    test("truncates address when it exceeds limit", () => {
-      const metadata = {
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: "John",
-        email: "john@example.com",
-        address: "X".repeat(300),
-      };
-      const result = enforceMetadataLimits(metadata, 255);
-      expect(result.address).toBe("X".repeat(255));
-    });
-
-    test("truncates special_instructions when it exceeds limit", () => {
-      const metadata = {
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: "John",
-        email: "john@example.com",
-        special_instructions: "Y".repeat(600),
-      };
-      const result = enforceMetadataLimits(metadata, 500);
-      expect(result.special_instructions).toBe("Y".repeat(500));
     });
 
     test("throws PaymentUserError when items JSON exceeds limit", () => {
@@ -467,41 +429,29 @@ describe("payment-helpers", () => {
       expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         PaymentUserError,
       );
-    });
-
-    test("throws PaymentUserError when email exceeds limit", () => {
-      const metadata = {
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: "John",
-        email: "a".repeat(300) + "@example.com",
-      };
       expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
-        PaymentUserError,
+        /too many options/i,
       );
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(/too long/i);
     });
 
-    test("uses Stripe limit (500) for larger payloads", () => {
+    test("items within Stripe limit (500) but over Square limit (255)", () => {
       const items = JSON.stringify(
         Array.from({ length: 15 }, (_, i) => ({ e: i, q: 1, p: 100 })),
       );
       const metadata = { name: "John", email: "j@x.com", items };
-      // Should pass at 500 limit but fail at 255
       expect(enforceMetadataLimits(metadata, 500).items).toBe(items);
       expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         PaymentUserError,
       );
     });
 
-    test("does not mutate original metadata object", () => {
+    test("passes through when answer_ids is absent", () => {
       const metadata = {
         items: '[{"e":1,"q":1,"p":0}]',
-        name: "A".repeat(300),
-        email: "john@example.com",
+        name: "John",
+        email: "j@x.com",
       };
-      const original = { ...metadata };
-      enforceMetadataLimits(metadata, 255);
-      expect(metadata).toEqual(original);
+      expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
 
     test("exports correct provider constants", () => {
