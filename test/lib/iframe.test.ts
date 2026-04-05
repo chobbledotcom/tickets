@@ -59,5 +59,26 @@ describe("iframe", () => {
         "/ticket/reserved?tokens=abc",
       );
     });
+
+    test("places param before hash fragment", () => {
+      detectIframeMode("https://example.com/?iframe=true");
+      expect(appendIframeParam("/admin/event/1?flash=abc#myform")).toBe(
+        "/admin/event/1?flash=abc&iframe=true#myform",
+      );
+    });
+
+    test("places param before hash fragment when no existing query", () => {
+      detectIframeMode("https://example.com/?iframe=true");
+      expect(appendIframeParam("/ticket/test#section")).toBe(
+        "/ticket/test?iframe=true#section",
+      );
+    });
+
+    test("does not duplicate iframe param if already present", () => {
+      detectIframeMode("https://example.com/?iframe=true");
+      expect(appendIframeParam("/ticket/test?iframe=true")).toBe(
+        "/ticket/test?iframe=true",
+      );
+    });
   });
 });

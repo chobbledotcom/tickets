@@ -22,6 +22,7 @@ export const getIframeMode = (): boolean => _iframeStore.value;
 /** Append iframe=true query param to a URL when in iframe mode */
 export const appendIframeParam = (url: string): string => {
   if (!_iframeStore.value) return url;
-  const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}iframe=true`;
+  const parsed = new URL(url, "http://localhost");
+  parsed.searchParams.set("iframe", "true");
+  return `${parsed.pathname}${parsed.search}${parsed.hash}`;
 };

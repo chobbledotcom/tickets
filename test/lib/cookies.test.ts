@@ -13,6 +13,7 @@ import {
   isSecureMode,
   parseFlashValue,
 } from "#lib/cookies.ts";
+import { parseCookies } from "#routes/utils.ts";
 
 /** Assert common cookie attributes for dev (localhost) mode */
 const expectDevCookieAttributes = (cookie: string) => {
@@ -188,5 +189,34 @@ describe("parseFlashValue", () => {
 
   test("throws for invalid format", () => {
     expect(() => parseFlashValue("invalid")).toThrow();
+  });
+});
+
+describe("parseCookies", () => {
+  const reqWithCookies = (cookie: string) =>
+    new Request("http://localhost/", { headers: { cookie } });
+
+  test("parses simple key=value pairs", () => {
+    const cookies = parseCookies(reqWithCookies("session=abc; lang=en"));
+    expect(cookies.get("session")).toBe("abc");
+    expect(cookies.get("lang")).toBe("en");
+  });
+
+  test("returns empty map for no cookie header", () => {
+    const cookies = parseCookies(new Request("http://localhost/"));
+    expect(cookies.size).toBe(0);
+  });
+
+  test("preserves equals signs in cookie values", () => {
+    const cookies = parseCookies(
+      reqWithCookies("token=eyJhbGci.payload.sig=="),
+    );
+    expect(cookies.get("token")).toBe("eyJhbGci.payload.sig==");
+  });
+
+  test("handles URI-encoded flash cookie values", () => {
+    const payload = encodeURIComponent(JSON.stringify({ t: "s", m: "Saved" }));
+    const cookies = parseCookies(reqWithCookies(`flash_abc=${payload}`));
+    expect(cookies.get("flash_abc")).toBe(payload);
   });
 });

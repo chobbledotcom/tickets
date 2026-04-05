@@ -2,7 +2,6 @@
  * Shared utilities for route handlers
  */
 
-import { compact, map, pipe, reduce } from "#fp";
 import { buildFlashCookie, getSessionCookieName } from "#lib/cookies.ts";
 import {
   getPrivateKeyFromSession,
@@ -78,20 +77,15 @@ export const parseCookies = (request: Request): Map<string, string> => {
   const header = request.headers.get("cookie");
   if (!header) return new Map<string, string>();
 
-  type CookiePair = [string, string];
-  const toPair = (part: string): CookiePair | null => {
-    const [key, value] = part.trim().split("=");
-    return key && value ? [key, value] : null;
-  };
-
-  return pipe(
-    map(toPair),
-    (pairs: (CookiePair | null)[]) => compact(pairs),
-    reduce((acc: Map<string, string>, [key, value]: CookiePair) => {
-      acc.set(key, value);
-      return acc;
-    }, new Map<string, string>()),
-  )(header.split(";"));
+  const jar = new Map<string, string>();
+  for (const part of header.split(";")) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = part.slice(0, eqIdx).trim();
+    const value = part.slice(eqIdx + 1).trim();
+    if (key && value) jar.set(key, value);
+  }
+  return jar;
 };
 
 /**
