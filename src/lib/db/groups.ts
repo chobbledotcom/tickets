@@ -23,10 +23,10 @@ export type GroupInput = {
   slug: string;
   slugIndex: string;
   name: string;
-  description: string;
-  termsAndConditions: string;
-  maxAttendees: number;
-  hidden: boolean;
+  description?: string;
+  termsAndConditions?: string;
+  maxAttendees?: number;
+  hidden?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
