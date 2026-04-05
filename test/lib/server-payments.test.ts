@@ -667,7 +667,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
             200,
             "Thank you for your order",
             "https://example.com/thanks",
-            "Click here to view your ticket",
+            "Click here to view your tickets",
             'target="_blank"',
           );
 
@@ -934,7 +934,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           response,
           200,
           "Thank you for your order",
-          "Click here to view your ticket",
+          "Click here to view your tickets",
         );
 
         // Verify attendees created for both events
@@ -1207,7 +1207,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           response,
           200,
           "https://example.com/single-thanks",
-          "Click here to view your ticket",
+          "Click here to view your tickets",
         );
       } finally {
         mockRetrieve.restore();

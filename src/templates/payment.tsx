@@ -83,8 +83,7 @@ export const successPage = ({
         {ticketUrl ? (
           <p>
             <a href={ticketUrl} target="_blank" rel="noopener">
-              Click here to view your{" "}
-              {ticketUrl.split("+").length > 1 ? "tickets" : "ticket"}
+              Click here to view your tickets
             </a>
           </p>
         ) : null}
