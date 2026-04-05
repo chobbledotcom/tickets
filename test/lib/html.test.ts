@@ -1158,7 +1158,6 @@ describe("html", () => {
       const html = successPage({ ticketUrl: "/t/abc123", paid: true });
       expect(html).not.toContain("Junk/Spam");
     });
-
   });
 
   describe("paymentCancelPage", () => {

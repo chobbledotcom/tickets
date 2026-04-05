@@ -2,6 +2,7 @@
  * Shared admin utilities and types
  */
 
+import { asString } from "#fp";
 import { decryptAttendees } from "#lib/db/attendees.ts";
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
 import {
@@ -80,8 +81,7 @@ export const verifyIdentifierOrJsonError = (
   provided: unknown,
   label = "Name",
 ): string | null => {
-  const value = typeof provided === "string" ? provided : "";
-  if (!verifyIdentifier(expected, value)) {
+  if (!verifyIdentifier(expected, asString(provided))) {
     return `${label} does not match. Please provide the exact ${label.toLowerCase()} in confirm_identifier.`;
   }
   return null;

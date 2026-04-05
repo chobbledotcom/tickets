@@ -38,6 +38,54 @@ type StripeCache = { client: Stripe; secretKey: string };
 /** Nullable checkout session result */
 type CheckoutResult = Stripe.Checkout.Session | null;
 
+/**
+ * Narrowed checkout session with only the fields our provider needs.
+ * Stripe SDK types `payment_intent` as `string | PaymentIntent | null`
+ * but we never expand it, so it's always a string ID (or null).
+ */
+export type StripeCheckoutFields = {
+  id: string;
+  payment_status: string;
+  payment_intent: string | null;
+  metadata: Record<string, string> | null;
+  amount_total: number | null;
+};
+
+/** Extract only the fields we need, narrowing Stripe's broad union types */
+const narrowCheckoutSession = (
+  session: Stripe.Checkout.Session,
+): StripeCheckoutFields => ({
+  id: session.id,
+  payment_status: session.payment_status,
+  payment_intent:
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null),
+  metadata: session.metadata,
+  amount_total: session.amount_total,
+});
+
+/**
+ * Narrowed payment intent with expanded latest_charge.
+ * We always call retrieve with `expand: ["latest_charge"]`,
+ * so latest_charge is a Charge object (not a string ID).
+ */
+export type StripePaymentIntentFields = {
+  id: string;
+  latest_charge: { refunded: boolean } | null;
+};
+
+/** Extract narrowed payment intent fields */
+const narrowPaymentIntent = (
+  intent: Stripe.PaymentIntent,
+): StripePaymentIntentFields => ({
+  id: intent.id,
+  latest_charge:
+    typeof intent.latest_charge === "object" && intent.latest_charge !== null
+      ? { refunded: (intent.latest_charge as Stripe.Charge).refunded }
+      : null,
+});
+
 /** Valid Stripe secret key prefixes */
 const STRIPE_KEY_PREFIX_TEST = "sk_test_";
 const STRIPE_KEY_PREFIX_LIVE = "sk_live_";
@@ -207,10 +255,10 @@ const setupWebhookEndpointImpl = async (
 export const stripeApi: {
   getStripeClient: () => Promise<Stripe | null>;
   resetStripeClient: () => void;
-  retrieveCheckoutSession: (
+  retrieveCheckoutSession: (id: string) => Promise<StripeCheckoutFields | null>;
+  retrievePaymentIntent: (
     id: string,
-  ) => Promise<Stripe.Checkout.Session | null>;
-  retrievePaymentIntent: (id: string) => Promise<Stripe.PaymentIntent | null>;
+  ) => Promise<StripePaymentIntentFields | null>;
   refundPayment: (intentId: string) => Promise<Stripe.Refund | null>;
   createCheckoutSession: (
     intent: CheckoutIntent,
@@ -232,21 +280,27 @@ export const stripeApi: {
     setMockConfig(null);
   },
 
-  /** Retrieve checkout session */
-  retrieveCheckoutSession: (
+  /** Retrieve checkout session (narrowed to only the fields we use) */
+  retrieveCheckoutSession: async (
     id: string,
-  ): Promise<Stripe.Checkout.Session | null> =>
-    withClient(
+  ): Promise<StripeCheckoutFields | null> => {
+    const session = await withClient(
       (s) => s.checkout.sessions.retrieve(id),
       ErrorCode.STRIPE_SESSION,
-    ),
+    );
+    return session ? narrowCheckoutSession(session) : null;
+  },
 
-  /** Retrieve a payment intent (for checking refund status) */
-  retrievePaymentIntent: (id: string): Promise<Stripe.PaymentIntent | null> =>
-    withClient(
+  /** Retrieve a payment intent with expanded charge (narrowed) */
+  retrievePaymentIntent: async (
+    id: string,
+  ): Promise<StripePaymentIntentFields | null> => {
+    const intent = await withClient(
       (s) => s.paymentIntents.retrieve(id, { expand: ["latest_charge"] }),
       ErrorCode.STRIPE_SESSION,
-    ),
+    );
+    return intent ? narrowPaymentIntent(intent) : null;
+  },
 
   /** Refund a payment */
   refundPayment: (intentId: string): Promise<Stripe.Refund | null> =>
