@@ -270,24 +270,31 @@ describeWithEnv("db", { db: true }, () => {
       }
     });
 
-    test("proceeds with migration even if backup fails", async () => {
-      // Point to a non-existent directory so uploadRaw fails
+    test("blocks migration when backup fails", async () => {
+      // Use Bunny CDN storage (no LOCAL_STORAGE_PATH) with dummy credentials
+      // so uploadRaw hits the network and fails
       const restore = setTestEnv({
-        LOCAL_STORAGE_PATH: "/tmp/nonexistent-backup-dir-12345",
+        STORAGE_ZONE_NAME: "fake-zone",
+        STORAGE_ZONE_KEY: "fake-key",
+        LOCAL_STORAGE_PATH: undefined,
       });
       try {
         await getDb().execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
         );
-        await initDb();
+        await expect(initDb()).rejects.toThrow();
 
-        // Migration should have completed despite backup failure
+        // Schema hash should still be stale — migration did not proceed
         const result = await getDb().execute(
           "SELECT value FROM settings WHERE key = 'db_schema_hash'",
         );
-        expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+        expect(result.rows[0]?.value).toBe("stale");
       } finally {
         restore();
+        // Clean up the migration lock so subsequent tests aren't blocked
+        await getDb().execute(
+          "DELETE FROM settings WHERE key = 'migration_lock'",
+        );
       }
     });
   });

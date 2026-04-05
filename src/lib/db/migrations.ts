@@ -621,19 +621,11 @@ export const initDb = async (): Promise<void> => {
   // (has a previous version marker) and storage is configured
   if (isStorageEnabled() && (await hasExistingData())) {
     logDebug("Migration", "Creating pre-migration backup...");
-    try {
-      const timestamp = backupTimestamp();
-      const zipData = await createBackupZip();
-      const filename = backupFilename(timestamp);
-      await uploadRaw(zipData, filename);
-      logDebug("Migration", `Pre-migration backup saved: ${filename}`);
-    } catch (e) {
-      // Log but don't block the migration — the backup is a safety net
-      logDebug(
-        "Migration",
-        `Pre-migration backup failed: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
+    const timestamp = backupTimestamp();
+    const zipData = await createBackupZip();
+    const filename = backupFilename(timestamp);
+    await uploadRaw(zipData, filename);
+    logDebug("Migration", `Pre-migration backup saved: ${filename}`);
   }
 
   logDebug("Migration", "Step 1: applying schema changes...");
