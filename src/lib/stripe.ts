@@ -38,10 +38,13 @@ type StripeCache = { client: Stripe; secretKey: string };
 /** Nullable checkout session result */
 type CheckoutResult = Stripe.Checkout.Session | null;
 
+/** Narrow a Stripe expandable field (string ID or expanded object) to its string ID */
+const expandableId = (field: string | { id: string } | null | undefined): string | null =>
+  typeof field === "string" ? field : (field?.id ?? null);
+
 /**
- * Narrowed checkout session with only the fields our provider needs.
- * Stripe SDK types `payment_intent` as `string | PaymentIntent | null`
- * but we never expand it, so it's always a string ID (or null).
+ * Narrowed checkout session — only the fields our provider needs.
+ * Collapses Stripe's `string | PaymentIntent | null` unions down to `string | null`.
  */
 export type StripeCheckoutFields = {
   id: string;
@@ -51,37 +54,31 @@ export type StripeCheckoutFields = {
   amount_total: number | null;
 };
 
-/** Extract only the fields we need, narrowing Stripe's broad union types */
 const narrowCheckoutSession = (
   session: Stripe.Checkout.Session,
 ): StripeCheckoutFields => ({
   id: session.id,
   payment_status: session.payment_status,
-  payment_intent:
-    typeof session.payment_intent === "string"
-      ? session.payment_intent
-      : (session.payment_intent?.id ?? null),
+  payment_intent: expandableId(session.payment_intent),
   metadata: session.metadata,
   amount_total: session.amount_total,
 });
 
 /**
  * Narrowed payment intent with expanded latest_charge.
- * We always call retrieve with `expand: ["latest_charge"]`,
- * so latest_charge is a Charge object (not a string ID).
+ * We call retrieve with `expand: ["latest_charge"]`, so it's always a Charge object.
  */
 export type StripePaymentIntentFields = {
   id: string;
   latest_charge: { refunded: boolean } | null;
 };
 
-/** Extract narrowed payment intent fields */
 const narrowPaymentIntent = (
   intent: Stripe.PaymentIntent,
 ): StripePaymentIntentFields => ({
   id: intent.id,
   latest_charge:
-    typeof intent.latest_charge === "object" && intent.latest_charge !== null
+    intent.latest_charge && typeof intent.latest_charge === "object"
       ? { refunded: (intent.latest_charge as Stripe.Charge).refunded }
       : null,
 });
