@@ -445,6 +445,12 @@ type MergeSourceInfo = {
   bookings: EventAttendeeRow[];
 };
 
+/** Render a value as either plain text or a preformatted span */
+const renderFieldValue = (value: string, multiline: boolean): string =>
+  multiline
+    ? String(<span style="white-space:pre-wrap">{value || "—"}</span>)
+    : value || "—";
+
 /** Render a PII field choice row (radio buttons for target vs source value) */
 const MergePiiField = ({
   field,
@@ -466,11 +472,7 @@ const MergePiiField = ({
       <td>
         <label>
           <input type="radio" name={field} value="target" checked />{" "}
-          {multiline ? (
-            <span style="white-space:pre-wrap">{targetValue || "—"}</span>
-          ) : (
-            targetValue || "—"
-          )}
+          <Raw html={renderFieldValue(targetValue, multiline)} />
         </label>
       </td>
       <td>
@@ -479,11 +481,7 @@ const MergePiiField = ({
         ) : (
           <label>
             <input type="radio" name={field} value="source" />{" "}
-            {multiline ? (
-              <span style="white-space:pre-wrap">{sourceValue || "—"}</span>
-            ) : (
-              sourceValue || "—"
-            )}
+            <Raw html={renderFieldValue(sourceValue, multiline)} />
           </label>
         )}
       </td>

@@ -3064,4 +3064,109 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(links[0]!.event_id).toBe(event.id);
     });
   });
+
+  describe("GET /admin/attendees/:attendeeId/merge (coverage branches)", () => {
+    test("shows merge preview with multiline field differences (address differs)", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+        1,
+        "",
+        "123 Main St",
+        "No nuts",
+      );
+      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+        1,
+        "",
+        "456 Oak Ave",
+        "Gluten free",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      // Multiline fields (address, special_instructions) differ — exercises renderFieldValue(val, true) with same=false
+      await expectHtmlResponse(response, 200, "456 Oak Ave", "Gluten free");
+    });
+
+    test("shows merge preview when source has empty phone but target does not", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+        1,
+        "555-1234",
+      );
+      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      // Source has no phone — exercises sourceValue || "—" branch
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(response, 200, "Merge Preview");
+    });
+
+    test("shows merge preview when source and target have empty email", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      // Empty email covers the `email || ""` branches on both target and source
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "",
+      );
+      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(response, 200, "Merge Preview");
+    });
+
+    test("shows daily event start_at date in source bookings list", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const dailyEvent = await createTestEvent({
+        name: "Daily E",
+        maxAttendees: 50,
+        eventType: "daily",
+      });
+      // Create source via createAttendeeAtomic with a daily event date
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        name: "John Smith",
+        email: "john@example.com",
+        bookings: [{ eventId: dailyEvent.id, date: "2026-05-01" }],
+      });
+      if (!result.success) throw new Error("createAttendeeAtomic failed");
+      const sourceToken = result.attendees[0]!.ticket_token;
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      // start_at is set for daily events — exercises the b.start_at ? `— date` : "" branch
+      await expectHtmlResponse(response, 200, "2026-05-01");
+    });
+  });
 });

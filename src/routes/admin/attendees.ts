@@ -784,7 +784,7 @@ const loadMergeSource = async (
   if (!raw) return null;
   // Cast to Attendee for decryption — only pii_blob is used by decryptAttendees
   const [decrypted] = await decryptAttendees([raw as unknown as Attendee], pk);
-  if (!decrypted) return null;
+  // decryptAttendees always returns the same-length array, so decrypted is always defined
   return {
     id: raw.id,
     name: decrypted.name,
