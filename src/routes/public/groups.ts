@@ -7,42 +7,14 @@ import {
   getActiveEventsByGroupId,
   getGroupBySlugIndex,
 } from "#lib/db/groups.ts";
-/* jscpd:ignore-start */
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getQuestionsWithEventIds } from "#lib/db/questions.ts";
-import { settings } from "#lib/db/settings.ts";
-/* jscpd:ignore-end */
 import { sortEvents } from "#lib/sort-events.ts";
 import type { Group } from "#lib/types.ts";
 import { notFoundResponse } from "#routes/utils.ts";
 import type { TicketEvent } from "#templates/public.tsx";
-import { computeSharedDates } from "./ticket-payment.ts";
+import { getTicketContext } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
-import {
-  type AsyncHandler,
-  getActiveEvents,
-  type TicketContextProvider,
-} from "./types.ts";
-
-/** Context provider for group pages (terms override + shared dates) */
-const getGroupTicketContext =
-  (group: Group): TicketContextProvider =>
-  async (events) => {
-    const eventIds = events.map((e) => e.event.id);
-    const [dates, globalTerms, questionsResult] = await Promise.all([
-      computeSharedDates(events),
-      Promise.resolve(settings.terms),
-      getQuestionsWithEventIds(eventIds),
-    ]);
-    const terms = group.terms_and_conditions || globalTerms || "";
-    return {
-      dates,
-      terms,
-      ...questionsResult,
-      groupName: group.name,
-      groupDescription: group.description,
-    };
-  };
+import { type AsyncHandler, getActiveEvents } from "./types.ts";
 
 /** Load group by slug and its active events, return 404 if empty */
 const withActiveGroupEventsBySlug = async (
@@ -69,5 +41,7 @@ export const handleGroupTicketBySlug = (
   slug: string,
 ): Promise<Response> =>
   withActiveGroupEventsBySlug(slug, (group, activeEvents) =>
-    handleTicket(request, [slug], activeEvents, getGroupTicketContext(group)),
+    handleTicket(request, [slug], activeEvents, (events) =>
+      getTicketContext(events, group),
+    ),
   );

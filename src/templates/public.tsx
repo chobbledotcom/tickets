@@ -482,7 +482,10 @@ export const ticketPage = ({
     ? renderSingleEventControls(events[0]!, hideQuantity)
     : events.map((e) => renderEventRow(e, hideQuantity)).join("");
 
-  const title = singleEvent ? singleEvent.name : groupName || "Reserve Tickets";
+  // Unified header: single events use event details, groups use group metadata
+  const headerName = singleEvent?.name ?? groupName;
+  const headerDescription = singleEvent?.description ?? groupDescription;
+  const title = headerName || "Reserve Tickets";
   const headExtra =
     singleEvent && baseUrl ? buildOgTags(singleEvent, baseUrl) : undefined;
   const buttonText = "Continue";
@@ -493,17 +496,17 @@ export const ticketPage = ({
       bodyClass={inIframe ? "iframe" : undefined}
       headExtra={headExtra}
     >
-      {singleEvent && !inIframe && (
+      {headerName && !inIframe && (
         <>
-          <Raw html={renderEventImage(singleEvent)} />
+          {singleEvent && <Raw html={renderEventImage(singleEvent)} />}
           <div class="prose">
-            <h1>{singleEvent.name}</h1>
-            {singleEvent.description && (
+            <h1>{headerName}</h1>
+            {headerDescription && (
               <div class="description">
-                <Raw html={renderMarkdownInline(singleEvent.description)} />
+                <Raw html={renderMarkdownInline(headerDescription)} />
               </div>
             )}
-            {singleEvent.date && (
+            {singleEvent?.date && (
               <p>
                 <strong>Date:</strong> {formatDatetimeLabel(singleEvent.date)}
                 {pastDays !== null && (
@@ -514,7 +517,7 @@ export const ticketPage = ({
                 )}
               </p>
             )}
-            {singleEvent.location && (
+            {singleEvent?.location && (
               <p>
                 <strong>Location:</strong> {singleEvent.location}
               </p>
@@ -522,29 +525,15 @@ export const ticketPage = ({
           </div>
         </>
       )}
-      {!singleEvent && !inIframe && groupName && (
-        <div class="prose">
-          <h1>{groupName}</h1>
-          {groupDescription && (
-            <div class="description">
-              <Raw html={renderMarkdownInline(groupDescription)} />
-            </div>
-          )}
-        </div>
-      )}
       <Flash error={error} />
 
       {allUnavailable || isReadOnly() ? (
         <div class="error" role="alert">
-          {isReadOnly()
+          {isReadOnly() || allClosed
             ? "Registration closed."
             : isSingleEvent
-              ? allClosed
-                ? "Registration closed."
-                : "Sorry, this event is full."
-              : allClosed
-                ? "Registration closed."
-                : "Sorry, all events are sold out."}
+              ? "Sorry, this event is full."
+              : "Sorry, all events are sold out."}
         </div>
       ) : (
         <CsrfForm action={`/ticket/${slugs.join("+")}`}>
