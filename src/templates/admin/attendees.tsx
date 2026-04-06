@@ -226,11 +226,12 @@ export const adminEditAttendeePage = (
   session: AdminSession,
   returnUrl?: string,
   success?: string,
+  error?: string,
 ): string =>
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
-      <Flash success={success} />
+      <Flash success={success} error={error} />
 
       <h2>Edit Attendee</h2>
 
@@ -311,7 +312,7 @@ export const adminEditAttendeePage = (
               <th>Date</th>
               <th>Qty</th>
               <th>Status</th>
-              <th></th>
+              <th style="width:1%"></th>
             </tr>
           </thead>
           <tbody>
@@ -347,7 +348,7 @@ export const adminEditAttendeePage = (
                     <span class="badge danger">Refunded</span>
                   )}
                 </td>
-                <td>
+                <td style="white-space:nowrap">
                   <CsrfForm
                     action={`/admin/attendees/${attendee.id}/unlink/${evt.id}`}
                     class="inline"
