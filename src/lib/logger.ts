@@ -245,11 +245,10 @@ type RequestLogEntry = {
  */
 export const logRequest = (entry: RequestLogEntry): void => {
   if (shouldSuppressRequestLogs()) return;
-  const { method, path, status, durationMs } = entry;
-  const redactedPath = redactPath(path);
+  const redactedPath = redactPath(entry.path);
 
   console.debug(
-    `${getLogPrefix()}[Request] ${method} ${redactedPath} ${status} ${durationMs}ms`,
+    `${getLogPrefix()}[Request] ${entry.method} ${redactedPath} ${entry.status} ${entry.durationMs}ms`,
   );
 };
 
@@ -308,13 +307,11 @@ const persistErrorToActivityLog = async (
  * Use this where calling logError would cause infinite recursion (e.g. ntfy.ts).
  */
 export const logErrorLocal = (context: ErrorContext): void => {
-  const { code, eventId, attendeeId, detail } = context;
-
   const parts = [
-    `[Error] ${code}`,
-    eventId !== undefined ? `event=${eventId}` : null,
-    attendeeId !== undefined ? `attendee=${attendeeId}` : null,
-    detail ? `detail="${detail}"` : null,
+    `[Error] ${context.code}`,
+    context.eventId !== undefined ? `event=${context.eventId}` : null,
+    context.attendeeId !== undefined ? `attendee=${context.attendeeId}` : null,
+    context.detail ? `detail="${context.detail}"` : null,
   ].filter(Boolean);
 
   console.error(`${getLogPrefix()}${parts.join(" ")}`);

@@ -818,10 +818,13 @@ export async function withAuth<T extends BodyMode>(
   const channel = channelFor(policy.body);
   const auth = await resolveSession(request, channel, policy.allowApiKey);
   if (isResponse(auth)) return auth;
-  const { session, authKind } = auth;
-  if (policy.role && session.adminLevel !== policy.role)
+  if (policy.role && auth.session.adminLevel !== policy.role)
     return authFailure(channel, "forbidden");
-  const body = await parseCsrfBody(request, policy.body, authKind === "apiKey");
+  const body = await parseCsrfBody(
+    request,
+    policy.body,
+    auth.authKind === "apiKey",
+  );
   if (isResponse(body)) return body;
-  return handler(session, body as ParsedBody<T>, authKind);
+  return handler(auth.session, body as ParsedBody<T>, auth.authKind);
 }

@@ -100,9 +100,9 @@ export const getAvailableDates = (
   event: Event,
   holidays: Holiday[],
 ): string[] => {
-  const { bookableDays, start, end } = bookableRange(event);
-  return filter((d: string) => isBookable(d, bookableDays, holidays))(
-    dateRange(start, end),
+  const range = bookableRange(event);
+  return filter((d: string) => isBookable(d, range.bookableDays, holidays))(
+    dateRange(range.start, range.end),
   );
 };
 
@@ -115,12 +115,12 @@ export const getNextBookableDate = (
   event: Event,
   holidays: Holiday[],
 ): string | null => {
-  const { bookableDays, start, end } = bookableRange(event);
-  if (bookableDays.length === 0) return null;
+  const range = bookableRange(event);
+  if (range.bookableDays.length === 0) return null;
 
-  let current = start;
-  while (current <= end) {
-    if (isBookable(current, bookableDays, holidays)) return current;
+  let current = range.start;
+  while (current <= range.end) {
+    if (isBookable(current, range.bookableDays, holidays)) return current;
     current = addDays(current, 1);
   }
   return null;

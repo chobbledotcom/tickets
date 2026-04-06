@@ -666,15 +666,15 @@ export const attendeesApi = {
     const attendeeIdExpr =
       "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
     const bookingStatements = bookings.map((booking) => {
-      const { sql, args } = buildCapacityCheckedInsert(booking, attendeeIdExpr);
+      const insert = buildCapacityCheckedInsert(booking, attendeeIdExpr);
       // Splice ticketTokenIndex after the first arg (eventId) to bind
       // the ? in the attendeeIdExpr subquery
       const combined: InValue[] = [
-        args[0]!,
+        insert.args[0]!,
         enc.ticketTokenIndex,
-        ...args.slice(1),
+        ...insert.args.slice(1),
       ];
-      return { sql, args: combined };
+      return { sql: insert.sql, args: combined };
     });
 
     // Single ACID transaction: attendee first, then capacity-checked event links.

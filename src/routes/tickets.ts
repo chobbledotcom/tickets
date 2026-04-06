@@ -27,9 +27,8 @@ const buildTicketCard = async (
   entry: TokenEntry,
   token: string,
 ): Promise<TicketCard> => {
-  const { event, attendee } = entry;
-  const attachmentUrl = event.attachment_url
-    ? await signAttachmentUrl(event.id, attendee.id)
+  const attachmentUrl = entry.event.attachment_url
+    ? await signAttachmentUrl(entry.event.id, entry.attendee.id)
     : undefined;
   return {
     entry,
