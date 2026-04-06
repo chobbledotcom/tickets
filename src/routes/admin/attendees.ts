@@ -10,9 +10,12 @@ import {
   addEventLink,
   createAttendeeAtomic,
   decryptAttendeeOrNull,
+  decryptAttendees,
   deleteAttendee,
   type EventAttendeeRow,
+  getAttendeesByTokens,
   markRefunded,
+  mergeAttendees,
   unlinkAttendeeFromEvent,
   updateAttendeePII,
   updateCheckedIn,
@@ -59,6 +62,7 @@ import {
 import {
   adminDeleteAttendeePage,
   adminEditAttendeePage,
+  adminMergeAttendeePage,
   adminResendNotificationPage,
 } from "#templates/admin/attendees.tsx";
 import {
@@ -744,10 +748,177 @@ const handleUpdateEventLink = (
 
 /* jscpd:ignore-end */
 
+/** Load and decrypt a target attendee by ID for merge operations */
+const loadMergeTarget = async (
+  session: AuthSession,
+  attendeeId: number,
+): Promise<Attendee | null> => {
+  const pk = await requirePrivateKey(session);
+  const raw = await queryOne<Attendee>(
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+     FROM attendees a
+     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id = ?`,
+    [attendeeId],
+  );
+  return decryptAttendeeOrNull(raw, pk);
+};
+
+/** Look up and decrypt a source attendee by ticket token */
+const loadMergeSource = async (
+  token: string,
+  session: AuthSession,
+): Promise<{
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  special_instructions: string;
+  ticket_token: string;
+  bookings: EventAttendeeRow[];
+} | null> => {
+  const pk = await requirePrivateKey(session);
+  const results = await getAttendeesByTokens([token]);
+  const raw = results[0];
+  if (!raw) return null;
+  // Cast to Attendee for decryption — only pii_blob is used by decryptAttendees
+  const [decrypted] = await decryptAttendees([raw as unknown as Attendee], pk);
+  if (!decrypted) return null;
+  return {
+    id: raw.id,
+    name: decrypted.name,
+    email: decrypted.email,
+    phone: decrypted.phone,
+    address: decrypted.address,
+    special_instructions: decrypted.special_instructions,
+    ticket_token: decrypted.ticket_token,
+    bookings: raw.bookings,
+  };
+};
+
+/** Handle GET /admin/attendees/:attendeeId/merge */
+const handleMergeGet = (
+  request: Request,
+  { attendeeId }: { attendeeId: number },
+): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const target = await loadMergeTarget(session, attendeeId);
+    if (!target) return notFoundResponse();
+
+    const token = getSearchParam(request, "token");
+    const flash = applyFlash(request);
+
+    if (!token) {
+      return htmlResponse(
+        adminMergeAttendeePage(target, null, null, session, flash.error),
+      );
+    }
+
+    const source = await loadMergeSource(token, session);
+
+    if (!source) {
+      return htmlResponse(
+        adminMergeAttendeePage(
+          target,
+          null,
+          token,
+          session,
+          "Ticket token not found",
+        ),
+      );
+    }
+
+    if (source.id === attendeeId) {
+      return htmlResponse(
+        adminMergeAttendeePage(
+          target,
+          null,
+          token,
+          session,
+          "Cannot merge an attendee with themselves",
+        ),
+      );
+    }
+
+    return htmlResponse(
+      adminMergeAttendeePage(target, source, token, session, flash.error),
+    );
+  });
+
+/** Handle POST /admin/attendees/:attendeeId/merge */
+const handleMergePost = (
+  request: Request,
+  { attendeeId }: { attendeeId: number },
+): Promise<Response> =>
+  withAuth(request, AUTH_FORM, async (session, form) => {
+    const target = await loadMergeTarget(session, attendeeId);
+    if (!target) return notFoundResponse();
+
+    const sourceToken = form.getString("source_token");
+    if (!sourceToken) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}/merge`,
+        "Source token is required",
+      );
+    }
+
+    const source = await loadMergeSource(sourceToken, session);
+    if (!source) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(sourceToken)}`,
+        "Ticket token not found",
+      );
+    }
+
+    if (source.id === attendeeId) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}/merge`,
+        "Cannot merge an attendee with themselves",
+      );
+    }
+
+    // Build merged PII from field-level choices
+    const pick = (
+      field: string,
+      targetVal: string,
+      sourceVal: string,
+    ): string => (form.getString(field) === "source" ? sourceVal : targetVal);
+
+    const mergedPii = {
+      name: pick("name", target.name, source.name),
+      email: pick("email", target.email, source.email),
+      phone: pick("phone", target.phone || "", source.phone || ""),
+      address: pick("address", target.address || "", source.address || ""),
+      special_instructions: pick(
+        "special_instructions",
+        target.special_instructions || "",
+        source.special_instructions || "",
+      ),
+      payment_id: target.payment_id,
+      ticket_token: target.ticket_token,
+    };
+
+    await updateAttendeePII(attendeeId, mergedPii);
+    await mergeAttendees(attendeeId, source.id);
+    await logActivity(
+      `Attendee '${source.name}' merged into '${mergedPii.name}'`,
+      target.event_id,
+    );
+
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      `Merged ${source.name} into ${mergedPii.name}`,
+      true,
+    );
+  });
+
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
   "GET /admin/attendees/:attendeeId": handleEditAttendeeGet,
   "POST /admin/attendees/:attendeeId": handleEditAttendeePost,
+  "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
+  "POST /admin/attendees/:attendeeId/merge": handleMergePost,
   "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
   "POST /admin/attendees/:attendeeId/link": handleAddEventLink,
   "POST /admin/attendees/:attendeeId/unlink/:eventId": handleUnlinkEvent,

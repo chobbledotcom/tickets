@@ -406,6 +406,234 @@ export const adminEditAttendeePage = (
       <script type="application/json" id="available-dates-data">
         <Raw html={JSON.stringify(availableDatesByEvent)} />
       </script>
+
+      {/* Merge Section */}
+      <h3>Merge Attendee</h3>
+      <p>
+        Search for another attendee by their ticket token and merge their event
+        registrations into this attendee.
+      </p>
+      <form
+        action={`/admin/attendees/${attendee.id}/merge`}
+        method="get"
+        class="inline-row"
+      >
+        <label for="merge_token">
+          Ticket token
+          <input
+            type="text"
+            id="merge_token"
+            name="token"
+            placeholder="Enter ticket token…"
+            required
+          />
+        </label>
+        <button type="submit">Search</button>
+      </form>
+    </Layout>,
+  );
+
+/** Source attendee data for the merge preview page */
+type MergeSourceInfo = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  special_instructions: string;
+  ticket_token: string;
+  bookings: EventAttendeeRow[];
+};
+
+/** Render a PII field choice row (radio buttons for target vs source value) */
+const MergePiiField = ({
+  field,
+  label,
+  targetValue,
+  sourceValue,
+  multiline = false,
+}: {
+  field: string;
+  label: string;
+  targetValue: string;
+  sourceValue: string;
+  multiline?: boolean;
+}): string => {
+  const same = targetValue === sourceValue;
+  return String(
+    <tr>
+      <th scope="row">{label}</th>
+      <td>
+        <label>
+          <input type="radio" name={field} value="target" checked={true} />{" "}
+          {multiline ? (
+            <span style="white-space:pre-wrap">{targetValue || "—"}</span>
+          ) : (
+            targetValue || "—"
+          )}
+        </label>
+      </td>
+      <td>
+        {same ? (
+          <span class="muted">(same)</span>
+        ) : (
+          <label>
+            <input type="radio" name={field} value="source" />{" "}
+            {multiline ? (
+              <span style="white-space:pre-wrap">{sourceValue || "—"}</span>
+            ) : (
+              sourceValue || "—"
+            )}
+          </label>
+        )}
+      </td>
+    </tr>,
+  );
+};
+
+/**
+ * Admin merge attendee page — search and confirm merge
+ */
+export const adminMergeAttendeePage = (
+  target: Attendee,
+  source: MergeSourceInfo | null,
+  searchToken: string | null,
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title={`Merge Attendee: ${target.name}`}>
+      <AdminNav session={session} active="/admin/" />
+      <Flash error={error} />
+
+      <h2>Merge Attendee</h2>
+      <p>
+        <a href={`/admin/attendees/${target.id}`}>← Back to {target.name}</a>
+      </p>
+
+      {/* Token search form */}
+      <h3>Search by Ticket Token</h3>
+      <form
+        action={`/admin/attendees/${target.id}/merge`}
+        method="get"
+        class="inline-row"
+      >
+        <label for="token">
+          Ticket token to merge from
+          <input
+            type="text"
+            id="token"
+            name="token"
+            value={searchToken || ""}
+            placeholder="Enter ticket token…"
+            required
+            autofocus={!source}
+          />
+        </label>
+        <button type="submit">Search</button>
+      </form>
+
+      {source && (
+        <div>
+          <h3>Merge Preview</h3>
+          <p>
+            Choose which value to keep for each field. The source attendee's
+            event registrations will be moved to this attendee (skipping any
+            duplicate events). The source attendee will then be deleted.
+          </p>
+
+          <CsrfForm action={`/admin/attendees/${target.id}/merge`}>
+            <input
+              type="hidden"
+              name="source_token"
+              value={source.ticket_token}
+            />
+
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>
+                      Keep (current): <strong>{target.name}</strong>
+                    </th>
+                    <th>
+                      Take from: <strong>{source.name}</strong>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <Raw
+                    html={MergePiiField({
+                      field: "name",
+                      label: "Name",
+                      targetValue: target.name,
+                      sourceValue: source.name,
+                    })}
+                  />
+                  <Raw
+                    html={MergePiiField({
+                      field: "email",
+                      label: "Email",
+                      targetValue: target.email || "",
+                      sourceValue: source.email || "",
+                    })}
+                  />
+                  <Raw
+                    html={MergePiiField({
+                      field: "phone",
+                      label: "Phone",
+                      targetValue: target.phone || "",
+                      sourceValue: source.phone || "",
+                    })}
+                  />
+                  <Raw
+                    html={MergePiiField({
+                      field: "address",
+                      label: "Address",
+                      targetValue: target.address || "",
+                      sourceValue: source.address || "",
+                      multiline: true,
+                    })}
+                  />
+                  <Raw
+                    html={MergePiiField({
+                      field: "special_instructions",
+                      label: "Special Instructions",
+                      targetValue: target.special_instructions || "",
+                      sourceValue: source.special_instructions || "",
+                      multiline: true,
+                    })}
+                  />
+                </tbody>
+              </table>
+            </div>
+
+            {source.bookings.length > 0 && (
+              <div>
+                <h4>Event registrations to be moved from source</h4>
+                <ul>
+                  {source.bookings.map((b) => (
+                    <li>
+                      Event #{b.event_id}
+                      {b.start_at ? ` — ${b.start_at.slice(0, 10)}` : ""}
+                      {` (qty: ${b.quantity})`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p>
+              <strong>Warning:</strong> This will permanently delete the source
+              attendee. This action cannot be undone.
+            </p>
+            <button type="submit" class="danger">
+              Merge and Delete Source Attendee
+            </button>
+          </CsrfForm>
+        </div>
+      )}
     </Layout>,
   );
 

@@ -16,6 +16,7 @@ import {
   awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,
+  createTestAttendeeDirect,
   createTestEvent,
   describeWithEnv,
   expectAdminRedirect,
@@ -2728,6 +2729,339 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { quantity: "1", date: "2026-04-08" },
       );
       expect(response.status).toBe(302);
+    });
+  });
+
+  describe("GET /admin/attendees/:attendeeId/merge", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await handleRequest(
+        mockRequest(`/admin/attendees/${attendee.id}/merge`),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      const response = await awaitTestRequest("/admin/attendees/999/merge", {
+        cookie: await testCookie(),
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("shows search form without token param", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}/merge`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Merge Attendee",
+        "Search by Ticket Token",
+      );
+    });
+
+    test("shows error when token not found", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}/merge?token=invalid-token`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(response, 200, "not found");
+    });
+
+    test("shows error when token matches same attendee", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee, token } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}/merge?token=${encodeURIComponent(token)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Cannot merge an attendee with themselves",
+      );
+    });
+
+    test("shows merge preview when valid source token provided", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event.id,
+        "John Smith",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Merge Preview",
+        "Jane Doe",
+        "John Smith",
+        "Merge and Delete Source Attendee",
+      );
+    });
+  });
+
+  describe("POST /admin/attendees/:attendeeId/merge", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await handleRequest(
+        mockFormRequest(`/admin/attendees/${attendee.id}/merge`, {
+          source_token: "some-token",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent target attendee", async () => {
+      const { response } = await adminFormPost("/admin/attendees/999/merge", {
+        source_token: "some-token",
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("rejects missing source_token", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/merge`,
+        {},
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Source token"), false);
+    });
+
+    test("rejects invalid source token", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/merge`,
+        { source_token: "nonexistent-token" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("not found"), false);
+    });
+
+    test("rejects self-merge", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee, token } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/merge`,
+        { source_token: token },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Cannot merge an attendee with themselves"),
+        false,
+      );
+    });
+
+    test("merges source events into target and deletes source", async () => {
+      const event1 = await createTestEvent({
+        name: "Event One",
+        maxAttendees: 10,
+      });
+      const event2 = await createTestEvent({
+        name: "Event Two",
+        maxAttendees: 10,
+      });
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event1.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken, attendee: source } =
+        await createTestAttendeeDirect(
+          event2.id,
+          "John Smith",
+          "john@example.com",
+        );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { source_token: sourceToken },
+      );
+
+      expectRedirectWithFlash(
+        `/admin/attendees/${target.id}`,
+        expect.stringContaining("Merged"),
+      )(response);
+
+      // Source attendee should be deleted
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const deleted = await getAttendeeRaw(source.id);
+      expect(deleted).toBeNull();
+
+      // Target should still exist
+      const surviving = await getAttendeeRaw(target.id);
+      expect(surviving).not.toBeNull();
+
+      // Target should now have both event links
+      const targetEventLinks = await import("#lib/db/client.ts").then((m) =>
+        m.queryAll<{ event_id: number }>(
+          "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
+          [target.id],
+        ),
+      );
+      const eventIds = targetEventLinks.map((r) => r.event_id).sort();
+      expect(eventIds).toEqual([event1.id, event2.id].sort());
+    });
+
+    test("keeps target PII when no source fields selected", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+        1,
+        "555-1111",
+      );
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+        1,
+        "555-9999",
+      );
+
+      // Submit without choosing source for any field (all default to target)
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { source_token: sourceToken },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Merged"), true);
+
+      // Verify target PII is preserved
+      const getPage = await awaitTestRequest(`/admin/attendees/${target.id}`, {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(getPage, 200, "Jane Doe", "jane@example.com");
+    });
+
+    test("takes source PII fields when selected", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      // Choose source name and email
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          name: "source",
+          email: "source",
+        },
+      );
+      expect(response.status).toBe(302);
+
+      // Verify target now has source's name and email
+      const getPage = await awaitTestRequest(`/admin/attendees/${target.id}`, {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(getPage, 200, "John Smith", "john@example.com");
+    });
+
+    test("skips conflicting event booking during merge", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+
+      // Both attendees are registered for the same event
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken, attendee: source } =
+        await createTestAttendeeDirect(
+          event.id,
+          "John Smith",
+          "john@example.com",
+        );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { source_token: sourceToken },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Merged"), true);
+
+      // Source deleted
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      expect(await getAttendeeRaw(source.id)).toBeNull();
+
+      // Target still has exactly one link to the event (conflict was skipped)
+      const { queryAll } = await import("#lib/db/client.ts");
+      const links = await queryAll<{ event_id: number }>(
+        "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
+        [target.id],
+      );
+      expect(links.length).toBe(1);
+      expect(links[0]!.event_id).toBe(event.id);
     });
   });
 });
