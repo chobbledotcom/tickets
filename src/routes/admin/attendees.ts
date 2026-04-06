@@ -447,6 +447,7 @@ const handleEditAttendeeGet = (
           session,
           getReturnUrl(request),
           flash.success,
+          flash.error,
         ),
       );
     }),
