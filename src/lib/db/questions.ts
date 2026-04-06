@@ -369,6 +369,58 @@ export const getAttendeeAnswersBatch = async (
   )(rows);
 };
 
+/** Get attendee answers mapped by question ID.
+ * Returns Map<questionId, { answerId, answerText }> for a single attendee. */
+export const getAttendeeAnswersByQuestion = async (
+  attendeeId: number,
+): Promise<Map<number, { answerId: number; answerText: string }>> => {
+  const rows = await queryAll<{
+    question_id: number;
+    answer_id: number;
+    answer_text: string;
+  }>(
+    `SELECT a.question_id, aa.answer_id, a.text AS answer_text
+     FROM attendee_answers aa
+     JOIN answers a ON a.id = aa.answer_id
+     WHERE aa.attendee_id = ?`,
+    [attendeeId],
+  );
+
+  const result = new Map<number, { answerId: number; answerText: string }>();
+  for (const row of rows) {
+    const decrypted = await answersTable.fromDb({
+      id: row.answer_id,
+      question_id: row.question_id,
+      text: row.answer_text,
+      sort_order: 0,
+    });
+    result.set(row.question_id, {
+      answerId: row.answer_id,
+      answerText: decrypted.text,
+    });
+  }
+  return result;
+};
+
+/** Save attendee answers by question ID mapping.
+ * Replaces all answers for the given attendee. */
+export const saveAttendeeAnswersByQuestion = async (
+  attendeeId: number,
+  questionToAnswer: Map<number, number>,
+): Promise<void> => {
+  const statements: { sql: string; args: InValue[] }[] = [
+    {
+      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
+      args: [attendeeId],
+    },
+    ...Array.from(questionToAnswer.values()).map((answerId) => ({
+      sql: ATTENDEE_ANSWER_INSERT,
+      args: [attendeeId, answerId] as InValue[],
+    })),
+  ];
+  await executeBatch(statements);
+};
+
 /** Delete a question and all related data in a single batch.
  * Uses a subquery for attendee_answers so the entire cascade is atomic. */
 export const deleteQuestion = async (questionId: number): Promise<void> => {

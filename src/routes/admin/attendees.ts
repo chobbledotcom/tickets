@@ -15,7 +15,6 @@ import {
   type EventAttendeeRow,
   getAttendeesByTokens,
   markRefunded,
-  mergeAttendees,
   unlinkAttendeeFromEvent,
   updateAttendeePII,
   updateCheckedIn,
@@ -32,6 +31,7 @@ import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import {
   getAttendeeAnswersBatch,
   getQuestionsForEvent,
+  getQuestionsWithEventIds,
   saveAttendeeAnswers,
 } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
@@ -40,6 +40,19 @@ import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 /* jscpd:ignore-end */
 import { ErrorCode, logError } from "#lib/logger.ts";
+import {
+  applyAttendeeMerge,
+  bookingKey,
+  buildAttendeeMergeDiff,
+  validateAttendeeMergeDecision,
+} from "#lib/merge/attendee-merge.ts";
+import type {
+  AttendeeMergeDecisionInput,
+  AttendeeMergeDiff,
+  MergeAnswerChoice,
+  MergeBookingChoice,
+  MergeValueChoice,
+} from "#lib/merge/attendee-merge-types.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
@@ -784,7 +797,9 @@ const loadMergeSource = async (
   if (!raw) return null;
   // Cast to Attendee for decryption — only pii_blob is used by decryptAttendees
   // decryptAttendees always returns the same-length array — safe to index directly
-  const decrypted = (await decryptAttendees([raw as unknown as Attendee], pk))[0]!;
+  const decrypted = (
+    await decryptAttendees([raw as unknown as Attendee], pk)
+  )[0]!;
   return {
     id: raw.id,
     name: decrypted.name,
@@ -802,10 +817,68 @@ const withMergeTarget = (
   session: AuthSession,
   attendeeId: number,
   handler: (target: Attendee) => Response | Promise<Response>,
-): Promise<Response> => orNotFound(loadMergeTarget(session, attendeeId), handler);
+): Promise<Response> =>
+  orNotFound(loadMergeTarget(session, attendeeId), handler);
+
+/** Load all event_attendees rows for an attendee */
+const loadAttendeeBookings = (
+  attendeeId: number,
+): Promise<EventAttendeeRow[]> =>
+  queryAll<EventAttendeeRow>(
+    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+     FROM event_attendees WHERE attendee_id = ? ORDER BY start_at, event_id`,
+    [attendeeId],
+  );
+
+/** Collect unique event IDs from two sets of bookings */
+const collectEventIds = (
+  targetBookings: EventAttendeeRow[],
+  sourceBookings: EventAttendeeRow[],
+): number[] => {
+  const ids = new Set<number>();
+  for (const b of targetBookings) ids.add(b.event_id);
+  for (const b of sourceBookings) ids.add(b.event_id);
+  return [...ids];
+};
+
+/** Parse merge decision form data into AttendeeMergeDecisionInput */
+const parseMergeDecisionForm = (
+  form: FormParams,
+  diff: AttendeeMergeDiff,
+): AttendeeMergeDecisionInput => {
+  const pii: Record<string, MergeValueChoice> = {};
+  for (const field of diff.piiFields) {
+    const val = form.getString(`pii_${field.field}`);
+    pii[field.field] = val === "source" ? "source" : "target";
+  }
+
+  const answers: Record<string, MergeAnswerChoice> = {};
+  for (const item of diff.answerItems) {
+    if (item.conflict) {
+      const val = form.getString(`answer_${item.questionId}`);
+      if (val === "source") answers[String(item.questionId)] = "source";
+      else if (val === "clear") answers[String(item.questionId)] = "clear";
+      else answers[String(item.questionId)] = "target";
+    }
+  }
+
+  const bookings: Record<string, MergeBookingChoice> = {};
+  for (const item of diff.bookingItems) {
+    if (item.conflictClass !== "moveable") {
+      const key = bookingKey(item.eventId, item.startAt);
+      const val = form.getString(`booking_${key}`);
+      if (val === "take_source") bookings[key] = "take_source";
+      else if (val === "skip_source") bookings[key] = "skip_source";
+      else bookings[key] = "keep_target";
+    }
+  }
+
+  const version = form.getString("merge_version");
+  return { pii, answers, bookings, version };
+};
 
 /* jscpd:ignore-start — merge handlers share structural patterns with other route handlers */
-/** Handle GET /admin/attendees/:attendeeId/merge */
+/** Handle GET /admin/attendees/:attendeeId/merge — analyze + render decisions */
 const handleMergeGet = (
   request: Request,
   { attendeeId }: { attendeeId: number },
@@ -847,13 +920,49 @@ const handleMergeGet = (
         );
       }
 
+      // Load target bookings and compute merge diff
+      const targetBookings = await loadAttendeeBookings(attendeeId);
+      const allEventIds = collectEventIds(targetBookings, source.bookings);
+      const { questions } = await getQuestionsWithEventIds(allEventIds);
+
+      const diff = await buildAttendeeMergeDiff(
+        {
+          targetId: attendeeId,
+          sourceId: source.id,
+          targetPii: {
+            name: target.name,
+            email: target.email,
+            phone: target.phone,
+            address: target.address,
+            special_instructions: target.special_instructions,
+          },
+          sourcePii: {
+            name: source.name,
+            email: source.email,
+            phone: source.phone,
+            address: source.address,
+            special_instructions: source.special_instructions,
+          },
+          targetBookings,
+          sourceBookings: source.bookings,
+        },
+        questions,
+      );
+
       return htmlResponse(
-        adminMergeAttendeePage(target, source, token, session, flash.error),
+        adminMergeAttendeePage(
+          target,
+          source,
+          token,
+          session,
+          flash.error,
+          diff,
+        ),
       );
     }),
   );
 
-/** Handle POST /admin/attendees/:attendeeId/merge */
+/** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
 const handleMergePost = (
   request: Request,
   { attendeeId }: { attendeeId: number },
@@ -883,37 +992,124 @@ const handleMergePost = (
         );
       }
 
-      // Build merged PII from field-level choices
-      const pick = (
-        field: string,
-        targetVal: string,
-        sourceVal: string,
-      ): string => (form.getString(field) === "source" ? sourceVal : targetVal);
+      // Rebuild the diff to validate against
+      const targetBookings = await loadAttendeeBookings(attendeeId);
+      const allEventIds = collectEventIds(targetBookings, source.bookings);
+      const { questions } = await getQuestionsWithEventIds(allEventIds);
 
-      const mergedPii = {
-        name: pick("name", target.name, source.name),
-        email: pick("email", target.email, source.email),
-        phone: pick("phone", target.phone || "", source.phone || ""),
-        address: pick("address", target.address || "", source.address || ""),
-        special_instructions: pick(
-          "special_instructions",
-          target.special_instructions || "",
-          source.special_instructions || "",
-        ),
+      const diff = await buildAttendeeMergeDiff(
+        {
+          targetId: attendeeId,
+          sourceId: source.id,
+          targetPii: {
+            name: target.name,
+            email: target.email,
+            phone: target.phone,
+            address: target.address,
+            special_instructions: target.special_instructions,
+          },
+          sourcePii: {
+            name: source.name,
+            email: source.email,
+            phone: source.phone,
+            address: source.address,
+            special_instructions: source.special_instructions,
+          },
+          targetBookings,
+          sourceBookings: source.bookings,
+        },
+        questions,
+      );
+
+      const decision = parseMergeDecisionForm(form, diff);
+      const validation = validateAttendeeMergeDecision(diff, decision);
+
+      if (!validation.valid) {
+        return htmlResponse(
+          adminMergeAttendeePage(
+            target,
+            source,
+            sourceToken,
+            session,
+            validation.errors.join("; "),
+            diff,
+          ),
+        );
+      }
+
+      const result = await applyAttendeeMerge({
+        targetId: attendeeId,
+        sourceId: source.id,
+        targetPii: {
+          name: target.name,
+          email: target.email,
+          phone: target.phone,
+          address: target.address,
+          special_instructions: target.special_instructions,
+          payment_id: target.payment_id,
+          ticket_token: target.ticket_token,
+        },
+        sourcePii: {
+          name: source.name,
+          email: source.email,
+          phone: source.phone,
+          address: source.address,
+          special_instructions: source.special_instructions,
+        },
+        diff,
+        decision,
+      });
+
+      // Update target PII based on decisions
+      const mergedPiiName =
+        decision.pii.name === "source" ? source.name : target.name;
+      await updateAttendeePII(attendeeId, {
+        name: decision.pii.name === "source" ? source.name : target.name,
+        email: decision.pii.email === "source" ? source.email : target.email,
+        phone: decision.pii.phone === "source" ? source.phone : target.phone,
+        address:
+          decision.pii.address === "source" ? source.address : target.address,
+        special_instructions:
+          decision.pii.special_instructions === "source"
+            ? source.special_instructions
+            : target.special_instructions,
         payment_id: target.payment_id,
         ticket_token: target.ticket_token,
-      };
+      });
 
-      await updateAttendeePII(attendeeId, mergedPii);
-      await mergeAttendees(attendeeId, source.id);
-      await logActivity(
-        `Attendee '${source.name}' merged into '${mergedPii.name}'`,
-        target.event_id,
-      );
+      // Log structured summary
+      const { summary } = result;
+      const parts = compact([
+        `Attendee '${source.name}' merged into '${mergedPiiName}'`,
+        summary.bookingsMoved > 0
+          ? `${summary.bookingsMoved} booking(s) moved`
+          : null,
+        summary.bookingsSkipped > 0
+          ? `${summary.bookingsSkipped} booking(s) skipped`
+          : null,
+        summary.bookingsReplacedTarget > 0
+          ? `${summary.bookingsReplacedTarget} booking(s) replaced`
+          : null,
+        summary.answersTakenFromSource > 0
+          ? `${summary.answersTakenFromSource} answer(s) from source`
+          : null,
+        summary.answersCleared > 0
+          ? `${summary.answersCleared} answer(s) cleared`
+          : null,
+      ]);
+      await logActivity(parts.join(". "), target.event_id);
+
+      const flashParts = [`Merged ${source.name} into ${mergedPiiName}`];
+      if (summary.bookingsMoved > 0) {
+        flashParts.push(`${summary.bookingsMoved} booking(s) moved`);
+      }
+      if (summary.bookingsSkipped > 0) {
+        flashParts.push(`${summary.bookingsSkipped} booking(s) skipped`);
+      }
 
       return redirect(
         `/admin/attendees/${attendeeId}`,
-        `Merged ${source.name} into ${mergedPii.name}`,
+        flashParts.join(". "),
         true,
       );
     }),
