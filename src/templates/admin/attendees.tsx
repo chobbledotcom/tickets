@@ -465,7 +465,7 @@ const MergePiiField = ({
       <th scope="row">{label}</th>
       <td>
         <label>
-          <input type="radio" name={field} value="target" checked={true} />{" "}
+          <input type="radio" name={field} value="target" checked />{" "}
           {multiline ? (
             <span style="white-space:pre-wrap">{targetValue || "—"}</span>
           ) : (

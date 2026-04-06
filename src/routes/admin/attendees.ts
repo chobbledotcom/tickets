@@ -797,121 +797,128 @@ const loadMergeSource = async (
   };
 };
 
+/** Load target attendee and call handler, returning 404 if not found */
+const withMergeTarget = (
+  session: AuthSession,
+  attendeeId: number,
+  handler: (target: Attendee) => Response | Promise<Response>,
+): Promise<Response> => orNotFound(loadMergeTarget(session, attendeeId), handler);
+
+/* jscpd:ignore-start — merge handlers share structural patterns with other route handlers */
 /** Handle GET /admin/attendees/:attendeeId/merge */
 const handleMergeGet = (
   request: Request,
   { attendeeId }: { attendeeId: number },
 ): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
-    const target = await loadMergeTarget(session, attendeeId);
-    if (!target) return notFoundResponse();
+  requireSessionOr(request, (session) =>
+    withMergeTarget(session, attendeeId, async (target) => {
+      const token = getSearchParam(request, "token");
+      const flash = applyFlash(request);
 
-    const token = getSearchParam(request, "token");
-    const flash = applyFlash(request);
+      if (!token) {
+        return htmlResponse(
+          adminMergeAttendeePage(target, null, null, session, flash.error),
+        );
+      }
 
-    if (!token) {
+      const source = await loadMergeSource(token, session);
+
+      if (!source) {
+        return htmlResponse(
+          adminMergeAttendeePage(
+            target,
+            null,
+            token,
+            session,
+            "Ticket token not found",
+          ),
+        );
+      }
+
+      if (source.id === attendeeId) {
+        return htmlResponse(
+          adminMergeAttendeePage(
+            target,
+            null,
+            token,
+            session,
+            "Cannot merge an attendee with themselves",
+          ),
+        );
+      }
+
       return htmlResponse(
-        adminMergeAttendeePage(target, null, null, session, flash.error),
+        adminMergeAttendeePage(target, source, token, session, flash.error),
       );
-    }
-
-    const source = await loadMergeSource(token, session);
-
-    if (!source) {
-      return htmlResponse(
-        adminMergeAttendeePage(
-          target,
-          null,
-          token,
-          session,
-          "Ticket token not found",
-        ),
-      );
-    }
-
-    if (source.id === attendeeId) {
-      return htmlResponse(
-        adminMergeAttendeePage(
-          target,
-          null,
-          token,
-          session,
-          "Cannot merge an attendee with themselves",
-        ),
-      );
-    }
-
-    return htmlResponse(
-      adminMergeAttendeePage(target, source, token, session, flash.error),
-    );
-  });
+    }),
+  );
 
 /** Handle POST /admin/attendees/:attendeeId/merge */
 const handleMergePost = (
   request: Request,
   { attendeeId }: { attendeeId: number },
 ): Promise<Response> =>
-  withAuth(request, AUTH_FORM, async (session, form) => {
-    const target = await loadMergeTarget(session, attendeeId);
-    if (!target) return notFoundResponse();
+  withAuth(request, AUTH_FORM, (session, form) =>
+    withMergeTarget(session, attendeeId, async (target) => {
+      const sourceToken = form.getString("source_token");
+      if (!sourceToken) {
+        return errorRedirect(
+          `/admin/attendees/${attendeeId}/merge`,
+          "Source token is required",
+        );
+      }
 
-    const sourceToken = form.getString("source_token");
-    if (!sourceToken) {
-      return errorRedirect(
-        `/admin/attendees/${attendeeId}/merge`,
-        "Source token is required",
+      const source = await loadMergeSource(sourceToken, session);
+      if (!source) {
+        return errorRedirect(
+          `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(sourceToken)}`,
+          "Ticket token not found",
+        );
+      }
+
+      if (source.id === attendeeId) {
+        return errorRedirect(
+          `/admin/attendees/${attendeeId}/merge`,
+          "Cannot merge an attendee with themselves",
+        );
+      }
+
+      // Build merged PII from field-level choices
+      const pick = (
+        field: string,
+        targetVal: string,
+        sourceVal: string,
+      ): string => (form.getString(field) === "source" ? sourceVal : targetVal);
+
+      const mergedPii = {
+        name: pick("name", target.name, source.name),
+        email: pick("email", target.email, source.email),
+        phone: pick("phone", target.phone || "", source.phone || ""),
+        address: pick("address", target.address || "", source.address || ""),
+        special_instructions: pick(
+          "special_instructions",
+          target.special_instructions || "",
+          source.special_instructions || "",
+        ),
+        payment_id: target.payment_id,
+        ticket_token: target.ticket_token,
+      };
+
+      await updateAttendeePII(attendeeId, mergedPii);
+      await mergeAttendees(attendeeId, source.id);
+      await logActivity(
+        `Attendee '${source.name}' merged into '${mergedPii.name}'`,
+        target.event_id,
       );
-    }
 
-    const source = await loadMergeSource(sourceToken, session);
-    if (!source) {
-      return errorRedirect(
-        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(sourceToken)}`,
-        "Ticket token not found",
+      return redirect(
+        `/admin/attendees/${attendeeId}`,
+        `Merged ${source.name} into ${mergedPii.name}`,
+        true,
       );
-    }
-
-    if (source.id === attendeeId) {
-      return errorRedirect(
-        `/admin/attendees/${attendeeId}/merge`,
-        "Cannot merge an attendee with themselves",
-      );
-    }
-
-    // Build merged PII from field-level choices
-    const pick = (
-      field: string,
-      targetVal: string,
-      sourceVal: string,
-    ): string => (form.getString(field) === "source" ? sourceVal : targetVal);
-
-    const mergedPii = {
-      name: pick("name", target.name, source.name),
-      email: pick("email", target.email, source.email),
-      phone: pick("phone", target.phone || "", source.phone || ""),
-      address: pick("address", target.address || "", source.address || ""),
-      special_instructions: pick(
-        "special_instructions",
-        target.special_instructions || "",
-        source.special_instructions || "",
-      ),
-      payment_id: target.payment_id,
-      ticket_token: target.ticket_token,
-    };
-
-    await updateAttendeePII(attendeeId, mergedPii);
-    await mergeAttendees(attendeeId, source.id);
-    await logActivity(
-      `Attendee '${source.name}' merged into '${mergedPii.name}'`,
-      target.event_id,
-    );
-
-    return redirect(
-      `/admin/attendees/${attendeeId}`,
-      `Merged ${source.name} into ${mergedPii.name}`,
-      true,
-    );
-  });
+    }),
+  );
+/* jscpd:ignore-end */
 
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
