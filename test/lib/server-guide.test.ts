@@ -104,6 +104,17 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
+    test("contains login security section", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Login &amp; Security",
+        "5 failed login attempts",
+        "15 minutes",
+        "no password recovery",
+        "HttpOnly",
+      );
+    });
+
     test("contains calendar and activity log sections", async () => {
       await assertAdminHtml("/admin/guide", "Calendar", "Activity Log");
     });
