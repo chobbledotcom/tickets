@@ -307,7 +307,7 @@ export const applyAttendeeMerge = async (
     if (decision.pii[field.field] === "source") {
       (mergedPii as Record<string, string>)[field.field] = (
         sourcePii as Record<string, string>
-      )[field.field];
+      )[field.field]!;
       piiFieldsFromSource.push(field.field);
     }
   }
