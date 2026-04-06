@@ -160,35 +160,52 @@ const processRefundAll = async (
 
   let refundedCount = 0;
   let failedCount = 0;
+  let errorCount = 0;
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
     const results = await Promise.all(
       group.map(async (attendee) => {
-        const refunded = await provider.refundPayment(attendee.payment_id);
-        if (refunded) {
-          await markRefunded(attendee.id, event.id);
-          return true;
+        try {
+          const refunded = await provider.refundPayment(attendee.payment_id);
+          if (refunded) {
+            await markRefunded(attendee.id, event.id);
+            return "ok" as const;
+          }
+          logError({
+            code: ErrorCode.PAYMENT_REFUND,
+            eventId: event.id,
+            detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+          });
+          return "failed" as const;
+        } catch (err) {
+          const msg = String(err);
+          logError({
+            code: ErrorCode.PAYMENT_REFUND,
+            eventId: event.id,
+            detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${msg}`,
+          });
+          return "errored" as const;
         }
-        logError({
-          code: ErrorCode.PAYMENT_REFUND,
-          eventId: event.id,
-          detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-        });
-        return false;
       }),
     );
-    for (const success of results) {
-      if (success) refundedCount++;
+    for (const result of results) {
+      if (result === "ok") refundedCount++;
+      else if (result === "errored") errorCount++;
       else failedCount++;
     }
   }
+  const problemCount = failedCount + errorCount;
 
-  if (failedCount > 0) {
+  if (problemCount > 0) {
+    const errorNote =
+      errorCount > 0
+        ? ` (${errorCount} errored — check the activity log for details)`
+        : "";
     const msg =
       remaining > 0
-        ? `${refundedCount} refund(s) succeeded, ${failedCount} failed. ${remaining} remaining — submit again to continue.`
-        : `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`;
+        ? `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. ${remaining} remaining — submit again to continue.`
+        : `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. Some payments may have already been refunded.`;
     await logActivity(
-      `Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`,
+      `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${event.name}'`,
       event.id,
     );
     return errorRedirect(refundAllUrl, msg);
