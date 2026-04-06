@@ -16,6 +16,7 @@ import {
   awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,
+  createTestAttendeeDirect,
   createTestEvent,
   describeWithEnv,
   expectAdminRedirect,
@@ -2728,6 +2729,954 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { quantity: "1", date: "2026-04-08" },
       );
       expect(response.status).toBe(302);
+    });
+  });
+
+  describe("GET /admin/attendees/:attendeeId/merge", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await handleRequest(
+        mockRequest(`/admin/attendees/${attendee.id}/merge`),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      const response = await awaitTestRequest("/admin/attendees/999/merge", {
+        cookie: await testCookie(),
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("shows search form without token param", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}/merge`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Merge Attendee",
+        "Search by Ticket Token",
+      );
+    });
+
+    test("shows error when token not found", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}/merge?token=invalid-token`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(response, 200, "not found");
+    });
+
+    test("shows error when token matches same attendee", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee, token } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}/merge?token=${encodeURIComponent(token)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Cannot merge an attendee with themselves",
+      );
+    });
+
+    test("shows merge preview when valid source token provided", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event.id,
+        "John Smith",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Merge Preview",
+        "Jane Doe",
+        "John Smith",
+        "Merge and Delete Source Attendee",
+      );
+    });
+  });
+
+  /** Extract merge_version from the merge preview HTML page */
+  const getMergeVersion = async (
+    targetId: number,
+    sourceToken: string,
+  ): Promise<string> => {
+    const page = await awaitTestRequest(
+      `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(sourceToken)}`,
+      { cookie: await testCookie() },
+    );
+    const html = await page.text();
+    const match = html.match(/name="merge_version"\s+value="([^"]*)"/);
+    if (!match) throw new Error("merge_version not found in page");
+    return match[1]!;
+  };
+
+  describe("POST /admin/attendees/:attendeeId/merge", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await handleRequest(
+        mockFormRequest(`/admin/attendees/${attendee.id}/merge`, {
+          source_token: "some-token",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent target attendee", async () => {
+      const { response } = await adminFormPost("/admin/attendees/999/merge", {
+        source_token: "some-token",
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("rejects missing source_token", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/merge`,
+        {},
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Source token"), false);
+    });
+
+    test("rejects invalid source token", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/merge`,
+        { source_token: "nonexistent-token" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("not found"), false);
+    });
+
+    test("rejects self-merge", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee, token } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/merge`,
+        { source_token: token },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Cannot merge an attendee with themselves"),
+        false,
+      );
+    });
+
+    test("merges source events into target and deletes source", async () => {
+      const event1 = await createTestEvent({
+        name: "Event One",
+        maxAttendees: 10,
+      });
+      const event2 = await createTestEvent({
+        name: "Event Two",
+        maxAttendees: 10,
+      });
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event1.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken, attendee: source } =
+        await createTestAttendeeDirect(
+          event2.id,
+          "John Smith",
+          "john@example.com",
+        );
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { source_token: sourceToken, merge_version: mergeVersion },
+      );
+
+      expectRedirectWithFlash(
+        `/admin/attendees/${target.id}`,
+        expect.stringContaining("Merged"),
+      )(response);
+
+      // Source attendee should be deleted
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const deleted = await getAttendeeRaw(source.id);
+      expect(deleted).toBeNull();
+
+      // Target should still exist
+      const surviving = await getAttendeeRaw(target.id);
+      expect(surviving).not.toBeNull();
+
+      // Target should now have both event links
+      const targetEventLinks = await import("#lib/db/client.ts").then((m) =>
+        m.queryAll<{ event_id: number }>(
+          "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
+          [target.id],
+        ),
+      );
+      const eventIds = targetEventLinks.map((r) => r.event_id).sort();
+      expect(eventIds).toEqual([event1.id, event2.id].sort());
+    });
+
+    test("keeps target PII when no source fields selected", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+        1,
+        "555-1111",
+      );
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+        1,
+        "555-9999",
+      );
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+      // Submit without choosing source for any field (all default to target)
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { source_token: sourceToken, merge_version: mergeVersion },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Merged"), true);
+
+      // Verify target PII is preserved
+      const getPage = await awaitTestRequest(`/admin/attendees/${target.id}`, {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(getPage, 200, "Jane Doe", "jane@example.com");
+    });
+
+    test("takes source PII fields when selected", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+        1,
+        "555-1234",
+        "123 Source St",
+        "Source instructions",
+      );
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+      // Choose source for all PII fields
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+          pii_name: "source",
+          pii_email: "source",
+          pii_phone: "source",
+          pii_address: "source",
+          pii_special_instructions: "source",
+        },
+      );
+      expect(response.status).toBe(302);
+
+      // Verify target now has source's PII
+      const getPage = await awaitTestRequest(`/admin/attendees/${target.id}`, {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(
+        getPage,
+        200,
+        "John Smith",
+        "john@example.com",
+        "555-1234",
+        "123 Source St",
+        "Source instructions",
+      );
+    });
+
+    test("skips conflicting event booking during merge", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+
+      // Both attendees are registered for the same event
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken, attendee: source } =
+        await createTestAttendeeDirect(
+          event.id,
+          "John Smith",
+          "john@example.com",
+        );
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+      // Booking conflict: same event, same start_at (null) — choose keep_target
+      const bookingKey = `${event.id}:null`;
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+          [`booking_${bookingKey}`]: "keep_target",
+        },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Merged"), true);
+
+      // Source deleted
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      expect(await getAttendeeRaw(source.id)).toBeNull();
+
+      // Target still has exactly one link to the event (conflict was skipped)
+      const { queryAll } = await import("#lib/db/client.ts");
+      const links = await queryAll<{ event_id: number }>(
+        "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
+        [target.id],
+      );
+      expect(links.length).toBe(1);
+      expect(links[0]!.event_id).toBe(event.id);
+    });
+  });
+
+  describe("GET /admin/attendees/:attendeeId/merge (coverage branches)", () => {
+    test("shows merge preview with multiline field differences (address differs)", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+        1,
+        "",
+        "123 Main St",
+        "No nuts",
+      );
+      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+        1,
+        "",
+        "456 Oak Ave",
+        "Gluten free",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      // Multiline fields (address, special_instructions) differ — exercises renderFieldValue(val, true) with same=false
+      await expectHtmlResponse(response, 200, "456 Oak Ave", "Gluten free");
+    });
+
+    test("shows merge preview when source has empty phone but target does not", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+        1,
+        "555-1234",
+      );
+      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      // Source has no phone — exercises sourceValue || "—" branch
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(response, 200, "Merge Preview");
+    });
+
+    test("shows merge preview when source and target have empty email", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      // Empty email covers the `email || ""` branches on both target and source
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "",
+      );
+      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(response, 200, "Merge Preview");
+    });
+
+    test("shows daily event start_at date in source bookings list", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const dailyEvent = await createTestEvent({
+        name: "Daily E",
+        maxAttendees: 50,
+        eventType: "daily",
+      });
+      // Create source via createAttendeeAtomic with a daily event date
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        name: "John Smith",
+        email: "john@example.com",
+        bookings: [{ eventId: dailyEvent.id, date: "2026-05-01" }],
+      });
+      if (!result.success) throw new Error("createAttendeeAtomic failed");
+      const sourceToken = result.attendees[0]!.ticket_token;
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      // start_at is set for daily events — exercises the b.start_at ? `— date` : "" branch
+      await expectHtmlResponse(response, 200, "2026-05-01");
+    });
+
+    test("shows moveable booking row without decision column when no conflicts", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 10 });
+      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event1.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      // All bookings are moveable (different events) — no Decision column rendered
+      await expectHtmlResponse(response, 200, "Will be moved");
+    });
+
+    test("shows duplicate booking status when same event with identical metadata", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      // Same event, same qty/price/checked_in/refunded — classified as "duplicate"
+      await expectHtmlResponse(response, 200, "Duplicate");
+    });
+  });
+
+  describe("merge with answer conflicts", () => {
+    test("GET merge page renders answer decision table when conflicts exist", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const q = await questionsTable.insert({ text: "Favourite colour?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Red",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Blue",
+        sortOrder: 1,
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      await setEventQuestions(event2.id, [q.id]);
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      // Assign different answers
+      const { saveAttendeeAnswers: save } = await import(
+        "#lib/db/questions.ts"
+      );
+      await save([target.id], [a1.id]);
+      // Need source attendee ID
+      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+      const [sourceData] = await getAttendeesByTokens([sourceToken]);
+      await save([sourceData!.id], [a2.id]);
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Custom Question Answers",
+        "Favourite colour?",
+      );
+    });
+
+    test("POST merge applies selected answer winners", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const q = await questionsTable.insert({ text: "Size?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Small",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Large",
+        sortOrder: 1,
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      await setEventQuestions(event2.id, [q.id]);
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
+        await import("#lib/db/questions.ts");
+      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+      const [sourceData] = await getAttendeesByTokens([sourceToken]);
+      await save([target.id], [a1.id]); // Small
+      await save([sourceData!.id], [a2.id]); // Large
+
+      // Get merge version from preview page
+      const previewPage = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      const previewHtml = await previewPage.text();
+      const versionMatch = previewHtml.match(
+        /name="merge_version"\s+value="([^"]*)"/,
+      );
+      const mergeVersion = versionMatch![1]!;
+
+      // Submit choosing source answer
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+          [`answer_${q.id}`]: "source",
+        },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Merged"), true);
+
+      // Verify target now has source's answer (Large)
+      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      expect(finalAnswers.get(q.id)?.answerId).toBe(a2.id);
+    });
+
+    test("POST merge reports skipped bookings in flash", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      // Get merge version
+      const previewPage = await awaitTestRequest(
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        { cookie: await testCookie() },
+      );
+      const html = await previewPage.text();
+      const match = html.match(/name="merge_version"\s+value="([^"]*)"/);
+      const mergeVersion = match![1]!;
+
+      const bookingKey = `${event.id}:null`;
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+          [`booking_${bookingKey}`]: "skip_source",
+        },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("1 booking(s) skipped"),
+        true,
+      );
+    });
+
+    test("stale preview version rejected", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      // Submit with wrong version — should get validation error (200 response)
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: "stale-version",
+        },
+      );
+      // Validation error renders the merge page (200) with error message
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("out of date");
+    });
+
+    test("POST merge with clear answer choice clears the answer", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const q = await questionsTable.insert({ text: "Diet?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Vegan",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "Keto",
+        sortOrder: 1,
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      await setEventQuestions(event2.id, [q.id]);
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
+        await import("#lib/db/questions.ts");
+      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+      const [sourceData] = await getAttendeesByTokens([sourceToken]);
+      await save([target.id], [a1.id]);
+      await save([sourceData!.id], [a2.id]);
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+          [`answer_${q.id}`]: "clear",
+        },
+      );
+      expect(response.status).toBe(302);
+
+      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      expect(finalAnswers.has(q.id)).toBe(false);
+    });
+
+    test("POST merge with target answer choice keeps target answer", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const q = await questionsTable.insert({ text: "Shirt?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "M",
+        sortOrder: 0,
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        text: "L",
+        sortOrder: 1,
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      await setEventQuestions(event2.id, [q.id]);
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
+        await import("#lib/db/questions.ts");
+      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+      const [sourceData] = await getAttendeesByTokens([sourceToken]);
+      await save([target.id], [a1.id]);
+      await save([sourceData!.id], [a2.id]);
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+          [`answer_${q.id}`]: "target",
+        },
+      );
+      expect(response.status).toBe(302);
+
+      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
+    });
+
+    test("POST merge auto-adopts source-only non-conflicting answer", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 10 });
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      const q = await questionsTable.insert({ text: "Colour?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Green",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q.id]);
+      await setEventQuestions(event2.id, [q.id]);
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event1.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      // Only source has an answer — no conflict
+      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
+        await import("#lib/db/questions.ts");
+      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+      const [sourceData] = await getAttendeesByTokens([sourceToken]);
+      await save([sourceData!.id], [a1.id]);
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+        },
+      );
+      expect(response.status).toBe(302);
+
+      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
+    });
+
+    test("POST merge keeps target-only non-conflicting answer", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 10 });
+      const event2 = await createTestEvent({
+        name: "E2",
+        maxAttendees: 10,
+      });
+      const q = await questionsTable.insert({ text: "Food?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        text: "Pizza",
+        sortOrder: 0,
+      });
+      await setEventQuestions(event1.id, [q.id]);
+      await setEventQuestions(event2.id, [q.id]);
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event1.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event2.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      // Only target has an answer — no conflict
+      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
+        await import("#lib/db/questions.ts");
+      await save([target.id], [a1.id]);
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+        },
+      );
+      expect(response.status).toBe(302);
+
+      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
+    });
+
+    test("POST merge with take_source replaces target booking", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+
+      const { attendee: target } = await createTestAttendeeDirect(
+        event.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        event.id,
+        "John Smith",
+        "john@example.com",
+      );
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+
+      const bookingKey = `${event.id}:null`;
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          source_token: sourceToken,
+          merge_version: mergeVersion,
+          [`booking_${bookingKey}`]: "take_source",
+        },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Merged"), true);
     });
   });
 });
