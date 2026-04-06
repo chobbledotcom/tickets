@@ -251,9 +251,8 @@ const validateAndPrice = async (
     includeEventName,
   );
   if (!validation.ok) return validation;
-  const { event } = validation;
-  const expectedPrice = event.unit_price * input.quantity;
-  return { ok: true, event, expectedPrice };
+  const expectedPrice = validation.event.unit_price * input.quantity;
+  return { ok: true, event: validation.event, expectedPrice };
 };
 
 /** Check if the amount charged matches the current event price (including booking fee).
@@ -404,13 +403,10 @@ const processPaymentSession = async (
   const reservation = await reserveSession(sessionId);
 
   if (!reservation.reserved) {
-    const { existing } = reservation;
-    const { attendee_id } = existing;
-
-    if (attendee_id !== null) {
+    if (reservation.existing.attendee_id !== null) {
       return alreadyProcessedResult(intent.items[0]!.e, {
-        ...existing,
-        attendee_id,
+        ...reservation.existing,
+        attendee_id: reservation.existing.attendee_id,
       });
     }
 
@@ -508,10 +504,10 @@ const processPaymentSession = async (
       refunded: await refundAndLog(session, error, validatedItems[0]!.event.id),
     };
   }
-  const { attendees } = result as Extract<typeof result, { success: true }>;
+  const created = result as Extract<typeof result, { success: true }>;
 
   // Build entries: pair each attendee result with its event
-  const createdEntries = attendees.map((attendee, i) => ({
+  const createdEntries = created.attendees.map((attendee, i) => ({
     attendee,
     event: validatedItems[i]!.event,
   }));
@@ -561,16 +557,15 @@ const processSessionAndRedirect = async (
   const validation = await validatePaidSession(sessionId);
   if (!validation.ok) return validation.response;
 
-  const { data } = validation;
   // Skip persisting tokens — the redirect has them in memory and will put them in the URL.
   // This avoids tokens sitting in the DB forever when the redirect wins the race.
-  const result = await processPaymentSession(sessionId, data, {
+  const result = await processPaymentSession(sessionId, validation.data, {
     storeTokens: false,
   });
 
   if (!result.success) {
     // Log once at the redirect boundary
-    const eventId = data.intent.items[0]?.e;
+    const eventId = validation.data.intent.items[0]?.e;
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId,
@@ -594,7 +589,7 @@ const processSessionAndRedirect = async (
 
   // Already-processed session (no tokens available) - render directly
   const thankYouUrl =
-    data.intent.items.length === 1 ? result.event.thank_you_url : "";
+    validation.data.intent.items.length === 1 ? result.event.thank_you_url : "";
   return htmlResponse(
     successPage({ ticketUrl: null, thankYouUrl, paid: true }),
   );

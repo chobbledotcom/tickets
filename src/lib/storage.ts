@@ -73,8 +73,8 @@ const EXT_TO_MIME = Object.fromEntries(IMAGE_TYPES.map((t) => [t.ext, t.mime]));
  * Returns which storage backend is active: "bunny", "local", or "none".
  */
 export const getStorageBackend = (): "bunny" | "local" | "none" => {
-  const { zoneName, zoneKey } = getStorageConfig();
-  if (zoneName && zoneKey) return "bunny";
+  const config = getStorageConfig();
+  if (config.zoneName && config.zoneKey) return "bunny";
   if (getLocalStoragePath()) return "local";
   return "none";
 };
@@ -228,16 +228,16 @@ const localRemove = async (filename: string): Promise<void> => {
 
 /** Connect to the Bunny storage zone */
 const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
-  const { zoneName, zoneKey } = getStorageConfig();
-  if (!zoneName || !zoneKey) {
+  const config = getStorageConfig();
+  if (!config.zoneName || !config.zoneKey) {
     throw new Error(
       "Storage is not configured. Set STORAGE_ZONE_NAME and STORAGE_ZONE_KEY for Bunny CDN, or LOCAL_STORAGE_PATH for local storage.",
     );
   }
   return BunnyStorageSDK.zone.connect_with_accesskey(
     BunnyStorageSDK.regions.StorageRegion.Falkenstein,
-    zoneName,
-    zoneKey,
+    config.zoneName,
+    config.zoneKey,
   );
 };
 
@@ -429,10 +429,10 @@ export const listFiles = async (prefix: string): Promise<string[]> => {
       .map((e) => e.name)
       .sort();
   }
-  const { zoneName, zoneKey } = getStorageConfig();
-  const url = `https://storage.bunnycdn.com/${zoneName}/`;
+  const config = getStorageConfig();
+  const url = `https://storage.bunnycdn.com/${config.zoneName}/`;
   const response = await fetch(url, {
-    headers: { AccessKey: zoneKey },
+    headers: { AccessKey: config.zoneKey },
   });
   const items = (await response.json()) as Array<Record<string, unknown>>;
   const files: string[] = [];
