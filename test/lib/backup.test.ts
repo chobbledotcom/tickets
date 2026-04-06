@@ -16,9 +16,9 @@ import {
   restoreFromZip,
   splitStatements,
 } from "#lib/db/backup.ts";
-import { queryAll } from "#lib/db/client.ts";
+import { getDb, queryAll } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
-import { SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "#lib/db/migrations.ts";
+import { initDb, SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "#lib/db/migrations.ts";
 import { createTestEvent, describeWithEnv, setTestEnv } from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {
@@ -71,6 +71,18 @@ describeWithEnv("backup", { db: true }, () => {
     test("returns tables in SCHEMA order", async () => {
       const backups = await createBackup();
       expect(backups.map((b) => b.table)).toEqual(SCHEMA_TABLE_NAMES);
+    });
+
+    test("skips tables that do not exist", async () => {
+      await getDb().execute("DROP TABLE IF EXISTS holidays");
+      try {
+        const backups = await createBackup();
+        const names = backups.map((b) => b.table);
+        expect(names).not.toContain("holidays");
+        expect(names.length).toBe(SCHEMA_TABLE_NAMES.length - 1);
+      } finally {
+        await initDb();
+      }
     });
   });
 

@@ -50,6 +50,15 @@ const quoteId = (name: string): string => `"${name}"`;
 const getColumns = (table: string): Promise<ColumnInfo[]> =>
   queryAll<ColumnInfo>(`PRAGMA table_info(${quoteId(table)})`);
 
+/** Check if a table exists in the database */
+const tableExists = async (table: string): Promise<boolean> => {
+  const result = await getDb().execute({
+    sql: "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+    args: [table],
+  });
+  return result.rows.length > 0;
+};
+
 /** Escape a SQL string value (single quotes doubled) */
 const escapeSql = (value: unknown): string => {
   if (value === null || value === undefined) return "NULL";
@@ -124,10 +133,12 @@ export const exportTable = async (table: string): Promise<string> => {
   return lines.join("\n");
 };
 
-/** Create a full backup — one TableBackup per table in SCHEMA order */
+/** Create a full backup — one TableBackup per table in SCHEMA order.
+ *  Skips tables that don't exist yet (e.g. new tables about to be created by a migration). */
 export const createBackup = async (): Promise<TableBackup[]> => {
   const backups: TableBackup[] = [];
   for (const table of SCHEMA_TABLE_NAMES) {
+    if (!(await tableExists(table))) continue;
     const sql = await exportTable(table);
     backups.push({ table, sql });
   }
