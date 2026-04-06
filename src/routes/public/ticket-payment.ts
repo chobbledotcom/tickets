@@ -39,6 +39,7 @@ import type {
   TicketCtx,
   TicketSharedContext,
 } from "./types.ts";
+import type { Group } from "#lib/types.ts";
 
 /** Try to redirect to checkout, or return error using provided handler.
  * When in iframe mode, returns a popup page instead of redirect since Stripe cannot run in iframes. */
@@ -264,15 +265,25 @@ export const computeSharedDates = async (
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
-/** Fetch shared context for ticket pages: dates, terms, questions */
+/** Fetch shared context for ticket pages: dates, terms, questions.
+ * When a group is provided, its terms override global terms and its name/description are included. */
 export const getTicketContext = async (
   activeEvents: TicketEvent[],
+  group?: Group,
 ): Promise<TicketSharedContext> => {
   const eventIds = activeEvents.map((e) => e.event.id);
-  const [dates, terms, questionsResult] = await Promise.all([
+  const [dates, globalTerms, questionsResult] = await Promise.all([
     computeSharedDates(activeEvents),
     Promise.resolve(settings.terms),
     getQuestionsWithEventIds(eventIds),
   ]);
-  return { dates, terms, ...questionsResult };
+  const terms = group
+    ? group.terms_and_conditions || globalTerms || ""
+    : globalTerms;
+  return {
+    dates,
+    terms,
+    ...questionsResult,
+    ...(group && { groupName: group.name, groupDescription: group.description }),
+  };
 };

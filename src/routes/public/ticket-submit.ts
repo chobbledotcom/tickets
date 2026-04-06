@@ -228,18 +228,15 @@ export const handleTicket = async (
   activeEvents: TicketEvent[],
   getContext: TicketContextProvider,
 ): Promise<Response> => {
-  const [{ dates, terms, questions, questionEventMap }] = await Promise.all([
+  const [sharedCtx] = await Promise.all([
     getContext(activeEvents),
     signCsrfToken(),
   ]);
   const ctx: TicketCtx = {
     slugs: actionSlugs,
     events: activeEvents,
-    dates,
-    terms,
-    questions,
-    questionEventMap,
     baseUrl: getBaseUrl(request),
+    ...sharedCtx,
   };
   if (request.method === "GET") applyFlash(request);
   const response =
