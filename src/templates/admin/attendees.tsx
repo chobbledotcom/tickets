@@ -8,6 +8,8 @@ import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { bookingKey } from "#lib/merge/attendee-merge.ts";
+import type { AttendeeMergeDiff } from "#lib/merge/attendee-merge-types.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
@@ -466,12 +468,13 @@ const MergePiiField = ({
   multiline?: boolean;
 }): string => {
   const same = targetValue === sourceValue;
+  const name = `pii_${field}`;
   return String(
     <tr>
       <th scope="row">{label}</th>
       <td>
         <label>
-          <input type="radio" name={field} value="target" checked />{" "}
+          <input type="radio" name={name} value="target" checked />{" "}
           <Raw html={renderFieldValue(targetValue, multiline)} />
         </label>
       </td>
@@ -480,12 +483,179 @@ const MergePiiField = ({
           <span class="muted">(same)</span>
         ) : (
           <label>
-            <input type="radio" name={field} value="source" />{" "}
+            <input type="radio" name={name} value="source" />{" "}
             <Raw html={renderFieldValue(sourceValue, multiline)} />
           </label>
         )}
       </td>
     </tr>,
+  );
+};
+
+/** Render the answer decision table */
+const MergeAnswersDecisionTable = ({
+  diff,
+  targetName,
+  sourceName,
+}: {
+  diff: AttendeeMergeDiff;
+  targetName: string;
+  sourceName: string;
+}): string => {
+  if (diff.answerItems.length === 0) return "";
+  return String(
+    <div>
+      <h4>Custom Question Answers</h4>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Keep ({targetName})</th>
+              <th>Take from ({sourceName})</th>
+              <th>Clear</th>
+            </tr>
+          </thead>
+          <tbody>
+            {diff.answerItems.map((item) => {
+              const name = `answer_${item.questionId}`;
+              if (!item.conflict) {
+                // Non-conflicting: show info only (no decision needed)
+                const answer =
+                  item.targetAnswerText || item.sourceAnswerText || "—";
+                const from = item.targetAnswerText ? "target" : "source";
+                return String(
+                  <tr>
+                    <th scope="row">{item.questionText}</th>
+                    <td colspan="3">
+                      <span class="muted">
+                        {answer} ({from} — auto-kept)
+                      </span>
+                    </td>
+                  </tr>,
+                );
+              }
+              return String(
+                <tr>
+                  <th scope="row">{item.questionText}</th>
+                  <td>
+                    <label>
+                      <input type="radio" name={name} value="target" checked />{" "}
+                      {item.targetAnswerText || "—"}
+                    </label>
+                  </td>
+                  <td>
+                    <label>
+                      <input type="radio" name={name} value="source" />{" "}
+                      {item.sourceAnswerText || "—"}
+                    </label>
+                  </td>
+                  <td>
+                    <label>
+                      <input type="radio" name={name} value="clear" /> None
+                    </label>
+                  </td>
+                </tr>,
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>,
+  );
+};
+
+/** Render the booking decision table */
+const MergeBookingsDecisionTable = ({
+  diff,
+}: {
+  diff: AttendeeMergeDiff;
+}): string => {
+  if (diff.bookingItems.length === 0) return "";
+
+  const hasConflicts = diff.bookingItems.some(
+    (b) => b.conflictClass !== "moveable",
+  );
+
+  return String(
+    <div>
+      <h4>Event Registrations</h4>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Date</th>
+              <th>Source (qty)</th>
+              <th>Status</th>
+              {hasConflicts && <th>Decision</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {diff.bookingItems.map((item) => {
+              const key = bookingKey(item.eventId, item.startAt);
+              const name = `booking_${key}`;
+              const dateStr = item.startAt ? item.startAt.slice(0, 10) : "—";
+
+              if (item.conflictClass === "moveable") {
+                return String(
+                  <tr>
+                    <td>Event #{item.eventId}</td>
+                    <td>{dateStr}</td>
+                    <td>{item.sourceBooking.quantity}</td>
+                    <td>
+                      <span class="muted">Will be moved</span>
+                    </td>
+                    {hasConflicts && <td />}
+                  </tr>,
+                );
+              }
+
+              const conflictLabel =
+                item.conflictClass === "duplicate"
+                  ? "Duplicate"
+                  : "Conflicting metadata";
+              const targetQty = item.targetBooking?.quantity ?? 0;
+              const sourceQty = item.sourceBooking.quantity;
+
+              return String(
+                <tr>
+                  <td>Event #{item.eventId}</td>
+                  <td>{dateStr}</td>
+                  <td>{sourceQty}</td>
+                  <td>
+                    <strong>{conflictLabel}</strong>
+                    {item.targetBooking &&
+                      ` (target qty: ${targetQty}, source qty: ${sourceQty})`}
+                  </td>
+                  <td>
+                    <label>
+                      <input
+                        type="radio"
+                        name={name}
+                        value="keep_target"
+                        checked
+                      />{" "}
+                      Keep target
+                    </label>
+                    <br />
+                    <label>
+                      <input type="radio" name={name} value="take_source" />{" "}
+                      Replace with source
+                    </label>
+                    <br />
+                    <label>
+                      <input type="radio" name={name} value="skip_source" />{" "}
+                      Skip source
+                    </label>
+                  </td>
+                </tr>,
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>,
   );
 };
 
@@ -498,6 +668,7 @@ export const adminMergeAttendeePage = (
   searchToken: string | null,
   session: AdminSession,
   error?: string,
+  mergeDiff?: AttendeeMergeDiff,
 ): string =>
   String(
     <Layout title={`Merge Attendee: ${target.name}`}>
@@ -531,13 +702,12 @@ export const adminMergeAttendeePage = (
         <button type="submit">Search</button>
       </form>
 
-      {source && (
+      {source && mergeDiff && (
         <div>
           <h3>Merge Preview</h3>
           <p>
-            Choose which value to keep for each field. The source attendee's
-            event registrations will be moved to this attendee (skipping any
-            duplicate events). The source attendee will then be deleted.
+            Choose which value to keep for each field. Resolve any conflicts
+            below. The source attendee will then be deleted.
           </p>
 
           <CsrfForm action={`/admin/attendees/${target.id}/merge`}>
@@ -546,7 +716,13 @@ export const adminMergeAttendeePage = (
               name="source_token"
               value={source.ticket_token}
             />
+            <input
+              type="hidden"
+              name="merge_version"
+              value={mergeDiff.version}
+            />
 
+            {/* PII decisions */}
             <div class="table-scroll">
               <table>
                 <thead>
@@ -561,66 +737,32 @@ export const adminMergeAttendeePage = (
                   </tr>
                 </thead>
                 <tbody>
-                  <Raw
-                    html={MergePiiField({
-                      field: "name",
-                      label: "Name",
-                      targetValue: target.name,
-                      sourceValue: source.name,
-                    })}
-                  />
-                  <Raw
-                    html={MergePiiField({
-                      field: "email",
-                      label: "Email",
-                      targetValue: target.email || "",
-                      sourceValue: source.email || "",
-                    })}
-                  />
-                  <Raw
-                    html={MergePiiField({
-                      field: "phone",
-                      label: "Phone",
-                      targetValue: target.phone || "",
-                      sourceValue: source.phone || "",
-                    })}
-                  />
-                  <Raw
-                    html={MergePiiField({
-                      field: "address",
-                      label: "Address",
-                      targetValue: target.address || "",
-                      sourceValue: source.address || "",
-                      multiline: true,
-                    })}
-                  />
-                  <Raw
-                    html={MergePiiField({
-                      field: "special_instructions",
-                      label: "Special Instructions",
-                      targetValue: target.special_instructions || "",
-                      sourceValue: source.special_instructions || "",
-                      multiline: true,
-                    })}
-                  />
+                  {mergeDiff.piiFields.map((f) => (
+                    <Raw
+                      html={MergePiiField({
+                        field: f.field,
+                        label: f.label,
+                        targetValue: f.targetValue,
+                        sourceValue: f.sourceValue,
+                        multiline: f.multiline,
+                      })}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
 
-            {source.bookings.length > 0 && (
-              <div>
-                <h4>Event registrations to be moved from source</h4>
-                <ul>
-                  {source.bookings.map((b) => (
-                    <li>
-                      Event #{b.event_id}
-                      {b.start_at ? ` — ${b.start_at.slice(0, 10)}` : ""}
-                      {` (qty: ${b.quantity})`}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Answer decisions */}
+            <Raw
+              html={MergeAnswersDecisionTable({
+                diff: mergeDiff,
+                targetName: target.name,
+                sourceName: source.name,
+              })}
+            />
+
+            {/* Booking decisions */}
+            <Raw html={MergeBookingsDecisionTable({ diff: mergeDiff })} />
 
             <p>
               <strong>Warning:</strong> This will permanently delete the source
