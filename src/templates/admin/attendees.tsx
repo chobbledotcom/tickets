@@ -528,7 +528,7 @@ const MergeAnswersDecisionTable = ({
               if (!item.conflict) {
                 // Non-conflicting: show info only (no decision needed)
                 const { answer, from } = nonConflictAnswerLabel(item);
-                return String(
+                return (
                   <tr>
                     <th scope="row">{item.questionText}</th>
                     <td colspan="3">
@@ -536,12 +536,12 @@ const MergeAnswersDecisionTable = ({
                         {answer} ({from} — auto-kept)
                       </span>
                     </td>
-                  </tr>,
+                  </tr>
                 );
               }
               const targetLabel = item.targetAnswerText!;
               const sourceLabel = item.sourceAnswerText!;
-              return String(
+              return (
                 <tr>
                   <th scope="row">{item.questionText}</th>
                   <td>
@@ -561,7 +561,7 @@ const MergeAnswersDecisionTable = ({
                       <input type="radio" name={name} value="clear" /> None
                     </label>
                   </td>
-                </tr>,
+                </tr>
               );
             })}
           </tbody>
@@ -601,7 +601,7 @@ const MergeBookingsDecisionTable = ({
               const dateStr = item.startAt ? item.startAt.slice(0, 10) : "—";
 
               if (item.conflictClass === "moveable") {
-                return String(
+                return (
                   <tr>
                     <td>Event #{item.eventId}</td>
                     <td>{dateStr}</td>
@@ -610,7 +610,7 @@ const MergeBookingsDecisionTable = ({
                       <span class="muted">Will be moved</span>
                     </td>
                     <Raw html={moveableExtraCell} />
-                  </tr>,
+                  </tr>
                 );
               }
 
@@ -618,7 +618,7 @@ const MergeBookingsDecisionTable = ({
               const targetQty = item.targetBooking!.quantity;
               const sourceQty = item.sourceBooking.quantity;
 
-              return String(
+              return (
                 <tr>
                   <td>Event #{item.eventId}</td>
                   <td>{dateStr}</td>
@@ -649,7 +649,7 @@ const MergeBookingsDecisionTable = ({
                       Skip source
                     </label>
                   </td>
-                </tr>,
+                </tr>
               );
             })}
           </tbody>
