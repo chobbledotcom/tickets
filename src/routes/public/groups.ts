@@ -35,7 +35,13 @@ const getGroupTicketContext =
       getQuestionsWithEventIds(eventIds),
     ]);
     const terms = group.terms_and_conditions || globalTerms || "";
-    return { dates, terms, ...questionsResult };
+    return {
+      dates,
+      terms,
+      ...questionsResult,
+      groupName: group.name,
+      groupDescription: group.description,
+    };
   };
 
 /** Load group by slug and its active events, return 404 if empty */

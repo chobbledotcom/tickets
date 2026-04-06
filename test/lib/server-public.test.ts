@@ -1061,6 +1061,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
+        "Public Group",
         "Continue",
         "Select Tickets",
         "Group Event 1",
@@ -1068,6 +1069,34 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         `action="/ticket/${group.slug}"`,
         `quantity_${event1.id}`,
         `quantity_${event2.id}`,
+      );
+    });
+
+    test("shows group name and description on multi-event group page", async () => {
+      const group = await createTestGroup({
+        name: "Festival Group",
+        slug: "festival-group",
+        description: "A wonderful festival with multiple events",
+      });
+      await createTestEvent({
+        name: "Festival Event A",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      await createTestEvent({
+        name: "Festival Event B",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Festival Group",
+        "A wonderful festival with multiple events",
       );
     });
 

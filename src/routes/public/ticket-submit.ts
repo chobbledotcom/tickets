@@ -228,10 +228,9 @@ export const handleTicket = async (
   activeEvents: TicketEvent[],
   getContext: TicketContextProvider,
 ): Promise<Response> => {
-  const [{ dates, terms, questions, questionEventMap }] = await Promise.all([
-    getContext(activeEvents),
-    signCsrfToken(),
-  ]);
+  const [
+    { dates, terms, questions, questionEventMap, groupName, groupDescription },
+  ] = await Promise.all([getContext(activeEvents), signCsrfToken()]);
   const ctx: TicketCtx = {
     slugs: actionSlugs,
     events: activeEvents,
@@ -240,6 +239,8 @@ export const handleTicket = async (
     questions,
     questionEventMap,
     baseUrl: getBaseUrl(request),
+    groupName,
+    groupDescription,
   };
   if (request.method === "GET") applyFlash(request);
   const response =

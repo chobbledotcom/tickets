@@ -439,6 +439,8 @@ export type TicketPageOptions = {
   questions?: QuestionWithAnswers[];
   questionEventMap?: QuestionEventMap;
   baseUrl?: string;
+  groupName?: string;
+  groupDescription?: string;
 };
 
 /**
@@ -455,6 +457,8 @@ export const ticketPage = ({
   questions,
   questionEventMap,
   baseUrl,
+  groupName,
+  groupDescription,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
@@ -478,7 +482,7 @@ export const ticketPage = ({
     ? renderSingleEventControls(events[0]!, hideQuantity)
     : events.map((e) => renderEventRow(e, hideQuantity)).join("");
 
-  const title = singleEvent ? singleEvent.name : "Reserve Tickets";
+  const title = singleEvent ? singleEvent.name : groupName || "Reserve Tickets";
   const headExtra =
     singleEvent && baseUrl ? buildOgTags(singleEvent, baseUrl) : undefined;
   const buttonText = "Continue";
@@ -517,6 +521,16 @@ export const ticketPage = ({
             )}
           </div>
         </>
+      )}
+      {!singleEvent && !inIframe && groupName && (
+        <div class="prose">
+          <h1>{groupName}</h1>
+          {groupDescription && (
+            <div class="description">
+              <Raw html={renderMarkdownInline(groupDescription)} />
+            </div>
+          )}
+        </div>
       )}
       <Flash error={error} />
 

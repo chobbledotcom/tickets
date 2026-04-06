@@ -20,6 +20,8 @@ export type TicketCtx = {
   questions: QuestionWithAnswers[];
   questionEventMap: QuestionEventMap;
   baseUrl?: string;
+  groupName?: string;
+  groupDescription?: string;
 };
 
 /** Possibly-async response handler */
@@ -33,6 +35,8 @@ export type TicketSharedContext = {
   terms: string;
   questions: QuestionWithAnswers[];
   questionEventMap: QuestionEventMap;
+  groupName?: string;
+  groupDescription?: string;
 };
 
 /** Shared context provider for ticket pages */
