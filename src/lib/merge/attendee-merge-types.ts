@@ -7,6 +7,7 @@
  */
 
 import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
+import type { ContactInfo } from "#lib/types.ts";
 
 // ---------------------------------------------------------------------------
 // Choice enums
@@ -129,20 +130,8 @@ export type AttendeeMergeApplyResult = {
 export type BuildAttendeeMergeDiffInput = {
   targetId: number;
   sourceId: number;
-  targetPii: {
-    name: string;
-    email: string;
-    phone: string;
-    address: string;
-    special_instructions: string;
-  };
-  sourcePii: {
-    name: string;
-    email: string;
-    phone: string;
-    address: string;
-    special_instructions: string;
-  };
+  targetPii: ContactInfo;
+  sourcePii: ContactInfo;
   targetBookings: EventAttendeeRow[];
   sourceBookings: EventAttendeeRow[];
 };
@@ -150,22 +139,8 @@ export type BuildAttendeeMergeDiffInput = {
 export type ApplyAttendeeMergeInput = {
   targetId: number;
   sourceId: number;
-  targetPii: {
-    name: string;
-    email: string;
-    phone: string;
-    address: string;
-    special_instructions: string;
-    payment_id: string;
-    ticket_token: string;
-  };
-  sourcePii: {
-    name: string;
-    email: string;
-    phone: string;
-    address: string;
-    special_instructions: string;
-  };
+  targetPii: ContactInfo & { payment_id: string; ticket_token: string };
+  sourcePii: ContactInfo;
   diff: AttendeeMergeDiff;
   decision: AttendeeMergeDecisionInput;
 };

@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
+import { queryAll } from "#lib/db/client.ts";
+import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import {
   answersTable,
   getAttendeeAnswersByQuestion,
@@ -10,17 +12,18 @@ import {
 } from "#lib/db/questions.ts";
 import {
   applyAttendeeMerge,
+  bookingConflictLabel,
   bookingKey,
   buildAttendeeMergeDiff,
+  hasBookingConflicts,
+  nonConflictAnswerLabel,
   validateAttendeeMergeDecision,
 } from "#lib/merge/attendee-merge.ts";
 import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
 } from "#lib/merge/attendee-merge-types.ts";
-import { queryAll } from "#lib/db/client.ts";
 import { createTestEvent, describeWithEnv } from "#test-utils";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 
 /** Create a test attendee directly via the DB */
 const createAttendee = async (
@@ -87,6 +90,104 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
   });
 
+  describe("nonConflictAnswerLabel", () => {
+    test("returns target label when target has answer", () => {
+      const item = {
+        questionId: 1,
+        questionText: "Q?",
+        targetAnswerId: 10,
+        targetAnswerText: "Red",
+        sourceAnswerId: null,
+        sourceAnswerText: null,
+        conflict: false,
+      };
+      expect(nonConflictAnswerLabel(item)).toEqual({
+        answer: "Red",
+        from: "target",
+      });
+    });
+
+    test("returns source label when only source has answer", () => {
+      const item = {
+        questionId: 1,
+        questionText: "Q?",
+        targetAnswerId: null,
+        targetAnswerText: null,
+        sourceAnswerId: 20,
+        sourceAnswerText: "Water",
+        conflict: false,
+      };
+      expect(nonConflictAnswerLabel(item)).toEqual({
+        answer: "Water",
+        from: "source",
+      });
+    });
+  });
+
+  describe("bookingConflictLabel", () => {
+    test("returns Duplicate for duplicate conflict class", () => {
+      const item = {
+        conflictClass: "duplicate" as const,
+        eventId: 1,
+        startAt: null,
+        sourceBooking:
+          {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+        targetBooking: null,
+      };
+      expect(bookingConflictLabel(item)).toBe("Duplicate");
+    });
+
+    test("returns Conflicting metadata for conflicting_metadata class", () => {
+      const item = {
+        conflictClass: "conflicting_metadata" as const,
+        eventId: 1,
+        startAt: null,
+        sourceBooking:
+          {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+        targetBooking: null,
+      };
+      expect(bookingConflictLabel(item)).toBe("Conflicting metadata");
+    });
+  });
+
+  describe("hasBookingConflicts", () => {
+    test("returns false when all items are moveable", () => {
+      const items = [
+        {
+          conflictClass: "moveable" as const,
+          eventId: 1,
+          startAt: null,
+          sourceBooking:
+            {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+          targetBooking: null,
+        },
+      ];
+      expect(hasBookingConflicts(items)).toBe(false);
+    });
+
+    test("returns true when at least one item is not moveable", () => {
+      const items = [
+        {
+          conflictClass: "moveable" as const,
+          eventId: 1,
+          startAt: null,
+          sourceBooking:
+            {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+          targetBooking: null,
+        },
+        {
+          conflictClass: "duplicate" as const,
+          eventId: 2,
+          startAt: null,
+          sourceBooking:
+            {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+          targetBooking: null,
+        },
+      ];
+      expect(hasBookingConflicts(items)).toBe(true);
+    });
+  });
+
   describe("buildAttendeeMergeDiff", () => {
     test("detects PII diffs", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
@@ -147,9 +248,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);
 
-      const questions: QuestionWithAnswers[] = [
-        { ...question, answers },
-      ];
+      const questions: QuestionWithAnswers[] = [{ ...question, answers }];
 
       const diff = await buildAttendeeMergeDiff(
         {
@@ -317,6 +416,52 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
   });
 
+  test("uses fallback question text for orphaned answers", async () => {
+    const event = await createTestEvent({ maxAttendees: 10 });
+    const q = await questionsTable.insert({ text: "Hidden Q" });
+    const a1 = await answersTable.insert({
+      questionId: q.id,
+      text: "Yes",
+      sortOrder: 0,
+    });
+    await setEventQuestions(event.id, [q.id]);
+
+    const target = await createAttendee(event.id, "Alice", "alice@test.com");
+    const source = await createAttendee(event.id, "Bob", "bob@test.com");
+    await saveAttendeeAnswers([source.id], [a1.id]);
+
+    const targetBookings = await getBookings(target.id);
+    const sourceBookings = await getBookings(source.id);
+
+    // Pass empty questions array — question text won't be found
+    const diff = await buildAttendeeMergeDiff(
+      {
+        targetId: target.id,
+        sourceId: source.id,
+        targetPii: {
+          name: "Alice",
+          email: "alice@test.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+        },
+        sourcePii: {
+          name: "Bob",
+          email: "bob@test.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+        },
+        targetBookings,
+        sourceBookings,
+      },
+      [], // No questions provided
+    );
+
+    const answerItem = diff.answerItems.find((a) => a.questionId === q.id);
+    expect(answerItem?.questionText).toBe(`Question #${q.id}`);
+  });
+
   describe("validateAttendeeMergeDecision", () => {
     test("rejects stale version", () => {
       const diff: AttendeeMergeDiff = {
@@ -417,6 +562,54 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.errors[0]).toContain("Event #5");
+      }
+    });
+
+    test("rejects missing booking decision for daily event conflict", () => {
+      const diff: AttendeeMergeDiff = {
+        targetId: 1,
+        sourceId: 2,
+        piiFields: [],
+        answerItems: [],
+        bookingItems: [
+          {
+            eventId: 7,
+            startAt: "2026-06-15T10:00:00Z",
+            sourceBooking: {
+              event_id: 7,
+              start_at: "2026-06-15T10:00:00Z",
+              end_at: null,
+              quantity: 1,
+              checked_in: 0,
+              refunded: 0,
+              price_paid: 0,
+              attachment_downloads: 0,
+            },
+            targetBooking: {
+              event_id: 7,
+              start_at: "2026-06-15T10:00:00Z",
+              end_at: null,
+              quantity: 2,
+              checked_in: 0,
+              refunded: 0,
+              price_paid: 0,
+              attachment_downloads: 0,
+            },
+            conflictClass: "duplicate",
+          },
+        ],
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        pii: {},
+        answers: {},
+        bookings: {},
+        version: "v1",
+      };
+      const result = validateAttendeeMergeDecision(diff, decision);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors[0]).toContain("2026-06-15");
       }
     });
 

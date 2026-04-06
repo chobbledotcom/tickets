@@ -108,18 +108,23 @@ export const adminScannerPage = (
               }
               required
             />
-            <ul id="ticket-options" role="listbox" class="combobox-list hidden">
+            <div
+              id="ticket-options"
+              role="listbox"
+              class="combobox-list hidden"
+            >
               {uncheckedIn.map((t) => (
-                <li
+                <div
                   role="option"
+                  tabIndex={0}
                   data-token={t.token}
                   data-name={escapeHtml(t.name)}
                   data-quantity={String(t.quantity)}
                 >
                   {`${escapeHtml(t.name)} (${t.quantity} attendee${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
           <div id="manual-checkin-status" class="hidden"></div>
           <button type="submit">Check In</button>

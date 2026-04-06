@@ -8,7 +8,12 @@ import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { bookingKey } from "#lib/merge/attendee-merge.ts";
+import {
+  bookingConflictLabel,
+  bookingKey,
+  hasBookingConflicts,
+  nonConflictAnswerLabel,
+} from "#lib/merge/attendee-merge.ts";
 import type { AttendeeMergeDiff } from "#lib/merge/attendee-merge-types.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -521,9 +526,7 @@ const MergeAnswersDecisionTable = ({
               const name = `answer_${item.questionId}`;
               if (!item.conflict) {
                 // Non-conflicting: show info only (no decision needed)
-                const answer =
-                  item.targetAnswerText || item.sourceAnswerText || "—";
-                const from = item.targetAnswerText ? "target" : "source";
+                const { answer, from } = nonConflictAnswerLabel(item);
                 return String(
                   <tr>
                     <th scope="row">{item.questionText}</th>
@@ -535,19 +538,21 @@ const MergeAnswersDecisionTable = ({
                   </tr>,
                 );
               }
+              const targetLabel = item.targetAnswerText!;
+              const sourceLabel = item.sourceAnswerText!;
               return String(
                 <tr>
                   <th scope="row">{item.questionText}</th>
                   <td>
                     <label>
                       <input type="radio" name={name} value="target" checked />{" "}
-                      {item.targetAnswerText || "—"}
+                      {targetLabel}
                     </label>
                   </td>
                   <td>
                     <label>
                       <input type="radio" name={name} value="source" />{" "}
-                      {item.sourceAnswerText || "—"}
+                      {sourceLabel}
                     </label>
                   </td>
                   <td>
@@ -571,11 +576,8 @@ const MergeBookingsDecisionTable = ({
 }: {
   diff: AttendeeMergeDiff;
 }): string => {
-  if (diff.bookingItems.length === 0) return "";
-
-  const hasConflicts = diff.bookingItems.some(
-    (b) => b.conflictClass !== "moveable",
-  );
+  const hasConflicts = hasBookingConflicts(diff.bookingItems);
+  const moveableExtraCell = hasConflicts ? String(<td />) : "";
 
   return String(
     <div>
@@ -606,16 +608,13 @@ const MergeBookingsDecisionTable = ({
                     <td>
                       <span class="muted">Will be moved</span>
                     </td>
-                    {hasConflicts && <td />}
+                    <Raw html={moveableExtraCell} />
                   </tr>,
                 );
               }
 
-              const conflictLabel =
-                item.conflictClass === "duplicate"
-                  ? "Duplicate"
-                  : "Conflicting metadata";
-              const targetQty = item.targetBooking?.quantity ?? 0;
+              const conflictLabel = bookingConflictLabel(item);
+              const targetQty = item.targetBooking!.quantity;
               const sourceQty = item.sourceBooking.quantity;
 
               return String(

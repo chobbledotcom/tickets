@@ -53,9 +53,37 @@ const PII_FIELDS: {
 // Booking key helper
 // ---------------------------------------------------------------------------
 
+/** Attendee answer map: questionId -> { answerId, answerText } */
+type AnswerMap = Map<number, { answerId: number; answerText: string }>;
+
 /** Unique key for a booking: "eventId:startAt" */
 export const bookingKey = (eventId: number, startAt: string | null): string =>
   `${eventId}:${startAt ?? "null"}`;
+
+/** Booking key for a diff item */
+const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
+  bookingKey(item.eventId, item.startAt);
+
+/** Determine the conflict label for a non-moveable booking item */
+export const bookingConflictLabel = (
+  item: AttendeeMergeDiffBookingItem,
+): string =>
+  item.conflictClass === "duplicate" ? "Duplicate" : "Conflicting metadata";
+
+/** Whether a set of booking items contains any non-moveable conflicts */
+export const hasBookingConflicts = (
+  items: AttendeeMergeDiffBookingItem[],
+): boolean => items.some((b) => b.conflictClass !== "moveable");
+
+/** Determine display label for a non-conflicting answer item */
+export const nonConflictAnswerLabel = (
+  item: AttendeeMergeDiffAnswerItem,
+): { answer: string; from: string } => {
+  if (item.targetAnswerText !== null) {
+    return { answer: item.targetAnswerText, from: "target" };
+  }
+  return { answer: item.sourceAnswerText!, from: "source" };
+};
 
 // ---------------------------------------------------------------------------
 // Version hash
@@ -65,8 +93,8 @@ export const bookingKey = (eventId: number, startAt: string | null): string =>
 const computeVersion = (
   targetId: number,
   sourceId: number,
-  targetAnswers: Map<number, { answerId: number; answerText: string }>,
-  sourceAnswers: Map<number, { answerId: number; answerText: string }>,
+  targetAnswers: AnswerMap,
+  sourceAnswers: AnswerMap,
   targetBookings: EventAttendeeRow[],
   sourceBookings: EventAttendeeRow[],
 ): string => {
@@ -145,8 +173,8 @@ export const buildAttendeeMergeDiff = async (
 /** Build answer diff items for all questions relevant to both attendees */
 const buildAnswerDiffItems = (
   questions: QuestionWithAnswers[],
-  targetAnswers: Map<number, { answerId: number; answerText: string }>,
-  sourceAnswers: Map<number, { answerId: number; answerText: string }>,
+  targetAnswers: AnswerMap,
+  sourceAnswers: AnswerMap,
 ): AttendeeMergeDiffAnswerItem[] => {
   // Collect all question IDs from both target and source answers
   const relevantQuestionIds = new Set<number>();
@@ -252,9 +280,7 @@ export const validateAttendeeMergeDecision = (
     (b: AttendeeMergeDiffBookingItem) => b.conflictClass !== "moveable",
   )(diff.bookingItems);
   for (const item of conflictingBookings) {
-    const key = bookingKey(item.eventId, item.startAt);
-    const choice = decision.bookings[key];
-    if (!choice) {
+    if (!decision.bookings[itemBookingKey(item)]) {
       errors.push(
         `Missing decision for booking: Event #${item.eventId}${item.startAt ? ` (${item.startAt.slice(0, 10)})` : ""}`,
       );
@@ -279,8 +305,9 @@ export const applyAttendeeMerge = async (
   const mergedPii = { ...targetPii };
   for (const field of diff.piiFields) {
     if (decision.pii[field.field] === "source") {
-      (mergedPii as Record<string, string>)[field.field] =
-        (sourcePii as Record<string, string>)[field.field] || "";
+      (mergedPii as Record<string, string>)[field.field] = (
+        sourcePii as Record<string, string>
+      )[field.field];
       piiFieldsFromSource.push(field.field);
     }
   }
@@ -329,35 +356,34 @@ export const applyAttendeeMerge = async (
   let bookingsSkipped = 0;
   let bookingsReplacedTarget = 0;
 
-  const insertStatements: { sql: string; args: (number | string | null)[] }[] =
-    [];
-  const deleteTargetBookingStatements: {
-    sql: string;
-    args: (number | string | null)[];
-  }[] = [];
+  type BatchStatement = { sql: string; args: (number | string | null)[] };
+  const insertStatements: BatchStatement[] = [];
+  const deleteTargetBookingStatements: BatchStatement[] = [];
+
+  /** Build an INSERT statement to copy a source booking to the target */
+  const bookingInsert = (booking: EventAttendeeRow): BatchStatement => ({
+    sql: `INSERT INTO event_attendees
+            (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      booking.event_id,
+      targetId,
+      booking.start_at,
+      booking.end_at,
+      booking.quantity,
+      booking.checked_in,
+      booking.refunded,
+      booking.price_paid,
+      booking.attachment_downloads,
+    ],
+  });
 
   for (const item of diff.bookingItems) {
-    const key = bookingKey(item.eventId, item.startAt);
-    const choice = decision.bookings[key];
+    const choice = decision.bookings[itemBookingKey(item)];
 
     if (item.conflictClass === "moveable") {
       // No conflict — move source booking to target
-      insertStatements.push({
-        sql: `INSERT INTO event_attendees
-                (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          item.sourceBooking.event_id,
-          targetId,
-          item.sourceBooking.start_at,
-          item.sourceBooking.end_at,
-          item.sourceBooking.quantity,
-          item.sourceBooking.checked_in,
-          item.sourceBooking.refunded,
-          item.sourceBooking.price_paid,
-          item.sourceBooking.attachment_downloads,
-        ],
-      });
+      insertStatements.push(bookingInsert(item.sourceBooking));
       bookingsMoved++;
     } else if (choice === "take_source" && item.targetBooking) {
       // Replace target booking with source booking
@@ -367,22 +393,7 @@ export const applyAttendeeMerge = async (
               AND (start_at IS ? OR start_at = ?)`,
         args: [targetId, item.eventId, item.startAt, item.startAt],
       });
-      insertStatements.push({
-        sql: `INSERT INTO event_attendees
-                (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          item.sourceBooking.event_id,
-          targetId,
-          item.sourceBooking.start_at,
-          item.sourceBooking.end_at,
-          item.sourceBooking.quantity,
-          item.sourceBooking.checked_in,
-          item.sourceBooking.refunded,
-          item.sourceBooking.price_paid,
-          item.sourceBooking.attachment_downloads,
-        ],
-      });
+      insertStatements.push(bookingInsert(item.sourceBooking));
       bookingsReplacedTarget++;
     } else {
       // keep_target or skip_source — do nothing for this booking

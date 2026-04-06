@@ -873,7 +873,7 @@ const parseMergeDecisionForm = (
     }
   }
 
-  const version = form.getString("merge_version") || "";
+  const version = form.getString("merge_version");
   return { pii, answers, bookings, version };
 };
 
@@ -931,17 +931,17 @@ const handleMergeGet = (
           sourceId: source.id,
           targetPii: {
             name: target.name,
-            email: target.email || "",
-            phone: target.phone || "",
-            address: target.address || "",
-            special_instructions: target.special_instructions || "",
+            email: target.email,
+            phone: target.phone,
+            address: target.address,
+            special_instructions: target.special_instructions,
           },
           sourcePii: {
             name: source.name,
-            email: source.email || "",
-            phone: source.phone || "",
-            address: source.address || "",
-            special_instructions: source.special_instructions || "",
+            email: source.email,
+            phone: source.phone,
+            address: source.address,
+            special_instructions: source.special_instructions,
           },
           targetBookings,
           sourceBookings: source.bookings,
@@ -1003,17 +1003,17 @@ const handleMergePost = (
           sourceId: source.id,
           targetPii: {
             name: target.name,
-            email: target.email || "",
-            phone: target.phone || "",
-            address: target.address || "",
-            special_instructions: target.special_instructions || "",
+            email: target.email,
+            phone: target.phone,
+            address: target.address,
+            special_instructions: target.special_instructions,
           },
           sourcePii: {
             name: source.name,
-            email: source.email || "",
-            phone: source.phone || "",
-            address: source.address || "",
-            special_instructions: source.special_instructions || "",
+            email: source.email,
+            phone: source.phone,
+            address: source.address,
+            special_instructions: source.special_instructions,
           },
           targetBookings,
           sourceBookings: source.bookings,
@@ -1042,19 +1042,19 @@ const handleMergePost = (
         sourceId: source.id,
         targetPii: {
           name: target.name,
-          email: target.email || "",
-          phone: target.phone || "",
-          address: target.address || "",
-          special_instructions: target.special_instructions || "",
+          email: target.email,
+          phone: target.phone,
+          address: target.address,
+          special_instructions: target.special_instructions,
           payment_id: target.payment_id,
           ticket_token: target.ticket_token,
         },
         sourcePii: {
           name: source.name,
-          email: source.email || "",
-          phone: source.phone || "",
-          address: source.address || "",
-          special_instructions: source.special_instructions || "",
+          email: source.email,
+          phone: source.phone,
+          address: source.address,
+          special_instructions: source.special_instructions,
         },
         diff,
         decision,
@@ -1065,22 +1065,14 @@ const handleMergePost = (
         decision.pii.name === "source" ? source.name : target.name;
       await updateAttendeePII(attendeeId, {
         name: decision.pii.name === "source" ? source.name : target.name,
-        email:
-          decision.pii.email === "source"
-            ? source.email || ""
-            : target.email || "",
-        phone:
-          decision.pii.phone === "source"
-            ? source.phone || ""
-            : target.phone || "",
+        email: decision.pii.email === "source" ? source.email : target.email,
+        phone: decision.pii.phone === "source" ? source.phone : target.phone,
         address:
-          decision.pii.address === "source"
-            ? source.address || ""
-            : target.address || "",
+          decision.pii.address === "source" ? source.address : target.address,
         special_instructions:
           decision.pii.special_instructions === "source"
-            ? source.special_instructions || ""
-            : target.special_instructions || "",
+            ? source.special_instructions
+            : target.special_instructions,
         payment_id: target.payment_id,
         ticket_token: target.ticket_token,
       });
