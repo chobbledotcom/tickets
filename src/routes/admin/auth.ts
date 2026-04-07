@@ -3,7 +3,11 @@
  */
 
 import { lazyRef } from "#fp";
-import { buildSessionCookie, clearSessionCookie } from "#lib/cookies.ts";
+import {
+  buildSessionCookie,
+  clearSessionCookie,
+  getSessionCookieName,
+} from "#lib/cookies.ts";
 import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto/keys.ts";
 import { verifySignedCsrfToken } from "#lib/csrf.ts";
 import {
@@ -25,6 +29,7 @@ import {
   generateSecureToken,
   getAuthenticatedSession,
   getClientIp,
+  parseCookies,
   parseFormData,
   redirect,
   withAuth,
@@ -94,6 +99,17 @@ const handleAdminLogin = async (
     );
   }
 
+  // A failed credential check should also log the user out of any existing
+  // session, so the redirect lands on the login page (not the dashboard).
+  const existingToken = parseCookies(request).get(getSessionCookieName());
+  const failedCredentialsRedirect = async (): Promise<Response> => {
+    await recordFailedLogin(clientIp);
+    if (existingToken) await deleteSession(existingToken);
+    return redirect("/admin", "Username or password was wrong", false, {
+      cookie: existingToken ? clearSessionCookie() : undefined,
+    });
+  };
+
   const validation = validateForm<LoginFormValues>(form, loginFields);
 
   if (!validation.valid) {
@@ -104,17 +120,11 @@ const handleAdminLogin = async (
 
   // Look up user by username
   const user = await getUserByUsername(username);
-  if (!user) {
-    await recordFailedLogin(clientIp);
-    return errorRedirect("/admin", "Username or password was wrong");
-  }
+  if (!user) return failedCredentialsRedirect();
 
   // Verify password (decrypt stored hash, then verify)
   const passwordHash = await verifyUserPassword(user, password);
-  if (!passwordHash) {
-    await recordFailedLogin(clientIp);
-    return errorRedirect("/admin", "Username or password was wrong");
-  }
+  if (!passwordHash) return failedCredentialsRedirect();
 
   // Clear failed attempts on successful login
   await clearLoginAttempts(clientIp);
@@ -134,7 +144,7 @@ const handleAdminLogin = async (
     dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
     // KEK mismatch - this shouldn't happen if password verification passed
-    return errorRedirect("/admin", "Username or password was wrong");
+    return failedCredentialsRedirect();
   }
 
   return createLoginSession(dataKey, user.id);
