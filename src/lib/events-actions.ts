@@ -36,11 +36,15 @@ const validateMaxPrice = (input: EventInput): string | null => {
     : null;
 };
 
-/** Validate event input (group exists, max price, event type consistency) */
+/** Validate event input (slug uniqueness on update, group, max price, event type) */
 export const validateEventInput = async (
   input: EventInput,
   existingId?: number,
 ): Promise<string | null> => {
+  if (existingId !== undefined) {
+    const taken = await isSlugTaken(input.slug, existingId);
+    if (taken) return "Slug is already in use by another event";
+  }
   if (input.canPayMore) {
     const maxPriceError = validateMaxPrice(input);
     if (maxPriceError) return maxPriceError;

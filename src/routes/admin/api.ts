@@ -15,7 +15,6 @@ import {
   eventsTable,
   getAllEvents,
   getEventWithCount,
-  isSlugTaken,
 } from "#lib/db/events.ts";
 import {
   generateUniqueEventSlug,
@@ -292,16 +291,30 @@ const handleToggleActive = (
     return jsonResponse({ event: toAdminEvent(updated) });
   });
 
+/** Run body parsing and validation, returning the input or an error response. */
+const parseAndValidateEventBody = async (
+  parsed: BodyParseResult,
+  existingId?: number,
+): Promise<
+  { ok: true; input: EventInput } | { ok: false; response: Response }
+> => {
+  if (!parsed.ok)
+    return { ok: false, response: apiErrorResponse(parsed.error) };
+  const error = await validateEventInput(parsed.input, existingId);
+  return error
+    ? { ok: false, response: apiErrorResponse(error) }
+    : { ok: true, input: parsed.input };
+};
+
 /** POST /api/admin/events — create event */
 const handleCreateEvent = (request: Request): Promise<Response> =>
   withAuth(request, ADMIN_API, async (_session, body) => {
-    const parsed = await bodyToCreateInput(body);
-    if (!parsed.ok) return apiErrorResponse(parsed.error);
+    const result = await parseAndValidateEventBody(
+      await bodyToCreateInput(body),
+    );
+    if (!result.ok) return result.response;
 
-    const validationError = await validateEventInput(parsed.input);
-    if (validationError) return apiErrorResponse(validationError);
-
-    const row = await eventsTable.insert(parsed.input);
+    const row = await eventsTable.insert(result.input);
     const event = await getEventWithCount(row.id);
     await logActivity(`Event '${row.name}' created`, row);
     return jsonResponse({ event: toAdminEvent(event!) }, 201);
@@ -319,19 +332,13 @@ export const adminApiRoutes = {
     "POST /api/admin/events": handleCreateEvent,
     "PUT /api/admin/events/:eventId": (request, { eventId }) =>
       withEventApi(request, eventId, async (existing, _session, body) => {
-        const parsed = await bodyToUpdateInput(body, existing);
-        if (!parsed.ok) return apiErrorResponse(parsed.error);
+        const result = await parseAndValidateEventBody(
+          await bodyToUpdateInput(body, existing),
+          eventId,
+        );
+        if (!result.ok) return result.response;
 
-        if (parsed.input.slug !== existing.slug) {
-          const taken = await isSlugTaken(parsed.input.slug, eventId);
-          if (taken)
-            return apiErrorResponse("Slug is already in use by another event");
-        }
-
-        const validationError = await validateEventInput(parsed.input, eventId);
-        if (validationError) return apiErrorResponse(validationError);
-
-        const row = (await eventsTable.update(eventId, parsed.input))!;
+        const row = (await eventsTable.update(eventId, result.input))!;
         const updated = await getEventWithCount(row.id);
         await logActivity(`Event '${row.name}' updated`, row);
         return jsonResponse({ event: toAdminEvent(updated!) });
