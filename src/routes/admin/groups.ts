@@ -130,7 +130,7 @@ const groupsResource = defineNamedResource({
   fields: groupFields,
   toInput: extractGroupEditInput,
   nameField: "name",
-  validate: (input, id) => validateGroupSlug(input, Number(id)),
+  validate: validateGroupSlug,
   onDelete: deleteGroup,
 });
 
