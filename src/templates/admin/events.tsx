@@ -4,7 +4,11 @@
 
 import { filter, joinStrings, map, pipe } from "#fp";
 import { toMajorUnits } from "#lib/currency.ts";
-import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
+import {
+  formatDateLabel,
+  formatDatetimeLabel,
+  formatDatetimeShort,
+} from "#lib/dates.ts";
 import { settings } from "#lib/db/settings.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import { isReadOnly } from "#lib/env.ts";
@@ -103,7 +107,7 @@ const FailedPaymentRow = ({
     <tr>
       <td>{attendee.name}</td>
       <td>{attendee.quantity}</td>
-      <td>{new Date(attendee.created).toLocaleString()}</td>
+      <td>{formatDatetimeShort(attendee.created)}</td>
       <td>
         <CsrfForm
           action={`/admin/event/${eventId}/attendee/${attendee.id}/delete-incomplete`}

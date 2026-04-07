@@ -4,7 +4,7 @@
  */
 
 import { flatMap, joinStrings, map, pipe, reduce, sort } from "#fp";
-import { formatDateLabel } from "#lib/dates.ts";
+import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -338,7 +338,7 @@ const AttendeeRow = ({
           {a.ticket_token}
         </a>
       </td>
-      <td>{new Date(a.created).toLocaleString()}</td>
+      <td>{formatDatetimeShort(a.created)}</td>
       {showActions && (
         <td class="actions-col">
           <Raw html={ActionsCell({ row, returnUrl: opts.returnUrl })} />

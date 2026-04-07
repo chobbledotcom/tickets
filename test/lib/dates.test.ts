@@ -7,6 +7,7 @@ import {
   eventDateToCalendarDate,
   formatDateLabel,
   formatDatetimeLabel,
+  formatDatetimeShort,
   getAvailableDates,
   getNextBookableDate,
   normalizeDatetime,
@@ -399,6 +400,30 @@ describeWithEnv("dates", { db: true }, () => {
     test("handles midnight", () => {
       expect(formatDatetimeLabel("2026-03-01T00:00:00.000Z")).toContain(
         "Sunday 1 March 2026 at 00:00",
+      );
+    });
+  });
+
+  describe("formatDatetimeShort", () => {
+    test("uses configured timezone (Europe/London BST)", () => {
+      settings.setForTest({ timezone: "Europe/London" });
+      // 13:00 UTC on 7 April 2026 is during BST (UTC+1) → 14:00 local
+      expect(formatDatetimeShort("2026-04-07T13:00:00.000Z")).toBe(
+        "07/04/2026 14:00",
+      );
+    });
+
+    test("uses configured timezone (Europe/London GMT)", () => {
+      settings.setForTest({ timezone: "Europe/London" });
+      expect(formatDatetimeShort("2026-01-15T09:05:00.000Z")).toBe(
+        "15/01/2026 09:05",
+      );
+    });
+
+    test("uses configured timezone (Asia/Tokyo)", () => {
+      settings.setForTest({ timezone: "Asia/Tokyo" });
+      expect(formatDatetimeShort("2026-06-15T05:30:00.000Z")).toBe(
+        "15/06/2026 14:30",
       );
     });
   });

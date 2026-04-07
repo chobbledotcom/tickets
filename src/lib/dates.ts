@@ -5,7 +5,12 @@
 import { fromAbsolute } from "@internationalized/date";
 import { filter } from "#fp";
 import { settings } from "#lib/db/settings.ts";
-import { formatDatetimeInTz, localToUtc, todayInTz } from "#lib/timezone.ts";
+import {
+  formatDatetimeInTz,
+  formatDatetimeShortInTz,
+  localToUtc,
+  todayInTz,
+} from "#lib/timezone.ts";
 import type { Event, Holiday } from "#lib/types.ts";
 
 /** Day name lookup from Date.getUTCDay() index (Sunday=0) */
@@ -153,6 +158,13 @@ export const formatDateLabel = (dateStr: string): string => {
  */
 export const formatDatetimeLabel = (iso: string): string =>
   formatDatetimeInTz(iso, settings.timezone);
+
+/**
+ * Compact ISO datetime formatter for table cells.
+ * Returns e.g. "07/04/2026 14:00" in the configured timezone.
+ */
+export const formatDatetimeShort = (iso: string): string =>
+  formatDatetimeShortInTz(iso, settings.timezone);
 
 /**
  * Compute how many days ago an event started, relative to today in the configured timezone.

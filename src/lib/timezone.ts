@@ -67,6 +67,25 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
 };
 
 /**
+ * Compact format for table cells: "DD/MM/YYYY HH:MM" in the given timezone.
+ */
+export const formatDatetimeShortInTz = (utcIso: string, tz: string): string => {
+  const formatted = new Date(utcIso).toLocaleString("en-GB", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  // en-GB outputs "07/04/2026, 14:00"; strip the comma and any "24" → "00".
+  return formatted
+    .replace(", ", " ")
+    .replace(/^(\d{2}\/\d{2}\/\d{4}) 24:/, "$1 00:");
+};
+
+/**
  * Convert a UTC ISO datetime string to a datetime-local input value
  * (YYYY-MM-DDTHH:MM) in the given timezone.
  * Used for pre-populating form inputs with timezone-adjusted values.
