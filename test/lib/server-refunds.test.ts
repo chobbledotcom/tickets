@@ -604,6 +604,49 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         },
       );
     });
+
+    test("catches thrown refund errors and reports them in the flash", async () => {
+      const event = await createPaidEvent();
+      await createPaidTestAttendee(
+        event.id,
+        "Good User",
+        "good@example.com",
+        "pi_throw_ok",
+      );
+      await createPaidTestAttendee(
+        event.id,
+        "Throw User",
+        "throw@example.com",
+        "pi_throw_boom",
+      );
+      let callNum = 0;
+      await withRefundMock(
+        () => {
+          callNum++;
+          if (callNum === 1) return Promise.resolve(true);
+          return Promise.reject(new Error("Stripe refund boom"));
+        },
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              refundAllUrl(event.id),
+              {
+                confirm_identifier: event.name,
+                csrf_token: await testCsrfToken(),
+              },
+              await testCookie(),
+            ),
+          );
+          expectRedirectWithFlash(
+            `/admin/event/${event.id}/refund-all`,
+            expect.stringContaining("1 refund(s) succeeded"),
+            false,
+          )(response);
+          expectFlash(response, expect.stringContaining("1 failed"), false);
+          expectFlash(response, expect.stringContaining("1 errored"), false);
+        },
+      );
+    });
   });
 
   describe("already-refunded guard", () => {
