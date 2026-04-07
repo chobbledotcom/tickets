@@ -4,7 +4,6 @@
  */
 
 import { lazyRef, map } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
 import { toBase64 } from "#lib/crypto/utils.ts";
 import { settings } from "#lib/db/settings.ts";
 import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
@@ -12,7 +11,7 @@ import { getEnv } from "#lib/env.ts";
 import { fetchText } from "#lib/fetch.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
-import { buildTicketUrl } from "#lib/ticket-url.ts";
+import { buildCheckinUrl, buildTicketUrl } from "#lib/ticket-url.ts";
 import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
 
 /** Event data needed for email rendering (extends webhook event with display fields) */
@@ -274,7 +273,7 @@ export const buildSvgTicketData = (
   quantity: entry.attendee.quantity,
   pricePaid: entry.attendee.price_paid,
   currency,
-  checkinUrl: `https://${getEffectiveDomain()}/checkin/${entry.attendee.ticket_token}`,
+  checkinUrl: buildCheckinUrl(entry.attendee.ticket_token),
   purchaseOnly: entry.event.purchase_only,
 });
 

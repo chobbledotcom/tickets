@@ -14,3 +14,7 @@ export const buildTicketUrl = (entries: TokenEntry[]): string => {
   )(entries);
   return `https://${getEffectiveDomain()}/t/${tokens.join("+")}`;
 };
+
+/** Build the check-in URL for a single ticket token */
+export const buildCheckinUrl = (token: string): string =>
+  `https://${getEffectiveDomain()}/checkin/${token}`;
