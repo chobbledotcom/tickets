@@ -13,6 +13,7 @@ import {
 import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { Child } from "#lib/jsx/jsx-runtime.ts";
+import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#lib/limits.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -1268,7 +1269,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Sessions">
+      <Section id="login" title="Login &amp; Sessions">
         <Q q="What are sessions?">
           <p>
             A session is created each time an admin logs in. Sessions expire
@@ -1283,6 +1284,25 @@ export const adminGuidePage = (
             sessions". This ends every session except your own, forcing all
             other admins to log in again. Useful if you suspect an account has
             been compromised.
+          </p>
+        </Q>
+
+        <Q q="What happens after too many failed login attempts?">
+          <p>
+            The login form is protected by per-IP rate limiting. After{" "}
+            <strong>{MAX_LOGIN_ATTEMPTS} failed attempts</strong> from the same
+            IP address, further login attempts from that IP are blocked for{" "}
+            <strong>{LOGIN_LOCKOUT_MS / 60_000} minutes</strong>. A successful
+            login clears the counter immediately. This defends against password
+            guessing and credential stuffing.
+          </p>
+          <p>
+            If you&apos;re legitimately locked out, wait for the lockout to
+            expire or log in from a different network. Because there is{" "}
+            <strong>no password recovery</strong> (see{" "}
+            <strong>Data &amp; Privacy</strong>), another owner cannot unlock
+            your account &mdash; only time (or switching IP) will clear the
+            block.
           </p>
         </Q>
       </Section>
