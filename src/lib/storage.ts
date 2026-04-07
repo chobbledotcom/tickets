@@ -167,21 +167,32 @@ export const tryDeleteFile = async (
   }
 };
 
+/** Event shape that owns storage files */
+type EventWithStorage = {
+  id: number;
+  image_url: string;
+  attachment_url: string;
+};
+
+/** Delete the image and attachment files for a single event */
+export const deleteEventStorageFiles = async (
+  event: EventWithStorage,
+  reason: string,
+): Promise<void> => {
+  if (event.image_url) {
+    await tryDeleteFile(event.image_url, event.id, reason);
+  }
+  if (event.attachment_url) {
+    await tryDeleteFile(event.attachment_url, event.id, reason);
+  }
+};
+
 /** Delete all storage files (images and attachments) for a list of events */
 export const deleteAllEventStorageFiles = async (
-  events: ReadonlyArray<{
-    id: number;
-    image_url: string;
-    attachment_url: string;
-  }>,
+  events: ReadonlyArray<EventWithStorage>,
 ): Promise<void> => {
   for (const event of events) {
-    if (event.image_url) {
-      await tryDeleteFile(event.image_url, event.id, "database reset");
-    }
-    if (event.attachment_url) {
-      await tryDeleteFile(event.attachment_url, event.id, "database reset");
-    }
+    await deleteEventStorageFiles(event, "database reset");
   }
 };
 

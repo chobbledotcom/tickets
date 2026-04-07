@@ -17,7 +17,7 @@ import {
 } from "#lib/db/events.ts";
 import { groupsTable, validateGroupEventType } from "#lib/db/groups.ts";
 import { generateUniqueSlug } from "#lib/slug.ts";
-import { tryDeleteFile } from "#lib/storage.ts";
+import { deleteEventStorageFiles } from "#lib/storage.ts";
 import type { EventWithCount } from "#lib/types.ts";
 
 /** Generate a unique event slug, retrying on collision */
@@ -69,12 +69,7 @@ export const validateEventInput = async (
 export const performEventDelete = async (
   event: EventWithCount,
 ): Promise<void> => {
-  if (event.image_url) {
-    await tryDeleteFile(event.image_url, event.id, "event deletion");
-  }
-  if (event.attachment_url) {
-    await tryDeleteFile(event.attachment_url, event.id, "event deletion");
-  }
+  await deleteEventStorageFiles(event, "event deletion");
   await deleteEvent(event.id);
   await logActivity(
     `Event '${event.name}' deleted (${event.attendee_count} attendee(s) removed)`,
