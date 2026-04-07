@@ -7,7 +7,6 @@ import {
   type GroupInput,
   getAllGroups,
   groupsTable,
-  isGroupSlugTaken,
 } from "#lib/db/groups.ts";
 import {
   type DeleteBody,
@@ -17,7 +16,11 @@ import {
 } from "#lib/rest/crud-api.ts";
 import { normalizeSlug } from "#lib/slug.ts";
 import type { Group } from "#lib/types.ts";
-import { deleteGroup, generateUniqueGroupSlug } from "#routes/admin/groups.ts";
+import {
+  deleteGroup,
+  generateUniqueGroupSlug,
+  validateGroupSlug,
+} from "#routes/admin/groups.ts";
 
 /** JSON body accepted by POST /api/admin/groups */
 export type CreateGroupBody = {
@@ -37,15 +40,6 @@ export type DeleteGroupBody = DeleteBody;
 /** Strip slug_index from response */
 const STRIP_KEYS = ["slug_index"];
 
-/** Validate slug uniqueness */
-const validateSlug = async (
-  input: GroupInput,
-  id?: number,
-): Promise<string | null> => {
-  const taken = await isGroupSlugTaken(input.slug, id);
-  return taken ? "Slug is already in use" : null;
-};
-
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   name: "groups",
   singular: "Group",
@@ -54,7 +48,7 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   nameField: "name",
   stripKeys: STRIP_KEYS,
   onDelete: deleteGroup,
-  validate: validateSlug,
+  validate: validateGroupSlug,
 
   toCreateInput: async (body) => {
     const name = typeof body.name === "string" ? body.name.trim() : "";
