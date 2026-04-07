@@ -7,7 +7,6 @@
 
 import { filter, map, pipe } from "#fp";
 import { processBooking } from "#lib/booking.ts";
-import { validatePrice } from "#lib/currency.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
@@ -15,6 +14,7 @@ import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type EventWithCount, isPaidEvent } from "#lib/types.ts";
+import { parseCustomPrice } from "#routes/public/ticket-form.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   getBaseUrl,
@@ -185,18 +185,6 @@ const toFormParams = (body: Record<string, unknown>): FormParams =>
     return params;
   }, new FormParams());
 
-/** Parse and validate a custom unit price from API input */
-const parseCustomPrice = (
-  priceRaw: unknown,
-  minPrice: number,
-  maxPrice: number,
-) =>
-  validatePrice(
-    priceRaw === undefined || priceRaw === null ? "" : String(priceRaw),
-    minPrice,
-    maxPrice,
-  );
-
 /** Map a BookingResult to an API JSON response */
 const bookingResultToResponse = (
   result: import("#lib/booking.ts").BookingResult,
@@ -231,11 +219,12 @@ const handleBook = withActiveEvent(async (request, event) => {
   const bodyOrError = await parseApiJsonBody(request);
   if (bodyOrError instanceof Response) return bodyOrError;
   const body = bodyOrError;
+  const form = toFormParams(body);
 
   // Validate fields using the same form validation as the web
   const paid = isPaidEvent(event);
   const valResult = tryValidateTicketFields(
-    toFormParams(body),
+    form,
     event.fields,
     (msg) => apiResponse({ error: msg }, 400),
     paid,
@@ -266,7 +255,8 @@ const handleBook = withActiveEvent(async (request, event) => {
   let customUnitPrice: number | undefined;
   if (event.can_pay_more) {
     const priceResult = parseCustomPrice(
-      body.customPrice,
+      form,
+      "customPrice",
       event.unit_price,
       event.max_price,
     );

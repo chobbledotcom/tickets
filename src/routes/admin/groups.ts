@@ -56,6 +56,15 @@ import {
 export const generateUniqueGroupSlug = () =>
   generateUniqueSlug(computeGroupSlugIndex, isGroupSlugTaken);
 
+/** Validate that a group's slug is not already in use */
+export const validateGroupSlug = async (
+  input: GroupInput,
+  id?: number,
+): Promise<string | null> => {
+  const taken = await isGroupSlugTaken(input.slug, id);
+  return taken ? "Slug is already in use" : null;
+};
+
 /** Shared fields from group form values */
 const sharedGroupFields = (values: GroupCreateFormValues) => ({
   name: values.name,
@@ -121,10 +130,7 @@ const groupsResource = defineNamedResource({
   fields: groupFields,
   toInput: extractGroupEditInput,
   nameField: "name",
-  validate: async (input, id) => {
-    const taken = await isGroupSlugTaken(input.slug, Number(id));
-    return taken ? "Slug is already in use" : null;
-  },
+  validate: validateGroupSlug,
   onDelete: deleteGroup,
 });
 

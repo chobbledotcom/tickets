@@ -22,7 +22,7 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#lib/payments.ts";
-import type { ContactInfo } from "#lib/types.ts";
+import type { ContactInfo, Group } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
   checkoutResponse,
@@ -39,7 +39,6 @@ import type {
   TicketCtx,
   TicketSharedContext,
 } from "./types.ts";
-import type { Group } from "#lib/types.ts";
 
 /** Try to redirect to checkout, or return error using provided handler.
  * When in iframe mode, returns a popup page instead of redirect since Stripe cannot run in iframes. */
@@ -284,6 +283,9 @@ export const getTicketContext = async (
     dates,
     terms,
     ...questionsResult,
-    ...(group && { groupName: group.name, groupDescription: group.description }),
+    ...(group && {
+      groupName: group.name,
+      groupDescription: group.description,
+    }),
   };
 };

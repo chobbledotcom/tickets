@@ -12,6 +12,7 @@ import {
 } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
+import { buildCheckinUrl } from "#lib/ticket-url.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { notFoundResponse } from "#routes/utils.ts";
 
@@ -55,7 +56,7 @@ export const buildWalletPassData = (
     quantity: attendee.quantity,
     pricePaid: Number(attendee.price_paid),
     currencyCode: settings.currency,
-    checkinUrl: `https://${domain}/checkin/${token}`,
+    checkinUrl: buildCheckinUrl(token),
   };
 };
 

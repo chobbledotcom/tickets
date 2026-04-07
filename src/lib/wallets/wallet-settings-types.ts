@@ -1,6 +1,7 @@
 /** Shared types and helpers for wallet settings factories. */
 
 import { lazyRef } from "#fp";
+import { getEnv } from "#lib/env.ts";
 
 export type SnapFn = (key: string) => string;
 export type EncryptedUpdateFn = (key: string) => (v: string) => Promise<void>;
@@ -62,4 +63,81 @@ export const mixinWalletConfigResolution = <T>(
     setHostConfigForTest: { value: hostOverride.setOverride, enumerable: true },
     resetHostConfig: { value: hostOverride.resetOverride, enumerable: true },
   });
+};
+
+/** Per-field key mapping: camelCase property → DB key + env var name */
+export type WalletFieldDef = { dbKey: string; envKey: string };
+
+export type WalletReadSettings<T, K extends string> = Record<K, string> & {
+  hasDbConfig: boolean;
+  dbConfig: T | null;
+  hostConfig: T | null;
+  config: T | null;
+  hasConfig: boolean;
+  setHostConfigForTest: (c: T | null) => void;
+  resetHostConfig: () => void;
+};
+
+/**
+ * Build a complete wallet settings kit from a field map and a builder.
+ *
+ * Returns:
+ *   - getHostConfig: reads env vars (with test override support)
+ *   - createReadSettings(snap): per-field getters + hasDbConfig/dbConfig +
+ *     mixed-in hostConfig/config/hasConfig
+ *   - createUpdateSettings(encryptedUpdate): per-field encrypted writers
+ */
+export const createWalletSettingsKit = <T, K extends string>(opts: {
+  fields: Record<K, WalletFieldDef>;
+  build: (vals: Record<K, string | undefined>) => T | null;
+}) => {
+  const keys = Object.keys(opts.fields) as K[];
+
+  const hostOverride = createHostConfigOverride<T>(() => {
+    const vals = {} as Record<K, string | undefined>;
+    for (const k of keys) vals[k] = getEnv(opts.fields[k].envKey);
+    return opts.build(vals);
+  });
+
+  const createReadSettings = (snap: SnapFn): WalletReadSettings<T, K> => {
+    const obj = {} as Record<string, unknown>;
+    for (const k of keys) {
+      Object.defineProperty(obj, k, {
+        get: () => snap(opts.fields[k].dbKey),
+        enumerable: true,
+      });
+    }
+    Object.defineProperties(obj, {
+      hasDbConfig: {
+        get(): boolean {
+          return keys.every((k) => Boolean(this[k]));
+        },
+        enumerable: true,
+      },
+      dbConfig: {
+        get(): T | null {
+          const vals = {} as Record<K, string>;
+          for (const k of keys) vals[k] = this[k] as string;
+          return opts.build(vals);
+        },
+        enumerable: true,
+      },
+    });
+    mixinWalletConfigResolution<T>(obj, hostOverride);
+    return obj as WalletReadSettings<T, K>;
+  };
+
+  const createUpdateSettings = (
+    encryptedUpdate: EncryptedUpdateFn,
+  ): Record<K, (v: string) => Promise<void>> => {
+    const obj = {} as Record<K, (v: string) => Promise<void>>;
+    for (const k of keys) obj[k] = encryptedUpdate(opts.fields[k].dbKey);
+    return obj;
+  };
+
+  return {
+    getHostConfig: hostOverride.getHostConfig,
+    createReadSettings,
+    createUpdateSettings,
+  };
 };

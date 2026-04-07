@@ -12,7 +12,6 @@ import {
   type EventInput,
   eventsTable,
   getEventWithCount,
-  isSlugTaken,
 } from "#lib/db/events.ts";
 import { getAllGroups } from "#lib/db/groups.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
@@ -477,17 +476,14 @@ const handleAdminEventEditPost: TypedRouteHandler<
     const form = formDataToParams(formData);
     applyDemoOverrides(form, EVENT_DEMO_FIELDS);
 
-    // Build a resource that includes the slug field and validates uniqueness
+    // Build a resource that includes the slug field; uniqueness is enforced
+    // by validateEventInput when existingId is set.
     const updateResource = defineResource({
       table: eventsTable,
       fields: [...eventFields, slugField, groupIdField],
       toInput: extractEventUpdateInput,
       nameField: "name",
-      validate: async (input, existingId) => {
-        const taken = await isSlugTaken(input.slug, Number(existingId));
-        if (taken) return "Slug is already in use by another event";
-        return validateEventInput(input);
-      },
+      validate: validateEventInput,
     });
 
     const result = await updateResource.update(id, form);
