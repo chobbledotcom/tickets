@@ -139,7 +139,7 @@ describe("timezone", () => {
         "2026-04-07T13:00:00.000Z",
         "Europe/London",
       );
-      expect(result).toBe("07/04/2026 14:00");
+      expect(result).toBe("7 April 2026 14:00");
     });
 
     test("formats UTC datetime in London winter time (GMT)", () => {
@@ -147,7 +147,7 @@ describe("timezone", () => {
         "2026-01-15T09:05:00.000Z",
         "Europe/London",
       );
-      expect(result).toBe("15/01/2026 09:05");
+      expect(result).toBe("15 January 2026 09:05");
     });
 
     test("formats UTC datetime in Asia/Tokyo (UTC+9)", () => {
@@ -155,12 +155,18 @@ describe("timezone", () => {
         "2026-06-15T05:30:00.000Z",
         "Asia/Tokyo",
       );
-      expect(result).toBe("15/06/2026 14:30");
+      expect(result).toBe("15 June 2026 14:30");
     });
 
-    test("pads single-digit day, month, hour and minute", () => {
+    test("pads single-digit hour and minute", () => {
       const result = formatDatetimeShortInTz("2026-01-05T09:05:00.000Z", "UTC");
-      expect(result).toBe("05/01/2026 09:05");
+      expect(result).toBe("5 January 2026 09:05");
+    });
+
+    test("normalises midnight rendered as 24:00", () => {
+      // Some en-GB implementations render midnight as "24:00"; we normalise.
+      const result = formatDatetimeShortInTz("2026-06-15T00:00:00.000Z", "UTC");
+      expect(result).toBe("15 June 2026 00:00");
     });
   });
 
