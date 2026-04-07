@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
+import { signCsrfToken } from "#lib/csrf.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
@@ -646,6 +647,42 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         "Login",
         "Username or password was wrong",
       );
+    });
+
+    test("failed login with existing session shows login page, not dashboard", async () => {
+      // Simulate a user who is already logged in but tries to log in again
+      // with wrong credentials. They should be redirected to the login page,
+      // not left logged in on the dashboard.
+      const { cookie } = await loginAsAdmin();
+
+      const csrfToken = await signCsrfToken();
+      const postResponse = await handleRequest(
+        mockFormRequest(
+          "/admin/login",
+          {
+            username: "testadmin",
+            password: "wrong",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(postResponse.status).toBe(302);
+
+      // Follow the redirect, carrying both the original session cookie and
+      // the flash cookie from the failed login response.
+      const getResponse = await followRedirectWithFlash(
+        postResponse,
+        handleRequest,
+        cookie,
+      );
+
+      // Should land on the login page with the error, NOT the dashboard.
+      const html = await getResponse.text();
+      expect(getResponse.status).toBe(200);
+      expect(html).toContain("Login");
+      expect(html).toContain("Username or password was wrong");
+      expect(html).not.toContain("Event Name");
     });
   });
 });
