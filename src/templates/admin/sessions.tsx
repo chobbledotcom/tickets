@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
+import { formatDatetimeShort } from "#lib/dates.ts";
 import { CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Session } from "#lib/types.ts";
@@ -19,7 +20,7 @@ const SessionRow = ({
   String(
     <tr>
       <td>{session.token.slice(0, 8)}...</td>
-      <td>{new Date(session.expires).toLocaleString()}</td>
+      <td>{formatDatetimeShort(new Date(session.expires).toISOString())}</td>
       <td>{isCurrent ? <mark>Current</mark> : ""}</td>
     </tr>,
   );

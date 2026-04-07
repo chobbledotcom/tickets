@@ -3,7 +3,7 @@
  */
 
 import { formatCurrency } from "#lib/currency.ts";
-import { formatDateLabel } from "#lib/dates.ts";
+import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
 import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
@@ -53,8 +53,7 @@ export const adminDeleteAttendeePage = (
           <strong>Quantity:</strong> {attendee.quantity}
         </p>
         <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
+          <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
         </p>
         <p>
           To delete this attendee, type their name "{attendee.name}" into the
@@ -105,8 +104,7 @@ export const adminRefundAttendeePage = (
           </p>
         )}
         <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
+          <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
         </p>
         <p>
           To refund this attendee, type their name "{attendee.name}" into the
@@ -817,8 +815,7 @@ export const adminResendNotificationPage = (
           </p>
         )}
         <p>
-          <strong>Registered:</strong>{" "}
-          {new Date(attendee.created).toLocaleString()}
+          <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
         </p>
         <p>
           To re-send the notification, type their name "{attendee.name}" into

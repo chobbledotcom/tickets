@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   DEFAULT_TIMEZONE,
   formatDatetimeInTz,
+  formatDatetimeShortInTz,
   isValidDatetime,
   isValidTimezone,
   localToUtc,
@@ -128,6 +129,44 @@ describe("timezone", () => {
       const result = formatDatetimeInTz("2026-01-05T09:05:00.000Z", "UTC");
       expect(result).toContain("Monday 5 January 2026 at 09:05");
       expect(result).toContain("UTC");
+    });
+  });
+
+  describe("formatDatetimeShortInTz", () => {
+    test("formats UTC datetime in London summer time (BST)", () => {
+      // 13:00 UTC on 7 April 2026 = 14:00 BST (BST starts 29 March 2026)
+      const result = formatDatetimeShortInTz(
+        "2026-04-07T13:00:00.000Z",
+        "Europe/London",
+      );
+      expect(result).toBe("2026-04-07 14:00");
+    });
+
+    test("formats UTC datetime in London winter time (GMT)", () => {
+      const result = formatDatetimeShortInTz(
+        "2026-01-15T09:05:00.000Z",
+        "Europe/London",
+      );
+      expect(result).toBe("2026-01-15 09:05");
+    });
+
+    test("formats UTC datetime in Asia/Tokyo (UTC+9)", () => {
+      const result = formatDatetimeShortInTz(
+        "2026-06-15T05:30:00.000Z",
+        "Asia/Tokyo",
+      );
+      expect(result).toBe("2026-06-15 14:30");
+    });
+
+    test("pads single-digit month, day, hour and minute", () => {
+      const result = formatDatetimeShortInTz("2026-01-05T09:05:00.000Z", "UTC");
+      expect(result).toBe("2026-01-05 09:05");
+    });
+
+    test("normalises midnight rendered as 24:00", () => {
+      // Some sv-SE implementations render midnight as "24:00"; we normalise.
+      const result = formatDatetimeShortInTz("2026-06-15T00:00:00.000Z", "UTC");
+      expect(result).toBe("2026-06-15 00:00");
     });
   });
 

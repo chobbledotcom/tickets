@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
+import { formatDatetimeShort } from "#lib/dates.ts";
 import type { ActivityLogEntry } from "#lib/db/activityLog.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
@@ -12,7 +13,7 @@ import { Layout } from "#templates/layout.tsx";
 const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
   String(
     <tr>
-      <td>{new Date(entry.created).toLocaleString()}</td>
+      <td>{formatDatetimeShort(entry.created)}</td>
       <td>{entry.message}</td>
     </tr>,
   );

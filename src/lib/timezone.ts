@@ -67,6 +67,24 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
 };
 
 /**
+ * Compact format for table cells: "yyyy-MM-dd HH:mm" in the given timezone.
+ */
+export const formatDatetimeShortInTz = (utcIso: string, tz: string): string => {
+  // sv-SE renders dates in ISO-8601 form (yyyy-MM-dd HH:mm), which is
+  // unambiguous and locale-independent.
+  const formatted = new Date(utcIso).toLocaleString("sv-SE", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return formatted.replace(/^(\d{4}-\d{2}-\d{2}) 24:/, "$1 00:");
+};
+
+/**
  * Convert a UTC ISO datetime string to a datetime-local input value
  * (YYYY-MM-DDTHH:MM) in the given timezone.
  * Used for pre-populating form inputs with timezone-adjusted values.
