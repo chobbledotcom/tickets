@@ -108,6 +108,20 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await assertAdminHtml("/admin/guide", "Calendar", "Activity Log");
     });
 
+    test("contains login lockout documentation", async () => {
+      const { MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_MS } = await import(
+        "#lib/limits.ts"
+      );
+      await assertAdminHtml(
+        "/admin/guide",
+        'id="login"',
+        "too many failed login attempts",
+        `${MAX_LOGIN_ATTEMPTS} failed attempts`,
+        `${LOGIN_LOCKOUT_MS / 60_000} minutes`,
+        "no password recovery",
+      );
+    });
+
     test("contains settings overview section", async () => {
       await assertAdminHtml(
         "/admin/guide",
