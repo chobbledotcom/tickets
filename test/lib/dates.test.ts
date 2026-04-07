@@ -409,21 +409,21 @@ describeWithEnv("dates", { db: true }, () => {
       settings.setForTest({ timezone: "Europe/London" });
       // 13:00 UTC on 7 April 2026 is during BST (UTC+1) → 14:00 local
       expect(formatDatetimeShort("2026-04-07T13:00:00.000Z")).toBe(
-        "7 April 2026 14:00",
+        "2026-04-07 14:00",
       );
     });
 
     test("uses configured timezone (Europe/London GMT)", () => {
       settings.setForTest({ timezone: "Europe/London" });
       expect(formatDatetimeShort("2026-01-15T09:05:00.000Z")).toBe(
-        "15 January 2026 09:05",
+        "2026-01-15 09:05",
       );
     });
 
     test("uses configured timezone (Asia/Tokyo)", () => {
       settings.setForTest({ timezone: "Asia/Tokyo" });
       expect(formatDatetimeShort("2026-06-15T05:30:00.000Z")).toBe(
-        "15 June 2026 14:30",
+        "2026-06-15 14:30",
       );
     });
   });

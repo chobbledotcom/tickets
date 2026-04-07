@@ -67,20 +67,21 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
 };
 
 /**
- * Compact format for table cells: "2 April 2026 14:00" in the given timezone.
+ * Compact format for table cells: "yyyy-MM-dd HH:mm" in the given timezone.
  */
 export const formatDatetimeShortInTz = (utcIso: string, tz: string): string => {
-  const formatted = new Date(utcIso).toLocaleString("en-GB", {
+  // sv-SE renders dates in ISO-8601 form (yyyy-MM-dd HH:mm), which is
+  // unambiguous and locale-independent.
+  const formatted = new Date(utcIso).toLocaleString("sv-SE", {
     timeZone: tz,
     year: "numeric",
-    month: "long",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
-  // en-GB outputs e.g. "2 April 2026 at 14:00"; drop the "at".
-  return formatted.replace(" at ", " ").replace(/ 24:/, " 00:");
+  return formatted.replace(/^(\d{4}-\d{2}-\d{2}) 24:/, "$1 00:");
 };
 
 /**
