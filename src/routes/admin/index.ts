@@ -7,6 +7,7 @@
  * re-reading which intermittently fails on Bunny Edge.
  */
 
+import { reduce } from "#fp";
 import { enableQueryLog } from "#lib/db/query-log.ts";
 import { settings } from "#lib/db/settings.ts";
 import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
@@ -31,34 +32,39 @@ import { settingsRoutes } from "#routes/admin/settings.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
 import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
-import { createRouter } from "#routes/router.ts";
+import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
 import { getAuthenticatedSession } from "#routes/utils.ts";
 
-/** Combined admin routes */
-const adminRoutes = {
-  ...dashboardRoutes,
-  ...authRoutes,
-  ...apiKeysRoutes,
-  ...settingsRoutes,
-  ...debugRoutes,
-  ...siteRoutes,
-  ...sessionsRoutes,
-  ...calendarRoutes,
-  ...eventsRoutes,
-  ...attendeesRoutes,
-  ...attendeeRefundRoutes,
-  ...usersRoutes,
-  ...guideRoutes,
-  ...groupsRoutes,
-  ...holidaysRoutes,
-  ...questionsRoutes,
-  ...scannerRoutes,
-  ...seedsRoutes,
-  ...builderRoutes,
-  ...builtSitesRoutes,
-  ...updateRoutes,
-  ...backupRoutes,
-};
+/** Route maps merged in order (later keys override earlier on conflict) */
+const adminRouteModules: Record<string, RouteHandlerFn>[] = [
+  dashboardRoutes,
+  authRoutes,
+  apiKeysRoutes,
+  settingsRoutes,
+  debugRoutes,
+  siteRoutes,
+  sessionsRoutes,
+  calendarRoutes,
+  eventsRoutes,
+  attendeesRoutes,
+  attendeeRefundRoutes,
+  usersRoutes,
+  guideRoutes,
+  groupsRoutes,
+  holidaysRoutes,
+  questionsRoutes,
+  scannerRoutes,
+  seedsRoutes,
+  builderRoutes,
+  builtSitesRoutes,
+  updateRoutes,
+  backupRoutes,
+];
+
+const adminRoutes = reduce(
+  (acc, mod) => Object.assign(acc, mod),
+  {} as Record<string, RouteHandlerFn>,
+)(adminRouteModules);
 
 const innerRouter = createRouter(adminRoutes);
 
