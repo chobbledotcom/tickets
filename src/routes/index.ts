@@ -3,7 +3,7 @@
  * Uses lazy loading to minimize startup time for edge scripts
  */
 
-import { lazyRef, once } from "#fp";
+import { lazyRef, once, reduce } from "#fp";
 import { loadEffectiveDomain } from "#lib/config.ts";
 import {
   clearFlashCookie,
@@ -261,29 +261,40 @@ const readOnlyGuard = (path: string, method: string): Response | null => {
   return null;
 };
 
+type PublicPagesModule = Awaited<ReturnType<typeof loadPublicPages>>;
+
+/** Exact path for a single-segment public page (must stay aligned with getPrefix) */
+const publicPagePath = (prefix: string): string =>
+  prefix === "" ? "/" : `/${prefix}`;
+
+type PublicGetPageSpec = {
+  prefix: string;
+  pick: (pages: PublicPagesModule) => () => Response | Promise<Response>;
+};
+
+const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
+  { prefix: "", pick: (p) => p.handleHome },
+  { prefix: "events", pick: (p) => p.handlePublicEvents },
+  { prefix: "terms", pick: (p) => p.handlePublicTerms },
+  { prefix: "contact", pick: (p) => p.handlePublicContact },
+];
+
+const publicPageHandlers = reduce(
+  (acc: Record<string, RouterFn>, spec: PublicGetPageSpec) => {
+    const { prefix, pick } = spec;
+    const path = publicPagePath(prefix);
+    acc[prefix] = async (_request, reqPath, method) => {
+      if (reqPath !== path || method !== "GET") return null;
+      return pick(await loadPublicPages())();
+    };
+    return acc;
+  },
+  {} as Record<string, RouterFn>,
+)(PUBLIC_GET_PAGES);
+
 /** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */
 const prefixHandlers: Record<string, RouterFn> = {
-  // Exact-match public pages
-  "": async (_request, path, method) => {
-    if (path !== "/" || method !== "GET") return null;
-    const { handleHome } = await loadPublicPages();
-    return handleHome();
-  },
-  events: async (_request, path, method) => {
-    if (path !== "/events" || method !== "GET") return null;
-    const { handlePublicEvents } = await loadPublicPages();
-    return handlePublicEvents();
-  },
-  terms: async (_request, path, method) => {
-    if (path !== "/terms" || method !== "GET") return null;
-    const { handlePublicTerms } = await loadPublicPages();
-    return handlePublicTerms();
-  },
-  contact: async (_request, path, method) => {
-    if (path !== "/contact" || method !== "GET") return null;
-    const { handlePublicContact } = await loadPublicPages();
-    return handlePublicContact();
-  },
+  ...publicPageHandlers,
   // Prefix-matched lazy-loaded route groups
   admin: lazyRoute(loadAdminRoutes),
   ticket: lazyRoute(loadTicketRoutes),
