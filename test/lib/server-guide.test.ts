@@ -311,6 +311,22 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       }
     });
 
+    test("contains admin API section with auth and endpoint info", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        'id="admin-api"',
+        "Admin API",
+        "Authorization: Bearer YOUR_API_KEY",
+        "owners only",
+        "shown only once",
+        "/api/admin/events",
+        "/api/admin/groups",
+        "/api/admin/holidays",
+        "confirm_identifier",
+        "Last used",
+      );
+    });
+
     test("contains host subdomain section", async () => {
       await assertAdminHtml(
         "/admin/guide",
