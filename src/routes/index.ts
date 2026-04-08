@@ -263,23 +263,26 @@ const readOnlyGuard = (path: string, method: string): Response | null => {
 
 type PublicPagesModule = Awaited<ReturnType<typeof loadPublicPages>>;
 
-/** Single-segment GET pages under prefix dispatch (path must match exactly) */
+/** Exact path for a single-segment public page (must stay aligned with getPrefix) */
+const publicPagePath = (prefix: string): string =>
+  prefix === "" ? "/" : `/${prefix}`;
+
 type PublicGetPageSpec = {
   prefix: string;
-  path: string;
   pick: (pages: PublicPagesModule) => () => Response | Promise<Response>;
 };
 
 const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
-  { prefix: "", path: "/", pick: (p) => p.handleHome },
-  { prefix: "events", path: "/events", pick: (p) => p.handlePublicEvents },
-  { prefix: "terms", path: "/terms", pick: (p) => p.handlePublicTerms },
-  { prefix: "contact", path: "/contact", pick: (p) => p.handlePublicContact },
+  { prefix: "", pick: (p) => p.handleHome },
+  { prefix: "events", pick: (p) => p.handlePublicEvents },
+  { prefix: "terms", pick: (p) => p.handlePublicTerms },
+  { prefix: "contact", pick: (p) => p.handlePublicContact },
 ];
 
 const publicPageHandlers = reduce(
   (acc: Record<string, RouterFn>, spec: PublicGetPageSpec) => {
-    const { prefix, path, pick } = spec;
+    const { prefix, pick } = spec;
+    const path = publicPagePath(prefix);
     acc[prefix] = async (_request, reqPath, method) => {
       if (reqPath !== path || method !== "GET") return null;
       return pick(await loadPublicPages())();
