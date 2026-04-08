@@ -41,13 +41,37 @@ export const requireString = (
     : null;
 
 /** Result of parsing a JSON body into a typed input */
-type ParseResult<Input> =
+export type ParseResult<Input> =
   | { ok: true; input: Input }
   | { ok: false; error: string };
 
 /** JSON error response for API endpoints */
 export const apiErrorResponse = (message: string, status = 400): Response =>
   jsonResponse({ status: "error", message }, status);
+
+/** Result of parsing + validating: either the input or a pre-built error response */
+export type ValidatedInput<Input> =
+  | { ok: true; input: Input }
+  | { ok: false; response: Response };
+
+/**
+ * Parse + validate a JSON body into a typed input, returning a ready-to-return
+ * error response on failure. Used by route handlers to short-circuit on error.
+ */
+export const parseAndValidate = async <Input>(
+  parsed: ParseResult<Input> | Promise<ParseResult<Input>>,
+  validate?: (input: Input, id?: number) => Promise<string | null>,
+  id?: number,
+): Promise<ValidatedInput<Input>> => {
+  const result = await parsed;
+  if (!result.ok)
+    return { ok: false, response: apiErrorResponse(result.error) };
+  if (validate) {
+    const error = await validate(result.input, id);
+    if (error) return { ok: false, response: apiErrorResponse(error) };
+  }
+  return { ok: true, input: result.input };
+};
 
 /**
  * Parse an optional slug field from a JSON body for update operations.
@@ -79,15 +103,15 @@ export const parseUpdateName = (
 };
 
 /** Configuration for defineCrudApi */
-export interface CrudApiConfig<Row, Input> {
+export interface CrudApiConfig<Row, Input, FullRow extends Row = Row> {
   /** Resource name (lowercase plural, used in routes and log messages) */
   name: string;
   /** Singular display name for activity log (e.g. "Holiday") */
   singular: string;
   /** Table with CRUD operations */
   table: Table<Row, Input>;
-  /** Fetch all rows (from cache) */
-  getAll: () => Promise<Row[]>;
+  /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
+  getAll: () => Promise<FullRow[]>;
   /** Convert JSON body to Input for create */
   toCreateInput: (
     body: Record<string, unknown>,
@@ -95,16 +119,24 @@ export interface CrudApiConfig<Row, Input> {
   /** Convert JSON body + existing row to Input for update */
   toUpdateInput: (
     body: Record<string, unknown>,
-    existing: Row,
+    existing: FullRow,
   ) => ParseResult<Input> | Promise<ParseResult<Input>>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
   /** Field on Row that holds the display name (for delete confirmation) */
-  nameField: keyof Row & string;
+  nameField: keyof FullRow & string;
   /** Keys to strip from response (e.g. "slug_index") */
   stripKeys?: string[];
   /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
   onDelete?: (id: InValue) => Promise<void>;
+  /** Custom single-row lookup (e.g. to include joined counts). Defaults to table.findById. */
+  lookup?: (id: number) => Promise<FullRow | null>;
+  /** Extra keys added to the list response alongside the row array (e.g. admin_level) */
+  listExtras?: (session: AdminSession) => Record<string, unknown>;
+  /** When true, activity log entries for create/update are linked to the row's id as event_id */
+  linkActivityToRow?: boolean;
+  /** Extra route entries to merge in (can also override generated routes) */
+  extraRoutes?: Record<string, RouteHandlerFn>;
 }
 
 /** Callback receiving an entity row plus auth context */
@@ -132,21 +164,6 @@ export const withApiEntity = <Row>(
     return handler(row, session, body);
   });
 
-/** Config-aware entity lookup */
-const withEntity = <Row, Input>(
-  config: CrudApiConfig<Row, Input>,
-  request: Request,
-  id: number,
-  handler: EntityHandler<Row>,
-): Promise<Response> =>
-  withApiEntity(
-    request,
-    (i) => config.table.findById(i),
-    id,
-    config.singular,
-    handler,
-  );
-
 /** Strip internal keys from a row before sending in the response */
 const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {
   if (keys.length === 0) return row as Record<string, unknown>;
@@ -165,58 +182,68 @@ const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {
  *   PUT    /api/admin/{name}/:id      — update
  *   DELETE /api/admin/{name}/:id      — delete (with confirm_identifier)
  */
-export const defineCrudApi = <Row extends { id: number; name: string }, Input>(
-  config: CrudApiConfig<Row, Input>,
+export const defineCrudApi = <
+  Row extends { id: number; name: string },
+  Input,
+  FullRow extends Row = Row,
+>(
+  config: CrudApiConfig<Row, Input, FullRow>,
 ): Record<string, RouteHandlerFn> => {
   const { name, singular, table, getAll, nameField, stripKeys = [] } = config;
   const responseKey = singular.toLowerCase();
   const listKey = name;
+  const lookup: (id: number) => Promise<FullRow | null> =
+    config.lookup ??
+    ((id) => table.findById(id) as unknown as Promise<FullRow | null>);
 
   /** Clean a row for JSON response */
-  const toResponse = (row: Row) => stripRow(row, stripKeys);
+  const toResponse = (row: FullRow) => stripRow(row, stripKeys);
 
-  /** Parse input and run validation, returning error response or validated input */
-  const parseAndValidate = async (
-    parsed: ParseResult<Input> | Promise<ParseResult<Input>>,
-    id?: number,
-  ): Promise<
-    { ok: true; input: Input } | { ok: false; response: Response }
-  > => {
-    const result = await parsed;
-    if (!result.ok)
-      return { ok: false, response: apiErrorResponse(result.error) };
-    if (config.validate) {
-      const error = await config.validate(result.input, id);
-      if (error) return { ok: false, response: apiErrorResponse(error) };
-    }
-    return { ok: true, input: result.input };
-  };
+  /** Log create/update, optionally linking to the row's id as event_id */
+  const logAction = (action: string, row: Row): Promise<unknown> =>
+    logActivity(
+      `${singular} '${row.name}' ${action}`,
+      config.linkActivityToRow ? row : undefined,
+    );
+
+  /** Re-fetch the full row when a custom lookup is configured, otherwise reuse the written row */
+  const toFullRow = async (row: Row): Promise<FullRow> =>
+    config.lookup
+      ? (await config.lookup(row.id))!
+      : (row as unknown as FullRow);
 
   /** List all */
   const handleList: RouteHandlerFn = (request) =>
-    withAuth(request, ADMIN_API, async () => {
+    withAuth(request, ADMIN_API, async (session) => {
       const rows = await getAll();
-      return jsonResponse({ [listKey]: rows.map(toResponse) });
+      const extras = config.listExtras ? config.listExtras(session) : {};
+      return jsonResponse({ [listKey]: rows.map(toResponse), ...extras });
     });
 
   /** Create */
   const handleCreate: RouteHandlerFn = (request) =>
     withAuth(request, ADMIN_API, async (_session, body) => {
-      const result = await parseAndValidate(config.toCreateInput(body));
+      const result = await parseAndValidate(
+        config.toCreateInput(body),
+        config.validate,
+      );
       if (!result.ok) return result.response;
 
       const row = await table.insert(result.input);
-      await logActivity(`${singular} '${row.name}' created`);
-      return jsonResponse({ [responseKey]: toResponse(row) }, 201);
+      await logAction("created", row);
+      return jsonResponse(
+        { [responseKey]: toResponse(await toFullRow(row)) },
+        201,
+      );
     });
 
   // Build the route param name from the singular (e.g. "Holiday" → "holidayId")
   const paramName = `${singular.toLowerCase()}Id`;
 
-  /** Route handler that extracts the entity ID from params and delegates to withEntity */
+  /** Route handler that extracts the entity ID and loads the full row, delegating to handler */
   const entityRoute = (
     handler: (
-      row: Row,
+      row: FullRow,
       session: AdminSession,
       body: Record<string, unknown>,
       id: number,
@@ -226,8 +253,8 @@ export const defineCrudApi = <Row extends { id: number; name: string }, Input>(
       params: Record<string, string | number | undefined>,
     ): number => params[paramName] as number;
     return (request, params) =>
-      withEntity(config, request, getId(params), (row, session, body) =>
-        handler(row, session, body, getId(params)),
+      withApiEntity(request, lookup, getId(params), singular, (row, s, b) =>
+        handler(row, s, b, getId(params)),
       );
   };
 
@@ -240,13 +267,16 @@ export const defineCrudApi = <Row extends { id: number; name: string }, Input>(
   const handleUpdate = entityRoute(async (existing, _session, body, id) => {
     const result = await parseAndValidate(
       config.toUpdateInput(body, existing),
+      config.validate,
       id,
     );
     if (!result.ok) return result.response;
 
     const row = (await table.update(existing.id, result.input))!;
-    await logActivity(`${singular} '${row.name}' updated`);
-    return jsonResponse({ [responseKey]: toResponse(row) });
+    await logAction("updated", row);
+    return jsonResponse({
+      [responseKey]: toResponse(await toFullRow(row)),
+    });
   });
 
   /** Delete */
@@ -273,5 +303,6 @@ export const defineCrudApi = <Row extends { id: number; name: string }, Input>(
     [`POST /api/admin/${name}`]: handleCreate,
     [`PUT /api/admin/${name}/:${paramName}`]: handleUpdate,
     [`DELETE /api/admin/${name}/:${paramName}`]: handleDelete,
+    ...(config.extraRoutes ?? {}),
   };
 };
