@@ -21,7 +21,10 @@ describe("getTicketFields — field composition", () => {
     expect(fieldNames("email")).toEqual(["name", "email"]);
     expect(fieldNames("phone")).toEqual(["name", "phone"]);
     expect(fieldNames("address")).toEqual(["name", "address"]);
-    expect(fieldNames("special_instructions")).toEqual(["name", "special_instructions"]);
+    expect(fieldNames("special_instructions")).toEqual([
+      "name",
+      "special_instructions",
+    ]);
     expect(fieldNames("email,phone")).toEqual(["name", "email", "phone"]);
     expect(fieldNames("email,phone,address,special_instructions")).toEqual([
       "name",
@@ -47,7 +50,10 @@ describe("getTicketFields — field validation", () => {
       getTicketFields("email", false),
       { name: "Jane", email: "not-an-email" },
     );
-    expectValid(getTicketFields("email", false), { name: "Jane", email: "jane@example.com" });
+    expectValid(getTicketFields("email", false), {
+      name: "Jane",
+      email: "jane@example.com",
+    });
   });
 
   test("phone field validates format and is required", () => {
@@ -59,7 +65,10 @@ describe("getTicketFields — field validation", () => {
       getTicketFields("phone", false),
       { name: "Jane", phone: "" },
     );
-    expectValid(getTicketFields("phone", false), { name: "Jane", phone: "+1 555 123 4567" });
+    expectValid(getTicketFields("phone", false), {
+      name: "Jane",
+      phone: "+1 555 123 4567",
+    });
   });
 
   test("address field is required and validates length", () => {
@@ -67,7 +76,10 @@ describe("getTicketFields — field validation", () => {
       getTicketFields("address", false),
       { name: "Jane", address: "" },
     );
-    expectValid(getTicketFields("address", false), { name: "Jane", address: "123 Main St" });
+    expectValid(getTicketFields("address", false), {
+      name: "Jane",
+      address: "123 Main St",
+    });
   });
 
   test("special_instructions field is required", () => {
@@ -108,7 +120,11 @@ describe("getTicketFields — Square payment provider", () => {
   test("does not duplicate email when already present", () => {
     const s = stub(fieldsApi, "getSettingCached", () => "square");
     try {
-      expect(fieldNames("email,phone", true)).toEqual(["name", "email", "phone"]);
+      expect(fieldNames("email,phone", true)).toEqual([
+        "name",
+        "email",
+        "phone",
+      ]);
     } finally {
       s.restore();
     }
@@ -137,7 +153,9 @@ describe("mergeEventFields", () => {
 
   test("returns the union of all fields across events", () => {
     expect(mergeEventFields(["email", "phone"])).toBe("email,phone");
-    expect(mergeEventFields(["email", "phone,address"])).toBe("email,phone,address");
+    expect(mergeEventFields(["email", "phone,address"])).toBe(
+      "email,phone,address",
+    );
     expect(mergeEventFields(["email,special_instructions", "phone"])).toBe(
       "email,phone,special_instructions",
     );
@@ -167,11 +185,15 @@ describe("validateAddress", () => {
   test("accepts addresses within 250 characters", () => {
     expect(validateAddress("123 Main St")).toBeNull();
     expect(validateAddress("a".repeat(250))).toBeNull();
-    expect(validateAddress("123 Main St\nApt 4\nSpringfield, IL 62701")).toBeNull();
+    expect(
+      validateAddress("123 Main St\nApt 4\nSpringfield, IL 62701"),
+    ).toBeNull();
   });
 
   test("rejects addresses over 250 characters", () => {
-    expect(validateAddress("a".repeat(251))).toBe("Address must be 250 characters or fewer");
+    expect(validateAddress("a".repeat(251))).toBe(
+      "Address must be 250 characters or fewer",
+    );
   });
 });
 
