@@ -1,0 +1,87 @@
+/**
+ * Custom Domain form for advanced settings
+ */
+
+import { CsrfForm } from "#lib/forms.tsx";
+import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+
+export const CustomDomainForm = (
+  s: AdvancedSettingsPageState,
+): JSX.Element | null =>
+  s.bunnyCdnEnabled ? (
+    <div class="stack stack-sm">
+      <CsrfForm
+        action="/admin/settings/custom-domain"
+        id="settings-custom-domain"
+      >
+        <h2>Custom Domain</h2>
+        <p>
+          Set a custom domain for your tickets site.{" "}
+          <a href="/admin/guide#custom-domain">Setup guide</a>.
+          {s.bunnySubdomain &&
+            " Your host subdomain can be active at the same time as a custom domain."}
+        </p>
+        <label>
+          Domain
+          <input
+            type="text"
+            name="custom_domain"
+            placeholder="tickets.yourdomain.com"
+            value={s.customDomain}
+            autocomplete="off"
+          />
+        </label>
+        <button type="submit">Save Custom Domain</button>
+      </CsrfForm>
+
+      {s.customDomain && (
+        <CsrfForm
+          action="/admin/settings/custom-domain/validate"
+          id="settings-custom-domain-validate"
+        >
+          {!s.customDomainLastValidated && (
+            <article>
+              <aside role="alert">
+                <p>
+                  <strong>Your custom domain is not yet validated.</strong> It
+                  will not work until validation is complete.
+                </p>
+              </aside>
+            </article>
+          )}
+          <article>
+            <aside>
+              <p>
+                To use your custom domain, create a <strong>CNAME</strong>{" "}
+                record:
+              </p>
+              <ul>
+                <li>
+                  <strong>Type:</strong> CNAME
+                </li>
+                <li>
+                  <strong>Name:</strong> <code>{s.customDomain}</code>
+                </li>
+                <li>
+                  <strong>Value:</strong> <code>{s.cdnHostname}</code>
+                </li>
+                <li>
+                  <strong>TTL:</strong> 3600
+                </li>
+              </ul>
+              <p>
+                Once the DNS record is in place, click the button below to
+                validate and enable SSL.
+              </p>
+            </aside>
+          </article>
+          {s.customDomainLastValidated && (
+            <p>
+              <small>Last validated: {s.customDomainLastValidated}</small>
+            </p>
+          )}
+          <button type="submit">Validate Custom Domain</button>
+        </CsrfForm>
+      )}
+    </div>
+  ) : null;
