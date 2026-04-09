@@ -5,15 +5,15 @@
 import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
-import { AppleWalletForm } from "#templates/admin/settings-advanced-apple-wallet.tsx";
-import { CustomDomainForm } from "#templates/admin/settings-advanced-custom-domain.tsx";
-import { EmailNotificationsForm } from "#templates/admin/settings-advanced-email.tsx";
-import { AdminEmailTemplateForm } from "#templates/admin/settings-advanced-email-tpl-admin.tsx";
-import { ConfirmationEmailTemplateForm } from "#templates/admin/settings-advanced-email-tpl-confirmation.tsx";
-import { GoogleWalletForm } from "#templates/admin/settings-advanced-google-wallet.tsx";
-import { PublicApiForm } from "#templates/admin/settings-advanced-public-api.tsx";
-import { SoftwareUpdatesSection } from "#templates/admin/settings-advanced-software-updates.tsx";
-import { HostSubdomainForm } from "#templates/admin/settings-advanced-subdomain.tsx";
+import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
+import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
+import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
+import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
+import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
+import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
+import { PublicApiForm } from "#templates/admin/settings/public-api.tsx";
+import { SoftwareUpdatesSection } from "#templates/admin/settings/software-updates.tsx";
+import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type AdvancedSettingsPageState = {
