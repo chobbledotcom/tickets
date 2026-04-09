@@ -340,6 +340,9 @@ describe("code quality", () => {
       "routes/index.ts:setRethrowErrorsForTest",
       // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
       "lib/update.ts:setBuildTimestampForTest",
+      // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
+      "routes/api.ts:apiRoutes",
+      "routes/admin/api.ts:adminApiRoutes",
     ];
 
     /**

@@ -13,8 +13,8 @@ import {
   type EndpointDoc,
   PUBLIC_API_ENDPOINTS,
 } from "#lib/admin-api-example.ts";
-import { toAdminEvent } from "#routes/admin/api.ts";
-import { toPublicEvent } from "#routes/api.ts";
+import { adminApiRoutes, toAdminEvent } from "#routes/admin/api.ts";
+import { apiRoutes, toPublicEvent } from "#routes/api.ts";
 
 describe("admin API example", () => {
   test("toAdminEvent output matches the documented example", () => {
@@ -79,13 +79,10 @@ describe("endpoint docs", () => {
     const documented = PUBLIC_API_ENDPOINTS.map(
       (e: EndpointDoc) => `${e.method} ${e.path}`,
     );
-    // Must match the routes in src/routes/api.ts (excluding OPTIONS)
-    const expected = [
-      "GET /api/events",
-      "GET /api/events/:slug",
-      "GET /api/events/:slug/availability",
-      "POST /api/events/:slug/book",
-    ];
+    // Derive expected routes from the actual apiRoutes export, excluding OPTIONS
+    const expected = Object.keys(apiRoutes).filter(
+      (k) => !k.startsWith("OPTIONS"),
+    );
     expect(documented.sort()).toEqual(expected.sort());
   });
 
@@ -93,16 +90,11 @@ describe("endpoint docs", () => {
     const documented = ADMIN_API_ENDPOINTS.map(
       (e: EndpointDoc) => `${e.method} ${e.path}`,
     );
-    // Must match the routes in src/routes/admin/api.ts
-    const expected = [
-      "GET /api/admin/events",
-      "GET /api/admin/events/:eventId",
-      "POST /api/admin/events",
-      "PUT /api/admin/events/:eventId",
-      "DELETE /api/admin/events/:eventId",
-      "POST /api/admin/events/:eventId/deactivate",
-      "POST /api/admin/events/:eventId/reactivate",
-    ];
+    // Derive expected routes from the actual adminApiRoutes export,
+    // filtered to event routes (the only ones currently documented)
+    const expected = Object.keys(adminApiRoutes).filter((k) =>
+      k.includes("/events"),
+    );
     expect(documented.sort()).toEqual(expected.sort());
   });
 });

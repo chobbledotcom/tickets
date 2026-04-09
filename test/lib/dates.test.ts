@@ -14,20 +14,10 @@ import {
 } from "#lib/dates.ts";
 import { settings } from "#lib/db/settings.ts";
 import { todayInTz } from "#lib/timezone.ts";
+import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import { describeWithEnv, testEvent } from "#test-utils";
 
 const today = () => todayInTz("UTC");
-
-/** All seven weekday names — used for daily events bookable every day */
-const ALL_DAYS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-] as const;
 
 describeWithEnv("dates", { db: true }, () => {
   describe("addDays", () => {
@@ -95,7 +85,7 @@ describeWithEnv("dates", { db: true }, () => {
     const dailyEventWithAllDays = () =>
       testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -128,7 +118,7 @@ describeWithEnv("dates", { db: true }, () => {
     test("respects minimum_days_before", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 3,
         maximum_days_after: 10,
       });
@@ -141,7 +131,7 @@ describeWithEnv("dates", { db: true }, () => {
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 0,
         maximum_days_after: 0,
       });
@@ -155,7 +145,7 @@ describeWithEnv("dates", { db: true }, () => {
     test("respects maximum_days_after when non-zero", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -184,7 +174,7 @@ describeWithEnv("dates", { db: true }, () => {
     test("returns the first available date", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 0,
         maximum_days_after: 14,
       });
@@ -212,7 +202,7 @@ describeWithEnv("dates", { db: true }, () => {
 
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -224,7 +214,7 @@ describeWithEnv("dates", { db: true }, () => {
     test("respects minimum_days_before", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 3,
         maximum_days_after: 10,
       });
@@ -242,7 +232,7 @@ describeWithEnv("dates", { db: true }, () => {
 
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 1,
         maximum_days_after: 3,
       });
@@ -253,7 +243,7 @@ describeWithEnv("dates", { db: true }, () => {
     test("uses 730 days when maximum_days_after is 0", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: [...ALL_DAYS],
+        bookable_days: [...VALID_DAY_NAMES],
         minimum_days_before: 0,
         maximum_days_after: 0,
       });

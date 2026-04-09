@@ -283,7 +283,7 @@ const handleBook = withActiveEvent(async (request, event) => {
 // Route definitions
 // =============================================================================
 
-const apiRoutes = defineRoutes({
+export const apiRoutes = defineRoutes({
   "GET /api/events": handleListEvents,
   "GET /api/events/:slug": handleGetEvent,
   "GET /api/events/:slug/availability": handleCheckAvailability,

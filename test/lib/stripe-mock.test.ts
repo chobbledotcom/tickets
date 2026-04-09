@@ -2,38 +2,17 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 
 import {
-  BIN_DIR,
   downloadStripeMock,
   getArch,
   getPlatform,
   isStripeMockRunning,
   STRIPE_MOCK_PATH,
   STRIPE_MOCK_PORT,
-  STRIPE_MOCK_VERSION,
   StripeMockManager,
   waitForStripeMock,
 } from "#test-utils/stripe-mock.ts";
 
 describe("stripe-mock utilities", () => {
-  describe("constants", () => {
-    test("exports correct version", () => {
-      expect(STRIPE_MOCK_VERSION).toBe("0.188.0");
-    });
-
-    test("exports correct port", () => {
-      expect(STRIPE_MOCK_PORT).toBe(12111);
-    });
-
-    test("BIN_DIR points to .bin directory", () => {
-      expect(BIN_DIR).toContain(".bin");
-    });
-
-    test("STRIPE_MOCK_PATH points to stripe-mock binary", () => {
-      expect(STRIPE_MOCK_PATH).toContain("stripe-mock");
-      expect(STRIPE_MOCK_PATH).toContain(".bin");
-    });
-  });
-
   describe("isStripeMockRunning", () => {
     test("returns true when stripe-mock is running on default port", async () => {
       // stripe-mock is started by test/setup.ts

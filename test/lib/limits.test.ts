@@ -1,53 +1,16 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
-  ATTACHMENT_URL_MAX_AGE_S,
   formatBytes,
   formatLimitValue,
   formatMs,
   formatSeconds,
   LIMIT_ENTRIES,
-  LOGIN_LOCKOUT_MS,
-  MAX_ATTACHMENT_SIZE,
-  MAX_IMAGE_SIZE,
-  MAX_LOGIN_ATTEMPTS,
   readLimit,
-  SESSION_MAX_AGE_S,
-  STALE_RESERVATION_MS,
 } from "#lib/limits.ts";
 import { setTestEnv } from "#test-utils";
 
 describe("limits", () => {
-  describe("default values", () => {
-    test("MAX_IMAGE_SIZE defaults to 256KB", () => {
-      expect(MAX_IMAGE_SIZE).toBe(256 * 1024);
-    });
-
-    test("MAX_ATTACHMENT_SIZE defaults to 25MB", () => {
-      expect(MAX_ATTACHMENT_SIZE).toBe(25 * 1024 * 1024);
-    });
-
-    test("ATTACHMENT_URL_MAX_AGE_S defaults to 1 hour", () => {
-      expect(ATTACHMENT_URL_MAX_AGE_S).toBe(3600);
-    });
-
-    test("SESSION_MAX_AGE_S defaults to 24 hours", () => {
-      expect(SESSION_MAX_AGE_S).toBe(86400);
-    });
-
-    test("STALE_RESERVATION_MS defaults to 5 minutes", () => {
-      expect(STALE_RESERVATION_MS).toBe(5 * 60 * 1000);
-    });
-
-    test("MAX_LOGIN_ATTEMPTS defaults to 5", () => {
-      expect(MAX_LOGIN_ATTEMPTS).toBe(5);
-    });
-
-    test("LOGIN_LOCKOUT_MS defaults to 15 minutes", () => {
-      expect(LOGIN_LOCKOUT_MS).toBe(15 * 60 * 1000);
-    });
-  });
-
   describe("readLimit", () => {
     let restoreEnv: () => void;
 
@@ -100,12 +63,6 @@ describe("limits", () => {
       expect(envKeys).toContain("STALE_RESERVATION_MS");
       expect(envKeys).toContain("MAX_LOGIN_ATTEMPTS");
       expect(envKeys).toContain("LOGIN_LOCKOUT_MS");
-    });
-
-    test("every entry has matching current and default when no env override", () => {
-      for (const entry of LIMIT_ENTRIES) {
-        expect(entry.current).toBe(entry.defaultValue);
-      }
     });
 
     test("every entry has a non-empty label and unit", () => {

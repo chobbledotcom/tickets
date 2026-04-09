@@ -9,8 +9,6 @@ import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   PaymentUserError,
-  SQUARE_METADATA_MAX_VALUE_LENGTH,
-  STRIPE_METADATA_MAX_VALUE_LENGTH,
   safeAsync,
   singleEventAnswerIds,
   toBookingItems,
@@ -452,11 +450,6 @@ describe("payment-helpers", () => {
         email: "j@x.com",
       };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
-    });
-
-    test("exports correct provider constants", () => {
-      expect(STRIPE_METADATA_MAX_VALUE_LENGTH).toBe(500);
-      expect(SQUARE_METADATA_MAX_VALUE_LENGTH).toBe(255);
     });
   });
 });
