@@ -107,14 +107,12 @@ export const publicSitePage = (
 /** Render a single event listing for the events page */
 const renderEventListing = (info: TicketEvent): string => {
   const { event, isSoldOut, isClosed } = info;
-  const details: string[] = [];
-  if (event.location)
-    details.push(`<li><strong>${escapeHtml(event.location)}</strong></li>`);
-  if (event.date)
-    details.push(
-      `<li><em>${escapeHtml(formatDatetimeLabel(event.date))}</em></li>`,
-    );
-  const detailsHtml = details.length > 0 ? `<ul>${details.join("")}</ul>` : "";
+  const dateHtml = event.date
+    ? `<p><em>${escapeHtml(formatDatetimeLabel(event.date))}</em></p>`
+    : "";
+  const locationHtml = event.location
+    ? `<p><strong>${escapeHtml(event.location)}</strong></p>`
+    : "";
   const descriptionHtml = event.description
     ? `<p>${renderMarkdownInline(event.description)}</p>`
     : "";
@@ -125,7 +123,7 @@ const renderEventListing = (info: TicketEvent): string => {
       ? "<p><strong>Registration Closed</strong></p>"
       : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>${bookLabel}</strong></a></p>`;
 
-  return `<div class="prose"><h2>${escapeHtml(event.name)}</h2>${descriptionHtml}</div>${detailsHtml}${linkHtml}`;
+  return `<div class="prose"><h2>${escapeHtml(event.name)}</h2>${dateHtml}${locationHtml}${descriptionHtml}</div>${linkHtml}`;
 };
 
 /** Render a single group listing for the events page (same style as events) */
