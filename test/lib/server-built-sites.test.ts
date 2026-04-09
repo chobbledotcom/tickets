@@ -95,6 +95,17 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       expect(site.bunnyUrl).toBe("https://new.b-cdn.net");
     });
 
+    test("creates built site without db credentials", async () => {
+      const { response } = await adminFormPost("/admin/built-sites", {
+        name: "No DB Site",
+        bunny_url: "https://nodb.b-cdn.net",
+      });
+      expectRedirectWithFlash(
+        "/admin/built-sites",
+        expect.stringContaining("created"),
+      )(response);
+    });
+
     test("rejects missing name", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
         name: "",

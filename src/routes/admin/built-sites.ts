@@ -23,8 +23,8 @@ const extractBuiltSiteInput = (
 ): BuiltSiteFormInput => ({
   name: String(values.name),
   bunnyUrl: String(values.bunny_url),
-  dbUrl: String(values.db_url ?? ""),
-  dbToken: String(values.db_token ?? ""),
+  dbUrl: String(values.db_url),
+  dbToken: String(values.db_token),
 });
 
 /** Built sites resource for REST create/update operations */
