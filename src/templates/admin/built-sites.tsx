@@ -23,7 +23,8 @@ export const adminBuiltSitesPage = (
       <AdminNav session={session} active="/admin/built-sites" />
       <Flash success={successMessage} />
       <p>
-        <a href="/admin/built-sites/new">Add Built Site</a>
+        <a href="/admin/built-sites/new">Add Built Site</a>{" "}
+        <a href="/admin/builder">Build New Site</a>
       </p>
       {sites.length === 0 ? (
         <p>No built sites recorded.</p>
