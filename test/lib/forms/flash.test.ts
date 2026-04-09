@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
-import { detectIframeMode } from "#lib/iframe.ts";
 import {
   CsrfForm,
   Flash,
@@ -10,6 +9,7 @@ import {
   setFormError,
   setFormSuccess,
 } from "#lib/forms.tsx";
+import { detectIframeMode } from "#lib/iframe.ts";
 import { setupTestEncryptionKey } from "#test-utils";
 
 beforeAll(async () => {
@@ -105,19 +105,27 @@ describe("CsrfForm", () => {
   test("renders POST form with action and CSRF token", () => {
     const html = String(CsrfForm({ action: "/submit" }));
     expect(html).toContain('<form method="POST" action="/submit"');
-    expect(html).toContain(`<input type="hidden" name="csrf_token" value="${getCurrentCsrfToken()}"`);
+    expect(html).toContain(
+      `<input type="hidden" name="csrf_token" value="${getCurrentCsrfToken()}"`,
+    );
   });
 
   test("passes through class attribute", () => {
-    expect(String(CsrfForm({ action: "/submit", class: "inline" }))).toContain('class="inline"');
+    expect(String(CsrfForm({ action: "/submit", class: "inline" }))).toContain(
+      'class="inline"',
+    );
   });
 
   test("passes through enctype for multipart forms", () => {
-    expect(String(CsrfForm({ action: "/upload", enctype: "multipart/form-data" }))).toContain('enctype="multipart/form-data"');
+    expect(
+      String(CsrfForm({ action: "/upload", enctype: "multipart/form-data" })),
+    ).toContain('enctype="multipart/form-data"');
   });
 
   test("passes through id attribute", () => {
-    expect(String(CsrfForm({ action: "/submit", id: "settings-tz" }))).toContain('id="settings-tz"');
+    expect(
+      String(CsrfForm({ action: "/submit", id: "settings-tz" })),
+    ).toContain('id="settings-tz"');
   });
 
   test("does not render id attribute when not provided", () => {
@@ -125,7 +133,9 @@ describe("CsrfForm", () => {
   });
 
   test("renders children inside the form", () => {
-    const html = String(CsrfForm({ action: "/submit", children: "Submit here" }));
+    const html = String(
+      CsrfForm({ action: "/submit", children: "Submit here" }),
+    );
     expect(html).toContain("Submit here");
   });
 
@@ -138,12 +148,16 @@ describe("CsrfForm", () => {
 
   test("does not show success when id does not match", () => {
     setFormSuccess("other-form", "Saved");
-    expect(String(CsrfForm({ action: "/submit", id: "my-form" }))).not.toContain('class="success"');
+    expect(
+      String(CsrfForm({ action: "/submit", id: "my-form" })),
+    ).not.toContain('class="success"');
   });
 
   test("does not show success when no id on form", () => {
     setFormSuccess("my-form", "Saved");
-    expect(String(CsrfForm({ action: "/submit" }))).not.toContain('class="success"');
+    expect(String(CsrfForm({ action: "/submit" }))).not.toContain(
+      'class="success"',
+    );
   });
 
   test("shows error flash when id matches stored error state", () => {
@@ -155,12 +169,16 @@ describe("CsrfForm", () => {
 
   test("does not show error when id does not match", () => {
     setFormError("other-form", "err");
-    expect(String(CsrfForm({ action: "/submit", id: "my-form" }))).not.toContain('class="error"');
+    expect(
+      String(CsrfForm({ action: "/submit", id: "my-form" })),
+    ).not.toContain('class="error"');
   });
 
   test("appends ?iframe=true to action when in iframe mode", () => {
     detectIframeMode("https://example.com/?iframe=true");
-    expect(String(CsrfForm({ action: "/ticket/test" }))).toContain('action="/ticket/test?iframe=true"');
+    expect(String(CsrfForm({ action: "/ticket/test" }))).toContain(
+      'action="/ticket/test?iframe=true"',
+    );
   });
 
   test("does not append iframe param outside iframe mode", () => {

@@ -1,13 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { type Field, validateForm } from "#lib/forms.tsx";
 import { FormParams } from "#lib/form-data.ts";
+import { type Field, validateForm } from "#lib/forms.tsx";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },
 ): Field => ({ type: "text", ...overrides });
 
-const requiredName: Field[] = [field({ name: "name", label: "Name", required: true })];
+const requiredName: Field[] = [
+  field({ name: "name", label: "Name", required: true }),
+];
 
 describe("validateForm", () => {
   test("rejects empty required field", () => {
@@ -17,24 +19,33 @@ describe("validateForm", () => {
   });
 
   test("rejects whitespace-only required field", () => {
-    expect(validateForm(new FormParams({ name: "   " }), requiredName).valid).toBe(false);
+    expect(
+      validateForm(new FormParams({ name: "   " }), requiredName).valid,
+    ).toBe(false);
   });
 
   test("passes required field with value and trims it", () => {
-    const result = validateForm(new FormParams({ name: "  John  " }), requiredName);
+    const result = validateForm(
+      new FormParams({ name: "  John  " }),
+      requiredName,
+    );
     expect(result.valid).toBe(true);
     if (result.valid) expect(result.values.name).toBe("John");
   });
 
   test("parses number field to a numeric value", () => {
-    const fields: Field[] = [field({ name: "qty", label: "Qty", type: "number", required: true })];
+    const fields: Field[] = [
+      field({ name: "qty", label: "Qty", type: "number", required: true }),
+    ];
     const result = validateForm(new FormParams({ qty: "42" }), fields);
     expect(result.valid).toBe(true);
     if (result.valid) expect(result.values.qty).toBe(42);
   });
 
   test("returns null for empty optional number", () => {
-    const fields: Field[] = [field({ name: "price", label: "Price", type: "number" })];
+    const fields: Field[] = [
+      field({ name: "price", label: "Price", type: "number" }),
+    ];
     const result = validateForm(new FormParams({ price: "" }), fields);
     expect(result.valid).toBe(true);
     if (result.valid) expect(result.values.price).toBeNull();
@@ -63,13 +74,19 @@ describe("validateForm", () => {
 
   test("skips custom validate for empty optional field", () => {
     const fields: Field[] = [
-      field({ name: "code", label: "Code", validate: (v) => (v.length !== 3 ? "bad" : null) }),
+      field({
+        name: "code",
+        label: "Code",
+        validate: (v) => (v.length !== 3 ? "bad" : null),
+      }),
     ];
     expect(validateForm(new FormParams({ code: "" }), fields).valid).toBe(true);
   });
 
   test("collects checkbox-group values from multiple form entries", () => {
-    const fields: Field[] = [field({ name: "days", label: "Days", type: "checkbox-group" })];
+    const fields: Field[] = [
+      field({ name: "days", label: "Days", type: "checkbox-group" }),
+    ];
     const form = new FormParams();
     form.append("days", "Monday");
     form.append("days", "Wednesday");
@@ -79,29 +96,39 @@ describe("validateForm", () => {
   });
 
   test("returns empty string for empty checkbox-group", () => {
-    const fields: Field[] = [field({ name: "days", label: "Days", type: "checkbox-group" })];
+    const fields: Field[] = [
+      field({ name: "days", label: "Days", type: "checkbox-group" }),
+    ];
     const result = validateForm(new FormParams(), fields);
     expect(result.valid).toBe(true);
     if (result.valid) expect(result.values.days).toBe("");
   });
 
   test("skips file fields and returns null", () => {
-    const fields: Field[] = [field({ name: "image", label: "Image", type: "file" })];
+    const fields: Field[] = [
+      field({ name: "image", label: "Image", type: "file" }),
+    ];
     const result = validateForm(new FormParams(), fields);
     expect(result.valid).toBe(true);
     if (result.valid) expect(result.values.image).toBeNull();
   });
 
   describe("datetime type", () => {
-    const datetimeField: Field[] = [field({ name: "closes_at", label: "Closes At", type: "datetime" })];
+    const datetimeField: Field[] = [
+      field({ name: "closes_at", label: "Closes At", type: "datetime" }),
+    ];
 
     test("combines date and time parts into a datetime string", () => {
       const result = validateForm(
-        new FormParams({ closes_at_date: "2099-06-15", closes_at_time: "14:30" }),
+        new FormParams({
+          closes_at_date: "2099-06-15",
+          closes_at_time: "14:30",
+        }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
-      if (result.valid) expect(result.values.closes_at).toBe("2099-06-15T14:30");
+      if (result.valid)
+        expect(result.values.closes_at).toBe("2099-06-15T14:30");
     });
 
     test("returns null when both date and time are empty", () => {
@@ -119,7 +146,8 @@ describe("validateForm", () => {
         datetimeField,
       );
       expect(result.valid).toBe(true);
-      if (result.valid) expect(result.values.closes_at).toBe("2099-06-15T00:00");
+      if (result.valid)
+        expect(result.values.closes_at).toBe("2099-06-15T00:00");
     });
 
     test("rejects time without date", () => {
@@ -129,12 +157,21 @@ describe("validateForm", () => {
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.error).toBe("Please enter a date when providing a time, or leave both blank");
+        expect(result.error).toBe(
+          "Please enter a date when providing a time, or leave both blank",
+        );
       }
     });
 
     test("rejects empty required datetime", () => {
-      const fields: Field[] = [field({ name: "closes_at", label: "Closes At", type: "datetime", required: true })];
+      const fields: Field[] = [
+        field({
+          name: "closes_at",
+          label: "Closes At",
+          type: "datetime",
+          required: true,
+        }),
+      ];
       const result = validateForm(
         new FormParams({ closes_at_date: "", closes_at_time: "" }),
         fields,
