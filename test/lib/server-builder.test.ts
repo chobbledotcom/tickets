@@ -222,11 +222,13 @@ describeWithEnv(
         expectRedirect(response, "/admin/builder");
         expectFlash(response, expect.stringContaining("created successfully"));
 
-        // Verify site was recorded
+        // Verify site was recorded with db credentials
         const sites = await getAllBuiltSites();
         expect(sites).toHaveLength(1);
         expect(sites[0]!.name).toBe("My Test Site");
         expect(sites[0]!.bunnyUrl).toBe("https://test-42.b-cdn.net");
+        expect(sites[0]!.dbUrl).toBe("libsql://test.turso.io");
+        expect(sites[0]!.dbToken).toBe("token123");
       });
     });
 

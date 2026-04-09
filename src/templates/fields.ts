@@ -531,6 +531,18 @@ export const builtSiteFields: Field[] = [
     required: true,
     placeholder: "https://example.b-cdn.net",
   },
+  {
+    name: "db_url",
+    label: "Database URL",
+    type: "url",
+    placeholder: "libsql://your-db.turso.io",
+  },
+  {
+    name: "db_token",
+    label: "Database Token",
+    type: "password",
+    placeholder: "Database auth token",
+  },
 ];
 
 /** Image upload field for event forms (appended when storage is enabled) */

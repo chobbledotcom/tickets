@@ -67,6 +67,8 @@ export const builtSiteToFieldValues = (
 ): Record<string, string | number | null> => ({
   name: site?.name ?? "",
   bunny_url: site?.bunnyUrl ?? "",
+  db_url: site?.dbUrl ?? "",
+  db_token: site?.dbToken ?? "",
 });
 
 /**
