@@ -27,16 +27,21 @@ jobs:
       - name: Install dependencies
         run: deno install --allow-scripts
 
+      - name: Generate release tag
+        id: tag
+        run: echo "TAG=v$(date -u +%Y-%m-%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
       - name: Build edge script
         run: deno task build:edge
         env:
           BUILD_COMMIT: ${{ github.sha }}
+          BUILD_TAG: ${{ steps.tag.outputs.TAG }}
 
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v$(date -u +%Y-%m-%d-%H%M%S)"
+          TAG="${{ steps.tag.outputs.TAG }}"
           TITLE="$(date -u +%Y-%m-%d) - ${{ inputs.release_name }}"
           git tag "$TAG"
           git push origin "$TAG"

@@ -64,9 +64,22 @@ const EDGE_SUBPATHS: Record<string, string> = {
   "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
 };
 
+/**
+ * Derive BUILD_TIMESTAMP from BUILD_TAG (vYYYY-MM-DD-HHMMSS) when available,
+ * so the baked-in timestamp matches the release tag exactly. This ensures
+ * isNewerVersion() correctly detects same-version vs newer-version releases.
+ * Falls back to current time for non-release builds (deploy workflows, local).
+ */
+const buildTimestampFromTag = (): string => {
+  const tag = Deno.env.get("BUILD_TAG") ?? "";
+  const m = tag.match(/^v(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})$/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
+  return new Date().toISOString();
+};
+
 /** Build the inline build-info module with timestamp and commit SHA */
 const buildBuildInfoModule = (): string => {
-  const timestamp = new Date().toISOString();
+  const timestamp = buildTimestampFromTag();
   const commit = Deno.env.get("BUILD_COMMIT") ?? "";
   return [
     `export const BUILD_TIMESTAMP = ${JSON.stringify(timestamp)};`,
