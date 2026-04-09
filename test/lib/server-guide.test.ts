@@ -144,6 +144,34 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await assertAdminHtml("/admin/guide", "Allow Pay More", "maximum", "£1");
     });
 
+    test("contains purchase only info", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Purchase Only",
+        "raffles, fundraisers, donations, or merchandise",
+        "Buy now",
+        "QR codes",
+        "excluded from the ICS and RSS feeds",
+      );
+    });
+
+    test("contains merge attendees info", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "merge duplicate attendees",
+        "ticket token",
+        "source attendee is deleted",
+      );
+    });
+
+    test("contains resend notification info", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "resend a confirmation email",
+        "Re-send Notification",
+      );
+    });
+
     test("contains non-transferable tickets info", async () => {
       await assertAdminHtml(
         "/admin/guide",

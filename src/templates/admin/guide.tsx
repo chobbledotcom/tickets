@@ -203,6 +203,23 @@ export const adminGuidePage = (
           </p>
         </Q>
 
+        <Q q="What is 'Purchase Only' mode?">
+          <p>
+            When you enable <strong>Purchase Only</strong> on an event, it
+            becomes a non-attendance purchase &mdash; ideal for raffles,
+            fundraisers, donations, or merchandise. The booking button changes
+            from &ldquo;Reserve&rdquo; to &ldquo;Buy now&rdquo;, and after
+            purchase attendees see &ldquo;Your Purchase&rdquo; instead of
+            &ldquo;Your Tickets&rdquo;.
+          </p>
+          <p>
+            Because there is nothing to attend, QR codes, the check-in scanner,
+            and wallet passes (Apple &amp; Google) are all hidden. The event is
+            also excluded from the ICS and RSS feeds. Non-transferable ID
+            notices are suppressed too, since there is no door to check at.
+          </p>
+        </Q>
+
         <Q q="How do registration deadlines work?">
           <p>
             Set a "closes at" date and time on your event. After that moment,
@@ -379,6 +396,34 @@ export const adminGuidePage = (
             If the attendee has paid, <strong>refund them first</strong> before
             deleting &mdash; once deleted, there is no payment record to refund
             against. See the <strong>Refunds</strong> section below.
+          </p>
+        </Q>
+
+        <Q q="How do I merge duplicate attendees?">
+          <p>
+            If the same person booked separately and ended up with two attendee
+            records, you can merge them. Open one attendee's edit page and find
+            the <strong>Merge</strong> section. Enter the other attendee's
+            ticket token to start the merge.
+          </p>
+          <p>
+            You'll see a comparison of their contact details, custom question
+            answers, and event registrations. For each conflict &mdash; where
+            the two records differ &mdash; choose which value to keep. Non-
+            conflicting data (e.g. an answer only one of them provided) is
+            adopted automatically. Once confirmed, the source attendee is
+            deleted and all chosen data is merged into the target.
+          </p>
+        </Q>
+
+        <Q q="How do I resend a confirmation email?">
+          <p>
+            In the event's attendee list, click{" "}
+            <strong>Re-send Notification</strong> next to the attendee. You'll
+            be asked to type their name to confirm. This re-sends both the
+            attendee confirmation email (with their ticket link) and the admin
+            notification email. If email is not configured or the attendee has
+            no email address, the action completes silently without sending.
           </p>
         </Q>
 
