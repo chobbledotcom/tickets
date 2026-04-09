@@ -93,6 +93,9 @@ export const SettingsSubNav = (): JSX.Element => (
         <a href="/admin/backup">Backups</a>
       </li>
       <li>
+        <a href="/admin/update">Updates</a>
+      </li>
+      <li>
         <a href="/admin/debug">Debug</a>
       </li>
     </ul>

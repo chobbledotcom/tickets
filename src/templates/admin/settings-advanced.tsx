@@ -12,7 +12,6 @@ import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admi
 import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
 import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
 import { PublicApiForm } from "#templates/admin/settings/public-api.tsx";
-import { SoftwareUpdatesSection } from "#templates/admin/settings/software-updates.tsx";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -65,8 +64,7 @@ export type AdvancedSettingsPageState = {
  * 6. Public API - for integrations
  * 7. Google Wallet - less common
  * 8. Apple Wallet - requires Apple Developer account
- * 9. Software Updates
- * 10. Reset Database - destructive, always last
+ * 9. Reset Database - destructive, always last
  */
 export const adminAdvancedSettingsPage = (
   session: AdminSession,
@@ -95,7 +93,6 @@ export const adminAdvancedSettingsPage = (
       {PublicApiForm(s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}
-      <SoftwareUpdatesSection />
 
       <ResetDatabaseForm
         action="/admin/settings/reset-database"
