@@ -1804,10 +1804,8 @@ export const adminGuidePage = (
             booking functionality as the web interface. It lets you build custom
             frontends, integrate with other services, or automate bookings. The
             public endpoints below need no authentication. There is also an
-            admin API for managing events and attendees, which requires an API
-            key &mdash; create one from the{" "}
-            <a href="/admin/api-keys">API Keys</a> page under{" "}
-            <strong>Users</strong>.
+            admin API for managing events, groups, and holidays &mdash; see the{" "}
+            <a href="#admin-api">Admin API</a> section below for details.
           </p>
         </Q>
 
@@ -1922,6 +1920,115 @@ export const adminGuidePage = (
             The <a href="/admin/api-keys/docs">API documentation page</a> has a
             complete reference for both public and admin API endpoints, with
             example request and response payloads for each.
+          </p>
+        </Q>
+      </Section>
+
+      <Section id="admin-api" title="Admin API">
+        <Q q="What is the admin API?">
+          <p>
+            The admin API exposes the same management operations as the web
+            admin area as JSON endpoints. Use it to script bulk changes, build
+            internal tooling, or sync events from another system. Unlike the
+            public API, it requires authentication with an API key and is
+            available to <strong>owners only</strong>.
+          </p>
+        </Q>
+
+        <Q q="How do I create an API key?">
+          <p>
+            Open <a href="/admin/api-keys">API Keys</a> (under{" "}
+            <strong>Users</strong> in the navigation), enter a descriptive name
+            for the key (e.g. "CI pipeline" or "Zapier integration"), and click{" "}
+            <strong>Create key</strong>.
+          </p>
+          <p>
+            <strong>The full key is shown only once.</strong> Copy it
+            immediately and store it somewhere secure &mdash; once you leave the
+            page there is no way to retrieve it again. If you lose a key, delete
+            it and create a new one.
+          </p>
+        </Q>
+
+        <Q q="How do I authenticate?">
+          <p>
+            Send the key in the <code>Authorization</code> header on every
+            request:
+          </p>
+          <pre>
+            <code>Authorization: Bearer YOUR_API_KEY</code>
+          </pre>
+          <p>
+            Bearer-authenticated requests do not need a CSRF token. Send JSON
+            request bodies with <code>Content-Type: application/json</code>.
+            Requests without a valid key receive a{" "}
+            <code>401 Invalid API key</code> response.
+          </p>
+        </Q>
+
+        <Q q="What admin endpoints are available?">
+          <p>
+            The admin API covers events, groups, and holidays. Each resource
+            supports list, get, create, update, and delete:
+          </p>
+          <ul>
+            <li>
+              <code>GET /api/admin/events</code>,{" "}
+              <code>POST /api/admin/events</code>,{" "}
+              <code>GET /api/admin/events/:id</code>,{" "}
+              <code>PUT /api/admin/events/:id</code>,{" "}
+              <code>DELETE /api/admin/events/:id</code>,{" "}
+              <code>POST /api/admin/events/:id/deactivate</code>,{" "}
+              <code>POST /api/admin/events/:id/reactivate</code>
+            </li>
+            <li>
+              <code>GET /api/admin/groups</code>,{" "}
+              <code>POST /api/admin/groups</code>,{" "}
+              <code>GET /api/admin/groups/:id</code>,{" "}
+              <code>PUT /api/admin/groups/:id</code>,{" "}
+              <code>DELETE /api/admin/groups/:id</code>
+            </li>
+            <li>
+              <code>GET /api/admin/holidays</code>,{" "}
+              <code>POST /api/admin/holidays</code>,{" "}
+              <code>GET /api/admin/holidays/:id</code>,{" "}
+              <code>PUT /api/admin/holidays/:id</code>,{" "}
+              <code>DELETE /api/admin/holidays/:id</code>
+            </li>
+          </ul>
+          <p>
+            Delete requests must include a <code>confirm_identifier</code> field
+            that matches the resource name &mdash; the same way the web UI
+            requires you to type the name to confirm a delete. The{" "}
+            <a href="/admin/api-keys/docs">API documentation page</a> shows the
+            full request and response shape for every endpoint.
+          </p>
+        </Q>
+
+        <Q q="How do I revoke an API key?">
+          <p>
+            Open <a href="/admin/api-keys">API Keys</a>, find the key in the
+            list, and click <strong>Delete</strong>. You'll be asked to type the
+            key's name to confirm. Revocation is immediate &mdash; any
+            integration using that key will start receiving{" "}
+            <code>401 Invalid API key</code> on its next request, so switch
+            integrations over to a new key before deleting the old one.
+          </p>
+          <p>
+            The <strong>Last used</strong> column on the API Keys page shows
+            when each key was most recently accepted. Use it to spot keys that
+            are no longer in use before deleting them.
+          </p>
+        </Q>
+
+        <Q q="What happens to API keys if their owner is deleted?">
+          <p>
+            Each API key is tied to the owner who created it, because the key
+            wraps that owner's data encryption key. When you delete an owner
+            from the <strong>Users</strong> page, all of their API keys are
+            deleted at the same time and any integration using one of those keys
+            will stop working immediately. If a previous owner had keys in use,
+            create new keys under another owner before removing the old account.
           </p>
         </Q>
       </Section>
