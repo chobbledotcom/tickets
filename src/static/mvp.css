@@ -669,7 +669,7 @@ label > input[type="time"] {
 
 label > select[name="quantity"],
 label > select[name^="quantity_"] {
-  width: 6ch;
+  width: 8ch;
   flex: 0 0 auto;
 }
 
@@ -1183,7 +1183,7 @@ button.secondary:hover {
 }
 
 .ticket-card-image {
-  width: calc(100% + 1rem);
+  max-width: calc(100% + 1rem);
   margin: -0.5rem -0.5rem 0.5rem;
   border-radius: var(--border-radius) var(--border-radius) 0 0;
   display: block;
