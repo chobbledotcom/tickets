@@ -69,6 +69,8 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         "Add Built Site",
         "Site Name",
         "Bunny URL",
+        "Database URL",
+        "Database Token",
       );
     });
   });
@@ -91,6 +93,17 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       });
       expect(site.name).toBe("New Site");
       expect(site.bunnyUrl).toBe("https://new.b-cdn.net");
+    });
+
+    test("creates built site without db credentials", async () => {
+      const { response } = await adminFormPost("/admin/built-sites", {
+        name: "No DB Site",
+        bunny_url: "https://nodb.b-cdn.net",
+      });
+      expectRedirectWithFlash(
+        "/admin/built-sites",
+        expect.stringContaining("created"),
+      )(response);
     });
 
     test("rejects missing name", async () => {
@@ -347,6 +360,8 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       const values = builtSiteToFieldValues();
       expect(values.name).toBe("");
       expect(values.bunny_url).toBe("");
+      expect(values.db_url).toBe("");
+      expect(values.db_token).toBe("");
     });
 
     test("returns site values when site provided", async () => {
@@ -356,10 +371,14 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       const site = testBuiltSite({
         name: "Test",
         bunnyUrl: "https://test.b-cdn.net",
+        dbUrl: "libsql://test.turso.io",
+        dbToken: "tok123",
       });
       const values = builtSiteToFieldValues(site);
       expect(values.name).toBe("Test");
       expect(values.bunny_url).toBe("https://test.b-cdn.net");
+      expect(values.db_url).toBe("libsql://test.turso.io");
+      expect(values.db_token).toBe("tok123");
     });
   });
 

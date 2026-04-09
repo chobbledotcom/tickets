@@ -2079,6 +2079,8 @@ export const testBuiltSite = (
   id: 1,
   name: "Test Site",
   bunnyUrl: "https://test.b-cdn.net",
+  dbUrl: "",
+  dbToken: "",
   created: "2026-01-01T00:00:00Z",
   ...overrides,
 });
@@ -2092,6 +2094,8 @@ export const createTestBuiltSite = (
   const input: BuiltSiteFormInput = {
     name: overrides.name ?? "Test Site",
     bunnyUrl: overrides.bunnyUrl ?? "https://test.b-cdn.net",
+    dbUrl: overrides.dbUrl ?? "",
+    dbToken: overrides.dbToken ?? "",
   };
 
   return authenticatedFormRequest(
@@ -2099,6 +2103,8 @@ export const createTestBuiltSite = (
     {
       name: input.name,
       bunny_url: input.bunnyUrl,
+      db_url: input.dbUrl,
+      db_token: input.dbToken,
     },
     async () => {
       const { getAllBuiltSites } = await import("#lib/db/built-sites.ts");
@@ -2124,6 +2130,8 @@ export const updateTestBuiltSite = async (
     {
       name: updates.name ?? existing.name,
       bunny_url: updates.bunnyUrl ?? existing.bunnyUrl,
+      db_url: updates.dbUrl ?? existing.dbUrl,
+      db_token: updates.dbToken ?? existing.dbToken,
     },
     async () => {
       const updated = await builtSitesCrudTable.findById(siteId);

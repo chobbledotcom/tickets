@@ -95,8 +95,8 @@ const handleBuilderPost = async (
     return errorRedirect(BUILDER_PATH, buildResult.error);
   }
 
-  // Record the built site
-  await insertBuiltSite(siteName, buildResult.defaultHostname);
+  // Record the built site (including db credentials for future reference)
+  await insertBuiltSite(siteName, buildResult.defaultHostname, dbUrl, dbToken);
   await logActivity(`Built new site: ${siteName}`);
 
   return redirect(

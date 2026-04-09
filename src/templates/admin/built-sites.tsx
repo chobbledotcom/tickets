@@ -23,7 +23,8 @@ export const adminBuiltSitesPage = (
       <AdminNav session={session} active="/admin/built-sites" />
       <Flash success={successMessage} />
       <p>
-        <a href="/admin/built-sites/new">Add Built Site</a>
+        <a href="/admin/built-sites/new">Add Built Site</a>{" "}
+        <a href="/admin/builder">Build New Site</a>
       </p>
       {sites.length === 0 ? (
         <p>No built sites recorded.</p>
@@ -67,6 +68,8 @@ export const builtSiteToFieldValues = (
 ): Record<string, string | number | null> => ({
   name: site?.name ?? "",
   bunny_url: site?.bunnyUrl ?? "",
+  db_url: site?.dbUrl ?? "",
+  db_token: site?.dbToken ?? "",
 });
 
 /**
