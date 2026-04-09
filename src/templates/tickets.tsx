@@ -6,6 +6,7 @@ import { map, pipe } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { renderMarkdownInline } from "#lib/markdown.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
@@ -50,7 +51,7 @@ const renderTicketCard = (
     : "";
 
   const descriptionHtml = event.description
-    ? `<div class="ticket-card-description">${escapeHtml(event.description)}</div>`
+    ? `<div class="ticket-card-description">${renderMarkdownInline(event.description)}</div>`
     : "";
 
   const attendeeDateHtml = attendee.date
