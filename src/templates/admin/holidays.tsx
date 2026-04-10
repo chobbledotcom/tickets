@@ -23,6 +23,8 @@ export const adminHolidaysPage = (
       <Flash success={successMessage} />
       <p>
         <a href="/admin/holidays/new">Add Holiday</a>
+        {" | "}
+        <a href="/admin/guide#holidays">Holidays guide</a>
       </p>
       {holidays.length === 0 ? (
         <p>No holidays configured.</p>

@@ -16,7 +16,9 @@ export const AdminEmailTemplateForm = (
     <h2>Admin Notification Email Template</h2>
     <p>
       Customise the notification email sent to the business email when a
-      registration comes in. Leave blank to use the default template.
+      registration comes in (
+      <a href="/admin/guide#email-templates">template guide</a>). Leave blank to
+      use the default template.
     </p>
     <label>
       Subject
