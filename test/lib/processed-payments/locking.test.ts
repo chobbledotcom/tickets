@@ -1,0 +1,223 @@
+import { expect } from "@std/expect";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#lib/db/client.ts";
+import {
+  clearSessionTokens,
+  decryptSessionTokens,
+  finalizeSession,
+  getProcessedAttendeeId,
+  isSessionProcessed,
+  reserveSession,
+  STALE_RESERVATION_MS,
+} from "#lib/db/processed-payments.ts";
+import {
+  createTestAttendee,
+  createTestEvent,
+  describeWithEnv,
+} from "#test-utils";
+
+/** Perform the full two-phase reserve+finalize as production code does */
+const processSession = async (
+  sessionId: string,
+  attendeeId: number,
+): Promise<boolean> => {
+  const result = await reserveSession(sessionId);
+  if (!result.reserved) return false;
+  await finalizeSession(sessionId, attendeeId);
+  return true;
+};
+
+describeWithEnv("processed-payments / locking", { db: true }, () => {
+  let attendeeId: number;
+
+  beforeEach(async () => {
+    const event = await createTestEvent();
+    const attendee = await createTestAttendee(
+      event.id,
+      event.slug,
+      "Test User",
+      "test@example.com",
+    );
+    attendeeId = attendee.id;
+  });
+
+  describe("isSessionProcessed", () => {
+    test("returns null for unprocessed session", async () => {
+      expect(await isSessionProcessed("cs_unprocessed_123")).toBeNull();
+    });
+
+    test("returns record for finalized session", async () => {
+      await reserveSession("cs_processed_123");
+      await finalizeSession("cs_processed_123", attendeeId);
+
+      const result = await isSessionProcessed("cs_processed_123");
+      expect(result?.payment_session_id).toBe("cs_processed_123");
+      expect(result?.attendee_id).toBe(attendeeId);
+      expect(result?.processed_at).toBeDefined();
+    });
+
+    test("returns record with null attendee_id for reserved-but-not-finalized session", async () => {
+      await reserveSession("cs_reserved_123");
+
+      const result = await isSessionProcessed("cs_reserved_123");
+      expect(result?.payment_session_id).toBe("cs_reserved_123");
+      expect(result?.attendee_id).toBeNull();
+    });
+  });
+
+  describe("reserveSession", () => {
+    test("returns reserved:true for new session", async () => {
+      const result = await reserveSession("cs_new_session");
+      expect(result.reserved).toBe(true);
+    });
+
+    test("returns reserved:false with null attendee_id for already-reserved session", async () => {
+      await reserveSession("cs_duplicate_reserve");
+      const second = await reserveSession("cs_duplicate_reserve");
+      expect(second.reserved).toBe(false);
+      if (!second.reserved) {
+        expect(second.existing.attendee_id).toBeNull();
+      }
+    });
+
+    test("returns reserved:false with attendee_id for finalized session", async () => {
+      await reserveSession("cs_finalized");
+      await finalizeSession("cs_finalized", attendeeId);
+
+      const result = await reserveSession("cs_finalized");
+      expect(result.reserved).toBe(false);
+      if (!result.reserved) {
+        expect(result.existing.attendee_id).toBe(attendeeId);
+      }
+    });
+
+    test("recovers stale unfinalized reservation and succeeds", async () => {
+      // Simulate a reservation left by a crashed process (>5 min old)
+      const staleTime = new Date(
+        Date.now() - STALE_RESERVATION_MS - 1000,
+      ).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["cs_stale_recovery", staleTime],
+      });
+
+      // A new attempt should succeed by cleaning up the stale record
+      const result = await reserveSession("cs_stale_recovery");
+      expect(result.reserved).toBe(true);
+
+      // Old stale record is gone, new one exists
+      const record = await isSessionProcessed("cs_stale_recovery");
+      expect(record?.attendee_id).toBeNull();
+      expect(new Date(record!.processed_at).getTime()).toBeGreaterThan(
+        Date.now() - 5000,
+      );
+    });
+
+    test("only one concurrent reservation succeeds", async () => {
+      const results = await Promise.all([
+        reserveSession("cs_concurrent_reserve"),
+        reserveSession("cs_concurrent_reserve"),
+        reserveSession("cs_concurrent_reserve"),
+      ]);
+      expect(results.filter((r) => r.reserved).length).toBe(1);
+      expect(results.filter((r) => !r.reserved).length).toBe(2);
+    });
+  });
+
+  describe("finalizeSession", () => {
+    test("sets attendee_id on reserved session", async () => {
+      await reserveSession("cs_to_finalize");
+      await finalizeSession("cs_to_finalize", attendeeId);
+
+      const record = await isSessionProcessed("cs_to_finalize");
+      expect(record?.attendee_id).toBe(attendeeId);
+    });
+
+    test("stores ticket tokens encrypted when provided", async () => {
+      await reserveSession("cs_with_tokens");
+      await finalizeSession("cs_with_tokens", attendeeId, ["tok_abc", "tok_def"]);
+
+      const record = await isSessionProcessed("cs_with_tokens");
+      expect(record?.ticket_tokens).toMatch(/^enc:1:/);
+      expect(await decryptSessionTokens(record!.ticket_tokens)).toBe(
+        "tok_abc+tok_def",
+      );
+    });
+
+    test("stores empty string when no tokens provided", async () => {
+      await reserveSession("cs_no_tokens");
+      await finalizeSession("cs_no_tokens", attendeeId);
+
+      const record = await isSessionProcessed("cs_no_tokens");
+      expect(record?.ticket_tokens).toBe("");
+    });
+
+    test("stores empty string when empty token array provided", async () => {
+      await reserveSession("cs_empty_tokens");
+      await finalizeSession("cs_empty_tokens", attendeeId, []);
+
+      const record = await isSessionProcessed("cs_empty_tokens");
+      expect(record?.ticket_tokens).toBe("");
+    });
+  });
+
+  describe("clearSessionTokens", () => {
+    test("clears stored tokens while preserving attendee_id", async () => {
+      await reserveSession("cs_clear_test");
+      await finalizeSession("cs_clear_test", attendeeId, ["tok_xyz"]);
+      await clearSessionTokens("cs_clear_test");
+
+      const record = await isSessionProcessed("cs_clear_test");
+      expect(record?.ticket_tokens).toBe("");
+      expect(record?.attendee_id).toBe(attendeeId);
+    });
+
+    test("is a no-op when tokens are already empty", async () => {
+      await reserveSession("cs_clear_noop");
+      await finalizeSession("cs_clear_noop", attendeeId);
+      await clearSessionTokens("cs_clear_noop");
+
+      const record = await isSessionProcessed("cs_clear_noop");
+      expect(record?.ticket_tokens).toBe("");
+      expect(record?.attendee_id).toBe(attendeeId);
+    });
+  });
+
+  describe("getProcessedAttendeeId", () => {
+    test("returns null for unprocessed session", async () => {
+      expect(await getProcessedAttendeeId("cs_never_processed")).toBeNull();
+    });
+
+    test("returns null for reserved-but-not-finalized session", async () => {
+      await reserveSession("cs_reserved_only");
+      expect(await getProcessedAttendeeId("cs_reserved_only")).toBeNull();
+    });
+
+    test("returns attendee ID after finalization", async () => {
+      await reserveSession("cs_finalized_attendee");
+      await finalizeSession("cs_finalized_attendee", attendeeId);
+      expect(await getProcessedAttendeeId("cs_finalized_attendee")).toBe(
+        attendeeId,
+      );
+    });
+  });
+
+  describe("idempotency", () => {
+    test("concurrent processing attempts only create one record", async () => {
+      const event = await createTestEvent();
+      const [a2, a3] = await Promise.all([
+        createTestAttendee(event.id, event.slug, "User 2", "u2@example.com"),
+        createTestAttendee(event.id, event.slug, "User 3", "u3@example.com"),
+      ]);
+
+      const results = await Promise.all([
+        processSession("cs_concurrent", attendeeId),
+        processSession("cs_concurrent", a2.id),
+        processSession("cs_concurrent", a3.id),
+      ]);
+
+      expect(results.filter(Boolean).length).toBe(1);
+      expect(await isSessionProcessed("cs_concurrent")).not.toBeNull();
+    });
+  });
+});

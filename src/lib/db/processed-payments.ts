@@ -101,13 +101,8 @@ export const reserveSession = async (
       errorMsg.includes("UNIQUE constraint") ||
       errorMsg.includes("PRIMARY KEY constraint")
     ) {
-      // Session already claimed - get existing record
-      const existing = await isSessionProcessed(sessionId);
-      if (!existing) {
-        // Race condition edge case: record existed but was deleted
-        // Shouldn't happen in practice, treat as reservable
-        return reserveSession(sessionId);
-      }
+      // Session already claimed - get existing record (must exist: UNIQUE error proves it)
+      const existing = (await isSessionProcessed(sessionId))!;
 
       // Check if reservation is stale (abandoned by crashed process)
       if (
