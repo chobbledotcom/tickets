@@ -93,6 +93,8 @@ export const CONFIG_KEYS = {
   CURRENT_TASK: "current_task",
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
+  EVENT_COLUMN_ORDER: "event_column_order",
+  ATTENDEE_COLUMN_ORDER: "attendee_column_order",
 } as const;
 
 export const MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
@@ -160,6 +162,8 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
+  CONFIG_KEYS.EVENT_COLUMN_ORDER,
+  CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadAll, default ""). */
@@ -625,6 +629,12 @@ export const settings = {
   get latestScriptVersionName(): string {
     return snap("latest_script_version_name");
   },
+  get eventColumnOrder(): string {
+    return snap("event_column_order");
+  },
+  get attendeeColumnOrder(): string {
+    return snap("attendee_column_order");
+  },
 
   // Derived from country
   get currency(): string {
@@ -775,6 +785,8 @@ export const settings = {
     latestScriptVersionName: plaintextUpdate(
       CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     ),
+    eventColumnOrder: plaintextUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
+    attendeeColumnOrder: plaintextUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
     // --- Stripe writes ---
     stripe: {
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),

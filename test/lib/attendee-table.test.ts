@@ -700,3 +700,94 @@ describe("AttendeeTable with questionData", () => {
     expect(html).toContain("No attendees yet");
   });
 });
+
+describe("AttendeeTable columnTemplate", () => {
+  test("renders only specified columns in template order", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        columnTemplate: "{{name}}, {{qty}}, {{registered}}",
+        showActions: false,
+      }),
+    );
+    const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
+      (m) => m[1],
+    );
+    expect(headers).toEqual(["Name", "Qty", "Registered"]);
+  });
+
+  test("falls back to default order for invalid template", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        columnTemplate: "{{invalid_column}}",
+      }),
+    );
+    // Should still render the default columns
+    expect(html).toContain("<th>Name</th>");
+    expect(html).toContain("<th>Qty</th>");
+  });
+
+  test("hides data-dependent column when no rows have data", () => {
+    const rows = [makeRow({ attendee: testAttendee({ email: "" }) })];
+    const html = AttendeeTable(
+      makeOpts({
+        rows,
+        columnTemplate: "{{name}}, {{email}}, {{qty}}",
+        showActions: false,
+      }),
+    );
+    expect(html).not.toContain("<th>Email</th>");
+  });
+
+  test("reorders columns as specified by template", () => {
+    const rows = [
+      makeRow({
+        attendee: testAttendee({ email: "a@b.com" }),
+      }),
+    ];
+    const html = AttendeeTable(
+      makeOpts({
+        rows,
+        columnTemplate: "{{qty}}, {{name}}, {{email}}",
+        showActions: false,
+      }),
+    );
+    const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
+      (m) => m[1],
+    );
+    expect(headers).toEqual(["Qty", "Name", "Email"]);
+  });
+
+  test("applies date filter to registered column", () => {
+    const rows = [
+      makeRow({
+        attendee: testAttendee({ created: "2026-04-10T14:00:00Z" }),
+      }),
+    ];
+    const html = AttendeeTable(
+      makeOpts({
+        rows,
+        columnTemplate: '{{name}}, {{registered | date: "%B %d, %Y"}}',
+        showActions: false,
+      }),
+    );
+    expect(html).toContain("April 10, 2026");
+  });
+
+  test("renders default cell format when no filter applied", () => {
+    const rows = [
+      makeRow({
+        attendee: testAttendee({ created: "2026-04-10T14:00:00Z" }),
+      }),
+    ];
+    const html = AttendeeTable(
+      makeOpts({
+        rows,
+        columnTemplate: "{{name}}, {{registered}}",
+        showActions: false,
+      }),
+    );
+    // Default uses formatDatetimeShort (e.g. "10/04/2026 14:00"), not Liquid strftime
+    expect(html).toContain("2026");
+    expect(html).not.toContain("April 10, 2026");
+  });
+});

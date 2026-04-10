@@ -11,6 +11,7 @@ import {
 } from "#lib/db/attendees.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
+import { settings } from "#lib/db/settings.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
@@ -65,6 +66,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           newestAttendees,
           successMessage,
           stats,
+          settings.eventColumnOrder,
         ),
       );
     },

@@ -17,6 +17,9 @@ import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
+import { validateColumnTemplate } from "#lib/column-order.ts";
+import { ATTENDEE_TABLE_COLUMNS } from "#lib/columns/attendee-columns.ts";
+import { EVENT_TABLE_COLUMNS } from "#lib/columns/event-columns.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   getEffectiveDomain,
@@ -193,6 +196,8 @@ const getAdvancedSettingsPageState = async (
       return `Host env (${hostConfig.issuerId})`;
     })(),
     theme: settings.theme,
+    eventColumnOrder: settings.eventColumnOrder,
+    attendeeColumnOrder: settings.attendeeColumnOrder,
   };
 };
 
@@ -1237,6 +1242,36 @@ const handleResetDatabasePost = advancedSettingsRoute(
   },
 );
 
+/**
+ * Handle POST /admin/settings/event-column-order - owner only
+ */
+const handleEventColumnOrderPost = settingsHandler({
+  formId: "settings-event-column-order",
+  label: "Event column order",
+  advanced: true,
+  extract: (form) => form.getString("column_order").trim(),
+  validate: (value) => {
+    if (!value) return null; // Empty clears to default
+    return validateColumnTemplate(value, Object.keys(EVENT_TABLE_COLUMNS));
+  },
+  save: (value) => settings.update.eventColumnOrder(value),
+});
+
+/**
+ * Handle POST /admin/settings/attendee-column-order - owner only
+ */
+const handleAttendeeColumnOrderPost = settingsHandler({
+  formId: "settings-attendee-column-order",
+  label: "Attendee column order",
+  advanced: true,
+  extract: (form) => form.getString("column_order").trim(),
+  validate: (value) => {
+    if (!value) return null; // Empty clears to default
+    return validateColumnTemplate(value, Object.keys(ATTENDEE_TABLE_COLUMNS));
+  },
+  save: (value) => settings.update.attendeeColumnOrder(value),
+});
+
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
   "GET /admin/settings": handleAdminSettingsGet,
@@ -1271,5 +1306,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/google-wallet": handleGoogleWalletPost,
+  "POST /admin/settings/event-column-order": handleEventColumnOrderPost,
+  "POST /admin/settings/attendee-column-order": handleAttendeeColumnOrderPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

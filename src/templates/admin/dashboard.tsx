@@ -3,37 +3,51 @@
  */
 
 import { filter, joinStrings, map, pipe, reduce } from "#fp";
+import {
+  getHeaderText,
+  renderCells,
+  resolveColumnLayout,
+} from "#lib/column-order.ts";
+import {
+  EVENT_DEFAULT_ORDER,
+  EVENT_TABLE_COLUMNS,
+} from "#lib/columns/event-columns.ts";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { ActiveEventStats } from "#lib/db/attendees.ts";
 import { isReadOnly } from "#lib/env.ts";
 import { Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import type {
+  AdminSession,
+  Attendee,
+  AttendeeTableRow,
+  EventWithCount,
+} from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import {
-  AttendeeTable,
-  type AttendeeTableRow,
-} from "#templates/attendee-table.tsx";
-import { Layout } from "#templates/layout.tsx";
-import { renderEventImage } from "#templates/public.tsx";
+import { AttendeeTable } from "#templates/attendee-table.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-export const EventRow = ({ e }: { e: EventWithCount }): string => {
+/** Render a single event table row using ordered column keys */
+export const EventRow = ({
+  e,
+  columnKeys,
+  filters,
+}: {
+  e: EventWithCount;
+  columnKeys: string[];
+  filters: Map<string, string>;
+}): string => {
   const isInactive = !e.active;
-  return String(
-    <tr class={isInactive ? "inactive-row" : undefined}>
-      <td>
-        <Raw html={renderEventImage(e, "event-thumbnail")} />
-        <a href={`/admin/event/${e.id}`}>{e.name}</a>
-      </td>
-      <td class="cell-description">{e.description}</td>
-      <td>{isInactive ? "Inactive" : "Active"}</td>
-      <td>
-        {e.attendee_count} / {e.max_attendees}
-      </td>
-      <td>{new Date(e.created).toLocaleDateString()}</td>
-    </tr>,
+  const cells = renderCells(
+    e,
+    columnKeys,
+    EVENT_TABLE_COLUMNS,
+    undefined,
+    filters,
+    escapeHtml,
   );
+  return `<tr${isInactive ? ' class="inactive-row"' : ""}>${cells}</tr>`;
 };
 
 /** Checkbox item for multi-booking link builder */
@@ -159,6 +173,20 @@ const newestAttendeesSection = (
   );
 };
 
+/** Render the event table with dynamic column keys */
+export const renderEventTable = (
+  columnKeys: string[],
+  rows: string,
+): string => {
+  const headers = pipe(
+    map(
+      (key: string) => `<th>${getHeaderText(EVENT_TABLE_COLUMNS[key]!)}</th>`,
+    ),
+    joinStrings,
+  )(columnKeys);
+  return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+};
+
 /**
  * Admin dashboard page
  */
@@ -169,14 +197,21 @@ export const adminDashboardPage = (
   newestAttendees: Attendee[] = [],
   successMessage?: string,
   stats?: ActiveEventStats | null,
+  eventColumnTemplate?: string,
 ): string => {
+  const { columnKeys, filters } = resolveColumnLayout(
+    eventColumnTemplate ?? "",
+    Object.keys(EVENT_TABLE_COLUMNS),
+    EVENT_DEFAULT_ORDER,
+  );
+
   const eventRows =
     events.length > 0
       ? pipe(
-          map((e: EventWithCount) => EventRow({ e })),
+          map((e: EventWithCount) => EventRow({ e, columnKeys, filters })),
           joinStrings,
         )(events)
-      : '<tr><td colspan="5">No events yet</td></tr>';
+      : `<tr><td colspan="${columnKeys.length}">No events yet</td></tr>`;
 
   const activeEvents = filter((e: EventWithCount) => e.active)(events);
 
@@ -193,20 +228,7 @@ export const adminDashboardPage = (
       )}
 
       <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Event Name</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Attendees</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={eventRows} />
-          </tbody>
-        </table>
+        <Raw html={renderEventTable(columnKeys, eventRows)} />
       </div>
 
       {stats && <Raw html={activeEventStatsSection(stats)} />}

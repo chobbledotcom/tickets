@@ -114,6 +114,38 @@ describe("adminDashboardPage inactive events", () => {
   });
 });
 
+describe("adminDashboardPage with column template filters", () => {
+  test("applies date filter to created column", () => {
+    const events = [testEventWithCount({ created: "2026-04-10T14:00:00Z" })];
+    const html = adminDashboardPage(
+      events,
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      null,
+      '{{name}}, {{created | date: "%B %Y"}}',
+    );
+    expect(html).toContain("April 2026");
+  });
+
+  test("renders default cell format when no filter applied", () => {
+    const events = [testEventWithCount({ created: "2026-04-10T14:00:00Z" })];
+    const html = adminDashboardPage(
+      events,
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      null,
+      "{{name}}, {{created}}",
+    );
+    // Default uses toLocaleDateString — locale format, not Liquid strftime
+    expect(html).toContain("2026");
+    expect(html).not.toContain("April 2026");
+  });
+});
+
 describe("activeEventStatsSection", () => {
   test("renders income, tickets, and attendees", () => {
     const html = activeEventStatsSection({

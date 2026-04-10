@@ -10,9 +10,19 @@ import {
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
 } from "#lib/api-example.ts";
+import { buildDefaultTemplate } from "#lib/column-order.ts";
+import {
+  ATTENDEE_DEFAULT_ORDER,
+  ATTENDEE_TABLE_COLUMNS,
+} from "#lib/columns/attendee-columns.ts";
+import {
+  EVENT_DEFAULT_ORDER,
+  EVENT_TABLE_COLUMNS,
+} from "#lib/columns/event-columns.ts";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import type { Child } from "#lib/jsx/jsx-runtime.ts";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#lib/limits.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
@@ -27,6 +37,28 @@ export type GuideHostConfig = {
   hostGoogleWalletIssuerId: string | null;
   builderEnabled: boolean;
   bunnyDnsSubdomainSuffix: string | null;
+};
+
+/** Render a column reference table from column generators */
+const columnReferenceTable = (
+  columns: Record<string, { label: string; description: string }>,
+): string => {
+  const rows = Object.entries(columns)
+    .map(
+      ([key, col]) =>
+        `<tr>
+          <td><code>{{${key}}}</code></td>
+          <td>${col.label}</td>
+          <td>${col.description}</td>
+        </tr>`,
+    )
+    .join("");
+  return [
+    "<table>",
+    "<thead><tr><th>Tag</th><th>Label</th><th>Description</th></tr></thead>",
+    `<tbody>${rows}</tbody>`,
+    "</table>",
+  ].join("");
 };
 
 const Section = ({
@@ -2195,6 +2227,96 @@ export const adminGuidePage = (
             another host) and handle the technical configuration. I also design
             event images if you need them. Get in touch and we'll figure out
             exactly what you need.
+          </p>
+        </Q>
+      </Section>
+      <Section title="Column Order" id="column-order">
+        <Q q="How do I customise which columns appear in tables?">
+          <p>
+            Go to <strong>Advanced Settings</strong> and find the{" "}
+            <strong>Event Table Columns</strong> or{" "}
+            <strong>Attendee Table Columns</strong> section. Enter a
+            comma-separated list of Liquid-style tags to control which columns
+            appear and in what order.
+          </p>
+          <p>
+            For example, to show only the name and status on the events table:
+          </p>
+          <pre>
+            <code>{"{{name}}, {{status}}"}</code>
+          </pre>
+          <p>
+            Leave the field empty or clear it to restore the default column
+            order.
+          </p>
+        </Q>
+
+        <Q q="What event table columns are available?">
+          <p>
+            Default order:{" "}
+            <code>{buildDefaultTemplate(EVENT_DEFAULT_ORDER)}</code>
+          </p>
+          <Raw html={columnReferenceTable(EVENT_TABLE_COLUMNS)} />
+        </Q>
+
+        <Q q="What attendee table columns are available?">
+          <p>
+            Default order:{" "}
+            <code>{buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER)}</code>
+          </p>
+          <p>
+            Columns referencing absent data (e.g. <code>{"{{email}}"}</code>{" "}
+            when no attendees have an email) are hidden automatically even when
+            included in the template.
+          </p>
+          <Raw html={columnReferenceTable(ATTENDEE_TABLE_COLUMNS)} />
+        </Q>
+
+        <Q q="Can I use custom date or currency formatting?">
+          <p>
+            Yes. Date and price columns support Liquid filters. Add a pipe (
+            <code>|</code>) after the column name followed by the filter:
+          </p>
+          <pre>
+            <code>
+              {'{{created | date: "%B %d, %Y"}}'}
+              {"\n"}
+              {'{{date | date: "%A %e %b"}}'}
+              {"\n"}
+              {"{{price | currency}}"}
+            </code>
+          </pre>
+          <p>
+            The <code>date</code> filter uses{" "}
+            <a href="https://strftime.net/">strftime format codes</a>. Common
+            codes:
+          </p>
+          <ul>
+            <li>
+              <code>%Y</code> full year, <code>%y</code> 2-digit year
+            </li>
+            <li>
+              <code>%B</code> full month name, <code>%b</code> abbreviated
+            </li>
+            <li>
+              <code>%d</code> zero-padded day, <code>%e</code> day without
+              padding
+            </li>
+            <li>
+              <code>%A</code> full weekday, <code>%a</code> abbreviated
+            </li>
+            <li>
+              <code>%H</code> hour (24h), <code>%I</code> hour (12h),{" "}
+              <code>%M</code> minutes
+            </li>
+          </ul>
+          <p>
+            The <code>currency</code> filter formats a number as your configured
+            currency (e.g. <code>2500</code> &rarr; &pound;25.00).
+          </p>
+          <p>
+            Columns without a <code>rawValue</code> (like name or email) ignore
+            filters &mdash; they always render their default content.
           </p>
         </Q>
       </Section>
