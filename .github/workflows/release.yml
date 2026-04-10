@@ -36,7 +36,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v$(date -u +%Y-%m-%d-%H%M%S)"
+          TAG="$(cat .build-tag)"
           TITLE="$(date -u +%Y-%m-%d) - ${{ inputs.release_name }}"
           git tag "$TAG"
           git push origin "$TAG"
