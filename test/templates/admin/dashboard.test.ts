@@ -129,7 +129,7 @@ describe("adminDashboardPage with column template filters", () => {
     expect(html).toContain("April 2026");
   });
 
-  test("renders default cell when no filter applied", () => {
+  test("renders default cell format when no filter applied", () => {
     const events = [testEventWithCount({ created: "2026-04-10T14:00:00Z" })];
     const html = adminDashboardPage(
       events,
@@ -140,7 +140,8 @@ describe("adminDashboardPage with column template filters", () => {
       null,
       "{{name}}, {{created}}",
     );
-    // Default created format uses toLocaleDateString, not Liquid
+    // Default uses toLocaleDateString — locale format, not Liquid strftime
+    expect(html).toContain("2026");
     expect(html).not.toContain("April 2026");
   });
 });

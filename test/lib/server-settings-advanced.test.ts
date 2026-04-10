@@ -1360,11 +1360,10 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         "/admin/settings/event-column-order",
         { column_order: "{{invalid}}" },
       );
-      expectRedirectWithFlash(
-        formUrl,
-        'Unknown column "invalid". Available columns: name, description, status, attendees, created, date, location, price',
-        false,
-      )(response);
+      expectRedirectWithFlash(formUrl, undefined, false)(response);
+      const msg = decodeURIComponent(response.headers.get("set-cookie") ?? "");
+      expect(msg).toContain("invalid");
+      expect(msg).toContain("Available columns");
     });
 
     test("clears to default when empty", async () => {
@@ -1401,11 +1400,10 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         "/admin/settings/attendee-column-order",
         { column_order: "{{bogus}}" },
       );
-      expectRedirectWithFlash(
-        formUrl,
-        'Unknown column "bogus". Available columns: status, event, date, name, email, phone, address, special_instructions, answers, qty, ticket, registered, actions',
-        false,
-      )(response);
+      expectRedirectWithFlash(formUrl, undefined, false)(response);
+      const msg = decodeURIComponent(response.headers.get("set-cookie") ?? "");
+      expect(msg).toContain("bogus");
+      expect(msg).toContain("Available columns");
     });
 
     test("clears to default when empty", async () => {

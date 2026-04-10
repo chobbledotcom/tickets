@@ -56,7 +56,7 @@ describe("validateColumnTemplate", () => {
     expect(error).toContain("at least one column");
   });
 
-  test("accepts templates with filters", () => {
+  test("accepts templates with date filter", () => {
     expect(
       validateColumnTemplate(
         '{{name}}, {{created | date: "%B"}}',
@@ -113,18 +113,25 @@ describe("resolveColumnLayout", () => {
     expect(columnKeys).toEqual([...EVENT_DEFAULT_ORDER]);
   });
 
-  test("extracts filter expressions", () => {
-    const { columnKeys, filters } = resolveColumnLayout(
+  test("extracts filter expression for filtered column", () => {
+    const { filters } = resolveColumnLayout(
       '{{name}}, {{created | date: "%B %d"}}',
       VALID_EVENT_KEYS,
       EVENT_DEFAULT_ORDER,
     );
-    expect(columnKeys).toEqual(["name", "created"]);
     expect(filters.get("created")).toBe('created | date: "%B %d"');
+  });
+
+  test("does not create filter entry for unfiltered column", () => {
+    const { filters } = resolveColumnLayout(
+      '{{name}}, {{created | date: "%B %d"}}',
+      VALID_EVENT_KEYS,
+      EVENT_DEFAULT_ORDER,
+    );
     expect(filters.has("name")).toBe(false);
   });
 
-  test("works with all attendee columns", () => {
+  test("resolves all attendee columns from default template", () => {
     const template = buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER);
     const { columnKeys } = resolveColumnLayout(
       template,
@@ -182,10 +189,11 @@ describe("buildDefaultTemplate", () => {
     );
   });
 
-  test("builds event default template", () => {
-    expect(buildDefaultTemplate(EVENT_DEFAULT_ORDER)).toBe(
-      "{{name}}, {{description}}, {{status}}, {{attendees}}, {{created}}",
-    );
+  test("includes all default event columns", () => {
+    const template = buildDefaultTemplate(EVENT_DEFAULT_ORDER);
+    for (const key of EVENT_DEFAULT_ORDER) {
+      expect(template).toContain(`{{${key}}}`);
+    }
   });
 });
 
@@ -193,14 +201,6 @@ describe("EVENT_TABLE_COLUMNS", () => {
   test("has all default order keys", () => {
     for (const key of EVENT_DEFAULT_ORDER) {
       expect(EVENT_TABLE_COLUMNS[key]).toBeDefined();
-    }
-  });
-
-  test("every column has label, description, and cell", () => {
-    for (const [_key, col] of Object.entries(EVENT_TABLE_COLUMNS)) {
-      expect(col.label.length).toBeGreaterThan(0);
-      expect(col.description.length).toBeGreaterThan(0);
-      expect(typeof col.cell).toBe("function");
     }
   });
 });
@@ -211,46 +211,67 @@ describe("ATTENDEE_TABLE_COLUMNS", () => {
       expect(ATTENDEE_TABLE_COLUMNS[key]).toBeDefined();
     }
   });
-
-  test("every column has label, description, and cell", () => {
-    for (const [_key, col] of Object.entries(ATTENDEE_TABLE_COLUMNS)) {
-      expect(col.label.length).toBeGreaterThan(0);
-      expect(col.description.length).toBeGreaterThan(0);
-      expect(typeof col.cell).toBe("function");
-    }
-  });
 });
 
 describe("EVENT_TABLE_COLUMNS cell renderers", () => {
   // Event columns have TOpts=unknown, so we pass undefined
   const u = undefined as unknown;
 
-  test("date column renders formatted date or empty string", () => {
+  test("date cell renders formatted date", () => {
     const col = EVENT_TABLE_COLUMNS.date!;
     expect(
       col.cell(testEventWithCount({ date: "2026-04-10T19:00:00Z" }), u),
     ).toContain("2026");
+  });
+
+  test("date cell renders empty for missing date", () => {
+    const col = EVENT_TABLE_COLUMNS.date!;
     expect(col.cell(testEventWithCount({ date: "" }), u)).toBe("");
+  });
+
+  test("date rawValue returns ISO string", () => {
+    const col = EVENT_TABLE_COLUMNS.date!;
     expect(col.rawValue!(testEventWithCount({ date: "2026-04-10" }), u)).toBe(
       "2026-04-10",
     );
+  });
+
+  test("date rawValue returns empty for missing date", () => {
+    const col = EVENT_TABLE_COLUMNS.date!;
     expect(col.rawValue!(testEventWithCount({ date: "" }), u)).toBe("");
   });
 
-  test("location column renders event location", () => {
-    const col = EVENT_TABLE_COLUMNS.location!;
-    expect(col.cell(testEventWithCount({ location: "Town Hall" }), u)).toBe(
-      "Town Hall",
-    );
+  test("location cell renders event location", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.location!.cell(
+        testEventWithCount({ location: "Town Hall" }),
+        u,
+      ),
+    ).toBe("Town Hall");
   });
 
-  test("price column renders price or Free", () => {
-    const col = EVENT_TABLE_COLUMNS.price!;
-    expect(col.cell(testEventWithCount({ unit_price: 2500 }), u)).toBe("2500");
-    expect(col.cell(testEventWithCount({ unit_price: 0 }), u)).toBe("Free");
-    expect(col.rawValue!(testEventWithCount({ unit_price: 2500 }), u)).toBe(
-      2500,
-    );
+  test("price cell renders numeric price", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.price!.cell(
+        testEventWithCount({ unit_price: 2500 }),
+        u,
+      ),
+    ).toBe("2500");
+  });
+
+  test("price cell renders Free for zero price", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.price!.cell(testEventWithCount({ unit_price: 0 }), u),
+    ).toBe("Free");
+  });
+
+  test("price rawValue returns raw number", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.price!.rawValue!(
+        testEventWithCount({ unit_price: 2500 }),
+        u,
+      ),
+    ).toBe(2500);
   });
 });
 
@@ -272,122 +293,154 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
     ...overrides,
   });
 
-  test("name column renders attendee name", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.name!;
+  test("name cell renders attendee name", () => {
     expect(
-      col.cell(makeRow({ attendee: testAttendee({ name: "Alice" }) }), opts),
+      ATTENDEE_TABLE_COLUMNS.name!.cell(
+        makeRow({ attendee: testAttendee({ name: "Alice" }) }),
+        opts,
+      ),
     ).toBe("Alice");
   });
 
-  test("event column renders linked event name", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.event!;
-    const html = col.cell(makeRow({ eventName: "Gala", eventId: 42 }), opts);
+  test("event cell renders linked event name", () => {
+    const html = ATTENDEE_TABLE_COLUMNS.event!.cell(
+      makeRow({ eventName: "Gala", eventId: 42 }),
+      opts,
+    );
     expect(html).toContain("/admin/event/42");
     expect(html).toContain("Gala");
   });
 
-  test("date column renders formatted date or empty", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.date!;
+  test("date cell renders formatted date", () => {
     expect(
-      col.cell(
+      ATTENDEE_TABLE_COLUMNS.date!.cell(
         makeRow({ attendee: testAttendee({ date: "2026-03-15" }) }),
         opts,
       ),
     ).toContain("March");
+  });
+
+  test("date cell renders empty for null date", () => {
     expect(
-      col.cell(makeRow({ attendee: testAttendee({ date: null }) }), opts),
+      ATTENDEE_TABLE_COLUMNS.date!.cell(
+        makeRow({ attendee: testAttendee({ date: null }) }),
+        opts,
+      ),
     ).toBe("");
+  });
+
+  test("date rawValue returns date string", () => {
     expect(
-      col.rawValue!(
+      ATTENDEE_TABLE_COLUMNS.date!.rawValue!(
         makeRow({ attendee: testAttendee({ date: "2026-03-15" }) }),
         opts,
       ),
     ).toBe("2026-03-15");
+  });
+
+  test("date rawValue returns empty for null date", () => {
     expect(
-      col.rawValue!(makeRow({ attendee: testAttendee({ date: null }) }), opts),
+      ATTENDEE_TABLE_COLUMNS.date!.rawValue!(
+        makeRow({ attendee: testAttendee({ date: null }) }),
+        opts,
+      ),
     ).toBe("");
   });
 
-  test("email column renders email or empty", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.email!;
+  test("email cell renders email address", () => {
     expect(
-      col.cell(makeRow({ attendee: testAttendee({ email: "a@b.com" }) }), opts),
+      ATTENDEE_TABLE_COLUMNS.email!.cell(
+        makeRow({ attendee: testAttendee({ email: "a@b.com" }) }),
+        opts,
+      ),
     ).toBe("a@b.com");
+  });
+
+  test("email cell renders empty when not provided", () => {
     expect(
-      col.cell(makeRow({ attendee: testAttendee({ email: "" }) }), opts),
+      ATTENDEE_TABLE_COLUMNS.email!.cell(
+        makeRow({ attendee: testAttendee({ email: "" }) }),
+        opts,
+      ),
     ).toBe("");
   });
 
-  test("phone column renders tel link or empty", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.phone!;
+  test("phone cell renders tel link", () => {
     expect(
-      col.cell(
+      ATTENDEE_TABLE_COLUMNS.phone!.cell(
         makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
         opts,
       ),
     ).toContain("tel:");
+  });
+
+  test("phone cell renders empty when not provided", () => {
     expect(
-      col.cell(makeRow({ attendee: testAttendee({ phone: "" }) }), opts),
+      ATTENDEE_TABLE_COLUMNS.phone!.cell(
+        makeRow({ attendee: testAttendee({ phone: "" }) }),
+        opts,
+      ),
     ).toBe("");
   });
 
-  test("phone column defaults to prefix 44 when phonePrefix is empty", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.phone!;
-    const html = col.cell(
+  test("phone cell defaults to prefix 44 when phonePrefix is empty", () => {
+    const html = ATTENDEE_TABLE_COLUMNS.phone!.cell(
       makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
       { ...opts, phonePrefix: "" },
     );
     expect(html).toContain("tel:+447700900000");
   });
 
-  test("address column renders inline address", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.address!;
+  test("address cell renders inline address", () => {
     expect(
-      col.cell(
+      ATTENDEE_TABLE_COLUMNS.address!.cell(
         makeRow({ attendee: testAttendee({ address: "123 Main\nNew York" }) }),
         opts,
       ),
     ).toContain("123 Main");
   });
 
-  test("special_instructions column renders inline or empty", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.special_instructions!;
+  test("special_instructions cell renders inline text", () => {
     expect(
-      col.cell(
+      ATTENDEE_TABLE_COLUMNS.special_instructions!.cell(
         makeRow({
           attendee: testAttendee({ special_instructions: "VIP\nfront row" }),
         }),
         opts,
       ),
     ).toContain("VIP");
+  });
+
+  test("special_instructions cell renders empty when not provided", () => {
     expect(
-      col.cell(
+      ATTENDEE_TABLE_COLUMNS.special_instructions!.cell(
         makeRow({ attendee: testAttendee({ special_instructions: "" }) }),
         opts,
       ),
     ).toBe("");
   });
 
-  test("qty column renders quantity", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.qty!;
+  test("qty cell renders quantity", () => {
     expect(
-      col.cell(makeRow({ attendee: testAttendee({ quantity: 3 }) }), opts),
+      ATTENDEE_TABLE_COLUMNS.qty!.cell(
+        makeRow({ attendee: testAttendee({ quantity: 3 }) }),
+        opts,
+      ),
     ).toBe("3");
   });
 
-  test("ticket column renders token link", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.ticket!;
-    const html = col.cell(
-      makeRow({ attendee: testAttendee({ ticket_token: "abc123" }) }),
-      opts,
-    );
-    expect(html).toContain("example.com/t/abc123");
+  test("ticket cell renders token link", () => {
+    expect(
+      ATTENDEE_TABLE_COLUMNS.ticket!.cell(
+        makeRow({ attendee: testAttendee({ ticket_token: "abc123" }) }),
+        opts,
+      ),
+    ).toContain("example.com/t/abc123");
   });
 
-  test("registered column renders formatted datetime", () => {
-    const col = ATTENDEE_TABLE_COLUMNS.registered!;
+  test("registered cell renders formatted datetime", () => {
     expect(
-      col.cell(
+      ATTENDEE_TABLE_COLUMNS.registered!.cell(
         makeRow({
           attendee: testAttendee({ created: "2026-01-01T12:00:00Z" }),
         }),

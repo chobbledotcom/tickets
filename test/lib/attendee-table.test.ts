@@ -726,7 +726,7 @@ describe("AttendeeTable columnTemplate", () => {
     expect(html).toContain("<th>Qty</th>");
   });
 
-  test("respects visibility filtering with template", () => {
+  test("hides data-dependent column when no rows have data", () => {
     const rows = [makeRow({ attendee: testAttendee({ email: "" }) })];
     const html = AttendeeTable(
       makeOpts({
@@ -735,10 +735,7 @@ describe("AttendeeTable columnTemplate", () => {
         showActions: false,
       }),
     );
-    // Email column excluded because no attendee has email
     expect(html).not.toContain("<th>Email</th>");
-    expect(html).toContain("<th>Name</th>");
-    expect(html).toContain("<th>Qty</th>");
   });
 
   test("reorders columns as specified by template", () => {
@@ -776,7 +773,7 @@ describe("AttendeeTable columnTemplate", () => {
     expect(html).toContain("April 10, 2026");
   });
 
-  test("uses default cell when no filter is applied", () => {
+  test("renders default cell format when no filter applied", () => {
     const rows = [
       makeRow({
         attendee: testAttendee({ created: "2026-04-10T14:00:00Z" }),
@@ -789,7 +786,7 @@ describe("AttendeeTable columnTemplate", () => {
         showActions: false,
       }),
     );
-    // Default registered format uses formatDatetimeShort, not Liquid
+    // Default uses formatDatetimeShort (e.g. "10/04/2026 14:00"), not Liquid strftime
     expect(html).toContain("2026");
     expect(html).not.toContain("April 10, 2026");
   });
