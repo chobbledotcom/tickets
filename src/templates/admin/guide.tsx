@@ -1617,8 +1617,9 @@ export const adminGuidePage = (
       <Section id="custom-domain" title="Custom Domain">
         <Q q="How do I set up a custom domain?">
           <p>
-            If your site runs on Bunny CDN and the <code>BUNNY_API_KEY</code>{" "}
-            environment variable is configured, you'll see a{" "}
+            If your site runs on Bunny CDN and the{" "}
+            <code>BUNNY_API_KEY</code> and <code>BUNNY_SCRIPT_ID</code>{" "}
+            environment variables are configured, you'll see a{" "}
             <strong>Custom Domain</strong> section in{" "}
             <a href="/admin/settings-advanced">Advanced Settings</a>. Enter your
             domain (e.g. <code>tickets.yourdomain.com</code>) and save, then
@@ -1629,10 +1630,20 @@ export const adminGuidePage = (
 
         <Q q="What does validation do?">
           <p>
-            Validation checks that your DNS is set up correctly, registers the
-            hostname with Bunny CDN, requests a free SSL certificate, and
-            enables HTTPS. You can re-validate at any time if you change your
-            DNS.
+            Validation registers the hostname with the Bunny CDN pull zone,
+            requests a free SSL certificate, and enables HTTPS. You can
+            re-validate at any time if you change your DNS.
+          </p>
+        </Q>
+
+        <Q q="What if validation fails?">
+          <p>
+            Validation is attempted automatically when you save your domain.
+            If it fails &mdash; usually because DNS hasn't propagated yet
+            &mdash; your domain is still saved and you'll see a warning.
+            Create the CNAME record shown on the page, wait a few minutes
+            for DNS to propagate, then click{" "}
+            <strong>Validate Custom Domain</strong> to try again.
           </p>
         </Q>
       </Section>
