@@ -29,8 +29,8 @@ const AvailableTags = ({
 }): JSX.Element => (
   <small>
     Available:{" "}
-    {Object.entries(columns)
-      .map(([key, col]) => `{{${key}}} (${col.label})`)
+    {Object.keys(columns)
+      .map((key) => `{{${key}}}`)
       .join(", ")}
   </small>
 );
