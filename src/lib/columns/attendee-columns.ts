@@ -52,6 +52,7 @@ const date: AttendeeCol = {
   description: "Booking date for daily events",
   header: () => "Date",
   cell: (row) => (row.attendee.date ? formatDateLabel(row.attendee.date) : ""),
+  rawValue: (row) => row.attendee.date || "",
 };
 
 const name: AttendeeCol = {
@@ -157,6 +158,7 @@ const registered: AttendeeCol = {
   description: "Date and time the attendee registered",
   header: () => "Registered",
   cell: (row) => formatDatetimeShort(row.attendee.created),
+  rawValue: (row) => row.attendee.created,
 };
 
 const actions = componentRenderedCol(

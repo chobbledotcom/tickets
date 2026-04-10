@@ -51,6 +51,7 @@ const created: EventCol = {
   description: "Date the event was created",
   header: () => "Created",
   cell: (e) => new Date(e.created).toLocaleDateString(),
+  rawValue: (e) => e.created,
 };
 
 const date: EventCol = {
@@ -58,6 +59,7 @@ const date: EventCol = {
   description: "Scheduled event date",
   header: () => "Date",
   cell: (e) => (e.date ? new Date(e.date).toLocaleDateString() : ""),
+  rawValue: (e) => e.date || "",
 };
 
 const location: EventCol = {
@@ -72,6 +74,7 @@ const price: EventCol = {
   description: "Ticket unit price (in minor currency units)",
   header: () => "Price",
   cell: (e) => (e.unit_price > 0 ? String(e.unit_price) : "Free"),
+  rawValue: (e) => e.unit_price,
 };
 
 // ---------------------------------------------------------------------------

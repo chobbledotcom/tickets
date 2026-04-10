@@ -2271,6 +2271,54 @@ export const adminGuidePage = (
           </p>
           <Raw html={columnReferenceTable(ATTENDEE_TABLE_COLUMNS)} />
         </Q>
+
+        <Q q="Can I use custom date or currency formatting?">
+          <p>
+            Yes. Date and price columns support Liquid filters. Add a pipe (
+            <code>|</code>) after the column name followed by the filter:
+          </p>
+          <pre>
+            <code>
+              {'{{created | date: "%B %d, %Y"}}'}
+              {"\n"}
+              {'{{date | date: "%A %e %b"}}'}
+              {"\n"}
+              {"{{price | currency}}"}
+            </code>
+          </pre>
+          <p>
+            The <code>date</code> filter uses{" "}
+            <a href="https://strftime.net/">strftime format codes</a>. Common
+            codes:
+          </p>
+          <ul>
+            <li>
+              <code>%Y</code> full year, <code>%y</code> 2-digit year
+            </li>
+            <li>
+              <code>%B</code> full month name, <code>%b</code> abbreviated
+            </li>
+            <li>
+              <code>%d</code> zero-padded day, <code>%e</code> day without
+              padding
+            </li>
+            <li>
+              <code>%A</code> full weekday, <code>%a</code> abbreviated
+            </li>
+            <li>
+              <code>%H</code> hour (24h), <code>%I</code> hour (12h),{" "}
+              <code>%M</code> minutes
+            </li>
+          </ul>
+          <p>
+            The <code>currency</code> filter formats a number as your configured
+            currency (e.g. <code>2500</code> &rarr; &pound;25.00).
+          </p>
+          <p>
+            Columns without a <code>rawValue</code> (like name or email) ignore
+            filters &mdash; they always render their default content.
+          </p>
+        </Q>
       </Section>
     </Layout>,
   );

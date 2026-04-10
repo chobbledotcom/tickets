@@ -3,11 +3,10 @@
  */
 
 import { filter, joinStrings, map, pipe, reduce } from "#fp";
-import { type ColumnDef, getOrderedColumns } from "#lib/column-order.ts";
+import { renderFilteredValue, resolveColumnLayout } from "#lib/column-order.ts";
 import {
   EVENT_DEFAULT_ORDER,
   EVENT_TABLE_COLUMNS,
-  type EventColumnOpts,
 } from "#lib/columns/event-columns.ts";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { formatCurrency } from "#lib/currency.ts";
@@ -23,25 +22,34 @@ import type {
 } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Render a single event table row using ordered column generators */
+/** Render a single event table row using ordered column keys */
 export const EventRow = ({
   e,
-  columns,
+  columnKeys,
+  filters,
 }: {
   e: EventWithCount;
-  columns: ColumnDef<EventWithCount, EventColumnOpts>[];
+  columnKeys: string[];
+  filters: Map<string, string>;
 }): string => {
   const isInactive = !e.active;
-  const opts: EventColumnOpts = {};
+  const opts = {} as Record<string, never>;
   const cells = pipe(
-    map(
-      (col: ColumnDef<EventWithCount, EventColumnOpts>) =>
-        `<td${col.className ? ` class="${col.className}"` : ""}>${col.cell(e, opts)}</td>`,
-    ),
+    map((key: string) => {
+      const col = EVENT_TABLE_COLUMNS[key]!;
+      const filterExpr = filters.get(key);
+      const content =
+        filterExpr && col.rawValue
+          ? escapeHtml(
+              renderFilteredValue(filterExpr, col.rawValue(e, opts), key),
+            )
+          : col.cell(e, opts);
+      return `<td${col.className ? ` class="${col.className}"` : ""}>${content}</td>`;
+    }),
     joinStrings,
-  )(columns);
+  )(columnKeys);
   return `<tr${isInactive ? ' class="inactive-row"' : ""}>${cells}</tr>`;
 };
 
@@ -168,18 +176,15 @@ const newestAttendeesSection = (
   );
 };
 
-/** Render the event table with dynamic columns */
+/** Render the event table with dynamic column keys */
 export const renderEventTable = (
-  columns: ColumnDef<EventWithCount, EventColumnOpts>[],
+  columnKeys: string[],
   rows: string,
 ): string => {
   const headers = pipe(
-    map(
-      (col: ColumnDef<EventWithCount, EventColumnOpts>) =>
-        `<th>${col.header()}</th>`,
-    ),
+    map((key: string) => `<th>${EVENT_TABLE_COLUMNS[key]!.header()}</th>`),
     joinStrings,
-  )(columns);
+  )(columnKeys);
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 };
 
@@ -195,19 +200,19 @@ export const adminDashboardPage = (
   stats?: ActiveEventStats | null,
   eventColumnTemplate?: string,
 ): string => {
-  const columns = getOrderedColumns(
+  const { columnKeys, filters } = resolveColumnLayout(
     eventColumnTemplate ?? "",
-    EVENT_TABLE_COLUMNS,
+    Object.keys(EVENT_TABLE_COLUMNS),
     EVENT_DEFAULT_ORDER,
   );
 
   const eventRows =
     events.length > 0
       ? pipe(
-          map((e: EventWithCount) => EventRow({ e, columns })),
+          map((e: EventWithCount) => EventRow({ e, columnKeys, filters })),
           joinStrings,
         )(events)
-      : `<tr><td colspan="${columns.length}">No events yet</td></tr>`;
+      : `<tr><td colspan="${columnKeys.length}">No events yet</td></tr>`;
 
   const activeEvents = filter((e: EventWithCount) => e.active)(events);
 
@@ -224,7 +229,7 @@ export const adminDashboardPage = (
       )}
 
       <div class="table-scroll">
-        <Raw html={renderEventTable(columns, eventRows)} />
+        <Raw html={renderEventTable(columnKeys, eventRows)} />
       </div>
 
       {stats && <Raw html={activeEventStatsSection(stats)} />}

@@ -759,4 +759,38 @@ describe("AttendeeTable columnTemplate", () => {
     );
     expect(headers).toEqual(["Qty", "Name", "Email"]);
   });
+
+  test("applies date filter to registered column", () => {
+    const rows = [
+      makeRow({
+        attendee: testAttendee({ created: "2026-04-10T14:00:00Z" }),
+      }),
+    ];
+    const html = AttendeeTable(
+      makeOpts({
+        rows,
+        columnTemplate: '{{name}}, {{registered | date: "%B %d, %Y"}}',
+        showActions: false,
+      }),
+    );
+    expect(html).toContain("April 10, 2026");
+  });
+
+  test("uses default cell when no filter is applied", () => {
+    const rows = [
+      makeRow({
+        attendee: testAttendee({ created: "2026-04-10T14:00:00Z" }),
+      }),
+    ];
+    const html = AttendeeTable(
+      makeOpts({
+        rows,
+        columnTemplate: "{{name}}, {{registered}}",
+        showActions: false,
+      }),
+    );
+    // Default registered format uses formatDatetimeShort, not Liquid
+    expect(html).toContain("2026");
+    expect(html).not.toContain("April 10, 2026");
+  });
 });

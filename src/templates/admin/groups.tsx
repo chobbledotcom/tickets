@@ -3,7 +3,7 @@
  */
 
 import { joinStrings, map, pipe, reduce } from "#fp";
-import { getOrderedColumns } from "#lib/column-order.ts";
+import { resolveColumnLayout } from "#lib/column-order.ts";
 import {
   EVENT_DEFAULT_ORDER,
   EVENT_TABLE_COLUMNS,
@@ -227,18 +227,18 @@ export const adminGroupDetailPage = (
   successMessage?: string,
   questionData?: TableQuestionData,
 ): string => {
-  const columns = getOrderedColumns(
+  const { columnKeys, filters } = resolveColumnLayout(
     settings.eventColumnOrder,
-    EVENT_TABLE_COLUMNS,
+    Object.keys(EVENT_TABLE_COLUMNS),
     EVENT_DEFAULT_ORDER,
   );
   const eventRows =
     events.length > 0
       ? pipe(
-          map((e: EventWithCount) => EventRow({ e, columns })),
+          map((e: EventWithCount) => EventRow({ e, columnKeys, filters })),
           joinStrings,
         )(events)
-      : `<tr><td colspan="${columns.length}">No events in this group</td></tr>`;
+      : `<tr><td colspan="${columnKeys.length}">No events in this group</td></tr>`;
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -330,7 +330,7 @@ export const adminGroupDetailPage = (
 
       <h2>Events</h2>
       <div class="table-scroll">
-        <Raw html={renderEventTable(columns, eventRows)} />
+        <Raw html={renderEventTable(columnKeys, eventRows)} />
       </div>
 
       <article>

@@ -13,7 +13,7 @@
  */
 
 import { flatMap, joinStrings, map, pipe, reduce, sort } from "#fp";
-import { parseColumnTemplate } from "#lib/column-order.ts";
+import { renderFilteredValue, resolveColumnLayout } from "#lib/column-order.ts";
 import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
@@ -99,20 +99,21 @@ const computeVisibilityMap = (
 // Column ordering — parse template and filter by visibility
 // ---------------------------------------------------------------------------
 
-/** Get the ordered list of visible column keys */
-const getVisibleColumns = (
+/** Get the ordered list of visible column keys and their filter expressions */
+const getColumnLayout = (
   visMap: Record<string, boolean>,
   columnTemplate?: string,
-): string[] => {
+): { visibleColumns: string[]; filters: Map<string, string> } => {
   const template = columnTemplate || settings.attendeeColumnOrder;
-  const allKeys = Object.keys(ATTENDEE_TABLE_COLUMNS);
-  const orderedKeys = template
-    ? (() => {
-        const result = parseColumnTemplate(template, allKeys);
-        return result.ok ? result.columns : [...ATTENDEE_DEFAULT_ORDER];
-      })()
-    : [...ATTENDEE_DEFAULT_ORDER];
-  return orderedKeys.filter((key) => visMap[key]);
+  const { columnKeys, filters } = resolveColumnLayout(
+    template,
+    Object.keys(ATTENDEE_TABLE_COLUMNS),
+    ATTENDEE_DEFAULT_ORDER,
+  );
+  return {
+    visibleColumns: columnKeys.filter((k) => visMap[k]),
+    filters,
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -273,13 +274,21 @@ const AttendeeRow = (
   row: AttendeeTableRow,
   visibleColumns: string[],
   colOpts: AttendeeColumnOpts,
+  filters: Map<string, string>,
 ): string => {
   const cells = pipe(
     map((key: string) => {
       const col = ATTENDEE_TABLE_COLUMNS[key]!;
-      const content = col.cell(row, colOpts);
+      const filterExpr = filters.get(key);
+      // Use Liquid filter rendering when the column has a rawValue and a filter
+      const content =
+        filterExpr && col.rawValue
+          ? renderFilteredValue(filterExpr, col.rawValue(row, colOpts), key)
+          : col.cell(row, colOpts);
       const clsAttr = col.className ? ` class="${col.className}"` : "";
-      return col.isHtml
+      // Filtered values are plain text; cell() may return HTML
+      const isHtml = filterExpr && col.rawValue ? false : col.isHtml;
+      return isHtml
         ? `<td${clsAttr}>${content}</td>`
         : `<td${clsAttr}>${escapeHtml(content)}</td>`;
     }),
@@ -296,7 +305,10 @@ const AttendeeRow = (
 export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const orderedRows = opts.presorted ? opts.rows : sortAttendeeRows(opts.rows);
   const visMap = computeVisibilityMap(orderedRows, opts);
-  const visibleColumns = getVisibleColumns(visMap, opts.columnTemplate);
+  const { visibleColumns, filters } = getColumnLayout(
+    visMap,
+    opts.columnTemplate,
+  );
   const colCount = visibleColumns.length;
 
   const hasAnswers = visMap.answers;
@@ -321,7 +333,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
     orderedRows.length > 0
       ? pipe(
           map((row: AttendeeTableRow) =>
-            AttendeeRow(row, visibleColumns, colOpts),
+            AttendeeRow(row, visibleColumns, colOpts, filters),
           ),
           joinStrings,
         )(orderedRows)
