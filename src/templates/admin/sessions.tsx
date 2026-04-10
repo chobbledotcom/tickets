@@ -55,6 +55,10 @@ export const adminSessionsPage = (
 
       <Flash success={success} />
 
+      <p>
+        <a href="/admin/guide#login">Sessions guide</a>
+      </p>
+
       <div class="table-scroll">
         <table>
           <thead>

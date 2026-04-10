@@ -953,7 +953,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Daily Events &amp; Holidays">
+      <Section id="holidays" title="Daily Events &amp; Holidays">
         <Q q="How do daily events work?">
           <p>
             Daily events let attendees choose a specific date when booking. You
@@ -1278,7 +1278,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Webhooks">
+      <Section id="webhooks" title="Webhooks">
         <Q q="What are webhooks for?">
           <p>
             Webhooks send an automatic notification to a URL of your choice
@@ -1364,7 +1364,7 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Activity Log">
+      <Section id="activity-log" title="Activity Log">
         <Q q="What is the activity log?">
           <p>
             The <strong>Log</strong> page shows a chronological list of admin

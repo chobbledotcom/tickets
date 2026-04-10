@@ -135,7 +135,10 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
     test("stores ticket tokens encrypted when provided", async () => {
       await reserveSession("cs_with_tokens");
-      await finalizeSession("cs_with_tokens", attendeeId, ["tok_abc", "tok_def"]);
+      await finalizeSession("cs_with_tokens", attendeeId, [
+        "tok_abc",
+        "tok_def",
+      ]);
 
       const record = await isSessionProcessed("cs_with_tokens");
       expect(record?.ticket_tokens).toMatch(/^enc:1:/);

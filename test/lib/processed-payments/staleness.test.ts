@@ -109,9 +109,9 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       });
 
       expect(await deleteAllStaleReservations()).toBe(0);
-      expect(
-        (await isSessionProcessed("cs_finalized_bulk"))?.attendee_id,
-      ).toBe(attendeeId);
+      expect((await isSessionProcessed("cs_finalized_bulk"))?.attendee_id).toBe(
+        attendeeId,
+      );
     });
 
     test("returns 0 when no stale reservations exist", async () => {
