@@ -65,24 +65,26 @@ const EDGE_SUBPATHS: Record<string, string> = {
 };
 
 /**
- * Derive BUILD_TIMESTAMP from BUILD_TAG (vYYYY-MM-DD-HHMMSS) when available,
- * so the baked-in timestamp matches the release tag exactly. This ensures
- * isNewerVersion() correctly detects same-version vs newer-version releases.
- * Falls back to current time for non-release builds (deploy workflows, local).
+ * Build timestamp — always the current time. Used both as BUILD_TIMESTAMP
+ * and (formatted) as the release tag in release builds, so the two always match.
  */
-const buildTimestampFromTag = (): string => {
-  const tag = Deno.env.get("BUILD_TAG") ?? "";
-  const m = tag.match(/^v(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})$/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
-  return new Date().toISOString();
+const BUILD_ISO = new Date().toISOString();
+
+/**
+ * Format an ISO timestamp as a release-style tag: vYYYY-MM-DD-HHMMSS.
+ * Written to .build-tag so the release workflow can read it.
+ */
+const isoToTag = (iso: string): string => {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `v${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}-${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`;
 };
 
 /** Build the inline build-info module with timestamp and commit SHA */
 const buildBuildInfoModule = (): string => {
-  const timestamp = buildTimestampFromTag();
   const commit = Deno.env.get("BUILD_COMMIT") ?? "";
   return [
-    `export const BUILD_TIMESTAMP = ${JSON.stringify(timestamp)};`,
+    `export const BUILD_TIMESTAMP = ${JSON.stringify(BUILD_ISO)};`,
     `export const BUILD_COMMIT = ${JSON.stringify(commit)};`,
   ].join("\n");
 };
@@ -378,6 +380,10 @@ if (content.length > BUNNY_MAX_SCRIPT_SIZE) {
 }
 
 await Deno.writeTextFile("./bunny-script.ts", content);
+
+// Write the build tag so the release workflow can use it as the git tag.
+// This ensures the release tag exactly matches the baked-in BUILD_TIMESTAMP.
+await Deno.writeTextFile(".build-tag", isoToTag(BUILD_ISO));
 
 console.log(`Build complete: bunny-script.ts (${content.length} bytes)`);
 
