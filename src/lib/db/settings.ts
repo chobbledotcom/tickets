@@ -93,6 +93,8 @@ export const CONFIG_KEYS = {
   CURRENT_TASK: "current_task",
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
+  EVENT_COLUMN_ORDER: "event_column_order",
+  ATTENDEE_COLUMN_ORDER: "attendee_column_order",
 } as const;
 
 export const MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
@@ -190,6 +192,8 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
   CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
   CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
+  CONFIG_KEYS.EVENT_COLUMN_ORDER,
+  CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
 ] as const;
 
 /** Union of all string-setting snapshot keys. */
@@ -625,6 +629,12 @@ export const settings = {
   get latestScriptVersionName(): string {
     return snap("latest_script_version_name");
   },
+  get eventColumnOrder(): string {
+    return snap("event_column_order");
+  },
+  get attendeeColumnOrder(): string {
+    return snap("attendee_column_order");
+  },
 
   // Derived from country
   get currency(): string {
@@ -775,6 +785,8 @@ export const settings = {
     latestScriptVersionName: plaintextUpdate(
       CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     ),
+    eventColumnOrder: encryptedUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
+    attendeeColumnOrder: encryptedUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
     // --- Stripe writes ---
     stripe: {
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),

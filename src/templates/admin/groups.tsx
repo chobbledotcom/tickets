@@ -3,6 +3,12 @@
  */
 
 import { joinStrings, map, pipe, reduce } from "#fp";
+import { getOrderedColumns } from "#lib/column-order.ts";
+import {
+  EVENT_DEFAULT_ORDER,
+  EVENT_TABLE_COLUMNS,
+} from "#lib/columns/event-columns.ts";
+import { settings } from "#lib/db/settings.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import { isReadOnly } from "#lib/env.ts";
 import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
@@ -14,7 +20,7 @@ import {
   type Group,
   isPaidEvent,
 } from "#lib/types.ts";
-import { EventRow } from "#templates/admin/dashboard.tsx";
+import { EventRow, renderEventTable } from "#templates/admin/dashboard.tsx";
 import {
   buildSharedDetailRows,
   renderDetailRows,
@@ -221,13 +227,18 @@ export const adminGroupDetailPage = (
   successMessage?: string,
   questionData?: TableQuestionData,
 ): string => {
+  const columns = getOrderedColumns(
+    settings.eventColumnOrder,
+    EVENT_TABLE_COLUMNS,
+    EVENT_DEFAULT_ORDER,
+  );
   const eventRows =
     events.length > 0
       ? pipe(
-          map((e: EventWithCount) => EventRow({ e })),
+          map((e: EventWithCount) => EventRow({ e, columns })),
           joinStrings,
         )(events)
-      : '<tr><td colspan="5">No events in this group</td></tr>';
+      : `<tr><td colspan="${columns.length}">No events in this group</td></tr>`;
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -319,20 +330,7 @@ export const adminGroupDetailPage = (
 
       <h2>Events</h2>
       <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Event Name</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Attendees</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={eventRows} />
-          </tbody>
-        </table>
+        <Raw html={renderEventTable(columns, eventRows)} />
       </div>
 
       <article>

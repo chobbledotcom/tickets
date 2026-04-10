@@ -102,6 +102,8 @@ describe("adminAdvancedSettingsPage", () => {
     subdomainPreview: "",
     subdomainPreviewFullDomain: "",
     theme: "light",
+    eventColumnOrder: "",
+    attendeeColumnOrder: "",
   };
 
   test("shows email provider selection when configured", () => {

@@ -1,0 +1,103 @@
+/**
+ * Event table column definitions.
+ *
+ * Maps column keys to their rendering logic for the admin dashboard event table.
+ * This is the single source of truth for available event columns, their headers,
+ * cell rendering, and guide documentation.
+ */
+
+import type { ColumnDef, ColumnGenerators } from "#lib/column-order.ts";
+import type { EventWithCount } from "#lib/types.ts";
+import { escapeHtml } from "#templates/layout.tsx";
+import { renderEventImage } from "#templates/public.tsx";
+
+/** Options passed to event column cell renderers */
+export type EventColumnOpts = Record<string, never>;
+
+type EventCol = ColumnDef<EventWithCount, EventColumnOpts>;
+
+const name: EventCol = {
+  label: "Name",
+  description: "Event name with thumbnail image and link to event detail",
+  header: () => "Event Name",
+  cell: (e) =>
+    `${renderEventImage(e, "event-thumbnail")}<a href="/admin/event/${e.id}">${escapeHtml(e.name)}</a>`,
+};
+
+const description: EventCol = {
+  label: "Description",
+  description: "Event description text",
+  header: () => "Description",
+  cell: (e) => escapeHtml(e.description),
+  className: "cell-description",
+};
+
+const status: EventCol = {
+  label: "Status",
+  description: "Whether the event is Active or Inactive",
+  header: () => "Status",
+  cell: (e) => (e.active ? "Active" : "Inactive"),
+};
+
+const attendees: EventCol = {
+  label: "Attendees",
+  description: "Current attendee count vs maximum capacity",
+  header: () => "Attendees",
+  cell: (e) => `${e.attendee_count} / ${e.max_attendees}`,
+};
+
+const created: EventCol = {
+  label: "Created",
+  description: "Date the event was created",
+  header: () => "Created",
+  cell: (e) => new Date(e.created).toLocaleDateString(),
+};
+
+const date: EventCol = {
+  label: "Date",
+  description: "Scheduled event date",
+  header: () => "Date",
+  cell: (e) => (e.date ? new Date(e.date).toLocaleDateString() : ""),
+};
+
+const location: EventCol = {
+  label: "Location",
+  description: "Event location",
+  header: () => "Location",
+  cell: (e) => escapeHtml(e.location),
+};
+
+const price: EventCol = {
+  label: "Price",
+  description: "Ticket unit price (in minor currency units)",
+  header: () => "Price",
+  cell: (e) => (e.unit_price > 0 ? String(e.unit_price) : "Free"),
+};
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+/** All available event table columns */
+export const EVENT_TABLE_COLUMNS: ColumnGenerators<
+  EventWithCount,
+  EventColumnOpts
+> = {
+  name,
+  description,
+  status,
+  attendees,
+  created,
+  date,
+  location,
+  price,
+};
+
+/** Default column order for the event table */
+export const EVENT_DEFAULT_ORDER = [
+  "name",
+  "description",
+  "status",
+  "attendees",
+  "created",
+] as const;

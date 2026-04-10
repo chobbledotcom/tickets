@@ -1341,4 +1341,84 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       });
     },
   );
+
+  describe("POST /admin/settings/event-column-order", () => {
+    const formUrl =
+      "/admin/settings-advanced?form=settings-event-column-order#settings-event-column-order";
+
+    test("saves valid event column order", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/event-column-order",
+        { column_order: "{{name}}, {{status}}" },
+      );
+      expectRedirectWithFlash(formUrl, "Event column order updated")(response);
+      expect(settings.eventColumnOrder).toBe("{{name}}, {{status}}");
+    });
+
+    test("rejects invalid column name", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/event-column-order",
+        { column_order: "{{invalid}}" },
+      );
+      expectRedirectWithFlash(
+        formUrl,
+        'Unknown column "invalid". Available columns: name, description, status, attendees, created, date, location, price',
+        false,
+      )(response);
+    });
+
+    test("clears to default when empty", async () => {
+      await settings.update.eventColumnOrder("{{name}}");
+      const { response } = await adminFormPost(
+        "/admin/settings/event-column-order",
+        { column_order: "" },
+      );
+      expectRedirectWithFlash(formUrl, "Event column order updated")(response);
+      expect(settings.eventColumnOrder).toBe("");
+    });
+  });
+
+  describe("POST /admin/settings/attendee-column-order", () => {
+    const formUrl =
+      "/admin/settings-advanced?form=settings-attendee-column-order#settings-attendee-column-order";
+
+    test("saves valid attendee column order", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/attendee-column-order",
+        { column_order: "{{name}}, {{qty}}, {{ticket}}" },
+      );
+      expectRedirectWithFlash(
+        formUrl,
+        "Attendee column order updated",
+      )(response);
+      expect(settings.attendeeColumnOrder).toBe(
+        "{{name}}, {{qty}}, {{ticket}}",
+      );
+    });
+
+    test("rejects invalid column name", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/attendee-column-order",
+        { column_order: "{{bogus}}" },
+      );
+      expectRedirectWithFlash(
+        formUrl,
+        'Unknown column "bogus". Available columns: status, event, date, name, email, phone, address, special_instructions, answers, qty, ticket, registered, actions',
+        false,
+      )(response);
+    });
+
+    test("clears to default when empty", async () => {
+      await settings.update.attendeeColumnOrder("{{name}}");
+      const { response } = await adminFormPost(
+        "/admin/settings/attendee-column-order",
+        { column_order: "" },
+      );
+      expectRedirectWithFlash(
+        formUrl,
+        "Attendee column order updated",
+      )(response);
+      expect(settings.attendeeColumnOrder).toBe("");
+    });
+  });
 });

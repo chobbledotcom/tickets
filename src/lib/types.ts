@@ -207,3 +207,10 @@ export interface EventWithCount extends Event {
  * field exposure. Snake_case keys match the DB schema.
  */
 export type AdminEvent = Omit<EventWithCount, "slug_index">;
+
+/** A single row in the attendee table (attendee + parent event context) */
+export type AttendeeTableRow = {
+  attendee: Attendee;
+  eventId: number;
+  eventName: string;
+};

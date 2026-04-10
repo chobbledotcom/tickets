@@ -1,27 +1,51 @@
 /**
  * Unified attendee table component — renders attendee lists consistently
  * across the event detail, check-in, and calendar views.
+ *
+ * Column order is configurable via a Liquid template stored in settings.
+ * The template determines which columns appear and in what order.
+ * Columns that reference absent data (e.g. email when nobody has one)
+ * are still hidden automatically.
+ *
+ * All cell rendering logic lives in ATTENDEE_TABLE_COLUMNS (single source
+ * of truth). This component provides the complex callbacks (status, actions)
+ * via the opts object and iterates the ordered column definitions.
  */
 
 import { flatMap, joinStrings, map, pipe, reduce, sort } from "#fp";
-import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
+import { parseColumnTemplate } from "#lib/column-order.ts";
+import {
+  ATTENDEE_DEFAULT_ORDER,
+  ATTENDEE_TABLE_COLUMNS,
+} from "#lib/columns/attendee-columns.ts";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
+import { settings } from "#lib/db/settings.ts";
 import { CsrfForm } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { normalizePhone } from "#lib/phone.ts";
-import type { Attendee } from "#lib/types.ts";
+import type { Attendee, AttendeeTableRow } from "#lib/types.ts";
+import { escapeHtml } from "#templates/layout.tsx";
 
-/** A single row in the unified attendee table */
-export type AttendeeTableRow = {
-  attendee: Attendee;
-  eventId: number;
-  eventName: string;
-};
+export { formatAddressInline } from "#lib/columns/attendee-columns.ts";
+export type { AttendeeTableRow } from "#lib/types.ts";
 
 /** Question data for displaying answers in the attendee table */
 export type TableQuestionData = {
   questions: QuestionWithAnswers[];
   attendeeAnswerMap: Map<number, number[]>;
+};
+
+/** Options passed to attendee column cell renderers */
+export type AttendeeColumnOpts = {
+  allowedDomain: string;
+  phonePrefix: string;
+  /** Render the status cell (check-in button or refunded badge) */
+  renderStatus: (row: AttendeeTableRow) => string;
+  /** Render the actions cell (refund, edit, delete, resend links) */
+  renderActions: (row: AttendeeTableRow) => string;
+  /** Answer maps for question-based columns */
+  answerTextMap: Map<number, string>;
+  answerQuestionMap: Map<number, string>;
+  /** Question data for the answers column */
+  questionData?: TableQuestionData;
 };
 
 /** Options for the unified AttendeeTable component */
@@ -40,72 +64,66 @@ export type AttendeeTableOptions = {
   presorted?: boolean;
   /** Question data for the Answers column */
   questionData?: TableQuestionData;
+  /** Liquid template controlling column order (e.g. "{{name}}, {{email}}, {{qty}}") */
+  columnTemplate?: string;
 };
 
-/** Column visibility flags computed from data */
-type Visibility = {
-  showEvent: boolean;
-  showDate: boolean;
-  showEmail: boolean;
-  showPhone: boolean;
-  showAddress: boolean;
-  showSpecialInstructions: boolean;
-  showAnswers: boolean;
-};
+// ---------------------------------------------------------------------------
+// Column visibility — determines which columns are eligible to display
+// ---------------------------------------------------------------------------
 
-/** Format a multi-line address for inline display */
-export const formatAddressInline = (address: string): string => {
-  if (!address) return "";
-  return address
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line)
-    .reduce((acc, line) => {
-      if (!acc) return line;
-      return acc.endsWith(",") ? `${acc} ${line}` : `${acc}, ${line}`;
-    }, "");
-};
-
-/** Format multi-line instructions as single-line text */
-const formatInstructionsInline = (instructions: string): string => {
-  if (!instructions) return "";
-  return instructions.replace(/\r?\n+/g, " ").trim();
-};
-
-/** Compute which optional columns have data */
-const computeVisibility = (
+/** Compute which columns are eligible based on caller options and data */
+const computeVisibilityMap = (
   rows: AttendeeTableRow[],
   opts: AttendeeTableOptions,
-): Visibility => ({
-  showEvent: opts.showEvent,
-  showDate: opts.showDate,
-  showEmail: rows.some((r) => !!r.attendee.email),
-  showPhone: rows.some((r) => !!r.attendee.phone),
-  showAddress: rows.some((r) => !!r.attendee.address),
-  showSpecialInstructions: rows.some((r) => !!r.attendee.special_instructions),
-  showAnswers: !!opts.questionData && opts.questionData.questions.length > 0,
-});
-
-/** Count visible columns for colspan on empty row */
-const countColumns = (vis: Visibility, showActions: boolean): number => {
-  let count = 4; // Name, Qty, Ticket, Registered
-  if (showActions) count += 2; // Checked In, Actions
-  if (vis.showEvent) count++;
-  if (vis.showDate) count++;
-  if (vis.showEmail) count++;
-  if (vis.showPhone) count++;
-  if (vis.showAddress) count++;
-  if (vis.showSpecialInstructions) count++;
-  if (vis.showAnswers) count++;
-  return count;
+): Record<string, boolean> => {
+  const showActions = opts.showActions !== false;
+  return {
+    status: showActions,
+    event: opts.showEvent,
+    date: opts.showDate,
+    name: true,
+    email: rows.some((r) => !!r.attendee.email),
+    phone: rows.some((r) => !!r.attendee.phone),
+    address: rows.some((r) => !!r.attendee.address),
+    special_instructions: rows.some((r) => !!r.attendee.special_instructions),
+    answers: !!opts.questionData && opts.questionData.questions.length > 0,
+    qty: true,
+    ticket: true,
+    registered: true,
+    actions: showActions,
+  };
 };
+
+// ---------------------------------------------------------------------------
+// Column ordering — parse template and filter by visibility
+// ---------------------------------------------------------------------------
+
+/** Get the ordered list of visible column keys */
+const getVisibleColumns = (
+  visMap: Record<string, boolean>,
+  columnTemplate?: string,
+): string[] => {
+  const template = columnTemplate || settings.attendeeColumnOrder;
+  const allKeys = Object.keys(ATTENDEE_TABLE_COLUMNS);
+  const orderedKeys = template
+    ? (() => {
+        const result = parseColumnTemplate(template, allKeys);
+        return result.ok ? result.columns : [...ATTENDEE_DEFAULT_ORDER];
+      })()
+    : [...ATTENDEE_DEFAULT_ORDER];
+  return orderedKeys.filter((key) => visMap[key]);
+};
+
+// ---------------------------------------------------------------------------
+// Sorting
+// ---------------------------------------------------------------------------
 
 /** Compare attendee rows for deterministic table ordering */
 const compareAttendeeRows = (
   a: AttendeeTableRow,
   b: AttendeeTableRow,
 ): number => {
-  // 1. Event date: rows with dates first, then ascending
   const dateA = a.attendee.date ?? "";
   const dateB = b.attendee.date ?? "";
   if (dateA !== "" || dateB !== "") {
@@ -114,16 +132,10 @@ const compareAttendeeRows = (
     const dateCmp = dateA.localeCompare(dateB);
     if (dateCmp !== 0) return dateCmp;
   }
-
-  // 2. Event name
   const nameCmp = a.eventName.localeCompare(b.eventName);
   if (nameCmp !== 0) return nameCmp;
-
-  // 3. Attendee name
   const attendeeCmp = a.attendee.name.localeCompare(b.attendee.name);
   if (attendeeCmp !== 0) return attendeeCmp;
-
-  // 4. Attendee id
   return a.attendee.id - b.attendee.id;
 };
 
@@ -131,6 +143,10 @@ const compareAttendeeRows = (
 export const sortAttendeeRows: (
   rows: AttendeeTableRow[],
 ) => AttendeeTableRow[] = sort(compareAttendeeRows);
+
+// ---------------------------------------------------------------------------
+// Answer helpers
+// ---------------------------------------------------------------------------
 
 /** Build answer text map from questions */
 const buildAnswerTextMap = (
@@ -157,27 +173,9 @@ const buildAnswerQuestionMap = (
   return m;
 };
 
-/** Get attendee answer display: short text (comma-separated answers) and tooltip (key: value) */
-const getAttendeeAnswerDisplay = (
-  attendeeId: number,
-  questionData: TableQuestionData,
-  answerTextMap: Map<number, string>,
-  answerQuestionMap: Map<number, string>,
-): { short: string; tooltip: string } => {
-  const answerIds = questionData.attendeeAnswerMap.get(attendeeId) ?? [];
-  const answerTexts: string[] = [];
-  const tooltipParts: string[] = [];
-  for (const aid of answerIds) {
-    const text = answerTextMap.get(aid);
-    const qText = answerQuestionMap.get(aid);
-    if (text) answerTexts.push(text);
-    if (text && qText) tooltipParts.push(`${qText}: ${text}`);
-  }
-  return {
-    short: answerTexts.join(", "),
-    tooltip: tooltipParts.join(", "),
-  };
-};
+// ---------------------------------------------------------------------------
+// Status & Actions — complex JSX renderers passed as callbacks
+// ---------------------------------------------------------------------------
 
 /** Build a return_url query suffix for action links */
 const returnSuffix = (returnUrl: string | undefined): string =>
@@ -218,202 +216,125 @@ const CheckinButton = ({
 const isRefundable = (row: AttendeeTableRow): boolean =>
   !!row.attendee.payment_id && !row.attendee.refunded;
 
-/** Render the actions cell for a row */
-const ActionsCell = ({
-  row,
-  returnUrl,
-}: {
-  row: AttendeeTableRow;
-  returnUrl: string | undefined;
-}): string => {
-  const a = row.attendee;
-  const suffix = returnSuffix(returnUrl);
-  return String(
-    <>
-      {isRefundable(row) && (
+/** Create the renderStatus callback for column opts */
+const createStatusRenderer =
+  (opts: AttendeeTableOptions) =>
+  (row: AttendeeTableRow): string => {
+    if (row.attendee.refunded) {
+      return String(<span class="badge-alert">Refunded</span>);
+    }
+    return CheckinButton({
+      a: row.attendee,
+      eventId: row.eventId,
+      activeFilter: opts.activeFilter ?? "all",
+      returnUrl: opts.returnUrl,
+    });
+  };
+
+/** Create the renderActions callback for column opts */
+const createActionsRenderer =
+  (returnUrl: string | undefined) =>
+  (row: AttendeeTableRow): string => {
+    const a = row.attendee;
+    const suffix = returnSuffix(returnUrl);
+    return String(
+      <>
+        {isRefundable(row) && (
+          <a
+            href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`}
+            class="danger"
+          >
+            Refund
+          </a>
+        )}
+        {isRefundable(row) && " "}
+        <a href={`/admin/attendees/${a.id}${suffix}`}>Edit</a>{" "}
         <a
-          href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`}
+          href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`}
           class="danger"
         >
-          Refund
+          Delete
+        </a>{" "}
+        <a
+          href={`/admin/event/${row.eventId}/attendee/${a.id}/resend-notification${suffix}`}
+        >
+          Re-send Notification
         </a>
-      )}
-      {isRefundable(row) && " "}
-      <a href={`/admin/attendees/${a.id}${suffix}`}>Edit</a>{" "}
-      <a
-        href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`}
-        class="danger"
-      >
-        Delete
-      </a>{" "}
-      <a
-        href={`/admin/event/${row.eventId}/attendee/${a.id}/resend-notification${suffix}`}
-      >
-        Re-send Notification
-      </a>
-    </>,
-  );
-};
+      </>,
+    );
+  };
 
-/** Render the first column: refunded badge or check-in/out button */
-const StatusCell = ({
-  row,
-  opts,
-}: {
-  row: AttendeeTableRow;
-  opts: AttendeeTableOptions;
-}): string => {
-  if (row.attendee.refunded) {
-    return String(<span class="badge-alert">Refunded</span>);
-  }
-  return CheckinButton({
-    a: row.attendee,
-    eventId: row.eventId,
-    activeFilter: opts.activeFilter ?? "all",
-    returnUrl: opts.returnUrl,
-  });
-};
+// ---------------------------------------------------------------------------
+// Row rendering — driven entirely by column generators
+// ---------------------------------------------------------------------------
 
-/** Render a single attendee row */
-const AttendeeRow = ({
-  row,
-  vis,
-  opts,
-  answerTextMap,
-  answerQuestionMap,
-}: {
-  row: AttendeeTableRow;
-  vis: Visibility;
-  opts: AttendeeTableOptions;
-  answerTextMap: Map<number, string>;
-  answerQuestionMap: Map<number, string>;
-}): string => {
-  const a = row.attendee;
-  const showActions = opts.showActions !== false;
-  return String(
-    <tr>
-      {showActions && (
-        <td class="actions-col">
-          <Raw html={StatusCell({ row, opts })} />
-        </td>
-      )}
-      {vis.showEvent && (
-        <td>
-          <a href={`/admin/event/${row.eventId}`}>{row.eventName}</a>
-        </td>
-      )}
-      {vis.showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
-      <td>{a.name}</td>
-      {vis.showEmail && <td>{a.email || ""}</td>}
-      {vis.showPhone && (
-        <td>
-          {a.phone ? (
-            <a
-              href={`tel:${normalizePhone(a.phone, opts.phonePrefix || "44")}`}
-            >
-              {a.phone}
-            </a>
-          ) : (
-            ""
-          )}
-        </td>
-      )}
-      {vis.showAddress && <td>{formatAddressInline(a.address)}</td>}
-      {vis.showSpecialInstructions && (
-        <td>{formatInstructionsInline(a.special_instructions)}</td>
-      )}
-      {vis.showAnswers && (
-        <Raw
-          html={renderAnswerCell(
-            a.id,
-            opts.questionData!,
-            answerTextMap,
-            answerQuestionMap,
-          )}
-        />
-      )}
-      <td>{a.quantity}</td>
-      <td>
-        <a href={`https://${opts.allowedDomain}/t/${a.ticket_token}`}>
-          {a.ticket_token}
-        </a>
-      </td>
-      <td>{formatDatetimeShort(a.created)}</td>
-      {showActions && (
-        <td class="actions-col">
-          <Raw html={ActionsCell({ row, returnUrl: opts.returnUrl })} />
-        </td>
-      )}
-    </tr>,
-  );
-};
-
-/** Render an answer cell for an attendee */
-const renderAnswerCell = (
-  attendeeId: number,
-  questionData: TableQuestionData,
-  answerTextMap: Map<number, string>,
-  answerQuestionMap: Map<number, string>,
+/** Render a single attendee row using ordered column defs */
+const AttendeeRow = (
+  row: AttendeeTableRow,
+  visibleColumns: string[],
+  colOpts: AttendeeColumnOpts,
 ): string => {
-  const { short, tooltip } = getAttendeeAnswerDisplay(
-    attendeeId,
-    questionData,
-    answerTextMap,
-    answerQuestionMap,
-  );
-  return String(
-    <td class="answers-cell" title={tooltip}>
-      {short}
-    </td>,
-  );
+  const cells = pipe(
+    map((key: string) => {
+      const col = ATTENDEE_TABLE_COLUMNS[key]!;
+      const content = col.cell(row, colOpts);
+      const clsAttr = col.className ? ` class="${col.className}"` : "";
+      return col.isHtml
+        ? `<td${clsAttr}>${content}</td>`
+        : `<td${clsAttr}>${escapeHtml(content)}</td>`;
+    }),
+    joinStrings,
+  )(visibleColumns);
+  return `<tr>${cells}</tr>`;
 };
+
+// ---------------------------------------------------------------------------
+// Main export
+// ---------------------------------------------------------------------------
 
 /** Render the unified attendee table */
 export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const orderedRows = opts.presorted ? opts.rows : sortAttendeeRows(opts.rows);
-  const vis = computeVisibility(orderedRows, opts);
-  const showActions = opts.showActions !== false;
-  const colCount = countColumns(vis, showActions);
+  const visMap = computeVisibilityMap(orderedRows, opts);
+  const visibleColumns = getVisibleColumns(visMap, opts.columnTemplate);
+  const colCount = visibleColumns.length;
 
-  const answerTextMap = vis.showAnswers
+  const hasAnswers = visMap.answers;
+  const answerTextMap = hasAnswers
     ? buildAnswerTextMap(opts.questionData!.questions)
     : new Map<number, string>();
-  const answerQuestionMap = vis.showAnswers
+  const answerQuestionMap = hasAnswers
     ? buildAnswerQuestionMap(opts.questionData!.questions)
     : new Map<number, string>();
+
+  const colOpts: AttendeeColumnOpts = {
+    allowedDomain: opts.allowedDomain,
+    phonePrefix: opts.phonePrefix || "44",
+    renderStatus: createStatusRenderer(opts),
+    renderActions: createActionsRenderer(opts.returnUrl),
+    answerTextMap,
+    answerQuestionMap,
+    questionData: opts.questionData,
+  };
 
   const rows =
     orderedRows.length > 0
       ? pipe(
           map((row: AttendeeTableRow) =>
-            AttendeeRow({ row, vis, opts, answerTextMap, answerQuestionMap }),
+            AttendeeRow(row, visibleColumns, colOpts),
           ),
           joinStrings,
         )(orderedRows)
       : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
 
-  return String(
-    <table>
-      <thead>
-        <tr>
-          {showActions && <th class="actions-col"></th>}
-          {vis.showEvent && <th>Event</th>}
-          {vis.showDate && <th>Date</th>}
-          <th>Name</th>
-          {vis.showEmail && <th>Email</th>}
-          {vis.showPhone && <th>Phone</th>}
-          {vis.showAddress && <th>Address</th>}
-          {vis.showSpecialInstructions && <th>Special Instructions</th>}
-          {vis.showAnswers && <th>Answers</th>}
-          <th>Qty</th>
-          <th>Ticket</th>
-          <th>Registered</th>
-          {showActions && <th class="actions-col"></th>}
-        </tr>
-      </thead>
-      <tbody>
-        <Raw html={rows} />
-      </tbody>
-    </table>,
-  );
+  const headers = pipe(
+    map((key: string) => {
+      const col = ATTENDEE_TABLE_COLUMNS[key]!;
+      const cls = col.headerClassName;
+      return `<th${cls ? ` class="${cls}"` : ""}>${col.header()}</th>`;
+    }),
+    joinStrings,
+  )(visibleColumns);
+
+  return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 };

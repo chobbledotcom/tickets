@@ -700,3 +700,63 @@ describe("AttendeeTable with questionData", () => {
     expect(html).toContain("No attendees yet");
   });
 });
+
+describe("AttendeeTable columnTemplate", () => {
+  test("renders only specified columns in template order", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        columnTemplate: "{{name}}, {{qty}}, {{registered}}",
+        showActions: false,
+      }),
+    );
+    const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
+      (m) => m[1],
+    );
+    expect(headers).toEqual(["Name", "Qty", "Registered"]);
+  });
+
+  test("falls back to default order for invalid template", () => {
+    const html = AttendeeTable(
+      makeOpts({
+        columnTemplate: "{{invalid_column}}",
+      }),
+    );
+    // Should still render the default columns
+    expect(html).toContain("<th>Name</th>");
+    expect(html).toContain("<th>Qty</th>");
+  });
+
+  test("respects visibility filtering with template", () => {
+    const rows = [makeRow({ attendee: testAttendee({ email: "" }) })];
+    const html = AttendeeTable(
+      makeOpts({
+        rows,
+        columnTemplate: "{{name}}, {{email}}, {{qty}}",
+        showActions: false,
+      }),
+    );
+    // Email column excluded because no attendee has email
+    expect(html).not.toContain("<th>Email</th>");
+    expect(html).toContain("<th>Name</th>");
+    expect(html).toContain("<th>Qty</th>");
+  });
+
+  test("reorders columns as specified by template", () => {
+    const rows = [
+      makeRow({
+        attendee: testAttendee({ email: "a@b.com" }),
+      }),
+    ];
+    const html = AttendeeTable(
+      makeOpts({
+        rows,
+        columnTemplate: "{{qty}}, {{name}}, {{email}}",
+        showActions: false,
+      }),
+    );
+    const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
+      (m) => m[1],
+    );
+    expect(headers).toEqual(["Qty", "Name", "Email"]);
+  });
+});

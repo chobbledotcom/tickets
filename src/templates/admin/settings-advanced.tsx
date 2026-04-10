@@ -6,6 +6,10 @@ import type { AdminSession, Theme } from "#lib/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
+import {
+  AttendeeColumnOrderForm,
+  EventColumnOrderForm,
+} from "#templates/admin/settings/column-order.tsx";
 import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
 import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
@@ -50,22 +54,10 @@ export type AdvancedSettingsPageState = {
   googleWalletServiceAccountEmail: string;
   hostGoogleWalletLabel: string;
   theme: Theme;
+  eventColumnOrder: string;
+  attendeeColumnOrder: string;
 };
 
-/**
- * Admin advanced settings page
- *
- * Forms ordered from most to least likely to be configured:
- * 1. Email Notifications - most users want confirmation emails
- * 2. Host Subdomain - easy pretty URL
- * 3. Custom Domain - common for own-domain users
- * 4. Confirmation Email Template - customising emails
- * 5. Admin Notification Email Template
- * 6. Public API - for integrations
- * 7. Google Wallet - less common
- * 8. Apple Wallet - requires Apple Developer account
- * 9. Reset Database - destructive, always last
- */
 export const adminAdvancedSettingsPage = (
   session: AdminSession,
   s: AdvancedSettingsPageState,
@@ -90,6 +82,8 @@ export const adminAdvancedSettingsPage = (
       {CustomDomainForm(s)}
       {ConfirmationEmailTemplateForm(s)}
       {AdminEmailTemplateForm(s)}
+      {EventColumnOrderForm(s)}
+      {AttendeeColumnOrderForm(s)}
       {PublicApiForm(s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}
