@@ -1,0 +1,234 @@
+import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { type Spy, spy, stub } from "@std/testing/mock";
+import { getAllActivityLog } from "#lib/db/activityLog.ts";
+import { ErrorCode, logError, logErrorLocal } from "#lib/logger.ts";
+import { flushPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
+import {
+  createTestDbWithSetup,
+  createTestEvent,
+  resetDb,
+  setTestEnv,
+} from "#test-utils";
+
+/** Scoped console.error spy — call inside a describe block. */
+const setupErrorSpy = () => {
+  let errorSpy: Spy;
+  beforeEach(() => {
+    errorSpy = spy(console, "error");
+  });
+  afterEach(() => {
+    errorSpy.restore();
+  });
+  return {
+    get calls() {
+      return errorSpy.calls;
+    },
+    lastMessage: () => errorSpy.calls.at(-1)?.args[0] as string | undefined,
+  };
+};
+
+// Outer describe ensures sequential execution — createTestEvent() calls
+// handleRequest which sets a request-scoped ID via AsyncLocalStorage.
+// Without sequential ordering, that context can leak into later blocks.
+describe("log-error", () => {
+  describe("logError", () => {
+    const spyRef = setupErrorSpy();
+    let restoreEnv: (() => void) | undefined;
+
+    beforeEach(() => {
+      restoreEnv = setTestEnv({ NTFY_URL: undefined });
+    });
+
+    afterEach(() => {
+      restoreEnv?.();
+    });
+
+    test("logs error code only", () => {
+      logError({ code: ErrorCode.DB_CONNECTION });
+      expect(spyRef.lastMessage()).toBe("[Error] E_DB_CONNECTION");
+    });
+
+    test("logs error with event ID", () => {
+      logError({ code: ErrorCode.CAPACITY_EXCEEDED, eventId: 42 });
+      expect(spyRef.lastMessage()).toBe("[Error] E_CAPACITY_EXCEEDED event=42");
+    });
+
+    test("logs error with attendee ID", () => {
+      logError({ code: ErrorCode.WEBHOOK_SEND, attendeeId: 99 });
+      expect(spyRef.lastMessage()).toBe("[Error] E_WEBHOOK_SEND attendee=99");
+    });
+
+    test("logs error with detail", () => {
+      logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
+      expect(spyRef.lastMessage()).toBe(
+        '[Error] E_STRIPE_SIGNATURE detail="mismatch"',
+      );
+    });
+
+    test("logs error with all context fields", () => {
+      logError({
+        code: ErrorCode.NOT_FOUND_EVENT,
+        eventId: 1,
+        attendeeId: 2,
+        detail: "inactive",
+      });
+      expect(spyRef.lastMessage()).toBe(
+        '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
+      );
+    });
+
+    test("sends ntfy notification when NTFY_URL is configured", async () => {
+      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
+
+      try {
+        await runWithPendingWork(async () => {
+          logError({ code: ErrorCode.DB_QUERY });
+          await flushPendingWork();
+        });
+
+        const ntfyCall = fetchStub.calls.find(
+          (c) => c.args[0] === "https://ntfy.sh/test-topic",
+        );
+        expect(ntfyCall).toBeDefined();
+        expect((ntfyCall!.args[1] as RequestInit).body).toBe("E_DB_QUERY");
+      } finally {
+        fetchStub.restore();
+        restore();
+      }
+    });
+
+    test("skips ntfy and activity log outside pending work scope", () => {
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
+      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+
+      try {
+        logError({ code: ErrorCode.DB_CONNECTION });
+        expect(spyRef.lastMessage()).toBe("[Error] E_DB_CONNECTION");
+        expect(fetchStub.calls.length).toBe(0);
+      } finally {
+        fetchStub.restore();
+        restore();
+      }
+    });
+
+    describe("activity log persistence", () => {
+      beforeEach(async () => {
+        await createTestDbWithSetup();
+      });
+
+      afterEach(() => {
+        resetDb();
+      });
+
+      test("persists error to activity log", async () => {
+        await runWithPendingWork(async () => {
+          logError({
+            code: ErrorCode.STRIPE_CHECKOUT,
+            detail: "session creation failed",
+          });
+          await flushPendingWork();
+        });
+
+        const entries = await getAllActivityLog();
+        const match = entries.find(
+          (e) =>
+            e.message ===
+            "Error: Stripe checkout failed (session creation failed)",
+        );
+        expect(match).toBeDefined();
+        expect(match!.event_id).toBeNull();
+      });
+
+      test("persists error with event ID to activity log", async () => {
+        const event = await createTestEvent();
+        await runWithPendingWork(async () => {
+          logError({
+            code: ErrorCode.PAYMENT_REFUND,
+            eventId: event.id,
+            detail: "refund declined",
+          });
+          await flushPendingWork();
+        });
+
+        const entries = await getAllActivityLog();
+        const match = entries.find(
+          (e) => e.message === "Error: Payment refund failed (refund declined)",
+        );
+        expect(match).toBeDefined();
+        expect(match!.event_id).toBe(event.id);
+      });
+
+      test("persists error without detail to activity log", async () => {
+        await runWithPendingWork(async () => {
+          logError({ code: ErrorCode.DB_CONNECTION });
+          await flushPendingWork();
+        });
+
+        const entries = await getAllActivityLog();
+        const match = entries.find(
+          (e) => e.message === "Error: Database connection failed",
+        );
+        expect(match).toBeDefined();
+      });
+
+      test("guards against recursive logError during persistence", async () => {
+        await runWithPendingWork(async () => {
+          logError({ code: ErrorCode.DB_CONNECTION });
+          logError({ code: ErrorCode.DB_QUERY });
+          await flushPendingWork();
+        });
+
+        const entries = await getAllActivityLog();
+        const connError = entries.find(
+          (e) => e.message === "Error: Database connection failed",
+        );
+        const queryError = entries.find(
+          (e) => e.message === "Error: Database query failed",
+        );
+        expect(connError).toBeDefined();
+        expect(queryError).toBeUndefined();
+      });
+    });
+  });
+
+  describe("logErrorLocal", () => {
+    const spyRef = setupErrorSpy();
+
+    test("logs error to console", () => {
+      logErrorLocal({ code: ErrorCode.DB_CONNECTION });
+      expect(spyRef.lastMessage()).toBe("[Error] E_DB_CONNECTION");
+    });
+
+    test("logs error with all context fields", () => {
+      logErrorLocal({
+        code: ErrorCode.CDN_REQUEST,
+        eventId: 5,
+        detail: "ntfy send failed",
+      });
+      expect(spyRef.lastMessage()).toBe(
+        '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',
+      );
+    });
+
+    test("does not send ntfy notification", () => {
+      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
+
+      try {
+        logErrorLocal({ code: ErrorCode.DB_QUERY });
+        expect(fetchStub.calls.length).toBe(0);
+      } finally {
+        fetchStub.restore();
+        restore();
+      }
+    });
+  });
+});
