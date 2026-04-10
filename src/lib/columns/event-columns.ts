@@ -11,45 +11,39 @@ import type { EventWithCount } from "#lib/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 
-/** Options passed to event column cell renderers */
-export type EventColumnOpts = Record<string, never>;
-
-type EventCol = ColumnDef<EventWithCount, EventColumnOpts>;
+type EventCol = ColumnDef<EventWithCount>;
 
 const name: EventCol = {
   label: "Name",
+  headerText: "Event Name",
   description: "Event name with thumbnail image and link to event detail",
-  header: () => "Event Name",
   cell: (e) =>
     `${renderEventImage(e, "event-thumbnail")}<a href="/admin/event/${e.id}">${escapeHtml(e.name)}</a>`,
+  isHtml: true,
 };
 
 const description: EventCol = {
   label: "Description",
   description: "Event description text",
-  header: () => "Description",
-  cell: (e) => escapeHtml(e.description),
+  cell: (e) => e.description,
   className: "cell-description",
 };
 
 const status: EventCol = {
   label: "Status",
   description: "Whether the event is Active or Inactive",
-  header: () => "Status",
   cell: (e) => (e.active ? "Active" : "Inactive"),
 };
 
 const attendees: EventCol = {
   label: "Attendees",
   description: "Current attendee count vs maximum capacity",
-  header: () => "Attendees",
   cell: (e) => `${e.attendee_count} / ${e.max_attendees}`,
 };
 
 const created: EventCol = {
   label: "Created",
   description: "Date the event was created",
-  header: () => "Created",
   cell: (e) => new Date(e.created).toLocaleDateString(),
   rawValue: (e) => e.created,
 };
@@ -57,7 +51,6 @@ const created: EventCol = {
 const date: EventCol = {
   label: "Date",
   description: "Scheduled event date",
-  header: () => "Date",
   cell: (e) => (e.date ? new Date(e.date).toLocaleDateString() : ""),
   rawValue: (e) => e.date || "",
 };
@@ -65,14 +58,12 @@ const date: EventCol = {
 const location: EventCol = {
   label: "Location",
   description: "Event location",
-  header: () => "Location",
-  cell: (e) => escapeHtml(e.location),
+  cell: (e) => e.location,
 };
 
 const price: EventCol = {
   label: "Price",
   description: "Ticket unit price (in minor currency units)",
-  header: () => "Price",
   cell: (e) => (e.unit_price > 0 ? String(e.unit_price) : "Free"),
   rawValue: (e) => e.unit_price,
 };
@@ -82,10 +73,7 @@ const price: EventCol = {
 // ---------------------------------------------------------------------------
 
 /** All available event table columns */
-export const EVENT_TABLE_COLUMNS: ColumnGenerators<
-  EventWithCount,
-  EventColumnOpts
-> = {
+export const EVENT_TABLE_COLUMNS: ColumnGenerators<EventWithCount> = {
   name,
   description,
   status,

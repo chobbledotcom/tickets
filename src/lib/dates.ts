@@ -25,7 +25,7 @@ export const DAY_NAMES = [
 ] as const;
 
 /** Month names for display */
-export const MONTH_NAMES = [
+const MONTH_NAMES = [
   "January",
   "February",
   "March",

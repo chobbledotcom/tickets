@@ -13,7 +13,11 @@
  */
 
 import { flatMap, joinStrings, map, pipe, reduce, sort } from "#fp";
-import { renderFilteredValue, resolveColumnLayout } from "#lib/column-order.ts";
+import {
+  getHeaderText,
+  renderCells,
+  resolveColumnLayout,
+} from "#lib/column-order.ts";
 import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
@@ -275,27 +279,8 @@ const AttendeeRow = (
   visibleColumns: string[],
   colOpts: AttendeeColumnOpts,
   filters: Map<string, string>,
-): string => {
-  const cells = pipe(
-    map((key: string) => {
-      const col = ATTENDEE_TABLE_COLUMNS[key]!;
-      const filterExpr = filters.get(key);
-      // Use Liquid filter rendering when the column has a rawValue and a filter
-      const content =
-        filterExpr && col.rawValue
-          ? renderFilteredValue(filterExpr, col.rawValue(row, colOpts), key)
-          : col.cell(row, colOpts);
-      const clsAttr = col.className ? ` class="${col.className}"` : "";
-      // Filtered values are plain text; cell() may return HTML
-      const isHtml = filterExpr && col.rawValue ? false : col.isHtml;
-      return isHtml
-        ? `<td${clsAttr}>${content}</td>`
-        : `<td${clsAttr}>${escapeHtml(content)}</td>`;
-    }),
-    joinStrings,
-  )(visibleColumns);
-  return `<tr>${cells}</tr>`;
-};
+): string =>
+  `<tr>${renderCells(row, visibleColumns, ATTENDEE_TABLE_COLUMNS, colOpts, filters, escapeHtml)}</tr>`;
 
 // ---------------------------------------------------------------------------
 // Main export
@@ -343,7 +328,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
     map((key: string) => {
       const col = ATTENDEE_TABLE_COLUMNS[key]!;
       const cls = col.headerClassName;
-      return `<th${cls ? ` class="${cls}"` : ""}>${col.header()}</th>`;
+      return `<th${cls ? ` class="${cls}"` : ""}>${getHeaderText(col)}</th>`;
     }),
     joinStrings,
   )(visibleColumns);

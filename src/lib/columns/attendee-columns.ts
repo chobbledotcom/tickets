@@ -9,10 +9,7 @@ import type { ColumnDef, ColumnGenerators } from "#lib/column-order.ts";
 import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
 import { normalizePhone } from "#lib/phone.ts";
 import type { AttendeeTableRow } from "#lib/types.ts";
-import type {
-  AttendeeColumnOpts,
-  TableQuestionData,
-} from "#templates/attendee-table.tsx";
+import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
 type AttendeeCol = ColumnDef<AttendeeTableRow, AttendeeColumnOpts>;
@@ -24,8 +21,8 @@ const componentRenderedCol = (
   cellFn: (row: AttendeeTableRow, opts: AttendeeColumnOpts) => string,
 ): AttendeeCol => ({
   label,
+  headerText: "",
   description,
-  header: () => "",
   cell: cellFn,
   headerClassName: "actions-col",
   className: "actions-col",
@@ -41,7 +38,6 @@ const status = componentRenderedCol(
 const event: AttendeeCol = {
   label: "Event",
   description: "Event name with link to the event detail page",
-  header: () => "Event",
   cell: (row) =>
     `<a href="/admin/event/${row.eventId}">${escapeHtml(row.eventName)}</a>`,
   isHtml: true,
@@ -50,7 +46,6 @@ const event: AttendeeCol = {
 const date: AttendeeCol = {
   label: "Date",
   description: "Booking date for daily events",
-  header: () => "Date",
   cell: (row) => (row.attendee.date ? formatDateLabel(row.attendee.date) : ""),
   rawValue: (row) => row.attendee.date || "",
 };
@@ -58,21 +53,18 @@ const date: AttendeeCol = {
 const name: AttendeeCol = {
   label: "Name",
   description: "Attendee name",
-  header: () => "Name",
   cell: (row) => row.attendee.name,
 };
 
 const email: AttendeeCol = {
   label: "Email",
   description: "Attendee email address",
-  header: () => "Email",
   cell: (row) => row.attendee.email || "",
 };
 
 const phone: AttendeeCol = {
   label: "Phone",
   description: "Attendee phone number (clickable link)",
-  header: () => "Phone",
   cell: (row, opts) => {
     if (!row.attendee.phone) return "";
     const normalized = normalizePhone(
@@ -87,21 +79,19 @@ const phone: AttendeeCol = {
 const address: AttendeeCol = {
   label: "Address",
   description: "Attendee postal address (inline format)",
-  header: () => "Address",
   cell: (row) => formatAddressInline(row.attendee.address),
 };
 
 const special_instructions: AttendeeCol = {
   label: "Special Instructions",
   description: "Any special instructions from the attendee",
-  header: () => "Special Instructions",
   cell: (row) => formatInstructionsInline(row.attendee.special_instructions),
 };
 
 /** Get attendee answer display */
 const getAnswerDisplay = (
   attendeeId: number,
-  questionData: TableQuestionData,
+  questionData: import("#templates/attendee-table.tsx").TableQuestionData,
   answerTextMap: Map<number, string>,
   answerQuestionMap: Map<number, string>,
 ): { short: string; tooltip: string } => {
@@ -123,7 +113,6 @@ const getAnswerDisplay = (
 const answers: AttendeeCol = {
   label: "Answers",
   description: "Custom question answers",
-  header: () => "Answers",
   cell: (row, opts) => {
     const { short, tooltip } = getAnswerDisplay(
       row.attendee.id,
@@ -140,14 +129,12 @@ const answers: AttendeeCol = {
 const qty: AttendeeCol = {
   label: "Qty",
   description: "Number of tickets in this booking",
-  header: () => "Qty",
   cell: (row) => String(row.attendee.quantity),
 };
 
 const ticket: AttendeeCol = {
   label: "Ticket",
   description: "Clickable ticket token link",
-  header: () => "Ticket",
   cell: (row, opts) =>
     `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
   isHtml: true,
@@ -156,7 +143,6 @@ const ticket: AttendeeCol = {
 const registered: AttendeeCol = {
   label: "Registered",
   description: "Date and time the attendee registered",
-  header: () => "Registered",
   cell: (row) => formatDatetimeShort(row.attendee.created),
   rawValue: (row) => row.attendee.created,
 };

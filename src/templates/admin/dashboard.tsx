@@ -3,7 +3,11 @@
  */
 
 import { filter, joinStrings, map, pipe, reduce } from "#fp";
-import { renderFilteredValue, resolveColumnLayout } from "#lib/column-order.ts";
+import {
+  getHeaderText,
+  renderCells,
+  resolveColumnLayout,
+} from "#lib/column-order.ts";
 import {
   EVENT_DEFAULT_ORDER,
   EVENT_TABLE_COLUMNS,
@@ -35,21 +39,14 @@ export const EventRow = ({
   filters: Map<string, string>;
 }): string => {
   const isInactive = !e.active;
-  const opts = {} as Record<string, never>;
-  const cells = pipe(
-    map((key: string) => {
-      const col = EVENT_TABLE_COLUMNS[key]!;
-      const filterExpr = filters.get(key);
-      const content =
-        filterExpr && col.rawValue
-          ? escapeHtml(
-              renderFilteredValue(filterExpr, col.rawValue(e, opts), key),
-            )
-          : col.cell(e, opts);
-      return `<td${col.className ? ` class="${col.className}"` : ""}>${content}</td>`;
-    }),
-    joinStrings,
-  )(columnKeys);
+  const cells = renderCells(
+    e,
+    columnKeys,
+    EVENT_TABLE_COLUMNS,
+    undefined,
+    filters,
+    escapeHtml,
+  );
   return `<tr${isInactive ? ' class="inactive-row"' : ""}>${cells}</tr>`;
 };
 
@@ -182,7 +179,9 @@ export const renderEventTable = (
   rows: string,
 ): string => {
   const headers = pipe(
-    map((key: string) => `<th>${EVENT_TABLE_COLUMNS[key]!.header()}</th>`),
+    map(
+      (key: string) => `<th>${getHeaderText(EVENT_TABLE_COLUMNS[key]!)}</th>`,
+    ),
     joinStrings,
   )(columnKeys);
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;

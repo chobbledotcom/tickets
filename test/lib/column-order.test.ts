@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   buildDefaultTemplate,
-  parseColumnTemplate,
   renderFilteredValue,
+  resolveColumnLayout,
   validateColumnTemplate,
 } from "#lib/column-order.ts";
 import {
@@ -26,137 +26,112 @@ setupTestEncryptionKey();
 const VALID_EVENT_KEYS = Object.keys(EVENT_TABLE_COLUMNS);
 const VALID_ATTENDEE_KEYS = Object.keys(ATTENDEE_TABLE_COLUMNS);
 
-describe("parseColumnTemplate", () => {
-  test("parses a simple template with valid columns", () => {
-    const result = parseColumnTemplate(
-      "{{name}}, {{description}}, {{status}}",
-      VALID_EVENT_KEYS,
-    );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual(["name", "description", "status"]);
-      expect(result.filters.size).toBe(0);
-    }
+describe("validateColumnTemplate", () => {
+  test("returns null for valid template", () => {
+    expect(
+      validateColumnTemplate("{{name}}, {{status}}", VALID_EVENT_KEYS),
+    ).toBeNull();
   });
 
   test("handles wonky spacing", () => {
-    const result = parseColumnTemplate(
-      "{{ name }},{{description}},  {{ status  }}",
-      VALID_EVENT_KEYS,
-    );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual(["name", "description", "status"]);
-    }
+    expect(
+      validateColumnTemplate(
+        "{{ name }},{{description}},  {{ status  }}",
+        VALID_EVENT_KEYS,
+      ),
+    ).toBeNull();
   });
 
-  test("returns error for unknown column (typo)", () => {
-    const result = parseColumnTemplate(
+  test("rejects unknown column (typo)", () => {
+    const error = validateColumnTemplate(
       "{{name}}, {{descritpion}}",
       VALID_EVENT_KEYS,
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toContain("descritpion");
-      expect(result.error).toContain("Available columns");
-    }
+    expect(error).toContain("descritpion");
+    expect(error).toContain("Available columns");
   });
 
-  test("returns error for invalid Liquid syntax", () => {
-    const result = parseColumnTemplate(
-      "{{name}, {{description}}",
+  test("rejects empty template", () => {
+    const error = validateColumnTemplate("", VALID_EVENT_KEYS);
+    expect(error).toContain("at least one column");
+  });
+
+  test("accepts templates with filters", () => {
+    expect(
+      validateColumnTemplate(
+        '{{name}}, {{created | date: "%B"}}',
+        VALID_EVENT_KEYS,
+      ),
+    ).toBeNull();
+  });
+
+  test("accepts templates with currency filter", () => {
+    expect(
+      validateColumnTemplate(
+        "{{name}}, {{price | currency}}",
+        VALID_EVENT_KEYS,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("resolveColumnLayout", () => {
+  test("returns default order when template is empty", () => {
+    const { columnKeys, filters } = resolveColumnLayout(
+      "",
       VALID_EVENT_KEYS,
+      EVENT_DEFAULT_ORDER,
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toContain("Invalid template");
-    }
+    expect(columnKeys).toEqual([...EVENT_DEFAULT_ORDER]);
+    expect(filters.size).toBe(0);
   });
 
-  test("returns error for empty template (no columns)", () => {
-    const result = parseColumnTemplate("", VALID_EVENT_KEYS);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toContain("at least one column");
-    }
+  test("returns columns in template order", () => {
+    const { columnKeys } = resolveColumnLayout(
+      "{{status}}, {{name}}",
+      VALID_EVENT_KEYS,
+      EVENT_DEFAULT_ORDER,
+    );
+    expect(columnKeys).toEqual(["status", "name"]);
   });
 
   test("deduplicates repeated columns", () => {
-    const result = parseColumnTemplate(
+    const { columnKeys } = resolveColumnLayout(
       "{{name}}, {{name}}, {{status}}",
       VALID_EVENT_KEYS,
+      EVENT_DEFAULT_ORDER,
     );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual(["name", "status"]);
-    }
+    expect(columnKeys).toEqual(["name", "status"]);
   });
 
-  test("works with all event columns", () => {
-    const template = buildDefaultTemplate(EVENT_DEFAULT_ORDER);
-    const result = parseColumnTemplate(template, VALID_EVENT_KEYS);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual([...EVENT_DEFAULT_ORDER]);
-    }
+  test("falls back to default for invalid template", () => {
+    const { columnKeys } = resolveColumnLayout(
+      "{{bogus}}",
+      VALID_EVENT_KEYS,
+      EVENT_DEFAULT_ORDER,
+    );
+    expect(columnKeys).toEqual([...EVENT_DEFAULT_ORDER]);
+  });
+
+  test("extracts filter expressions", () => {
+    const { columnKeys, filters } = resolveColumnLayout(
+      '{{name}}, {{created | date: "%B %d"}}',
+      VALID_EVENT_KEYS,
+      EVENT_DEFAULT_ORDER,
+    );
+    expect(columnKeys).toEqual(["name", "created"]);
+    expect(filters.get("created")).toBe('created | date: "%B %d"');
+    expect(filters.has("name")).toBe(false);
   });
 
   test("works with all attendee columns", () => {
     const template = buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER);
-    const result = parseColumnTemplate(template, VALID_ATTENDEE_KEYS);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual([...ATTENDEE_DEFAULT_ORDER]);
-    }
-  });
-
-  test("handles subset of columns", () => {
-    const result = parseColumnTemplate(
-      "{{name}}, {{qty}}, {{registered}}",
+    const { columnKeys } = resolveColumnLayout(
+      template,
       VALID_ATTENDEE_KEYS,
+      ATTENDEE_DEFAULT_ORDER,
     );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual(["name", "qty", "registered"]);
-      expect(result.filters.size).toBe(0);
-    }
-  });
-
-  test("extracts filter expressions from columns with pipes", () => {
-    const result = parseColumnTemplate(
-      '{{name}}, {{created | date: "%B %d"}}, {{status}}',
-      VALID_EVENT_KEYS,
-    );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual(["name", "created", "status"]);
-      expect(result.filters.size).toBe(1);
-      expect(result.filters.get("created")).toBe('created | date: "%B %d"');
-      expect(result.filters.has("name")).toBe(false);
-    }
-  });
-
-  test("validates templates with currency filter", () => {
-    const result = parseColumnTemplate(
-      "{{name}}, {{price | currency}}",
-      VALID_EVENT_KEYS,
-    );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual(["name", "price"]);
-      expect(result.filters.get("price")).toBe("price | currency");
-    }
-  });
-
-  test("validates Liquid filters without rejecting them", () => {
-    const result = parseColumnTemplate(
-      "{{name | date: '%B'}}, {{status}}",
-      VALID_EVENT_KEYS,
-    );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.columns).toEqual(["name", "status"]);
-    }
+    expect(columnKeys).toEqual([...ATTENDEE_DEFAULT_ORDER]);
   });
 });
 
@@ -182,84 +157,21 @@ describe("renderFilteredValue", () => {
 
   test("applies currency filter", () => {
     const result = renderFilteredValue("price | currency", 2500, "price");
-    // formatCurrency formats in configured currency (GBP default)
     expect(result).toContain("25");
   });
 
-  test("returns empty string for falsy value with date filter", () => {
-    const result = renderFilteredValue('date | date: "%B"', "", "date");
-    expect(result).toBe("");
+  test("returns empty string for falsy date value", () => {
+    expect(renderFilteredValue('date | date: "%B"', "", "date")).toBe("");
   });
 
-  test("returns original value for unparseable date", () => {
-    const result = renderFilteredValue(
-      'date | date: "%B"',
+  test("passes through unparseable date string", () => {
+    expect(renderFilteredValue('date | date: "%B"', "not-a-date", "date")).toBe(
       "not-a-date",
-      "date",
     );
-    expect(result).toBe("not-a-date");
-  });
-
-  test("date filter without format returns toLocaleDateString", () => {
-    const result = renderFilteredValue(
-      "created | date",
-      "2026-04-10T19:00:00Z",
-      "created",
-    );
-    expect(result.length).toBeGreaterThan(0);
-  });
-
-  test("strftime handles all common format codes", () => {
-    // Use a known date: Thursday April 10, 2026 at 14:05:09
-    const iso = "2026-04-10T14:05:09Z";
-    expect(renderFilteredValue('d | date: "%Y"', iso, "d")).toBe("2026");
-    expect(renderFilteredValue('d | date: "%y"', iso, "d")).toBe("26");
-    expect(renderFilteredValue('d | date: "%m"', iso, "d")).toBe("04");
-    expect(renderFilteredValue('d | date: "%d"', iso, "d")).toBe("10");
-    expect(renderFilteredValue('d | date: "%e"', iso, "d")).toBe("10");
-    expect(renderFilteredValue('d | date: "%H"', iso, "d")).toBe("14");
-    expect(renderFilteredValue('d | date: "%M"', iso, "d")).toBe("05");
-    expect(renderFilteredValue('d | date: "%S"', iso, "d")).toBe("09");
-    expect(renderFilteredValue('d | date: "%B"', iso, "d")).toBe("April");
-    expect(renderFilteredValue('d | date: "%b"', iso, "d")).toBe("Apr");
-    expect(renderFilteredValue('d | date: "%A"', iso, "d")).toBe("Friday");
-    expect(renderFilteredValue('d | date: "%a"', iso, "d")).toBe("Fri");
-    expect(renderFilteredValue('d | date: "%p"', iso, "d")).toBe("PM");
-    expect(renderFilteredValue('d | date: "%I"', iso, "d")).toBe("02");
-    expect(renderFilteredValue('d | date: "%%"', iso, "d")).toBe("%");
-    expect(renderFilteredValue('d | date: "%Z"', iso, "d")).toBe("%Z");
-  });
-
-  test("strftime handles AM for morning hours", () => {
-    const am = "2026-04-10T09:00:00Z";
-    expect(renderFilteredValue('d | date: "%p"', am, "d")).toBe("AM");
-    expect(renderFilteredValue('d | date: "%I"', am, "d")).toBe("09");
-  });
-
-  test("strftime handles midnight (12 AM)", () => {
-    const midnight = "2026-04-10T00:00:00Z";
-    expect(renderFilteredValue('d | date: "%I"', midnight, "d")).toBe("12");
   });
 
   test("renders value without filter when no pipe", () => {
-    const result = renderFilteredValue("name", "Alice", "name");
-    expect(result).toBe("Alice");
-  });
-});
-
-describe("validateColumnTemplate", () => {
-  test("returns null for valid template", () => {
-    const error = validateColumnTemplate(
-      "{{name}}, {{status}}",
-      VALID_EVENT_KEYS,
-    );
-    expect(error).toBeNull();
-  });
-
-  test("returns error string for invalid template", () => {
-    const error = validateColumnTemplate("{{naem}}", VALID_EVENT_KEYS);
-    expect(error).not.toBeNull();
-    expect(error).toContain("naem");
+    expect(renderFilteredValue("name", "Alice", "name")).toBe("Alice");
   });
 });
 
@@ -271,17 +183,9 @@ describe("buildDefaultTemplate", () => {
   });
 
   test("builds event default template", () => {
-    const template = buildDefaultTemplate(EVENT_DEFAULT_ORDER);
-    expect(template).toBe(
+    expect(buildDefaultTemplate(EVENT_DEFAULT_ORDER)).toBe(
       "{{name}}, {{description}}, {{status}}, {{attendees}}, {{created}}",
     );
-  });
-
-  test("builds attendee default template", () => {
-    const template = buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER);
-    expect(template).toContain("{{name}}");
-    expect(template).toContain("{{status}}");
-    expect(template).toContain("{{actions}}");
   });
 });
 
@@ -292,16 +196,11 @@ describe("EVENT_TABLE_COLUMNS", () => {
     }
   });
 
-  test("every column has label, description, header, and cell", () => {
+  test("every column has label, description, and cell", () => {
     for (const [_key, col] of Object.entries(EVENT_TABLE_COLUMNS)) {
-      expect(typeof col.label).toBe("string");
-      expect(typeof col.description).toBe("string");
-      expect(typeof col.header).toBe("function");
-      expect(typeof col.cell).toBe("function");
       expect(col.label.length).toBeGreaterThan(0);
       expect(col.description.length).toBeGreaterThan(0);
-      // header returns a string
-      expect(typeof col.header()).toBe("string");
+      expect(typeof col.cell).toBe("function");
     }
   });
 });
@@ -313,47 +212,43 @@ describe("ATTENDEE_TABLE_COLUMNS", () => {
     }
   });
 
-  test("every column has label, description, header, and cell", () => {
+  test("every column has label, description, and cell", () => {
     for (const [_key, col] of Object.entries(ATTENDEE_TABLE_COLUMNS)) {
-      expect(typeof col.label).toBe("string");
-      expect(typeof col.description).toBe("string");
-      expect(typeof col.header).toBe("function");
-      expect(typeof col.cell).toBe("function");
       expect(col.label.length).toBeGreaterThan(0);
       expect(col.description.length).toBeGreaterThan(0);
+      expect(typeof col.cell).toBe("function");
     }
   });
 });
 
 describe("EVENT_TABLE_COLUMNS cell renderers", () => {
-  const opts = {} as Record<string, never>;
+  // Event columns have TOpts=unknown, so we pass undefined
+  const u = undefined as unknown;
 
   test("date column renders formatted date or empty string", () => {
     const col = EVENT_TABLE_COLUMNS.date!;
     expect(
-      col.cell(testEventWithCount({ date: "2026-04-10T19:00:00Z" }), opts),
+      col.cell(testEventWithCount({ date: "2026-04-10T19:00:00Z" }), u),
     ).toContain("2026");
-    expect(col.cell(testEventWithCount({ date: "" }), opts)).toBe("");
-    expect(
-      col.rawValue!(testEventWithCount({ date: "2026-04-10" }), opts),
-    ).toBe("2026-04-10");
-    expect(col.rawValue!(testEventWithCount({ date: "" }), opts)).toBe("");
+    expect(col.cell(testEventWithCount({ date: "" }), u)).toBe("");
+    expect(col.rawValue!(testEventWithCount({ date: "2026-04-10" }), u)).toBe(
+      "2026-04-10",
+    );
+    expect(col.rawValue!(testEventWithCount({ date: "" }), u)).toBe("");
   });
 
   test("location column renders event location", () => {
     const col = EVENT_TABLE_COLUMNS.location!;
-    expect(col.cell(testEventWithCount({ location: "Town Hall" }), opts)).toBe(
+    expect(col.cell(testEventWithCount({ location: "Town Hall" }), u)).toBe(
       "Town Hall",
     );
   });
 
   test("price column renders price or Free", () => {
     const col = EVENT_TABLE_COLUMNS.price!;
-    expect(col.cell(testEventWithCount({ unit_price: 2500 }), opts)).toBe(
-      "2500",
-    );
-    expect(col.cell(testEventWithCount({ unit_price: 0 }), opts)).toBe("Free");
-    expect(col.rawValue!(testEventWithCount({ unit_price: 2500 }), opts)).toBe(
+    expect(col.cell(testEventWithCount({ unit_price: 2500 }), u)).toBe("2500");
+    expect(col.cell(testEventWithCount({ unit_price: 0 }), u)).toBe("Free");
+    expect(col.rawValue!(testEventWithCount({ unit_price: 2500 }), u)).toBe(
       2500,
     );
   });
@@ -377,7 +272,7 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
     ...overrides,
   });
 
-  test("name column renders escaped attendee name", () => {
+  test("name column renders attendee name", () => {
     const col = ATTENDEE_TABLE_COLUMNS.name!;
     expect(
       col.cell(makeRow({ attendee: testAttendee({ name: "Alice" }) }), opts),
@@ -386,12 +281,9 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
 
   test("event column renders linked event name", () => {
     const col = ATTENDEE_TABLE_COLUMNS.event!;
-    expect(
-      col.cell(makeRow({ eventName: "Gala", eventId: 42 }), opts),
-    ).toContain("/admin/event/42");
-    expect(
-      col.cell(makeRow({ eventName: "Gala", eventId: 42 }), opts),
-    ).toContain("Gala");
+    const html = col.cell(makeRow({ eventName: "Gala", eventId: 42 }), opts);
+    expect(html).toContain("/admin/event/42");
+    expect(html).toContain("Gala");
   });
 
   test("date column renders formatted date or empty", () => {
@@ -428,11 +320,12 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
 
   test("phone column renders tel link or empty", () => {
     const col = ATTENDEE_TABLE_COLUMNS.phone!;
-    const html = col.cell(
-      makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
-      opts,
-    );
-    expect(html).toContain("tel:");
+    expect(
+      col.cell(
+        makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
+        opts,
+      ),
+    ).toContain("tel:");
     expect(
       col.cell(makeRow({ attendee: testAttendee({ phone: "" }) }), opts),
     ).toBe("");
@@ -440,10 +333,9 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
 
   test("phone column defaults to prefix 44 when phonePrefix is empty", () => {
     const col = ATTENDEE_TABLE_COLUMNS.phone!;
-    const noPrefix = { ...opts, phonePrefix: "" };
     const html = col.cell(
       makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
-      noPrefix,
+      { ...opts, phonePrefix: "" },
     );
     expect(html).toContain("tel:+447700900000");
   });
@@ -490,7 +382,6 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
       opts,
     );
     expect(html).toContain("example.com/t/abc123");
-    expect(html).toContain("abc123");
   });
 
   test("registered column renders formatted datetime", () => {

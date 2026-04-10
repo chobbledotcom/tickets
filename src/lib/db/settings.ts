@@ -162,6 +162,8 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
+  CONFIG_KEYS.EVENT_COLUMN_ORDER,
+  CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadAll, default ""). */
@@ -192,8 +194,6 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
   CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
   CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
-  CONFIG_KEYS.EVENT_COLUMN_ORDER,
-  CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
 ] as const;
 
 /** Union of all string-setting snapshot keys. */
@@ -785,8 +785,8 @@ export const settings = {
     latestScriptVersionName: plaintextUpdate(
       CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     ),
-    eventColumnOrder: encryptedUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
-    attendeeColumnOrder: encryptedUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
+    eventColumnOrder: plaintextUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
+    attendeeColumnOrder: plaintextUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
     // --- Stripe writes ---
     stripe: {
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
