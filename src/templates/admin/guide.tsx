@@ -2163,6 +2163,73 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
+      <Section id="read-only-mode" title="Read-only Mode">
+        <Q q="What is read-only mode?">
+          <p>
+            Read-only mode closes the front door of your site while keeping
+            everything viewable. Public pages, ticket pages, feeds, calendars,
+            the admin dashboard, and JSON <code>GET</code> endpoints all keep
+            working as normal. New bookings are refused, and the
+            create/edit/duplicate pages for events and groups are blocked.
+            It's useful when an event is finished and you want to stop taking
+            bookings without tearing the site down, or when you're about to
+            archive a site.
+          </p>
+        </Q>
+
+        <Q q="How do I enable read-only mode?">
+          <p>
+            Set the <code>READ_ONLY</code> environment variable to the exact
+            string <code>true</code> in your Bunny Edge Script secrets (or
+            your local environment for development) and redeploy. The check
+            is case-sensitive: values like <code>TRUE</code>, <code>1</code>,
+            or <code>yes</code> are <strong>not</strong> treated as enabled.
+            Removing the variable (or setting it to anything else) turns the
+            mode off on the next request.
+          </p>
+        </Q>
+
+        <Q q="What changes when read-only mode is on?">
+          <ul>
+            <li>
+              A &ldquo;This site is in read-only mode&rdquo; banner appears at
+              the top of every admin page.
+            </li>
+            <li>
+              Public <code>POST /ticket/&hellip;</code> booking submissions
+              redirect to <code>/read-only</code> instead of taking the
+              booking.
+            </li>
+            <li>
+              The create, edit, and duplicate pages for events and groups
+              redirect to <code>/read-only</code> for both <code>GET</code>{" "}
+              and <code>POST</code>, along with the &ldquo;add attendee&rdquo;
+              and &ldquo;add events to group&rdquo; forms.
+            </li>
+            <li>
+              Any mutating request (<code>POST</code>, <code>PUT</code>, or
+              {" "}
+              <code>DELETE</code>) under <code>/api/</code> returns{" "}
+              <code>{'403 {"error": true, ...}'}</code>. Public{" "}
+              <code>GET</code> endpoints keep working.
+            </li>
+          </ul>
+        </Q>
+
+        <Q q="What still works in read-only mode?">
+          <p>
+            Read-only mode is deliberately narrow &mdash; it only guards the
+            routes listed above. Most admin actions remain available so you
+            can keep running the site even while bookings are paused. In
+            particular, settings changes, refunds, attendee edits, deletes,
+            backups, updates, and payment-provider webhooks (
+            <code>/payment/webhook</code>) are <strong>not</strong> blocked.
+            If you need a total freeze, combine read-only mode with removing
+            owner access or taking the script offline.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Software Updates">
         <Q q="How do I check for updates?">
           <p>

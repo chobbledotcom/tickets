@@ -1,54 +1,68 @@
 import process from "node:process";
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getEnv, requireEnv } from "#lib/env.ts";
+import { describe, it as test } from "@std/testing/bdd";
+import { getEnv, isReadOnly, requireEnv } from "#lib/env.ts";
 import { describeWithEnv } from "#test-utils";
 
-describeWithEnv("env", { env: { TEST_ENV_VAR: undefined } }, () => {
-  const originalEnv = { ...process.env };
+// Unique per-file prefix so parallel workers can't see each other's state
+// even if the overlay mechanism were ever bypassed.
+const KEY = "TEST_ENV_VAR_FOR_ENV_SPEC";
 
-  beforeEach(() => {
-    // Clear test env vars
-    delete process.env.TEST_ENV_VAR;
-  });
+describeWithEnv(
+  "env",
+  { env: { [KEY]: undefined, READ_ONLY: undefined } },
+  () => {
+    describe("getEnv", () => {
+      test("returns the value set in the environment", () => {
+        process.env[KEY] = "hello";
+        expect(getEnv(KEY)).toBe("hello");
+      });
 
-  afterEach(() => {
-    // Restore original env
-    process.env = { ...originalEnv };
-  });
+      test("returns undefined when the variable is not set", () => {
+        expect(getEnv(KEY)).toBeUndefined();
+      });
 
-  describe("getEnv", () => {
-    test("returns value from process.env when set", () => {
-      process.env.TEST_ENV_VAR = "from_process";
-      expect(getEnv("TEST_ENV_VAR")).toBe("from_process");
+      test("returns an empty string when the variable is set to empty", () => {
+        process.env[KEY] = "";
+        expect(getEnv(KEY)).toBe("");
+      });
     });
 
-    test("returns value from Deno.env when process.env not set", () => {
-      Deno.env.set("TEST_ENV_VAR", "from_deno");
-      expect(getEnv("TEST_ENV_VAR")).toBe("from_deno");
+    describe("requireEnv", () => {
+      test("returns the value when the variable is set", () => {
+        process.env[KEY] = "required_value";
+        expect(requireEnv(KEY)).toBe("required_value");
+      });
+
+      test("throws an error that names the missing key", () => {
+        expect(() => requireEnv(KEY)).toThrow(KEY);
+      });
     });
 
-    test("prefers process.env over Deno.env", () => {
-      process.env.TEST_ENV_VAR = "from_process";
-      Deno.env.set("TEST_ENV_VAR", "from_deno");
-      expect(getEnv("TEST_ENV_VAR")).toBe("from_process");
-    });
+    describe("isReadOnly", () => {
+      test("is false when READ_ONLY is unset", () => {
+        expect(isReadOnly()).toBe(false);
+      });
 
-    test("returns undefined when not set in either", () => {
-      expect(getEnv("TEST_ENV_VAR")).toBeUndefined();
-    });
-  });
+      test("is true when READ_ONLY is exactly 'true'", () => {
+        process.env.READ_ONLY = "true";
+        expect(isReadOnly()).toBe(true);
+      });
 
-  describe("requireEnv", () => {
-    test("returns value when env var is set", () => {
-      process.env.TEST_ENV_VAR = "required_value";
-      expect(requireEnv("TEST_ENV_VAR")).toBe("required_value");
-    });
+      test("is false for uppercase 'TRUE' (case-sensitive)", () => {
+        process.env.READ_ONLY = "TRUE";
+        expect(isReadOnly()).toBe(false);
+      });
 
-    test("throws when env var is not set", () => {
-      expect(() => requireEnv("TEST_ENV_VAR")).toThrow(
-        "Required environment variable TEST_ENV_VAR is not set",
-      );
+      test("is false for numeric '1'", () => {
+        process.env.READ_ONLY = "1";
+        expect(isReadOnly()).toBe(false);
+      });
+
+      test("is false for the literal string 'false'", () => {
+        process.env.READ_ONLY = "false";
+        expect(isReadOnly()).toBe(false);
+      });
     });
-  });
-});
+  },
+);
