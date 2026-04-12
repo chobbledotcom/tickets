@@ -2591,6 +2591,7 @@ export const makeTestEvent = (
   date: "",
   location: "",
   purchase_only: false,
+  assign_built_site: false,
   ...overrides,
 });
 

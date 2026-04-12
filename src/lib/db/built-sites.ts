@@ -255,6 +255,7 @@ export const getAllBuiltSites = (): Promise<BuiltSite[]> =>
 export const countAssignableSites = async (): Promise<number> => {
   const row = await queryOne<{ cnt: number }>(
     "SELECT COUNT(*) as cnt FROM built_sites WHERE assignable = 1",
+    [],
   );
   return row?.cnt ?? 0;
 };
