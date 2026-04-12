@@ -387,6 +387,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       expect(values.bunny_url).toBe("");
       expect(values.db_url).toBe("");
       expect(values.db_token).toBe("");
+      expect(values.assignable).toBe("");
     });
 
     test("returns site values when site provided", async () => {
@@ -404,6 +405,16 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       expect(values.bunny_url).toBe("https://test.b-cdn.net");
       expect(values.db_url).toBe("libsql://test.turso.io");
       expect(values.db_token).toBe("tok123");
+      expect(values.assignable).toBe("");
+    });
+
+    test("returns assignable=1 for assignable site", async () => {
+      const { builtSiteToFieldValues } = await import(
+        "#templates/admin/built-sites.tsx"
+      );
+      const site = testBuiltSite({ assignable: true });
+      const values = builtSiteToFieldValues(site);
+      expect(values.assignable).toBe("1");
     });
   });
 
