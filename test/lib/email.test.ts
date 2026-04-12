@@ -601,9 +601,19 @@ describeWithEnv("email", { db: true }, () => {
       },
     },
     () => {
-      test("skips when attendee has no email address", async () => {
+      test("skips all emails when attendee has no email and no business email set", async () => {
         await setupAndSendRegistration({}, [makeEntry({}, { email: "" })]);
         expect(fetchStub.calls.length).toBe(0);
+      });
+
+      test("sends admin notification when attendee has no email but business email is set", async () => {
+        await setupAndSendRegistration({ businessEmail: "admin@business.com" }, [
+          makeEntry({}, { email: "" }),
+        ]);
+
+        expect(fetchStub.calls.length).toBe(1);
+        const body = getFetchJsonBody();
+        expect(body.to).toEqual(["admin@business.com"]);
       });
 
       test("skips when email not configured", async () => {
