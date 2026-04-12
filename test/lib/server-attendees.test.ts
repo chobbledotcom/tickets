@@ -602,7 +602,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "date=2026-03-15",
         "#attendees",
       );
-      expectFlash(response, expect.stringContaining("checked"));
+      expectFlash(response, expect.stringContaining("Checked"));
     });
 
     test("checks out an already checked-in attendee", async () => {

@@ -277,15 +277,21 @@ const handleAttendeeCheckin = attendeeFormAction(
 
     await updateCheckedIn(attendeeId, eventId, nowCheckedIn);
 
-    const action = nowCheckedIn ? "checked in" : "checked out";
-    await logActivity(`Attendee ${action} for '${data.event.name}'`, eventId);
+    const status = nowCheckedIn ? "in" : "out";
+    await logActivity(
+      `Attendee checked ${status} for '${data.event.name}'`,
+      eventId,
+    );
 
     const returnUrl = form.getString("return_url");
     if (returnUrl)
-      return redirect(returnUrl, `${data.attendee.name} ${action}`, true);
+      return redirect(
+        returnUrl,
+        `Checked ${data.attendee.name} ${status}`,
+        true,
+      );
 
     const name = encodeURIComponent(data.attendee.name);
-    const status = nowCheckedIn ? "in" : "out";
     const filterValue = form.getString("return_filter");
     const suffix =
       filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
