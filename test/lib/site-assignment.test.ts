@@ -22,14 +22,16 @@ const siteEntry = (
 ) =>
   makeTestEntry(
     {
-      id: overrides.eventId,
-      name: overrides.eventName,
       assign_built_site: overrides.assignBuiltSite ?? true,
+      ...(overrides.eventId !== undefined && { id: overrides.eventId }),
+      ...(overrides.eventName !== undefined && { name: overrides.eventName }),
     },
     {
-      id: overrides.attendeeId,
-      email: overrides.email,
-      quantity: overrides.quantity,
+      ...(overrides.attendeeId !== undefined && { id: overrides.attendeeId }),
+      ...(overrides.email !== undefined && { email: overrides.email }),
+      ...(overrides.quantity !== undefined && {
+        quantity: overrides.quantity,
+      }),
     },
   );
 

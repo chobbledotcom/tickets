@@ -51,6 +51,31 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         `/admin/built-sites/${site.id}/delete`,
       );
     });
+
+    test("shows Not assignable status for default sites", async () => {
+      await createTestBuiltSite({ name: "Default Site" });
+      const { response } = await adminGet("/admin/built-sites");
+      await expectHtmlResponse(response, 200, "Not assignable");
+    });
+
+    test("shows Available status for assignable sites", async () => {
+      await createTestBuiltSite({ name: "Ready Site", assignable: true });
+      const { response } = await adminGet("/admin/built-sites");
+      await expectHtmlResponse(response, 200, "Available");
+    });
+
+    test("shows Assigned status for assigned sites", async () => {
+      const { insertBuiltSite, assignBuiltSite } = await import(
+        "#lib/db/built-sites.ts"
+      );
+      await insertBuiltSite("Taken Site", "https://taken.b-cdn.net", "", "", true);
+      const { getAllBuiltSites } = await import("#lib/db/built-sites.ts");
+      const sites = await getAllBuiltSites();
+      await assignBuiltSite(sites[0]!.id, 42, 7);
+
+      const { response } = await adminGet("/admin/built-sites");
+      await expectHtmlResponse(response, 200, "Assigned (attendee #42)");
+    });
   });
 
   describe("GET /admin/built-sites/new", () => {

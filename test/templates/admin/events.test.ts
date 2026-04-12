@@ -1112,5 +1112,47 @@ describeWithEnv(
         });
       });
     });
+
+    describe("assign_built_site field", () => {
+      test("shows assign built site field when CAN_BUILD_SITES is true", () => {
+        Deno.env.set("CAN_BUILD_SITES", "true");
+        try {
+          const html = adminEventNewPage([], TEST_SESSION);
+          expect(html).toContain("assign_built_site");
+          expect(html).toContain("Assign a site on booking");
+        } finally {
+          Deno.env.delete("CAN_BUILD_SITES");
+        }
+      });
+
+      test("hides assign built site field when CAN_BUILD_SITES is not set", () => {
+        Deno.env.delete("CAN_BUILD_SITES");
+        const html = adminEventNewPage([], TEST_SESSION);
+        expect(html).not.toContain("assign_built_site");
+      });
+
+      test("shows on edit page when CAN_BUILD_SITES is true", () => {
+        Deno.env.set("CAN_BUILD_SITES", "true");
+        try {
+          const event = testEventWithCount({ assign_built_site: true });
+          const html = adminEventEditPage(event, [], TEST_SESSION);
+          expect(html).toContain("assign_built_site");
+          expect(html).toContain("checked");
+        } finally {
+          Deno.env.delete("CAN_BUILD_SITES");
+        }
+      });
+
+      test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
+        Deno.env.set("CAN_BUILD_SITES", "true");
+        try {
+          const event = testEventWithCount({ assign_built_site: true });
+          const html = adminDuplicateEventPage(event, [], TEST_SESSION);
+          expect(html).toContain("assign_built_site");
+        } finally {
+          Deno.env.delete("CAN_BUILD_SITES");
+        }
+      });
+    });
   },
 );

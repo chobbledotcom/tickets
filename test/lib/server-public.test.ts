@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
+import { insertBuiltSite } from "#lib/db/built-sites.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -4754,6 +4755,59 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Please answer"), false);
+    });
+  });
+
+  describe("built site availability check", () => {
+    test("blocks registration when no assignable sites available", async () => {
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      try {
+        const event = await createTestEvent({
+          assignBuiltSite: true,
+          maxAttendees: 10,
+        });
+        // No assignable sites created
+        const response = await submitTicketForm(event.slug, {
+          name: "Test User",
+          email: "test@example.com",
+        });
+        expect(response.status).toBe(302);
+        expectFlash(response, "not enough sites available", false);
+      } finally {
+        restore();
+      }
+    });
+
+    test("allows registration when assignable sites are available", async () => {
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      try {
+        const event = await createTestEvent({
+          assignBuiltSite: true,
+          maxAttendees: 10,
+        });
+        await insertBuiltSite("Available", "avail.b-cdn.net", "", "", true);
+        const response = await submitTicketForm(event.slug, {
+          name: "Test User",
+          email: "test@example.com",
+        });
+        expectReservedRedirectWithTokens(response);
+      } finally {
+        restore();
+      }
+    });
+
+    test("skips check when CAN_BUILD_SITES is not set", async () => {
+      Deno.env.delete("CAN_BUILD_SITES");
+      const event = await createTestEvent({
+        assignBuiltSite: true,
+        maxAttendees: 10,
+      });
+      // Even without sites, booking should succeed when feature is disabled
+      const response = await submitTicketForm(event.slug, {
+        name: "Test User",
+        email: "test@example.com",
+      });
+      expectReservedRedirectWithTokens(response);
     });
   });
 });

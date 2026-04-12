@@ -3370,4 +3370,33 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       );
     });
   });
+
+  describe("assign_built_site", () => {
+    test("saves assign_built_site when CAN_BUILD_SITES is true", async () => {
+      Deno.env.set("CAN_BUILD_SITES", "true");
+      try {
+        const event = await createTestEvent({ assignBuiltSite: true });
+        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const saved = await getEventWithCount(event.id);
+        expect(saved?.assign_built_site).toBe(true);
+      } finally {
+        Deno.env.delete("CAN_BUILD_SITES");
+      }
+    });
+
+    test("ignores assign_built_site when CAN_BUILD_SITES is not set", async () => {
+      Deno.env.delete("CAN_BUILD_SITES");
+      const event = await createTestEvent({ assignBuiltSite: true });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.assign_built_site).toBe(false);
+    });
+
+    test("defaults to false", async () => {
+      const event = await createTestEvent();
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.assign_built_site).toBe(false);
+    });
+  });
 });
