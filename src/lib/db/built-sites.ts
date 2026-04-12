@@ -187,7 +187,13 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
 
   insert: async (input: BuiltSiteFormInput): Promise<BuiltSite> => {
     const row = await builtSitesTable.insert(
-      toRawInput(input.name, input.bunnyUrl, input.dbUrl, input.dbToken, input.assignable),
+      toRawInput(
+        input.name,
+        input.bunnyUrl,
+        input.dbUrl,
+        input.dbToken,
+        input.assignable,
+      ),
     );
     // insert() returns the row with unencrypted input values, so parse directly
     return rowToBuiltSite(row);
@@ -205,7 +211,8 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     const dbToken = input.dbToken ?? existing.dbToken;
     const assignable = input.assignable ?? existing.assignable;
     // Row exists (checked above), so update always returns non-null
-    const row = (await builtSitesTable.update(id,
+    const row = (await builtSitesTable.update(
+      id,
       toRawInput(name, bunnyUrl, dbUrl, dbToken, assignable),
     )) as BuiltSiteRow;
     // update() returns the row with unencrypted input values, so parse directly
@@ -247,7 +254,9 @@ export const insertBuiltSite = (
   dbToken = "",
   assignable = false,
 ): Promise<BuiltSiteRow> =>
-  builtSitesTable.insert(toRawInput(name, bunnyUrl, dbUrl, dbToken, assignable));
+  builtSitesTable.insert(
+    toRawInput(name, bunnyUrl, dbUrl, dbToken, assignable),
+  );
 
 /** Get all built sites, decrypted and sorted by name */
 export const getAllBuiltSites = (): Promise<BuiltSite[]> =>
@@ -255,11 +264,12 @@ export const getAllBuiltSites = (): Promise<BuiltSite[]> =>
 
 /** Count assignable sites (fast SQL, no decryption) */
 export const countAssignableSites = async (): Promise<number> => {
-  const row = await queryOne<{ cnt: number }>(
+  // COUNT(*) always returns exactly one row
+  const row = (await queryOne<{ cnt: number }>(
     "SELECT COUNT(*) as cnt FROM built_sites WHERE assignable = 1",
     [],
-  );
-  return row?.cnt ?? 0;
+  ))!;
+  return row.cnt;
 };
 
 /** Get all assignable built sites */

@@ -4773,7 +4773,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           email: "test@example.com",
         });
         expect(response.status).toBe(302);
-        expectFlash(response, "not enough sites available", false);
+        expectFlash(response, "Sorry, not enough sites available", false);
       } finally {
         restore();
       }

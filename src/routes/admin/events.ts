@@ -46,13 +46,13 @@ import {
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import type {
   AdminSession,
   Attendee,
   EventWithCount,
   Group,
 } from "#lib/types.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import {
   createConfirmedHandlers,
   csvResponse,
@@ -91,6 +91,7 @@ import type {
   EventFormValues,
 } from "#templates/fields.ts";
 import {
+  assignBuiltSiteField,
   eventFields,
   groupIdField,
   slugField,
@@ -158,7 +159,7 @@ const extractEventUpdateInput = async (
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
   table: eventsTable,
-  fields: [...eventFields, groupIdField],
+  fields: [...eventFields, assignBuiltSiteField, groupIdField],
   toInput: extractEventInput,
   nameField: "name",
   validate: validateEventInput,
@@ -482,7 +483,7 @@ const handleAdminEventEditPost: TypedRouteHandler<
     // by validateEventInput when existingId is set.
     const updateResource = defineResource({
       table: eventsTable,
-      fields: [...eventFields, slugField, groupIdField],
+      fields: [...eventFields, assignBuiltSiteField, slugField, groupIdField],
       toInput: extractEventUpdateInput,
       nameField: "name",
       validate: validateEventInput,

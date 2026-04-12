@@ -1176,7 +1176,8 @@ export const updateTestEvent = async (
       can_pay_more: (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
       max_price: priceFormValue(updates.maxPrice ?? existing.max_price),
       hidden: (updates.hidden ?? existing.hidden) ? "1" : "",
-      purchase_only: (updates.purchaseOnly ?? existing.purchase_only) ? "1" : "",
+      purchase_only:
+        (updates.purchaseOnly ?? existing.purchase_only) ? "1" : "",
       assign_built_site:
         (updates.assignBuiltSite ?? existing.assign_built_site) ? "1" : "",
     },

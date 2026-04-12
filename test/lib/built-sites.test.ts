@@ -5,8 +5,8 @@ import {
   buildSiteDataBlob,
   builtSitesCrudTable,
   countAssignableSites,
-  getAssignableBuiltSites,
   getAllBuiltSites,
+  getAssignableBuiltSites,
   insertBuiltSite,
   parseSiteDataBlob,
 } from "#lib/db/built-sites.ts";
@@ -202,6 +202,17 @@ describeWithEnv("built-sites", { db: true }, () => {
       const parsed = parseSiteDataBlob(values.site_data as string);
       expect(parsed.n).toBe("");
       expect(parsed.u).toBe("");
+    });
+
+    test("toDbValues sets assignable to 1 when true", async () => {
+      const values = await builtSitesCrudTable.toDbValues({
+        name: "Test",
+        bunnyUrl: "test.bunny.run",
+        dbUrl: "",
+        dbToken: "",
+        assignable: true,
+      });
+      expect(values.assignable).toBe(1);
     });
   });
 

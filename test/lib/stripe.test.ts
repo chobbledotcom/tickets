@@ -25,6 +25,7 @@ import {
   installUrlHandler,
   resetDb,
   resetTestSlugCounter,
+  setTestEnv,
   testEvent,
   urlFromFetchInput,
   withFetchMock,
@@ -1225,17 +1226,40 @@ describeWithEnv(
 
     describe("getMockConfig", () => {
       test("returns undefined when STRIPE_MOCK_HOST not set", async () => {
-        Deno.env.delete("STRIPE_MOCK_HOST");
-        Deno.env.delete("STRIPE_MOCK_PORT");
-        resetStripeClient();
+        const restore = setTestEnv({
+          STRIPE_MOCK_HOST: undefined,
+          STRIPE_MOCK_PORT: undefined,
+        });
+        try {
+          resetStripeClient();
 
-        // The getMockConfig is a once() function, so we can't easily re-test it.
-        // But getStripeClient exercises the createStripeClient path
-        await settings.update.stripe.secretKey("sk_test_123");
-        // Without mock config, a real Stripe client would be created
-        // We just verify no crash occurs
-        const client = await getStripeClient();
-        expect(client).not.toBeNull();
+          // Without mock config, a real Stripe client is created (no mock server)
+          await settings.update.stripe.secretKey("sk_test_123");
+          const client = await getStripeClient();
+          expect(client).not.toBeNull();
+        } finally {
+          restore();
+          resetStripeClient();
+        }
+      });
+    });
+
+    describe("getMockConfig with default port", () => {
+      test("uses default port 12111 when STRIPE_MOCK_PORT not set", async () => {
+        const restore = setTestEnv({
+          STRIPE_MOCK_HOST: "localhost",
+          STRIPE_MOCK_PORT: undefined,
+        });
+        try {
+          resetStripeClient();
+          await settings.update.stripe.secretKey("sk_test_123");
+          // With STRIPE_MOCK_HOST set but no PORT, should use default 12111
+          const client = await getStripeClient();
+          expect(client).not.toBeNull();
+        } finally {
+          restore();
+          resetStripeClient();
+        }
       });
     });
 
@@ -2054,15 +2078,21 @@ describeWithEnv(
     describe("getMockConfig without STRIPE_MOCK_HOST", () => {
       test("creates client without mock config when STRIPE_MOCK_HOST not set", async () => {
         await settings.update.stripe.secretKey("sk_test_123");
-        Deno.env.delete("STRIPE_MOCK_HOST");
-        Deno.env.delete("STRIPE_MOCK_PORT");
+        const restore = setTestEnv({
+          STRIPE_MOCK_HOST: undefined,
+          STRIPE_MOCK_PORT: undefined,
+        });
+        try {
+          // resetStripeClient now also resets getMockConfig (lazyRef)
+          resetStripeClient();
 
-        // resetStripeClient now also resets getMockConfig (lazyRef)
-        resetStripeClient();
-
-        const client = await getStripeClient();
-        // Client is created using real Stripe (no mock) - returns non-null
-        expect(client !== undefined).toBe(true);
+          const client = await getStripeClient();
+          // Client is created using real Stripe (no mock) - returns non-null
+          expect(client !== undefined).toBe(true);
+        } finally {
+          restore();
+          resetStripeClient();
+        }
       });
     });
 

@@ -3,12 +3,12 @@
  */
 
 import { reduce } from "#fp";
-import { countAssignableSites } from "#lib/db/built-sites.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { countAssignableSites } from "#lib/db/built-sites.ts";
 import { saveEventAnswers } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import { isPaidEvent } from "#lib/types.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import {
   applyFlash,
   errorRedirect,
@@ -53,7 +53,8 @@ const totalSitesNeeded = (
   let total = 0;
   for (const { event } of events) {
     if (event.assign_built_site) {
-      total += quantities.get(event.id) ?? 0;
+      // quantities is always populated for every event by parseQuantities
+      total += quantities.get(event.id)!;
     }
   }
   return total;
