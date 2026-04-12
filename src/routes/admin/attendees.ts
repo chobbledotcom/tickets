@@ -514,11 +514,6 @@ async function editAttendeeHandler(
 
   if (!name.trim()) return editError("Name is required");
 
-  const quantity = parseQuantity(
-    form.get("quantity") || "1",
-    data.event.max_quantity,
-  );
-
   // Parse question answers
   const answerIds: number[] = [];
   for (const q of data.questions) {
@@ -541,15 +536,6 @@ async function editAttendeeHandler(
     payment_id: data.attendee.payment_id,
     ticket_token: data.attendee.ticket_token,
   });
-
-  // Update event link with atomic capacity guard
-  const linkResult = await updateEventLink(attendeeId, data.attendee.event_id, {
-    quantity,
-    date: data.attendee.date,
-  });
-  if (!linkResult.success) {
-    return editError("Not enough spots available");
-  }
 
   // Update answers (atomic delete + insert)
   if (data.questions.length > 0) {

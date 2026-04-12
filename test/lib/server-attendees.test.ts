@@ -1377,6 +1377,31 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       )(response);
     });
 
+    test("preserves quantity when editing contact info without quantity field", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "John Doe",
+        "john@example.com",
+        3,
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        {
+          name: "Jane Doe",
+          email: "jane@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+        },
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const updated = await getAttendeeRaw(attendee.id);
+      expect(updated!.quantity).toBe(3);
+    });
+
     test("event page shows edit success message", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
@@ -1551,36 +1576,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       )(response);
     });
 
-    test("updates attendee quantity", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: String(event.id),
-          quantity: "3",
-        },
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(3);
-    });
-
     test("shows quantity field on edit form", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -1599,184 +1594,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, 'name="quantity"', 'max="5"');
     });
 
-    test("clamps quantity to event max_quantity", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 3,
-      });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: String(event.id),
-          quantity: "10",
-        },
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(3);
-    });
-
-    test("rejects quantity increase when not enough spots", async () => {
-      const event = await createTestEvent({ maxAttendees: 2, maxQuantity: 5 });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: String(event.id),
-          quantity: "3",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Not enough spots available"),
-        false,
-      );
-    });
-
-    test("allows decreasing quantity without capacity check", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-        3,
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: String(event.id),
-          quantity: "1",
-        },
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(1);
-    });
-
-    test("treats invalid quantity as 1", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: String(event.id),
-          quantity: "abc",
-        },
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(1);
-    });
-
-    test("clamps quantity 0 to 1 instead of using falsy default", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: String(event.id),
-          quantity: "0",
-        },
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const updated = await getAttendeeRaw(attendee.id);
-      // Math.max(1, 0) = 1, but via explicit NaN check, not || 1 falsy coercion
-      expect(updated!.quantity).toBe(1);
-    });
-
-    test("defaults missing quantity to 1", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          event_id: String(event.id),
-        },
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const updated = await getAttendeeRaw(attendee.id);
-      expect(updated!.quantity).toBe(1);
-    });
   });
 
   describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-notification", () => {
@@ -2729,6 +2546,29 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { quantity: "1", date: "2026-04-08" },
       );
       expect(response.status).toBe(302);
+    });
+
+    test("POST /admin/attendees/:id/event/:eventId treats invalid quantity as 1", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        maxQuantity: 10,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Qty",
+        "qty@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        { quantity: "abc" },
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const raw = await getAttendeesRaw(event.id);
+      expect(raw[0]!.quantity).toBe(1);
     });
   });
 
