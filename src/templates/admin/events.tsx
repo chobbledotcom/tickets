@@ -31,6 +31,7 @@ import {
   type Group,
   isPaidEvent,
 } from "#lib/types.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/utils.ts";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import { EventGroupSelect } from "#templates/admin/group-select.tsx";
@@ -48,7 +49,6 @@ import {
   imageField,
   slugField,
 } from "#templates/fields.ts";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 

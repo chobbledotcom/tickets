@@ -9,11 +9,7 @@ import {
   getAssignableBuiltSites,
 } from "#lib/db/built-sites.ts";
 import { settings } from "#lib/db/settings.ts";
-import {
-  getEmailConfig,
-  getHostEmailConfig,
-  sendEmail,
-} from "#lib/email.ts";
+import { getEmailConfig, getHostEmailConfig, sendEmail } from "#lib/email.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 
 /** Entry with the fields needed for site assignment */
@@ -68,8 +64,7 @@ const sendSiteAssignmentEmail = async (
 
   const siteListHtml = assignments
     .map(
-      (a) =>
-        `<li>${a.eventName}: <a href="${a.siteUrl}">${a.siteUrl}</a></li>`,
+      (a) => `<li>${a.eventName}: <a href="${a.siteUrl}">${a.siteUrl}</a></li>`,
     )
     .join("");
 

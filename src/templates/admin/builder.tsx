@@ -61,7 +61,10 @@ const BuilderForm = (): JSX.Element => (
           <input type="checkbox" name="assignable" value="1" />
           Available for assignment
         </label>
-        <small>Make this site available for automatic assignment when a ticket is purchased</small>
+        <small>
+          Make this site available for automatic assignment when a ticket is
+          purchased
+        </small>
       </fieldset>
       <button type="submit">Build Site</button>
     </CsrfForm>

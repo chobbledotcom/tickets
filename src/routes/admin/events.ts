@@ -46,13 +46,13 @@ import {
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import type {
   AdminSession,
   Attendee,
   EventWithCount,
   Group,
 } from "#lib/types.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import {
   createConfirmedHandlers,
   csvResponse,

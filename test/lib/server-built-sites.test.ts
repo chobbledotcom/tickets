@@ -68,7 +68,13 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       const { insertBuiltSite, assignBuiltSite } = await import(
         "#lib/db/built-sites.ts"
       );
-      await insertBuiltSite("Taken Site", "https://taken.b-cdn.net", "", "", true);
+      await insertBuiltSite(
+        "Taken Site",
+        "https://taken.b-cdn.net",
+        "",
+        "",
+        true,
+      );
       const { getAllBuiltSites } = await import("#lib/db/built-sites.ts");
       const sites = await getAllBuiltSites();
       await assignBuiltSite(sites[0]!.id, 42, 7);
