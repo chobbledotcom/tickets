@@ -4760,7 +4760,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
   describe("built site availability check", () => {
     test("blocks registration when no assignable sites available", async () => {
-      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      Deno.env.set("CAN_BUILD_SITES", "true");
       try {
         const event = await createTestEvent({
           assignBuiltSite: true,
@@ -4774,12 +4774,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         expect(response.status).toBe(302);
         expectFlash(response, "not enough sites available", false);
       } finally {
-        restore();
+        Deno.env.delete("CAN_BUILD_SITES");
       }
     });
 
     test("allows registration when assignable sites are available", async () => {
-      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      Deno.env.set("CAN_BUILD_SITES", "true");
       try {
         const event = await createTestEvent({
           assignBuiltSite: true,
@@ -4792,7 +4792,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         });
         expectReservedRedirectWithTokens(response);
       } finally {
-        restore();
+        Deno.env.delete("CAN_BUILD_SITES");
       }
     });
 
