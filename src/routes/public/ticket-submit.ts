@@ -5,6 +5,7 @@
 import { reduce } from "#fp";
 import { countAssignableSites } from "#lib/db/built-sites.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { saveEventAnswers } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import { isPaidEvent } from "#lib/types.ts";
@@ -178,15 +179,12 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
       // Check built site availability for assign_built_site events
       // Only runs when the builder feature is enabled
       const sitesNeeded = totalSitesNeeded(ctx.events, quantities);
-      if (sitesNeeded > 0) {
-        const { isBuilderEnabled } = await import("#routes/admin/builder.ts");
-        if (isBuilderEnabled()) {
-          const availableSites = await countAssignableSites();
-          if (availableSites < sitesNeeded) {
-            return ticketFormErrorResponse(ctx)(
-              "Sorry, not enough sites available",
-            );
-          }
+      if (sitesNeeded > 0 && isBuilderEnabled()) {
+        const availableSites = await countAssignableSites();
+        if (availableSites < sitesNeeded) {
+          return ticketFormErrorResponse(ctx)(
+            "Sorry, not enough sites available",
+          );
         }
       }
 

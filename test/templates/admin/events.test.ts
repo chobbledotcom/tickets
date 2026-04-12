@@ -1069,12 +1069,17 @@ describeWithEnv(
     });
 
     describe("adminDuplicateEventPage image section", () => {
-      test("does not show image upload field even when storage enabled", () => {
-        const event = testEventWithCount({ image_url: "" });
-        const html = adminDuplicateEventPage(event, [], TEST_SESSION);
-        expect(html).not.toContain('type="file"');
-        expect(html).not.toContain('name="image"');
-        expect(html).toContain("multipart/form-data");
+      test("shows image upload field when storage enabled", () => {
+        runWithStorageConfig(
+          { zoneName: "testzone", zoneKey: "testkey" },
+          () => {
+            const event = testEventWithCount({ image_url: "" });
+            const html = adminDuplicateEventPage(event, [], TEST_SESSION);
+            expect(html).toContain('type="file"');
+            expect(html).toContain('name="image"');
+            expect(html).toContain("multipart/form-data");
+          },
+        );
       });
 
       test("does not show image field when storage is not enabled", () => {
