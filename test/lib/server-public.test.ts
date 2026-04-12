@@ -3943,7 +3943,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const html = await response.text();
       expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-      expect(html).toContain("Your Price (£10 minimum)");
+      expect(html).toContain("Price per ticket (£10 minimum)");
       expect(html).toContain('value="10.00"');
       expect(html).toContain("required");
     });
@@ -3968,7 +3968,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const html = await response.text();
       expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-      expect(html).toContain("Your Price (optional, up to £100)");
+      expect(html).toContain("Price per ticket (optional, up to £100)");
       expect(html).toContain('min="0.00"');
     });
 
@@ -3980,7 +3980,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const html = await response.text();
       expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-      expect(html).toContain("Your Price (optional, up to £100)");
+      expect(html).toContain("Price per ticket (optional, up to £100)");
       expect(html).toContain('value="0.00" min="0.00" max="100.00"');
     });
 

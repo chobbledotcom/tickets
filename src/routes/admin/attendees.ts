@@ -210,9 +210,14 @@ export const verifiedAttendeeForm = (
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeGetRoute(
   (data, session, request) => {
-    applyFlash(request);
+    const flash = applyFlash(request);
     return htmlResponse(
-      adminDeleteAttendeePage(data, session, getReturnUrl(request)),
+      adminDeleteAttendeePage(
+        data,
+        session,
+        getReturnUrl(request),
+        flash.error,
+      ),
     );
   },
 );
@@ -272,15 +277,21 @@ const handleAttendeeCheckin = attendeeFormAction(
 
     await updateCheckedIn(attendeeId, eventId, nowCheckedIn);
 
-    const action = nowCheckedIn ? "checked in" : "checked out";
-    await logActivity(`Attendee ${action} for '${data.event.name}'`, eventId);
+    const status = nowCheckedIn ? "in" : "out";
+    await logActivity(
+      `Attendee checked ${status} for '${data.event.name}'`,
+      eventId,
+    );
 
     const returnUrl = form.getString("return_url");
     if (returnUrl)
-      return redirect(returnUrl, `${data.attendee.name} ${action}`, true);
+      return redirect(
+        returnUrl,
+        `Checked ${data.attendee.name} ${status}`,
+        true,
+      );
 
     const name = encodeURIComponent(data.attendee.name);
-    const status = nowCheckedIn ? "in" : "out";
     const filterValue = form.getString("return_filter");
     const suffix =
       filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
@@ -514,11 +525,6 @@ async function editAttendeeHandler(
 
   if (!name.trim()) return editError("Name is required");
 
-  const quantity = parseQuantity(
-    form.get("quantity") || "1",
-    data.event.max_quantity,
-  );
-
   // Parse question answers
   const answerIds: number[] = [];
   for (const q of data.questions) {
@@ -542,15 +548,6 @@ async function editAttendeeHandler(
     ticket_token: data.attendee.ticket_token,
   });
 
-  // Update event link with atomic capacity guard
-  const linkResult = await updateEventLink(attendeeId, data.attendee.event_id, {
-    quantity,
-    date: data.attendee.date,
-  });
-  if (!linkResult.success) {
-    return editError("Not enough spots available");
-  }
-
   // Update answers (atomic delete + insert)
   if (data.questions.length > 0) {
     await saveAttendeeAnswers([attendeeId], answerIds);
@@ -570,9 +567,14 @@ const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-notification */
 const handleAdminResendNotificationGet = attendeeGetRoute(
   (data, session, request) => {
-    applyFlash(request);
+    const flash = applyFlash(request);
     return htmlResponse(
-      adminResendNotificationPage(data, session, getReturnUrl(request)),
+      adminResendNotificationPage(
+        data,
+        session,
+        getReturnUrl(request),
+        flash.error,
+      ),
     );
   },
 );

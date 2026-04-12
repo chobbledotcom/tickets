@@ -306,29 +306,30 @@ export const sendRegistrationEmails = async (
   entries: EmailEntry[],
   currency: string,
 ): Promise<void> => {
-  const attendeeEmail = entries[0]?.attendee.email;
-  if (!attendeeEmail) return;
-
   const config = (await getEmailConfig()) ?? getHostEmailConfig();
   if (!config) return;
 
+  const attendeeEmail = entries[0]?.attendee.email;
   const businessEmail = settings.businessEmail;
   const ticketUrl = buildTicketUrl(entries);
-  const replyTo = businessEmail || undefined;
   const data = buildTemplateData(entries, currency, ticketUrl);
+  const promises: Promise<number | undefined>[] = [];
 
-  const [confirmation, attachments] = await Promise.all([
-    renderEmailContent("confirmation", data),
-    buildTicketAttachments(entries, currency),
-  ]);
-  const promises: Promise<number | undefined>[] = [
-    sendEmail(config, {
-      to: attendeeEmail,
-      ...confirmation,
-      replyTo,
-      attachments,
-    }),
-  ];
+  if (attendeeEmail) {
+    const replyTo = businessEmail || undefined;
+    const [confirmation, attachments] = await Promise.all([
+      renderEmailContent("confirmation", data),
+      buildTicketAttachments(entries, currency),
+    ]);
+    promises.push(
+      sendEmail(config, {
+        to: attendeeEmail,
+        ...confirmation,
+        replyTo,
+        attachments,
+      }),
+    );
+  }
 
   if (businessEmail) {
     const notification = await renderEmailContent("admin", data);
@@ -336,7 +337,7 @@ export const sendRegistrationEmails = async (
       sendEmail(config, {
         to: businessEmail,
         ...notification,
-        replyTo: attendeeEmail,
+        replyTo: attendeeEmail || undefined,
       }),
     );
   }

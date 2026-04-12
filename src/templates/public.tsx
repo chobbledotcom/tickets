@@ -251,8 +251,8 @@ const renderPayMoreInput = (
   const maxPrice = event.max_price;
   const rangeHint =
     minPrice > 0
-      ? `Your Price (${formatCurrency(minPrice)} minimum)`
-      : `Your Price (optional, up to ${formatCurrency(maxPrice)})`;
+      ? `Price per ticket (${formatCurrency(minPrice)} minimum)`
+      : `Price per ticket (optional, up to ${formatCurrency(maxPrice)})`;
   return (
     `<label>${rangeHint}` +
     `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${minPrice > 0 ? " required" : ""} /></label>`

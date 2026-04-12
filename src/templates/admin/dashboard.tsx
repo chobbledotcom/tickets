@@ -221,6 +221,17 @@ export const adminDashboardPage = (
 
       <Flash success={successMessage} error={imageError} />
 
+      <p class="notice warning">
+        <strong>Note from Stef:</strong> A bug on this system between April 6th
+        and 12th meant that editing attendee data (eg to change their name,
+        email, or phone number) could reset their ticket quantities to one -
+        even if they originally bought more. If you&apos;ve edited attendee
+        records in this period, please check their quantities against your email
+        receipts. Sorry! Please{" "}
+        <a href="mailto:hello@chobble.com">contact me</a> if you have further
+        questions.
+      </p>
+
       {!isReadOnly() && (
         <p>
           <a href="/admin/event/new">Add Event</a>
