@@ -4797,12 +4797,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("skips check when CAN_BUILD_SITES is not set", async () => {
-      Deno.env.delete("CAN_BUILD_SITES");
+      // Create event with flag enabled so assign_built_site is saved
+      Deno.env.set("CAN_BUILD_SITES", "true");
       const event = await createTestEvent({
         assignBuiltSite: true,
         maxAttendees: 10,
       });
-      // Even without sites, booking should succeed when feature is disabled
+      // Now disable the feature — booking should succeed despite no sites
+      Deno.env.delete("CAN_BUILD_SITES");
       const response = await submitTicketForm(event.slug, {
         name: "Test User",
         email: "test@example.com",
