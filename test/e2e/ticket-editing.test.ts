@@ -130,7 +130,7 @@ describe("e2e: ticket editing flow", () => {
     // 2. Check Alice in — the "Check in" button on the event page
     //    Alice appears first alphabetically, so her Check in button comes first.
     await browser.submitForm({}, "Check in");
-    expect(browser.containsText("Alice Smith checked in")).toBe(true);
+    expect(browser.containsText("Checked Alice Smith in")).toBe(true);
 
     // 3. Navigate to Alice's edit page and update her contact info
     await visitFirstAttendeeEditPage(browser);
