@@ -26,10 +26,12 @@ import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
+  followRedirectWithFlash,
   getAttendeesRaw,
   mockFormRequest,
   mockProviderType,
   mockRequest,
+  setupAdminTest,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
@@ -1378,7 +1380,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("preserves quantity when editing contact info without quantity field", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
       const { attendee } = await createTestAttendeeDirect(
         event.id,
         "John Doe",
@@ -1593,7 +1598,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await expectHtmlResponse(response, 200, 'name="quantity"', 'max="5"');
     });
-
   });
 
   describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-notification", () => {
@@ -1659,6 +1663,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         'name="return_url"',
         "/admin/calendar#attendees",
       );
+    });
+
+    test("shows error message when attendee name does not match", async () => {
+      const { event, attendee, cookie, csrfToken } = await setupAdminTest();
+      const postResponse = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`,
+          { csrf_token: csrfToken, confirm_identifier: "Wrong Name" },
+          cookie,
+        ),
+      );
+      const page = await followRedirectWithFlash(
+        postResponse,
+        handleRequest,
+        cookie,
+      );
+      const html = await page.text();
+      expect(html).toContain("does not match");
     });
 
     test("shows amount paid on resend notification page for paid attendee", async () => {
