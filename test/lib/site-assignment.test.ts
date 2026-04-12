@@ -5,10 +5,9 @@ import {
   insertBuiltSite,
 } from "#lib/db/built-sites.ts";
 import { assignAndNotifyBuiltSites } from "#lib/site-assignment.ts";
-import type { EmailEntry } from "#lib/email.ts";
-import { describeWithEnv, makeTestEntry } from "#test-utils";
+import { describeWithEnv, makeTestEntry, setTestEnv } from "#test-utils";
 
-/** Build an EmailEntry with assign_built_site for testing */
+/** Build an entry with assign_built_site for testing */
 const siteEntry = (
   overrides: {
     eventId?: number;
@@ -18,7 +17,7 @@ const siteEntry = (
     quantity?: number;
     email?: string;
   } = {},
-): EmailEntry =>
+) =>
   makeTestEntry(
     {
       id: overrides.eventId,
@@ -103,9 +102,7 @@ describeWithEnv("site-assignment", {
 
   describe("feature flag", () => {
     test("no-ops when CAN_BUILD_SITES is disabled", async () => {
-      // Temporarily override to disabled
-      const original = Deno.env.get("CAN_BUILD_SITES");
-      Deno.env.delete("CAN_BUILD_SITES");
+      const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
       try {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry()]);
@@ -113,7 +110,7 @@ describeWithEnv("site-assignment", {
         expect(sites[0]!.assignable).toBe(true);
         expect(sites[0]!.assignedAttendeeId).toBeNull();
       } finally {
-        if (original) Deno.env.set("CAN_BUILD_SITES", original);
+        restore();
       }
     });
   });
