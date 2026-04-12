@@ -385,14 +385,14 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       }
     });
 
-    test("contains read-only mode section with enable instructions", async () => {
+    test("contains read-only mode explanation aimed at end users", async () => {
       await assertAdminHtml(
         "/admin/guide",
         'id="read-only-mode"',
         "Read-only Mode",
-        "READ_ONLY",
-        "case-sensitive",
-        "payment-provider webhooks",
+        "switched on by the host",
+        "behind on billing",
+        "undergoing maintenance",
       );
     });
   });
