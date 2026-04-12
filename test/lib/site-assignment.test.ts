@@ -151,13 +151,21 @@ describeWithEnv("site-assignment", { db: true }, () => {
       expect(body.subject).toBe("Your new site is ready");
     });
 
-    test("includes reply-to when business email is set", async () => {
+    test("uses DB email config when available and includes reply-to", async () => {
+      // Configure email via DB settings (not host config) so getEmailConfig()
+      // returns non-null, covering the left branch of the ?? operator
       const { settings } = await import("#lib/db/settings.ts");
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("re_db_key");
+      await settings.update.email.fromAddress("db@example.com");
       await settings.update.businessEmail("biz@example.com");
+      resetHostEmailConfig();
+      setHostEmailConfigForTest(null);
 
       await insertBuiltSite("Site A", "a.test.net", "", "", true);
       await assignAndNotifyBuiltSites([siteEntry()]);
 
+      expect(fetchStub.calls.length).toBe(1);
       const body = JSON.parse(fetchStub.calls[0].args[1].body);
       expect(body.reply_to).toBe("biz@example.com");
     });
