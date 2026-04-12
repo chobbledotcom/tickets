@@ -344,7 +344,7 @@ describe("code quality", () => {
       "routes/api.ts:apiRoutes",
       "routes/admin/api.ts:adminApiRoutes",
       // Test env overlay hooks into getEnv() so process.env-first code paths see test values
-      "lib/env.ts:setGetEnvOverride",
+      "lib/env.ts:setGetEnvOverlay",
     ];
 
     /**

@@ -438,11 +438,11 @@ Deno.env.delete = (key: string): void => {
   else _realDelete(key);
 };
 
-import { setGetEnvOverride } from "#lib/env.ts";
+import { setGetEnvOverlay } from "#lib/env.ts";
 
 /**
  * Set env vars for a test and return a restore function that puts them back.
- * Uses a per-worker overlay on Deno.env AND a getEnv() override so that
+ * Uses a per-worker overlay on Deno.env AND a getEnv() overlay so that
  * both Deno.env.get() and getEnv() (which checks process.env first) see
  * test values. Parallel test workers cannot leak env vars to each other.
  * Pass `undefined` as a value to delete the key (useful for ensuring a clean slate).
@@ -474,8 +474,10 @@ export const setTestEnv = (
     if (value !== undefined) Deno.env.set(key, value);
     else Deno.env.delete(key);
   }
-  // Hook getEnv() so process.env-first code paths also see overlay values
-  const restoreGetEnv = setGetEnvOverride((key) => Deno.env.get(key));
+  // Hook getEnv() so process.env-first code paths also see overlay values.
+  // Only keys IN the overlay are intercepted; other keys fall through to
+  // the real getEnv() logic (preserving process.env priority).
+  const restoreGetEnv = setGetEnvOverlay(layer);
   return () => {
     restoreGetEnv();
     _overlay = prev;

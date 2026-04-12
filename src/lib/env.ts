@@ -5,8 +5,8 @@
  * - Deno: uses Deno.env.get()
  * - Bunny Edge: uses process.env (Node.js compatibility)
  *
- * Tests can override values via setGetEnvOverride() without touching the
- * real environment, avoiding split-brain issues between Deno.env and process.env.
+ * Tests can intercept reads via setGetEnvOverlay() to inject values
+ * that are visible to getEnv() without touching the real environment.
  */
 
 declare const Deno:
@@ -16,26 +16,35 @@ declare const Deno:
 /** Augment globalThis to include optional process.env (Bunny Edge runtime) */
 declare const process: { env: Record<string, string | undefined> } | undefined;
 
-/** Optional test override — when set, getEnv delegates to this function */
-let _getEnvOverride: ((key: string) => string | undefined) | null = null;
+import { lazyRef } from "#fp";
 
-/** Replace getEnv's implementation for testing. Returns a restore function. */
-export const setGetEnvOverride = (
-  fn: ((key: string) => string | undefined) | null,
+/**
+ * Optional test overlay for getEnv(). When set, keys present in the overlay
+ * are returned from the overlay; keys NOT in the overlay fall through to
+ * the real process.env / Deno.env lookup. This avoids the split-brain where
+ * Deno.env patches don't propagate to process.env.
+ */
+const [getOverlay, setOverlay] = lazyRef<Record<
+  string,
+  string | undefined
+> | null>(() => null);
+
+/** Set a getEnv overlay for testing. Returns a restore function. */
+export const setGetEnvOverlay = (
+  overlay: Record<string, string | undefined> | null,
 ): (() => void) => {
-  const prev = _getEnvOverride;
-  _getEnvOverride = fn;
-  return () => {
-    _getEnvOverride = prev;
-  };
+  const prev = getOverlay();
+  setOverlay(overlay);
+  return () => setOverlay(prev);
 };
 
 /**
  * Get an environment variable value
- * Checks process.env first (Bunny Edge), falls back to Deno.env (local dev)
+ * Checks test overlay first, then process.env (Bunny Edge), then Deno.env
  */
 export function getEnv(key: string): string | undefined {
-  if (_getEnvOverride) return _getEnvOverride(key);
+  const overlay = getOverlay();
+  if (overlay && key in overlay) return overlay[key];
 
   // Try process.env first (available in Bunny Edge via node:process)
   if (process?.env && key in process.env) {
