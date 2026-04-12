@@ -53,7 +53,8 @@ const totalSitesNeeded = (
   let total = 0;
   for (const { event } of events) {
     if (event.assign_built_site) {
-      total += quantities.get(event.id) ?? 0;
+      // quantities is always populated for every event by parseQuantities
+      total += quantities.get(event.id)!;
     }
   }
   return total;

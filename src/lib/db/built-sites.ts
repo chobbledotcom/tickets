@@ -264,11 +264,12 @@ export const getAllBuiltSites = (): Promise<BuiltSite[]> =>
 
 /** Count assignable sites (fast SQL, no decryption) */
 export const countAssignableSites = async (): Promise<number> => {
-  const row = await queryOne<{ cnt: number }>(
+  // COUNT(*) always returns exactly one row
+  const row = (await queryOne<{ cnt: number }>(
     "SELECT COUNT(*) as cnt FROM built_sites WHERE assignable = 1",
     [],
-  );
-  return row?.cnt ?? 0;
+  ))!;
+  return row.cnt;
 };
 
 /** Get all assignable built sites */

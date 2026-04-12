@@ -203,6 +203,17 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(parsed.n).toBe("");
       expect(parsed.u).toBe("");
     });
+
+    test("toDbValues sets assignable to 1 when true", async () => {
+      const values = await builtSitesCrudTable.toDbValues({
+        name: "Test",
+        bunnyUrl: "test.bunny.run",
+        dbUrl: "",
+        dbToken: "",
+        assignable: true,
+      });
+      expect(values.assignable).toBe(1);
+    });
   });
 
   describe("assignable sites", () => {
