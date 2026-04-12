@@ -99,6 +99,18 @@ export const buildSiteDataBlob = (
     ...(dbToken ? { t: dbToken } : {}),
   } satisfies SiteDataBlob);
 
+/** Build raw table input from individual fields */
+const toRawInput = (
+  name: string,
+  bunnyUrl: string,
+  dbUrl: string,
+  dbToken: string,
+  assignable: boolean,
+): BuiltSiteInput => ({
+  siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken),
+  assignable: assignable ? 1 : 0,
+});
+
 /** Parse a decrypted site data blob */
 export const parseSiteDataBlob = (json: string): SiteDataBlob =>
   JSON.parse(json) as SiteDataBlob;
@@ -174,15 +186,9 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   },
 
   insert: async (input: BuiltSiteFormInput): Promise<BuiltSite> => {
-    const row = await builtSitesTable.insert({
-      siteData: buildSiteDataBlob(
-        input.name,
-        input.bunnyUrl,
-        input.dbUrl,
-        input.dbToken,
-      ),
-      assignable: input.assignable ? 1 : 0,
-    });
+    const row = await builtSitesTable.insert(
+      toRawInput(input.name, input.bunnyUrl, input.dbUrl, input.dbToken, input.assignable),
+    );
     // insert() returns the row with unencrypted input values, so parse directly
     return rowToBuiltSite(row);
   },
@@ -199,10 +205,9 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     const dbToken = input.dbToken ?? existing.dbToken;
     const assignable = input.assignable ?? existing.assignable;
     // Row exists (checked above), so update always returns non-null
-    const row = (await builtSitesTable.update(id, {
-      siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken),
-      assignable: assignable ? 1 : 0,
-    })) as BuiltSiteRow;
+    const row = (await builtSitesTable.update(id,
+      toRawInput(name, bunnyUrl, dbUrl, dbToken, assignable),
+    )) as BuiltSiteRow;
     // update() returns the row with unencrypted input values, so parse directly
     return rowToBuiltSite(row);
   },
@@ -242,10 +247,7 @@ export const insertBuiltSite = (
   dbToken = "",
   assignable = false,
 ): Promise<BuiltSiteRow> =>
-  builtSitesTable.insert({
-    siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken),
-    assignable: assignable ? 1 : 0,
-  });
+  builtSitesTable.insert(toRawInput(name, bunnyUrl, dbUrl, dbToken, assignable));
 
 /** Get all built sites, decrypted and sorted by name */
 export const getAllBuiltSites = (): Promise<BuiltSite[]> =>
