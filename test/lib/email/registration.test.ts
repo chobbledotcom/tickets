@@ -4,8 +4,11 @@ import { updateBusinessEmail } from "#lib/business-email.ts";
 import { settings } from "#lib/db/settings.ts";
 import type { EmailConfig } from "#lib/email.ts";
 import { sendRegistrationEmails, sendTestEmail } from "#lib/email.ts";
-import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
-import { useFetchStub } from "../email/_fetch-helpers.ts";
+import {
+  describeWithEnv,
+  makeTestEntry as makeEntry,
+  useFetchStub,
+} from "#test-utils";
 
 const testConfig: EmailConfig = {
   provider: "resend",

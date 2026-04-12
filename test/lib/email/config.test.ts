@@ -1,14 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import { updateBusinessEmail } from "#lib/business-email.ts";
 import { settings } from "#lib/db/settings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
 import { describeWithEnv } from "#test-utils";
-import {
-  collectErrorLogs,
-  expectEmailSendLog,
-  withErrorSpy,
-} from "../email/_fetch-helpers.ts";
 
 describeWithEnv("getEmailConfig", { db: true }, () => {
   test("returns null when no provider configured", async () => {
@@ -127,14 +123,21 @@ describeWithEnv(
       Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun");
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-      withErrorSpy((errorSpy) => {
+      const errorSpy = spy(console, "error");
+      try {
         const config = getHostEmailConfig();
         expect(config).toBeNull();
-        expectEmailSendLog(
-          collectErrorLogs(errorSpy),
-          "invalid HOST_EMAIL_PROVIDER",
-        );
-      });
+        const logs = errorSpy.calls.map((c) => c.args[0] as string);
+        expect(
+          logs.some(
+            (l) =>
+              l.includes("E_EMAIL_SEND") &&
+              l.includes("invalid HOST_EMAIL_PROVIDER"),
+          ),
+        ).toBe(true);
+      } finally {
+        errorSpy.restore();
+      }
     });
   },
 );

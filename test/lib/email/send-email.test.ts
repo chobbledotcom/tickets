@@ -1,13 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import type { EmailConfig, EmailMessage } from "#lib/email.ts";
 import { sendEmail } from "#lib/email.ts";
-import {
-  collectErrorLogs,
-  expectEmailSendLog,
-  useFetchStub,
-  withErrorSpy,
-} from "../email/_fetch-helpers.ts";
+import { useFetchStub } from "#test-utils";
 
 const testConfig: EmailConfig = {
   provider: "resend",
@@ -33,15 +29,23 @@ const sendEmailExpectingError = async (
   expectedStatus: number | undefined,
   expectedLogSubstring: string,
 ): Promise<void> => {
-  await withErrorSpy(async (errorSpy) => {
+  const errorSpy = spy(console, "error");
+  try {
     const status = await sendEmail(config, msg);
     if (expectedStatus === undefined) {
       expect(status).toBeUndefined();
     } else {
       expect(status).toBe(expectedStatus);
     }
-    expectEmailSendLog(collectErrorLogs(errorSpy), expectedLogSubstring);
-  });
+    const logs = errorSpy.calls.map((c) => c.args[0] as string);
+    expect(
+      logs.some(
+        (l) => l.includes("E_EMAIL_SEND") && l.includes(expectedLogSubstring),
+      ),
+    ).toBe(true);
+  } finally {
+    errorSpy.restore();
+  }
 };
 
 describe("sendEmail", () => {
