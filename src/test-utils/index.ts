@@ -413,10 +413,13 @@ export const installUrlHandler = (
 
 // ---------------------------------------------------------------------------
 // Per-worker Deno.env overlay for test isolation.
-// Intercepts both Deno.env.get/set/delete AND getEnv() so that env vars
-// set during a test stay local to this worker and never leak to parallel
-// workers via the real env. The getEnv override ensures process.env-first
-// code paths also see test values.
+// Intercepts Deno.env.get/set/delete so that env vars set during a test stay
+// local to this worker and never leak to parallel workers via the real env.
+// When no overlay is active, Deno.env behaves normally.
+//
+// In Deno, process.env is a proxy over Deno.env — they share the same backing
+// store. Patching Deno.env automatically affects process.env reads/writes too,
+// so getEnv() (which checks process.env first) sees overlay values correctly.
 // ---------------------------------------------------------------------------
 const _realGet = Deno.env.get.bind(Deno.env);
 const _realSet = Deno.env.set.bind(Deno.env);
@@ -438,13 +441,15 @@ Deno.env.delete = (key: string): void => {
   else _realDelete(key);
 };
 
-import { setGetEnvOverlay } from "#lib/env.ts";
-
 /**
  * Set env vars for a test and return a restore function that puts them back.
- * Uses a per-worker overlay on Deno.env AND a getEnv() overlay so that
- * both Deno.env.get() and getEnv() (which checks process.env first) see
- * test values. Parallel test workers cannot leak env vars to each other.
+ * Uses a per-worker overlay on Deno.env so parallel test workers cannot leak
+ * env vars to each other. All Deno.env.get/set/delete calls within the scope
+ * are transparently intercepted for the managed keys.
+ *
+ * In Deno, process.env is a proxy over Deno.env, so getEnv() (which checks
+ * process.env first) also sees overlay values — no separate hook needed.
+ *
  * Pass `undefined` as a value to delete the key (useful for ensuring a clean slate).
  *
  * @example
@@ -474,18 +479,7 @@ export const setTestEnv = (
     if (value !== undefined) Deno.env.set(key, value);
     else Deno.env.delete(key);
   }
-  // Hook getEnv() so process.env-first code paths also see overlay values.
-  // Only DEFINED values are included — keys set to undefined (deletions)
-  // don't need interception since the Deno.env overlay already handles them.
-  // Uses a snapshot so that Deno.env.set() calls inside tests don't leak
-  // into the getEnv overlay (important for env.test.ts which tests process.env priority).
-  const getEnvLayer: Record<string, string | undefined> = Object.create(null);
-  for (const key of Object.keys(layer)) {
-    if (layer[key] !== undefined) getEnvLayer[key] = layer[key];
-  }
-  const restoreGetEnv = setGetEnvOverlay(getEnvLayer);
   return () => {
-    restoreGetEnv();
     _overlay = prev;
   };
 };

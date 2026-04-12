@@ -5,8 +5,10 @@
  * - Deno: uses Deno.env.get()
  * - Bunny Edge: uses process.env (Node.js compatibility)
  *
- * Tests can intercept reads via setGetEnvOverlay() to inject values
- * that are visible to getEnv() without touching the real environment.
+ * Note: In Deno, process.env is a proxy over Deno.env — they share the
+ * same backing store. The test overlay (setTestEnv in test-utils) patches
+ * Deno.env.get/set/delete, which automatically affects process.env reads
+ * and writes too.
  */
 
 declare const Deno:
@@ -16,36 +18,11 @@ declare const Deno:
 /** Augment globalThis to include optional process.env (Bunny Edge runtime) */
 declare const process: { env: Record<string, string | undefined> } | undefined;
 
-import { lazyRef } from "#fp";
-
-/**
- * Optional test overlay for getEnv(). When set, keys present in the overlay
- * are returned from the overlay; keys NOT in the overlay fall through to
- * the real process.env / Deno.env lookup. This avoids the split-brain where
- * Deno.env patches don't propagate to process.env.
- */
-const [getOverlay, setOverlay] = lazyRef<Record<
-  string,
-  string | undefined
-> | null>(() => null);
-
-/** Set a getEnv overlay for testing. Returns a restore function. */
-export const setGetEnvOverlay = (
-  overlay: Record<string, string | undefined> | null,
-): (() => void) => {
-  const prev = getOverlay();
-  setOverlay(overlay);
-  return () => setOverlay(prev);
-};
-
 /**
  * Get an environment variable value
- * Checks test overlay first, then process.env (Bunny Edge), then Deno.env
+ * Checks process.env first (Bunny Edge), falls back to Deno.env (local dev)
  */
 export function getEnv(key: string): string | undefined {
-  const overlay = getOverlay();
-  if (overlay && key in overlay) return overlay[key];
-
   // Try process.env first (available in Bunny Edge via node:process)
   if (process?.env && key in process.env) {
     return process.env[key];
