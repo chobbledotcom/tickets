@@ -175,16 +175,20 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
       );
 
       // Check built site availability for assign_built_site events
+      // Only runs when the builder feature is enabled
       const sitesNeeded = totalSitesNeeded(ctx.events, quantities);
       if (sitesNeeded > 0) {
-        const { countAssignableSites } = await import(
-          "#lib/db/built-sites.ts"
-        );
-        const availableSites = await countAssignableSites();
-        if (availableSites < sitesNeeded) {
-          return ticketFormErrorResponse(ctx)(
-            "Sorry, not enough sites available",
+        const { isBuilderEnabled } = await import("#routes/admin/builder.ts");
+        if (isBuilderEnabled()) {
+          const { countAssignableSites } = await import(
+            "#lib/db/built-sites.ts"
           );
+          const availableSites = await countAssignableSites();
+          if (availableSites < sitesNeeded) {
+            return ticketFormErrorResponse(ctx)(
+              "Sorry, not enough sites available",
+            );
+          }
         }
       }
 

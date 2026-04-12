@@ -14,7 +14,7 @@ import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#lib/ticket-url.ts";
 import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
 
-/** Event data needed for email rendering (extends webhook event with display fields) */
+/** Event data needed for registration pipeline (extends webhook event with display + assignment fields) */
 export type EmailEvent = WebhookEvent & {
   date: string;
   location: string;

@@ -1,6 +1,7 @@
 /**
  * Built site assignment — assigns sites to attendees after booking completion.
  * Sends a separate notification email with site URLs.
+ * All assignment logic is gated behind CAN_BUILD_SITES.
  */
 
 import {
@@ -8,12 +9,18 @@ import {
   getAssignableBuiltSites,
 } from "#lib/db/built-sites.ts";
 import { settings } from "#lib/db/settings.ts";
-import type { EmailEntry } from "#lib/email.ts";
 import {
   getEmailConfig,
   getHostEmailConfig,
   sendEmail,
 } from "#lib/email.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
+
+/** Entry with the fields needed for site assignment */
+export type SiteAssignmentEntry = {
+  event: { id: number; name: string; assign_built_site: boolean };
+  attendee: { id: number; email: string; quantity: number };
+};
 
 /** Info about an assigned site for email rendering */
 export type SiteAssignment = {
@@ -23,7 +30,7 @@ export type SiteAssignment = {
 
 /** Assign built sites to entries that need them. Returns assigned URLs. */
 export const assignSitesForEntries = async (
-  entries: EmailEntry[],
+  entries: SiteAssignmentEntry[],
 ): Promise<SiteAssignment[]> => {
   const needsSite = entries.filter((e) => e.event.assign_built_site);
   if (needsSite.length === 0) return [];
@@ -78,10 +85,13 @@ export const sendSiteAssignmentEmail = async (
   await sendEmail(config, { to, subject, html, text, replyTo });
 };
 
-/** Assign sites and send notification email. Designed to be called via addPendingWork. */
+/** Assign sites and send notification email. Designed to be called via addPendingWork.
+ * No-ops when CAN_BUILD_SITES is not enabled. */
 export const assignAndNotifyBuiltSites = async (
-  entries: EmailEntry[],
+  entries: SiteAssignmentEntry[],
 ): Promise<void> => {
+  if (!isBuilderEnabled()) return;
+
   const assignments = await assignSitesForEntries(entries);
   if (assignments.length === 0) return;
 

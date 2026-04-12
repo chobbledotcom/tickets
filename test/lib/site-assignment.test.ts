@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { insertBuiltSite } from "#lib/db/built-sites.ts";
-import { assignSitesForEntries } from "#lib/site-assignment.ts";
-import type { EmailEntry } from "#lib/email.ts";
+import {
+  assignSitesForEntries,
+  type SiteAssignmentEntry,
+} from "#lib/site-assignment.ts";
 import { describeWithEnv } from "#test-utils";
 
-/** Build a minimal EmailEntry for testing */
+/** Build a minimal SiteAssignmentEntry for testing */
 const mockEntry = (
   overrides: {
     eventId?: number;
@@ -15,36 +17,18 @@ const mockEntry = (
     quantity?: number;
     email?: string;
   } = {},
-): EmailEntry =>
-  ({
-    event: {
-      id: overrides.eventId ?? 1,
-      name: overrides.eventName ?? "Test Event",
-      slug: "test",
-      webhook_url: "",
-      max_attendees: 100,
-      attendee_count: 0,
-      unit_price: 0,
-      can_pay_more: false,
-      date: "",
-      location: "",
-      purchase_only: false,
-      assign_built_site: overrides.assignBuiltSite ?? true,
-    },
-    attendee: {
-      id: overrides.attendeeId ?? 1,
-      name: "Test User",
-      email: overrides.email ?? "user@test.com",
-      phone: "",
-      address: "",
-      special_instructions: "",
-      quantity: overrides.quantity ?? 1,
-      payment_id: "",
-      price_paid: "0",
-      ticket_token: "tok123",
-      date: null,
-    },
-  }) as EmailEntry;
+): SiteAssignmentEntry => ({
+  event: {
+    id: overrides.eventId ?? 1,
+    name: overrides.eventName ?? "Test Event",
+    assign_built_site: overrides.assignBuiltSite ?? true,
+  },
+  attendee: {
+    id: overrides.attendeeId ?? 1,
+    email: overrides.email ?? "user@test.com",
+    quantity: overrides.quantity ?? 1,
+  },
+});
 
 describeWithEnv("site-assignment", { db: true }, () => {
   describe("assignSitesForEntries", () => {

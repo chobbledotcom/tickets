@@ -46,6 +46,7 @@ import {
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import type {
   AdminSession,
   Attendee,
@@ -133,7 +134,7 @@ const extractCommonFields = (values: EventFormValues) => {
     maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
     hidden: values.hidden === "1",
     purchaseOnly: values.purchase_only === "1",
-    assignBuiltSite: values.assign_built_site === "1",
+    assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
   };
 };
 
