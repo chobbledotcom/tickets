@@ -104,6 +104,12 @@ describe("eventFields — contact fields setting", () => {
       expectValid(eventFields, eventForm({ fields: value }));
     }
   });
+
+  test("warns that attendees won't be emailed their ticket without email collection", () => {
+    const fieldsField = eventFields.find((f) => f.name === "fields")!;
+    expect(fieldsField.hintHtml).toContain("<strong>");
+    expect(fieldsField.hintHtml).toContain("emailed their ticket");
+  });
 });
 
 describe("eventFields — event_type", () => {
