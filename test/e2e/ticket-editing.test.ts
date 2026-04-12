@@ -59,7 +59,9 @@ const extractEventIdFromSelect = (
  * The event page has both an "Edit event" link and "Edit attendee" links.
  * This finds the first /admin/attendees/ link to reach the attendee edit page.
  */
-const visitFirstAttendeeEditPage = async (browser: TestBrowser): Promise<void> => {
+const visitFirstAttendeeEditPage = async (
+  browser: TestBrowser,
+): Promise<void> => {
   const link = browser.links.find((l) => l.href.includes("/admin/attendees/"));
   if (!link) throw new Error("No attendee edit link found on page");
   await browser.visit(link.href);
@@ -77,6 +79,157 @@ describe("e2e: ticket editing flow", () => {
   afterEach(() => {
     resetDb();
     clearTestEncryptionKey();
+  });
+
+  test("edit attendee contact info preserves bookings", async () => {
+    // 1. Setup: create admin, log in, create event with two attendees
+    await browser.visit("/");
+    await browser.submitForm(
+      {
+        admin_username: "admin",
+        admin_password: "password",
+        admin_password_confirm: "password",
+        country: "GB",
+        accept_agreement: "yes",
+      },
+      "Complete Setup",
+    );
+    invalidateAllCaches();
+
+    await browser.clickLink("Go to Admin Dashboard");
+    await browser.submitForm(
+      { username: "admin", password: "password" },
+      "Login",
+    );
+    if (browser.containsText("Migration complete")) {
+      await browser.clickLink("Back to dashboard");
+    }
+
+    // Create event
+    await browser.clickLink("Add Event");
+    await browser.submitForm(
+      { name: "Art Class", max_attendees: "50", max_quantity: "5" },
+      "Create Event",
+    );
+
+    // Add Alice with quantity 2
+    await browser.clickLink("Art Class");
+    await browser.submitForm(
+      { name: "Alice Smith", quantity: "2" },
+      "Add Attendee",
+    );
+    expect(browser.containsText("Added Alice Smith")).toBe(true);
+
+    // Add Bob with quantity 1
+    await browser.submitForm(
+      { name: "Bob Jones", quantity: "1" },
+      "Add Attendee",
+    );
+    expect(browser.containsText("Added Bob Jones")).toBe(true);
+
+    // 2. Check Alice in — the "Check in" button on the event page
+    //    Alice appears first alphabetically, so her Check in button comes first.
+    await browser.submitForm({}, "Check in");
+    expect(browser.containsText("Checked Alice Smith in")).toBe(true);
+
+    // 3. Navigate to Alice's edit page and update her contact info
+    await visitFirstAttendeeEditPage(browser);
+    expect(browser.containsText("Alice Smith")).toBe(true);
+
+    // Verify her current booking details on the edit page:
+    // The Event Registrations table shows quantity and checked-in badge
+    expect(browser.currentHtml).toContain("Checked in");
+
+    await browser.submitForm(
+      {
+        name: "Alice Johnson",
+        email: "alice.johnson@example.com",
+        phone: "+449876543210",
+        address: "42 Oak Street",
+        special_instructions: "Needs wheelchair access",
+      },
+      "Save Contact Info",
+    );
+    // Redirects to event page with flash message
+    expect(browser.containsText("Updated Alice Johnson")).toBe(true);
+
+    // 4. Verify edited details appear on the event page
+    expect(browser.containsText("Alice Johnson")).toBe(true);
+    expect(browser.containsText("Alice Smith")).toBe(false);
+
+    // 5. Navigate back to Alice's edit page to verify all fields were saved
+    //    and booking properties are intact
+    await visitFirstAttendeeEditPage(browser);
+    expect(browser.containsText("Alice Johnson")).toBe(true);
+    // Verify saved contact fields appear in the form
+    expect(browser.currentHtml).toContain("alice.johnson@example.com");
+    expect(browser.currentHtml).toContain("+449876543210");
+    expect(browser.currentHtml).toContain("42 Oak Street");
+    expect(browser.currentHtml).toContain("Needs wheelchair access");
+    // Verify booking preserved: quantity still 2 and still checked in
+    expect(browser.currentHtml).toContain('value="2"');
+    expect(browser.currentHtml).toContain("Checked in");
+
+    // 6. Go back to the event page and navigate to Bob's edit page.
+    //    Alice (now Alice Johnson) appears first alphabetically, Bob second.
+    await browser.visit("/admin/");
+    await browser.clickLink("Art Class");
+
+    // Bob should not be checked in — his button says "Check in"
+    // and Alice should show "Check out" (since she is checked in)
+    expect(browser.containsText("Bob Jones")).toBe(true);
+    expect(browser.containsText("Check out")).toBe(true);
+
+    // Find Bob's edit link — he's the second attendee
+    const attendeeLinks = browser.links.filter((l) =>
+      l.href.includes("/admin/attendees/"),
+    );
+    expect(attendeeLinks.length).toBeGreaterThanOrEqual(2);
+    await browser.visit(attendeeLinks[1]!.href);
+    expect(browser.containsText("Bob Jones")).toBe(true);
+
+    // Verify Bob is NOT checked in on his edit page
+    expect(browser.currentHtml).not.toContain("Checked in");
+
+    // 7. Edit Bob's contact info
+    await browser.submitForm(
+      {
+        name: "Robert Jones",
+        email: "robert@example.com",
+        phone: "+441111222333",
+        address: "7 Pine Avenue",
+        special_instructions: "Vegetarian meals",
+      },
+      "Save Contact Info",
+    );
+    expect(browser.containsText("Updated Robert Jones")).toBe(true);
+
+    // 8. Verify Bob's edit was saved and his booking is intact
+    expect(browser.containsText("Robert Jones")).toBe(true);
+    expect(browser.containsText("Bob Jones")).toBe(false);
+
+    // Navigate to Bob's edit page to verify fields and booking
+    const bobEditLinks = browser.links.filter((l) =>
+      l.href.includes("/admin/attendees/"),
+    );
+    // Bob (Robert Jones) should be the second attendee link
+    await browser.visit(bobEditLinks[1]!.href);
+    expect(browser.currentHtml).toContain("robert@example.com");
+    expect(browser.currentHtml).toContain("+441111222333");
+    expect(browser.currentHtml).toContain("7 Pine Avenue");
+    expect(browser.currentHtml).toContain("Vegetarian meals");
+    // Booking preserved: quantity still 1, not checked in
+    expect(browser.currentHtml).toContain('value="1"');
+    expect(browser.currentHtml).not.toContain("Checked in");
+
+    // 9. Final verification: go back to event page and confirm both
+    //    attendees have their updated names and original booking properties
+    await browser.visit("/admin/");
+    await browser.clickLink("Art Class");
+    expect(browser.containsText("Alice Johnson")).toBe(true);
+    expect(browser.containsText("Robert Jones")).toBe(true);
+    expect(browser.containsText("Alice Smith")).toBe(false);
+    expect(browser.containsText("Bob Jones")).toBe(false);
   });
 
   test("create events → add attendees → move attendees between events", async () => {
