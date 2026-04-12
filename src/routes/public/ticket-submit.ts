@@ -4,9 +4,11 @@
 
 import { reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
+import { countAssignableSites } from "#lib/db/built-sites.ts";
 import { saveEventAnswers } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import { isPaidEvent } from "#lib/types.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import {
   applyFlash,
   errorRedirect,
@@ -42,6 +44,21 @@ import {
   type TicketContextProvider,
   type TicketCtx,
 } from "./types.ts";
+
+/** Sum quantity needed across events with assign_built_site enabled */
+const totalSitesNeeded = (
+  events: TicketEvent[],
+  quantities: Map<number, number>,
+): number => {
+  let total = 0;
+  for (const { event } of events) {
+    if (event.assign_built_site) {
+      // quantities is always populated for every event by parseQuantities
+      total += quantities.get(event.id)!;
+    }
+  }
+  return total;
+};
 
 /** Handle POST for ticket registration */
 const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
@@ -159,6 +176,18 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
         quantities,
         customPrices,
       );
+
+      // Check built site availability for assign_built_site events
+      // Only runs when the builder feature is enabled
+      const sitesNeeded = totalSitesNeeded(ctx.events, quantities);
+      if (sitesNeeded > 0 && isBuilderEnabled()) {
+        const availableSites = await countAssignableSites();
+        if (availableSites < sitesNeeded) {
+          return ticketFormErrorResponse(ctx)(
+            "Sorry, not enough sites available",
+          );
+        }
+      }
 
       // Check if payment required
       if (await anyRequiresPayment(items)) {

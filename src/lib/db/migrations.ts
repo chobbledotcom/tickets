@@ -84,6 +84,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["can_pay_more", "INTEGER NOT NULL DEFAULT 0"],
         ["hidden", "INTEGER NOT NULL DEFAULT 0"],
         ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
+        ["assign_built_site", "INTEGER NOT NULL DEFAULT 0"],
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
@@ -334,6 +335,9 @@ const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["site_data", "TEXT NOT NULL"],
+        ["assignable", "INTEGER NOT NULL DEFAULT 0"],
+        ["assigned_attendee_id", "INTEGER DEFAULT NULL"],
+        ["assigned_event_id", "INTEGER DEFAULT NULL"],
         ["created", "TEXT NOT NULL"],
       ],
     },

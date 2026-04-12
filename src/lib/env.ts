@@ -4,6 +4,11 @@
  *
  * - Deno: uses Deno.env.get()
  * - Bunny Edge: uses process.env (Node.js compatibility)
+ *
+ * Note: In Deno, process.env is a proxy over Deno.env — they share the
+ * same backing store. The test overlay (setTestEnv in test-utils) patches
+ * Deno.env.get/set/delete, which automatically affects process.env reads
+ * and writes too.
  */
 
 declare const Deno:
@@ -28,13 +33,13 @@ export function getEnv(key: string): string | undefined {
   return Deno!.env.get(key);
 }
 
+/** Check if the system is in read-only mode (READ_ONLY env var) */
+export const isReadOnly = (): boolean => getEnv("READ_ONLY") === "true";
+
 /**
  * Get a required environment variable, throwing if not set.
  * Use this instead of `getEnv(key) as string` when the variable must exist.
  */
-/** Check if the system is in read-only mode (READ_ONLY env var) */
-export const isReadOnly = (): boolean => getEnv("READ_ONLY") === "true";
-
 export function requireEnv(key: string): string {
   const value = getEnv(key);
   if (value === undefined) {

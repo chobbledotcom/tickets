@@ -30,6 +30,7 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
+  setTestEnv,
   setupEventAndLogin,
   submitTicketForm,
   testCookie,
@@ -3368,6 +3369,66 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           expect(html).not.toContain("Remove Attachment");
         },
       );
+    });
+  });
+
+  describe("assign_built_site", () => {
+    test("saves assign_built_site when CAN_BUILD_SITES is true", async () => {
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      try {
+        // Debug: verify env overlay is working
+        const { getEnv } = await import("#lib/env.ts");
+        const { isBuilderEnabled } = await import(
+          "#routes/admin/builder.ts"
+        );
+        console.log("[DEBUG] Deno.env.get('CAN_BUILD_SITES'):", Deno.env.get("CAN_BUILD_SITES"));
+        console.log("[DEBUG] getEnv('CAN_BUILD_SITES'):", getEnv("CAN_BUILD_SITES"));
+        console.log("[DEBUG] isBuilderEnabled():", isBuilderEnabled());
+        console.log("[DEBUG] typeof process:", typeof globalThis.process);
+        if (globalThis.process?.env) {
+          console.log("[DEBUG] process.env.CAN_BUILD_SITES:", globalThis.process.env.CAN_BUILD_SITES);
+          console.log("[DEBUG] 'CAN_BUILD_SITES' in process.env:", "CAN_BUILD_SITES" in globalThis.process.env);
+        }
+
+        const event = await createTestEvent({ assignBuiltSite: true });
+        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const saved = await getEventWithCount(event.id);
+        expect(saved?.assign_built_site).toBe(true);
+      } finally {
+        restore();
+      }
+    });
+
+    test("ignores assign_built_site when CAN_BUILD_SITES is not set", async () => {
+      const event = await createTestEvent({ assignBuiltSite: true });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.assign_built_site).toBe(false);
+    });
+
+    test("defaults to false even when CAN_BUILD_SITES is true", async () => {
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      try {
+        const event = await createTestEvent();
+        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const saved = await getEventWithCount(event.id);
+        expect(saved?.assign_built_site).toBe(false);
+      } finally {
+        restore();
+      }
+    });
+
+    test("updates event to enable assign_built_site", async () => {
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      try {
+        const event = await createTestEvent();
+        await updateTestEvent(event.id, { assignBuiltSite: true });
+        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.assign_built_site).toBe(true);
+      } finally {
+        restore();
+      }
     });
   });
 });

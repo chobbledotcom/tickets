@@ -63,6 +63,7 @@ export type EventFormValues = {
   max_price: string;
   hidden: string;
   purchase_only: string;
+  assign_built_site: string;
 };
 
 /** Typed values from event edit form (includes slug) */
@@ -545,7 +546,23 @@ export const builtSiteFields: Field[] = [
     type: "password",
     placeholder: "Database auth token",
   },
+  {
+    name: "assignable",
+    label: "Assignable",
+    type: "checkbox-group",
+    hint: "Make this site available for automatic assignment when a ticket is purchased",
+    options: [{ value: "1", label: "Available for assignment" }],
+  },
 ];
+
+/** Field for assign_built_site on events (conditionally shown when CAN_BUILD_SITES is enabled) */
+export const assignBuiltSiteField: Field = {
+  name: "assign_built_site",
+  label: "Assign Built Site",
+  type: "checkbox-group",
+  hint: "Automatically assign a built site to each ticket purchased for this event",
+  options: [{ value: "1", label: "Assign a site on booking" }],
+};
 
 /** Image upload field for event forms (appended when storage is enabled) */
 export const imageField: Field = {

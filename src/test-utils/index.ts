@@ -416,6 +416,10 @@ export const installUrlHandler = (
 // Intercepts Deno.env.get/set/delete so that env vars set during a test stay
 // local to this worker and never leak to parallel workers via the real env.
 // When no overlay is active, Deno.env behaves normally.
+//
+// In Deno, process.env is a proxy over Deno.env — they share the same backing
+// store. Patching Deno.env automatically affects process.env reads/writes too,
+// so getEnv() (which checks process.env first) sees overlay values correctly.
 // ---------------------------------------------------------------------------
 const _realGet = Deno.env.get.bind(Deno.env);
 const _realSet = Deno.env.set.bind(Deno.env);
@@ -442,6 +446,10 @@ Deno.env.delete = (key: string): void => {
  * Uses a per-worker overlay on Deno.env so parallel test workers cannot leak
  * env vars to each other. All Deno.env.get/set/delete calls within the scope
  * are transparently intercepted for the managed keys.
+ *
+ * In Deno, process.env is a proxy over Deno.env, so getEnv() (which checks
+ * process.env first) also sees overlay values — no separate hook needed.
+ *
  * Pass `undefined` as a value to delete the key (useful for ensuring a clean slate).
  *
  * @example
@@ -1066,6 +1074,7 @@ export const createTestEvent = (
       max_price: priceFormValue(input.maxPrice),
       hidden: input.hidden ? "1" : "",
       purchase_only: input.purchaseOnly ? "1" : "",
+      assign_built_site: input.assignBuiltSite ? "1" : "",
     },
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
@@ -1167,6 +1176,10 @@ export const updateTestEvent = async (
       can_pay_more: (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
       max_price: priceFormValue(updates.maxPrice ?? existing.max_price),
       hidden: (updates.hidden ?? existing.hidden) ? "1" : "",
+      purchase_only:
+        (updates.purchaseOnly ?? existing.purchase_only) ? "1" : "",
+      assign_built_site:
+        (updates.assignBuiltSite ?? existing.assign_built_site) ? "1" : "",
     },
     async () => (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
@@ -1609,6 +1622,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   max_price: 0,
   hidden: false,
   purchase_only: false,
+  assign_built_site: false,
   ...overrides,
 });
 
@@ -2081,6 +2095,9 @@ export const testBuiltSite = (
   bunnyUrl: "https://test.b-cdn.net",
   dbUrl: "",
   dbToken: "",
+  assignable: false,
+  assignedAttendeeId: null,
+  assignedEventId: null,
   created: "2026-01-01T00:00:00Z",
   ...overrides,
 });
@@ -2096,6 +2113,7 @@ export const createTestBuiltSite = (
     bunnyUrl: overrides.bunnyUrl ?? "https://test.b-cdn.net",
     dbUrl: overrides.dbUrl ?? "",
     dbToken: overrides.dbToken ?? "",
+    assignable: overrides.assignable ?? false,
   };
 
   return authenticatedFormRequest(
@@ -2105,6 +2123,7 @@ export const createTestBuiltSite = (
       bunny_url: input.bunnyUrl,
       db_url: input.dbUrl,
       db_token: input.dbToken,
+      ...(input.assignable ? { assignable: "1" } : {}),
     },
     async () => {
       const { getAllBuiltSites } = await import("#lib/db/built-sites.ts");
@@ -2125,6 +2144,7 @@ export const updateTestBuiltSite = async (
   const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
   const existing = (await builtSitesCrudTable.findById(siteId)) as BuiltSite;
 
+  const assignable = updates.assignable ?? existing.assignable;
   return authenticatedFormRequest(
     `/admin/built-sites/${siteId}/edit`,
     {
@@ -2132,6 +2152,7 @@ export const updateTestBuiltSite = async (
       bunny_url: updates.bunnyUrl ?? existing.bunnyUrl,
       db_url: updates.dbUrl ?? existing.dbUrl,
       db_token: updates.dbToken ?? existing.dbToken,
+      ...(assignable ? { assignable: "1" } : {}),
     },
     async () => {
       const updated = await builtSitesCrudTable.findById(siteId);
@@ -2579,6 +2600,7 @@ export const makeTestEvent = (
   date: "",
   location: "",
   purchase_only: false,
+  assign_built_site: false,
   ...overrides,
 });
 

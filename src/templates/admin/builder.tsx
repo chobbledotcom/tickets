@@ -56,6 +56,16 @@ const BuilderForm = (): JSX.Element => (
           placeholder="Token for the database"
         />
       </label>
+      <fieldset>
+        <label>
+          <input type="checkbox" name="assignable" value="1" />
+          Available for assignment
+        </label>
+        <small>
+          Make this site available for automatic assignment when a ticket is
+          purchased
+        </small>
+      </fieldset>
       <button type="submit">Build Site</button>
     </CsrfForm>
   </section>

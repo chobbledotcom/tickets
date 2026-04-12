@@ -11,6 +11,7 @@ import { fetchText } from "#lib/fetch.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
+import { assignAndNotifyBuiltSites } from "#lib/site-assignment.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import { type ContactInfo, isPaidEvent } from "#lib/types.ts";
 
@@ -169,4 +170,5 @@ export const logAndNotifyRegistration = async (
   const currency = settings.currency;
   addPendingWork(sendRegistrationWebhooks(entries, currency));
   addPendingWork(sendRegistrationEmails(entries, currency));
+  addPendingWork(assignAndNotifyBuiltSites(entries));
 };

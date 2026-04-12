@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  assignBuiltSite,
   buildSiteDataBlob,
   builtSitesCrudTable,
+  countAssignableSites,
   getAllBuiltSites,
+  getAssignableBuiltSites,
   insertBuiltSite,
   parseSiteDataBlob,
 } from "#lib/db/built-sites.ts";
@@ -117,6 +120,9 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "test.bunny.run",
         dbUrl: "",
         dbToken: "",
+        assignable: false,
+        assignedAttendeeId: null,
+        assignedEventId: null,
         created: "2026-01-01",
       };
       const result = await builtSitesCrudTable.fromDb(site);
@@ -129,6 +135,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "test.bunny.run",
         dbUrl: "libsql://test.turso.io",
         dbToken: "tok123",
+        assignable: false,
       });
       expect(values.site_data).toBeTruthy();
       const parsed = parseSiteDataBlob(values.site_data as string);
@@ -144,6 +151,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "original.bunny.run",
         dbUrl: "",
         dbToken: "",
+        assignable: false,
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         bunnyUrl: "new.bunny.run",
@@ -158,6 +166,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "original.bunny.run",
         dbUrl: "",
         dbToken: "",
+        assignable: false,
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
@@ -172,6 +181,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "original.bunny.run",
         dbUrl: "libsql://db.turso.io",
         dbToken: "tok123",
+        assignable: false,
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
@@ -192,6 +202,81 @@ describeWithEnv("built-sites", { db: true }, () => {
       const parsed = parseSiteDataBlob(values.site_data as string);
       expect(parsed.n).toBe("");
       expect(parsed.u).toBe("");
+    });
+
+    test("toDbValues sets assignable to 1 when true", async () => {
+      const values = await builtSitesCrudTable.toDbValues({
+        name: "Test",
+        bunnyUrl: "test.bunny.run",
+        dbUrl: "",
+        dbToken: "",
+        assignable: true,
+      });
+      expect(values.assignable).toBe(1);
+    });
+  });
+
+  describe("assignable sites", () => {
+    test("insertBuiltSite with assignable flag", async () => {
+      await insertBuiltSite("Assignable Site", "a.b-cdn.net", "", "", true);
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Assignable Site")!;
+      expect(site.assignable).toBe(true);
+    });
+
+    test("insertBuiltSite defaults to not assignable", async () => {
+      await insertBuiltSite("Default Site", "d.b-cdn.net");
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Default Site")!;
+      expect(site.assignable).toBe(false);
+    });
+
+    test("countAssignableSites counts only assignable sites", async () => {
+      await insertBuiltSite("Site A", "a.b-cdn.net", "", "", true);
+      await insertBuiltSite("Site B", "b.b-cdn.net", "", "", true);
+      await insertBuiltSite("Site C", "c.b-cdn.net", "", "", false);
+      const count = await countAssignableSites();
+      expect(count).toBe(2);
+    });
+
+    test("countAssignableSites returns 0 when no assignable sites", async () => {
+      await insertBuiltSite("Site A", "a.b-cdn.net", "", "", false);
+      const count = await countAssignableSites();
+      expect(count).toBe(0);
+    });
+
+    test("getAssignableBuiltSites filters to assignable only", async () => {
+      await insertBuiltSite("Site A", "a.b-cdn.net", "", "", true);
+      await insertBuiltSite("Site B", "b.b-cdn.net", "", "", false);
+      await insertBuiltSite("Site C", "c.b-cdn.net", "", "", true);
+      const sites = await getAssignableBuiltSites();
+      expect(sites).toHaveLength(2);
+      expect(sites.every((s) => s.assignable)).toBe(true);
+    });
+
+    test("assignBuiltSite marks site as not assignable and stores IDs in columns", async () => {
+      await insertBuiltSite("To Assign", "assign.b-cdn.net", "", "", true);
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "To Assign")!;
+
+      const updated = await assignBuiltSite(site.id, 42, 7);
+      expect(updated).not.toBeNull();
+      expect(updated!.assignable).toBe(false);
+      expect(updated!.assignedAttendeeId).toBe(42);
+      expect(updated!.assignedEventId).toBe(7);
+    });
+
+    test("assignBuiltSite returns null for non-existent site", async () => {
+      const result = await assignBuiltSite(999, 1, 1);
+      expect(result).toBeNull();
+    });
+
+    test("unassigned sites have null attendee and event IDs", async () => {
+      await insertBuiltSite("Unassigned", "u.b-cdn.net", "", "", true);
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Unassigned")!;
+      expect(site.assignedAttendeeId).toBeNull();
+      expect(site.assignedEventId).toBeNull();
     });
   });
 });
