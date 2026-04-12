@@ -4760,10 +4760,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
   describe("built site availability check", () => {
     test("blocks registration when no assignable sites available", async () => {
-      Deno.env.set("CAN_BUILD_SITES", "true");
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         const event = await createTestEvent({
           assignBuiltSite: true,
+          thankYouUrl: "",
           maxAttendees: 10,
         });
         // No assignable sites created
@@ -4774,15 +4775,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         expect(response.status).toBe(302);
         expectFlash(response, "not enough sites available", false);
       } finally {
-        Deno.env.delete("CAN_BUILD_SITES");
+        restore();
       }
     });
 
     test("allows registration when assignable sites are available", async () => {
-      Deno.env.set("CAN_BUILD_SITES", "true");
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         const event = await createTestEvent({
           assignBuiltSite: true,
+          thankYouUrl: "",
           maxAttendees: 10,
         });
         await insertBuiltSite("Available", "avail.b-cdn.net", "", "", true);
@@ -4792,19 +4794,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         });
         expectReservedRedirectWithTokens(response);
       } finally {
-        Deno.env.delete("CAN_BUILD_SITES");
+        restore();
       }
     });
 
     test("skips check when CAN_BUILD_SITES is not set", async () => {
       // Create event with flag enabled so assign_built_site is saved
-      Deno.env.set("CAN_BUILD_SITES", "true");
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       const event = await createTestEvent({
         assignBuiltSite: true,
+        thankYouUrl: "",
         maxAttendees: 10,
       });
-      // Now disable the feature — booking should succeed despite no sites
-      Deno.env.delete("CAN_BUILD_SITES");
+      restore();
+      // Now CAN_BUILD_SITES is not set — booking should succeed despite no sites
       const response = await submitTicketForm(event.slug, {
         name: "Test User",
         email: "test@example.com",

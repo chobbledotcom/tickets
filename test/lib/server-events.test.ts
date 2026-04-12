@@ -30,6 +30,7 @@ import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
+  setTestEnv,
   setupEventAndLogin,
   submitTicketForm,
   testCookie,
@@ -3373,19 +3374,18 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("assign_built_site", () => {
     test("saves assign_built_site when CAN_BUILD_SITES is true", async () => {
-      Deno.env.set("CAN_BUILD_SITES", "true");
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         const event = await createTestEvent({ assignBuiltSite: true });
         const { getEventWithCount } = await import("#lib/db/events.ts");
         const saved = await getEventWithCount(event.id);
         expect(saved?.assign_built_site).toBe(true);
       } finally {
-        Deno.env.delete("CAN_BUILD_SITES");
+        restore();
       }
     });
 
     test("ignores assign_built_site when CAN_BUILD_SITES is not set", async () => {
-      Deno.env.delete("CAN_BUILD_SITES");
       const event = await createTestEvent({ assignBuiltSite: true });
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const saved = await getEventWithCount(event.id);
@@ -3393,14 +3393,27 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("defaults to false even when CAN_BUILD_SITES is true", async () => {
-      Deno.env.set("CAN_BUILD_SITES", "true");
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         const event = await createTestEvent();
         const { getEventWithCount } = await import("#lib/db/events.ts");
         const saved = await getEventWithCount(event.id);
         expect(saved?.assign_built_site).toBe(false);
       } finally {
-        Deno.env.delete("CAN_BUILD_SITES");
+        restore();
+      }
+    });
+
+    test("updates event to enable assign_built_site", async () => {
+      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      try {
+        const event = await createTestEvent();
+        await updateTestEvent(event.id, { assignBuiltSite: true });
+        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.assign_built_site).toBe(true);
+      } finally {
+        restore();
       }
     });
   });
