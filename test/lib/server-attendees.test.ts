@@ -2547,6 +2547,29 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
     });
+
+    test("POST /admin/attendees/:id/event/:eventId treats invalid quantity as 1", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        maxQuantity: 10,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Qty",
+        "qty@test.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        { quantity: "abc" },
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const raw = await getAttendeesRaw(event.id);
+      expect(raw[0]!.quantity).toBe(1);
+    });
   });
 
   describe("GET /admin/attendees/:attendeeId/merge", () => {
