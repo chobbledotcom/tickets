@@ -210,9 +210,9 @@ export const verifiedAttendeeForm = (
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeGetRoute(
   (data, session, request) => {
-    applyFlash(request);
+    const flash = applyFlash(request);
     return htmlResponse(
-      adminDeleteAttendeePage(data, session, getReturnUrl(request)),
+      adminDeleteAttendeePage(data, session, getReturnUrl(request), flash.error),
     );
   },
 );
@@ -556,9 +556,9 @@ const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-notification */
 const handleAdminResendNotificationGet = attendeeGetRoute(
   (data, session, request) => {
-    applyFlash(request);
+    const flash = applyFlash(request);
     return htmlResponse(
-      adminResendNotificationPage(data, session, getReturnUrl(request)),
+      adminResendNotificationPage(data, session, getReturnUrl(request), flash.error),
     );
   },
 );

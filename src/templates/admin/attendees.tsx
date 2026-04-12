@@ -26,10 +26,12 @@ export const adminDeleteAttendeePage = (
   { event, attendee }: { event: EventWithCount; attendee: Attendee },
   session: AdminSession,
   returnUrl?: string,
+  error?: string,
 ): string =>
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
@@ -782,10 +784,12 @@ export const adminResendNotificationPage = (
   { event, attendee }: { event: EventWithCount; attendee: Attendee },
   session: AdminSession,
   returnUrl?: string,
+  error?: string,
 ): string =>
   String(
     <Layout title={`Re-send Notification: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
+      <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}
