@@ -475,9 +475,15 @@ export const setTestEnv = (
     else Deno.env.delete(key);
   }
   // Hook getEnv() so process.env-first code paths also see overlay values.
-  // Only keys IN the overlay are intercepted; other keys fall through to
-  // the real getEnv() logic (preserving process.env priority).
-  const restoreGetEnv = setGetEnvOverlay(layer);
+  // Only DEFINED values are included — keys set to undefined (deletions)
+  // don't need interception since the Deno.env overlay already handles them.
+  // Uses a snapshot so that Deno.env.set() calls inside tests don't leak
+  // into the getEnv overlay (important for env.test.ts which tests process.env priority).
+  const getEnvLayer: Record<string, string | undefined> = Object.create(null);
+  for (const key of Object.keys(layer)) {
+    if (layer[key] !== undefined) getEnvLayer[key] = layer[key];
+  }
+  const restoreGetEnv = setGetEnvOverlay(getEnvLayer);
   return () => {
     restoreGetEnv();
     _overlay = prev;
