@@ -54,6 +54,17 @@ const extractEventIdFromSelect = (
   return match?.[1] ?? null;
 };
 
+/**
+ * Navigate to the attendee edit page from the current event detail page.
+ * The event page has both an "Edit event" link and "Edit attendee" links.
+ * This finds the first /admin/attendees/ link to reach the attendee edit page.
+ */
+const visitFirstAttendeeEditPage = async (browser: TestBrowser): Promise<void> => {
+  const link = browser.links.find((l) => l.href.includes("/admin/attendees/"));
+  if (!link) throw new Error("No attendee edit link found on page");
+  await browser.visit(link.href);
+};
+
 describe("e2e: ticket editing flow", () => {
   let browser: TestBrowser;
 
@@ -103,7 +114,7 @@ describe("e2e: ticket editing flow", () => {
     // 4. Create Event 1: "Morning Workshop"
     await browser.clickLink("Add Event");
     await browser.submitForm(
-      { name: "Morning Workshop", max_attendees: "50" },
+      { name: "Morning Workshop", max_attendees: "50", max_quantity: "5" },
       "Create Event",
     );
     expect(browser.containsText("Morning Workshop")).toBe(true);
@@ -111,7 +122,7 @@ describe("e2e: ticket editing flow", () => {
     // 5. Create Event 2: "Evening Seminar"
     await browser.clickLink("Add Event");
     await browser.submitForm(
-      { name: "Evening Seminar", max_attendees: "50" },
+      { name: "Evening Seminar", max_attendees: "50", max_quantity: "5" },
       "Create Event",
     );
     expect(browser.containsText("Evening Seminar")).toBe(true);
@@ -129,8 +140,10 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Alice Smith")).toBe(true);
 
     // 7. Navigate to Alice's edit page.
-    //    She is the only attendee in Morning Workshop, so the first "Edit" link is hers.
-    await browser.clickLink("Edit");
+    //    She is the only attendee in Morning Workshop, so the first attendee edit link is hers.
+    //    (The event page also has its own "Edit" link which comes first in the DOM — we
+    //    find the /admin/attendees/ link instead to avoid ambiguity.)
+    await visitFirstAttendeeEditPage(browser);
     expect(browser.containsText("Alice Smith")).toBe(true);
 
     // The Event Registrations table shows Morning Workshop as a registered event link.
@@ -180,8 +193,8 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Alice Smith")).toBe(false);
 
     // 12. Navigate to Bob's edit page.
-    //     He is the only attendee in Morning Workshop, so the first "Edit" link is his.
-    await browser.clickLink("Edit");
+    //     He is the only attendee in Morning Workshop, so the first attendee edit link is his.
+    await visitFirstAttendeeEditPage(browser);
     expect(browser.containsText("Bob Jones")).toBe(true);
     expect(browser.containsText("Morning Workshop")).toBe(true);
 
