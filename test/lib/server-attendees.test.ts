@@ -1378,7 +1378,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("preserves quantity when editing contact info without quantity field", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
       const { attendee } = await createTestAttendeeDirect(
         event.id,
         "John Doe",
@@ -1593,7 +1596,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await expectHtmlResponse(response, 200, 'name="quantity"', 'max="5"');
     });
-
   });
 
   describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-notification", () => {
