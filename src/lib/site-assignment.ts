@@ -95,8 +95,6 @@ export const assignAndNotifyBuiltSites = async (
   const assignments = await assignSitesForEntries(entries);
   if (assignments.length === 0) return;
 
-  const email = entries[0]?.attendee.email;
-  if (email) {
-    await sendSiteAssignmentEmail(email, assignments);
-  }
+  const email = entries[0]!.attendee.email;
+  await sendSiteAssignmentEmail(email, assignments);
 };

@@ -151,6 +151,17 @@ describeWithEnv("site-assignment", { db: true }, () => {
       expect(body.subject).toBe("Your new site is ready");
     });
 
+    test("includes reply-to when business email is set", async () => {
+      const { settings } = await import("#lib/db/settings.ts");
+      await settings.update.businessEmail("biz@example.com");
+
+      await insertBuiltSite("Site A", "a.test.net", "", "", true);
+      await assignAndNotifyBuiltSites([siteEntry()]);
+
+      const body = JSON.parse(fetchStub.calls[0].args[1].body);
+      expect(body.reply_to).toBe("biz@example.com");
+    });
+
     test("skips email when no email config", async () => {
       resetHostEmailConfig();
       setHostEmailConfigForTest(null);
