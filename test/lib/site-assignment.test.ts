@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   getAllBuiltSites,
   insertBuiltSite,
 } from "#lib/db/built-sites.ts";
+import { setHostEmailConfigForTest, resetHostEmailConfig } from "#lib/email.ts";
 import { assignAndNotifyBuiltSites } from "#lib/site-assignment.ts";
 import { describeWithEnv, makeTestEntry, setTestEnv } from "#test-utils";
 
@@ -35,8 +37,27 @@ describeWithEnv("site-assignment", {
   db: true,
   env: { CAN_BUILD_SITES: "true" },
 }, () => {
+  // deno-lint-ignore no-explicit-any
+  let fetchStub: any;
+
+  beforeEach(() => {
+    fetchStub = stub(globalThis, "fetch", () =>
+      Promise.resolve(new Response()),
+    );
+    setHostEmailConfigForTest({
+      provider: "resend",
+      apiKey: "re_test",
+      fromAddress: "test@example.com",
+    });
+  });
+
+  afterEach(() => {
+    fetchStub.restore();
+    resetHostEmailConfig();
+  });
+
   describe("assignAndNotifyBuiltSites", () => {
-    test("assigns one site per ticket", async () => {
+    test("assigns one site per ticket and sends email", async () => {
       await insertBuiltSite("Site A", "a.test.net", "", "", true);
       await insertBuiltSite("Site B", "b.test.net", "", "", true);
 
@@ -46,6 +67,7 @@ describeWithEnv("site-assignment", {
       const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
       expect(assigned).toHaveLength(2);
       expect(assigned.every((s) => !s.assignable)).toBe(true);
+      expect(fetchStub.calls.length).toBe(1);
     });
 
     test("skips events without assign_built_site", async () => {
@@ -58,6 +80,7 @@ describeWithEnv("site-assignment", {
       const sites = await getAllBuiltSites();
       expect(sites[0]!.assignable).toBe(true);
       expect(sites[0]!.assignedAttendeeId).toBeNull();
+      expect(fetchStub.calls.length).toBe(0);
     });
 
     test("assigns sites independently per event", async () => {
@@ -83,10 +106,12 @@ describeWithEnv("site-assignment", {
 
       const sites = await getAllBuiltSites();
       expect(sites[0]!.assignedAttendeeId).toBeNull();
+      expect(fetchStub.calls.length).toBe(0);
     });
 
     test("no-ops for empty entries", async () => {
       await assignAndNotifyBuiltSites([]);
+      expect(fetchStub.calls.length).toBe(0);
     });
 
     test("assigns only available sites when fewer than needed", async () => {
@@ -97,6 +122,43 @@ describeWithEnv("site-assignment", {
       const sites = await getAllBuiltSites();
       const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
       expect(assigned).toHaveLength(1);
+      expect(fetchStub.calls.length).toBe(1);
+    });
+
+    test("sends email with plural subject for multiple sites", async () => {
+      await insertBuiltSite("Site A", "a.test.net", "", "", true);
+      await insertBuiltSite("Site B", "b.test.net", "", "", true);
+
+      await assignAndNotifyBuiltSites([
+        siteEntry({ eventId: 1, eventName: "Event 1" }),
+        siteEntry({ eventId: 2, eventName: "Event 2" }),
+      ]);
+
+      expect(fetchStub.calls.length).toBe(1);
+      const body = JSON.parse(fetchStub.calls[0].args[1].body);
+      expect(body.subject).toContain("2 new sites");
+    });
+
+    test("sends email with singular subject for one site", async () => {
+      await insertBuiltSite("Site A", "a.test.net", "", "", true);
+
+      await assignAndNotifyBuiltSites([siteEntry()]);
+
+      expect(fetchStub.calls.length).toBe(1);
+      const body = JSON.parse(fetchStub.calls[0].args[1].body);
+      expect(body.subject).toBe("Your new site is ready");
+    });
+
+    test("skips email when no email config", async () => {
+      resetHostEmailConfig();
+      setHostEmailConfigForTest(null);
+
+      await insertBuiltSite("Site A", "a.test.net", "", "", true);
+      await assignAndNotifyBuiltSites([siteEntry()]);
+
+      const sites = await getAllBuiltSites();
+      expect(sites[0]!.assignedAttendeeId).not.toBeNull();
+      expect(fetchStub.calls.length).toBe(0);
     });
   });
 
