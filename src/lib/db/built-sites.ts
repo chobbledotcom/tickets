@@ -23,10 +23,6 @@ export interface SiteDataBlob {
   d?: string;
   /** Database token (optional, absent in older blobs) */
   t?: string;
-  /** Assigned attendee ID (set when site is assigned to a booking) */
-  ai?: number;
-  /** Assigned event ID (set when site is assigned to a booking) */
-  ei?: number;
 }
 
 /** Built site row as stored in the database */
@@ -34,6 +30,8 @@ export interface BuiltSiteRow {
   id: number;
   site_data: string;
   assignable: number;
+  assigned_attendee_id: number | null;
+  assigned_event_id: number | null;
   created: string;
 }
 
@@ -41,6 +39,8 @@ export interface BuiltSiteRow {
 export type BuiltSiteInput = {
   siteData: string;
   assignable?: number;
+  assignedAttendeeId?: number | null;
+  assignedEventId?: number | null;
 };
 
 /** Decrypted built site for display */
@@ -69,6 +69,7 @@ const idCol = col.generated<number>();
 const createdCol = col.withDefault(() => nowIso());
 
 const assignableCol = col.withDefault(() => 0);
+const nullCol = col.withDefault<number | null>(() => null);
 
 const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
   name: "built_sites",
@@ -77,6 +78,8 @@ const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
     id: idCol,
     site_data: col.encrypted<string>(encrypt, decrypt),
     assignable: assignableCol,
+    assigned_attendee_id: nullCol,
+    assigned_event_id: nullCol,
     created: createdCol,
   },
 });
@@ -87,8 +90,6 @@ export const buildSiteDataBlob = (
   bunnyUrl: string,
   dbUrl = "",
   dbToken = "",
-  assignedAttendeeId?: number,
-  assignedEventId?: number,
 ): string =>
   JSON.stringify({
     v: 1,
@@ -96,8 +97,6 @@ export const buildSiteDataBlob = (
     u: bunnyUrl,
     ...(dbUrl ? { d: dbUrl } : {}),
     ...(dbToken ? { t: dbToken } : {}),
-    ...(assignedAttendeeId ? { ai: assignedAttendeeId } : {}),
-    ...(assignedEventId ? { ei: assignedEventId } : {}),
   } satisfies SiteDataBlob);
 
 /** Parse a decrypted site data blob */
@@ -114,8 +113,8 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
     dbUrl: blob.d ?? "",
     dbToken: blob.t ?? "",
     assignable: Boolean(row.assignable),
-    assignedAttendeeId: blob.ai ?? null,
-    assignedEventId: blob.ei ?? null,
+    assignedAttendeeId: row.assigned_attendee_id ?? null,
+    assignedEventId: row.assigned_event_id ?? null,
     created: row.created,
   };
 };
@@ -201,14 +200,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     const assignable = input.assignable ?? existing.assignable;
     // Row exists (checked above), so update always returns non-null
     const row = (await builtSitesTable.update(id, {
-      siteData: buildSiteDataBlob(
-        name,
-        bunnyUrl,
-        dbUrl,
-        dbToken,
-        existing.assignedAttendeeId ?? undefined,
-        existing.assignedEventId ?? undefined,
-      ),
+      siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken),
       assignable: assignable ? 1 : 0,
     })) as BuiltSiteRow;
     // update() returns the row with unencrypted input values, so parse directly
@@ -273,7 +265,7 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
   return all.filter((s) => s.assignable);
 };
 
-/** Assign a built site to an attendee/event — sets assignable=0 and stores IDs in blob */
+/** Assign a built site to an attendee/event — sets assignable=0 and stores IDs */
 export const assignBuiltSite = async (
   siteId: number,
   attendeeId: number,
@@ -282,15 +274,9 @@ export const assignBuiltSite = async (
   const existing = await builtSitesCrudTable.findById(siteId);
   if (!existing) return null;
   const row = (await builtSitesTable.update(siteId, {
-    siteData: buildSiteDataBlob(
-      existing.name,
-      existing.bunnyUrl,
-      existing.dbUrl,
-      existing.dbToken,
-      attendeeId,
-      eventId,
-    ),
     assignable: 0,
+    assignedAttendeeId: attendeeId,
+    assignedEventId: eventId,
   })) as BuiltSiteRow;
   return rowToBuiltSite(row);
 };

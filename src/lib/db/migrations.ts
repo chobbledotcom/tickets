@@ -336,6 +336,8 @@ const SCHEMA: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["site_data", "TEXT NOT NULL"],
         ["assignable", "INTEGER NOT NULL DEFAULT 0"],
+        ["assigned_attendee_id", "INTEGER DEFAULT NULL"],
+        ["assigned_event_id", "INTEGER DEFAULT NULL"],
         ["created", "TEXT NOT NULL"],
       ],
     },

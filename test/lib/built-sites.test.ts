@@ -243,7 +243,7 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(sites.every((s) => s.assignable)).toBe(true);
     });
 
-    test("assignBuiltSite marks site as not assignable and stores IDs", async () => {
+    test("assignBuiltSite marks site as not assignable and stores IDs in columns", async () => {
       await insertBuiltSite("To Assign", "assign.b-cdn.net", "", "", true);
       const sites = await getAllBuiltSites();
       const site = sites.find((s) => s.name === "To Assign")!;
@@ -260,29 +260,12 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(result).toBeNull();
     });
 
-    test("buildSiteDataBlob includes assignment IDs when provided", () => {
-      const blob = buildSiteDataBlob("Site", "s.b-cdn.net", "", "", 10, 5);
-      const parsed = parseSiteDataBlob(blob);
-      expect(parsed.ai).toBe(10);
-      expect(parsed.ei).toBe(5);
-    });
-
-    test("buildSiteDataBlob omits assignment IDs when not provided", () => {
-      const blob = buildSiteDataBlob("Site", "s.b-cdn.net");
-      const parsed = parseSiteDataBlob(blob);
-      expect(parsed.ai).toBeUndefined();
-      expect(parsed.ei).toBeUndefined();
-    });
-
-    test("parseSiteDataBlob handles legacy blobs without assignment fields", () => {
-      const legacyBlob = JSON.stringify({
-        v: 1,
-        n: "Old Site",
-        u: "old.b-cdn.net",
-      });
-      const parsed = parseSiteDataBlob(legacyBlob);
-      expect(parsed.ai).toBeUndefined();
-      expect(parsed.ei).toBeUndefined();
+    test("unassigned sites have null attendee and event IDs", async () => {
+      await insertBuiltSite("Unassigned", "u.b-cdn.net", "", "", true);
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Unassigned")!;
+      expect(site.assignedAttendeeId).toBeNull();
+      expect(site.assignedEventId).toBeNull();
     });
   });
 });
