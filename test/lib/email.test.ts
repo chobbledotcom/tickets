@@ -607,9 +607,10 @@ describeWithEnv("email", { db: true }, () => {
       });
 
       test("sends admin notification when attendee has no email but business email is set", async () => {
-        await setupAndSendRegistration({ businessEmail: "admin@business.com" }, [
-          makeEntry({}, { email: "" }),
-        ]);
+        await setupAndSendRegistration(
+          { businessEmail: "admin@business.com" },
+          [makeEntry({}, { email: "" })],
+        );
 
         expect(fetchStub.calls.length).toBe(1);
         const body = getFetchJsonBody();

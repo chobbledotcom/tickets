@@ -388,6 +388,8 @@ export const eventFields: Field[] = [
     label: "Contact Fields",
     type: "checkbox-group",
     hint: "Which contact details to collect from attendees",
+    hintHtml:
+      "If you don't collect email addresses, <strong>attendees won't be emailed their ticket</strong>.",
     options: [
       { value: "email", label: "Email" },
       { value: "phone", label: "Phone Number" },
