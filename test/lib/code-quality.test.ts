@@ -343,6 +343,8 @@ describe("code quality", () => {
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
       "routes/api.ts:apiRoutes",
       "routes/admin/api.ts:adminApiRoutes",
+      // Test env overlay hooks into getEnv() so process.env-first code paths see test values
+      "lib/env.ts:setGetEnvOverride",
     ];
 
     /**

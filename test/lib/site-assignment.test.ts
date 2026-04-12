@@ -7,7 +7,7 @@ import {
 } from "#lib/db/built-sites.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
 import { assignAndNotifyBuiltSites } from "#lib/site-assignment.ts";
-import { describeWithEnv, makeTestEntry } from "#test-utils";
+import { describeWithEnv, makeTestEntry, setTestEnv } from "#test-utils";
 
 /** Build an entry with assign_built_site for testing */
 const siteEntry = (
@@ -35,13 +35,14 @@ const siteEntry = (
     },
   );
 
-describeWithEnv("site-assignment", { db: true }, () => {
+describeWithEnv("site-assignment", {
+  db: true,
+  env: { CAN_BUILD_SITES: "true" },
+}, () => {
   // deno-lint-ignore no-explicit-any
   let fetchStub: any;
 
   beforeEach(() => {
-    // Set directly (not via setTestEnv overlay) so process.env sees it
-    Deno.env.set("CAN_BUILD_SITES", "true");
     fetchStub = stub(globalThis, "fetch", () =>
       Promise.resolve(new Response()),
     );
@@ -53,7 +54,6 @@ describeWithEnv("site-assignment", { db: true }, () => {
   });
 
   afterEach(() => {
-    Deno.env.delete("CAN_BUILD_SITES");
     fetchStub.restore();
     resetHostEmailConfig();
   });
@@ -185,7 +185,7 @@ describeWithEnv("site-assignment", { db: true }, () => {
 
   describe("feature flag", () => {
     test("no-ops when CAN_BUILD_SITES is disabled", async () => {
-      Deno.env.delete("CAN_BUILD_SITES");
+      const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
       try {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry()]);
@@ -193,7 +193,7 @@ describeWithEnv("site-assignment", { db: true }, () => {
         expect(sites[0]!.assignable).toBe(true);
         expect(sites[0]!.assignedAttendeeId).toBeNull();
       } finally {
-        Deno.env.set("CAN_BUILD_SITES", "true");
+        restore();
       }
     });
   });
