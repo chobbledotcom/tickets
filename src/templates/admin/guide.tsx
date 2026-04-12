@@ -2163,6 +2163,20 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
+      <Section id="read-only-mode" title="Read-only Mode">
+        <Q q="Why does my site say it's in read-only mode?">
+          <p>
+            Read-only mode is switched on by the host (not from inside the
+            admin) and is used for two things: sites that have fallen behind
+            on billing, and sites undergoing maintenance. While it's on,
+            bookings are refused and the create/edit pages for events and
+            groups are blocked, but everything else stays viewable. If you
+            think your site shouldn't be in read-only mode, get in touch with
+            whoever hosts it for you.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Software Updates">
         <Q q="How do I check for updates?">
           <p>
