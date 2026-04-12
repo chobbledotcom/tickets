@@ -3,6 +3,7 @@
  */
 
 import { reduce } from "#fp";
+import { countAssignableSites } from "#lib/db/built-sites.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { saveEventAnswers } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
@@ -180,9 +181,6 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
       if (sitesNeeded > 0) {
         const { isBuilderEnabled } = await import("#routes/admin/builder.ts");
         if (isBuilderEnabled()) {
-          const { countAssignableSites } = await import(
-            "#lib/db/built-sites.ts"
-          );
           const availableSites = await countAssignableSites();
           if (availableSites < sitesNeeded) {
             return ticketFormErrorResponse(ctx)(

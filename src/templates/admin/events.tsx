@@ -736,11 +736,10 @@ export const adminDuplicateEventPage = (
   const values = eventToFieldValues(event);
   values.name = "";
   const builderEnabled = isBuilderEnabled();
-  const storageEnabled = isStorageEnabled();
+  // Duplicate page omits image/attachment fields — files aren't duplicated
   const dupFields = [
     ...eventFieldsWithAutofocus,
     ...(builderEnabled ? [assignBuiltSiteField] : []),
-    ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
 
   return String(
