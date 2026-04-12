@@ -5,7 +5,7 @@ import {
   getAllBuiltSites,
   insertBuiltSite,
 } from "#lib/db/built-sites.ts";
-import { setHostEmailConfigForTest, resetHostEmailConfig } from "#lib/email.ts";
+import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
 import { assignAndNotifyBuiltSites } from "#lib/site-assignment.ts";
 import { describeWithEnv, makeTestEntry } from "#test-utils";
 
