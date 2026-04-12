@@ -25,6 +25,7 @@ const extractBuiltSiteInput = (
   bunnyUrl: String(values.bunny_url),
   dbUrl: String(values.db_url),
   dbToken: String(values.db_token),
+  assignable: values.assignable === "1",
 });
 
 /** Built sites resource for REST create/update operations */

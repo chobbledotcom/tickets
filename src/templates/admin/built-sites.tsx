@@ -35,6 +35,7 @@ export const adminBuiltSitesPage = (
               <tr>
                 <th>Name</th>
                 <th>Bunny URL</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -46,6 +47,13 @@ export const adminBuiltSitesPage = (
                     <a href={site.bunnyUrl} target="_blank" rel="noopener">
                       {site.bunnyUrl}
                     </a>
+                  </td>
+                  <td>
+                    {site.assignedAttendeeId
+                      ? `Assigned (attendee #${site.assignedAttendeeId})`
+                      : site.assignable
+                        ? "Available"
+                        : "Not assignable"}
                   </td>
                   <td>
                     <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
@@ -70,6 +78,7 @@ export const builtSiteToFieldValues = (
   bunny_url: site?.bunnyUrl ?? "",
   db_url: site?.dbUrl ?? "",
   db_token: site?.dbToken ?? "",
+  assignable: site?.assignable ? "1" : "",
 });
 
 /**

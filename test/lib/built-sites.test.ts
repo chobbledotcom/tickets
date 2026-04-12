@@ -1,8 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  assignBuiltSite,
   buildSiteDataBlob,
   builtSitesCrudTable,
+  countAssignableSites,
+  getAssignableBuiltSites,
   getAllBuiltSites,
   insertBuiltSite,
   parseSiteDataBlob,
@@ -117,6 +120,9 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "test.bunny.run",
         dbUrl: "",
         dbToken: "",
+        assignable: false,
+        assignedAttendeeId: null,
+        assignedEventId: null,
         created: "2026-01-01",
       };
       const result = await builtSitesCrudTable.fromDb(site);
@@ -129,6 +135,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "test.bunny.run",
         dbUrl: "libsql://test.turso.io",
         dbToken: "tok123",
+        assignable: false,
       });
       expect(values.site_data).toBeTruthy();
       const parsed = parseSiteDataBlob(values.site_data as string);
@@ -144,6 +151,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "original.bunny.run",
         dbUrl: "",
         dbToken: "",
+        assignable: false,
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         bunnyUrl: "new.bunny.run",
@@ -158,6 +166,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "original.bunny.run",
         dbUrl: "",
         dbToken: "",
+        assignable: false,
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
@@ -172,6 +181,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         bunnyUrl: "original.bunny.run",
         dbUrl: "libsql://db.turso.io",
         dbToken: "tok123",
+        assignable: false,
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
@@ -192,6 +202,87 @@ describeWithEnv("built-sites", { db: true }, () => {
       const parsed = parseSiteDataBlob(values.site_data as string);
       expect(parsed.n).toBe("");
       expect(parsed.u).toBe("");
+    });
+  });
+
+  describe("assignable sites", () => {
+    test("insertBuiltSite with assignable flag", async () => {
+      await insertBuiltSite("Assignable Site", "a.b-cdn.net", "", "", true);
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Assignable Site")!;
+      expect(site.assignable).toBe(true);
+    });
+
+    test("insertBuiltSite defaults to not assignable", async () => {
+      await insertBuiltSite("Default Site", "d.b-cdn.net");
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Default Site")!;
+      expect(site.assignable).toBe(false);
+    });
+
+    test("countAssignableSites counts only assignable sites", async () => {
+      await insertBuiltSite("Site A", "a.b-cdn.net", "", "", true);
+      await insertBuiltSite("Site B", "b.b-cdn.net", "", "", true);
+      await insertBuiltSite("Site C", "c.b-cdn.net", "", "", false);
+      const count = await countAssignableSites();
+      expect(count).toBe(2);
+    });
+
+    test("countAssignableSites returns 0 when no assignable sites", async () => {
+      await insertBuiltSite("Site A", "a.b-cdn.net", "", "", false);
+      const count = await countAssignableSites();
+      expect(count).toBe(0);
+    });
+
+    test("getAssignableBuiltSites filters to assignable only", async () => {
+      await insertBuiltSite("Site A", "a.b-cdn.net", "", "", true);
+      await insertBuiltSite("Site B", "b.b-cdn.net", "", "", false);
+      await insertBuiltSite("Site C", "c.b-cdn.net", "", "", true);
+      const sites = await getAssignableBuiltSites();
+      expect(sites).toHaveLength(2);
+      expect(sites.every((s) => s.assignable)).toBe(true);
+    });
+
+    test("assignBuiltSite marks site as not assignable and stores IDs", async () => {
+      await insertBuiltSite("To Assign", "assign.b-cdn.net", "", "", true);
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "To Assign")!;
+
+      const updated = await assignBuiltSite(site.id, 42, 7);
+      expect(updated).not.toBeNull();
+      expect(updated!.assignable).toBe(false);
+      expect(updated!.assignedAttendeeId).toBe(42);
+      expect(updated!.assignedEventId).toBe(7);
+    });
+
+    test("assignBuiltSite returns null for non-existent site", async () => {
+      const result = await assignBuiltSite(999, 1, 1);
+      expect(result).toBeNull();
+    });
+
+    test("buildSiteDataBlob includes assignment IDs when provided", () => {
+      const blob = buildSiteDataBlob("Site", "s.b-cdn.net", "", "", 10, 5);
+      const parsed = parseSiteDataBlob(blob);
+      expect(parsed.ai).toBe(10);
+      expect(parsed.ei).toBe(5);
+    });
+
+    test("buildSiteDataBlob omits assignment IDs when not provided", () => {
+      const blob = buildSiteDataBlob("Site", "s.b-cdn.net");
+      const parsed = parseSiteDataBlob(blob);
+      expect(parsed.ai).toBeUndefined();
+      expect(parsed.ei).toBeUndefined();
+    });
+
+    test("parseSiteDataBlob handles legacy blobs without assignment fields", () => {
+      const legacyBlob = JSON.stringify({
+        v: 1,
+        n: "Old Site",
+        u: "old.b-cdn.net",
+      });
+      const parsed = parseSiteDataBlob(legacyBlob);
+      expect(parsed.ai).toBeUndefined();
+      expect(parsed.ei).toBeUndefined();
     });
   });
 });

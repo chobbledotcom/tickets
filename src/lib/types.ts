@@ -101,6 +101,7 @@ export interface Event {
   max_price: number;
   hidden: boolean;
   purchase_only: boolean;
+  assign_built_site: boolean;
 }
 
 export interface Attendee extends ContactInfo {

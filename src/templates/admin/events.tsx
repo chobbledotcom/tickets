@@ -41,12 +41,14 @@ import {
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
+  assignBuiltSiteField,
   attachmentField,
   eventFields,
   getAddAttendeeFields,
   imageField,
   slugField,
 } from "#templates/fields.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 
@@ -685,6 +687,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   webhook_url: event.webhook_url,
   non_transferable: event.non_transferable ? "1" : "",
   hidden: event.hidden ? "1" : "",
+  assign_built_site: event.assign_built_site ? "1" : "",
 });
 
 /** Event fields with autofocus on the name field */
@@ -701,9 +704,12 @@ export const adminEventNewPage = (
   error?: string,
 ): string => {
   const storageEnabled = isStorageEnabled();
-  const fields = storageEnabled
-    ? [...eventFields, imageField, attachmentField]
-    : eventFields;
+  const builderEnabled = isBuilderEnabled();
+  const fields = [
+    ...eventFields,
+    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(storageEnabled ? [imageField, attachmentField] : []),
+  ];
   return String(
     <Layout title="Add Event">
       <AdminNav session={session} active="/admin/" />
@@ -729,6 +735,13 @@ export const adminDuplicateEventPage = (
 ): string => {
   const values = eventToFieldValues(event);
   values.name = "";
+  const builderEnabled = isBuilderEnabled();
+  const storageEnabled = isStorageEnabled();
+  const dupFields = [
+    ...eventFieldsWithAutofocus,
+    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(storageEnabled ? [imageField, attachmentField] : []),
+  ];
 
   return String(
     <Layout title={`Duplicate: ${event.name}`}>
@@ -738,7 +751,7 @@ export const adminDuplicateEventPage = (
         Creating a new event based on <strong>{event.name}</strong>.
       </p>
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
-        <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
+        <Raw html={renderFields(dupFields, values)} />
         <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
         <button type="submit">Create Event</button>
       </CsrfForm>
@@ -756,9 +769,12 @@ export const adminEventEditPage = (
   error?: string,
 ): string => {
   const storageEnabled = isStorageEnabled();
-  const fields = storageEnabled
-    ? [...eventFields, imageField, attachmentField]
-    : eventFields;
+  const builderEnabled = isBuilderEnabled();
+  const fields = [
+    ...eventFields,
+    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(storageEnabled ? [imageField, attachmentField] : []),
+  ];
   return String(
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />

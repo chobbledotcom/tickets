@@ -65,6 +65,7 @@ const handleBuilderPost = async (
   const siteName = form.getString("site_name");
   const dbUrl = form.getString("db_url");
   const dbToken = form.getString("db_token");
+  const assignable = form.getString("assignable") === "1";
 
   if (!siteName) return errorRedirect(BUILDER_PATH, "Site name is required");
   if (!dbUrl) return errorRedirect(BUILDER_PATH, "Database URL is required");
@@ -96,7 +97,13 @@ const handleBuilderPost = async (
   }
 
   // Record the built site (including db credentials for future reference)
-  await insertBuiltSite(siteName, buildResult.defaultHostname, dbUrl, dbToken);
+  await insertBuiltSite(
+    siteName,
+    buildResult.defaultHostname,
+    dbUrl,
+    dbToken,
+    assignable,
+  );
   await logActivity(`Built new site: ${siteName}`);
 
   return redirect(

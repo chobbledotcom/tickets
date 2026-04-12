@@ -43,6 +43,20 @@ import {
   type TicketCtx,
 } from "./types.ts";
 
+/** Sum quantity needed across events with assign_built_site enabled */
+const totalSitesNeeded = (
+  events: TicketEvent[],
+  quantities: Map<number, number>,
+): number => {
+  let total = 0;
+  for (const { event } of events) {
+    if (event.assign_built_site) {
+      total += quantities.get(event.id) ?? 0;
+    }
+  }
+  return total;
+};
+
 /** Handle POST for ticket registration */
 const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
   withCsrfForm(
@@ -159,6 +173,20 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
         quantities,
         customPrices,
       );
+
+      // Check built site availability for assign_built_site events
+      const sitesNeeded = totalSitesNeeded(ctx.events, quantities);
+      if (sitesNeeded > 0) {
+        const { countAssignableSites } = await import(
+          "#lib/db/built-sites.ts"
+        );
+        const availableSites = await countAssignableSites();
+        if (availableSites < sitesNeeded) {
+          return ticketFormErrorResponse(ctx)(
+            "Sorry, not enough sites available",
+          );
+        }
+      }
 
       // Check if payment required
       if (await anyRequiresPayment(items)) {
