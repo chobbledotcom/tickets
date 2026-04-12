@@ -1,14 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { insertBuiltSite } from "#lib/db/built-sites.ts";
 import {
-  assignSitesForEntries,
-  type SiteAssignmentEntry,
-} from "#lib/site-assignment.ts";
-import { describeWithEnv } from "#test-utils";
+  getAllBuiltSites,
+  insertBuiltSite,
+} from "#lib/db/built-sites.ts";
+import { assignAndNotifyBuiltSites } from "#lib/site-assignment.ts";
+import type { EmailEntry } from "#lib/email.ts";
+import { describeWithEnv, makeTestEntry } from "#test-utils";
 
-/** Build a minimal SiteAssignmentEntry for testing */
-const mockEntry = (
+/** Build an EmailEntry with assign_built_site for testing */
+const siteEntry = (
   overrides: {
     eventId?: number;
     eventName?: string;
@@ -17,79 +18,103 @@ const mockEntry = (
     quantity?: number;
     email?: string;
   } = {},
-): SiteAssignmentEntry => ({
-  event: {
-    id: overrides.eventId ?? 1,
-    name: overrides.eventName ?? "Test Event",
-    assign_built_site: overrides.assignBuiltSite ?? true,
-  },
-  attendee: {
-    id: overrides.attendeeId ?? 1,
-    email: overrides.email ?? "user@test.com",
-    quantity: overrides.quantity ?? 1,
-  },
-});
+): EmailEntry =>
+  makeTestEntry(
+    {
+      id: overrides.eventId,
+      name: overrides.eventName,
+      assign_built_site: overrides.assignBuiltSite ?? true,
+    },
+    {
+      id: overrides.attendeeId,
+      email: overrides.email,
+      quantity: overrides.quantity,
+    },
+  );
 
-describeWithEnv("site-assignment", { db: true }, () => {
-  describe("assignSitesForEntries", () => {
+describeWithEnv("site-assignment", {
+  db: true,
+  env: { CAN_BUILD_SITES: "true" },
+}, () => {
+  describe("assignAndNotifyBuiltSites", () => {
     test("assigns one site per ticket", async () => {
       await insertBuiltSite("Site A", "a.test.net", "", "", true);
       await insertBuiltSite("Site B", "b.test.net", "", "", true);
 
-      const entries = [mockEntry({ quantity: 2 })];
-      const assignments = await assignSitesForEntries(entries);
+      await assignAndNotifyBuiltSites([siteEntry({ quantity: 2 })]);
 
-      expect(assignments).toHaveLength(2);
-      expect(assignments[0]!.siteUrl).toBe("a.test.net");
-      expect(assignments[1]!.siteUrl).toBe("b.test.net");
+      const sites = await getAllBuiltSites();
+      const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+      expect(assigned).toHaveLength(2);
+      expect(assigned.every((s) => !s.assignable)).toBe(true);
     });
 
     test("skips events without assign_built_site", async () => {
       await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
-      const entries = [mockEntry({ assignBuiltSite: false })];
-      const assignments = await assignSitesForEntries(entries);
+      await assignAndNotifyBuiltSites([
+        siteEntry({ assignBuiltSite: false }),
+      ]);
 
-      expect(assignments).toHaveLength(0);
+      const sites = await getAllBuiltSites();
+      expect(sites[0]!.assignable).toBe(true);
+      expect(sites[0]!.assignedAttendeeId).toBeNull();
     });
 
     test("assigns sites independently per event", async () => {
       await insertBuiltSite("Site A", "a.test.net", "", "", true);
       await insertBuiltSite("Site B", "b.test.net", "", "", true);
 
-      const entries = [
-        mockEntry({ eventId: 1, eventName: "Event 1", attendeeId: 10 }),
-        mockEntry({ eventId: 2, eventName: "Event 2", attendeeId: 10 }),
-      ];
-      const assignments = await assignSitesForEntries(entries);
+      await assignAndNotifyBuiltSites([
+        siteEntry({ eventId: 1, eventName: "Event 1", attendeeId: 10 }),
+        siteEntry({ eventId: 2, eventName: "Event 2", attendeeId: 10 }),
+      ]);
 
-      expect(assignments).toHaveLength(2);
-      expect(assignments[0]!.eventName).toBe("Event 1");
-      expect(assignments[1]!.eventName).toBe("Event 2");
+      const sites = await getAllBuiltSites();
+      const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+      expect(assigned).toHaveLength(2);
+      expect(assigned[0]!.assignedEventId).toBe(1);
+      expect(assigned[1]!.assignedEventId).toBe(2);
     });
 
-    test("returns empty when no assignable sites available", async () => {
+    test("does not assign when no assignable sites available", async () => {
       await insertBuiltSite("Site A", "a.test.net", "", "", false);
 
-      const entries = [mockEntry()];
-      const assignments = await assignSitesForEntries(entries);
+      await assignAndNotifyBuiltSites([siteEntry()]);
 
-      expect(assignments).toHaveLength(0);
+      const sites = await getAllBuiltSites();
+      expect(sites[0]!.assignedAttendeeId).toBeNull();
     });
 
-    test("returns empty for empty entries", async () => {
-      const assignments = await assignSitesForEntries([]);
-      expect(assignments).toHaveLength(0);
+    test("no-ops for empty entries", async () => {
+      await assignAndNotifyBuiltSites([]);
     });
 
     test("assigns only available sites when fewer than needed", async () => {
       await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
-      const entries = [mockEntry({ quantity: 3 })];
-      const assignments = await assignSitesForEntries(entries);
+      await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
 
-      expect(assignments).toHaveLength(1);
-      expect(assignments[0]!.siteUrl).toBe("a.test.net");
+      const sites = await getAllBuiltSites();
+      const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+      expect(assigned).toHaveLength(1);
+    });
+  });
+
+  describe("feature flag", () => {
+    test("no-ops when CAN_BUILD_SITES is disabled", async () => {
+      // Temporarily override to disabled
+      const original = Deno.env.get("CAN_BUILD_SITES");
+      Deno.env.delete("CAN_BUILD_SITES");
+      try {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
+        await assignAndNotifyBuiltSites([siteEntry()]);
+        const sites = await getAllBuiltSites();
+        expect(sites[0]!.assignable).toBe(true);
+        expect(sites[0]!.assignedAttendeeId).toBeNull();
+      } finally {
+        if (original) Deno.env.set("CAN_BUILD_SITES", original);
+      }
     });
   });
 });

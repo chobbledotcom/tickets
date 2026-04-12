@@ -17,19 +17,19 @@ import {
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 
 /** Entry with the fields needed for site assignment */
-export type SiteAssignmentEntry = {
+type SiteAssignmentEntry = {
   event: { id: number; name: string; assign_built_site: boolean };
   attendee: { id: number; email: string; quantity: number };
 };
 
 /** Info about an assigned site for email rendering */
-export type SiteAssignment = {
+type SiteAssignment = {
   siteUrl: string;
   eventName: string;
 };
 
 /** Assign built sites to entries that need them. Returns assigned URLs. */
-export const assignSitesForEntries = async (
+const assignSitesForEntries = async (
   entries: SiteAssignmentEntry[],
 ): Promise<SiteAssignment[]> => {
   const needsSite = entries.filter((e) => e.event.assign_built_site);
@@ -54,7 +54,7 @@ export const assignSitesForEntries = async (
 };
 
 /** Send site assignment notification email */
-export const sendSiteAssignmentEmail = async (
+const sendSiteAssignmentEmail = async (
   to: string,
   assignments: SiteAssignment[],
 ): Promise<void> => {
