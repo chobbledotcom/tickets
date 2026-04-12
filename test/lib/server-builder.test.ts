@@ -17,6 +17,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   mockRequest,
+  setTestEnv,
   testCookie,
   withMocks,
 } from "#test-utils";
@@ -85,10 +86,14 @@ describeWithEnv(
     });
 
     test("GET /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
-      Deno.env.delete("CAN_BUILD_SITES");
-      const cookie = await testCookie();
-      const response = await awaitTestRequest("/admin/builder", { cookie });
-      expect(response.status).toBe(404);
+      const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
+      try {
+        const cookie = await testCookie();
+        const response = await awaitTestRequest("/admin/builder", { cookie });
+        expect(response.status).toBe(404);
+      } finally {
+        restore();
+      }
     });
 
     test("GET /admin/builder redirects to login when not authenticated", async () => {
@@ -279,13 +284,17 @@ describeWithEnv(
     });
 
     test("POST /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
-      Deno.env.delete("CAN_BUILD_SITES");
-      const { response } = await adminFormPost("/admin/builder", {
-        site_name: "Test",
-        db_url: "libsql://test.turso.io",
-        db_token: "token",
-      });
-      expect(response.status).toBe(404);
+      const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
+      try {
+        const { response } = await adminFormPost("/admin/builder", {
+          site_name: "Test",
+          db_url: "libsql://test.turso.io",
+          db_token: "token",
+        });
+        expect(response.status).toBe(404);
+      } finally {
+        restore();
+      }
     });
 
     test("POST /admin/builder returns error when another task in progress", async () => {
