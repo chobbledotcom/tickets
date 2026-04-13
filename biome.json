@@ -4,6 +4,13 @@
     "includes": ["**/*.js", "**/*.ts", "**/*.tsx"],
     "ignoreUnknown": true
   },
+  "assist": {
+    "actions": {
+      "source": {
+        "useSortedKeys": "on"
+      }
+    }
+  },
   "formatter": {
     "indentStyle": "space",
     "indentWidth": 2,
