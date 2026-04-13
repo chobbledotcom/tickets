@@ -8,7 +8,12 @@
 import type { InValue } from "@libsql/client";
 import { filter, map, reduce } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { executeBatch, inPlaceholders, queryAll } from "#lib/db/client.ts";
+import {
+  executeBatch,
+  inPlaceholders,
+  insert,
+  queryAll,
+} from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 
 // ---------------------------------------------------------------------------
@@ -272,16 +277,22 @@ export const setEventQuestions = async (
 ): Promise<void> => {
   const statements = [
     { sql: "DELETE FROM event_questions WHERE event_id = ?", args: [eventId] },
-    ...questionIds.map((qid, i) => ({
-      sql: "INSERT INTO event_questions (event_id, question_id, sort_order) VALUES (?, ?, ?)",
-      args: [eventId, qid, i],
-    })),
+    ...questionIds.map((qid, i) =>
+      insert("event_questions", {
+        event_id: eventId,
+        question_id: qid,
+        sort_order: i,
+      }),
+    ),
   ];
   await executeBatch(statements);
 };
 
-const ATTENDEE_ANSWER_INSERT =
-  "INSERT INTO attendee_answers (attendee_id, answer_id) VALUES (?, ?)";
+const answerInsert = (attendeeId: number, answerId: number) =>
+  insert("attendee_answers", {
+    attendee_id: attendeeId,
+    answer_id: answerId,
+  });
 
 /** Replace all answers for one or more attendees in a single atomic batch.
  * Deletes existing answers first, then inserts the new ones. */
@@ -298,10 +309,7 @@ export const saveAttendeeAnswers = async (
     answerIds.length === 0
       ? []
       : attendeeIds.flatMap((attendeeId) =>
-          answerIds.map((answerId) => ({
-            sql: ATTENDEE_ANSWER_INSERT,
-            args: [attendeeId, answerId],
-          })),
+          answerIds.map((answerId) => answerInsert(attendeeId, answerId)),
         );
   await executeBatch([...deletes, ...inserts]);
 };
@@ -413,10 +421,9 @@ export const saveAttendeeAnswersByQuestion = async (
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
       args: [attendeeId],
     },
-    ...Array.from(questionToAnswer.values()).map((answerId) => ({
-      sql: ATTENDEE_ANSWER_INSERT,
-      args: [attendeeId, answerId] as InValue[],
-    })),
+    ...Array.from(questionToAnswer.values()).map((answerId) =>
+      answerInsert(attendeeId, answerId),
+    ),
   ];
   await executeBatch(statements);
 };

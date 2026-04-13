@@ -11,7 +11,7 @@ import {
   verifyPassword,
 } from "#lib/crypto/hashing.ts";
 import { deriveKEK, wrapKey } from "#lib/crypto/keys.ts";
-import { deleteByFieldBatch, getDb, queryAll } from "#lib/db/client.ts";
+import { deleteByFieldBatch, getDb, insert, queryAll } from "#lib/db/client.ts";
 import { now } from "#lib/now.ts";
 import { requestCache } from "#lib/request-cache.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#lib/types.ts";
@@ -52,24 +52,7 @@ const insertUser = async (opts: {
     ? await encrypt(opts.inviteExpiry)
     : null;
 
-  const result = await getDb().execute({
-    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      encryptedUsername,
-      usernameIndex,
-      encryptedPasswordHash,
-      opts.wrappedDataKey,
-      encryptedAdminLevel,
-      encryptedInviteCode,
-      encryptedInviteExpiry,
-    ],
-  });
-
-  invalidateUsersCache();
-  const id = Number(result.lastInsertRowid);
-  return {
-    id,
+  const values = {
     username_hash: encryptedUsername,
     username_index: usernameIndex,
     password_hash: encryptedPasswordHash,
@@ -78,6 +61,11 @@ const insertUser = async (opts: {
     invite_code_hash: encryptedInviteCode,
     invite_expiry: encryptedInviteExpiry,
   };
+  const result = await getDb().execute(insert("users", values));
+
+  invalidateUsersCache();
+  const id = Number(result.lastInsertRowid);
+  return { id, ...values };
 };
 
 /**

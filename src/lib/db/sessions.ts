@@ -4,7 +4,13 @@
 
 import { registerCache } from "#lib/cache-registry.ts";
 import { hashSessionToken } from "#lib/crypto/hashing.ts";
-import { deleteByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
+import {
+  deleteByField,
+  getDb,
+  insert,
+  queryAll,
+  queryOne,
+} from "#lib/db/client.ts";
 
 import type { Session } from "#lib/types.ts";
 
@@ -80,10 +86,15 @@ export const createSession = async (
   userId: number,
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
-  await getDb().execute({
-    sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
-    args: [tokenHash, csrfToken, expires, wrappedDataKey, userId],
-  });
+  await getDb().execute(
+    insert("sessions", {
+      token: tokenHash,
+      csrf_token: csrfToken,
+      expires,
+      wrapped_data_key: wrappedDataKey,
+      user_id: userId,
+    }),
+  );
   // Pre-cache the new session using token hash as key
   cacheSession(tokenHash, {
     token: tokenHash,

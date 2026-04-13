@@ -54,8 +54,12 @@ const getBookings = (attendeeId: number) =>
     price_paid: number;
     attachment_downloads: number;
   }>(
-    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
-     FROM event_attendees WHERE attendee_id = ? ORDER BY start_at, event_id`,
+    `SELECT event_id, start_at, end_at, quantity,
+            checked_in, refunded, price_paid,
+            attachment_downloads
+     FROM event_attendees
+     WHERE attendee_id = ?
+     ORDER BY start_at, event_id`,
     [attendeeId],
   );
 
@@ -1080,7 +1084,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       // Target's booking should now have qty 5
       const links = await queryAll<{ quantity: number }>(
-        "SELECT quantity FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
+        `SELECT quantity
+         FROM event_attendees
+         WHERE attendee_id = ?
+           AND event_id = ?`,
         [target.id, event.id],
       );
       expect(links.length).toBe(1);

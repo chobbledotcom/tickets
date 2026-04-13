@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, insert } from "#lib/db/client.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -96,10 +96,13 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const staleTime = new Date(
         Date.now() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
-      await getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
-        args: ["cs_stale_recovery", staleTime],
-      });
+      await getDb().execute(
+        insert("processed_payments", {
+          payment_session_id: "cs_stale_recovery",
+          attendee_id: null,
+          processed_at: staleTime,
+        }),
+      );
 
       // A new attempt should succeed by cleaning up the stale record
       const result = await reserveSession("cs_stale_recovery");

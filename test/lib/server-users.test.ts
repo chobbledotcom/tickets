@@ -4,7 +4,7 @@ import { getSessionCookieName } from "#lib/cookies.ts";
 import { encrypt } from "#lib/crypto/encryption.ts";
 import { hashPassword } from "#lib/crypto/hashing.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, insert } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import {
   createInvitedUser,
@@ -171,18 +171,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // Create a manager user with a password
       const hash = await hashPassword("managerpass");
       const encHash = await encrypt(hash);
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-              VALUES (?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("manager"),
-          "manager-idx-unique",
-          encHash,
+      await getDb().execute(
+        insert("users", {
+          username_hash: await encrypt("manager"),
+          username_index: "manager-idx-unique",
+          password_hash: encHash,
           // Give the manager a wrapped_data_key so login works
-          (await getUserByUsername(TEST_ADMIN_USERNAME))!.wrapped_data_key,
-          await encrypt("manager"),
-        ],
-      });
+          wrapped_data_key: (await getUserByUsername(TEST_ADMIN_USERNAME))!
+            .wrapped_data_key,
+          admin_level: await encrypt("manager"),
+        }),
+      );
       invalidateUsersCache();
 
       // Create a session for the manager user
@@ -949,19 +948,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("isInviteValid returns false when invite_expiry is null", async () => {
       const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("no-expiry-user");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("no-expiry-user"),
-          usernameIdx,
-          "",
-          null,
-          await encrypt("manager"),
-          await encrypt("somehash"),
-          null,
-        ],
-      });
+      await getDb().execute(
+        insert("users", {
+          username_hash: await encrypt("no-expiry-user"),
+          username_index: usernameIdx,
+          password_hash: "",
+          wrapped_data_key: null,
+          admin_level: await encrypt("manager"),
+          invite_code_hash: await encrypt("somehash"),
+          invite_expiry: null,
+        }),
+      );
       invalidateUsersCache();
 
       const user = await getUserByUsername("no-expiry-user");
@@ -972,19 +969,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("decryptAdminLevel throws when admin_level decrypts to invalid value", async () => {
       const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("badlevel-user");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("badlevel-user"),
-          usernameIdx,
-          "",
-          null,
-          await encrypt("superadmin"),
-          null,
-          null,
-        ],
-      });
+      await getDb().execute(
+        insert("users", {
+          username_hash: await encrypt("badlevel-user"),
+          username_index: usernameIdx,
+          password_hash: "",
+          wrapped_data_key: null,
+          admin_level: await encrypt("superadmin"),
+          invite_code_hash: null,
+          invite_expiry: null,
+        }),
+      );
       invalidateUsersCache();
 
       const user = await getUserByUsername("badlevel-user");
@@ -996,19 +991,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("isInviteValid returns false when invite_expiry decrypts to empty string", async () => {
       const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("empty-expiry-user");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("empty-expiry-user"),
-          usernameIdx,
-          "",
-          null,
-          await encrypt("manager"),
-          await encrypt("somehash"),
-          await encrypt(""),
-        ],
-      });
+      await getDb().execute(
+        insert("users", {
+          username_hash: await encrypt("empty-expiry-user"),
+          username_index: usernameIdx,
+          password_hash: "",
+          wrapped_data_key: null,
+          admin_level: await encrypt("manager"),
+          invite_code_hash: await encrypt("somehash"),
+          invite_expiry: await encrypt(""),
+        }),
+      );
       invalidateUsersCache();
 
       const user = await getUserByUsername("empty-expiry-user");
@@ -1022,17 +1015,15 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // Create manager user
       const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const managerIdx = await hmacHash("formmanager");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-              VALUES (?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("formmanager"),
-          managerIdx,
-          "",
-          null,
-          await encrypt("manager"),
-        ],
-      });
+      await getDb().execute(
+        insert("users", {
+          username_hash: await encrypt("formmanager"),
+          username_index: managerIdx,
+          password_hash: "",
+          wrapped_data_key: null,
+          admin_level: await encrypt("manager"),
+        }),
+      );
       invalidateUsersCache();
 
       await createSession(
