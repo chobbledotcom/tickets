@@ -28,8 +28,7 @@ const AvailableTags = ({
   columns: Record<string, { label: string }>;
 }): JSX.Element => (
   <small>
-    Available:{" "}
-    {Object.keys(columns)
+    Available: {Object.keys(columns)
       .map((key) => `{{${key}}}`)
       .join(", ")}
   </small>
@@ -45,7 +44,9 @@ export const EventColumnOrderForm = (
     <h2>Event Table Columns</h2>
     <p>
       Control which columns appear on the Events table and in what order. Use
-      Liquid-style tags separated by commas.
+      Liquid-style tags separated by commas. See the{" "}
+      <a href="/admin/guide#column-order">Column Order guide</a>{" "}
+      for full details including custom date and currency formatting.
     </p>
     <label>
       Column order
@@ -75,7 +76,10 @@ export const AttendeeColumnOrderForm = (
     <p>
       Control which columns appear on Attendee tables and in what order. Use
       Liquid-style tags separated by commas. Columns referencing absent data
-      (e.g. email when no attendees have one) are hidden automatically.
+      (e.g. email when no attendees have one) are hidden automatically. See the
+      {" "}
+      <a href="/admin/guide#column-order">Column Order guide</a>{" "}
+      for full details including custom date and currency formatting.
     </p>
     <label>
       Column order
