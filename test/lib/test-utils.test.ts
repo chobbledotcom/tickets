@@ -68,17 +68,16 @@ describe("test-utils", () => {
   describe("resetDb", () => {
     test("resets database so next createTestDb gives clean state", async () => {
       await createTestDb();
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb, insert } = await import("#lib/db/client.ts");
       // Insert data into the first DB
       await getDb().execute(
-        `INSERT INTO events (
-          slug, slug_index, max_attendees,
-          created, fields
-        )
-        VALUES (
-          'old', 'old', 10,
-          '2024-01-01', 'email'
-        )`,
+        insert("events", {
+          slug: "old",
+          slug_index: "old",
+          max_attendees: 10,
+          created: "2024-01-01",
+          fields: "email",
+        }),
       );
       resetDb();
       // After reset, we need to set up again to get a working db

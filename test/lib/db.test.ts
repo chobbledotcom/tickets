@@ -25,7 +25,7 @@ import {
   hasAvailableSpots,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
-import { getDb, setDb } from "#lib/db/client.ts";
+import { getDb, insert, rawSql, setDb } from "#lib/db/client.ts";
 import {
   computeSlugIndex,
   deleteEvent,
@@ -120,6 +120,59 @@ describeWithEnv("db", { db: true }, () => {
       } finally {
         restore();
       }
+    });
+  });
+
+  describe("insert()", () => {
+    test("builds sql and args from record", () => {
+      const stmt = insert("users", {
+        name: "Alice",
+        email: "a@b.com",
+      });
+      expect(stmt.sql).toBe(
+        "INSERT INTO users (name, email)" + " VALUES (?, ?)",
+      );
+      expect(stmt.args).toEqual(["Alice", "a@b.com"]);
+    });
+
+    test("supports rawSql for expressions", () => {
+      const stmt = insert("event_attendees", {
+        event_id: 1,
+        attendee_id: rawSql("last_insert_rowid()"),
+        quantity: 2,
+      });
+      expect(stmt.sql).toBe(
+        "INSERT INTO event_attendees" +
+          " (event_id, attendee_id, quantity)" +
+          " VALUES (?, last_insert_rowid(), ?)",
+      );
+      expect(stmt.args).toEqual([1, 2]);
+    });
+
+    test("handles null values as params", () => {
+      const stmt = insert("payments", {
+        id: "p1",
+        attendee_id: null,
+        created: "now",
+      });
+      expect(stmt.sql).toBe(
+        "INSERT INTO payments" +
+          " (id, attendee_id, created)" +
+          " VALUES (?, ?, ?)",
+      );
+      expect(stmt.args).toEqual(["p1", null, "now"]);
+    });
+
+    test("executes correctly against db", async () => {
+      const stmt = insert("settings", {
+        key: "insert_test",
+        value: "works",
+      });
+      await getDb().execute(stmt);
+      const row = await getDb().execute(
+        "SELECT value FROM settings" + " WHERE key = 'insert_test'",
+      );
+      expect(row.rows[0]!.value).toBe("works");
     });
   });
 
@@ -1897,13 +1950,13 @@ describeWithEnv("db", { db: true }, () => {
 
     test("isLoginRateLimited clears expired lockout", async () => {
       // Insert a record with expired lockout
-      await getDb().execute({
-        sql: `INSERT INTO login_attempts (
-                ip, attempts, locked_until
-              )
-              VALUES (?, ?, ?)`,
-        args: ["192.168.1.6", 5, Date.now() - 1000],
-      });
+      await getDb().execute(
+        insert("login_attempts", {
+          ip: "192.168.1.6",
+          attempts: 5,
+          locked_until: Date.now() - 1000,
+        }),
+      );
 
       // Should clear the expired lockout and return false
       const limited = await isLoginRateLimited("192.168.1.6");
@@ -1912,13 +1965,13 @@ describeWithEnv("db", { db: true }, () => {
 
     test("isLoginRateLimited returns false for attempts below max without lockout", async () => {
       // Insert a record with some attempts but no lockout
-      await getDb().execute({
-        sql: `INSERT INTO login_attempts (
-                ip, attempts, locked_until
-              )
-              VALUES (?, ?, NULL)`,
-        args: ["192.168.1.7", 3],
-      });
+      await getDb().execute(
+        insert("login_attempts", {
+          ip: "192.168.1.7",
+          attempts: 3,
+          locked_until: null,
+        }),
+      );
 
       const limited = await isLoginRateLimited("192.168.1.7");
       expect(limited).toBe(false);
@@ -2549,13 +2602,13 @@ describeWithEnv("db", { db: true }, () => {
   describe("login-attempts - expired lockout", () => {
     test("isLoginRateLimited resets expired lockout and returns false", async () => {
       // Insert a record with locked_until in the past
-      await getDb().execute({
-        sql: `INSERT INTO login_attempts (
-                ip, attempts, locked_until
-              )
-              VALUES (?, ?, ?)`,
-        args: ["expired-ip-hash", 5, Date.now() - 60000],
-      });
+      await getDb().execute(
+        insert("login_attempts", {
+          ip: "expired-ip-hash",
+          attempts: 5,
+          locked_until: Date.now() - 60000,
+        }),
+      );
 
       // This uses the raw hashed IP - we need to test via the public API
       // The existing test at line 993 already covers this via isLoginRateLimited
@@ -2634,14 +2687,13 @@ describeWithEnv("db", { db: true }, () => {
       const oldTimestamp = new Date(
         nowMs() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
-      await getDb().execute({
-        sql: `INSERT INTO processed_payments (
-                payment_session_id, attendee_id,
-                processed_at
-              )
-              VALUES (?, NULL, ?)`,
-        args: ["sess_stale", oldTimestamp],
-      });
+      await getDb().execute(
+        insert("processed_payments", {
+          payment_session_id: "sess_stale",
+          attendee_id: null,
+          processed_at: oldTimestamp,
+        }),
+      );
 
       // This should detect the stale reservation, delete it, and retry
       const result = await reserveSession("sess_stale");
@@ -2677,14 +2729,13 @@ describeWithEnv("db", { db: true }, () => {
       const oldTimestamp = new Date(
         nowMs() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
-      await getDb().execute({
-        sql: `INSERT INTO processed_payments (
-                payment_session_id, attendee_id,
-                processed_at
-              )
-              VALUES (?, NULL, ?)`,
-        args: ["sess_race", oldTimestamp],
-      });
+      await getDb().execute(
+        insert("processed_payments", {
+          payment_session_id: "sess_race",
+          attendee_id: null,
+          processed_at: oldTimestamp,
+        }),
+      );
 
       const result = await reserveSession("sess_race");
       expect(result.reserved).toBe(true);
@@ -3932,35 +3983,33 @@ describe("event_attendees migration from legacy schema", () => {
 
     // Insert legacy data: event with a date, attendee, and a processed payment
     await client.execute(
-      `INSERT INTO events (
-        id, created, max_attendees, name
-      )
-      VALUES (
-        1, '2024-01-01T00:00:00Z',
-        100, 'Test Event'
-      )`,
+      insert("events", {
+        id: 1,
+        created: "2024-01-01T00:00:00Z",
+        max_attendees: 100,
+        name: "Test Event",
+      }),
     );
     await client.execute(
-      `INSERT INTO attendees (
-        id, event_id, name, email, created,
-        quantity, date, checked_in_v2,
-        refunded_v2, price_paid_v2
-      )
-      VALUES (
-        1, 1, 'Test User', 'test@example.com',
-        '2024-01-01T00:00:00Z', 2,
-        '2024-06-15', 0, 0, 1000
-      )`,
+      insert("attendees", {
+        id: 1,
+        event_id: 1,
+        name: "Test User",
+        email: "test@example.com",
+        created: "2024-01-01T00:00:00Z",
+        quantity: 2,
+        date: "2024-06-15",
+        checked_in_v2: 0,
+        refunded_v2: 0,
+        price_paid_v2: 1000,
+      }),
     );
     await client.execute(
-      `INSERT INTO processed_payments (
-        payment_session_id, attendee_id,
-        processed_at
-      )
-      VALUES (
-        'ps_test_123', 1,
-        '2024-01-01T00:00:00Z'
-      )`,
+      insert("processed_payments", {
+        payment_session_id: "ps_test_123",
+        attendee_id: 1,
+        processed_at: "2024-01-01T00:00:00Z",
+      }),
     );
 
     // Simulate production: PRAGMA foreign_keys=OFF doesn't work

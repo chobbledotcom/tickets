@@ -3,7 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, insert } from "#lib/db/client.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { nowMs } from "#lib/now.ts";
@@ -3204,14 +3204,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       // Insert a stale reservation (older than 5 minutes)
       const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
-      await getDb().execute({
-        sql: `INSERT INTO processed_payments (
-                payment_session_id, attendee_id,
-                processed_at
-              )
-              VALUES (?, NULL, ?)`,
-        args: ["cs_stale_admin_test", staleTime],
-      });
+      await getDb().execute(
+        insert("processed_payments", {
+          payment_session_id: "cs_stale_admin_test",
+          attendee_id: null,
+          processed_at: staleTime,
+        }),
+      );
 
       // Verify it exists
       const before = await getDb().execute({
@@ -3246,14 +3245,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       });
 
       // Insert a fresh reservation (just now)
-      await getDb().execute({
-        sql: `INSERT INTO processed_payments (
-                payment_session_id, attendee_id,
-                processed_at
-              )
-              VALUES (?, NULL, ?)`,
-        args: ["cs_fresh_admin_test", new Date().toISOString()],
-      });
+      await getDb().execute(
+        insert("processed_payments", {
+          payment_session_id: "cs_fresh_admin_test",
+          attendee_id: null,
+          processed_at: new Date().toISOString(),
+        }),
+      );
 
       // View the admin event page
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {

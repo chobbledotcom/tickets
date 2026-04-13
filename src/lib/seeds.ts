@@ -8,7 +8,7 @@ import { encrypt } from "#lib/crypto/encryption.ts";
 import { computeTicketTokenIndex, hmacHash } from "#lib/crypto/hashing.ts";
 import { encryptAttendeePII } from "#lib/crypto/keys.ts";
 import { generateTicketToken } from "#lib/crypto/utils.ts";
-import { executeBatch, queryAll } from "#lib/db/client.ts";
+import { executeBatch, insert, queryAll, rawSql } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
@@ -80,64 +80,40 @@ const prepareEvent = async (
     encAttachmentName,
   ] = await encryptBatch("", "", "", "", "", "", "");
 
-  return {
-    sql: `INSERT INTO events (
-            name, slug, slug_index, description,
-            date, location, group_id, created,
-            max_attendees, thank_you_url,
-            unit_price, max_quantity, webhook_url,
-            active, fields, closes_at, event_type,
-            bookable_days, minimum_days_before,
-            maximum_days_after, image_url,
-            attachment_url, attachment_name,
-            non_transferable
-          )
-          VALUES (
-            ?, ?, ?, ?,
-            ?, ?, ?, ?,
-            ?, ?,
-            ?, ?, ?,
-            ?, ?, ?, ?,
-            ?, ?,
-            ?, ?,
-            ?, ?,
-            ?
-          )`,
-    args: [
-      encName,
-      encSlug,
-      slugIndex,
-      encDesc,
-      encDate,
-      encLoc,
-      0,
-      created,
-      maxAttendees,
-      encThankYou,
-      unitPrice,
-      4,
-      encWebhook,
-      1,
-      "email",
-      encClosesAt,
-      "standard",
-      JSON.stringify([
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-      ]),
-      1,
-      90,
-      encImageUrl,
-      encAttachmentUrl,
-      encAttachmentName,
-      0,
-    ],
-  };
+  return insert("events", {
+    name: encName,
+    slug: encSlug,
+    slug_index: slugIndex,
+    description: encDesc,
+    date: encDate,
+    location: encLoc,
+    group_id: 0,
+    created,
+    max_attendees: maxAttendees,
+    thank_you_url: encThankYou,
+    unit_price: unitPrice,
+    max_quantity: 4,
+    webhook_url: encWebhook,
+    active: 1,
+    fields: "email",
+    closes_at: encClosesAt,
+    event_type: "standard",
+    bookable_days: JSON.stringify([
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]),
+    minimum_days_before: 1,
+    maximum_days_after: 90,
+    image_url: encImageUrl,
+    attachment_url: encAttachmentUrl,
+    attachment_name: encAttachmentName,
+    non_transferable: 0,
+  });
 };
 
 /** Encrypt a single PII value, curried over the public key */
@@ -164,21 +140,17 @@ const prepareAttendee = async (
   ]);
 
   return [
-    {
-      sql: `INSERT INTO attendees (
-              created, price_paid,
-              checked_in, ticket_token_index
-            )
-            VALUES (?, ?, ?, ?)`,
-      args: [created, encPricePaid, encCheckedIn, ticketTokenIndex],
-    },
-    {
-      sql: `INSERT INTO event_attendees (
-              event_id, attendee_id, quantity
-            )
-            VALUES (?, last_insert_rowid(), ?)`,
-      args: [eventId, quantity],
-    },
+    insert("attendees", {
+      created,
+      price_paid: encPricePaid,
+      checked_in: encCheckedIn,
+      ticket_token_index: ticketTokenIndex,
+    }),
+    insert("event_attendees", {
+      event_id: eventId,
+      attendee_id: rawSql("last_insert_rowid()"),
+      quantity,
+    }),
   ];
 };
 

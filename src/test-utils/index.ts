@@ -23,7 +23,7 @@ import { generateSecureToken } from "#lib/crypto/utils.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { createApiKey } from "#lib/db/api-keys.ts";
-import { getDb, setDb } from "#lib/db/client.ts";
+import { getDb, insert, setDb } from "#lib/db/client.ts";
 import {
   type EventInput,
   getEventWithCount,
@@ -156,32 +156,27 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     // Clear any rows initDb() may have inserted to avoid UNIQUE conflicts
     await getClient().execute("DELETE FROM settings");
     for (const row of cachedSetupSettings) {
-      await getClient().execute({
-        sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-        args: [row.key, row.value],
-      });
+      await getClient().execute(
+        insert("settings", {
+          key: row.key,
+          value: row.value,
+        }),
+      );
     }
     if (cachedSetupUsers) {
       for (const row of cachedSetupUsers) {
-        await getClient().execute({
-          sql: `INSERT INTO users (
-                  id, username_hash, username_index,
-                  password_hash, wrapped_data_key,
-                  admin_level, invite_code_hash,
-                  invite_expiry
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [
-            row.id as InValue,
-            row.username_hash as InValue,
-            row.username_index as InValue,
-            row.password_hash as InValue,
-            row.wrapped_data_key as InValue,
-            row.admin_level as InValue,
-            row.invite_code_hash as InValue,
-            row.invite_expiry as InValue,
-          ],
-        });
+        await getClient().execute(
+          insert("users", {
+            id: row.id as InValue,
+            username_hash: row.username_hash as InValue,
+            username_index: row.username_index as InValue,
+            password_hash: row.password_hash as InValue,
+            wrapped_data_key: row.wrapped_data_key as InValue,
+            admin_level: row.admin_level as InValue,
+            invite_code_hash: row.invite_code_hash as InValue,
+            invite_expiry: row.invite_expiry as InValue,
+          }),
+        );
       }
     }
     settings.invalidateCache();
@@ -940,20 +935,15 @@ export const getTestSession = async (): Promise<{
   // Fast path: restore cached session directly into the DB
   if (cachedAdminSession) {
     const { sessionRow } = cachedAdminSession;
-    await getDb().execute({
-      sql: `INSERT INTO sessions (
-              token, csrf_token, expires,
-              wrapped_data_key, user_id
-            )
-            VALUES (?, ?, ?, ?, ?)`,
-      args: [
-        sessionRow.token,
-        sessionRow.csrf_token,
-        sessionRow.expires,
-        sessionRow.wrapped_data_key,
-        sessionRow.user_id,
-      ],
-    });
+    await getDb().execute(
+      insert("sessions", {
+        token: sessionRow.token,
+        csrf_token: sessionRow.csrf_token,
+        expires: sessionRow.expires,
+        wrapped_data_key: sessionRow.wrapped_data_key,
+        user_id: sessionRow.user_id,
+      }),
+    );
     const csrfToken = await signCsrfToken();
     testSession = { cookie: cachedAdminSession.cookie, csrfToken };
     return testSession;
@@ -2450,21 +2440,15 @@ export const createTestManagerSession = async (
     dataKey,
     "user-key-placeholder",
   );
-  await getDb().execute({
-    sql: `INSERT INTO users (
-            username_hash, username_index,
-            password_hash, wrapped_data_key,
-            admin_level
-          )
-          VALUES (?, ?, ?, ?, ?)`,
-    args: [
-      await enc(username),
-      managerIdx,
-      "",
-      managerWrappedKey,
-      await enc("manager"),
-    ],
-  });
+  await getDb().execute(
+    insert("users", {
+      username_hash: await enc(username),
+      username_index: managerIdx,
+      password_hash: "",
+      wrapped_data_key: managerWrappedKey,
+      admin_level: await enc("manager"),
+    }),
+  );
   invalidateUsers();
 
   // Find the manager user ID
