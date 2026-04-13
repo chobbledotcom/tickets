@@ -1506,8 +1506,12 @@ export const adminGuidePage = (
         <Q q="What does the confirmation email contain?">
           <p>
             The attendee receives an email with the event name(s), quantity,
-            price paid, and a clickable link to their ticket page. For
-            multi-event bookings, all events are listed in a single email. The
+            price paid, and a clickable link to their ticket page. Each email
+            also includes an SVG ticket image as an attachment &mdash; one per
+            event, with a QR code for check-in. For{" "}
+            <strong>Purchase Only</strong> events the QR code is omitted since
+            there is no check-in. For multi-event bookings, all events are
+            listed in a single email with numbered ticket attachments. The
             business email is set as the reply-to address so attendees can reply
             directly to you.
           </p>

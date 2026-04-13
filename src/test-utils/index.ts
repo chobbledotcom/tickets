@@ -2800,4 +2800,89 @@ export const apiRequest = async (
   return handleRequest(requestAsApiKey(path, apiKey, init));
 };
 
+// ---------------------------------------------------------------------------
+// Fetch stub helpers — shared across email, webhook, and other HTTP tests
+// ---------------------------------------------------------------------------
+
+// deno-lint-ignore no-explicit-any
+type FetchStubRef = { current: any };
+
+/**
+ * Install a fetch stub scoped to the enclosing `describe` block.
+ * Call inside a `describe()` — it registers beforeEach/afterEach hooks.
+ * Returns inspection helpers for the recorded calls.
+ *
+ * @example
+ * describe("my API tests", () => {
+ *   const fetch = useFetchStub();
+ *   test("sends request", async () => {
+ *     await doSomething();
+ *     expect(fetch.callCount()).toBe(1);
+ *     expect(fetch.getFetchJsonBody().to).toEqual(["user@test.com"]);
+ *   });
+ * });
+ */
+export const useFetchStub = () => {
+  const ref: FetchStubRef = { current: null };
+  let originalFetch: typeof fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    ref.current = stub(globalThis, "fetch", () =>
+      Promise.resolve(new Response()),
+    );
+  });
+
+  afterEach(() => {
+    ref.current.restore();
+    globalThis.fetch = originalFetch;
+  });
+
+  const restubFetch = (impl: () => Promise<Response>): void => {
+    ref.current.restore();
+    ref.current = stub(globalThis, "fetch", impl);
+  };
+
+  const callCount = (): number => ref.current.calls.length;
+
+  const getFetchArgs = (index = 0): [string, RequestInit] =>
+    ref.current.calls[index].args as [string, RequestInit];
+
+  const getFetchJsonBody = (index = 0) =>
+    JSON.parse(getFetchArgs(index)[1].body as string);
+
+  const getFetchFormBody = (index = 0): FormData =>
+    getFetchArgs(index)[1].body as FormData;
+
+  const getFetchHeaders = (index = 0): Record<string, string> =>
+    getFetchArgs(index)[1].headers as Record<string, string>;
+
+  const findCallBodyByRecipient = (recipient: string) => {
+    const call = ref.current.calls.find((c: { args: unknown[] }) => {
+      const body = JSON.parse(
+        (c.args as [string, RequestInit])[1].body as string,
+      );
+      return body.to?.[0] === recipient;
+    });
+    return JSON.parse((call.args as [string, RequestInit])[1].body as string);
+  };
+
+  const allRecipients = (): string[][] =>
+    ref.current.calls.map(
+      (c: { args: unknown[] }) =>
+        JSON.parse((c.args as [string, RequestInit])[1].body as string).to,
+    );
+
+  return {
+    restubFetch,
+    callCount,
+    getFetchArgs,
+    getFetchJsonBody,
+    getFetchFormBody,
+    getFetchHeaders,
+    findCallBodyByRecipient,
+    allRecipients,
+  };
+};
+
 export { TestBrowser } from "#test-utils/test-browser.ts";

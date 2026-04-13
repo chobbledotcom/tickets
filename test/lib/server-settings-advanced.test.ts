@@ -1327,16 +1327,18 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           bunnyCdnApi.validateCustomDomain = () => {
             throw new Error("network failure");
           };
-          Deno.env.set("TEST_EXPECT_ERROR", "1");
           try {
             await adminFormPost("/admin/settings/custom-domain", {
               custom_domain: "tickets.example.com",
             });
-            expect(settings.currentTask).toBe("");
+          } catch {
+            // The stubbed error may be rethrown by handleRequest's
+            // test guard — that's fine, we only care that current_task
+            // was cleared by the finally block in withCurrentTask.
           } finally {
-            Deno.env.delete("TEST_EXPECT_ERROR");
             bunnyCdnApi.validateCustomDomain = original;
           }
+          expect(settings.currentTask).toBe("");
         });
       });
     },
