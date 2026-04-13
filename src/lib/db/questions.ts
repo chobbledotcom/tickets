@@ -288,6 +288,12 @@ export const setEventQuestions = async (
   await executeBatch(statements);
 };
 
+const answerInsert = (attendeeId: number, answerId: number) =>
+  insert("attendee_answers", {
+    attendee_id: attendeeId,
+    answer_id: answerId,
+  });
+
 /** Replace all answers for one or more attendees in a single atomic batch.
  * Deletes existing answers first, then inserts the new ones. */
 export const saveAttendeeAnswers = async (
@@ -303,12 +309,7 @@ export const saveAttendeeAnswers = async (
     answerIds.length === 0
       ? []
       : attendeeIds.flatMap((attendeeId) =>
-          answerIds.map((answerId) =>
-            insert("attendee_answers", {
-              attendee_id: attendeeId,
-              answer_id: answerId,
-            }),
-          ),
+          answerIds.map((answerId) => answerInsert(attendeeId, answerId)),
         );
   await executeBatch([...deletes, ...inserts]);
 };
@@ -421,10 +422,7 @@ export const saveAttendeeAnswersByQuestion = async (
       args: [attendeeId],
     },
     ...Array.from(questionToAnswer.values()).map((answerId) =>
-      insert("attendee_answers", {
-        attendee_id: attendeeId,
-        answer_id: answerId,
-      }),
+      answerInsert(attendeeId, answerId),
     ),
   ];
   await executeBatch(statements);
