@@ -27,6 +27,30 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
     expect(col.cell(testEventWithCount({ date: "" }), u)).toBe("");
   });
 
+  test("date rawValue returns date for Liquid filters", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.date!.rawValue!(
+        testEventWithCount({ date: "2026-04-10" }),
+        u,
+      ),
+    ).toBe("2026-04-10");
+  });
+
+  test("date rawValue returns empty for missing date", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.date!.rawValue!(testEventWithCount({ date: "" }), u),
+    ).toBe("");
+  });
+
+  test("price cell renders numeric string for non-zero price", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.price!.cell(
+        testEventWithCount({ unit_price: 2500 }),
+        u,
+      ),
+    ).toBe("2500");
+  });
+
   test("price cell renders Free for zero price", () => {
     expect(
       EVENT_TABLE_COLUMNS.price!.cell(testEventWithCount({ unit_price: 0 }), u),
@@ -103,6 +127,18 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
     ).toBe("");
   });
 
+  test("date rawValue returns date string for Liquid filters", () => {
+    const row = makeRow({ attendee: testAttendee({ date: "2026-03-15" }) });
+    expect(ATTENDEE_TABLE_COLUMNS.date!.rawValue!(row, opts)).toBe(
+      "2026-03-15",
+    );
+  });
+
+  test("date rawValue returns empty for null date", () => {
+    const row = makeRow({ attendee: testAttendee({ date: null }) });
+    expect(ATTENDEE_TABLE_COLUMNS.date!.rawValue!(row, opts)).toBe("");
+  });
+
   test("phone cell renders clickable tel link with normalized number", () => {
     const html = ATTENDEE_TABLE_COLUMNS.phone!.cell(
       makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
@@ -176,5 +212,14 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
         opts,
       ),
     ).toContain("2026");
+  });
+
+  test("registered rawValue returns ISO string for Liquid filters", () => {
+    const row = makeRow({
+      attendee: testAttendee({ created: "2026-01-01T12:00:00Z" }),
+    });
+    expect(ATTENDEE_TABLE_COLUMNS.registered!.rawValue!(row, opts)).toBe(
+      "2026-01-01T12:00:00Z",
+    );
   });
 });

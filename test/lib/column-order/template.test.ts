@@ -209,9 +209,11 @@ describe("renderCells", () => {
   test("applies Liquid filters when template uses them", () => {
     const event = testEventWithCount({
       date: "2026-03-15",
+      created: "2026-01-10T09:00:00Z",
+      unit_price: 2500,
     });
     const { columnKeys, filters } = resolveColumnLayout(
-      '{{date | date: "%d/%m/%Y"}}',
+      '{{date | date: "%d/%m/%Y"}}, {{created | date: "%B %Y"}}, {{price | currency}}',
       VALID_EVENT_KEYS,
       EVENT_DEFAULT_ORDER,
     );
@@ -224,6 +226,8 @@ describe("renderCells", () => {
       escapeHtml,
     );
     expect(html).toContain("15/03/2026");
+    expect(html).toContain("January 2026");
+    expect(html).toContain("25");
   });
 
   test("escapes HTML in plain text cells to prevent XSS", () => {
