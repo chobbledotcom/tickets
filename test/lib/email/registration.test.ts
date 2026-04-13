@@ -56,10 +56,9 @@ describeWithEnv(
     });
 
     test("sends admin notification when attendee has no email but business email is set", async () => {
-      await setupAndSendRegistration(
-        { businessEmail: "admin@business.com" },
-        [makeEntry({}, { email: "" })],
-      );
+      await setupAndSendRegistration({ businessEmail: "admin@business.com" }, [
+        makeEntry({}, { email: "" }),
+      ]);
 
       expect(fetch.callCount()).toBe(1);
       const body = fetch.getFetchJsonBody();

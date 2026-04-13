@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  buildSvgTicketData,
-  buildTicketAttachments,
-} from "#lib/email.ts";
+import { buildSvgTicketData, buildTicketAttachments } from "#lib/email.ts";
 import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
 
 describeWithEnv("buildSvgTicketData", { db: true }, () => {
@@ -39,10 +36,7 @@ describeWithEnv("buildSvgTicketData", { db: true }, () => {
   });
 
   test("sets purchaseOnly from event flag", () => {
-    const data = buildSvgTicketData(
-      makeEntry({ purchase_only: true }),
-      "GBP",
-    );
+    const data = buildSvgTicketData(makeEntry({ purchase_only: true }), "GBP");
     expect(data.purchaseOnly).toBe(true);
   });
 
