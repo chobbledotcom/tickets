@@ -81,8 +81,28 @@ const prepareEvent = async (
   ] = await encryptBatch("", "", "", "", "", "", "");
 
   return {
-    sql: `INSERT INTO events (name, slug, slug_index, description, date, location, group_id, created, max_attendees, thank_you_url, unit_price, max_quantity, webhook_url, active, fields, closes_at, event_type, bookable_days, minimum_days_before, maximum_days_after, image_url, attachment_url, attachment_name, non_transferable)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO events (
+            name, slug, slug_index, description,
+            date, location, group_id, created,
+            max_attendees, thank_you_url,
+            unit_price, max_quantity, webhook_url,
+            active, fields, closes_at, event_type,
+            bookable_days, minimum_days_before,
+            maximum_days_after, image_url,
+            attachment_url, attachment_name,
+            non_transferable
+          )
+          VALUES (
+            ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?,
+            ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?,
+            ?, ?,
+            ?, ?,
+            ?
+          )`,
     args: [
       encName,
       encSlug,
@@ -145,12 +165,18 @@ const prepareAttendee = async (
 
   return [
     {
-      sql: `INSERT INTO attendees (created, price_paid, checked_in, ticket_token_index)
+      sql: `INSERT INTO attendees (
+              created, price_paid,
+              checked_in, ticket_token_index
+            )
             VALUES (?, ?, ?, ?)`,
       args: [created, encPricePaid, encCheckedIn, ticketTokenIndex],
     },
     {
-      sql: "INSERT INTO event_attendees (event_id, attendee_id, quantity) VALUES (?, last_insert_rowid(), ?)",
+      sql: `INSERT INTO event_attendees (
+              event_id, attendee_id, quantity
+            )
+            VALUES (?, last_insert_rowid(), ?)`,
       args: [eventId, quantity],
     },
   ];

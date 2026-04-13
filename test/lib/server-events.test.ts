@@ -3205,13 +3205,19 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       // Insert a stale reservation (older than 5 minutes)
       const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
       await getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql: `INSERT INTO processed_payments (
+                payment_session_id, attendee_id,
+                processed_at
+              )
+              VALUES (?, NULL, ?)`,
         args: ["cs_stale_admin_test", staleTime],
       });
 
       // Verify it exists
       const before = await getDb().execute({
-        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        sql: `SELECT *
+              FROM processed_payments
+              WHERE payment_session_id = ?`,
         args: ["cs_stale_admin_test"],
       });
       expect(before.rows.length).toBe(1);
@@ -3224,7 +3230,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       // Stale reservation should be cleaned up
       const after = await getDb().execute({
-        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        sql: `SELECT *
+              FROM processed_payments
+              WHERE payment_session_id = ?`,
         args: ["cs_stale_admin_test"],
       });
       expect(after.rows.length).toBe(0);
@@ -3239,7 +3247,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       // Insert a fresh reservation (just now)
       await getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql: `INSERT INTO processed_payments (
+                payment_session_id, attendee_id,
+                processed_at
+              )
+              VALUES (?, NULL, ?)`,
         args: ["cs_fresh_admin_test", new Date().toISOString()],
       });
 
@@ -3251,7 +3263,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       // Fresh reservation should still exist
       const after = await getDb().execute({
-        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        sql: `SELECT *
+              FROM processed_payments
+              WHERE payment_session_id = ?`,
         args: ["cs_fresh_admin_test"],
       });
       expect(after.rows.length).toBe(1);

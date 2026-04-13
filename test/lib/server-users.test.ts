@@ -172,7 +172,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const hash = await hashPassword("managerpass");
       const encHash = await encrypt(hash);
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+        sql: `INSERT INTO users (
+                username_hash, username_index,
+                password_hash, wrapped_data_key,
+                admin_level
+              )
               VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("manager"),
@@ -950,7 +954,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("no-expiry-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+        sql: `INSERT INTO users (
+                username_hash, username_index,
+                password_hash, wrapped_data_key,
+                admin_level, invite_code_hash,
+                invite_expiry
+              )
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("no-expiry-user"),
@@ -973,7 +982,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("badlevel-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+        sql: `INSERT INTO users (
+                username_hash, username_index,
+                password_hash, wrapped_data_key,
+                admin_level, invite_code_hash,
+                invite_expiry
+              )
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("badlevel-user"),
@@ -997,7 +1011,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const usernameIdx = await hmacHash("empty-expiry-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+        sql: `INSERT INTO users (
+                username_hash, username_index,
+                password_hash, wrapped_data_key,
+                admin_level, invite_code_hash,
+                invite_expiry
+              )
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("empty-expiry-user"),
@@ -1023,7 +1042,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { hmacHash } = await import("#lib/crypto/hashing.ts");
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+        sql: `INSERT INTO users (
+                username_hash, username_index,
+                password_hash, wrapped_data_key,
+                admin_level
+              )
               VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("formmanager"),

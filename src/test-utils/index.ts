@@ -164,7 +164,13 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     if (cachedSetupUsers) {
       for (const row of cachedSetupUsers) {
         await getClient().execute({
-          sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          sql: `INSERT INTO users (
+                  id, username_hash, username_index,
+                  password_hash, wrapped_data_key,
+                  admin_level, invite_code_hash,
+                  invite_expiry
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             row.id as InValue,
             row.username_hash as InValue,
@@ -210,7 +216,9 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
   // another worker invalidates the shared settings cache singleton).
   const session = await createDirectAdminSession();
   const sessionsResult = await getClient().execute(
-    "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions LIMIT 1",
+    `SELECT token, csrf_token, expires,
+            wrapped_data_key, user_id
+     FROM sessions LIMIT 1`,
   );
   if (sessionsResult.rows.length > 0) {
     const row = sessionsResult.rows[0] as Row;
@@ -933,7 +941,11 @@ export const getTestSession = async (): Promise<{
   if (cachedAdminSession) {
     const { sessionRow } = cachedAdminSession;
     await getDb().execute({
-      sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
+      sql: `INSERT INTO sessions (
+              token, csrf_token, expires,
+              wrapped_data_key, user_id
+            )
+            VALUES (?, ?, ?, ?, ?)`,
       args: [
         sessionRow.token,
         sessionRow.csrf_token,
@@ -2439,7 +2451,11 @@ export const createTestManagerSession = async (
     "user-key-placeholder",
   );
   await getDb().execute({
-    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+    sql: `INSERT INTO users (
+            username_hash, username_index,
+            password_hash, wrapped_data_key,
+            admin_level
+          )
           VALUES (?, ?, ?, ?, ?)`,
     args: [
       await enc(username),

@@ -183,12 +183,16 @@ describeWithEnv("db", { db: true }, () => {
     test("initDb drops legacy indexes not in declarative schema", async () => {
       // Create a legacy index that the declarative schema doesn't declare
       await getDb().execute(
-        "CREATE INDEX IF NOT EXISTS idx_attendees_legacy_created ON attendees(created)",
+        `CREATE INDEX IF NOT EXISTS
+         idx_attendees_legacy_created
+         ON attendees(created)`,
       );
 
       // Verify the legacy index exists
       const before = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_attendees_legacy_created'",
+        `SELECT name FROM sqlite_master
+         WHERE type = 'index'
+           AND name = 'idx_attendees_legacy_created'`,
       );
       expect(before.rows.length).toBe(1);
 
@@ -200,7 +204,9 @@ describeWithEnv("db", { db: true }, () => {
 
       // Legacy index should be dropped
       const after = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_attendees_legacy_created'",
+        `SELECT name FROM sqlite_master
+         WHERE type = 'index'
+           AND name = 'idx_attendees_legacy_created'`,
       );
       expect(after.rows.length).toBe(0);
     });
@@ -1356,7 +1362,10 @@ describeWithEnv("db", { db: true }, () => {
 
       // Verify all event_attendees rows for this attendee point to the correct attendee_id
       const rows = await getDb().execute({
-        sql: "SELECT attendee_id, event_id FROM event_attendees WHERE attendee_id = ? ORDER BY event_id",
+        sql: `SELECT attendee_id, event_id
+              FROM event_attendees
+              WHERE attendee_id = ?
+              ORDER BY event_id`,
         args: [attendeeId],
       });
       expect(rows.rows.length).toBe(2);
@@ -1889,7 +1898,10 @@ describeWithEnv("db", { db: true }, () => {
     test("isLoginRateLimited clears expired lockout", async () => {
       // Insert a record with expired lockout
       await getDb().execute({
-        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+        sql: `INSERT INTO login_attempts (
+                ip, attempts, locked_until
+              )
+              VALUES (?, ?, ?)`,
         args: ["192.168.1.6", 5, Date.now() - 1000],
       });
 
@@ -1901,7 +1913,10 @@ describeWithEnv("db", { db: true }, () => {
     test("isLoginRateLimited returns false for attempts below max without lockout", async () => {
       // Insert a record with some attempts but no lockout
       await getDb().execute({
-        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
+        sql: `INSERT INTO login_attempts (
+                ip, attempts, locked_until
+              )
+              VALUES (?, ?, NULL)`,
         args: ["192.168.1.7", 3],
       });
 
@@ -2535,7 +2550,10 @@ describeWithEnv("db", { db: true }, () => {
     test("isLoginRateLimited resets expired lockout and returns false", async () => {
       // Insert a record with locked_until in the past
       await getDb().execute({
-        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+        sql: `INSERT INTO login_attempts (
+                ip, attempts, locked_until
+              )
+              VALUES (?, ?, ?)`,
         args: ["expired-ip-hash", 5, Date.now() - 60000],
       });
 
@@ -2552,7 +2570,9 @@ describeWithEnv("db", { db: true }, () => {
 
       // Simulate expired lockout by manipulating the DB directly
       await getDb().execute({
-        sql: "UPDATE login_attempts SET locked_until = ? WHERE locked_until IS NOT NULL",
+        sql: `UPDATE login_attempts
+              SET locked_until = ?
+              WHERE locked_until IS NOT NULL`,
         args: [Date.now() - 1000],
       });
 
@@ -2615,7 +2635,11 @@ describeWithEnv("db", { db: true }, () => {
         nowMs() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
       await getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql: `INSERT INTO processed_payments (
+                payment_session_id, attendee_id,
+                processed_at
+              )
+              VALUES (?, NULL, ?)`,
         args: ["sess_stale", oldTimestamp],
       });
 
@@ -2654,7 +2678,11 @@ describeWithEnv("db", { db: true }, () => {
         nowMs() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
       await getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql: `INSERT INTO processed_payments (
+                payment_session_id, attendee_id,
+                processed_at
+              )
+              VALUES (?, NULL, ?)`,
         args: ["sess_race", oldTimestamp],
       });
 
@@ -3052,8 +3080,13 @@ describeWithEnv("db", { db: true }, () => {
 
       // Simulate pre-migration state: set checked_in to empty string directly
       await getDb().execute({
-        sql: `UPDATE attendees SET checked_in = ''
-              WHERE id IN (SELECT attendee_id FROM event_attendees WHERE event_id = ?)`,
+        sql: `UPDATE attendees
+              SET checked_in = ''
+              WHERE id IN (
+                SELECT attendee_id
+                FROM event_attendees
+                WHERE event_id = ?
+              )`,
         args: [event.id],
       });
 
@@ -3759,7 +3792,9 @@ describe("event_attendees migration from legacy schema", () => {
       price_paid_v2 INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (event_id) REFERENCES events(id)
     )`,
-    "CREATE UNIQUE INDEX idx_attendees_ticket_token_index ON attendees(ticket_token_index)",
+    `CREATE UNIQUE INDEX
+     idx_attendees_ticket_token_index
+     ON attendees(ticket_token_index)`,
     `CREATE TABLE processed_payments (
       payment_session_id TEXT PRIMARY KEY,
       attendee_id INTEGER,
@@ -3821,7 +3856,9 @@ describe("event_attendees migration from legacy schema", () => {
       FOREIGN KEY (question_id) REFERENCES questions(id)
     )`,
     "CREATE INDEX idx_event_questions_event_id ON event_questions(event_id)",
-    "CREATE UNIQUE INDEX idx_event_questions_unique ON event_questions(event_id, question_id)",
+    `CREATE UNIQUE INDEX
+     idx_event_questions_unique
+     ON event_questions(event_id, question_id)`,
     `CREATE TABLE built_sites (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       site_data TEXT NOT NULL,
@@ -3834,9 +3871,13 @@ describe("event_attendees migration from legacy schema", () => {
       FOREIGN KEY (attendee_id) REFERENCES attendees(id),
       FOREIGN KEY (answer_id) REFERENCES answers(id)
     )`,
-    "CREATE INDEX idx_attendee_answers_attendee_id ON attendee_answers(attendee_id)",
-    "CREATE INDEX idx_attendee_answers_answer_id ON attendee_answers(answer_id)",
-    "CREATE UNIQUE INDEX idx_attendee_answers_unique ON attendee_answers(attendee_id, answer_id)",
+    `CREATE INDEX idx_attendee_answers_attendee_id
+     ON attendee_answers(attendee_id)`,
+    `CREATE INDEX idx_attendee_answers_answer_id
+     ON attendee_answers(answer_id)`,
+    `CREATE UNIQUE INDEX
+     idx_attendee_answers_unique
+     ON attendee_answers(attendee_id, answer_id)`,
   ];
 
   /** Create the legacy schema and return the client */
@@ -3891,15 +3932,35 @@ describe("event_attendees migration from legacy schema", () => {
 
     // Insert legacy data: event with a date, attendee, and a processed payment
     await client.execute(
-      "INSERT INTO events (id, created, max_attendees, name) VALUES (1, '2024-01-01T00:00:00Z', 100, 'Test Event')",
+      `INSERT INTO events (
+        id, created, max_attendees, name
+      )
+      VALUES (
+        1, '2024-01-01T00:00:00Z',
+        100, 'Test Event'
+      )`,
     );
     await client.execute(
-      `INSERT INTO attendees (id, event_id, name, email, created, quantity, date, checked_in_v2, refunded_v2, price_paid_v2)
-       VALUES (1, 1, 'Test User', 'test@example.com', '2024-01-01T00:00:00Z', 2, '2024-06-15', 0, 0, 1000)`,
+      `INSERT INTO attendees (
+        id, event_id, name, email, created,
+        quantity, date, checked_in_v2,
+        refunded_v2, price_paid_v2
+      )
+      VALUES (
+        1, 1, 'Test User', 'test@example.com',
+        '2024-01-01T00:00:00Z', 2,
+        '2024-06-15', 0, 0, 1000
+      )`,
     );
     await client.execute(
-      `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
-       VALUES ('ps_test_123', 1, '2024-01-01T00:00:00Z')`,
+      `INSERT INTO processed_payments (
+        payment_session_id, attendee_id,
+        processed_at
+      )
+      VALUES (
+        'ps_test_123', 1,
+        '2024-01-01T00:00:00Z'
+      )`,
     );
 
     // Simulate production: PRAGMA foreign_keys=OFF doesn't work
