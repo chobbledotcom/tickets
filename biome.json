@@ -4,9 +4,17 @@
     "includes": ["**/*.js", "**/*.ts", "**/*.tsx"],
     "ignoreUnknown": true
   },
+  "assist": {
+    "actions": {
+      "source": {
+        "useSortedKeys": "on"
+      }
+    }
+  },
   "formatter": {
     "indentStyle": "space",
-    "indentWidth": 2
+    "indentWidth": 2,
+    "lineWidth": 80
   },
   "linter": {
     "enabled": true,

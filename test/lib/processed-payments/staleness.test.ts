@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, insert } from "#lib/db/client.ts";
 import {
   deleteAllStaleReservations,
   deleteStaleReservation,
@@ -74,13 +74,15 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
 
   describe("deleteAllStaleReservations", () => {
     const insertStale = (sessionId: string) =>
-      getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
-        args: [
-          sessionId,
-          new Date(Date.now() - STALE_RESERVATION_MS - 1000).toISOString(),
-        ],
-      });
+      getDb().execute(
+        insert("processed_payments", {
+          payment_session_id: sessionId,
+          attendee_id: null,
+          processed_at: new Date(
+            Date.now() - STALE_RESERVATION_MS - 1000,
+          ).toISOString(),
+        }),
+      );
 
     test("deletes all stale unfinalized reservations", async () => {
       await insertStale("cs_stale_bulk_1");
@@ -99,14 +101,15 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     });
 
     test("does not delete finalized reservations regardless of age", async () => {
-      await getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, ?, ?)",
-        args: [
-          "cs_finalized_bulk",
-          attendeeId,
-          new Date(Date.now() - STALE_RESERVATION_MS - 1000).toISOString(),
-        ],
-      });
+      await getDb().execute(
+        insert("processed_payments", {
+          payment_session_id: "cs_finalized_bulk",
+          attendee_id: attendeeId,
+          processed_at: new Date(
+            Date.now() - STALE_RESERVATION_MS - 1000,
+          ).toISOString(),
+        }),
+      );
 
       expect(await deleteAllStaleReservations()).toBe(0);
       expect((await isSessionProcessed("cs_finalized_bulk"))?.attendee_id).toBe(

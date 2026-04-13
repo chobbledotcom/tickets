@@ -8,7 +8,7 @@
 
 import { filter, map, reduce } from "#fp";
 import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
-import { executeBatch } from "#lib/db/client.ts";
+import { executeBatch, insert } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import {
@@ -361,22 +361,18 @@ export const applyAttendeeMerge = async (
   const deleteTargetBookingStatements: BatchStatement[] = [];
 
   /** Build an INSERT statement to copy a source booking to the target */
-  const bookingInsert = (booking: EventAttendeeRow): BatchStatement => ({
-    sql: `INSERT INTO event_attendees
-            (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      booking.event_id,
-      targetId,
-      booking.start_at,
-      booking.end_at,
-      booking.quantity,
-      booking.checked_in,
-      booking.refunded,
-      booking.price_paid,
-      booking.attachment_downloads,
-    ],
-  });
+  const bookingInsert = (booking: EventAttendeeRow): BatchStatement =>
+    insert("event_attendees", {
+      event_id: booking.event_id,
+      attendee_id: targetId,
+      start_at: booking.start_at,
+      end_at: booking.end_at,
+      quantity: booking.quantity,
+      checked_in: booking.checked_in,
+      refunded: booking.refunded,
+      price_paid: booking.price_paid,
+      attachment_downloads: booking.attachment_downloads,
+    }) as BatchStatement;
 
   for (const item of diff.bookingItems) {
     const choice = decision.bookings[itemBookingKey(item)];

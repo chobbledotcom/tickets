@@ -12,7 +12,13 @@
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
 import { wrapKeyWithToken } from "#lib/crypto/keys.ts";
-import { deleteByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
+import {
+  deleteByField,
+  getDb,
+  insert,
+  queryAll,
+  queryOne,
+} from "#lib/db/client.ts";
 import { nowIso } from "#lib/now.ts";
 import type { ApiKey } from "#lib/types.ts";
 
@@ -32,11 +38,16 @@ export const createApiKey = async (
   const wrappedDataKey = await wrapKeyWithToken(dataKey, apiKey);
   const encryptedName = await encrypt(name);
 
-  const result = await getDb().execute({
-    sql: `INSERT INTO api_keys (user_id, key_index, wrapped_data_key, name, created, last_used)
-          VALUES (?, ?, ?, ?, ?, '')`,
-    args: [userId, keyIndex, wrappedDataKey, encryptedName, nowIso()],
-  });
+  const result = await getDb().execute(
+    insert("api_keys", {
+      user_id: userId,
+      key_index: keyIndex,
+      wrapped_data_key: wrappedDataKey,
+      name: encryptedName,
+      created: nowIso(),
+      last_used: "",
+    }),
+  );
 
   return { apiKey, id: Number(result.lastInsertRowid) };
 };

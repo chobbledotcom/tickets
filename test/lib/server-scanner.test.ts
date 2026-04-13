@@ -187,8 +187,12 @@ const orphanAttendee = async (token: string) => {
   const tokenIndex = await computeTicketTokenIndex(token);
   await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
   await getDb().execute({
-    sql: `UPDATE event_attendees SET event_id = 99999
-          WHERE attendee_id = (SELECT id FROM attendees WHERE ticket_token_index = ?)`,
+    sql: `UPDATE event_attendees
+          SET event_id = 99999
+          WHERE attendee_id = (
+            SELECT id FROM attendees
+            WHERE ticket_token_index = ?
+          )`,
     args: [tokenIndex],
   });
   return { getDb };

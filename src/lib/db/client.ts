@@ -129,3 +129,51 @@ export const executeBatch = async (
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
 export const inPlaceholders = (values: readonly unknown[]): string =>
   values.map(() => "?").join(", ");
+
+/** Sentinel for raw SQL expressions in insert() values */
+const RAW_SQL = Symbol("raw-sql");
+type RawSql = { [RAW_SQL]: string };
+
+/** Embed a raw SQL expression (e.g. `last_insert_rowid()`) */
+export const rawSql = (expr: string): RawSql => ({ [RAW_SQL]: expr }) as RawSql;
+
+/**
+ * Build an INSERT statement from a table name and column→value record.
+ *
+ * ```ts
+ * insert("users", { name: "Alice", admin_level: encLevel })
+ * // → { sql: "INSERT INTO users (name, admin_level) VALUES (?, ?)",
+ * //     args: ["Alice", encLevel] }
+ *
+ * insert("event_attendees", {
+ *   event_id: 1,
+ *   attendee_id: rawSql("last_insert_rowid()"),
+ *   quantity: 2,
+ * })
+ * // → { sql: "INSERT INTO event_attendees (...) VALUES (?, last_insert_rowid(), ?)",
+ * //     args: [1, 2] }
+ * ```
+ */
+export const insert = (
+  table: string,
+  values: Record<string, InValue | RawSql>,
+): { sql: string; args: InValue[] } => {
+  const columns: string[] = [];
+  const placeholders: string[] = [];
+  const args: InValue[] = [];
+
+  for (const [col, val] of Object.entries(values)) {
+    columns.push(col);
+    if (val !== null && typeof val === "object" && RAW_SQL in val) {
+      placeholders.push(val[RAW_SQL]);
+    } else {
+      placeholders.push("?");
+      args.push(val as InValue);
+    }
+  }
+
+  return {
+    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`,
+    args,
+  };
+};
