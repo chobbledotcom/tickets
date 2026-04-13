@@ -14,7 +14,7 @@
  */
 
 import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { getDb, queryOne } from "#lib/db/client.ts";
+import { getDb, insert, queryOne } from "#lib/db/client.ts";
 import { STALE_RESERVATION_MS } from "#lib/limits.ts";
 import { nowIso, nowMs } from "#lib/now.ts";
 
@@ -90,10 +90,13 @@ export const reserveSession = async (
   sessionId: string,
 ): Promise<ReserveSessionResult> => {
   try {
-    await getDb().execute({
-      sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
-      args: [sessionId, nowIso()],
-    });
+    await getDb().execute(
+      insert("processed_payments", {
+        payment_session_id: sessionId,
+        attendee_id: null,
+        processed_at: nowIso(),
+      }),
+    );
     return { reserved: true };
   } catch (e) {
     const errorMsg = String(e);

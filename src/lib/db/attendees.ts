@@ -25,6 +25,7 @@ import {
   executeBatchWithResults,
   getDb,
   inPlaceholders,
+  insert,
   queryAll,
   queryOne,
 } from "#lib/db/client.ts";
@@ -681,11 +682,11 @@ export const attendeesApi = {
     // If all capacity checks fail, the attendee is cleaned up in the final step.
     const batchResults = await executeBatchWithResults([
       // Step 1: Create attendee record (unconditional)
-      {
-        sql: `INSERT INTO attendees (created, ticket_token_index, pii_blob)
-              VALUES (?, ?, ?)`,
-        args: [enc.created, enc.ticketTokenIndex, enc.encryptedPiiBlob],
-      },
+      insert("attendees", {
+        created: enc.created,
+        ticket_token_index: enc.ticketTokenIndex,
+        pii_blob: enc.encryptedPiiBlob,
+      }),
       // Steps 2..N+1: One capacity-checked INSERT per booking
       ...bookingStatements,
       // Final step: Clean up attendee if no event links were created

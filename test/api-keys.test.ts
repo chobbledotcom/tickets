@@ -16,7 +16,7 @@ import {
   getApiKeysForUser,
   touchApiKeyLastUsed,
 } from "#lib/db/api-keys.ts";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, insert } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
@@ -580,11 +580,16 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       // Disable FK checks to insert an orphaned API key row
       await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
-      await getDb().execute({
-        sql: `INSERT INTO api_keys (user_id, key_index, wrapped_data_key, name, created, last_used)
-              VALUES (?, ?, ?, ?, ?, '')`,
-        args: [9999, keyIndex, "dummy", "Ghost", new Date().toISOString()],
-      });
+      await getDb().execute(
+        insert("api_keys", {
+          user_id: 9999,
+          key_index: keyIndex,
+          wrapped_data_key: "dummy",
+          name: "Ghost",
+          created: new Date().toISOString(),
+          last_used: "",
+        }),
+      );
       await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
 
       const response = await handleRequest(
