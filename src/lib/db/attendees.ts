@@ -258,7 +258,7 @@ const contactFields = ({
 });
 
 /** Encrypt attendee fields into a PII blob, returning null if key not configured */
-const encryptAttendeeFields = async (
+export const encryptAttendeeFields = async (
   input: EncryptInput,
 ): Promise<EncryptedAttendeeData | null> => {
   const publicKeyJwk = settings.publicKey;

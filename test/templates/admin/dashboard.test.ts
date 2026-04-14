@@ -47,13 +47,6 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("Add Event");
   });
 
-  test("renders admin notice about April 6-12 quantity bug", () => {
-    const html = adminDashboardPage([], TEST_SESSION);
-    expect(html).toContain("Note from Stef");
-    expect(html).toContain("April 6th");
-    expect(html).toContain("hello@chobble.com");
-  });
-
   test("includes logout link", () => {
     const html = adminDashboardPage([], TEST_SESSION);
     expect(html).toContain("/admin/logout");

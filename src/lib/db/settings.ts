@@ -441,6 +441,13 @@ const completeSetup = async (
   await writeRaw(CONFIG_KEYS.PUBLIC_KEY, publicKey);
   await writeRaw(CONFIG_KEYS.COUNTRY, country);
   await writeRaw(CONFIG_KEYS.SETUP_COMPLETE, "true");
+  // Keep the in-memory snapshot in sync with the freshly-written rows so the
+  // next request doesn't read stale defaults while the raw cache is still
+  // valid (loadAll short-circuits for up to SETTINGS_CACHE_TTL_MS).
+  setSnapshotField(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
+  setSnapshotField(CONFIG_KEYS.PUBLIC_KEY, publicKey);
+  data.country = country;
+  applyCountryDerived(getCountry(country));
 };
 
 // ---------------------------------------------------------------------------

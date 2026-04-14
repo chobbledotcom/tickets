@@ -3,6 +3,7 @@
  */
 
 import { CsrfForm, Flash } from "#lib/forms.tsx";
+import { SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -41,7 +42,7 @@ export const adminSeedsPage = (
           name="attendees_per_event"
           value="10"
           min="0"
-          max="1000"
+          max={String(SEED_MAX_ATTENDEES)}
           required
         />
 
