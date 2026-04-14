@@ -127,7 +127,9 @@ const prepareAttendee = async (
   unitPrice: number,
 ) => {
   const pricePaid = unitPrice * quantity;
-  const enc = await encryptAttendeeFields({
+  // createSeeds guards on settings.publicKey before calling prepareAttendee,
+  // so encryptAttendeeFields cannot return null here.
+  const enc = (await encryptAttendeeFields({
     address: randomChoice(DEMO_ADDRESSES),
     email: randomChoice(DEMO_EMAILS),
     name: randomChoice(DEMO_NAMES),
@@ -135,8 +137,7 @@ const prepareAttendee = async (
     phone: randomChoice(DEMO_PHONES),
     pricePaid,
     special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),
-  });
-  if (!enc) throw new Error("Public key not configured");
+  }))!;
 
   return [
     insert("attendees", {
