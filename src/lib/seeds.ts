@@ -25,7 +25,7 @@ import { nowIso } from "#lib/now.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#lib/slug.ts";
 
 /** Max attendees per seeded event */
-export const SEED_MAX_ATTENDEES = 1000;
+export const SEED_MAX_ATTENDEES = 100_000;
 
 /** Pick a random ticket quantity (1-4) */
 const randomQuantity = (): number => 1 + Math.floor(Math.random() * 4);

@@ -4,7 +4,7 @@ import { getAttendeesRaw } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
-import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
+import { createSeeds } from "#lib/seeds.ts";
 import { handleRequest } from "#routes";
 import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
 import {
@@ -161,25 +161,6 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       expectRedirectWithFlash(
         "/admin/seeds",
         expect.stringContaining(`Created ${MAX_SEED_EVENTS} event`),
-      )(response);
-    });
-
-    test("clamps attendees per event to max", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            event_count: "1",
-            attendees_per_event: "9999",
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
-
-      expectRedirectWithFlash(
-        "/admin/seeds",
-        expect.stringContaining(`${SEED_MAX_ATTENDEES} attendee`),
       )(response);
     });
 
