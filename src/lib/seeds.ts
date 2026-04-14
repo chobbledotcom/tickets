@@ -5,16 +5,20 @@
 
 import { map, reduce } from "#fp";
 import { encrypt } from "#lib/crypto/encryption.ts";
-import { computeTicketTokenIndex, hmacHash } from "#lib/crypto/hashing.ts";
-import { encryptAttendeePII } from "#lib/crypto/keys.ts";
-import { generateTicketToken } from "#lib/crypto/utils.ts";
+import { hmacHash } from "#lib/crypto/hashing.ts";
+import { encryptAttendeeFields } from "#lib/db/attendees.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
+  DEMO_ADDRESSES,
+  DEMO_EMAILS,
   DEMO_EVENT_DESCRIPTIONS,
   DEMO_EVENT_LOCATIONS,
   DEMO_EVENT_NAMES,
+  DEMO_NAMES,
+  DEMO_PHONES,
+  DEMO_SPECIAL_INSTRUCTIONS,
   randomChoice,
 } from "#lib/demo.ts";
 import { nowIso } from "#lib/now.ts";
@@ -116,39 +120,34 @@ const prepareEvent = async (
   });
 };
 
-/** Encrypt a single PII value, curried over the public key */
-const piiEncryptor = (publicKeyJwk: string) => (value: string) =>
-  encryptAttendeePII(value, publicKeyJwk);
-
 /** Prepare encrypted values for a single attendee */
 const prepareAttendee = async (
   eventId: number,
-  publicKeyJwk: string,
   quantity: number,
   unitPrice: number,
 ) => {
-  const encPII = piiEncryptor(publicKeyJwk);
-  const ticketToken = generateTicketToken();
-  const created = nowIso();
-  const pricePaid = String(unitPrice * quantity);
-
-  // Encrypt status fields and compute token index in parallel
-  const [encPricePaid, encCheckedIn, ticketTokenIndex] = await Promise.all([
-    encrypt(pricePaid),
-    encPII("false"),
-    computeTicketTokenIndex(ticketToken),
-  ]);
+  const pricePaid = unitPrice * quantity;
+  const enc = await encryptAttendeeFields({
+    address: randomChoice(DEMO_ADDRESSES),
+    email: randomChoice(DEMO_EMAILS),
+    name: randomChoice(DEMO_NAMES),
+    paymentId: "",
+    phone: randomChoice(DEMO_PHONES),
+    pricePaid,
+    special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),
+  });
+  if (!enc) throw new Error("Public key not configured");
 
   return [
     insert("attendees", {
-      created,
-      price_paid: encPricePaid,
-      checked_in: encCheckedIn,
-      ticket_token_index: ticketTokenIndex,
+      created: enc.created,
+      pii_blob: enc.encryptedPiiBlob,
+      ticket_token_index: enc.ticketTokenIndex,
     }),
     insert("event_attendees", {
-      event_id: eventId,
       attendee_id: rawSql("last_insert_rowid()"),
+      event_id: eventId,
+      price_paid: pricePaid,
       quantity,
     }),
   ];
@@ -169,8 +168,7 @@ export const createSeeds = async (
   eventCount: number,
   attendeesPerEvent: number,
 ): Promise<SeedResult> => {
-  const publicKeyJwk = settings.publicKey;
-  if (!publicKeyJwk) throw new Error("Public key not configured");
+  if (!settings.publicKey) throw new Error("Public key not configured");
 
   // Build structured event data: quantities, capacity, price, and slug per event
   const slugs = await generateUniqueSlugs(eventCount);
@@ -220,9 +218,9 @@ export const createSeeds = async (
       const batchSize = Math.min(CHUNK_SIZE, attendeesPerEvent - offset);
       const chunkQuantities = quantities.slice(offset, offset + batchSize);
       const statementPairs = await Promise.all(
-        map((q: number) =>
-          prepareAttendee(eventId, publicKeyJwk, q, unitPrice),
-        )(chunkQuantities),
+        map((q: number) => prepareAttendee(eventId, q, unitPrice))(
+          chunkQuantities,
+        ),
       );
       // Each pair is [attendee INSERT, event_attendees INSERT] — flatten in order
       // so each event_attendees INSERT follows its attendee (last_insert_rowid works)

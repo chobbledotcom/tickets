@@ -79,31 +79,35 @@ describe("e2e: seeded attendee views", () => {
     }
     expect(browser.containsText("Add Event")).toBe(true);
 
-    // 3. Seed 1 event with 1 attendee via /admin/seeds
+    // 3. Seed 2 events with 1 attendee each via /admin/seeds.
+    //    Even-indexed events get a random unit_price, odd-indexed ones are
+    //    free. The free event surfaces an Edit link for the attendee in the
+    //    main table; paid-event attendees without a payment_id land in the
+    //    Failed Payments table instead (which has no Edit link).
     await browser.visit("/admin/seeds");
     expect(browser.containsText("Seed Data")).toBe(true);
     await browser.submitForm(
-      { attendees_per_event: "1", event_count: "1" },
+      { attendees_per_event: "1", event_count: "2" },
       "Create Seed Data",
     );
     expect(
-      browser.containsText("Created 1 event(s) with 1 attendee(s) total"),
+      browser.containsText("Created 2 event(s) with 2 attendee(s) total"),
     ).toBe(true);
 
     // 4. Visit the admin dashboard — must not crash decrypting seeded attendees
-    const seededEventName = DEMO_EVENT_NAMES[0]!;
     await browser.visit("/admin");
-    expect(browser.containsText(seededEventName)).toBe(true);
+    const freeEventName = DEMO_EVENT_NAMES[1]!;
+    expect(browser.containsText(freeEventName)).toBe(true);
 
-    // 5. Navigate to the event page by clicking the event name
-    await browser.clickLink(seededEventName);
+    // 5. Navigate to the free event's page
+    await browser.clickLink(freeEventName);
     expect(browser.currentUrl).toMatch(/^\/admin\/event\/\d+$/);
-    expect(browser.containsText(seededEventName)).toBe(true);
+    expect(browser.containsText(freeEventName)).toBe(true);
 
     // 6. Navigate to the attendee's edit page via the "Edit" link in the
     //    attendee table. The link href is /admin/attendees/:id.
     const editLink = browser.links.find((l) =>
-      /^\/admin\/attendees\/\d+/.test(l.href)
+      /^\/admin\/attendees\/\d+/.test(l.href),
     );
     expect(editLink).toBeTruthy();
     await browser.visit(editLink!.href);
