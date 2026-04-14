@@ -2885,4 +2885,35 @@ export const useFetchStub = () => {
   };
 };
 
+/**
+ * Derive the admin user's RSA private key for decrypting test attendee data.
+ * Uses dynamic imports to avoid circular dependencies between test-utils and
+ * the modules it imports via higher-level helpers.
+ */
+export const getTestPrivateKey = async (): Promise<CryptoKey> => {
+  const { decryptWithKey } = await import("#lib/crypto/encryption.ts");
+  const { deriveKEK, importPrivateKey, unwrapKey } = await import(
+    "#lib/crypto/keys.ts"
+  );
+  const { getUserByUsername, verifyUserPassword } = await import(
+    "#lib/db/users.ts"
+  );
+
+  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+  if (!user) throw new Error("Test setup failed: user not found");
+  const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
+  if (!passwordHash) throw new Error("Test setup failed: invalid password");
+  if (!user.wrapped_data_key) {
+    throw new Error("Test setup failed: no wrapped data key");
+  }
+  const kek = await deriveKEK(passwordHash);
+  const dataKey = await unwrapKey(user.wrapped_data_key, kek);
+  const wrappedPrivateKey = settings.wrappedPrivateKey;
+  if (!wrappedPrivateKey) {
+    throw new Error("Test setup failed: no wrapped private key");
+  }
+  const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
+  return importPrivateKey(privateKeyJwk);
+};
+
 export { TestBrowser } from "#test-utils/test-browser.ts";

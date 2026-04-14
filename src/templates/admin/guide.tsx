@@ -1355,6 +1355,21 @@ export const adminGuidePage = (
           </p>
         </Q>
 
+        <Q q="What happens when I change my password?">
+          <p>
+            Changing your password <strong>ends every active session</strong>
+            {" "}
+            for your account &mdash; you and anyone else signed in as you will
+            be logged out and must sign in again with the new password.
+          </p>
+          <p>
+            Your existing attendee data remains fully accessible. The
+            encryption key is re-secured with the new password, so every
+            record created before the change can still be decrypted after you
+            log back in.
+          </p>
+        </Q>
+
         <Q q="How do I log out other users?">
           <p>
             On the <strong>Sessions</strong> page, click "Log out of all other
