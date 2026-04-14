@@ -476,6 +476,32 @@ describeWithEnv("db", { db: true }, () => {
       expect(settings.wrappedPrivateKey).toBeTruthy();
     });
 
+    test("completeSetup updates snapshot so wrappedPrivateKey is readable without invalidation", async () => {
+      // Regression: previously completeSetup only updated the raw entries
+      // cache, leaving the snapshot holding default "" values. Because
+      // loadAll() short-circuits while the 60s TTL is valid, the first
+      // GET /admin after setup would see settings.wrappedPrivateKey === ""
+      // and throw SessionKeyError ("Private key unavailable for session").
+      await getDb().execute("DELETE FROM users");
+      await getDb().execute("DELETE FROM settings");
+      // Prime the snapshot with a fresh loadAll so the cache is valid and
+      // contains default empty values for wrapped_private_key/public_key.
+      settings.invalidateCache();
+      await settings.loadAll();
+      expect(settings.wrappedPrivateKey).toBe("");
+      expect(settings.publicKey).toBe("");
+
+      await settings.setup.complete("setupuser", "mypassword", "US");
+
+      // Do NOT invalidate or reload — the snapshot should already reflect the
+      // values just written, since subsequent requests rely on loadAll() being
+      // a no-op while the cache is still valid.
+      expect(settings.wrappedPrivateKey).toBeTruthy();
+      expect(settings.publicKey).toBeTruthy();
+      expect(settings.country).toBe("US");
+      expect(settings.currency).toBe("USD");
+    });
+
     test("isComplete reloads cache when it has expired", async () => {
       settings.invalidateCache();
       // Cache is now invalid; isComplete should reload it from the DB
