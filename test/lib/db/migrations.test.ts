@@ -13,9 +13,11 @@ import { settings } from "#lib/db/settings.ts";
 import {
   createTestEvent,
   describeWithEnv,
+  installUrlHandler,
   invalidateTestDbCache,
   setTestEnv,
   TEST_ADMIN_PASSWORD,
+  withFetchMock,
 } from "#test-utils";
 
 describeWithEnv("db > migrations", { db: true }, () => {
@@ -159,7 +161,16 @@ describeWithEnv("db > migrations", { db: true }, () => {
         await getDb().execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
         );
-        await expect(initDb()).rejects.toThrow();
+        await withFetchMock(async (originalFetch) => {
+          // Reject Bunny storage upload calls at the network layer. We can't
+          // return a non-ok Response here: the Bunny SDK throws on !response.ok
+          // without consuming the body, which trips Deno's resource sanitizer.
+          installUrlHandler(originalFetch, (url) =>
+            url.includes("bunnycdn.com") || url.includes("b-cdn.net")
+              ? Promise.reject(new Error("forced upload failure"))
+              : null);
+          await expect(initDb()).rejects.toThrow();
+        });
 
         const result = await getDb().execute(
           "SELECT value FROM settings WHERE key = 'db_schema_hash'",
