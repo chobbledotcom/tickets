@@ -17,7 +17,3 @@ const md = new Marked({
 /** Render markdown to HTML (block-level: paragraphs, lists, etc.). Raw HTML is escaped. */
 export const renderMarkdown = (text: string): string =>
   md.parse(text) as string;
-
-/** Render markdown to inline HTML (no wrapping <p> tags). Raw HTML is escaped. */
-export const renderMarkdownInline = (text: string): string =>
-  md.parseInline(text) as string;

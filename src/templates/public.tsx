@@ -15,7 +15,7 @@ import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
 import { getIframeMode } from "#lib/iframe.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
+import { renderMarkdown } from "#lib/markdown.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import {
   type EventFields,
@@ -58,8 +58,8 @@ const PublicNav = ({
 
 /** Compute which public pages have content */
 const navFlags = () => ({
-  hasTerms: !!settings.terms,
   hasContact: !!settings.contactPageText,
+  hasTerms: !!settings.terms,
 });
 
 /** Public site page type */
@@ -74,9 +74,9 @@ export const publicSitePage = (
   content?: string | null,
 ): string => {
   const titles: Record<PublicPageType, string> = {
+    contact: "Contact",
     home: "Home",
     terms: "Terms & Conditions",
-    contact: "Contact",
   };
   const pageTitle = websiteTitle
     ? `${titles[pageType]} - ${websiteTitle}`
@@ -114,7 +114,7 @@ const renderEventListing = (info: TicketEvent): string => {
     ? `<p><strong>${escapeHtml(event.location)}</strong></p>`
     : "";
   const descriptionHtml = event.description
-    ? `<p>${renderMarkdownInline(event.description)}</p>`
+    ? renderMarkdown(event.description)
     : "";
   const bookLabel = event.purchase_only ? "Buy now" : "Book now";
   const linkHtml = isSoldOut
@@ -129,7 +129,7 @@ const renderEventListing = (info: TicketEvent): string => {
 /** Render a single group listing for the events page (same style as events) */
 const renderGroupListing = (group: Group): string => {
   const descriptionHtml = group.description
-    ? renderMarkdownInline(group.description)
+    ? renderMarkdown(group.description)
     : "";
   const linkHtml = isReadOnly()
     ? "<p><strong>Registration Closed</strong></p>"
@@ -343,13 +343,13 @@ export const buildTicketEvent = (
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable =
     isSoldOut || closed ? 0 : Math.min(event.max_quantity, spotsRemaining);
-  return { event, isSoldOut, isClosed: closed, maxPurchasable };
+  return { event, isClosed: closed, isSoldOut, maxPurchasable };
 };
 
 /** Render description HTML for event row */
 const renderEventDescription = (description: string): string =>
   description
-    ? `<div class="description-compact">${renderMarkdownInline(description)}</div>`
+    ? `<div class="description-compact">${renderMarkdown(description)}</div>`
     : "";
 
 /** Render quantity selector for an event row */
@@ -501,7 +501,7 @@ export const ticketPage = ({
             <h1>{headerName}</h1>
             {headerDescription && (
               <div class="description">
-                <Raw html={renderMarkdownInline(headerDescription)} />
+                <Raw html={renderMarkdown(headerDescription)} />
               </div>
             )}
             {singleEvent?.date && (
