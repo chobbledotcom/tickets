@@ -52,7 +52,7 @@ body:not(:has(#main-nav)) {
 
 [data-theme="dark"] body {
   background: #23062b;
-  background: linear-gradient(342deg, rgb(16, 2, 19) 0%, rgb(5, 5, 61) 35%, rgb(22, 1, 23) 100%);
+  background: linear-gradient(342deg, #100213, #20202b 35%, #160117);
   background-size: 100% 100%;
   background-attachment: fixed;
 }
