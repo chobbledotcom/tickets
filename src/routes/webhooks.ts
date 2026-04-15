@@ -272,36 +272,24 @@ const validateAndPrice = async (
     includeEventName,
   );
   if (!validation.ok) return validation;
-  // Daily events with duration_days > 1 charge per-day × duration × qty.
-  const durationMultiplier =
-    validation.event.event_type === "daily"
-      ? Math.max(1, validation.event.duration_days)
-      : 1;
-  const expectedPrice =
-    validation.event.unit_price * input.quantity * durationMultiplier;
+  const expectedPrice = validation.event.unit_price * input.quantity;
   return { event: validation.event, expectedPrice, ok: true };
 };
 
 /** Check if the amount charged matches the current event price (including booking fee).
  * For pay-more events, the amount must be >= the expected minimum price and <= the max cap.
- * `quantity` scales max_price so purchases are validated against the correct total cap.
- * For multi-day daily events, max_price is a per-day cap that scales with duration. */
+ * `quantity` scales max_price so purchases are validated against the correct total cap. */
 const hasPriceMismatch = (
   amountTotal: number,
   expectedPrice: number,
-  event: Pick<
-    EventWithCount,
-    "can_pay_more" | "max_price" | "event_type" | "duration_days"
-  >,
+  event: Pick<EventWithCount, "can_pay_more" | "max_price">,
   bookingFeePercent: number,
   quantity: number,
 ): boolean => {
-  const durationMultiplier =
-    event.event_type === "daily" ? Math.max(1, event.duration_days) : 1;
   if (event.can_pay_more) {
     const minWithFee =
       expectedPrice + calculateBookingFee(expectedPrice, bookingFeePercent);
-    const maxTicketTotal = event.max_price * quantity * durationMultiplier;
+    const maxTicketTotal = event.max_price * quantity;
     const maxWithFee =
       maxTicketTotal + calculateBookingFee(maxTicketTotal, bookingFeePercent);
     return amountTotal < minWithFee || amountTotal > maxWithFee;

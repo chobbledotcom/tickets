@@ -126,16 +126,6 @@ export const checkAvailability = (
   );
 
 /**
- * Duration multiplier for a booking. Per-day pricing × duration days gives the
- * total charged per ticket. Standard events and single-day daily events both
- * multiply by 1 (no behavior change).
- */
-export const bookingDurationMultiplier = (
-  event: Pick<TicketEvent["event"], "event_type" | "duration_days">,
-): number =>
-  event.event_type === "daily" ? Math.max(1, event.duration_days) : 1;
-
-/**
  * Shared booking-date fields (date + durationDays). Keeps the payment and
  * webhook flows aligned: both read duration from the event at insert time.
  */
@@ -144,7 +134,8 @@ export const bookingDateFields = (
   date: string | null,
 ): { date: string | null; durationDays: number } => ({
   date: event.event_type === "daily" ? date : null,
-  durationDays: bookingDurationMultiplier(event),
+  durationDays:
+    event.event_type === "daily" ? Math.max(1, event.duration_days) : 1,
 });
 
 /** Build registration items from events and quantities */
@@ -157,17 +148,13 @@ export const buildRegistrationItems = (
     const qty = quantities.get(event.id);
     return qty !== undefined && qty > 0;
   });
-  return selected.map(({ event }) => {
-    const perDayPrice = customPrices.get(event.id) ?? event.unit_price;
-    const multiplier = bookingDurationMultiplier(event);
-    return {
-      eventId: event.id,
-      name: event.name,
-      quantity: quantities.get(event.id)!,
-      slug: event.slug,
-      unitPrice: perDayPrice * multiplier,
-    };
-  });
+  return selected.map(({ event }) => ({
+    eventId: event.id,
+    name: event.name,
+    quantity: quantities.get(event.id)!,
+    slug: event.slug,
+    unitPrice: customPrices.get(event.id) ?? event.unit_price,
+  }));
 };
 
 /** Check if any selected event requires payment */
