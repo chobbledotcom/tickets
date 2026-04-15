@@ -93,16 +93,13 @@ const loadAttendeeForEdit = async (
     [attendeeId],
   );
 
-  // Resolve events for each booking in parallel
-  const eventLinks = compact(
-    await Promise.all(
-      map(async (booking: EventAttendeeRow): Promise<EventLinkData | null> => {
-        const event = await getEventWithCount(booking.event_id);
-        return event
-          ? { booking, date: booking.start_at?.slice(0, 10) ?? null, event }
-          : null;
-      })(bookingRows),
-    ),
+  // Resolve events for each booking in parallel (event always exists — referential integrity)
+  const eventLinks = await Promise.all(
+    map(async (booking: EventAttendeeRow): Promise<EventLinkData> => ({
+      booking,
+      date: booking.start_at?.slice(0, 10) ?? null,
+      event: (await getEventWithCount(booking.event_id))!,
+    }))(bookingRows),
   );
 
   // Attendees always have at least one event link (enforced by createAttendeeAtomic)
