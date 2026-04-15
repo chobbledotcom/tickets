@@ -127,6 +127,41 @@ describe("eventFields — event_type", () => {
   });
 });
 
+describe("eventFields — duration_days", () => {
+  test("accepts missing duration_days (optional)", () => {
+    expectValid(eventFields, eventForm({ duration_days: "" }));
+  });
+
+  test("accepts duration_days = 1", () => {
+    expectValid(eventFields, eventForm({ duration_days: "1" }));
+  });
+
+  test("accepts duration_days = 90", () => {
+    expectValid(eventFields, eventForm({ duration_days: "90" }));
+  });
+
+  test("rejects duration_days = 0", () => {
+    expectInvalid("Booking Duration (days) must be at least 1")(
+      eventFields,
+      eventForm({ duration_days: "0" }),
+    );
+  });
+
+  test("rejects negative duration_days", () => {
+    expectInvalid("Booking Duration (days) must be at least 1")(
+      eventFields,
+      eventForm({ duration_days: "-5" }),
+    );
+  });
+
+  test("rejects duration_days above 90", () => {
+    expectInvalid("Booking Duration (days) must be at most 90")(
+      eventFields,
+      eventForm({ duration_days: "91" }),
+    );
+  });
+});
+
 describe("eventFields — bookable_days", () => {
   test("accepts valid day names", () => {
     expectValid(
@@ -182,9 +217,9 @@ describe("holidayFields", () => {
   const holidayForm = (
     overrides: Record<string, string> = {},
   ): Record<string, string> => ({
+    end_date: "2026-12-25",
     name: "Bank Holiday",
     start_date: "2026-12-25",
-    end_date: "2026-12-25",
     ...overrides,
   });
 
@@ -220,7 +255,7 @@ describe("holidayFields", () => {
 
     expectValid(
       holidayFields,
-      holidayForm({ start_date: "2026-12-24", end_date: "2026-12-26" }),
+      holidayForm({ end_date: "2026-12-26", start_date: "2026-12-24" }),
     );
   });
 });

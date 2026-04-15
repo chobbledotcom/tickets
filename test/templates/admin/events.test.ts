@@ -43,14 +43,62 @@ describe("adminEventEditPage group select", () => {
   });
 });
 
+describe("adminEventEditPage duration warning", () => {
+  test("includes duration warning + confirmation gate", () => {
+    const event = testEventWithCount({
+      duration_days: 3,
+      event_type: "daily",
+    });
+    const html = adminEventEditPage(event, [], TEST_SESSION);
+    expect(html).toContain(
+      "Changing booking duration will update existing bookings",
+    );
+    expect(html).toContain('id="duration-warning"');
+    expect(html).toContain('id="duration-warning-confirm"');
+  });
+});
+
+describe("adminEventPage duration display", () => {
+  test("shows booking duration row for daily events", () => {
+    const event = testEventWithCount({
+      attendee_count: 0,
+      duration_days: 3,
+      event_type: "daily",
+    });
+    const html = adminEventPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      event,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Booking Duration");
+    expect(html).toContain("3 days");
+  });
+
+  test("omits booking duration row for standard events", () => {
+    const event = testEventWithCount({
+      attendee_count: 0,
+      duration_days: 1,
+      event_type: "standard",
+    });
+    const html = adminEventPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      event,
+      session: TEST_SESSION,
+    });
+    expect(html).not.toContain("Booking Duration");
+  });
+});
+
 describe("adminEventPage", () => {
   const event = testEventWithCount({ attendee_count: 2 });
 
   test("renders event name", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Test Event");
@@ -58,9 +106,9 @@ describe("adminEventPage", () => {
 
   test("shows attendees row with count and remaining", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Attendees");
@@ -70,9 +118,9 @@ describe("adminEventPage", () => {
 
   test("shows checked in row with 0 of 0 when no attendees", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Checked In");
@@ -82,14 +130,14 @@ describe("adminEventPage", () => {
 
   test("shows checked in count and remaining", () => {
     const attendees = [
-      testAttendee({ id: 1, checked_in: true }),
-      testAttendee({ id: 2, checked_in: false }),
-      testAttendee({ id: 3, checked_in: false }),
+      testAttendee({ checked_in: true, id: 1 }),
+      testAttendee({ checked_in: false, id: 2 }),
+      testAttendee({ checked_in: false, id: 3 }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Checked In");
@@ -99,13 +147,13 @@ describe("adminEventPage", () => {
 
   test("shows dual checked-in rows when attendees have multi-quantity", () => {
     const attendees = [
-      testAttendee({ id: 1, checked_in: true, quantity: 2 }),
-      testAttendee({ id: 2, checked_in: false, quantity: 3 }),
+      testAttendee({ checked_in: true, id: 1, quantity: 2 }),
+      testAttendee({ checked_in: false, id: 2, quantity: 3 }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     // Tickets Checked In: 1 row / 2 rows, 1 remain
@@ -120,19 +168,19 @@ describe("adminEventPage", () => {
 
   test("dual checked-in rows show daily suffix when daily event with dateFilter", () => {
     const dailyEvent = testEventWithCount({
-      event_type: "daily",
       attendee_count: 5,
+      event_type: "daily",
     });
     const attendees = [
-      testAttendee({ id: 1, checked_in: true, quantity: 2 }),
-      testAttendee({ id: 2, checked_in: false, quantity: 3 }),
+      testAttendee({ checked_in: true, id: 1, quantity: 2 }),
+      testAttendee({ checked_in: false, id: 2, quantity: 3 }),
     ];
     const html = adminEventPage({
-      event: dailyEvent,
-      attendees,
       allowedDomain: "localhost",
-      session: TEST_SESSION,
+      attendees,
       dateFilter: "2026-03-15",
+      event: dailyEvent,
+      session: TEST_SESSION,
     });
     expect(html).toContain("Attendees Checked In (Sunday 15 March 2026)");
     expect(html).toContain("Tickets Checked In (Sunday 15 March 2026)");
@@ -140,17 +188,17 @@ describe("adminEventPage", () => {
 
   test("dual checked-in rows show total suffix when daily event without dateFilter", () => {
     const dailyEvent = testEventWithCount({
-      event_type: "daily",
       attendee_count: 5,
+      event_type: "daily",
     });
     const attendees = [
-      testAttendee({ id: 1, checked_in: true, quantity: 2 }),
-      testAttendee({ id: 2, checked_in: false, quantity: 3 }),
+      testAttendee({ checked_in: true, id: 1, quantity: 2 }),
+      testAttendee({ checked_in: false, id: 2, quantity: 3 }),
     ];
     const html = adminEventPage({
-      event: dailyEvent,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event: dailyEvent,
       session: TEST_SESSION,
     });
     expect(html).toContain("Attendees Checked In (total)");
@@ -159,9 +207,9 @@ describe("adminEventPage", () => {
 
   test("shows thank you URL in copyable input", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Thank You URL");
@@ -172,9 +220,9 @@ describe("adminEventPage", () => {
 
   test("shows public URL with allowed domain", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "example.com",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Public URL");
@@ -184,9 +232,9 @@ describe("adminEventPage", () => {
 
   test("shows embed codes with allowed domain and iframe param", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "example.com",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Embed Script");
@@ -201,9 +249,9 @@ describe("adminEventPage", () => {
 
   test("iframe embed is a plain iframe without resizer scripts", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "example.com",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain("iframeResize");
@@ -211,9 +259,9 @@ describe("adminEventPage", () => {
 
   test("renders empty attendees state", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("No attendees yet");
@@ -222,9 +270,9 @@ describe("adminEventPage", () => {
   test("renders attendees table", () => {
     const attendees = [testAttendee()];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("John Doe");
@@ -234,9 +282,9 @@ describe("adminEventPage", () => {
   test("escapes attendee data", () => {
     const attendees = [testAttendee({ name: "<script>evil()</script>" })];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("&lt;script&gt;");
@@ -244,9 +292,9 @@ describe("adminEventPage", () => {
 
   test("includes back link", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("/admin/");
@@ -255,9 +303,9 @@ describe("adminEventPage", () => {
   test("shows phone column when attendee has phone", () => {
     const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("<th>Phone</th>");
@@ -267,9 +315,9 @@ describe("adminEventPage", () => {
   test("hides phone column when no attendees have phone", () => {
     const attendees = [testAttendee({ phone: "" })];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain("<th>Phone</th>");
@@ -278,9 +326,9 @@ describe("adminEventPage", () => {
   test("hides email column when no attendees have email", () => {
     const attendees = [testAttendee({ email: "" })];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("John Doe");
@@ -293,9 +341,9 @@ describe("adminEventPage", () => {
       max_attendees: 100,
     });
     const html = adminEventPage({
-      event: nearFullEvent,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event: nearFullEvent,
       session: TEST_SESSION,
     });
     expect(html).toContain('class="danger-text"');
@@ -304,9 +352,9 @@ describe("adminEventPage", () => {
 
   test("does not show danger-text class when not near capacity", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain('class="danger-text"');
@@ -315,9 +363,9 @@ describe("adminEventPage", () => {
   test("shows deactivated alert for inactive events", () => {
     const inactive = testEventWithCount({ active: false, attendee_count: 0 });
     const html = adminEventPage({
-      event: inactive,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event: inactive,
       session: TEST_SESSION,
     });
     expect(html).toContain('class="error"');
@@ -326,9 +374,9 @@ describe("adminEventPage", () => {
 
   test("does not show deactivated alert for active events", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain(
@@ -338,9 +386,9 @@ describe("adminEventPage", () => {
 
   test("shows ticket column header", () => {
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("<th>Ticket</th>");
@@ -349,9 +397,9 @@ describe("adminEventPage", () => {
   test("shows ticket token as link to public ticket URL", () => {
     const attendees = [testAttendee({ ticket_token: "abc123" })];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "mysite.com",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain('href="https://mysite.com/t/abc123"');
@@ -360,14 +408,14 @@ describe("adminEventPage", () => {
 
   test("renders empty date cell for attendee without date on daily event", () => {
     const dailyEvent = testEventWithCount({
-      event_type: "daily",
       attendee_count: 1,
+      event_type: "daily",
     });
     const attendees = [testAttendee({ date: null })];
     const html = adminEventPage({
-      event: dailyEvent,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event: dailyEvent,
       session: TEST_SESSION,
     });
     expect(html).toContain("<th>Date</th>");
@@ -379,9 +427,9 @@ describe("adminEventPage", () => {
       maximum_days_after: 0,
     });
     const html = adminEventPage({
-      event: dailyEvent,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event: dailyEvent,
       session: TEST_SESSION,
     });
     expect(html).toContain("unlimited");
@@ -393,9 +441,9 @@ describe("adminEventPage", () => {
       maximum_days_after: 30,
     });
     const html = adminEventPage({
-      event: dailyEvent,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event: dailyEvent,
       session: TEST_SESSION,
     });
     expect(html).toContain("to 30 days");
@@ -404,17 +452,17 @@ describe("adminEventPage", () => {
 
   test("shows danger-text for daily event at capacity with date filter", () => {
     const dailyEvent = testEventWithCount({
-      event_type: "daily",
       attendee_count: 0,
+      event_type: "daily",
       max_attendees: 2,
     });
     const attendees = [testAttendee(), testAttendee({ id: 2, name: "Jane" })];
     const html = adminEventPage({
-      event: dailyEvent,
-      attendees,
       allowedDomain: "localhost",
-      session: TEST_SESSION,
+      attendees,
       dateFilter: "2026-03-15",
+      event: dailyEvent,
+      session: TEST_SESSION,
     });
     expect(html).toContain('class="danger-text"');
     expect(html).toContain("0 remain");
@@ -457,9 +505,9 @@ describe("adminEventPage export button", () => {
   test("renders export CSV button", () => {
     const event = testEventWithCount({ attendee_count: 2 });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("/admin/event/1/export");
@@ -472,9 +520,9 @@ describe("adminEventPage filter links", () => {
     const event = testEventWithCount({ attendee_count: 1 });
     const attendees = [testAttendee()];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("All");
@@ -486,9 +534,9 @@ describe("adminEventPage filter links", () => {
     const event = testEventWithCount({ attendee_count: 1 });
     const attendees = [testAttendee()];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("<strong>All</strong>");
@@ -500,11 +548,11 @@ describe("adminEventPage filter links", () => {
     const event = testEventWithCount({ attendee_count: 1 });
     const attendees = [testAttendee()];
     const html = adminEventPage({
-      event,
-      attendees,
-      allowedDomain: "localhost",
-      session: TEST_SESSION,
       activeFilter: "in",
+      allowedDomain: "localhost",
+      attendees,
+      event,
+      session: TEST_SESSION,
     });
     expect(html).toContain("<strong>Checked In</strong>");
     expect(html).toContain(`href="/admin/event/${event.id}#attendees"`);
@@ -514,11 +562,11 @@ describe("adminEventPage filter links", () => {
     const event = testEventWithCount({ attendee_count: 1 });
     const attendees = [testAttendee()];
     const html = adminEventPage({
-      event,
-      attendees,
-      allowedDomain: "localhost",
-      session: TEST_SESSION,
       activeFilter: "out",
+      allowedDomain: "localhost",
+      attendees,
+      event,
+      session: TEST_SESSION,
     });
     expect(html).toContain("<strong>Checked Out</strong>");
   });
@@ -526,15 +574,15 @@ describe("adminEventPage filter links", () => {
   test("filters to only checked-in attendees when filter is in", () => {
     const event = testEventWithCount({ attendee_count: 2 });
     const attendees = [
-      testAttendee({ id: 1, name: "Checked In User", checked_in: true }),
-      testAttendee({ id: 2, name: "Not Checked In User", checked_in: false }),
+      testAttendee({ checked_in: true, id: 1, name: "Checked In User" }),
+      testAttendee({ checked_in: false, id: 2, name: "Not Checked In User" }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
-      allowedDomain: "localhost",
-      session: TEST_SESSION,
       activeFilter: "in",
+      allowedDomain: "localhost",
+      attendees,
+      event,
+      session: TEST_SESSION,
     });
     expect(html).toContain("Checked In User");
     expect(html).not.toContain("Not Checked In User");
@@ -543,15 +591,15 @@ describe("adminEventPage filter links", () => {
   test("filters to only checked-out attendees when filter is out", () => {
     const event = testEventWithCount({ attendee_count: 2 });
     const attendees = [
-      testAttendee({ id: 1, name: "Alice InPerson", checked_in: true }),
-      testAttendee({ id: 2, name: "Bob Remote", checked_in: false }),
+      testAttendee({ checked_in: true, id: 1, name: "Alice InPerson" }),
+      testAttendee({ checked_in: false, id: 2, name: "Bob Remote" }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
-      allowedDomain: "localhost",
-      session: TEST_SESSION,
       activeFilter: "out",
+      allowedDomain: "localhost",
+      attendees,
+      event,
+      session: TEST_SESSION,
     });
     expect(html).not.toContain("Alice InPerson");
     expect(html).toContain("Bob Remote");
@@ -560,15 +608,15 @@ describe("adminEventPage filter links", () => {
   test("shows all attendees when filter is all", () => {
     const event = testEventWithCount({ attendee_count: 2 });
     const attendees = [
-      testAttendee({ id: 1, name: "Checked In User", checked_in: true }),
-      testAttendee({ id: 2, name: "Not Checked In User", checked_in: false }),
+      testAttendee({ checked_in: true, id: 1, name: "Checked In User" }),
+      testAttendee({ checked_in: false, id: 2, name: "Not Checked In User" }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
-      allowedDomain: "localhost",
-      session: TEST_SESSION,
       activeFilter: "all",
+      allowedDomain: "localhost",
+      attendees,
+      event,
+      session: TEST_SESSION,
     });
     expect(html).toContain("Checked In User");
     expect(html).toContain("Not Checked In User");
@@ -578,11 +626,11 @@ describe("adminEventPage filter links", () => {
     const event = testEventWithCount({ attendee_count: 1 });
     const attendees = [testAttendee({ checked_in: true })];
     const html = adminEventPage({
-      event,
-      attendees,
-      allowedDomain: "localhost",
-      session: TEST_SESSION,
       activeFilter: "in",
+      allowedDomain: "localhost",
+      attendees,
+      event,
+      session: TEST_SESSION,
     });
     expect(html).toContain('name="return_filter"');
     expect(html).toContain('value="in"');
@@ -591,15 +639,15 @@ describe("adminEventPage filter links", () => {
 
 describe("adminEventPage total revenue", () => {
   test("shows total revenue for paid events", () => {
-    const event = testEventWithCount({ unit_price: 1000, attendee_count: 2 });
+    const event = testEventWithCount({ attendee_count: 2, unit_price: 1000 });
     const attendees = [
-      testAttendee({ price_paid: "1000", payment_id: "pi_test_1" }),
-      testAttendee({ id: 2, price_paid: "2000", payment_id: "pi_test_2" }),
+      testAttendee({ payment_id: "pi_test_1", price_paid: "1000" }),
+      testAttendee({ id: 2, payment_id: "pi_test_2", price_paid: "2000" }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Total Revenue");
@@ -607,23 +655,23 @@ describe("adminEventPage total revenue", () => {
   });
 
   test("does not show total revenue for free events", () => {
-    const event = testEventWithCount({ unit_price: 0, attendee_count: 1 });
+    const event = testEventWithCount({ attendee_count: 1, unit_price: 0 });
     const attendees = [testAttendee()];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain("Total Revenue");
   });
 
   test("shows zero revenue for paid event with no attendees", () => {
-    const event = testEventWithCount({ unit_price: 1000, attendee_count: 0 });
+    const event = testEventWithCount({ attendee_count: 0, unit_price: 1000 });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Total Revenue");
@@ -635,9 +683,9 @@ describe("adminEventPage optional fields", () => {
   test("shows reactivate link for inactive events", () => {
     const event = testEventWithCount({ active: false, attendee_count: 0 });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("/reactivate");
@@ -646,13 +694,13 @@ describe("adminEventPage optional fields", () => {
 
   test("hides thank you URL row when no thank_you_url", () => {
     const event = testEventWithCount({
-      thank_you_url: "",
       attendee_count: 0,
+      thank_you_url: "",
     });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain("Thank You URL");
@@ -660,13 +708,13 @@ describe("adminEventPage optional fields", () => {
 
   test("shows webhook URL in copyable input when present", () => {
     const event = testEventWithCount({
-      webhook_url: "https://hooks.example.com/notify",
       attendee_count: 0,
+      webhook_url: "https://hooks.example.com/notify",
     });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Webhook URL");
@@ -736,15 +784,15 @@ describe("isIncompletePayment", () => {
 
 describe("adminEventPage failed payments", () => {
   test("shows Failed Payments section when incomplete attendees exist", () => {
-    const event = testEventWithCount({ unit_price: 1000, attendee_count: 3 });
+    const event = testEventWithCount({ attendee_count: 3, unit_price: 1000 });
     const attendees = [
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
       testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Failed Payments");
@@ -753,26 +801,26 @@ describe("adminEventPage failed payments", () => {
   });
 
   test("hides Failed Payments section when no incomplete attendees", () => {
-    const event = testEventWithCount({ unit_price: 1000, attendee_count: 1 });
+    const event = testEventWithCount({ attendee_count: 1, unit_price: 1000 });
     const attendees = [
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain("Failed Payments");
   });
 
   test("hides Failed Payments section for free events", () => {
-    const event = testEventWithCount({ unit_price: 0, attendee_count: 1 });
+    const event = testEventWithCount({ attendee_count: 1, unit_price: 0 });
     const attendees = [testAttendee({ id: 1, price_paid: "0" })];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain("Failed Payments");
@@ -780,18 +828,18 @@ describe("adminEventPage failed payments", () => {
 
   test("excludes incomplete attendees from attendee count", () => {
     const event = testEventWithCount({
-      unit_price: 1000,
       attendee_count: 3,
       max_attendees: 100,
+      unit_price: 1000,
     });
     const attendees = [
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
       testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     // adjusted count: 3 - 1 (incomplete qty) = 2
@@ -799,25 +847,25 @@ describe("adminEventPage failed payments", () => {
   });
 
   test("excludes incomplete attendees from checked-in count", () => {
-    const event = testEventWithCount({ unit_price: 1000, attendee_count: 2 });
+    const event = testEventWithCount({ attendee_count: 2, unit_price: 1000 });
     const attendees = [
       testAttendee({
+        checked_in: true,
         id: 1,
         payment_id: "pi_ok",
         price_paid: "1000",
-        checked_in: true,
       }),
       testAttendee({
+        checked_in: true,
         id: 2,
         payment_id: "",
         price_paid: "1000",
-        checked_in: true,
       }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     // Only complete attendees count: 1 checked in / 1 total
@@ -825,15 +873,15 @@ describe("adminEventPage failed payments", () => {
   });
 
   test("excludes incomplete attendees from revenue", () => {
-    const event = testEventWithCount({ unit_price: 1000, attendee_count: 2 });
+    const event = testEventWithCount({ attendee_count: 2, unit_price: 1000 });
     const attendees = [
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
       testAttendee({ id: 2, payment_id: "", price_paid: "2000" }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("£10");
@@ -841,7 +889,7 @@ describe("adminEventPage failed payments", () => {
   });
 
   test("failed payments table has delete button but no check-in or refund", () => {
-    const event = testEventWithCount({ unit_price: 1000, attendee_count: 1 });
+    const event = testEventWithCount({ attendee_count: 1, unit_price: 1000 });
     const attendees = [
       testAttendee({
         id: 1,
@@ -851,9 +899,9 @@ describe("adminEventPage failed payments", () => {
       }),
     ];
     const html = adminEventPage({
-      event,
-      attendees,
       allowedDomain: "localhost",
+      attendees,
+      event,
       session: TEST_SESSION,
     });
     const failedSection =
@@ -871,13 +919,13 @@ describe("adminEventPage failed payments", () => {
 describe("adminEventPage event date and location", () => {
   test("shows Event Date row when event has a date", () => {
     const event = testEventWithCount({
-      date: "2026-06-15T14:00:00.000Z",
       attendee_count: 0,
+      date: "2026-06-15T14:00:00.000Z",
     });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Event Date");
@@ -885,11 +933,11 @@ describe("adminEventPage event date and location", () => {
   });
 
   test("does not show Event Date row when date is empty", () => {
-    const event = testEventWithCount({ date: "", attendee_count: 0 });
+    const event = testEventWithCount({ attendee_count: 0, date: "" });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain("Event Date");
@@ -897,13 +945,13 @@ describe("adminEventPage event date and location", () => {
 
   test("shows Location row when event has a location", () => {
     const event = testEventWithCount({
-      location: "Village Hall",
       attendee_count: 0,
+      location: "Village Hall",
     });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("<th>Location</th>");
@@ -911,11 +959,11 @@ describe("adminEventPage event date and location", () => {
   });
 
   test("does not show Location row when location is empty", () => {
-    const event = testEventWithCount({ location: "", attendee_count: 0 });
+    const event = testEventWithCount({ attendee_count: 0, location: "" });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).not.toContain("<th>Location</th>");
@@ -923,14 +971,14 @@ describe("adminEventPage event date and location", () => {
 
   test("shows both Event Date and Location when both are set", () => {
     const event = testEventWithCount({
+      attendee_count: 0,
       date: "2026-06-15T14:00:00.000Z",
       location: "Town Centre",
-      attendee_count: 0,
     });
     const html = adminEventPage({
-      event,
-      attendees: [],
       allowedDomain: "localhost",
+      attendees: [],
+      event,
       session: TEST_SESSION,
     });
     expect(html).toContain("Event Date");
@@ -940,7 +988,7 @@ describe("adminEventPage event date and location", () => {
 
 describe("adminEventPage edit form pre-fills date and location", () => {
   test("empty date shows no pre-filled value in edit form", () => {
-    const event = testEventWithCount({ date: "", attendee_count: 0 });
+    const event = testEventWithCount({ attendee_count: 0, date: "" });
     const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
     // The date field should render split date and time inputs
     expect(html).toContain('name="date_date"');
@@ -949,8 +997,8 @@ describe("adminEventPage edit form pre-fills date and location", () => {
 
   test("non-empty date shows formatted split values in edit form", () => {
     const event = testEventWithCount({
-      date: "2026-06-15T14:00:00.000Z",
       attendee_count: 0,
+      date: "2026-06-15T14:00:00.000Z",
     });
     const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
     // Should contain split date and time values converted to Europe/London (BST = UTC+1)
@@ -960,8 +1008,8 @@ describe("adminEventPage edit form pre-fills date and location", () => {
 
   test("pre-fills location in edit form", () => {
     const event = testEventWithCount({
-      location: "Village Hall",
       attendee_count: 0,
+      location: "Village Hall",
     });
     const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
     expect(html).toContain('value="Village Hall"');
@@ -971,9 +1019,9 @@ describe("adminEventPage edit form pre-fills date and location", () => {
 describe("adminEventEditPage max_price field", () => {
   test("renders max_price field with value when set", () => {
     const event = testEventWithCount({
+      attendee_count: 0,
       can_pay_more: true,
       max_price: 50000,
-      attendee_count: 0,
     });
     const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
     expect(html).toContain('name="max_price"');
@@ -982,9 +1030,9 @@ describe("adminEventEditPage max_price field", () => {
 
   test("renders max_price field with 0.00 when zero", () => {
     const event = testEventWithCount({
+      attendee_count: 0,
       can_pay_more: true,
       max_price: 0,
-      attendee_count: 0,
     });
     const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
     expect(html).toContain('name="max_price"');
@@ -1008,15 +1056,15 @@ describe("datetime validation via eventFields date field", () => {
 
 describeWithEnv(
   "event images",
-  { env: { STORAGE_ZONE_NAME: "testzone", STORAGE_ZONE_KEY: "testkey" } },
+  { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
     describe("adminEventPage image section", () => {
       test("does not show image upload on detail page", () => {
         const event = testEventWithCount({ image_url: "" });
         const html = adminEventPage({
-          event,
-          attendees: [],
           allowedDomain: "localhost",
+          attendees: [],
+          event,
           session: TEST_SESSION,
         });
         expect(html).not.toContain('type="file"');
@@ -1035,7 +1083,7 @@ describeWithEnv(
 
       test("shows current image and remove button when image is set", () => {
         runWithStorageConfig(
-          { zoneName: "testzone", zoneKey: "testkey" },
+          { zoneKey: "testkey", zoneName: "testzone" },
           () => {
             const event = testEventWithCount({ image_url: "current.jpg" });
             const html = adminEventEditPage(event, [], TEST_SESSION);
@@ -1057,7 +1105,7 @@ describeWithEnv(
 
       test("shows full-width image preview when event has image", () => {
         runWithStorageConfig(
-          { zoneName: "testzone", zoneKey: "testkey" },
+          { zoneKey: "testkey", zoneName: "testzone" },
           () => {
             const event = testEventWithCount({ image_url: "preview.jpg" });
             const html = adminEventEditPage(event, [], TEST_SESSION);
@@ -1071,7 +1119,7 @@ describeWithEnv(
     describe("adminDuplicateEventPage image section", () => {
       test("shows image upload field when storage enabled", () => {
         runWithStorageConfig(
-          { zoneName: "testzone", zoneKey: "testkey" },
+          { zoneKey: "testkey", zoneName: "testzone" },
           () => {
             const event = testEventWithCount({ image_url: "" });
             const html = adminDuplicateEventPage(event, [], TEST_SESSION);
@@ -1095,7 +1143,7 @@ describeWithEnv(
     describe("adminEventNewPage image section", () => {
       test("shows image upload field on create form when storage enabled", () => {
         runWithStorageConfig(
-          { zoneName: "testzone", zoneKey: "testkey" },
+          { zoneKey: "testkey", zoneName: "testzone" },
           () => {
             const html = adminEventNewPage([], TEST_SESSION);
             expect(html).toContain('type="file"');

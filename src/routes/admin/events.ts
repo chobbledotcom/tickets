@@ -7,6 +7,7 @@ import { getEffectiveDomain } from "#lib/config.ts";
 import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import { getEventWithActivityLog, logActivity } from "#lib/db/activityLog.ts";
+import { recomputeEventBookingRanges } from "#lib/db/attendees.ts";
 import {
   computeSlugIndex,
   type EventInput,
@@ -114,28 +115,29 @@ const extractCommonFields = (values: EventFormValues) => {
     : values.closes_at;
   const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
   return {
-    name: values.name,
-    description: values.description,
+    assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
+    bookableDays: parseBookableDays(values.bookable_days),
+    canPayMore: values.can_pay_more === "1",
+    closesAt,
     date,
-    location: values.location,
+    description: values.description,
+    durationDays: Math.max(1, Math.min(90, values.duration_days ?? 1)),
+    eventType: values.event_type || "standard",
+    fields: values.fields || "",
     groupId: Number(values.group_id) || 0,
+    hidden: values.hidden === "1",
+    location: values.location,
     maxAttendees: values.max_attendees,
+    maximumDaysAfter: values.maximum_days_after ?? 90,
+    maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
+    maxQuantity: values.max_quantity,
+    minimumDaysBefore: values.minimum_days_before ?? 1,
+    name: values.name,
+    nonTransferable: values.non_transferable === "1",
+    purchaseOnly: values.purchase_only === "1",
     thankYouUrl: values.thank_you_url || "",
     unitPrice,
-    maxQuantity: values.max_quantity,
     webhookUrl,
-    fields: values.fields || "",
-    closesAt,
-    eventType: values.event_type || "standard",
-    bookableDays: parseBookableDays(values.bookable_days),
-    minimumDaysBefore: values.minimum_days_before ?? 1,
-    maximumDaysAfter: values.maximum_days_after ?? 90,
-    nonTransferable: values.non_transferable === "1",
-    canPayMore: values.can_pay_more === "1",
-    maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
-    hidden: values.hidden === "1",
-    purchaseOnly: values.purchase_only === "1",
-    assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
   };
 };
 
@@ -158,10 +160,10 @@ const extractEventUpdateInput = async (
 
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
-  table: eventsTable,
   fields: [...eventFields, assignBuiltSiteField, groupIdField],
-  toInput: extractEventInput,
   nameField: "name",
+  table: eventsTable,
+  toInput: extractEventInput,
   validate: validateEventInput,
 });
 
@@ -217,14 +219,11 @@ const processFormImage = (
   existingImageUrl?: string,
 ): Promise<string | null> =>
   processFormFile({
-    formData,
-    fieldName: "image",
     eventId,
     existingUrl: existingImageUrl,
-    validate: (data, file) => {
-      const v = validateImage(data, file.type);
-      return v.valid ? null : IMAGE_ERROR_MESSAGES[v.error];
-    },
+    fieldName: "image",
+    formData,
+    label: "Image",
     upload: async (data, file) => {
       const v = validateImage(data, file.type) as {
         valid: true;
@@ -233,7 +232,10 @@ const processFormImage = (
       const imageUrl = await uploadImage(data, v.detectedType);
       return { imageUrl };
     },
-    label: "Image",
+    validate: (data, file) => {
+      const v = validateImage(data, file.type);
+      return v.valid ? null : IMAGE_ERROR_MESSAGES[v.error];
+    },
   });
 
 /** Process attachment from multipart form and attach to event. Returns error message if validation fails. */
@@ -243,20 +245,20 @@ const processFormAttachment = (
   existingAttachmentUrl?: string,
 ): Promise<string | null> =>
   processFormFile({
-    formData,
-    fieldName: "attachment",
     eventId,
     existingUrl: existingAttachmentUrl,
+    fieldName: "attachment",
+    formData,
+    label: "Attachment",
+    upload: async (data, file) => {
+      const filename = generateAttachmentFilename(file.name);
+      await uploadAttachment(data, filename);
+      return { attachmentName: file.name, attachmentUrl: filename };
+    },
     validate: (data) => {
       const v = validateAttachment(data);
       return v.valid ? null : ATTACHMENT_ERROR_MESSAGES[v.error];
     },
-    upload: async (data, file) => {
-      const filename = generateAttachmentFilename(file.name);
-      await uploadAttachment(data, filename);
-      return { attachmentUrl: filename, attachmentName: file.name };
-    },
-    label: "Attachment",
   });
 
 /** Process image + attachment uploads and redirect, reporting any upload errors */
@@ -300,7 +302,7 @@ const withEventAttendees = (
   }) => Response | Promise<Response>,
 ): Promise<Response> =>
   withEventAttendeesAuth(request, eventId, (event, attendees, session) =>
-    handler({ event, attendees, session }),
+    handler({ attendees, event, session }),
   );
 
 /**
@@ -366,7 +368,7 @@ const getUniqueDates: (
   (dates: (string | null)[]) => compact(dates),
   (dates: string[]) => unique(dates),
   sort((a: string, b: string) => a.localeCompare(b)),
-  map((d: string) => ({ value: d, label: formatDateLabel(d) })),
+  map((d: string) => ({ label: formatDateLabel(d), value: d })),
 );
 
 /** Get date filter and filtered attendees for daily events */
@@ -380,8 +382,8 @@ const applyDateFilter = (
   const availableDates =
     event.event_type === "daily" ? getUniqueDates(attendees) : [];
   return {
-    dateFilter,
     availableDates,
+    dateFilter,
     filteredByDate: filterByDate(attendees, dateFilter),
   };
 };
@@ -412,21 +414,21 @@ const renderEventPage = async (
           getAttendeeAnswersBatch(attendeeIds),
         ]);
       const questionData =
-        questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
+        questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
       return htmlResponse(
         adminEventPage({
-          event,
-          attendees: filteredByDate,
-          allowedDomain: getEffectiveDomain(),
-          session,
-          checkinMessage: getCheckinMessage(request),
           activeFilter,
-          dateFilter,
+          allowedDomain: getEffectiveDomain(),
+          attendees: filteredByDate,
           availableDates,
+          checkinMessage: getCheckinMessage(request),
+          dateFilter,
           errorMessage: flash.error,
+          event,
           phonePrefix,
-          successMessage: flash.success,
           questionData,
+          session,
+          successMessage: flash.success,
         }),
       );
     }),
@@ -482,15 +484,30 @@ const handleAdminEventEditPost: TypedRouteHandler<
     // Build a resource that includes the slug field; uniqueness is enforced
     // by validateEventInput when existingId is set.
     const updateResource = defineResource({
-      table: eventsTable,
       fields: [...eventFields, assignBuiltSiteField, slugField, groupIdField],
-      toInput: extractEventUpdateInput,
       nameField: "name",
+      table: eventsTable,
+      toInput: extractEventUpdateInput,
       validate: validateEventInput,
     });
 
     const result = await updateResource.update(id, form);
     if (result.ok) {
+      // If duration changed on a daily event, reconcile existing booking ranges
+      // so stored end_at values match the event's current policy.
+      if (
+        result.row.event_type === "daily" &&
+        result.row.duration_days !== existing.duration_days
+      ) {
+        await recomputeEventBookingRanges(
+          result.row.id,
+          result.row.duration_days,
+        );
+        await logActivity(
+          `Event '${result.row.name}' duration changed to ${result.row.duration_days} day${result.row.duration_days === 1 ? "" : "s"}`,
+          result.row,
+        );
+      }
       await logActivity(`Event '${result.row.name}' updated`, result.row);
       return processUploadsAndRedirect(
         formData,
@@ -533,7 +550,7 @@ const handleAdminEventExport: TypedRouteHandler<
       getAttendeeAnswersBatch(attendeeIds),
     ]);
     const questionData: CsvQuestionData | undefined =
-      questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
+      questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 
     const csv = generateAttendeesCsv(
       filteredByDate,
@@ -560,9 +577,9 @@ const handleAdminEventExport: TypedRouteHandler<
 /** Shared config for event confirmation handlers */
 const eventConfirmBase = {
   auth: "any" as const,
-  load: (_id: number) => getEventWithCount(_id),
   identifier: (event: EventWithCount) => event.name,
   identifierLabel: "Event name",
+  load: (_id: number) => getEventWithCount(_id),
 };
 
 /** Factory for event toggle handlers (deactivate/reactivate) */
@@ -577,40 +594,40 @@ const eventToggleHandlers = (opts: {
 }) =>
   createConfirmedHandlers<EventWithCount>({
     ...eventConfirmBase,
-    render: opts.renderPage,
+    actionLabel: `${opts.action}ion`,
     onConfirm: async (event, id) => {
       await eventsTable.update(id, { active: opts.active });
       await logActivity(`Event '${event.name}' ${opts.action}d`, id);
     },
     path: `/admin/event/:id/${opts.action}`,
-    successRedirect: (_, id) => `/admin/event/${id}`,
+    render: opts.renderPage,
     successMessage: `Event ${opts.action}d`,
-    actionLabel: `${opts.action}ion`,
+    successRedirect: (_, id) => `/admin/event/${id}`,
   });
 
 const eventDeactivate = eventToggleHandlers({
-  active: false,
   action: "deactivate",
+  active: false,
   renderPage: adminDeactivateEventPage,
 });
 
 const eventReactivate = eventToggleHandlers({
-  active: true,
   action: "reactivate",
+  active: true,
   renderPage: adminReactivateEventPage,
 });
 
 /** Confirmed-delete handlers for events */
 const eventDelete = createConfirmedHandlers<EventWithCount>({
   ...eventConfirmBase,
-  render: (event, session, error) =>
-    adminDeleteEventPage(event, session, error),
   onConfirm: async (event) => {
     await performEventDelete(event);
   },
   path: "/admin/event/:id/delete",
-  successRedirect: "/admin",
+  render: (event, session, error) =>
+    adminDeleteEventPage(event, session, error),
   successMessage: "Event deleted",
+  successRedirect: "/admin",
 });
 
 /**
@@ -683,7 +700,7 @@ const handleImageDelete = handleFileDelete("Image", (e) => e.image_url, {
 const handleAttachmentDelete = handleFileDelete(
   "Attachment",
   (e) => e.attachment_url,
-  { attachmentUrl: "", attachmentName: "" },
+  { attachmentName: "", attachmentUrl: "" },
 );
 
 /** Create a handler that renders the event page with a specific attendee filter */
@@ -707,19 +724,19 @@ export const eventsRoutes = {
   ...eventReactivate.routes,
   ...eventDelete.routes,
   ...defineRoutes({
-    "GET /admin/event/new": handleNewEventGet,
-    "POST /admin/event": handleCreateEvent,
-    "GET /admin/event/:id/in": handleAdminEventGetIn,
-    "GET /admin/event/:id/out": handleAdminEventGetOut,
+    "DELETE /admin/event/:id/delete": handleAdminEventDelete,
     "GET /admin/event/:id": handleAdminEventGet,
     "GET /admin/event/:id/duplicate": handleAdminEventDuplicateGet,
     "GET /admin/event/:id/edit": handleAdminEventEditGet,
-    "POST /admin/event/:id/edit": handleAdminEventEditPost,
     "GET /admin/event/:id/export": handleAdminEventExport,
+    "GET /admin/event/:id/in": handleAdminEventGetIn,
     "GET /admin/event/:id/log": handleAdminEventLog,
-    "POST /admin/event/:id/image/delete": handleImageDelete,
+    "GET /admin/event/:id/out": handleAdminEventGetOut,
+    "GET /admin/event/new": handleNewEventGet,
+    "POST /admin/event": handleCreateEvent,
     "POST /admin/event/:id/attachment/delete": handleAttachmentDelete,
     "POST /admin/event/:id/delete": handleAdminEventDelete,
-    "DELETE /admin/event/:id/delete": handleAdminEventDelete,
+    "POST /admin/event/:id/edit": handleAdminEventEditPost,
+    "POST /admin/event/:id/image/delete": handleImageDelete,
   }),
 };

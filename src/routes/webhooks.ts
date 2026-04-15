@@ -39,7 +39,10 @@ import {
 } from "#lib/payments.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import { ensureAllBookings } from "#routes/public/ticket-payment.ts";
+import {
+  bookingDateFields,
+  ensureAllBookings,
+} from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
@@ -251,24 +254,36 @@ const validateAndPrice = async (
     includeEventName,
   );
   if (!validation.ok) return validation;
-  const expectedPrice = validation.event.unit_price * input.quantity;
+  // Daily events with duration_days > 1 charge per-day × duration × qty.
+  const durationMultiplier =
+    validation.event.event_type === "daily"
+      ? Math.max(1, validation.event.duration_days)
+      : 1;
+  const expectedPrice =
+    validation.event.unit_price * input.quantity * durationMultiplier;
   return { ok: true, event: validation.event, expectedPrice };
 };
 
 /** Check if the amount charged matches the current event price (including booking fee).
  * For pay-more events, the amount must be >= the expected minimum price and <= the max cap.
- * `quantity` scales max_price so purchases are validated against the correct total cap. */
+ * `quantity` scales max_price so purchases are validated against the correct total cap.
+ * For multi-day daily events, max_price is a per-day cap that scales with duration. */
 const hasPriceMismatch = (
   amountTotal: number,
   expectedPrice: number,
-  event: Pick<EventWithCount, "can_pay_more" | "max_price">,
+  event: Pick<
+    EventWithCount,
+    "can_pay_more" | "max_price" | "event_type" | "duration_days"
+  >,
   bookingFeePercent: number,
   quantity: number,
 ): boolean => {
+  const durationMultiplier =
+    event.event_type === "daily" ? Math.max(1, event.duration_days) : 1;
   if (event.can_pay_more) {
     const minWithFee =
       expectedPrice + calculateBookingFee(expectedPrice, bookingFeePercent);
-    const maxTicketTotal = event.max_price * quantity;
+    const maxTicketTotal = event.max_price * quantity * durationMultiplier;
     const maxWithFee =
       maxTicketTotal + calculateBookingFee(maxTicketTotal, bookingFeePercent);
     return amountTotal < minWithFee || amountTotal > maxWithFee;
@@ -473,12 +488,13 @@ const processPaymentSession = async (
     }
   }
 
-  // Create one attendee with all event bookings in a single atomic operation
+  // Create one attendee with all event bookings in a single atomic operation.
+  // durationDays is event-scoped and re-read here at finalize time.
   const bookings = validatedItems.map(({ item, event }) => ({
     eventId: item.e,
     quantity: item.q,
     pricePaid: item.p,
-    date: event.event_type === "daily" ? intent.date : null,
+    ...bookingDateFields(event, intent.date),
   }));
 
   const result = await createAttendeeAtomic({

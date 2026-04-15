@@ -244,15 +244,20 @@ export type TicketQuantities = Map<number, number>;
 
 /** Render a price input for pay-more events */
 const renderPayMoreInput = (
-  event: Pick<EventWithCount, "unit_price" | "max_price">,
+  event: Pick<
+    EventWithCount,
+    "unit_price" | "max_price" | "event_type" | "duration_days"
+  >,
   fieldName = "custom_price",
 ): string => {
   const minPrice = event.unit_price;
   const maxPrice = event.max_price;
+  const isMultiDay = event.event_type === "daily" && event.duration_days > 1;
+  const perLabel = isMultiDay ? "Price per day" : "Price per ticket";
   const rangeHint =
     minPrice > 0
-      ? `Price per ticket (${formatCurrency(minPrice)} minimum)`
-      : `Price per ticket (optional, up to ${formatCurrency(maxPrice)})`;
+      ? `${perLabel} (${formatCurrency(minPrice)} minimum)`
+      : `${perLabel} (optional, up to ${formatCurrency(maxPrice)})`;
   return (
     `<label>${rangeHint}` +
     `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${minPrice > 0 ? " required" : ""} /></label>`

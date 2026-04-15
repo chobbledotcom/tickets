@@ -20,6 +20,8 @@ export type EmailEvent = WebhookEvent & {
   location: string;
   purchase_only: boolean;
   assign_built_site: boolean;
+  event_type: "standard" | "daily";
+  duration_days: number;
 };
 
 /** Attendee + event pair for email rendering */

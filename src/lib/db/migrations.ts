@@ -33,8 +33,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE =
-  "drop PII columns from attendees (now in pii_blob)";
+export const LATEST_UPDATE = "add duration_days to events";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -86,11 +85,12 @@ const SCHEMA: [name: string, table: Table][] = [
         ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
         ["assign_built_site", "INTEGER NOT NULL DEFAULT 0"],
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
+        ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
       ],
       indexes: [
         {
-          name: "idx_events_slug_index",
           columns: ["slug_index"],
+          name: "idx_events_slug_index",
           unique: true,
         },
       ],
@@ -112,8 +112,8 @@ const SCHEMA: [name: string, table: Table][] = [
       ],
       indexes: [
         {
-          name: "idx_users_username_index",
           columns: ["username_index"],
+          name: "idx_users_username_index",
           unique: true,
         },
       ],
@@ -157,8 +157,8 @@ const SCHEMA: [name: string, table: Table][] = [
       ],
       indexes: [
         {
-          name: "idx_attendees_ticket_token_index",
           columns: ["ticket_token_index"],
+          name: "idx_attendees_ticket_token_index",
           unique: true,
         },
       ],
@@ -185,17 +185,17 @@ const SCHEMA: [name: string, table: Table][] = [
       // logic and the indexes below.
       indexes: [
         {
-          name: "idx_event_attendees_event_attendee_start",
           columns: ["event_id", "attendee_id", "start_at"],
+          name: "idx_event_attendees_event_attendee_start",
           unique: true,
         },
         {
-          name: "idx_event_attendees_attendee_event",
           columns: ["attendee_id", "event_id"],
+          name: "idx_event_attendees_attendee_event",
         },
         {
-          name: "idx_event_attendees_event_start_end",
           columns: ["event_id", "start_at", "end_at"],
+          name: "idx_event_attendees_event_start_end",
         },
       ],
     },
@@ -244,8 +244,8 @@ const SCHEMA: [name: string, table: Table][] = [
       ],
       indexes: [
         {
-          name: "idx_groups_slug_index",
           columns: ["slug_index"],
+          name: "idx_groups_slug_index",
           unique: true,
         },
       ],
@@ -278,8 +278,8 @@ const SCHEMA: [name: string, table: Table][] = [
       ],
       indexes: [
         {
-          name: "idx_api_keys_key_index",
           columns: ["key_index"],
+          name: "idx_api_keys_key_index",
           unique: true,
         },
       ],
@@ -305,7 +305,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["text", "TEXT NOT NULL"],
         ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
       ],
-      indexes: [{ name: "idx_answers_question_id", columns: ["question_id"] }],
+      indexes: [{ columns: ["question_id"], name: "idx_answers_question_id" }],
     },
   ],
 
@@ -319,10 +319,10 @@ const SCHEMA: [name: string, table: Table][] = [
         ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
-        { name: "idx_event_questions_event_id", columns: ["event_id"] },
+        { columns: ["event_id"], name: "idx_event_questions_event_id" },
         {
-          name: "idx_event_questions_unique",
           columns: ["event_id", "question_id"],
+          name: "idx_event_questions_unique",
           unique: true,
         },
       ],
@@ -353,13 +353,13 @@ const SCHEMA: [name: string, table: Table][] = [
       ],
       indexes: [
         {
-          name: "idx_attendee_answers_attendee_id",
           columns: ["attendee_id"],
+          name: "idx_attendee_answers_attendee_id",
         },
-        { name: "idx_attendee_answers_answer_id", columns: ["answer_id"] },
+        { columns: ["answer_id"], name: "idx_attendee_answers_answer_id" },
         {
-          name: "idx_attendee_answers_unique",
           columns: ["attendee_id", "answer_id"],
+          name: "idx_attendee_answers_unique",
           unique: true,
         },
       ],
@@ -475,13 +475,13 @@ const recreateTable = async (tableName: string): Promise<void> => {
 
   await getDb().batch(
     [
-      { sql: `CREATE TABLE ${tmpName} (${colDefs})`, args: [] },
+      { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
       {
-        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
         args: [],
+        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
       },
-      { sql: `DROP TABLE ${tableName}`, args: [] },
-      { sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}`, args: [] },
+      { args: [], sql: `DROP TABLE ${tableName}` },
+      { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
     ],
     "write",
   );
@@ -568,8 +568,8 @@ const MIGRATION_LOCK_KEY = "migration_lock";
 const acquireMigrationLock = async (): Promise<boolean> => {
   const result = await getDb()
     .execute({
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
       args: [MIGRATION_LOCK_KEY, new Date().toISOString()],
+      sql: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
     })
     .catch(() => null); // settings table may not exist yet on first run
   return result === null || result.rowsAffected === 1;
@@ -640,12 +640,12 @@ export const initDb = async (): Promise<void> => {
   // 6. Update version marker and schema hash
   logDebug("Migration", "Step 5: updating version marker...");
   await getDb().execute({
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
   });
   await getDb().execute({
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
     args: [SCHEMA_HASH],
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
   });
 
   // Release lock only on success — if migration crashes, lock persists

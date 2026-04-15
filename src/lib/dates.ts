@@ -85,7 +85,7 @@ const bookableRange = (
   const maxDays =
     event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
   const end = addDays(todayStr, maxDays);
-  return { bookableDays: event.bookable_days, start, end };
+  return { bookableDays: event.bookable_days, end, start };
 };
 
 /** Check if a date is bookable (matches allowed day and not a holiday) */
@@ -97,8 +97,30 @@ const isBookable = (
   bookableDays.includes(getDayName(dateStr)) && !isHoliday(dateStr, holidays);
 
 /**
+ * Check if every day in a multi-day booking starting at `start` is bookable.
+ * All days in `[start, start + durationDays)` must pass `isBookable` and
+ * stay within `endLimit` (inclusive).
+ */
+const isRangeBookable = (
+  start: string,
+  durationDays: number,
+  bookableDays: string[],
+  holidays: Holiday[],
+  endLimit: string,
+): boolean => {
+  for (let i = 0; i < durationDays; i++) {
+    const day = addDays(start, i);
+    if (day > endLimit) return false;
+    if (!isBookable(day, bookableDays, holidays)) return false;
+  }
+  return true;
+};
+
+/**
  * Compute available booking dates for a daily event.
  * Filters by bookable days of the week and excludes holidays.
+ * For events with `duration_days > 1`, excludes start dates whose full range
+ * would hit a non-bookable day or extend past the booking window.
  * Returns sorted array of YYYY-MM-DD strings.
  */
 export const getAvailableDates = (
@@ -106,9 +128,10 @@ export const getAvailableDates = (
   holidays: Holiday[],
 ): string[] => {
   const range = bookableRange(event);
-  return filter((d: string) => isBookable(d, range.bookableDays, holidays))(
-    dateRange(range.start, range.end),
-  );
+  const duration = Math.max(1, event.duration_days ?? 1);
+  return filter((d: string) =>
+    isRangeBookable(d, duration, range.bookableDays, holidays, range.end),
+  )(dateRange(range.start, range.end));
 };
 
 /**
@@ -122,10 +145,21 @@ export const getNextBookableDate = (
 ): string | null => {
   const range = bookableRange(event);
   if (range.bookableDays.length === 0) return null;
+  const duration = Math.max(1, event.duration_days ?? 1);
 
   let current = range.start;
   while (current <= range.end) {
-    if (isBookable(current, range.bookableDays, holidays)) return current;
+    if (
+      isRangeBookable(
+        current,
+        duration,
+        range.bookableDays,
+        holidays,
+        range.end,
+      )
+    ) {
+      return current;
+    }
     current = addDays(current, 1);
   }
   return null;
@@ -150,6 +184,60 @@ export const normalizeDatetime = (value: string, label: string): string => {
 export const formatDateLabel = (dateStr: string): string => {
   const date = new Date(`${dateStr}T00:00:00Z`);
   return `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()} ${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+};
+
+/**
+ * Compact English date-range formatter. Uses an en dash (`–`) for ranges.
+ *
+ * - Same day: `2 February 2027`
+ * - Same month + same year: `2–3 February 2027`
+ * - Different month + same year: `2 February – 3 March 2027`
+ * - Different year: `2 February 2027 – 3 February 2028`
+ *
+ * Kept as a dedicated helper so i18n replacements can target locale behavior.
+ */
+export const formatDateRangeLabelCompactEn = (
+  startDateStr: string,
+  endDateStr: string,
+): string => {
+  const s = new Date(`${startDateStr}T00:00:00Z`);
+  const e = new Date(`${endDateStr}T00:00:00Z`);
+  const sameYear = s.getUTCFullYear() === e.getUTCFullYear();
+  const sameMonth = sameYear && s.getUTCMonth() === e.getUTCMonth();
+  const sameDay = sameMonth && s.getUTCDate() === e.getUTCDate();
+  const sMonth = MONTH_NAMES[s.getUTCMonth()];
+  const eMonth = MONTH_NAMES[e.getUTCMonth()];
+  if (sameDay) {
+    return `${s.getUTCDate()} ${sMonth} ${s.getUTCFullYear()}`;
+  }
+  if (sameMonth) {
+    return `${s.getUTCDate()}–${e.getUTCDate()} ${sMonth} ${s.getUTCFullYear()}`;
+  }
+  if (sameYear) {
+    return `${s.getUTCDate()} ${sMonth} – ${e.getUTCDate()} ${eMonth} ${s.getUTCFullYear()}`;
+  }
+  return `${s.getUTCDate()} ${sMonth} ${s.getUTCFullYear()} – ${e.getUTCDate()} ${eMonth} ${e.getUTCFullYear()}`;
+};
+
+/**
+ * Format a booking's stored `[start_at, end_at)` ISO range as a human label.
+ * 1-day bookings collapse to `formatDateLabel`; multi-day bookings use the
+ * compact English range formatter (inclusive — subtracts 1 day from end_at,
+ * which is the first midnight *after* the booked window).
+ */
+export const formatDateRangeLabel = (
+  startIso: string | null,
+  endIso: string | null,
+): string => {
+  if (!startIso) return "";
+  const startDate = startIso.slice(0, 10);
+  if (!endIso) return formatDateLabel(startDate);
+  const startMs = new Date(startIso).getTime();
+  const endMs = new Date(endIso).getTime();
+  const diffDays = Math.round((endMs - startMs) / 86_400_000);
+  if (diffDays <= 1) return formatDateLabel(startDate);
+  const lastDay = new Date(endMs - 86_400_000).toISOString().slice(0, 10);
+  return formatDateRangeLabelCompactEn(startDate, lastDay);
 };
 
 /**

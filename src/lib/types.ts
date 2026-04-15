@@ -102,6 +102,7 @@ export interface Event {
   hidden: boolean;
   purchase_only: boolean;
   assign_built_site: boolean;
+  duration_days: number;
 }
 
 export interface Attendee extends ContactInfo {

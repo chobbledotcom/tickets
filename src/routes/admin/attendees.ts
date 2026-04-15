@@ -330,20 +330,20 @@ const handleAddAttendee = (
     } = validation.values;
 
     const result = await createAttendeeAtomic({
-      name,
-      email: email || "",
-      phone: phone || "",
       address: address || "",
+      bookings: [{ date: isDaily ? date : null, eventId, quantity }],
+      email: email || "",
+      name,
+      phone: phone || "",
       special_instructions: special_instructions || "",
-      bookings: [{ eventId, quantity, date: isDaily ? date : null }],
     });
 
     if (!result.success) {
       if (result.reason === "encryption_error") {
         logError({
           code: ErrorCode.ENCRYPT_FAILED,
-          eventId,
           detail: "manual add attendee",
+          eventId,
         });
       }
       const errorMsg =
@@ -415,9 +415,9 @@ const loadAttendeeForEdit = async (
     const event = await getEventWithCount(booking.event_id);
     if (event) {
       eventLinks.push({
-        event,
         booking,
         date: booking.start_at ? booking.start_at.slice(0, 10) : null,
+        event,
       });
     }
   }
@@ -439,13 +439,13 @@ const loadAttendeeForEdit = async (
   }
 
   return {
+    allEvents,
     attendee,
+    availableDatesByEvent,
     event: firstEvent,
     eventLinks,
-    allEvents,
     questions,
     selectedAnswerIds,
-    availableDatesByEvent,
   };
 };
 
@@ -539,12 +539,12 @@ async function editAttendeeHandler(
 
   // Update PII (shared across events)
   await updateAttendeePII(attendeeId, {
-    name,
-    email,
-    phone,
     address,
-    special_instructions,
+    email,
+    name,
     payment_id: data.attendee.payment_id,
+    phone,
+    special_instructions,
     ticket_token: data.attendee.ticket_token,
   });
 
@@ -586,7 +586,7 @@ const handleResendNotification = verifiedAttendeeForm(
   async (data, form, eventId, _attendeeId) => {
     await Promise.all([
       logAndNotifyRegistration([
-        { event: data.event, attendee: data.attendee },
+        { attendee: data.attendee, event: data.event },
       ]),
       logActivity(
         `Notification re-sent for attendee '${data.attendee.name}'`,
@@ -673,9 +673,13 @@ const handleAddEventLink = (
         : null;
 
     const result = await addEventLink(attendeeId, {
+      date,
+      durationDays:
+        targetEvent.event_type === "daily"
+          ? targetEvent.duration_days
+          : undefined,
       eventId,
       quantity,
-      date,
     });
 
     if (!result.success) {
@@ -744,8 +748,10 @@ const handleUpdateEventLink = (
       event.event_type === "daily" ? form.getString("date") || null : null;
 
     const result = await updateEventLink(attendeeId, eventId, {
-      quantity,
       date,
+      durationDays:
+        event.event_type === "daily" ? event.duration_days : undefined,
+      quantity,
     });
 
     if (!result.success) {
@@ -804,14 +810,14 @@ const loadMergeSource = async (
     await decryptAttendees([raw as unknown as Attendee], pk)
   )[0]!;
   return {
+    address: decrypted.address,
+    bookings: raw.bookings,
+    email: decrypted.email,
     id: raw.id,
     name: decrypted.name,
-    email: decrypted.email,
     phone: decrypted.phone,
-    address: decrypted.address,
     special_instructions: decrypted.special_instructions,
     ticket_token: decrypted.ticket_token,
-    bookings: raw.bookings,
   };
 };
 
@@ -877,7 +883,7 @@ const parseMergeDecisionForm = (
   }
 
   const version = form.getString("merge_version");
-  return { pii, answers, bookings, version };
+  return { answers, bookings, pii, version };
 };
 
 /* jscpd:ignore-start — merge handlers share structural patterns with other route handlers */
@@ -930,24 +936,24 @@ const handleMergeGet = (
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: attendeeId,
+          sourceBookings: source.bookings,
           sourceId: source.id,
-          targetPii: {
-            name: target.name,
-            email: target.email,
-            phone: target.phone,
-            address: target.address,
-            special_instructions: target.special_instructions,
-          },
           sourcePii: {
-            name: source.name,
-            email: source.email,
-            phone: source.phone,
             address: source.address,
+            email: source.email,
+            name: source.name,
+            phone: source.phone,
             special_instructions: source.special_instructions,
           },
           targetBookings,
-          sourceBookings: source.bookings,
+          targetId: attendeeId,
+          targetPii: {
+            address: target.address,
+            email: target.email,
+            name: target.name,
+            phone: target.phone,
+            special_instructions: target.special_instructions,
+          },
         },
         questions,
       );
@@ -1002,24 +1008,24 @@ const handleMergePost = (
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: attendeeId,
+          sourceBookings: source.bookings,
           sourceId: source.id,
-          targetPii: {
-            name: target.name,
-            email: target.email,
-            phone: target.phone,
-            address: target.address,
-            special_instructions: target.special_instructions,
-          },
           sourcePii: {
-            name: source.name,
-            email: source.email,
-            phone: source.phone,
             address: source.address,
+            email: source.email,
+            name: source.name,
+            phone: source.phone,
             special_instructions: source.special_instructions,
           },
           targetBookings,
-          sourceBookings: source.bookings,
+          targetId: attendeeId,
+          targetPii: {
+            address: target.address,
+            email: target.email,
+            name: target.name,
+            phone: target.phone,
+            special_instructions: target.special_instructions,
+          },
         },
         questions,
       );
@@ -1041,42 +1047,42 @@ const handleMergePost = (
       }
 
       const result = await applyAttendeeMerge({
-        targetId: attendeeId,
+        decision,
+        diff,
         sourceId: source.id,
-        targetPii: {
-          name: target.name,
-          email: target.email,
-          phone: target.phone,
-          address: target.address,
-          special_instructions: target.special_instructions,
-          payment_id: target.payment_id,
-          ticket_token: target.ticket_token,
-        },
         sourcePii: {
-          name: source.name,
-          email: source.email,
-          phone: source.phone,
           address: source.address,
+          email: source.email,
+          name: source.name,
+          phone: source.phone,
           special_instructions: source.special_instructions,
         },
-        diff,
-        decision,
+        targetId: attendeeId,
+        targetPii: {
+          address: target.address,
+          email: target.email,
+          name: target.name,
+          payment_id: target.payment_id,
+          phone: target.phone,
+          special_instructions: target.special_instructions,
+          ticket_token: target.ticket_token,
+        },
       });
 
       // Update target PII based on decisions
       const mergedPiiName =
         decision.pii.name === "source" ? source.name : target.name;
       await updateAttendeePII(attendeeId, {
-        name: decision.pii.name === "source" ? source.name : target.name,
-        email: decision.pii.email === "source" ? source.email : target.email,
-        phone: decision.pii.phone === "source" ? source.phone : target.phone,
         address:
           decision.pii.address === "source" ? source.address : target.address,
+        email: decision.pii.email === "source" ? source.email : target.email,
+        name: decision.pii.name === "source" ? source.name : target.name,
+        payment_id: target.payment_id,
+        phone: decision.pii.phone === "source" ? source.phone : target.phone,
         special_instructions:
           decision.pii.special_instructions === "source"
             ? source.special_instructions
             : target.special_instructions,
-        payment_id: target.payment_id,
         ticket_token: target.ticket_token,
       });
 
@@ -1121,27 +1127,27 @@ const handleMergePost = (
 
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
+  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
+    handleAttendeeDelete,
   "GET /admin/attendees/:attendeeId": handleEditAttendeeGet,
-  "POST /admin/attendees/:attendeeId": handleEditAttendeePost,
   "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
-  "POST /admin/attendees/:attendeeId/merge": handleMergePost,
-  "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
-  "POST /admin/attendees/:attendeeId/link": handleAddEventLink,
-  "POST /admin/attendees/:attendeeId/unlink/:eventId": handleUnlinkEvent,
-  "POST /admin/attendees/:attendeeId/event/:eventId": handleUpdateEventLink,
   "GET /admin/event/:eventId/attendee/:attendeeId/delete":
     handleAdminAttendeeDeleteGet,
+  "GET /admin/event/:eventId/attendee/:attendeeId/resend-notification":
+    handleAdminResendNotificationGet,
+  "POST /admin/attendees/:attendeeId": handleEditAttendeePost,
+  "POST /admin/attendees/:attendeeId/event/:eventId": handleUpdateEventLink,
+  "POST /admin/attendees/:attendeeId/link": handleAddEventLink,
+  "POST /admin/attendees/:attendeeId/merge": handleMergePost,
+  "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
+  "POST /admin/attendees/:attendeeId/unlink/:eventId": handleUnlinkEvent,
   "POST /admin/event/:eventId/attendee": handleAddAttendee,
+  "POST /admin/event/:eventId/attendee/:attendeeId/checkin":
+    handleAttendeeCheckin,
   "POST /admin/event/:eventId/attendee/:attendeeId/delete":
-    handleAttendeeDelete,
-  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
     handleAttendeeDelete,
   "POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete":
     handleDeleteIncomplete,
-  "POST /admin/event/:eventId/attendee/:attendeeId/checkin":
-    handleAttendeeCheckin,
-  "GET /admin/event/:eventId/attendee/:attendeeId/resend-notification":
-    handleAdminResendNotificationGet,
   "POST /admin/event/:eventId/attendee/:attendeeId/resend-notification":
     handleResendNotification,
 });

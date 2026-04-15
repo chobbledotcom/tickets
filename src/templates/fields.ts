@@ -57,6 +57,7 @@ export type EventFormValues = {
   bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;
+  duration_days: number | null;
   non_transferable: string;
   group_id: string;
   can_pay_more: string;
@@ -383,6 +384,24 @@ export const eventFields: Field[] = [
     type: "number",
     min: 0,
     hint: "How far into the future attendees can book (0 = no limit)",
+  },
+  {
+    name: "duration_days",
+    label: "Booking Duration (days)",
+    type: "number",
+    min: 1,
+    max: 90,
+    hint: "How many days each booking reserves. Only applies to daily events.",
+    validate: (value: string): string | null => {
+      if (value === "") return null;
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed)) {
+        return "Booking Duration (days) must be a whole number";
+      }
+      if (parsed < 1) return "Booking Duration (days) must be at least 1";
+      if (parsed > 90) return "Booking Duration (days) must be at most 90";
+      return null;
+    },
   },
   {
     name: "fields",

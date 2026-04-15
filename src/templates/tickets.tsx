@@ -4,7 +4,12 @@
 
 import { map, pipe } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
-import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
+import {
+  addDays,
+  formatDateLabel,
+  formatDateRangeLabelCompactEn,
+  formatDatetimeLabel,
+} from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#lib/markdown.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
@@ -54,8 +59,18 @@ const renderTicketCard = (
     ? `<div class="ticket-card-description">${renderMarkdown(event.description)}</div>`
     : "";
 
-  const attendeeDateHtml = attendee.date
-    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(formatDateLabel(attendee.date))}</div>`
+  const bookingDurationDays =
+    event.event_type === "daily" ? Math.max(1, event.duration_days) : 1;
+  const bookingDateLabel = attendee.date
+    ? bookingDurationDays > 1
+      ? formatDateRangeLabelCompactEn(
+          attendee.date,
+          addDays(attendee.date, bookingDurationDays - 1),
+        )
+      : formatDateLabel(attendee.date)
+    : "";
+  const attendeeDateHtml = bookingDateLabel
+    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(bookingDateLabel)}</div>`
     : "";
 
   const pricePaid = Number(attendee.price_paid);

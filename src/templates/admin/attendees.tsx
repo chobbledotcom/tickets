@@ -3,7 +3,11 @@
  */
 
 import { formatCurrency } from "#lib/currency.ts";
-import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
+import {
+  formatDateLabel,
+  formatDateRangeLabel,
+  formatDatetimeShort,
+} from "#lib/dates.ts";
 import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
@@ -328,7 +332,12 @@ export const adminEditAttendeePage = (
                 <td>
                   <a href={`/admin/event/${evt.id}`}>{evt.name}</a>
                 </td>
-                <td>{linkDate ? formatDateLabel(linkDate) : ""}</td>
+                <td>
+                  {linkDate
+                    ? formatDateRangeLabel(booking.start_at, booking.end_at) ||
+                      formatDateLabel(linkDate)
+                    : ""}
+                </td>
                 <td>
                   <CsrfForm
                     action={`/admin/attendees/${attendee.id}/event/${evt.id}`}
@@ -742,9 +751,9 @@ export const adminMergeAttendeePage = (
                       html={MergePiiField({
                         field: f.field,
                         label: f.label,
-                        targetValue: f.targetValue,
-                        sourceValue: f.sourceValue,
                         multiline: f.multiline,
+                        sourceValue: f.sourceValue,
+                        targetValue: f.targetValue,
                       })}
                     />
                   ))}
@@ -756,8 +765,8 @@ export const adminMergeAttendeePage = (
             <Raw
               html={MergeAnswersDecisionTable({
                 diff: mergeDiff,
-                targetName: target.name,
                 sourceName: source.name,
+                targetName: target.name,
               })}
             />
 

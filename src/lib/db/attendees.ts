@@ -69,14 +69,14 @@ const buildPiiBlob = (
   info: ContactInfo & { payment_id: string; ticket_token: string },
 ): string =>
   JSON.stringify({
-    v: PII_BLOB_VERSION,
-    n: info.name,
-    e: info.email,
-    p: info.phone,
     a: info.address,
-    s: info.special_instructions,
+    e: info.email,
+    n: info.name,
+    p: info.phone,
     pi: info.payment_id,
+    s: info.special_instructions,
     t: info.ticket_token,
+    v: PII_BLOB_VERSION,
   } satisfies PiiBlob);
 
 /** Parse a PII blob JSON back into contact fields (defaults v to 1 for pre-versioned blobs) */
@@ -109,12 +109,12 @@ const decryptPiiBlob = async (
   const json = await decryptAttendeePII(encrypted, privateKey);
   const blob = parsePiiBlob(json);
   return {
-    name: blob.n,
-    email: blob.e,
-    phone: blob.p,
     address: blob.a,
-    special_instructions: blob.s,
+    email: blob.e,
+    name: blob.n,
     payment_id: paidEvent ? blob.pi : "",
+    phone: blob.p,
+    special_instructions: blob.s,
     ticket_token: blob.t,
   };
 };
@@ -133,9 +133,9 @@ const decryptAttendeeFields = async (
   return {
     ...row,
     ...pii,
+    checked_in: Boolean(row.checked_in),
     // Convert to proper types — value may be integer (from SQL) or boolean (from buildAttendeeView)
     price_paid: String(row.price_paid),
-    checked_in: Boolean(row.checked_in),
     refunded: paidEvent ? Boolean(row.refunded) : false,
   };
 };
@@ -197,7 +197,7 @@ export const getActiveEventStats = async (
 ): Promise<ActiveEventStats> => {
   const active = filter((e: EventWithCount) => e.active)(events);
   if (active.length === 0) {
-    return { income: 0, tickets: 0, attendees: 0 };
+    return { attendees: 0, income: 0, tickets: 0 };
   }
   const activeIds = map((e: EventWithCount) => e.id)(active);
   const attendees = reduce(
@@ -214,7 +214,7 @@ export const getActiveEventStats = async (
     (sum: number, r: { price_paid: number }) => sum + r.price_paid,
     0,
   )(rows);
-  return { income, tickets: rows.length, attendees };
+  return { attendees, income, tickets: rows.length };
 };
 
 /**
@@ -250,10 +250,10 @@ const contactFields = ({
   address,
   special_instructions,
 }: ContactInfo): ContactInfo => ({
-  name,
-  email,
-  phone,
   address,
+  email,
+  name,
+  phone,
   special_instructions,
 });
 
@@ -278,28 +278,28 @@ export const encryptAttendeeFields = async (
 
   return {
     created: nowIso(),
+    encryptedPiiBlob,
     ticketToken,
     ticketTokenIndex,
-    encryptedPiiBlob,
   };
 };
 
 /** Build plain Attendee object from insert result */
 const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
-  id: Number(input.insertId),
   event_id: input.eventId,
+  id: Number(input.insertId),
   ...contactFields(input),
-  created: input.created,
-  payment_id: input.paymentId,
-  quantity: input.quantity,
-  price_paid: String(input.pricePaid),
+  attachment_downloads: 0,
   checked_in: false,
+  created: input.created,
+  date: input.date,
+  payment_id: input.paymentId,
+  pii_blob: "",
+  price_paid: String(input.pricePaid),
+  quantity: input.quantity,
   refunded: false,
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
-  date: input.date,
-  attachment_downloads: 0,
-  pii_blob: "",
 });
 
 /**
@@ -338,18 +338,18 @@ export const getAttendee = async (
 const purgeAttendee = (attendeeId: number): Promise<void> =>
   executeBatch([
     {
+      args: [attendeeId],
       sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
-      args: [attendeeId],
     },
     {
+      args: [attendeeId],
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-      args: [attendeeId],
     },
     {
-      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
       args: [attendeeId],
+      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
     },
-    { sql: "DELETE FROM attendees WHERE id = ?", args: [attendeeId] },
+    { args: [attendeeId], sql: "DELETE FROM attendees WHERE id = ?" },
   ]);
 
 /**
@@ -370,8 +370,8 @@ export const unlinkAttendeeFromEvent = async (
   eventId: number,
 ): Promise<{ attendeeDeleted: boolean }> => {
   await getDb().execute({
-    sql: "DELETE FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
     args: [attendeeId, eventId],
+    sql: "DELETE FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
   });
 
   const remaining = await queryOne<{ count: number }>(
@@ -391,26 +391,63 @@ export const unlinkAttendeeFromEvent = async (
 
 /** Shared failure result for capacity-exceeded */
 const CAPACITY_EXCEEDED = {
-  success: false as const,
   reason: "capacity_exceeded" as const,
+  success: false as const,
+};
+
+/** Add N calendar days to a YYYY-MM-DD date string (UTC-based). */
+const addDaysStr = (dateStr: string, days: number): string => {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 };
 
 /** Convert nullable date to start_at/end_at (null-safe wrapper around dateToRange) */
 const dateToStartEnd = (
   date: string | null,
+  durationDays = 1,
 ): { startAt: string | null; endAt: string | null } => {
-  if (!date) return { startAt: null, endAt: null };
-  const range = dateToRange(date);
-  return { startAt: range.startAt, endAt: range.endAt };
+  if (!date) return { endAt: null, startAt: null };
+  const range = dateToRange(date, durationDays);
+  return { endAt: range.endAt, startAt: range.startAt };
 };
 
-/** Convert a date string ("YYYY-MM-DD") to start_at/end_at pair for full-day range */
+/**
+ * Convert a date string ("YYYY-MM-DD") to a start_at/end_at pair.
+ * The range is inclusive of `durationDays` calendar days starting at `date` @ 00:00Z;
+ * `end_at` is the first midnight after the window (matches the existing 1-day semantic).
+ */
 export const dateToRange = (
   date: string,
+  durationDays = 1,
 ): { startAt: string; endAt: string } => {
   const ms = new Date(`${date}T00:00:00Z`).getTime();
-  const nextDay = new Date(ms + 86_400_000).toISOString();
-  return { startAt: `${date}T00:00:00Z`, endAt: nextDay };
+  const endIso = new Date(ms + durationDays * 86_400_000).toISOString();
+  return { endAt: endIso, startAt: `${date}T00:00:00Z` };
+};
+
+/**
+ * Recompute `end_at` on all existing `event_attendees` rows for an event based
+ * on a new `duration_days` value. Leaves rows with NULL `start_at` (non-daily
+ * events) unchanged. Runs as a single UPDATE so callers can batch it alongside
+ * the corresponding event update.
+ */
+export const recomputeEventBookingRanges = async (
+  eventId: number,
+  durationDays: number,
+): Promise<void> => {
+  const duration = Math.max(1, Math.floor(durationDays));
+  await getDb().execute({
+    args: [duration, eventId],
+    // datetime(start_at, '+N days') keeps same time-of-day; start_at is always
+    // "YYYY-MM-DDT00:00:00Z" so the result is "YYYY-MM-DD 00:00:00". Normalize
+    // back to ISO with a T separator + Z suffix so SQL text comparisons against
+    // other end_at values stay consistent.
+    sql: `UPDATE event_attendees
+           SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || 'Z'
+           WHERE event_id = ? AND start_at IS NOT NULL`,
+  });
+  invalidateEventsCache();
 };
 
 /** Get the total attendee quantity for a specific event + date */
@@ -464,8 +501,9 @@ const buildCapacityCondition = (
   qty: number,
   date: string | null,
   excludeAttendeeId?: number,
+  durationDays = 1,
 ): { sql: string; args: InValue[] } => {
-  const range = date ? dateToRange(date) : null;
+  const range = date ? dateToRange(date, durationDays) : null;
   const endAt = range?.endAt ?? null;
   const startAt = range?.startAt ?? null;
 
@@ -507,17 +545,21 @@ const buildCapacityCondition = (
     : [date, endAt, startAt, qty, eventId];
 
   return {
-    sql: `(${capacityFilter}) + ? <= (SELECT max_attendees FROM events WHERE id = ?)${groupCapacityCheck}`,
     args: [...capacityArgs, qty, eventId, ...groupCapacityArgs],
+    sql: `(${capacityFilter}) + ? <= (SELECT max_attendees FROM events WHERE id = ?)${groupCapacityCheck}`,
   };
 };
 
 /**
  * Build a capacity-checked INSERT INTO event_attendees for a single booking.
  * Uses last_insert_rowid() to reference the attendee created in step 1 of the batch.
- */
-/**
- * Build a capacity-checked INSERT into event_attendees.
+ *
+ * NOTE: the inline SQL capacity check here uses the overlap-sum predicate
+ * (`ea2.start_at < ? AND ea2.end_at > ?`). For multi-day bookings this is a
+ * conservative safety net only; accurate per-day capacity enforcement happens
+ * up-front in `checkBatchAvailability` before the insert runs. Over-rejection
+ * here is safe (it just triggers a user retry) and the race window is narrow.
+ *
  * @param attendeeIdExpr - SQL expression for attendee_id (e.g. "last_insert_rowid()" or "?")
  * @param attendeeIdArg - Argument for "?" expr, omit for last_insert_rowid()
  */
@@ -526,27 +568,46 @@ const buildCapacityCheckedInsert = (
   attendeeIdExpr = "last_insert_rowid()",
   attendeeIdArg?: number,
 ): { sql: string; args: InValue[] } => {
-  const { eventId, quantity: qty = 1, pricePaid = 0, date = null } = booking;
-  const condition = buildCapacityCondition(eventId, qty, date);
-  const { startAt, endAt } = dateToStartEnd(date);
+  const {
+    eventId,
+    quantity: qty = 1,
+    pricePaid = 0,
+    date = null,
+    durationDays = 1,
+  } = booking;
+  const condition = buildCapacityCondition(
+    eventId,
+    qty,
+    date,
+    undefined,
+    durationDays,
+  );
+  const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const args: InValue[] = [eventId];
   if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
   args.push(startAt, endAt, qty, pricePaid, ...condition.args);
 
   return {
+    args,
     sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid)
           SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?
           WHERE ${condition.sql}`,
-    args,
   };
 };
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
   /**
-   * Check availability for multiple events in a single query.
-   * Uses a JOIN with conditional date filtering: daily events check per-date
-   * capacity while standard events check total capacity.
+   * Check availability for multiple events.
+   *
+   * For daily events, enumerates every day in the requested range
+   * (`[date, date + durationDays)` per item) and runs a per-day capacity
+   * query. Per-day iteration is used instead of a single overlap-sum so
+   * multi-day bookings that only partially overlap an existing booking do
+   * not produce false "sold out" results.
+   *
+   * Group `max_attendees` is also enforced per-day across the union of
+   * requested ranges.
    */
   checkBatchAvailability: async (
     items: BatchAvailabilityItem[],
@@ -554,50 +615,221 @@ export const attendeesApi = {
   ): Promise<boolean> => {
     if (items.length === 0) return true;
     const eventIds = items.map((i) => i.eventId);
-    const range = date ? dateToRange(date) : null;
-    const rows = await queryAll<{
+
+    const eventRows = await queryAll<{
       id: number;
       max_attendees: number;
-      current_count: number;
       group_id: number;
+      event_type: string;
     }>(
-      `SELECT e.id, e.max_attendees,
-              COALESCE(SUM(ea.quantity), 0) as current_count,
-              e.group_id
-            FROM events e
-            LEFT JOIN event_attendees ea ON ea.event_id = e.id
-              AND (e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))
-            WHERE e.id IN (${inPlaceholders(eventIds)})
-            GROUP BY e.id`,
-      [range?.endAt ?? null, range?.startAt ?? null, ...eventIds],
+      `SELECT id, max_attendees, group_id, event_type
+         FROM events
+         WHERE id IN (${inPlaceholders(eventIds)})`,
+      eventIds,
     );
-    const counts = new Map(rows.map((r) => [r.id, r]));
-    // Per-event capacity check
-    const eventOk = items.every((item) => {
-      const row = counts.get(item.eventId);
-      return row
-        ? row.current_count + item.quantity <= row.max_attendees
-        : false;
-    });
-    if (!eventOk) return false;
+    const eventsById = new Map(eventRows.map((r) => [r.id, r]));
 
-    // Group capacity check: collect unique group IDs with limits
+    const daysOfRange = (startDate: string, durationDays: number): string[] => {
+      const days: string[] = [];
+      for (let i = 0; i < durationDays; i++) {
+        days.push(addDaysStr(startDate, i));
+      }
+      return days;
+    };
+
+    // Per-day demand by (eventId, day) → quantity requested
+    const perDayDemand = new Map<number, Map<string, number>>();
+    // Non-daily/total demand by eventId → quantity
+    const totalDemand = new Map<number, number>();
+
+    for (const item of items) {
+      const ev = eventsById.get(item.eventId);
+      if (!ev) return false;
+      const duration = Math.max(1, item.durationDays ?? 1);
+      if (ev.event_type === "daily" && date) {
+        const dayMap =
+          perDayDemand.get(item.eventId) ?? new Map<string, number>();
+        for (const day of daysOfRange(date, duration)) {
+          dayMap.set(day, (dayMap.get(day) ?? 0) + item.quantity);
+        }
+        perDayDemand.set(item.eventId, dayMap);
+      } else {
+        totalDemand.set(
+          item.eventId,
+          (totalDemand.get(item.eventId) ?? 0) + item.quantity,
+        );
+      }
+    }
+
+    const perDayChecks: Promise<boolean>[] = [];
+    for (const [eventId, dayMap] of perDayDemand) {
+      const ev = eventsById.get(eventId)!;
+      for (const [day, qty] of dayMap) {
+        perDayChecks.push(
+          (async () => {
+            const existing = await getDateAttendeeCount(eventId, day);
+            return existing + qty <= ev.max_attendees;
+          })(),
+        );
+      }
+    }
+    const perDayResults = await Promise.all(perDayChecks);
+    if (!perDayResults.every(Boolean)) return false;
+
+    for (const [eventId, qty] of totalDemand) {
+      const ev = eventsById.get(eventId)!;
+      const row = await queryOne<{ count: number }>(
+        "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
+        [eventId],
+      );
+      const existing = row?.count ?? 0;
+      if (existing + qty > ev.max_attendees) return false;
+    }
+
+    // Group capacity: per-day across the union of requested daily days,
+    // plus any non-daily demand against baseline group occupancy.
     const groupIds = new Set<number>();
-    for (const row of rows) {
-      if (row.group_id > 0) groupIds.add(row.group_id);
+    for (const ev of eventRows) {
+      if (ev.group_id > 0) groupIds.add(ev.group_id);
     }
     for (const groupId of groupIds) {
       const groupLimit = await getGroupMaxAttendees(groupId);
       if (groupLimit <= 0) continue;
-      const groupCount = await getGroupAttendeeCount(groupId, date ?? null);
-      // Sum requested quantities for events in this group
-      const requestedInGroup = items.reduce((sum, item) => {
-        const row = counts.get(item.eventId);
-        return row && row.group_id === groupId ? sum + item.quantity : sum;
-      }, 0);
-      if (groupCount + requestedInGroup > groupLimit) return false;
+
+      const groupDayDemand = new Map<string, number>();
+      let groupNonDailyDemand = 0;
+      for (const item of items) {
+        const ev = eventsById.get(item.eventId);
+        if (!ev || ev.group_id !== groupId) continue;
+        const duration = Math.max(1, item.durationDays ?? 1);
+        if (ev.event_type === "daily" && date) {
+          for (const day of daysOfRange(date, duration)) {
+            groupDayDemand.set(
+              day,
+              (groupDayDemand.get(day) ?? 0) + item.quantity,
+            );
+          }
+        } else {
+          groupNonDailyDemand += item.quantity;
+        }
+      }
+
+      for (const [day, qty] of groupDayDemand) {
+        const existing = await getGroupAttendeeCount(groupId, day);
+        if (existing + qty + groupNonDailyDemand > groupLimit) return false;
+      }
+
+      if (groupDayDemand.size === 0 && groupNonDailyDemand > 0) {
+        const existing = await getGroupAttendeeCount(groupId, null);
+        if (existing + groupNonDailyDemand > groupLimit) return false;
+      }
     }
     return true;
+  },
+  /**
+   * Atomically create an attendee linked to one or more events.
+   * Single ACID batch transaction:
+   *   1. INSERT attendee (unconditional)
+   *   2..N+1. For each booking: INSERT event_attendees with capacity check
+   *   N+2. Clean up attendee if ALL capacity checks failed
+   * Returns one Attendee per successful booking.
+   */
+  createAttendeeAtomic: async (
+    input: AttendeeInput,
+  ): Promise<CreateAttendeeResult> => {
+    const {
+      name,
+      email,
+      paymentId = "",
+      phone = "",
+      address = "",
+      special_instructions = "",
+      bookings,
+    } = input;
+    if (bookings.length === 0) {
+      return { reason: "capacity_exceeded", success: false };
+    }
+
+    const contactInfo = { address, email, name, phone, special_instructions };
+    // Use first booking's pricePaid for encryption (PII blob is shared)
+    const enc = await encryptAttendeeFields({
+      ...contactInfo,
+      paymentId,
+      pricePaid: bookings[0]!.pricePaid ?? 0,
+    });
+    if (!enc) {
+      return { reason: "encryption_error", success: false };
+    }
+
+    // Use a subquery to look up the attendee ID instead of last_insert_rowid().
+    // last_insert_rowid() updates after each INSERT in a batch, so the 2nd+
+    // booking would get the event_attendees row ID instead of the attendee ID.
+    const attendeeIdExpr =
+      "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
+    const bookingStatements = bookings.map((booking) => {
+      const insert = buildCapacityCheckedInsert(booking, attendeeIdExpr);
+      // Splice ticketTokenIndex after the first arg (eventId) to bind
+      // the ? in the attendeeIdExpr subquery
+      const combined: InValue[] = [
+        insert.args[0]!,
+        enc.ticketTokenIndex,
+        ...insert.args.slice(1),
+      ];
+      return { args: combined, sql: insert.sql };
+    });
+
+    // Single ACID transaction: attendee first, then capacity-checked event links.
+    // If all capacity checks fail, the attendee is cleaned up in the final step.
+    const batchResults = await executeBatchWithResults([
+      // Step 1: Create attendee record (unconditional)
+      insert("attendees", {
+        created: enc.created,
+        pii_blob: enc.encryptedPiiBlob,
+        ticket_token_index: enc.ticketTokenIndex,
+      }),
+      // Steps 2..N+1: One capacity-checked INSERT per booking
+      ...bookingStatements,
+      // Final step: Clean up attendee if no event links were created
+      {
+        args: [enc.ticketTokenIndex, enc.ticketTokenIndex],
+        sql: `DELETE FROM attendees WHERE id = (
+                SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
+              ) AND NOT EXISTS (
+                SELECT 1 FROM event_attendees WHERE attendee_id = (
+                  SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
+                )
+              )`,
+      },
+    ]);
+
+    // Check which bookings succeeded (steps 2..N+1 in batchResults, offset by 1)
+    const successfulBookings: Attendee[] = [];
+    for (let i = 0; i < bookings.length; i++) {
+      if (batchResults[i + 1]!.rowsAffected > 0) {
+        const booking = bookings[i]!;
+        successfulBookings.push(
+          buildAttendeeResult({
+            eventId: booking.eventId,
+            insertId: batchResults[0]!.lastInsertRowid,
+            ...contactInfo,
+            created: enc.created,
+            date: booking.date ?? null,
+            paymentId,
+            pricePaid: booking.pricePaid ?? 0,
+            quantity: booking.quantity ?? 1,
+            ticketToken: enc.ticketToken,
+            ticketTokenIndex: enc.ticketTokenIndex,
+          }),
+        );
+      }
+    }
+
+    if (successfulBookings.length === 0) {
+      return { reason: "capacity_exceeded", success: false };
+    }
+
+    invalidateEventsCache();
+    return { attendees: successfulBookings, success: true };
   },
   /** Check if an event has available spots for the requested quantity */
   hasAvailableSpots: async (
@@ -625,111 +857,6 @@ export const attendeesApi = {
       }
     }
     return true;
-  },
-  /**
-   * Atomically create an attendee linked to one or more events.
-   * Single ACID batch transaction:
-   *   1. INSERT attendee (unconditional)
-   *   2..N+1. For each booking: INSERT event_attendees with capacity check
-   *   N+2. Clean up attendee if ALL capacity checks failed
-   * Returns one Attendee per successful booking.
-   */
-  createAttendeeAtomic: async (
-    input: AttendeeInput,
-  ): Promise<CreateAttendeeResult> => {
-    const {
-      name,
-      email,
-      paymentId = "",
-      phone = "",
-      address = "",
-      special_instructions = "",
-      bookings,
-    } = input;
-    if (bookings.length === 0) {
-      return { success: false, reason: "capacity_exceeded" };
-    }
-
-    const contactInfo = { name, email, phone, address, special_instructions };
-    // Use first booking's pricePaid for encryption (PII blob is shared)
-    const enc = await encryptAttendeeFields({
-      ...contactInfo,
-      paymentId,
-      pricePaid: bookings[0]!.pricePaid ?? 0,
-    });
-    if (!enc) {
-      return { success: false, reason: "encryption_error" };
-    }
-
-    // Use a subquery to look up the attendee ID instead of last_insert_rowid().
-    // last_insert_rowid() updates after each INSERT in a batch, so the 2nd+
-    // booking would get the event_attendees row ID instead of the attendee ID.
-    const attendeeIdExpr =
-      "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
-    const bookingStatements = bookings.map((booking) => {
-      const insert = buildCapacityCheckedInsert(booking, attendeeIdExpr);
-      // Splice ticketTokenIndex after the first arg (eventId) to bind
-      // the ? in the attendeeIdExpr subquery
-      const combined: InValue[] = [
-        insert.args[0]!,
-        enc.ticketTokenIndex,
-        ...insert.args.slice(1),
-      ];
-      return { sql: insert.sql, args: combined };
-    });
-
-    // Single ACID transaction: attendee first, then capacity-checked event links.
-    // If all capacity checks fail, the attendee is cleaned up in the final step.
-    const batchResults = await executeBatchWithResults([
-      // Step 1: Create attendee record (unconditional)
-      insert("attendees", {
-        created: enc.created,
-        ticket_token_index: enc.ticketTokenIndex,
-        pii_blob: enc.encryptedPiiBlob,
-      }),
-      // Steps 2..N+1: One capacity-checked INSERT per booking
-      ...bookingStatements,
-      // Final step: Clean up attendee if no event links were created
-      {
-        sql: `DELETE FROM attendees WHERE id = (
-                SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
-              ) AND NOT EXISTS (
-                SELECT 1 FROM event_attendees WHERE attendee_id = (
-                  SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
-                )
-              )`,
-        args: [enc.ticketTokenIndex, enc.ticketTokenIndex],
-      },
-    ]);
-
-    // Check which bookings succeeded (steps 2..N+1 in batchResults, offset by 1)
-    const successfulBookings: Attendee[] = [];
-    for (let i = 0; i < bookings.length; i++) {
-      if (batchResults[i + 1]!.rowsAffected > 0) {
-        const booking = bookings[i]!;
-        successfulBookings.push(
-          buildAttendeeResult({
-            insertId: batchResults[0]!.lastInsertRowid,
-            eventId: booking.eventId,
-            ...contactInfo,
-            created: enc.created,
-            paymentId,
-            quantity: booking.quantity ?? 1,
-            pricePaid: booking.pricePaid ?? 0,
-            ticketToken: enc.ticketToken,
-            ticketTokenIndex: enc.ticketTokenIndex,
-            date: booking.date ?? null,
-          }),
-        );
-      }
-    }
-
-    if (successfulBookings.length === 0) {
-      return { success: false, reason: "capacity_exceeded" };
-    }
-
-    invalidateEventsCache();
-    return { success: true, attendees: successfulBookings };
   },
 };
 
@@ -801,14 +928,14 @@ export const getAttendeesByTokens = async (
   for (const row of bookingRows) {
     const list = bookingsByAttendee.get(row.attendee_id) ?? [];
     list.push({
-      event_id: row.event_id,
-      start_at: row.start_at,
-      end_at: row.end_at,
-      quantity: row.quantity,
-      checked_in: row.checked_in,
-      refunded: row.refunded,
-      price_paid: row.price_paid,
       attachment_downloads: row.attachment_downloads,
+      checked_in: row.checked_in,
+      end_at: row.end_at,
+      event_id: row.event_id,
+      price_paid: row.price_paid,
+      quantity: row.quantity,
+      refunded: row.refunded,
+      start_at: row.start_at,
     });
     bookingsByAttendee.set(row.attendee_id, list);
   }
@@ -817,12 +944,12 @@ export const getAttendeesByTokens = async (
   const byTokenIndex = new Map<string, AttendeeWithBookings>();
   for (const row of attendeeRows) {
     byTokenIndex.set(row.ticket_token_index, {
-      id: row.id,
+      bookings: bookingsByAttendee.get(row.id) ?? [],
       created: row.created,
+      id: row.id,
+      pii_blob: row.pii_blob,
       ticket_token: "", // populated after decryption by caller
       ticket_token_index: row.ticket_token_index,
-      pii_blob: row.pii_blob,
-      bookings: bookingsByAttendee.get(row.id) ?? [],
     });
   }
 
@@ -838,8 +965,8 @@ const updateEventAttendeeField =
   (field: string) =>
   async (attendeeId: number, eventId: number, value: number): Promise<void> => {
     await getDb().execute({
-      sql: `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
       args: [value, attendeeId, eventId],
+      sql: `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
     });
   };
 
@@ -874,8 +1001,8 @@ export const incrementAttachmentDownloads = async (
   eventId: number,
 ): Promise<void> => {
   await getDb().execute({
-    sql: "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
     args: [attendeeId, eventId],
+    sql: "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
   });
 };
 
@@ -896,8 +1023,8 @@ export const updateAttendeePII = async (
     settings.publicKey,
   );
   await getDb().execute({
-    sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
     args: [encryptedPiiBlob, attendeeId],
+    sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
   });
 };
 
@@ -915,14 +1042,20 @@ export const updateEventLink = async (
   eventId: number,
   input: UpdateEventLinkInput,
 ): Promise<UpdateEventLinkResult> => {
-  const { quantity: qty, date } = input;
-  const { startAt, endAt } = dateToStartEnd(date);
-  const condition = buildCapacityCondition(eventId, qty, date, attendeeId);
+  const { quantity: qty, date, durationDays = 1 } = input;
+  const { startAt, endAt } = dateToStartEnd(date, durationDays);
+  const condition = buildCapacityCondition(
+    eventId,
+    qty,
+    date,
+    attendeeId,
+    durationDays,
+  );
 
   const result = await getDb().execute({
+    args: [qty, startAt, endAt, attendeeId, eventId, ...condition.args],
     sql: `UPDATE event_attendees SET quantity = ?, start_at = ?, end_at = ?
           WHERE attendee_id = ? AND event_id = ? AND ${condition.sql}`,
-    args: [qty, startAt, endAt, attendeeId, eventId, ...condition.args],
   });
 
   return checkCapacityResult(result);

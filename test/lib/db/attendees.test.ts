@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
+  dateToRange,
   decryptAttendees,
   deleteAttendee,
   getActiveEventStats,
@@ -12,6 +13,7 @@ import {
   getDateAttendeeCount,
   getNewestAttendeesRaw,
   hasAvailableSpots,
+  recomputeEventBookingRanges,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
@@ -142,10 +144,10 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        name: "Phone Person",
-        email: "phone@example.com",
-        phone: "+44 7700 900000",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "phone@example.com",
+        name: "Phone Person",
+        phone: "+44 7700 900000",
       });
 
       expect(result.success).toBe(true);
@@ -168,12 +170,12 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        name: "NoContact Person",
-        email: "",
-        phone: "",
         address: "",
-        special_instructions: "",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "",
+        name: "NoContact Person",
+        phone: "",
+        special_instructions: "",
       });
 
       expect(result.success).toBe(true);
@@ -201,10 +203,10 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        name: "Instructions Person",
-        email: "inst@example.com",
-        special_instructions: "No nuts please\nAllergic to dairy",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "inst@example.com",
+        name: "Instructions Person",
+        special_instructions: "No nuts please\nAllergic to dairy",
       });
 
       expect(result.success).toBe(true);
@@ -224,10 +226,10 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        name: "Address Person",
-        email: "addr@example.com",
         address: "123 Main St\nSpringfield\nIL 62701",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "addr@example.com",
+        name: "Address Person",
       });
 
       expect(result.success).toBe(true);
@@ -256,6 +258,7 @@ describeWithEnv("db > attendees", { db: true }, () => {
 
       // Simulate pre-migration state: set checked_in to empty string directly
       await getDb().execute({
+        args: [event.id],
         sql: `UPDATE attendees
               SET checked_in = ''
               WHERE id IN (
@@ -263,7 +266,6 @@ describeWithEnv("db > attendees", { db: true }, () => {
                 FROM event_attendees
                 WHERE event_id = ?
               )`,
-        args: [event.id],
       });
 
       const privateKey = await getTestPrivateKey();
@@ -331,7 +333,7 @@ describeWithEnv("db > attendees", { db: true }, () => {
 
     test("getActiveEventStats returns zeros for empty events", async () => {
       const stats = await getActiveEventStats([]);
-      expect(stats).toEqual({ income: 0, tickets: 0, attendees: 0 });
+      expect(stats).toEqual({ attendees: 0, income: 0, tickets: 0 });
     });
 
     test("getActiveEventStats returns zeros when all events inactive", async () => {
@@ -349,7 +351,7 @@ describeWithEnv("db > attendees", { db: true }, () => {
       const events = await getAllEvents();
       const inactive = events.map((e) => ({ ...e, active: false }));
       const stats = await getActiveEventStats(inactive);
-      expect(stats).toEqual({ income: 0, tickets: 0, attendees: 0 });
+      expect(stats).toEqual({ attendees: 0, income: 0, tickets: 0 });
     });
 
     test("getActiveEventStats counts tickets and sums income for active events", async () => {
@@ -403,7 +405,7 @@ describeWithEnv("db > attendees", { db: true }, () => {
       );
       const events = await getAllEvents();
       const mixed = events.map((e) =>
-        e.id === event2.id ? { ...e, active: false } : e
+        e.id === event2.id ? { ...e, active: false } : e,
       );
       const stats = await getActiveEventStats(mixed);
       expect(stats.tickets).toBe(1);
@@ -465,9 +467,9 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        name: "John",
-        email: "john@example.com",
         bookings: [{ eventId: event.id, quantity: 2 }],
+        email: "john@example.com",
+        name: "John",
       });
 
       expect(result.success).toBe(true);
@@ -482,12 +484,12 @@ describeWithEnv("db > attendees", { db: true }, () => {
       const event2 = await createTestEvent({ maxAttendees: 10 });
 
       const result = await createAttendeeAtomic({
-        name: "Multi Buyer",
-        email: "multi@example.com",
         bookings: [
           { eventId: event1.id, quantity: 2 },
           { eventId: event2.id, quantity: 3 },
         ],
+        email: "multi@example.com",
+        name: "Multi Buyer",
       });
 
       expect(result.success).toBe(true);
@@ -515,15 +517,15 @@ describeWithEnv("db > attendees", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
         bookings: [{ eventId: event.id }],
+        email: "first@example.com",
+        name: "First",
       });
 
       const result = await createAttendeeAtomic({
-        name: "Second",
-        email: "second@example.com",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "second@example.com",
+        name: "Second",
       });
 
       expect(result.success).toBe(false);
@@ -534,9 +536,9 @@ describeWithEnv("db > attendees", { db: true }, () => {
 
     test("fails with empty bookings", async () => {
       const result = await createAttendeeAtomic({
-        name: "Nobody",
-        email: "nobody@example.com",
         bookings: [],
+        email: "nobody@example.com",
+        name: "Nobody",
       });
 
       expect(result.success).toBe(false);
@@ -552,15 +554,15 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
         args: [CONFIG_KEYS.PUBLIC_KEY],
+        sql: "DELETE FROM settings WHERE key = ?",
       });
       settings.invalidateCache();
 
       const result = await createAttendeeAtomic({
-        name: "John",
-        email: "john@example.com",
         bookings: [{ eventId: event.id }],
+        email: "john@example.com",
+        name: "John",
       });
 
       expect(result.success).toBe(false);
@@ -577,10 +579,10 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       const result = await createAttendeeAtomic({
-        name: "Paying Customer",
+        bookings: [{ eventId: event.id, pricePaid: 2500, quantity: 1 }],
         email: "pay@example.com",
+        name: "Paying Customer",
         paymentId: "pi_test_price",
-        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 2500 }],
       });
 
       expect(result.success).toBe(true);
@@ -650,8 +652,6 @@ describeWithEnv("db > attendees", { db: true }, () => {
 
     test("checks per-date capacity for daily events", async () => {
       const event = await createTestEvent({
-        maxAttendees: 1,
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -661,14 +661,16 @@ describeWithEnv("db > attendees", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
+        maxAttendees: 1,
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       await createAttendeeAtomic({
-        name: "Day User",
+        bookings: [{ date: "2026-02-10", eventId: event.id }],
         email: "day@example.com",
-        bookings: [{ eventId: event.id, date: "2026-02-10" }],
+        name: "Day User",
       });
 
       const full = await hasAvailableSpots(event.id, 1, "2026-02-10");
@@ -681,7 +683,6 @@ describeWithEnv("db > attendees", { db: true }, () => {
 
   describe("getDateAttendeeCount", () => {
     const dailyOpts = {
-      eventType: "daily" as const,
       bookableDays: [
         "Monday",
         "Tuesday",
@@ -691,8 +692,9 @@ describeWithEnv("db > attendees", { db: true }, () => {
         "Saturday",
         "Sunday",
       ],
-      minimumDaysBefore: 0,
+      eventType: "daily" as const,
       maximumDaysAfter: 14,
+      minimumDaysBefore: 0,
     };
 
     test("returns 0 when no attendees for date", async () => {
@@ -711,14 +713,14 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       await createAttendeeAtomic({
-        name: "User 1",
+        bookings: [{ date: "2026-02-10", eventId: event.id, quantity: 2 }],
         email: "u1@example.com",
-        bookings: [{ eventId: event.id, quantity: 2, date: "2026-02-10" }],
+        name: "User 1",
       });
       await createAttendeeAtomic({
-        name: "User 2",
+        bookings: [{ date: "2026-02-10", eventId: event.id, quantity: 3 }],
         email: "u2@example.com",
-        bookings: [{ eventId: event.id, quantity: 3, date: "2026-02-10" }],
+        name: "User 2",
       });
 
       const count = await getDateAttendeeCount(event.id, "2026-02-10");
@@ -732,14 +734,14 @@ describeWithEnv("db > attendees", { db: true }, () => {
       });
 
       await createAttendeeAtomic({
-        name: "User 1",
+        bookings: [{ date: "2026-02-10", eventId: event.id, quantity: 2 }],
         email: "u1@example.com",
-        bookings: [{ eventId: event.id, quantity: 2, date: "2026-02-10" }],
+        name: "User 1",
       });
       await createAttendeeAtomic({
-        name: "User 2",
+        bookings: [{ date: "2026-02-11", eventId: event.id, quantity: 1 }],
         email: "u2@example.com",
-        bookings: [{ eventId: event.id, quantity: 1, date: "2026-02-11" }],
+        name: "User 2",
       });
 
       expect(await getDateAttendeeCount(event.id, "2026-02-10")).toBe(2);
@@ -760,8 +762,6 @@ describeWithEnv("db > attendees", { db: true }, () => {
 
     test("checks per-date capacity for daily events", async () => {
       const event = await createTestEvent({
-        maxAttendees: 2,
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -771,14 +771,16 @@ describeWithEnv("db > attendees", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
+        maxAttendees: 2,
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       await createAttendeeAtomic({
-        name: "Filled",
+        bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 2 }],
         email: "filled@example.com",
-        bookings: [{ eventId: event.id, quantity: 2, date: "2026-05-01" }],
+        name: "Filled",
       });
 
       // Same date is full
@@ -796,6 +798,185 @@ describeWithEnv("db > attendees", { db: true }, () => {
           "2026-05-02",
         ),
       ).toBe(true);
+    });
+
+    test("rejects multi-day booking when any day in range is at capacity", async () => {
+      const event = await createTestEvent({
+        durationDays: 3,
+        eventType: "daily",
+        maxAttendees: 2,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      // Fill the middle day only.
+      await createAttendeeAtomic({
+        bookings: [{ date: "2026-05-02", eventId: event.id, quantity: 2 }],
+        email: "mid@example.com",
+        name: "MidFull",
+      });
+
+      // A 3-day booking starting on 2026-05-01 overlaps the filled middle day.
+      expect(
+        await checkBatchAvailability(
+          [{ durationDays: 3, eventId: event.id, quantity: 1 }],
+          "2026-05-01",
+        ),
+      ).toBe(false);
+    });
+
+    test("accepts multi-day booking when all days have room", async () => {
+      const event = await createTestEvent({
+        durationDays: 3,
+        eventType: "daily",
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      expect(
+        await checkBatchAvailability(
+          [{ durationDays: 3, eventId: event.id, quantity: 2 }],
+          "2026-05-01",
+        ),
+      ).toBe(true);
+    });
+
+    test("enforces group per-day cap across Saturday/Sunday/combo scenario", async () => {
+      const { createTestGroup } = await import("#test-utils");
+      const group = await createTestGroup({
+        maxAttendees: 100,
+        name: "Weekend Pass",
+      });
+
+      const saturday = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+        name: "Saturday session",
+      });
+      const sunday = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+        name: "Sunday session",
+      });
+      const combo = await createTestEvent({
+        durationDays: 2,
+        eventType: "daily",
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+        name: "Weekend combo",
+      });
+
+      // Fill Saturday at the group cap via the Saturday session alone.
+      await createAttendeeAtomic({
+        bookings: [{ date: "2026-05-02", eventId: saturday.id, quantity: 100 }],
+        email: "sat@example.com",
+        name: "Saturday crowd",
+      });
+
+      // A Sunday-only booking must still succeed (different day).
+      expect(
+        await checkBatchAvailability(
+          [{ durationDays: 1, eventId: sunday.id, quantity: 50 }],
+          "2026-05-03",
+        ),
+      ).toBe(true);
+
+      // The combo booking overlaps Saturday — rejected by group cap.
+      expect(
+        await checkBatchAvailability(
+          [{ durationDays: 2, eventId: combo.id, quantity: 1 }],
+          "2026-05-02",
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("dateToRange", () => {
+    test("defaults to 1 day when duration omitted", () => {
+      const r = dateToRange("2026-04-15");
+      expect(r.startAt).toBe("2026-04-15T00:00:00Z");
+      expect(r.endAt).toBe("2026-04-16T00:00:00.000Z");
+    });
+
+    test("produces inclusive 3-day range", () => {
+      const r = dateToRange("2026-04-15", 3);
+      expect(r.startAt).toBe("2026-04-15T00:00:00Z");
+      expect(r.endAt).toBe("2026-04-18T00:00:00.000Z");
+    });
+  });
+
+  describe("multi-day bookings", () => {
+    test("createAttendeeAtomic stores end_at = start_at + duration days", async () => {
+      const event = await createTestEvent({
+        durationDays: 3,
+        eventType: "daily",
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      const result = await createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-05-01",
+            durationDays: 3,
+            eventId: event.id,
+            quantity: 1,
+          },
+        ],
+        email: "triple@example.com",
+        name: "Triple",
+      });
+      expect(result.success).toBe(true);
+
+      const row = await getDb().execute({
+        args: [event.id],
+        sql: "SELECT start_at, end_at FROM event_attendees WHERE event_id = ?",
+      });
+      const startAt = String(row.rows[0]!.start_at);
+      const endAt = String(row.rows[0]!.end_at);
+      const diffDays =
+        (new Date(endAt).getTime() - new Date(startAt).getTime()) / 86_400_000;
+      expect(diffDays).toBe(3);
+    });
+
+    test("recomputeEventBookingRanges updates existing end_at", async () => {
+      const event = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      await createAttendeeAtomic({
+        bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 1 }],
+        email: "grow@example.com",
+        name: "Grow",
+      });
+
+      await recomputeEventBookingRanges(event.id, 4);
+
+      const row = await getDb().execute({
+        args: [event.id],
+        sql: "SELECT start_at, end_at FROM event_attendees WHERE event_id = ?",
+      });
+      const startAt = String(row.rows[0]!.start_at);
+      const endAt = String(row.rows[0]!.end_at);
+      const diffDays =
+        (new Date(endAt).getTime() - new Date(startAt).getTime()) / 86_400_000;
+      expect(diffDays).toBe(4);
     });
   });
 
@@ -838,8 +1019,8 @@ describeWithEnv("db > attendees", { db: true }, () => {
         "orphan@test.com",
       );
       await getDb().execute({
-        sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
         args: [attendee.id],
+        sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
       });
       const results = await getAttendeesByTokens([token]);
       expect(results[0]).not.toBeNull();
@@ -852,16 +1033,16 @@ describeWithEnv("db > attendees", { db: true }, () => {
       const { updateEventLink } = await import("#lib/db/attendees.ts");
       const event = await createTestEvent({ maxAttendees: 5 });
       const result = await createAttendeeAtomic({
-        name: "Link",
-        email: "link@test.com",
         bookings: [{ eventId: event.id, quantity: 2 }],
+        email: "link@test.com",
+        name: "Link",
       });
       expect(result.success).toBe(true);
       if (!result.success) return;
 
       const update = await updateEventLink(result.attendees[0]!.id, event.id, {
-        quantity: 3,
         date: null,
+        quantity: 3,
       });
       expect(update.success).toBe(true);
 
@@ -873,16 +1054,16 @@ describeWithEnv("db > attendees", { db: true }, () => {
       const { updateEventLink } = await import("#lib/db/attendees.ts");
       const event = await createTestEvent({ maxAttendees: 3 });
       const result = await createAttendeeAtomic({
-        name: "Cap",
-        email: "cap@test.com",
         bookings: [{ eventId: event.id, quantity: 2 }],
+        email: "cap@test.com",
+        name: "Cap",
       });
       expect(result.success).toBe(true);
       if (!result.success) return;
 
       const update = await updateEventLink(result.attendees[0]!.id, event.id, {
-        quantity: 4,
         date: null,
+        quantity: 4,
       });
       expect(update.success).toBe(false);
     });
@@ -890,20 +1071,20 @@ describeWithEnv("db > attendees", { db: true }, () => {
     test("updates date for daily event link", async () => {
       const { updateEventLink } = await import("#lib/db/attendees.ts");
       const event = await createTestEvent({
-        maxAttendees: 10,
         eventType: "daily",
+        maxAttendees: 10,
       });
       const result = await createAttendeeAtomic({
-        name: "Daily",
+        bookings: [{ date: "2026-04-07", eventId: event.id }],
         email: "daily@test.com",
-        bookings: [{ eventId: event.id, date: "2026-04-07" }],
+        name: "Daily",
       });
       expect(result.success).toBe(true);
       if (!result.success) return;
 
       const update = await updateEventLink(result.attendees[0]!.id, event.id, {
-        quantity: 1,
         date: "2026-04-08",
+        quantity: 1,
       });
       expect(update.success).toBe(true);
 

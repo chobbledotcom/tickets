@@ -125,6 +125,28 @@ export const checkAvailability = (
     date,
   );
 
+/**
+ * Duration multiplier for a booking. Per-day pricing × duration days gives the
+ * total charged per ticket. Standard events and single-day daily events both
+ * multiply by 1 (no behavior change).
+ */
+export const bookingDurationMultiplier = (
+  event: Pick<TicketEvent["event"], "event_type" | "duration_days">,
+): number =>
+  event.event_type === "daily" ? Math.max(1, event.duration_days) : 1;
+
+/**
+ * Shared booking-date fields (date + durationDays). Keeps the payment and
+ * webhook flows aligned: both read duration from the event at insert time.
+ */
+export const bookingDateFields = (
+  event: Pick<TicketEvent["event"], "event_type" | "duration_days">,
+  date: string | null,
+): { date: string | null; durationDays: number } => ({
+  date: event.event_type === "daily" ? date : null,
+  durationDays: bookingDurationMultiplier(event),
+});
+
 /** Build registration items from events and quantities */
 export const buildRegistrationItems = (
   events: TicketEvent[],
@@ -135,13 +157,17 @@ export const buildRegistrationItems = (
     const qty = quantities.get(event.id);
     return qty !== undefined && qty > 0;
   });
-  return selected.map(({ event }) => ({
-    eventId: event.id,
-    quantity: quantities.get(event.id)!,
-    unitPrice: customPrices.get(event.id) ?? event.unit_price,
-    slug: event.slug,
-    name: event.name,
-  }));
+  return selected.map(({ event }) => {
+    const perDayPrice = customPrices.get(event.id) ?? event.unit_price;
+    const multiplier = bookingDurationMultiplier(event);
+    return {
+      eventId: event.id,
+      name: event.name,
+      quantity: quantities.get(event.id)!,
+      slug: event.slug,
+      unitPrice: perDayPrice * multiplier,
+    };
+  });
 };
 
 /** Check if any selected event requires payment */
@@ -169,11 +195,16 @@ export const handlePaymentFlow = (
 const buildBookings = (
   selected: EventQty[],
   date: string | null,
-): { eventId: number; quantity: number; date: string | null }[] =>
+): {
+  eventId: number;
+  quantity: number;
+  date: string | null;
+  durationDays: number;
+}[] =>
   selected.map(({ event, qty }) => ({
     eventId: event.id,
     quantity: qty,
-    date: event.event_type === "daily" ? date : null,
+    ...bookingDateFields(event, date),
   }));
 
 /**
@@ -214,8 +245,8 @@ export const processFreeReservation = async (
   const check = await ensureAllBookings(result, bookings.length);
   if (!check.ok) {
     return {
-      success: false,
       error: formatAtomicError(check.reason, selected[0]!.event.name),
+      success: false,
     };
   }
   // ensureAllBookings guarantees result.success after ok check
@@ -226,15 +257,15 @@ export const processFreeReservation = async (
 
   // Build entries: pair each attendee result with its event
   const entries: EmailEntry[] = attendees.map((attendee, i) => ({
-    event: selected[i]!.event,
     attendee,
+    event: selected[i]!.event,
   }));
 
   await logAndNotifyRegistration(entries);
   return {
+    entries,
     success: true,
     token: attendees[0]!.ticket_token,
-    entries,
   };
 };
 
@@ -284,8 +315,8 @@ export const getTicketContext = async (
     terms,
     ...questionsResult,
     ...(group && {
-      groupName: group.name,
       groupDescription: group.description,
+      groupName: group.name,
     }),
   };
 };

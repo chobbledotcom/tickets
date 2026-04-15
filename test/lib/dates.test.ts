@@ -6,6 +6,8 @@ import {
   daysAgo,
   eventDateToCalendarDate,
   formatDateLabel,
+  formatDateRangeLabel,
+  formatDateRangeLabelCompactEn,
   formatDatetimeLabel,
   formatDatetimeShort,
   getAvailableDates,
@@ -66,10 +68,10 @@ describeWithEnv("dates", { db: true }, () => {
   describe("getAvailableDates", () => {
     test("returns dates filtered by bookable days", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: ["Monday"],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 14,
+        minimum_days_before: 0,
       });
 
       const dates = getAvailableDates(event, []);
@@ -83,14 +85,14 @@ describeWithEnv("dates", { db: true }, () => {
 
     const dailyEventWithAllDays = () =>
       testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 7,
+        minimum_days_before: 0,
       });
 
     const makeHoliday = (name: string, start: string, end: string) => [
-      { id: 1, name, start_date: start, end_date: end },
+      { end_date: end, id: 1, name, start_date: start },
     ];
 
     test("excludes holidays", () => {
@@ -116,10 +118,10 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("respects minimum_days_before", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 3,
+        event_type: "daily",
         maximum_days_after: 10,
+        minimum_days_before: 3,
       });
 
       const dates = getAvailableDates(event, []);
@@ -129,10 +131,10 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 0,
+        minimum_days_before: 0,
       });
 
       const dates = getAvailableDates(event, []);
@@ -143,10 +145,10 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("respects maximum_days_after when non-zero", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 7,
+        minimum_days_before: 0,
       });
 
       const dates = getAvailableDates(event, []);
@@ -158,24 +160,100 @@ describeWithEnv("dates", { db: true }, () => {
       // Choose a day that doesn't appear in the 7-day range from today
       // by picking a bogus day name
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 7,
+        minimum_days_before: 0,
       });
 
       const dates = getAvailableDates(event, []);
       expect(dates).toEqual([]);
+    });
+
+    test("excludes multi-day start dates whose range covers a holiday", () => {
+      const holidayStart = addDays(today(), 3);
+      const holidays = [
+        {
+          end_date: holidayStart,
+          id: 1,
+          name: "Conflict",
+          start_date: holidayStart,
+        },
+      ];
+      const event = testEvent({
+        bookable_days: [...VALID_DAY_NAMES],
+        duration_days: 3,
+        event_type: "daily",
+        maximum_days_after: 14,
+        minimum_days_before: 0,
+      });
+      const dates = getAvailableDates(event, holidays);
+      // day+1 start → covers day 1,2,3 → contains holidayStart → excluded
+      expect(dates).not.toContain(addDays(today(), 1));
+      // day+3 start is the holiday itself → excluded
+      expect(dates).not.toContain(holidayStart);
+      // day+4 start → covers day 4,5,6 → no holiday → included
+      expect(dates).toContain(addDays(today(), 4));
+    });
+  });
+
+  describe("formatDateRangeLabelCompactEn", () => {
+    test("same day: single date with full year", () => {
+      expect(formatDateRangeLabelCompactEn("2027-02-02", "2027-02-02")).toBe(
+        "2 February 2027",
+      );
+    });
+
+    test("same month same year: joins days with en dash", () => {
+      expect(formatDateRangeLabelCompactEn("2027-02-02", "2027-02-03")).toBe(
+        "2–3 February 2027",
+      );
+    });
+
+    test("different month same year: keeps both months + trailing year", () => {
+      expect(formatDateRangeLabelCompactEn("2027-02-02", "2027-03-03")).toBe(
+        "2 February – 3 March 2027",
+      );
+    });
+
+    test("different year: both years rendered", () => {
+      expect(formatDateRangeLabelCompactEn("2027-02-02", "2028-02-03")).toBe(
+        "2 February 2027 – 3 February 2028",
+      );
+    });
+  });
+
+  describe("formatDateRangeLabel", () => {
+    test("returns single-day label when duration is 1 day", () => {
+      expect(
+        formatDateRangeLabel(
+          "2026-02-09T00:00:00Z",
+          "2026-02-10T00:00:00.000Z",
+        ),
+      ).toBe("Monday 9 February 2026");
+    });
+
+    test("returns compact range when duration is multi-day", () => {
+      expect(
+        formatDateRangeLabel(
+          "2027-02-02T00:00:00Z",
+          "2027-02-05T00:00:00.000Z",
+        ),
+      ).toBe("2–4 February 2027");
+    });
+
+    test("returns empty string when start is null", () => {
+      expect(formatDateRangeLabel(null, null)).toBe("");
     });
   });
 
   describe("getNextBookableDate", () => {
     test("returns the first available date", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 14,
+        minimum_days_before: 0,
       });
 
       const result = getNextBookableDate(event, []);
@@ -184,10 +262,10 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("returns null when no bookable days configured", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 7,
+        minimum_days_before: 0,
       });
 
       expect(getNextBookableDate(event, [])).toBeNull();
@@ -196,14 +274,14 @@ describeWithEnv("dates", { db: true }, () => {
     test("skips holidays", () => {
       const todayStr = today();
       const holidays = [
-        { id: 1, name: "Holiday", start_date: todayStr, end_date: todayStr },
+        { end_date: todayStr, id: 1, name: "Holiday", start_date: todayStr },
       ];
 
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 7,
+        minimum_days_before: 0,
       });
 
       const result = getNextBookableDate(event, holidays);
@@ -212,10 +290,10 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("respects minimum_days_before", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 3,
+        event_type: "daily",
         maximum_days_after: 10,
+        minimum_days_before: 3,
       });
 
       const result = getNextBookableDate(event, []);
@@ -226,14 +304,14 @@ describeWithEnv("dates", { db: true }, () => {
       const start = addDays(today(), 1);
       const end = addDays(today(), 3);
       const holidays = [
-        { id: 1, name: "Long Holiday", start_date: start, end_date: end },
+        { end_date: end, id: 1, name: "Long Holiday", start_date: start },
       ];
 
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 1,
+        event_type: "daily",
         maximum_days_after: 3,
+        minimum_days_before: 1,
       });
 
       expect(getNextBookableDate(event, holidays)).toBeNull();
@@ -241,10 +319,10 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("uses 730 days when maximum_days_after is 0", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: [...VALID_DAY_NAMES],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 0,
+        minimum_days_before: 0,
       });
 
       const result = getNextBookableDate(event, []);
@@ -253,10 +331,10 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("returns first matching day when only specific days are bookable", () => {
       const event = testEvent({
-        event_type: "daily",
         bookable_days: ["Monday"],
-        minimum_days_before: 0,
+        event_type: "daily",
         maximum_days_after: 14,
+        minimum_days_before: 0,
       });
 
       const result = getNextBookableDate(event, []);

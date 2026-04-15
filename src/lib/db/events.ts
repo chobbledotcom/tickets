@@ -71,6 +71,7 @@ export type EventInput = {
   hidden?: boolean;
   purchaseOnly?: boolean;
   assignBuiltSite?: boolean;
+  durationDays?: number;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -171,6 +172,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   hidden: col.boolean(false),
   purchase_only: col.boolean(false),
   assign_built_site: col.boolean(false),
+  duration_days: col.withDefault(() => 1),
 });
 
 export const eventsTable = withCacheInvalidation(rawEventsTable, () =>

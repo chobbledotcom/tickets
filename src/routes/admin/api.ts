@@ -66,6 +66,7 @@ export type CreateEventBody = {
   bookable_days?: string[];
   minimum_days_before?: number;
   maximum_days_after?: number;
+  duration_days?: number;
   non_transferable?: boolean;
   can_pay_more?: boolean;
   hidden?: boolean;
@@ -115,6 +116,7 @@ const optionalFields: FieldMapping[] = [
   ["bookable_days", "bookableDays", "string[]"],
   ["minimum_days_before", "minimumDaysBefore", "number"],
   ["maximum_days_after", "maximumDaysAfter", "number"],
+  ["duration_days", "durationDays", "number"],
   ["non_transferable", "nonTransferable", "boolean"],
   ["can_pay_more", "canPayMore", "boolean"],
   ["hidden", "hidden", "boolean"],
@@ -174,24 +176,24 @@ export const bodyToCreateInput = async (
   body: Record<string, unknown>,
 ): Promise<ParseResult<EventInput>> => {
   if (typeof body.name !== "string" || body.name.trim() === "") {
-    return { ok: false, error: "name is required" };
+    return { error: "name is required", ok: false };
   }
   if (typeof body.max_attendees !== "number" || body.max_attendees < 1) {
-    return { ok: false, error: "max_attendees is required and must be >= 1" };
+    return { error: "max_attendees is required and must be >= 1", ok: false };
   }
 
   const { slug, slugIndex } = await generateUniqueEventSlug();
 
   return {
-    ok: true,
     input: {
       ...pickTypedFields(body, optionalFields),
+      maxAttendees: body.max_attendees,
+      maxPrice: typeof body.max_price === "number" ? body.max_price : 0,
       name: body.name.trim(),
       slug,
       slugIndex,
-      maxAttendees: body.max_attendees,
-      maxPrice: typeof body.max_price === "number" ? body.max_price : 0,
     } as EventInput,
+    ok: true,
   };
 };
 
@@ -208,7 +210,7 @@ export const bodyToUpdateInput = async (
       ? body.max_attendees
       : existing.max_attendees;
   if (maxAttendees < 1) {
-    return { ok: false, error: "max_attendees must be >= 1" };
+    return { error: "max_attendees must be >= 1", ok: false };
   }
 
   const { slug, slugIndex } = await parseUpdateSlug(
@@ -219,19 +221,19 @@ export const bodyToUpdateInput = async (
   );
 
   return {
-    ok: true,
     input: {
       ...existingToDefaults(existing),
       ...pickTypedFields(body, optionalFields),
-      name: parsedName.name,
-      slug,
-      slugIndex,
       maxAttendees,
       maxPrice:
         typeof body.max_price === "number"
           ? body.max_price
           : existing.max_price,
+      name: parsedName.name,
+      slug,
+      slugIndex,
     } as EventInput,
+    ok: true,
   };
 };
 
@@ -290,18 +292,6 @@ export const toAdminEvent = ({
 }: EventWithCount): AdminEvent => rest;
 
 const eventApiRoutes = defineCrudApi<Event, EventInput, EventWithCount>({
-  name: "events",
-  singular: "Event",
-  table: eventsTable,
-  getAll: getAllEvents,
-  lookup: getEventWithCount,
-  toCreateInput: bodyToCreateInput,
-  toUpdateInput: bodyToUpdateInput,
-  validate: validateEventInput,
-  nameField: "name",
-  stripKeys: ["slug_index"],
-  linkActivityToRow: true,
-  listExtras: (session) => ({ admin_level: session.adminLevel }),
   extraRoutes: {
     "DELETE /api/admin/events/:eventId": handleDeleteEvent,
     "POST /api/admin/events/:eventId/deactivate": (request, { eventId }) =>
@@ -309,6 +299,18 @@ const eventApiRoutes = defineCrudApi<Event, EventInput, EventWithCount>({
     "POST /api/admin/events/:eventId/reactivate": (request, { eventId }) =>
       handleToggleActive(request, eventId as number, true),
   },
+  getAll: getAllEvents,
+  linkActivityToRow: true,
+  listExtras: (session) => ({ admin_level: session.adminLevel }),
+  lookup: getEventWithCount,
+  name: "events",
+  nameField: "name",
+  singular: "Event",
+  stripKeys: ["slug_index"],
+  table: eventsTable,
+  toCreateInput: bodyToCreateInput,
+  toUpdateInput: bodyToUpdateInput,
+  validate: validateEventInput,
 });
 
 export const adminApiRoutes = {
