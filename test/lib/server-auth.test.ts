@@ -6,6 +6,7 @@ import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
 import {
+  assertAdminHtml,
   assertPublicHtml,
   awaitTestRequest,
   describeWithEnv,
@@ -30,12 +31,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     });
 
     test("shows dashboard when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest("/admin/", {
-        cookie: cookie,
-      });
-      await expectHtmlResponse(response, 200, "Events");
+      await assertAdminHtml("/admin/", "Events");
     });
   });
 
@@ -252,12 +248,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     });
 
     test("shows sessions page when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest("/admin/sessions", { cookie });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        "/admin/sessions",
         "Sessions",
         "Token",
         "Expires",
